@@ -204,16 +204,18 @@ en GeoTIFF y las regiones desde ficheros):
     "monitoreo": {
       "command": "/ruta/a/miniforge3/envs/monitoreo/bin/monitoreo",
       "args": ["mcp"],
-      "env": {"EE_PROJECT": "mi-proyecto", "MONITOREO_OUTPUT": "/Users/yo/MonitorEO"}
+      "env": {"EE_PROJECT": "mi-proyecto", "MONITOREO_OUTPUT": "/Users/yo/MonitorEO", "PYTHONNOUSERSITE": "1"}
     }
   }
 }
 ```
 
+(`PYTHONNOUSERSITE` evita que paquetes instalados con `pip install --user` en `~/.local` sustituyan a los del entorno.)
+
 Claude Code:
 
 ```bash
-claude mcp add monitoreo -e EE_PROJECT=mi-proyecto -- /ruta/a/miniforge3/envs/monitoreo/bin/monitoreo mcp
+claude mcp add monitoreo -e EE_PROJECT=mi-proyecto -e PYTHONNOUSERSITE=1 -- /ruta/a/miniforge3/envs/monitoreo/bin/monitoreo mcp
 ```
 
 Ejemplo de petición: *"Compara el NDVI mensual de Sentinel-2 de 2019 a 2023 en el Parque Nacional de Sierra Nevada
