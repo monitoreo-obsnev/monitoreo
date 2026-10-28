@@ -551,7 +551,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	       'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']}, 'names': names}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
-		        'reference': '/'.join(ref['period']), 'other': '/'.join(oth['period']), 'step': step,
+		        'reference_period': '/'.join(ref['period']), 'other_period': '/'.join(oth['period']), 'step': step,
 		        'metric': metric, 'stat': stat, 'unit': unit, 'scale_m': scale}
 		out['csv'] = timeseries.write_csv(profile, csv, meta, COMPARISON_COLUMNS)
 	if chart and any(r['reference'] is not None or r['other'] is not None for r in profile):

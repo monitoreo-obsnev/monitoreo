@@ -48,6 +48,7 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 	"""PNG (bytes) of the yearly values of each part of the year (YEARLY: [{region, part, year, value}]) with the Sen
 	line of its trend (TRENDS: rows of monitoreo.trends.trend_rows), a panel per part and a colour per region."""
 	from matplotlib.figure import Figure
+	from matplotlib.ticker import MaxNLocator
 
 	parts = sorted({t['part'] for t in trends})
 	regions = []
@@ -75,6 +76,7 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 				if len(regions) == 1:
 					label += f"  {t['slope']:+.3g}/año, p={t['p_value']:.2g}"
 		ax.set_title(label, fontsize=8)
+		ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))  # whole years
 		ax.tick_params(labelsize=7)
 		ax.grid(alpha=0.3)
 	if len(regions) > 1:

@@ -118,7 +118,7 @@ def main(argv=None):
 		return _download(args, services)
 	services.init(args.project)
 	if args.cmd == 'parks':
-		_table(services.find_protected_areas(args.text, args.limit), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
+		_table(_fmt(services.find_protected_areas(args.text, args.limit)), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)
@@ -126,7 +126,7 @@ def main(argv=None):
 	res = services.time_series(json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.step,
 	                           args.metric, args.stat, scale=args.scale, csv=args.csv, chart=args.png,
 	                           progress=lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr))
-	_table(res['rows'], ['region', 'date', 'value', 'n_pixels', 'n_images'])
+	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
 

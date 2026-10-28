@@ -1,11 +1,11 @@
 """What MonitorEO-OBSNEV is and who funds it: the description and the acknowledgements shown by every tool (README,
-command line, MCP server, R package and QGIS plugin), with the logos of the MonitorEO manual
-(https://monitoreo-obsnev.github.io/manual) in the folder logos of this package."""
+command line, MCP server, R package and QGIS plugin), with the logos of the funders in the folder logos of this
+package. The manual of the tools is the wiki of the repository."""
 
 import os
 
 APP = 'https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev'
-MANUAL = 'https://monitoreo-obsnev.github.io/manual'
+MANUAL = 'https://github.com/monitoreo-obsnev/monitoreo/wiki'  # tutorials of QGIS, MCP, Python and R
 REPOSITORY = 'https://github.com/monitoreo-obsnev/monitoreo'
 
 DESCRIPTION = {

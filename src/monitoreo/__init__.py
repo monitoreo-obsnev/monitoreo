@@ -31,4 +31,4 @@ Government of Andalusia.
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.3.2'
+__version__ = '0.3.3'

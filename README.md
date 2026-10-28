@@ -6,11 +6,16 @@ MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables 
 
 MonitorEO-OBSNEV es una herramienta abierta de monitorización de Variables Esenciales de la Biodiversidad basada en sensores satelitales y modelos generados por la Universidad de Granada. Permite a la ciudadanía, gestores y científicos crear mapas y gráficos de métricas clave de los ecosistemas para apoyar la toma de decisiones.
 
-[App de MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev) · [Manual](https://monitoreo-obsnev.github.io/manual) · [Agradecimientos](#agradecimientos--acknowledgements)
+[App de MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev) · [Manual con ejemplos (wiki)](https://github.com/monitoreo-obsnev/monitoreo/wiki) · [Agradecimientos](#agradecimientos--acknowledgements)
 
 Las variables de satélite de [MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev)
 (OBSNEV, Universidad de Granada), calculadas con Google Earth Engine desde cuatro herramientas que usan **las mismas
-funciones** (`monitoreo.services`):
+funciones** (`monitoreo.services`). El manual de cada una, con tutoriales y ejemplos, está en la
+[wiki](https://github.com/monitoreo-obsnev/monitoreo/wiki):
+[QGIS](https://github.com/monitoreo-obsnev/monitoreo/wiki/QGIS),
+[MCP](https://github.com/monitoreo-obsnev/monitoreo/wiki/MCP),
+[Python](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python) y
+[R](https://github.com/monitoreo-obsnev/monitoreo/wiki/R).
 
 | Herramienta | Para quién | Dónde |
 |---|---|---|
