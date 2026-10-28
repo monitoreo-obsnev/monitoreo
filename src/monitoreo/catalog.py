@@ -11,6 +11,22 @@ FIXES = {
 	32: {'scale': 0.1},  # Lai of MCD15A3H has a scale of 0.1 (raw 58 = 5.8 m2/m2 in the Amazon rain forest), not 0.01
 }
 
+# Variables that MonitorEO-OBSNEV adds to those of the app: {ref: (entry of the app it copies, changes)}. Their refs
+# start at 101, so that they never collide with the entries of the app.
+NBR_PALETTE = ['7a0403', 'c0392b', 'e67e22', 'f5cba7', 'f2efe6', 'b8e186', '7fbc41', '4d9221', '276419']
+EXTRA = {
+	101: (3, {'index': 'NBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
+	102: (4, {'index': 'NBR', 'ft': 'N(B8,B12)', 'f': '(B8 - B12) / (B8 + B12)'}),  # Sentinel-2
+}
+NBR = {
+	'type': 'Perturbaciones', 'type_en': 'Disturbances', 'type_fr': 'Disturbances', 'type_de': 'Disturbances',
+	'vname': 'Índice Normalizado de Quema', 'vname_en': 'Normalized Burn Ratio',
+	'vname_fr': 'Normalized Burn Ratio', 'vname_de': 'Normalized Burn Ratio', 'minp': -0.5, 'maxp': 1,
+	'pm': NBR_PALETTE, 'pg': '#7a0403',
+	'notes': {'f': 'Burn severity: dNBR = NBR before - NBR after the fire (compare_series or download_comparison give '
+	               'after - before, that is -dNBR); dNBR > 0.1 burned (Key & Benson 2006).'},
+}
+
 _catalog = None
 
 
@@ -24,8 +40,11 @@ def load():
 
 
 def variables():
-	"""Entries of the catalog, with FIXES applied."""
-	return [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
+	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
+	app = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
+	by_ref = {e['ref']: e for e in app}
+	extra = [dict(by_ref[base], **NBR, **changes, ref=ref) for ref, (base, changes) in EXTRA.items() if base in by_ref]
+	return app + extra
 
 
 def find(index, sensor=None, collection=None, ref=None):

@@ -5,13 +5,16 @@ import datetime as dt
 
 import pytest
 
-from monitoreo import catalog, charts, composite, drive, sensors, services, timeseries, variable
+from monitoreo import catalog, charts, composite, drive, fire, sensors, services, timeseries, variable
 from monitoreo.grid import Grid
 
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 32
+	assert len(entries) == 34  # the 32 of the app and NBR of Landsat and Sentinel-2
+	nbr = catalog.find('NBR', 'Sentinel-2')
+	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
+	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
 	assert catalog.find('ndvi', 'sentinel-2')['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('NDVI', 'Modis')['col'] == 'MODIS/061/MOD13Q1'  # first entry of the catalog
 	assert catalog.find(None, ref=32)['scale'] == 0.1  # FIXES: scale of LAI
@@ -187,3 +190,10 @@ def test_about():
 		assert 'C-EXP-074-UGR23' in a['acknowledgements'] and len(a['logos']) == 2
 	assert all(open(p, 'rb').read(4) in (b'\x89PNG', b'\xff\xd8\xff\xe0', b'\xff\xd8\xff\xe1') for p in about.LOGOS)
 	assert 'NevadEO' in about.text('en') and about.MANUAL in about.text('es')
+
+
+def test_burn_severity_classes():
+	assert [c for c, _, _ in fire.SEVERITY] == [-2, -1, 0, 1, 2, 3, 4]
+	assert fire.limits(1) == (0.1, 0.27) and fire.limits(-2) == (None, -0.25) and fire.limits(4) == (0.66, None)
+	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 2.0}], 'Teide')
+	assert len(rows) == 7 and {r['class']: r['ha'] for r in rows}[1] == 12.5 and rows[0]['ha'] == 0.0

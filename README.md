@@ -37,14 +37,16 @@ GeoJSON):
   en mapa píxel a píxel.
 - **Comparación de dos periodos** (el de referencia y otro, como el modo de comparación de MonitorEO-TEST): la media
   de cada parte del año en cada periodo y su diferencia, en tabla y gráfica, y el mapa de la diferencia.
+- **Severidad de incendios**: el dNBR (NBR de Sentinel-2 o Landsat antes menos después del fuego) con las clases
+  oficiales del USGS (Key y Benson, 2006), con la superficie de cada clase y el GeoTIFF del dNBR y su clase.
 - **Exportaciones** a Google Drive de mapas (GeoTIFF) y series (CSV) grandes.
 - **Descargas** de GeoTIFF a tu ordenador: un mapa, o una **receta** de varias variables y métricas en rejillas
   alineadas sobre un área de estudio y, con un píxel más grueso, sobre las ecorregiones que toca (las variables de
   entrada de un modelo; es lo que usa [eHabitat+](https://github.com/javimarlop/eHabpy)).
 
 Variables: las 32 del catálogo de MonitorEO (NDVI, EVI, NDWI, LSWI, NDSI, NDCI, albedo, temperatura de superficie,
-evapotranspiración, calor latente, LAI, clorofila, aerosoles) de Sentinel-2, Landsat 5-9 y MODIS, y cualquier otra
-colección o imagen de Earth Engine. Por defecto se aplican los **filtros por píxel** de MonitorEO (nubes, agua,
+evapotranspiración, calor latente, LAI, clorofila, aerosoles) de Sentinel-2, Landsat 5-9 y MODIS, el NBR de
+Sentinel-2 y Landsat (incendios, `catalog.EXTRA`) y cualquier otra colección o imagen de Earth Engine. Por defecto se aplican los **filtros por píxel** de MonitorEO (nubes, agua,
 nieve, aerosoles), que en la app están desactivados; las nubes de Sentinel-2 se quitan con Cloud Score+.
 
 Todo se calcula con **la cuenta de Earth Engine de cada usuario** y su proyecto de Google Cloud: no hay servidor
@@ -152,6 +154,18 @@ mo.download_comparison({'wdpa_id': 389011}, 'NDVI', 'Modis', '2018-01-01', '2021
                        '2023-12-31', metric='median', path='diferencia.tif')   # bandas difference, reference, other
 ```
 
+Severidad de un incendio (`monitoreo.fire`): dNBR = NBR antes − NBR después, cada uno la mediana de las imágenes de
+un periodo antes y otro después del fuego, clasificado con la escala del USGS (rebrote alto y bajo, no quemado,
+severidad baja, moderada-baja, moderada-alta y alta; quemado desde dNBR 0,1), como la práctica recomendada de
+UN-SPIDER para Earth Engine:
+
+```python
+s = mo.burn_severity({'wdpa_id': 389013}, 'Sentinel-2', '2023-05-15', '2023-08-14',   # antes del incendio
+                     '2023-09-15', '2023-11-30', path='severidad.tif', csv='severidad.csv')   # después
+s['burned_ha']    # {'El Teide': 956.4}: hectáreas con dNBR >= 0,1
+s['classes'][3]   # {'class': 1, 'label': 'Severidad baja', 'dnbr_min': 0.1, 'dnbr_max': 0.27, 'ha': 559.0, ...}
+```
+
 Diferencias con MonitorEO-TEST: el número de años `n` es el de cada píxel (años con datos), no el del periodo; el
 p-valor es 2·(1 − Φ(|Z|)) (MonitorEO-TEST calcula `2·(1 − erf(|Z|/√2))`, el doble), y el valor inicial de la recta de
 Sen es el del primer año, no el del año 0.
@@ -247,7 +261,8 @@ Herramientas: `list_variables`, `describe_variable`, `find_protected_areas`, `ti
 `map_layer` (URL de teselas y vista previa), `region_stats`, `export_image_to_drive`,
 `export_time_series_to_drive`, `task_status`, `download_image` y `download_variables` (GeoTIFF en el ordenador; la
 segunda con una receta, como JSON), las tendencias estacionales `trend_table`, `trend_map` y `download_trend`, la
-comparación de periodos `compare_series`, `compare_map` y `download_comparison`, y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
+comparación de periodos `compare_series`, `compare_map` y `download_comparison`, la severidad de incendios
+`burn_severity`, y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
 defecto `~/MonitorEO`).
 
 **Siempre la última versión de GitHub**: al arrancar, `monitoreo mcp` compara el paquete instalado con el último
@@ -321,7 +336,7 @@ Funciones: `mo_init`, `mo_install`, `mo_variables`, `mo_describe`, `mo_protected
 `mo_ecoregion`, `mo_bbox`, `mo_point`, `mo_geojson`, `mo_sf`), `mo_time_series`, `mo_plot`, `mo_map_layer`,
 `mo_leaflet`, `mo_image`, `mo_region_stats`, `mo_download_image`, `mo_download_variables`, tendencias
 (`mo_trend_table`, `mo_trend_map`, `mo_download_trend`), comparación de periodos (`mo_compare_series`,
-`mo_compare_map`, `mo_download_comparison`), `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
+`mo_compare_map`, `mo_download_comparison`), severidad de incendios (`mo_burn_severity`), `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
 
 ## Catálogo
 

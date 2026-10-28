@@ -23,7 +23,7 @@ import re
 
 import ee
 
-from . import areas, catalog, charts, composite, drive, maps, sensors, timeseries, trends
+from . import areas, catalog, charts, composite, drive, fire, maps, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -633,6 +633,54 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	vis = trends.vis('difference', lo, hi)
 	return dict(vis, file=path, bands=bands, grid=grid.describe(), resolution=res, native_resolution=native, name=name,
 	            unit=_unit(spec))
+
+
+BURN_COLUMNS = ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha']
+
+
+def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
+                  metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
+                  max_pixels=None, tile=512, workers=8, progress=None):
+	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
+	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
+	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
+	each class are computed by Earth Engine on pixels of RESOLUTION metres (default: those of the data). Writes the
+	table to CSV and, with PATH, a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
+	Returns {'classes': [{region, class, label, dnbr_min, dnbr_max, ha}], 'burned_ha': {region: hectares with
+	dNBR >= 0.1}, 'scale', 'title', 'csv', 'file', 'bands', 'grid', 'resolution', 'native_resolution'}."""
+	regions_ = areas.region(region)
+	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
+	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	spec, regions, img, native, name = _comparison(regions_, 'NBR', sensor, start, end, other_start, other_end,
+	                                               metric, 'period', 'mean', season, quality, res, {})
+	dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr')
+	severity = fire.classify(dnbr)
+	hectares = ee.Image.pixelArea().divide(1e4).addBands(severity).updateMask(dnbr.mask())
+	stats = hectares.reduceRegions(collection=regions, reducer=ee.Reducer.sum().group(1, 'class'), scale=res,
+	                               crs=grid.crs, tileScale=4).getInfo()['features']
+	classes = []
+	for f in stats:
+		classes += fire.table(f['properties'].get('groups'), str(f['properties'].get('name')))
+	burned = {}
+	for r in classes:
+		burned[r['region']] = burned.get(r['region'], 0.0) + (r['ha'] if r['class'] >= 1 else 0.0)
+	title = (f"Burn severity (dNBR, USGS) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
+	         f"after {other_start} / {other_end}")
+	out = {'classes': classes, 'burned_ha': burned, 'scale': res, 'title': title, 'csv': None, 'file': None,
+	       'bands': None, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
+	if csv:
+		meta = {'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}', 'metric': metric,
+		        'scale_m': res}
+		out['csv'] = timeseries.write_csv(classes, csv, meta, BURN_COLUMNS)
+	if path:
+		bands = ['dnbr', 'severity', 'nbr_before', 'nbr_after']
+		image = ee.Image.cat([dnbr, severity.toFloat(), img.select('reference'), img.select('other')]).rename(bands)
+		download(image, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
+		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
+		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
+		             severity='USGS, Key & Benson 2006'), default=str)})
+		out.update(file=path, bands=bands)
+	return out
 
 
 def task_status(operation):

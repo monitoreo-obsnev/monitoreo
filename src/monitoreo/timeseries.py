@@ -125,7 +125,8 @@ def _fetch(spec, regions, step, metric, stat, scale, steps, crs, retries=4):
 	for attempt in range(retries):
 		try:
 			fc = table(spec, regions, step, metric, stat, scale, steps, crs)
-			return [f['properties'] for f in fc.getInfo()['features']]
+			# Earth Engine leaves out the null properties: a step without images (e.g. Landsat in 2012) has no value
+			return [{'value': None, 'n_pixels': 0, **f['properties']} for f in fc.getInfo()['features']]
 		except ee.EEException as e:
 			msg = str(e).lower()
 			if any(s in msg for s in SPLIT_ERRORS) and len(steps) > 1:

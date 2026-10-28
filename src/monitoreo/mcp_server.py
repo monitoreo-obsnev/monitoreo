@@ -34,7 +34,7 @@ INSTRUCTIONS = about_.DESCRIPTION['en'] + ' ' + about_.ACKNOWLEDGEMENTS['en'] + 
 asks about MonitorEO or its sources (the tool about gives it with the logos).
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, NDSI, NDCI, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
+LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
 Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols).
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
@@ -44,7 +44,8 @@ export_time_series_to_drive, then task_status). GeoTIFFs on this computer: downl
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
-pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison.
+pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
+severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF): burn_severity.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
@@ -347,6 +348,24 @@ def download_comparison(region: dict, variable: str, sensor: str, start: str, en
 		quality=quality, resolution=resolution, crs=crs,
 		path=_out(f'comparison_{variable}_{sensor}_{metric}_{start}_{end}_{other_start}_{other_end}', 'tif'),
 		collection=collection))
+
+
+@tool
+def burn_severity(region: dict, start: str, end: str, other_start: str, other_end: str, sensor: str = 'Sentinel-2',
+                  metric: str = 'median', season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                  resolution: Optional[float] = None, crs: str = 'auto') -> str:
+	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
+	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
+	Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
+	of the region (unburned, low, moderate-low, moderate-high and high severity, and enhanced regrowth) and the burned
+	area (dNBR >= 0.1), writes them to a CSV and downloads a GeoTIFF with the bands dnbr, severity (class -2 to 4),
+	nbr_before and nbr_after. Use periods without the fire: e.g. the 3 months before it and the 2-3 months after it
+	ends. For small regions (bigger ones: lower resolution)."""
+	_ready()
+	stem = f'burn_severity_{sensor}_{start}_{end}_{other_start}_{other_end}'
+	return _text(services.burn_severity(region, sensor, start, end, other_start, other_end, metric, season=season,
+	                                    quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'),
+	                                    csv=_out(stem, 'csv')))
 
 
 @tool

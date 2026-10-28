@@ -337,6 +337,24 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
                                  path = path.expand(path), collection = collection)
 }
 
+#' Burn severity of a fire with the dNBR (NBR of a period before the fire minus NBR of a period after it) and the
+#' classes of the USGS (Key & Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). Returns a data.frame (region,
+#' class, label, dnbr_min, dnbr_max, ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title
+#' and, with `path`, file: a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
+#' @export
+mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
+                             metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
+                             csv = NULL) {
+  res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
+                                  quality = quality, resolution = resolution, crs = crs,
+                                  path = if (is.null(path)) NULL else path.expand(path), csv = csv)
+  df <- rows_df(res$classes)
+  attr(df, "burned_ha") <- unlist(res$burned_ha)
+  attr(df, "title") <- res$title
+  attr(df, "file") <- res$file
+  df
+}
+
 #' State of an export task: PENDING, RUNNING, SUCCEEDED, FAILED or CANCELLED.
 #' @export
 mo_task_status <- function(operation) services()$task_status(operation)
