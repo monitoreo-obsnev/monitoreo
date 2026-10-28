@@ -54,6 +54,13 @@ def project():
 	return _project
 
 
+def about(lang='en'):
+	"""What MonitorEO-OBSNEV is and who funds it: {'name', 'description', 'acknowledgements', 'logos' (image files),
+	'app', 'manual', 'repository'} in LANG ('en' or 'es')."""
+	from . import about as about_
+	return about_.about(lang)
+
+
 # Catalog -----------------------------------------------------------------------------------------------------------
 
 def _name(e, lang, field):

@@ -177,3 +177,13 @@ def test_series_split_and_retry(monkeypatch):
 	monkeypatch.setattr(timeseries, 'table', broken)
 	with pytest.raises(ee.EEException, match='not found'):  # not retried
 		timeseries._fetch(None, None, 'monthly', 'mean', 'mean', 250, list('ab'), 'EPSG:32630')
+
+
+def test_about():
+	from monitoreo import about
+	for lang in ('en', 'es'):
+		a = services.about(lang)
+		assert a['description'].startswith('MonitorEO-OBSNEV') and 'PID2023-151939OB-I00' in a['acknowledgements']
+		assert 'C-EXP-074-UGR23' in a['acknowledgements'] and len(a['logos']) == 2
+	assert all(open(p, 'rb').read(4) in (b'\x89PNG', b'\xff\xd8\xff\xe0', b'\xff\xd8\xff\xe1') for p in about.LOGOS)
+	assert 'NevadEO' in about.text('en') and about.MANUAL in about.text('es')

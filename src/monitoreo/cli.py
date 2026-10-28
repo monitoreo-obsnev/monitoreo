@@ -9,6 +9,7 @@
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
+    monitoreo about [--lang es]                      what MonitorEO-OBSNEV is and who funds it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
 
@@ -35,7 +36,9 @@ def _table(rows, cols):
 
 
 def main(argv=None):
-	parser = argparse.ArgumentParser(prog='monitoreo', description='MonitorEO (OBSNEV) with Google Earth Engine.')
+	from . import about
+	parser = argparse.ArgumentParser(prog='monitoreo', description=about.DESCRIPTION['en'],
+	                                 epilog=about.ACKNOWLEDGEMENTS['en'])
 	parser.add_argument('--version', action='version', version=__version__)
 	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
 	sub = parser.add_subparsers(dest='cmd', required=True)
@@ -91,10 +94,15 @@ def main(argv=None):
 	p.add_argument('--no-wait', action='store_true', help='do not wait for the export tasks: run again to import them')
 	p.add_argument('--tile', type=int, default=512, help='size of the tiles computed by Earth Engine (pixels)')
 	p.add_argument('--workers', type=int, default=8, help='tiles computed at the same time')
+	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is and who funds it')
+	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
 
+	if args.cmd == 'about':
+		print(about.text(args.lang))
+		return
 	from . import services
 	if args.cmd == 'list':
 		_table(services.list_variables(args.sensor, args.text, args.lang),

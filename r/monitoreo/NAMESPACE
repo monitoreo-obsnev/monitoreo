@@ -1,3 +1,4 @@
+export(mo_about)
 export(mo_install)
 export(mo_init)
 export(mo_variables)

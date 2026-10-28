@@ -24,12 +24,16 @@ except ImportError:
 	from mcp.server.fastmcp import FastMCP as Server, Image  # mcp 1.x
 	from mcp.server.fastmcp.exceptions import ToolError
 
+from . import about as about_
 from . import services
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 MAX_ROWS_SHOWN = 300
 
-INSTRUCTIONS = """MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
+INSTRUCTIONS = about_.DESCRIPTION['en'] + ' ' + about_.ACKNOWLEDGEMENTS['en'] + """ Mention this funding when the user
+asks about MonitorEO or its sources (the tool about gives it with the logos).
+
+MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
 Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols).
 
@@ -77,6 +81,15 @@ def _out(stem, ext):
 
 def _text(obj):
 	return json.dumps(obj, ensure_ascii=False, indent=1, default=str)
+
+
+@tool
+def about(lang: str = 'en'):
+	"""What MonitorEO-OBSNEV is and who funds it (description and acknowledgements, in 'en' or 'es'), with the logos
+	of the institutions and projects."""
+	a = services.about(lang)
+	return [_text({k: a[k] for k in ('name', 'description', 'acknowledgements', 'app', 'manual', 'repository')})] + \
+	       [Image(path=p) for p in a['logos']]
 
 
 @tool

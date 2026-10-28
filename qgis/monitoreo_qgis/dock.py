@@ -11,7 +11,7 @@ from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateRe
                        QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, Qt, QTimer
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout,
                                  QWidget)
@@ -296,6 +296,7 @@ class MonitorEODock(QDockWidget):
 		self.export_status.setWordWrap(True)
 		f.addRow(self.export_status)
 		main.addWidget(box)
+		main.addWidget(self.about_box())
 		main.addStretch()
 
 		scroll = QScrollArea()
@@ -318,6 +319,26 @@ class MonitorEODock(QDockWidget):
 
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+
+	def about_box(self):
+		"""What MonitorEO-OBSNEV is and who funds it, with the logos of the institutions and projects."""
+		from monitoreo import about
+		box = QGroupBox('Acerca de MonitorEO')
+		lay = QVBoxLayout(box)
+		for path in about.about('es')['logos']:
+			logo = QLabel()
+			logo.setPixmap(QPixmap(path).scaledToWidth(330, Qt.TransformationMode.SmoothTransformation))
+			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+			lay.addWidget(logo)
+		for text in (about.DESCRIPTION['es'], about.ACKNOWLEDGEMENTS['es'],
+		             f'<a href="{about.APP}">App de MonitorEO</a> · <a href="{about.MANUAL}">Manual</a> · '
+		             f'<a href="{about.REPOSITORY}">Código</a>'):
+			label = QLabel(text)
+			label.setWordWrap(True)
+			label.setOpenExternalLinks(True)
+			label.setStyleSheet('font-size: 11px; color: #444;')
+			lay.addWidget(label)
+		return box
 
 	def project_layers_changed(self, *args):
 		self.sync_fields()
