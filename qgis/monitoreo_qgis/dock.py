@@ -119,9 +119,11 @@ class MonitorEODock(QDockWidget):
 		self.name_field = QgsFieldComboBox()
 		self.name_field.setAllowEmptyFieldName(True)
 		self.layer.layerChanged.connect(lambda layer: self.sync_fields())
-		# the layer box can pick a new layer by itself without layerChanged (QGIS 4): follow the project too
-		QgsProject.instance().layersAdded.connect(lambda layers: self.sync_fields())
-		QgsProject.instance().layersRemoved.connect(lambda ids: self.sync_fields())
+		# the layer box can pick a new layer by itself without layerChanged (QGIS 4): follow the project too, and stop
+		# following it in stop(), or the project would call this panel once deleted (when the plugin is reloaded)
+		self.project_signals = [QgsProject.instance().layersAdded, QgsProject.instance().layersRemoved]
+		for signal in self.project_signals:
+			signal.connect(self.project_layers_changed)
 		self.sync_fields()
 		self.layer_row = QWidget()
 		lf = QFormLayout(self.layer_row)
@@ -273,8 +275,16 @@ class MonitorEODock(QDockWidget):
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
 
+	def project_layers_changed(self, *args):
+		self.sync_fields()
+
 	def stop(self):
 		self.timer.stop()
+		for signal in self.project_signals:
+			try:
+				signal.disconnect(self.project_layers_changed)
+			except (TypeError, RuntimeError):  # already disconnected
+				pass
 
 	# Arguments --------------------------------------------------------------------------------------------------
 
