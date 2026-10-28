@@ -1,4 +1,5 @@
-# Entorno de MonitorEO en Python (paquete monitoreo, servidor MCP y pruebas).
+# Entorno de MonitorEO en Python: el paquete monitoreo de GitHub (que `monitoreo mcp` mantiene en su última versión),
+# con el servidor MCP, las gráficas y las pruebas.
 # Créalo con Miniforge (solo conda-forge, sin las condiciones de uso del canal defaults de Anaconda):
 #   conda env create -f environment.yml
 #   conda activate monitoreo
@@ -18,4 +19,4 @@ dependencies:
   - pytest
   - pip
   - pip:
-      - -e .
+      - monitoreo[mcp,plot] @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip

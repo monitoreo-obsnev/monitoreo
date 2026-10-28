@@ -49,7 +49,8 @@ que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cu
 ## Instalación (Python, MCP y R)
 
 Con [Miniforge](https://github.com/conda-forge/miniforge) (solo conda-forge; Miniconda usa por defecto el canal
-`defaults` de Anaconda, cuyas condiciones exigen licencia a organizaciones grandes), desde la carpeta del repositorio:
+`defaults` de Anaconda, cuyas condiciones exigen licencia a organizaciones grandes) y el fichero `environment.yml` de
+este repositorio, que instala `monitoreo` desde GitHub:
 
 ```bash
 conda env create -f environment.yml
@@ -59,7 +60,7 @@ conda activate monitoreo
 o con pip en cualquier entorno de Python 3.9 o posterior:
 
 ```bash
-pip install "monitoreo[mcp,plot] @ git+https://github.com/monitoreo-obsnev/monitoreo"
+pip install "monitoreo[mcp,plot] @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip"
 ```
 
 GDAL solo hace falta para leer ficheros vectoriales como región y descargar GeoTIFF directamente; el entorno de conda
@@ -188,7 +189,14 @@ Herramientas: `list_variables`, `describe_variable`, `find_protected_areas`, `ti
 segunda con una receta, como JSON) y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
 defecto `~/MonitorEO`).
 
-Claude Desktop (`claude_desktop_config.json`), con el entorno de conda:
+**Siempre la última versión de GitHub**: al arrancar, `monitoreo mcp` compara el paquete instalado con el último
+commit de GitHub y, si no es el mismo, instala esa versión con pip en su entorno y arranca con ella. Sin conexión
+avisa y arranca con la instalada; `monitoreo mcp --no-update` se salta la comprobación. Solo se actualiza el paquete
+instalado en el entorno: un clon o una copia de desarrollo (`pip install -e`) no se tocan (el servidor avisa de que
+usa una copia local).
+
+Claude Desktop (`claude_desktop_config.json`), con el entorno de conda (que trae GDAL, necesario para las descargas
+en GeoTIFF y las regiones desde ficheros):
 
 ```json
 {
@@ -200,13 +208,6 @@ Claude Desktop (`claude_desktop_config.json`), con el entorno de conda:
     }
   }
 }
-```
-
-o siempre con la última versión de GitHub, con [uv](https://docs.astral.sh/uv/):
-
-```json
-"command": "uvx",
-"args": ["--from", "monitoreo[mcp,plot] @ git+https://github.com/monitoreo-obsnev/monitoreo", "monitoreo", "mcp"]
 ```
 
 Claude Code:
@@ -282,6 +283,10 @@ Correcciones respecto a la app, en el código:
 pytest tests/test_offline.py                 # sin Earth Engine
 EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine
 ```
+
+Las pruebas usan el código de `src/` del clon aunque el entorno tenga instalada la versión de GitHub. Para probar la
+línea de comandos o el servidor MCP con cambios sin publicar: `PYTHONPATH=src python -m monitoreo.cli mcp --no-update`
+(o `pip install -e .` en un entorno aparte, que ni `monitoreo mcp` ni eHabitat+ actualizan).
 
 Pendiente: elegir la licencia (`r/monitoreo/LICENSE`, `pyproject.toml`). El repositorio es
 `github.com/monitoreo-obsnev/monitoreo` (en este README, `qgis/monitoreo_qgis/metadata.txt` y

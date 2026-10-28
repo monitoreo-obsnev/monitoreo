@@ -1,6 +1,9 @@
 """MCP server of MonitorEO (stdio), for language models: the functions of monitoreo.services as tools.
 
-    monitoreo mcp        (or python -m monitoreo.mcp_server)
+    monitoreo mcp        (or python -m monitoreo.mcp_server, without the update below)
+
+`monitoreo mcp` first installs the last version of the package in GitHub if the installed one is another (see
+monitoreo.update), so the server always runs that version; --no-update skips it.
 
 It uses the Earth Engine credentials of `earthengine authenticate` and the project of the variable EE_PROJECT (or
 the tool connect). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:

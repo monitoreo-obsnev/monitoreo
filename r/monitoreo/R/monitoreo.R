@@ -18,9 +18,9 @@ services <- function() {
 }
 
 #' Install the Python package monitoreo in the Python of reticulate (that of rgee, if rgee is used).
-#' @param source pip source: a GitHub URL ("git+https://github.com/monitoreo-obsnev/monitoreo") or a local folder.
+#' @param source pip source: the last version of GitHub (an archive: no git needed) or a local folder.
 #' @export
-mo_install <- function(source = "git+https://github.com/monitoreo-obsnev/monitoreo", ...) {
+mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip", ...) {
   reticulate::py_install(source, pip = TRUE, ...)
   invisible(TRUE)
 }

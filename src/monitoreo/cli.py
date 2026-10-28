@@ -5,7 +5,8 @@
     monitoreo parks TEXT                             protected areas of WDPA with TEXT in their name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
-    monitoreo mcp                                    server MCP (stdio) for language models
+    monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
+                                                     of GitHub (installed when it starts, if needed)
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
@@ -15,6 +16,8 @@ monitoreo.recipe).
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 
 from . import __version__
@@ -67,7 +70,8 @@ def main(argv=None):
 	p.add_argument('--no-wait', action='store_true', help='do not wait for the export tasks: run again to import them')
 	p.add_argument('--tile', type=int, default=512, help='size of the tiles computed by Earth Engine (pixels)')
 	p.add_argument('--workers', type=int, default=8, help='tiles computed at the same time')
-	sub.add_parser('mcp', help='server MCP (stdio) for language models')
+	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
+	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
 
 	from . import services
@@ -79,8 +83,7 @@ def main(argv=None):
 		print(json.dumps(services.describe_variable(args.variable, args.sensor), ensure_ascii=False, indent=1))
 		return
 	if args.cmd == 'mcp':
-		from . import mcp_server
-		mcp_server.main()
+		_mcp(args)
 		return
 	if args.cmd == 'download':
 		return _download(args, services)
@@ -94,6 +97,19 @@ def main(argv=None):
 	_table(res['rows'], ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+
+
+def _mcp(args):
+	"""Start the MCP server, after installing the last version of GitHub (then it starts again, with that version)."""
+	if not args.no_update:
+		from . import update
+		if update.ensure_latest('mcp,plot') == 'updated':
+			cmd = [sys.executable, '-m', 'monitoreo.cli', 'mcp', '--no-update']
+			if os.name == 'nt':  # no exec on Windows: run it with the same stdin and stdout
+				sys.exit(subprocess.call(cmd))
+			os.execv(sys.executable, cmd)
+	from . import mcp_server
+	mcp_server.main()
 
 
 def _download(args, services):

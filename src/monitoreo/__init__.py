@@ -15,6 +15,7 @@ exports, for Python, QGIS, R and language models (MCP).
     grid       grids aligned to the pixel size and direct download of an image in tiles (GDAL)
     drive      export of an image to Google Drive and import of the exported files onto a grid (GDAL)
     mcp_server server MCP of these functions for language models
+    update     keeps the installed package at the last version of GitHub (used by the MCP server)
 
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """

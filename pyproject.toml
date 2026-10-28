@@ -31,4 +31,5 @@ where = ["src"]
 monitoreo = ["catalog.json"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]  # the tests use this clone, whatever version of monitoreo is installed
 markers = ["ee: needs Earth Engine (set EE_PROJECT)"]

@@ -126,3 +126,26 @@ def test_recipe(tmp_path):
 	assert len(warnings) == 1 and 'snow' in warnings[0]
 	many = recipe.expand(dict(r, variables=[{'name': f'v{i}', 'image': 'X', 'band': 'b'} for i in range(10)]))
 	assert many[0]['file'] == '01_v0.tif' and many[-1]['file'] == '10_v9.tif'
+
+
+def test_update(monkeypatch):
+	from monitoreo import update
+	calls, quiet = [], (lambda msg: None)
+	new, old = 'b' * 40, 'a' * 40
+	monkeypatch.setattr(update, '_pip', lambda *args: calls.append(args))
+	assert update.local_copy()  # these tests run the clone (src)
+	monkeypatch.setattr(update, 'local_copy', lambda: None)
+	monkeypatch.setattr(update, 'latest', lambda: new)
+	monkeypatch.setattr(update, 'installed', lambda: ('0.2.0', old, None))
+	assert update.ensure_latest('mcp,plot', log=quiet) == 'updated'
+	url = f'https://github.com/monitoreo-obsnev/monitoreo/archive/{new}.zip'
+	assert calls == [('--force-reinstall', '--no-deps', f'monitoreo @ {url}'), (f'monitoreo[mcp,plot] @ {url}',)]
+	monkeypatch.setattr(update, 'installed', lambda: ('0.2.0', new, None))
+	assert update.ensure_latest(log=quiet) == 'current'
+	monkeypatch.setattr(update, 'local_copy', lambda: '/clone/src/monitoreo')
+	assert update.ensure_latest(log=quiet) == 'local' and len(calls) == 2
+
+	def offline():
+		raise OSError('no network')
+	monkeypatch.setattr(update, 'latest', offline)
+	assert update.ensure_latest(log=quiet) == 'offline'
