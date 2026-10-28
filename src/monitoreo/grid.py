@@ -85,19 +85,21 @@ def _split(tile):
 
 
 def _compute(image, grid, tile, retries=4):
-	"""Values of a tile (2D float32 array), split into four tiles if it fails because it is too big or too slow."""
+	"""Values of a tile (float32 array of bands x rows x columns), split into four tiles if it fails because it is
+	too big or too slow."""
 	c, r, w, h = tile
 	for attempt in range(retries):
 		try:
 			arr = ee.data.computePixels({'expression': image, 'fileFormat': 'NUMPY_NDARRAY',
 			                             'grid': grid.ee_grid(c, r, w, h)})
-			return arr[arr.dtype.names[0]].astype(np.float32)
+			return np.stack([arr[name] for name in arr.dtype.names]).astype(np.float32)
 		except ee.EEException as e:
 			msg = str(e).lower()
 			if any(s in msg for s in SPLIT_ERRORS) and max(w, h) > MIN_TILE:
-				out = np.empty((h, w), np.float32)
-				for p in _split(tile):
-					out[p[1] - r:p[1] - r + p[3], p[0] - c:p[0] - c + p[2]] = _compute(image, grid, p, retries)
+				parts = [(p, _compute(image, grid, p, retries)) for p in _split(tile)]
+				out = np.empty((parts[0][1].shape[0], h, w), np.float32)
+				for p, a in parts:
+					out[:, p[1] - r:p[1] - r + p[3], p[0] - c:p[0] - c + p[2]] = a
 				return out
 			if attempt == retries - 1 or not any(s in msg for s in ('429', 'quota', 'unavailable', '503', '500',
 			                                                          'deadline', 'internal error')):
@@ -108,21 +110,25 @@ def _compute(image, grid, tile, retries=4):
 		time.sleep(2 ** attempt * 5)
 
 
-def download(image, grid, path, tile=512, workers=8, nodata=NODATA, progress=None, metadata=None):
-	"""Download the first band of IMAGE on GRID as a float32 GeoTIFF at PATH (NoData = NODATA), in tiles of TILE
-	pixels computed by WORKERS threads. PROGRESS(done, total) is called after each tile. The file is written as
-	PATH.part.tif and renamed when complete. Needs GDAL."""
+def download(image, grid, path, tile=512, workers=8, nodata=NODATA, progress=None, metadata=None, bands=None):
+	"""Download the first band of IMAGE (or its bands BANDS, a list of names) on GRID as a float32 GeoTIFF at PATH
+	(NoData = NODATA; the bands keep their names as descriptions), in tiles of TILE pixels computed by WORKERS
+	threads. PROGRESS(done, total) is called after each tile. The file is written as PATH.part.tif and renamed when
+	complete. Needs GDAL."""
 	from osgeo import gdal
 	gdal.UseExceptions()
-	img = ee.Image(image).select([0]).toFloat().unmask(nodata, False)
+	img = ee.Image(image).select(list(bands) if bands else [0]).toFloat().unmask(nodata, False)
 	part = path + '.part.tif'
 	drv = gdal.GetDriverByName('GTiff')
-	ds = drv.Create(part, grid.width, grid.height, 1, gdal.GDT_Float32,
-	                ['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES', 'BIGTIFF=IF_SAFER'])
+	ds = drv.Create(part, grid.width, grid.height, len(bands) if bands else 1, gdal.GDT_Float32,
+	                ['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES', 'BIGTIFF=IF_SAFER', 'INTERLEAVE=BAND'])
 	ds.SetGeoTransform(grid.geotransform)
 	ds.SetProjection(areas.srs_of(grid.crs).ExportToWkt())
-	band = ds.GetRasterBand(1)
-	band.SetNoDataValue(nodata)
+	for i in range(ds.RasterCount):
+		b = ds.GetRasterBand(i + 1)
+		b.SetNoDataValue(nodata)
+		if bands:
+			b.SetDescription(str(bands[i]))
 	if metadata:
 		ds.SetMetadata({k: str(v) for k, v in metadata.items()})
 	tiles = grid.tiles(tile)
@@ -131,20 +137,22 @@ def download(image, grid, path, tile=512, workers=8, nodata=NODATA, progress=Non
 		futures = {pool.submit(_compute, img, grid, t): t for t in tiles}
 		for i, fut in enumerate(cf.as_completed(futures), 1):
 			c, r, _, _ = futures[fut]
-			band.WriteArray(fut.result(), c, r)
+			for j, a in enumerate(fut.result(), 1):
+				ds.GetRasterBand(j).WriteArray(a, c, r)
 			if progress:
 				progress(i, len(tiles))
 		pool.shutdown()
-		try:
-			band.ComputeStatistics(False)
-		except RuntimeError:  # no valid pixels
-			pass
+		for j in range(1, ds.RasterCount + 1):
+			try:
+				ds.GetRasterBand(j).ComputeStatistics(False)
+			except RuntimeError:  # no valid pixels
+				pass
 		ds.FlushCache()
-		ds = band = None
+		ds = None
 		os.replace(part, path)
 	except BaseException:
 		pool.shutdown(wait=False, cancel_futures=True)
-		ds = band = None
+		ds = None
 		if os.path.exists(part):
 			os.remove(part)
 		raise

@@ -225,6 +225,86 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
                                 log = function(msg) message(msg))
 }
 
+#' Seasonal trends of a variable over each feature of a region (Mann-Kendall test and Sen's slope), as the
+#' 'Tendencias Estacionales' of MonitorEO: for each part of the year (step "monthly": the months; "16-day": 23 parts
+#' of 16 days from 1 January; "annual": the year), the spatial `stat` of the `metric` of its images in each year and
+#' the trend of those yearly values. Returns a data.frame (region, key, label, n, tau, z, p_value, significant,
+#' slope (per year), intercept, first_year, last_year) with the attributes yearly (the yearly values), title, unit,
+#' scale, csv and chart.
+#' @export
+mo_trend_table <- function(region, variable, sensor, start, end, step = "annual", metric = "mean", stat = "mean",
+                           season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL, chart = NULL,
+                           collection = NULL) {
+  res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
+                                quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
+                                collection = collection)
+  df <- rows_df(res$rows)
+  attr(df, "yearly") <- rows_df(res$yearly)
+  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  df
+}
+
+#' Map of the trend of a part of the year computed on each pixel (see mo_trend_table): `part` is the month (1-12)
+#' with step "monthly", 1-23 with "16-day", NULL with "annual"; `output` "slope", "tau", "z", "p_value",
+#' "intercept" or "n"; `alpha` (e.g. 0.05) keeps only the significant pixels. Earth Engine tiles (see mo_leaflet()).
+#' @export
+mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", part = NULL, output = "slope",
+                         metric = "mean", season = NULL, quality = NULL, alpha = NULL, thumbnail = NULL,
+                         collection = NULL) {
+  if (!is.null(part)) part <- as.integer(part)
+  services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
+                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection)
+}
+
+#' Download the trend of a part of the year on each pixel to a GeoTIFF with the bands slope, tau, z, p_value,
+#' intercept and n (see mo_trend_map), e.g. for terra::rast(). For small regions.
+#' @export
+mo_download_trend <- function(region, variable, sensor, start, end, path, step = "annual", part = NULL,
+                              metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
+                              crs = "auto", collection = NULL) {
+  if (!is.null(part)) part <- as.integer(part)
+  services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
+                            resolution, crs, path.expand(path), collection = collection)
+}
+
+#' Compare a reference period (start to end) with another (other_start to other_end) over each feature of a region,
+#' as the comparison mode of MonitorEO: the mean of each part of the year over the years of each period and their
+#' difference (other - reference). Returns a data.frame (region, key, label, reference, other, difference,
+#' n_reference, n_other) with the attributes rows (the yearly values of both periods), title, unit, scale, csv and
+#' chart.
+#' @export
+mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
+                              metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
+                              csv = NULL, chart = NULL, collection = NULL) {
+  res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
+                                   season = season, quality = quality, scale = scale, csv = csv, chart = chart,
+                                   collection = collection)
+  df <- rows_df(res$profile)
+  attr(df, "rows") <- rows_df(res$rows)
+  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  df
+}
+
+#' Map of the difference between the variable aggregated over another period and over the reference period (Earth
+#' Engine tiles, see mo_leaflet()).
+#' @export
+mo_compare_map <- function(region, variable, sensor, start, end, other_start, other_end, metric = "median",
+                           temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL) {
+  services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
+                         season = season, quality = quality, thumbnail = thumbnail, collection = collection)
+}
+
+#' Download the comparison of two periods to a GeoTIFF with the bands difference (other - reference), reference
+#' and other. For small regions.
+#' @export
+mo_download_comparison <- function(region, variable, sensor, start, end, other_start, other_end, path,
+                                   metric = "median", temporal = "period", season = NULL, quality = NULL,
+                                   resolution = NULL, crs = "auto", collection = NULL) {
+  services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
+                                 season = season, quality = quality, resolution = resolution, crs = crs,
+                                 path = path.expand(path), collection = collection)
+}
+
 #' State of an export task: PENDING, RUNNING, SUCCEEDED, FAILED or CANCELLED.
 #' @export
 mo_task_status <- function(operation) services()$task_status(operation)

@@ -94,13 +94,14 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	return ee.FeatureCollection(ee.List([list(s) for s in steps]).map(step_rows)).flatten()
 
 
-def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None):
+def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None, steps=None):
 	"""Rows [{region, date, value, n_pixels, n_images}] of the time series, sorted by region and date, and the scale
-	used. The steps are requested in blocks of at most MAX_ROWS rows; PROGRESS(done, total) is called after each."""
+	used. STEPS: [(first day, day after the last)] instead of the steps of STEP. The steps are requested in blocks of
+	at most MAX_ROWS rows; PROGRESS(done, total) is called after each."""
 	geom = regions.geometry()
 	scale = scale or auto_scale(spec, regions)
 	crs = region_crs(regions)
-	steps = bins(spec, step, geom)
+	steps = steps if steps is not None else bins(spec, step, geom)
 	n_regions = max(regions.size().getInfo(), 1)
 	block = max(1, MAX_ROWS // n_regions)
 	rows = []
@@ -132,14 +133,15 @@ def _fetch(spec, regions, step, metric, stat, scale, steps, crs, retries=4):
 		time.sleep(2 ** attempt * 5)
 
 
-def write_csv(rows, path, meta=None):
-	"""Write the rows to a CSV file, with the columns of META (e.g. variable, sensor, unit) repeated on every row."""
+def write_csv(rows, path, meta=None, columns=COLUMNS):
+	"""Write the COLUMNS of the rows to a CSV file, with the columns of META (e.g. variable, sensor, unit) repeated on
+	every row."""
 	meta = meta or {}
 	with open(path, 'w', newline='', encoding='utf-8') as f:
 		w = csv.writer(f)
-		w.writerow(COLUMNS + list(meta))
+		w.writerow(list(columns) + list(meta))
 		for r in rows:
-			w.writerow([r.get(c) if r.get(c) is not None else '' for c in COLUMNS] + list(meta.values()))
+			w.writerow([r.get(c) if r.get(c) is not None else '' for c in columns] + list(meta.values()))
 	return path
 
 

@@ -2,6 +2,7 @@
 
 import os
 
+import ee
 import pytest
 
 from monitoreo import services
@@ -126,3 +127,60 @@ def test_download_image(tmp_path):
 	                                path=str(tmp_path / 's2.tif'))
 	g = small['grid']
 	assert small['resolution'] % 10 == 0 and small['resolution'] > 10 and g['width'] * g['height'] <= 10000
+
+
+def test_trend_on_a_pixel_as_in_python():
+	"""The trend of a pixel (Earth Engine) is that of its yearly values computed in Python."""
+	from monitoreo import trends
+	spec = services.make_spec('NDVI', 'Modis', '2014-01-01', '2021-12-31', metric='mean')
+	pt = ee.Geometry.Point(-3.55, 36.9)
+	col = trends.yearly_collection(spec, pt, 250, 'monthly', 7)
+	vals = col.getRegion(pt, 250).getInfo()
+	head = vals[0]
+	years = [r[head.index('t')] for r in vals[1:]]
+	values = [r[head.index('value')] for r in vals[1:]]
+	img = trends.trend_image(spec, pt, 250, 'monthly', 7)
+	got = img.reduceRegion(ee.Reducer.first(), pt, 250).getInfo()
+	n, tau, z, p = trends.mann_kendall(years, values)
+	slope, intercept = trends.sen(years, values, 2014)
+	assert got['n'] == n == 8
+	for k, v in (('tau', tau), ('z', z), ('p_value', p), ('slope', slope), ('intercept', intercept)):
+		assert abs(got[k] - v) < 1e-4 * max(1, abs(v)), (k, got[k], v)
+
+
+def test_trend_table_and_maps(tmp_path):
+	res = services.trend_table(GUAJARES, 'NDVI', 'Modis', '2014-01-01', '2021-12-31', step='annual',
+	                           csv=str(tmp_path / 't.csv'), chart=str(tmp_path / 't.png'))
+	(row,) = res['rows']
+	assert row['key'] == 'all' and row['n'] == 8 and -1 <= row['tau'] <= 1 and 0 <= row['p_value'] <= 1
+	assert len(res['yearly']) == 8 and os.path.getsize(res['csv']) > 0 and os.path.getsize(res['chart']) > 0
+	monthly = services.trend_table(GUAJARES, 'NDVI', 'Modis', '2016-01-01', '2021-12-31', step='monthly')
+	assert [r['key'] for r in monthly['rows']] == [f'm{m:02d}' for m in range(1, 13)]
+	m = services.trend_map(GUAJARES, 'NDVI', 'Modis', '2014-01-01', '2021-12-31', step='monthly', part=7)
+	assert '{z}' in m['url'] and m['min'] == -m['max'] and m['unit'].endswith('/ year')
+	d = services.download_trend(GUAJARES, 'NDVI', 'Modis', '2014-01-01', '2021-12-31', step='annual',
+	                            path=str(tmp_path / 'trend.tif'))
+	from osgeo import gdal
+	ds = gdal.Open(d['file'])
+	assert ds.RasterCount == 6 and ds.GetRasterBand(1).GetDescription() == 'slope'
+	n = ds.GetRasterBand(6).ReadAsArray()
+	assert n.max() == 8 and d['min'] == -d['max']
+
+
+def test_comparison(tmp_path):
+	res = services.compare_series(GUAJARES, 'NDVI', 'Modis', '2016-01-01', '2018-12-31', '2021-01-01', '2021-12-31',
+	                              step='monthly', csv=str(tmp_path / 'c.csv'), chart=str(tmp_path / 'c.png'))
+	assert len(res['profile']) == 12 and all(r['n_reference'] == 3 and r['n_other'] == 1 for r in res['profile'])
+	r = res['profile'][6]
+	assert r['label'] == 'julio' and abs(r['difference'] - (r['other'] - r['reference'])) < 1e-12
+	assert {x['period'] for x in res['rows']} == {'reference', 'other'} and os.path.getsize(res['chart']) > 0
+	m = services.compare_map(GUAJARES, 'NDVI', 'Modis', '2016-01-01', '2018-12-31', '2021-01-01', '2021-12-31')
+	assert '{z}' in m['url'] and m['min'] == -m['max']
+	d = services.download_comparison(GUAJARES, 'NDVI', 'Modis', '2016-01-01', '2018-12-31', '2021-01-01',
+	                                 '2021-12-31', path=str(tmp_path / 'cmp.tif'))
+	from osgeo import gdal
+	ds = gdal.Open(d['file'])
+	b = [ds.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3)]
+	ok = (b[0] != -9999) & (b[1] != -9999) & (b[2] != -9999)
+	assert ds.GetRasterBand(1).GetDescription() == 'difference' and ok.any()
+	assert abs((b[2][ok] - b[1][ok]) - b[0][ok]).max() < 1e-5

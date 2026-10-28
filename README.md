@@ -19,6 +19,11 @@ GeoJSON):
 - **Mapas** de la variable agregada en el tiempo (p. ej. la mediana del NDVI de un periodo) como capa de teselas de
   Earth Engine: se ven en QGIS, Leaflet o rgee sin descargar nada.
 - **Estadísticas** de esos mapas en cada polígono.
+- **Tendencias estacionales**, como el análisis de MonitorEO-TEST: para cada mes, cada 16 días o el año, la
+  tendencia de sus valores a lo largo de los años (test de Mann-Kendall y pendiente de Sen), en tabla para la región o
+  en mapa píxel a píxel.
+- **Comparación de dos periodos** (el de referencia y otro, como el modo de comparación de MonitorEO-TEST): la media
+  de cada parte del año en cada periodo y su diferencia, en tabla y gráfica, y el mapa de la diferencia.
 - **Exportaciones** a Google Drive de mapas (GeoTIFF) y series (CSV) grandes.
 - **Descargas** de GeoTIFF a tu ordenador: un mapa, o una **receta** de varias variables y métricas en rejillas
   alineadas sobre un área de estudio y, con un píxel más grueso, sobre las ecorregiones que toca (las variables de
@@ -106,7 +111,37 @@ monitoreo info NDVI --sensor Modis
 monitoreo parks "Doñana"
 monitoreo series NDVI --sensor Sentinel-2 --region '{"wdpa_id": 389011}' --start 2020-01-01 --end 2021-12-31 --csv ndvi.csv --png ndvi.png
 monitoreo download receta.yaml --area zona.gpkg --out variables --dry-run
+monitoreo trend NDVI --sensor Modis --region '{"wdpa_id": 389011}' --start 2010-01-01 --end 2023-12-31 --step monthly --png tendencias.png
+monitoreo compare NDVI --sensor Modis --region '{"wdpa_id": 389011}' --start 2010-01-01 --end 2014-12-31 --other-start 2019-01-01 --other-end 2023-12-31
 ```
+
+### Tendencias estacionales y comparación de periodos
+
+Como el análisis "Tendencias Estacionales" de MonitorEO-TEST (`monitoreo.trends`): cada año da un valor de cada
+**parte del año** (`step`): `'monthly'`, los 12 meses (`m01`…`m12`); `'16-day'`, 23 partes de 16 días desde el 1 de
+enero (días 1-16, 17-32… 353-366: `p01`…`p23`), o `'annual'`, el año (`all`); ese valor es la métrica (`metric`, la
+media por defecto) de las imágenes de esa parte en ese año. La tendencia de cada parte a lo largo de los años: número
+de años con datos (`n`), τ de Kendall, Z de Mann-Kendall (aproximación normal, sin corrección por empates) y su
+p-valor bilateral, pendiente de Sen (cambio por año) y su valor en el primer año (`intercept`). Mejor con 8 años o más.
+
+```python
+t = mo.trend_table({'wdpa_id': 389011}, 'NDVI', 'Modis', '2010-01-01', '2023-12-31', step='monthly',
+                   csv='tendencias.csv', chart='tendencias.png')      # tendencia de la media de la región
+t['rows'][0]   # {'key': 'm01', 'label': 'enero', 'n': 14, 'tau': -0.32, 'p_value': 0.11, 'slope': -0.0039, ...}
+mo.download_trend({'wdpa_id': 389011}, 'NDVI', 'Modis', '2010-01-01', '2023-12-31', step='monthly', part=7,
+                  path='tendencia_julio.tif')      # píxel a píxel: bandas slope, tau, z, p_value, intercept, n
+mo.trend_map(..., step='annual', output='slope', alpha=0.05)    # teselas, solo los píxeles con p < 0,05
+
+c = mo.compare_series({'wdpa_id': 389011}, 'NDVI', 'Modis', '2010-01-01', '2014-12-31',   # periodo de referencia
+                      '2019-01-01', '2023-12-31', step='monthly', chart='comparacion.png')  # otro periodo
+c['profile'][0]   # {'label': 'enero', 'reference': 0.53, 'other': 0.50, 'difference': -0.027, ...}
+mo.download_comparison({'wdpa_id': 389011}, 'NDVI', 'Modis', '2018-01-01', '2021-12-31', '2023-01-01',
+                       '2023-12-31', metric='median', path='diferencia.tif')   # bandas difference, reference, other
+```
+
+Diferencias con MonitorEO-TEST: el número de años `n` es el de cada píxel (años con datos), no el del periodo; el
+p-valor es 2·(1 − Φ(|Z|)) (MonitorEO-TEST calcula `2·(1 − erf(|Z|/√2))`, el doble), y el valor inicial de la recta de
+Sen es el del primer año, no el del año 0.
 
 ### Descarga de variables en GeoTIFF
 
@@ -160,10 +195,17 @@ El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un pan
 - **Google Earth Engine**: el proyecto, **Conectar** y **Autenticar…**.
 - **Región**: una capa de polígonos (las entidades seleccionadas o todas, con un campo para su nombre), la
   extensión del mapa, un área protegida (buscando por nombre en WDPA) o la ecorregión del centro del mapa.
-- **Variable**: variable y sensor del catálogo, periodo, temporada y filtros por píxel.
+- **Variable**: variable y sensor del catálogo, periodo, temporada y filtros por píxel. **Comparar con otro
+  periodo**: con la casilla marcada, la serie temporal compara el periodo de referencia con el otro (la media de cada
+  mes, 16 días o año en cada periodo y su diferencia) y el mapa es la diferencia (otro − referencia, con los dos
+  periodos como bandas).
 - **Serie temporal**: paso, métrica de cada paso y estadístico de la región. Abre una ventana con la gráfica, la tabla
-  y los botones para guardar el CSV y la gráfica. Las series calculadas en la sesión quedan en la lista **Series**:
-  **Ver** vuelve a abrir su ventana.
+  y los botones para guardar el CSV y la gráfica. Las series, tendencias y comparaciones calculadas en la sesión quedan
+  en la lista **Series**: **Ver** vuelve a abrir su ventana.
+- **Tendencias (Mann-Kendall y Sen)**: partes del año (año, meses o 16 días) y métrica de cada año. **Tabla de
+  tendencias de la región**: la tendencia de cada parte, con la gráfica de los valores anuales y sus rectas de Sen.
+  **Mapa de tendencia** de una parte del año: GeoTIFF con la pendiente de Sen, τ, Z, p-valor, valor inicial y años de
+  cada píxel (consultables con Identificar), opcionalmente solo los píxeles con tendencia significativa.
 - **Mapa**: añade la variable agregada en el tiempo como GeoTIFF temporal, con la rampa de colores de MonitorEO
   (percentiles 5 y 95) y el mapa centrado en la región; sus valores se consultan con la herramienta **Identificar**.
   Va a la resolución de los datos o, si la región pasa de 4 millones de píxeles, con píxeles 2, 3... veces mayores
@@ -191,7 +233,8 @@ en `dist/`). Prueba sin ventana con el Python de QGIS:
 Herramientas: `list_variables`, `describe_variable`, `find_protected_areas`, `time_series` (tabla, CSV y gráfica),
 `map_layer` (URL de teselas y vista previa), `region_stats`, `export_image_to_drive`,
 `export_time_series_to_drive`, `task_status`, `download_image` y `download_variables` (GeoTIFF en el ordenador; la
-segunda con una receta, como JSON) y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
+segunda con una receta, como JSON), las tendencias estacionales `trend_table`, `trend_map` y `download_trend`, la
+comparación de periodos `compare_series`, `compare_map` y `download_comparison`, y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
 defecto `~/MonitorEO`).
 
 **Siempre la última versión de GitHub**: al arrancar, `monitoreo mcp` compara el paquete instalado con el último
@@ -255,12 +298,17 @@ rgee::Map$addLayer(x$image, x$vis, x$name)   # rgee
 
 mo_download_variables("receta.yaml", "zona.gpkg", "variables")   # GeoTIFF de una receta (o yaml::read_yaml())
 terra::rast(list.files("variables", "\\.tif$", full.names = TRUE))
+
+tr <- mo_trend_table(mo_wdpa(389011), "NDVI", "Modis", "2010-01-01", "2023-12-31", step = "monthly")
+cmp <- mo_compare_series(mo_wdpa(389011), "NDVI", "Modis", "2010-01-01", "2014-12-31", "2019-01-01", "2023-12-31")
+terra::rast(mo_download_trend(mo_wdpa(389011), "NDVI", "Modis", "2010-01-01", "2023-12-31", "tendencia.tif")$file)
 ```
 
 Funciones: `mo_init`, `mo_install`, `mo_variables`, `mo_describe`, `mo_protected_areas`, regiones (`mo_wdpa`,
 `mo_ecoregion`, `mo_bbox`, `mo_point`, `mo_geojson`, `mo_sf`), `mo_time_series`, `mo_plot`, `mo_map_layer`,
-`mo_leaflet`, `mo_image`, `mo_region_stats`, `mo_download_image`, `mo_download_variables`, `mo_export_image`,
-`mo_export_time_series` y `mo_task_status`.
+`mo_leaflet`, `mo_image`, `mo_region_stats`, `mo_download_image`, `mo_download_variables`, tendencias
+(`mo_trend_table`, `mo_trend_map`, `mo_download_trend`), comparación de periodos (`mo_compare_series`,
+`mo_compare_map`, `mo_download_comparison`), `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
 
 ## Catálogo
 

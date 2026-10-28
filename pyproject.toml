@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monitoreo"
-version = "0.2.0"
+version = "0.3.0"
 description = "MonitorEO (OBSNEV): variables de satélite de Google Earth Engine, series temporales, mapas y exportaciones, para Python, QGIS, R y modelos de lenguaje (MCP)"
 readme = "README.md"
 requires-python = ">=3.9"

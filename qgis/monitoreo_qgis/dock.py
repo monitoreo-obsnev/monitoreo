@@ -19,7 +19,7 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import services  # noqa: E402
+from monitoreo import services, trends  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Mensual', 'monthly'), ('Anual', 'annual'), ('16 días', '16-day'), ('Diario (días con imágenes)', 'daily')]
@@ -27,6 +27,7 @@ METRICS = [('Media', 'mean'), ('Mediana', 'median'), ('Mínimo', 'min'), ('Máxi
            ('Percentil 10', 'p10'), ('Percentil 90', 'p90'), ('Percentil 95', 'p95')]
 STATS = [('Media', 'mean'), ('Mediana', 'median'), ('Mínimo', 'min'), ('Máximo', 'max'), ('Desviación típica', 'std')]
 TEMPORAL = [('Todo el periodo', 'period'), ('Cada año y entre años', 'annual'), ('Cada mes y entre años', 'monthly')]
+TREND_STEPS = [('Año', 'annual'), ('Meses', 'monthly'), ('16 días', '16-day')]
 REGIONS = [('Capa (entidades seleccionadas o todas)', 'layer'), ('Extensión del mapa', 'extent'),
            ('Área protegida (WDPA)', 'wdpa'), ('Ecorregión del centro del mapa', 'ecoregion')]
 POLL_MS = 30000
@@ -166,6 +167,23 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(QLabel('a'))
 		row.addWidget(self.end)
 		f.addRow('Periodo', row)
+		self.compare_on = QCheckBox('otro periodo:')
+		self.compare_on.setToolTip('Compara el periodo de referencia (el de arriba) con este: la serie temporal da la '
+		                           'media de cada parte del año en los dos periodos y su diferencia, y el mapa, la '
+		                           'diferencia (este periodo menos el de referencia)')
+		self.other_start = QDateEdit(QDate.fromString(s.value(SETTINGS + 'other_start', '2023-01-01'), 'yyyy-MM-dd'))
+		self.other_end = QDateEdit(QDate.fromString(s.value(SETTINGS + 'other_end', '2023-12-31'), 'yyyy-MM-dd'))
+		row = QHBoxLayout()
+		row.addWidget(self.compare_on)
+		for i, d in enumerate((self.other_start, self.other_end)):
+			d.setCalendarPopup(True)
+			d.setDisplayFormat('yyyy-MM-dd')
+			d.setEnabled(False)
+			self.compare_on.toggled.connect(d.setEnabled)
+			if i:
+				row.addWidget(QLabel('a'))
+			row.addWidget(d)
+		f.addRow('Comparar con', row)
 		self.season_on = QCheckBox('solo')
 		self.season_start = QLineEdit('06-01')
 		self.season_end = QLineEdit('09-30')
@@ -213,6 +231,32 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.show_series_button)
 		f.addRow('Series', row)
 		self.update_series_list()
+		main.addWidget(box)
+
+		box = QGroupBox('Tendencias (Mann-Kendall y Sen)')
+		box.setToolTip('Tendencia de cada parte del año a lo largo de los años del periodo, como las "Tendencias '
+		               'estacionales" de MonitorEO: τ de Kendall, Z y p-valor de Mann-Kendall y pendiente de Sen '
+		               '(cambio por año). Mejor con 8 años o más')
+		f = QFormLayout(box)
+		self.trend_step = combo(TREND_STEPS, 'annual')
+		self.trend_part = QComboBox()
+		self.trend_step.currentIndexChanged.connect(self.update_trend_parts)
+		self.update_trend_parts()
+		self.trend_metric = combo(METRICS, 'mean')
+		self.trend_alpha = QCheckBox('solo píxeles con tendencia significativa (p < 0,05)')
+		f.addRow('Partes del año', self.trend_step)
+		f.addRow('Métrica de cada año', self.trend_metric)
+		b = QPushButton('Tabla de tendencias de la región')
+		b.setToolTip('Tendencia de cada parte del año del estadístico de la región (el de la serie temporal)')
+		b.clicked.connect(self.run_trend_table)
+		f.addRow(b)
+		f.addRow('Parte del año del mapa', self.trend_part)
+		f.addRow('', self.trend_alpha)
+		b = QPushButton('Mapa de tendencia')
+		b.setToolTip('GeoTIFF temporal con la pendiente de Sen, τ, Z, p-valor, ordenada y número de años de cada píxel '
+		             '(consultables con la herramienta Identificar)')
+		b.clicked.connect(self.run_trend_map)
+		f.addRow(b)
 		main.addWidget(box)
 
 		box = QGroupBox('Mapa')
@@ -293,6 +337,8 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'project', self.project.text().strip())
 		s.setValue(SETTINGS + 'start', self.start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'end', self.end.date().toString('yyyy-MM-dd'))
+		s.setValue(SETTINGS + 'other_start', self.other_start.date().toString('yyyy-MM-dd'))
+		s.setValue(SETTINGS + 'other_end', self.other_end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'folder', self.folder.text().strip())
 
 	def region(self):
@@ -414,6 +460,19 @@ class MonitorEODock(QDockWidget):
 
 		self.run_task('Buscar áreas protegidas', lambda: services.find_protected_areas(text, 30), done)
 
+	def other_period(self):
+		"""(first day, last day) of the period to compare with the reference one, or None."""
+		if not self.compare_on.isChecked():
+			return None
+		return self.other_start.date().toString('yyyy-MM-dd'), self.other_end.date().toString('yyyy-MM-dd')
+
+	def add_result(self, res):
+		"""Keep a result (series, trends or comparison) in the list of the session and open its window."""
+		self.series.append(res)
+		self.update_series_list()
+		self.series_list.setCurrentIndex(self.series_list.count() - 1)
+		self.show_series()
+
 	def run_series(self):
 		args = self.prepare()
 		if not args:
@@ -421,6 +480,9 @@ class MonitorEODock(QDockWidget):
 		region, var = args
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 		step, metric, stat = self.step.currentData(), self.ts_metric.currentData(), self.stat.currentData()
+		other = self.other_period()
+		if other:
+			return self.run_comparison(region, var, other, step, metric, stat, tmp)
 
 		def work():
 			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'serie.csv'),
@@ -435,12 +497,83 @@ class MonitorEODock(QDockWidget):
 			# OpenBLAS of numpy overflows the small stack of those threads on macOS)
 			res['chart'] = chart_png(res, os.path.join(tmp, 'serie.png'))
 			res['label'] = f"{res['title']} · {', '.join(res['regions'])}"
-			self.series.append(res)
-			self.update_series_list()
-			self.series_list.setCurrentIndex(self.series_list.count() - 1)
-			self.show_series()
+			res['kind'] = 'series'
+			self.add_result(res)
 
 		self.run_task(f"Serie temporal de {var['variable']} ({var['sensor']})", work, done)
+
+	def run_comparison(self, region, var, other, step, metric, stat, tmp):
+		if step not in trends.STEPS:
+			self.message('Para comparar periodos, elige el paso mensual, de 16 días o anual', 'Warning')
+			return
+
+		def work():
+			return services.compare_series(region, other_start=other[0], other_end=other[1], step=step, metric=metric,
+			                               stat=stat, csv=os.path.join(tmp, 'comparacion.csv'), **var)
+
+		def done(res):
+			from .results import comparison_png
+			if not any(r['reference'] is not None or r['other'] is not None for r in res['profile']):
+				self.message('La comparación no tiene valores', 'Warning')
+				return
+			res['chart'] = comparison_png(res, step, os.path.join(tmp, 'comparacion.png'))  # in the main thread
+			res['label'] = f"Comparación: {res['title']}"
+			res['kind'] = 'comparison'
+			self.add_result(res)
+
+		self.run_task(f"Comparación de periodos de {var['variable']} ({var['sensor']})", work, done)
+
+	def update_trend_parts(self):
+		step = self.trend_step.currentData()
+		self.trend_part.clear()
+		for p in trends.parts(step):
+			self.trend_part.addItem('el año' if step == 'annual' else trends.part_label(step, p), p)
+		self.trend_part.setEnabled(step != 'annual')
+
+	def run_trend_table(self):
+		args = self.prepare()
+		if not args:
+			return
+		region, var = args
+		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+		step, metric, stat = self.trend_step.currentData(), self.trend_metric.currentData(), self.stat.currentData()
+
+		def work():
+			return services.trend_table(region, step=step, metric=metric, stat=stat,
+			                            csv=os.path.join(tmp, 'tendencias.csv'), **var)
+
+		def done(res):
+			from .results import trends_png
+			if not any(r['slope'] is not None for r in res['rows']):
+				self.message('No hay años suficientes para calcular tendencias (hacen falta 2 o más)', 'Warning')
+				return
+			res['chart'] = trends_png(res, os.path.join(tmp, 'tendencias.png'))  # in the main thread
+			res['label'] = f"Tendencias: {res['title']}"
+			res['kind'] = 'trends'
+			self.add_result(res)
+
+		self.run_task(f"Tendencias de {var['variable']} ({var['sensor']})", work, done)
+
+	def run_trend_map(self):
+		args = self.prepare()
+		if not args:
+			return
+		region, var = args
+		step, part, metric = self.trend_step.currentData(), self.trend_part.currentData(), self.trend_metric.currentData()
+		alpha = 0.05 if self.trend_alpha.isChecked() else None
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'tendencia.tif')
+
+		def work():
+			try:
+				return services.download_trend(region, step=step, part=part, metric=metric, alpha=alpha, path=path,
+				                               max_pixels=MAP_PIXELS, **var)
+			except Exception as e:
+				res = services.trend_map(region, step=step, part=part, metric=metric, alpha=alpha, **var)
+				res['error'] = str(e)
+				return res
+
+		self.run_task(f"Mapa de tendencia de {var['variable']} ({var['sensor']})", work,
+		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
 	def update_series_list(self):
 		self.series_list.clear()
@@ -450,14 +583,16 @@ class MonitorEODock(QDockWidget):
 		self.show_series_button.setEnabled(bool(self.series))
 
 	def show_series(self):
-		"""Open the window of the chosen series (or bring it to the front if it is open)."""
-		from .results import SeriesDialog
+		"""Open the window of the chosen series, trends or comparison (or bring it to the front if it is open)."""
+		from .results import ResultDialog, SeriesDialog
 		i = self.series_list.currentData()
 		if i is None:
 			return
 		dlg = self.series_dialogs.get(i)
 		if dlg is None:
-			dlg = self.series_dialogs[i] = SeriesDialog(self.series[i], self.iface.mainWindow())
+			res = self.series[i]
+			cls = SeriesDialog if res.get('kind', 'series') == 'series' else ResultDialog
+			dlg = self.series_dialogs[i] = cls(res, self.iface.mainWindow())
 		dlg.show()
 		dlg.raise_()
 		dlg.activateWindow()
@@ -469,14 +604,20 @@ class MonitorEODock(QDockWidget):
 		region, var = args
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'mapa.tif')
+		other = self.other_period()
+		opts = dict(var, metric=metric, temporal=temporal, interannual=inter)
+		if other:
+			opts.update(other_start=other[0], other_end=other[1])
+		download, tiles = ((services.download_comparison, services.compare_map) if other else
+		                   (services.download_image, services.map_layer))
 
 		def work():
-			"""The map as a GeoTIFF with the values; if it cannot be downloaded, Earth Engine tiles (colours only)."""
+			"""The map as a GeoTIFF with the values (with OTHER, the difference between the periods, and both); if it
+			cannot be downloaded, Earth Engine tiles (colours only)."""
 			try:
-				return services.download_image(region, metric=metric, temporal=temporal, interannual=inter, path=path,
-				                               max_pixels=MAP_PIXELS, **var)
+				return download(region, path=path, max_pixels=MAP_PIXELS, **opts)
 			except Exception as e:
-				res = services.map_layer(region, metric=metric, temporal=temporal, interannual=inter, **var)
+				res = tiles(region, **opts)
 				res['error'] = str(e)
 				return res
 
@@ -492,8 +633,10 @@ class MonitorEODock(QDockWidget):
 			self.message(f"{res['name']}: sin valores en la región (sin imágenes, o todo filtrado)", 'Warning', 10)
 		else:
 			pseudocolor(layer, res['min'], res['max'], res['palette'])
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m, "
-		                  f"{res['images']} imágenes. GeoTIFF temporal: {res['file']}")
+		bands = ', '.join(res.get('bands') or [])
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m"
+		                  + (f", {res['images']} imágenes" if res.get('images') is not None else '')
+		                  + (f", bandas {bands}" if bands else '') + f". GeoTIFF temporal: {res['file']}")
 		QgsProject.instance().addMapLayer(layer)
 		self.zoom_to(layer.extent(), layer.crs())
 		native = res['resolution'] <= res['native_resolution']

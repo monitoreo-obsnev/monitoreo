@@ -142,6 +142,50 @@ res = dock.series[-1]
 print('series (layer):', [(r['region'], r['date'], round(r['value'], 3)) for r in res['rows']])
 assert sorted(res['regions']) == ['este', 'oeste']
 
+# seasonal trends (MODIS, by years) and their map, over the map extent
+from qgis.PyQt.QtCore import QDate  # noqa: E402
+dock.region_kind.setCurrentIndex(1)
+dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Modis · 250 m · MOD13Q1'))
+dock.start.setDate(QDate(2014, 1, 1))
+dock.end.setDate(QDate(2021, 12, 31))
+dock.run_trend_table()
+wait(dock)
+res = dock.series[-1]
+assert res['kind'] == 'trends' and res['rows'][0]['n'] == 8, res['rows']
+print('trends:', [(r['key'], r['n'], round(r['tau'], 2), round(r['p_value'], 3), round(r['slope'], 4)) for r in res['rows']],
+      '| chart', bool(res['chart']))
+before = set(QgsProject.instance().mapLayers())
+dock.run_trend_map()
+wait(dock)
+new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+assert len(new) == 1 and new[0].bandCount() == 6, iface.messages[-2:]
+layer = new[0]
+print('trend map:', layer.name(), '| bands', [layer.bandName(i) for i in range(1, 7)], '| renderer', layer.renderer().type())
+
+# comparison of two periods: series (monthly) and map
+dock.compare_on.setChecked(True)
+dock.start.setDate(QDate(2016, 1, 1))
+dock.end.setDate(QDate(2018, 12, 31))
+dock.other_start.setDate(QDate(2021, 1, 1))
+dock.other_end.setDate(QDate(2021, 12, 31))
+dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('monthly'))
+dock.run_series()
+wait(dock)
+res = dock.series[-1]
+assert res['kind'] == 'comparison' and len(res['profile']) == 12, res
+print('comparison:', [(r['key'], round(r['difference'], 3)) for r in res['profile'][:3]], '... | chart', bool(res['chart']))
+dock.show_series_button.click()
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait(dock)
+new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+assert len(new) == 1 and new[0].bandCount() == 3, iface.messages[-2:]
+layer = new[0]
+print('comparison map:', layer.name(), '| bands', [layer.bandName(i) for i in range(1, 4)])
+dock.compare_on.setChecked(False)
+
 print('messages:', iface.messages)
 plugin.unload()
+# the project no longer calls the deleted panel (it did when the plugin was reloaded)
+QgsProject.instance().removeAllMapLayers()
 print('OK')

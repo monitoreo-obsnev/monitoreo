@@ -4,6 +4,10 @@
     monitoreo info VARIABLE [--sensor S]             everything about a variable
     monitoreo parks TEXT                             protected areas of WDPA with TEXT in their name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
+    monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
+                                                     seasonal trends (Mann-Kendall and Sen) of each part of the year
+    monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
+                                                     a reference period against another, by part of the year
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
@@ -57,6 +61,23 @@ def main(argv=None):
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
 	p.add_argument('--png')
+	for name, help_ in (('trend', 'seasonal trends (Mann-Kendall and Sen) of a variable over a region'),
+	                    ('compare', 'a reference period against another, by part of the year')):
+		p = sub.add_parser(name, help=help_)
+		p.add_argument('variable')
+		p.add_argument('--sensor', required=True)
+		p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+		p.add_argument('--start', required=True, help='first day (of the reference period, for compare)')
+		p.add_argument('--end', required=True)
+		if name == 'compare':
+			p.add_argument('--other-start', required=True, help='first day of the other period')
+			p.add_argument('--other-end', required=True)
+		p.add_argument('--step', default='annual' if name == 'trend' else 'monthly', choices=('monthly', '16-day', 'annual'))
+		p.add_argument('--metric', default='mean')
+		p.add_argument('--stat', default='mean')
+		p.add_argument('--scale', type=float)
+		p.add_argument('--csv')
+		p.add_argument('--png')
 	p = sub.add_parser('download', help='GeoTIFFs of a recipe of variables over a study area and its ecoregions')
 	p.add_argument('recipe', help='YAML file of the recipe (see monitoreo.recipe)')
 	p.add_argument('--area', required=True, help='vector file of the study area, or a region as JSON')
@@ -91,11 +112,38 @@ def main(argv=None):
 	if args.cmd == 'parks':
 		_table(services.find_protected_areas(args.text, args.limit), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
+	if args.cmd in ('trend', 'compare'):
+		_trend_or_compare(args, services)
+		return
 	res = services.time_series(json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.step,
 	                           args.metric, args.stat, scale=args.scale, csv=args.csv, chart=args.png,
 	                           progress=lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr))
 	_table(res['rows'], ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
+	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+
+
+def _fmt(rows, digits=4):
+	return [{k: (f'{v:.{digits}g}' if isinstance(v, float) else v) for k, v in r.items()} for r in rows]
+
+
+def _trend_or_compare(args, services):
+	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
+	region = json.loads(args.region)
+	if args.cmd == 'trend':
+		res = services.trend_table(region, args.variable, args.sensor, args.start, args.end, args.step, args.metric,
+		                           args.stat, scale=args.scale, csv=args.csv, chart=args.png, progress=progress)
+		_table(_fmt(res['rows']), ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope',
+		                           'intercept'])
+		extra = f" | slope in {res['unit']} / year"
+	else:
+		res = services.compare_series(region, args.variable, args.sensor, args.start, args.end, args.other_start,
+		                              args.other_end, args.step, args.metric, args.stat, scale=args.scale, csv=args.csv,
+		                              chart=args.png, progress=progress)
+		_table(_fmt(res['profile']), ['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference',
+		                              'n_other'])
+		extra = ''
+	print(f"\n{res['title']} | scale {res['scale']:g} m{extra}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
 
 

@@ -38,7 +38,9 @@ WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer 
 region_stats (statistics of a map) or the exports to Google Drive (export_image_to_drive,
 export_time_series_to_drive, then task_status). GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
-pixel size, over its ecoregions: the input variables of a model).
+pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
+of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
+pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
@@ -226,6 +228,112 @@ def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = Fals
 	if log:
 		res['log'] = '\n'.join(log).strip()
 	return _text(res)
+
+
+@tool
+def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
+                metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
+                quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
+                collection: Optional[str] = None):
+	"""Seasonal trends of a variable over each feature of a region, as the 'Tendencias Estacionales' of MonitorEO:
+	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
+	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
+	Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (change per year). Use 8 or more
+	years. Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart."""
+	_ready()
+	stem = f'trend_{variable}_{sensor}_{step}_{start}_{end}'
+	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
+	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
+	                           chart=_out(stem, 'png'), collection=collection)
+	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary['slope_unit'] = f"{res['unit']} / year"
+	summary['trends'] = res['rows']
+	out = [_text(summary)]
+	if res['chart']:
+		out.append(Image(path=res['chart']))
+	return out
+
+
+@tool
+def trend_map(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
+              part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
+              season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
+              collection: Optional[str] = None):
+	"""Map of the trend of a part of the year computed on each pixel (see trend_table): part is the month (1-12)
+	with step 'monthly', 1-23 with '16-day', nothing with 'annual'; output 'slope' (Sen, per year), 'tau', 'z',
+	'p_value', 'intercept' or 'n' (years with data); alpha (e.g. 0.05) keeps only the significant pixels. Returns
+	the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview."""
+	_ready()
+	thumb = _out(f'trend_{variable}_{sensor}_{step}_{part}_{output}', 'png')
+	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
+	                         quality=quality, alpha=alpha, thumbnail=thumb, collection=collection)
+	return [_text(res), Image(path=res['thumbnail'])]
+
+
+@tool
+def download_trend(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
+                   part: Optional[int] = None, metric: str = 'mean', season: Optional[List[str]] = None,
+                   quality: Optional[dict] = None, alpha: Optional[float] = None,
+                   resolution: Optional[float] = None, crs: str = 'auto', collection: Optional[str] = None) -> str:
+	"""Download the trend of a part of the year on each pixel (see trend_map) to a GeoTIFF on this computer with
+	the bands slope, tau, z, p_value, intercept and n. For small regions (Earth Engine computes it in tiles)."""
+	_ready()
+	return _text(services.download_trend(region, variable, sensor, start, end, step, part, metric, season=season,
+	                                     quality=quality, alpha=alpha, resolution=resolution, crs=crs,
+	                                     path=_out(f'trend_{variable}_{sensor}_{step}_{part}_{start}_{end}', 'tif'),
+	                                     collection=collection))
+
+
+@tool
+def compare_series(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str,
+                   other_end: str, step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
+                   season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                   scale: Optional[float] = None, collection: Optional[str] = None):
+	"""Compare a reference period (start to end) with another (other_start to other_end) over each feature of a
+	region: the mean of each part of the year (step 'monthly', '16-day' or 'annual') over the years of each period
+	and the difference (other - reference), as the comparison mode of MonitorEO. Writes a CSV and a chart of both
+	periods by part of the year, and returns the chart."""
+	_ready()
+	stem = f'comparison_{variable}_{sensor}_{start}_{end}_{other_start}_{other_end}'
+	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
+	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
+	                              chart=_out(stem, 'png'), collection=collection)
+	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary['comparison'] = res['profile']
+	out = [_text(summary)]
+	if res['chart']:
+		out.append(Image(path=res['chart']))
+	return out
+
+
+@tool
+def compare_map(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str, other_end: str,
+                metric: str = 'median', temporal: str = 'period', season: Optional[List[str]] = None,
+                quality: Optional[dict] = None, collection: Optional[str] = None):
+	"""Map of the difference between the variable aggregated over another period (other_start to other_end) and
+	over the reference period (start to end), e.g. the median NDVI of 2023 minus that of 2018-2021. Returns the URL
+	of its Earth Engine tiles (XYZ, valid for some hours) and a preview."""
+	_ready()
+	thumb = _out(f'comparison_{variable}_{sensor}_{metric}', 'png')
+	res = services.compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
+	                           season=season, quality=quality, thumbnail=thumb, collection=collection)
+	return [_text(res), Image(path=res['thumbnail'])]
+
+
+@tool
+def download_comparison(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str,
+                        other_end: str, metric: str = 'median', temporal: str = 'period',
+                        season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                        resolution: Optional[float] = None, crs: str = 'auto',
+                        collection: Optional[str] = None) -> str:
+	"""Download the comparison of two periods (see compare_map) to a GeoTIFF on this computer with the bands
+	difference (other - reference), reference and other. For small regions."""
+	_ready()
+	return _text(services.download_comparison(
+		region, variable, sensor, start, end, other_start, other_end, metric, temporal, season=season,
+		quality=quality, resolution=resolution, crs=crs,
+		path=_out(f'comparison_{variable}_{sensor}_{metric}_{start}_{end}_{other_start}_{other_end}', 'tif'),
+		collection=collection))
 
 
 @tool

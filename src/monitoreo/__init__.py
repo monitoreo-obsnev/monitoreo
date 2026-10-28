@@ -9,6 +9,7 @@ exports, for Python, QGIS, R and language models (MCP).
     variable   Earth Engine image of a variable described by a dictionary (a 'spec')
     timeseries time series of a variable over regions
     recipe     download of a recipe of variables on aligned grids over a study area and its ecoregions
+    trends     seasonal trends (Mann-Kendall, Sen) and comparison of a reference period with another
     maps       colour ramps, map tiles and thumbnails
     charts     charts of the time series
     areas      regions: GeoJSON, vector files, protected areas (WDPA), ecoregions (RESOLVE Ecoregions 2017)
@@ -20,4 +21,4 @@ exports, for Python, QGIS, R and language models (MCP).
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'

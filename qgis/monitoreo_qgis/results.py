@@ -1,5 +1,6 @@
-"""Window of a time series: chart, table and buttons to save the CSV and the chart. The chart is the PNG of
-monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt."""
+"""Windows of the results: chart, table and buttons to save the CSV and the chart. The chart of a time series is the
+PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt; those of
+the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table)."""
 
 import datetime as dt
 import math
@@ -12,6 +13,12 @@ from qgis.PyQt.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QPus
 
 COLUMNS = [('region', 'Región'), ('date', 'Fecha'), ('value', 'Valor'), ('n_pixels', 'Píxeles'), ('n_images', 'Imágenes')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+TREND_COLUMNS = [('region', 'Región'), ('label', 'Parte del año'), ('n', 'Años'), ('tau', 'τ de Kendall'), ('z', 'Z'),
+                 ('p_value', 'p-valor'), ('significant', 'Significativa'), ('slope', 'Pendiente de Sen (por año)'),
+                 ('intercept', 'Valor inicial (Sen)'), ('first_year', 'Primer año'), ('last_year', 'Último año')]
+COMPARISON_COLUMNS = [('region', 'Región'), ('label', 'Parte del año'), ('reference', 'Periodo de referencia'),
+                      ('other', 'Otro periodo'), ('difference', 'Diferencia'), ('n_reference', 'Años de referencia'),
+                      ('n_other', 'Años del otro')]
 
 
 def chart_png(res, path):
@@ -23,6 +30,83 @@ def chart_png(res, path):
 		return path
 	except Exception:
 		return None
+
+
+def trends_png(res, path):
+	"""PNG of the yearly values and Sen lines of the trends RES (or None). Call it from the main thread."""
+	try:
+		from monitoreo import charts
+		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=res['unit'] or None)
+		return path
+	except Exception:
+		return None
+
+
+def comparison_png(res, step, path):
+	"""PNG of the comparison of periods RES by part of the year (or None). Call it from the main thread."""
+	try:
+		from monitoreo import charts
+		labels = {r['part']: (r['label'][:3] if step == 'monthly' else r['key']) for r in res['profile']}
+		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=res['unit'] or None,
+		                      names=res['names'])
+		return path
+	except Exception:
+		return None
+
+
+def _cell(v):
+	if v is None:
+		return ''
+	if isinstance(v, bool):
+		return 'sí' if v else 'no'
+	return f'{v:.6g}' if isinstance(v, float) else str(v)
+
+
+class ResultDialog(QDialog):
+	"""Window of the trends or of the comparison of periods: chart (PNG), table and buttons to save them."""
+
+	def __init__(self, res, parent=None):
+		super().__init__(parent)
+		self.res = res
+		trends = res.get('kind') == 'trends'
+		rows = res['rows'] if trends else res['profile']
+		columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
+		self.setWindowTitle(f"MonitorEO: {res['label']}")
+		self.resize(980, 760)
+		lay = QVBoxLayout(self)
+		unit = f"{res['unit']} por año" if trends else res['unit']
+		info = QLabel(f"{res['title']} · {unit} · píxeles de {res['scale']:g} m"
+		              + (' · significativa: p < 0,05 (Mann-Kendall)' if trends else ' · diferencia = otro periodo - referencia'))
+		info.setWordWrap(True)
+		lay.addWidget(info)
+		if res.get('chart'):
+			label = QLabel()
+			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
+			lay.addWidget(label)
+		table = QTableWidget(len(rows), len(columns))
+		table.setHorizontalHeaderLabels([c[1] for c in columns])
+		for i, r in enumerate(rows):
+			for j, (key, _) in enumerate(columns):
+				table.setItem(i, j, QTableWidgetItem(_cell(r.get(key))))
+		table.resizeColumnsToContents()
+		lay.addWidget(table, 1)
+		row = QHBoxLayout()
+		row.addStretch()
+		for text, path, filt in (('Guardar CSV…', res.get('csv'), 'CSV (*.csv)'),
+		                         ('Guardar gráfica…', res.get('chart'), 'PNG (*.png)')):
+			if path:
+				b = QPushButton(text)
+				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
+				row.addWidget(b)
+		b = QPushButton('Cerrar')
+		b.clicked.connect(self.close)
+		row.addWidget(b)
+		lay.addLayout(row)
+
+	def save(self, src, filt):
+		path, _ = QFileDialog.getSaveFileName(self, 'Guardar', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
+		if path:
+			shutil.copyfile(src, path)
 
 
 def nice_ticks(lo, hi, n=5):
