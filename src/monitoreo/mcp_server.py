@@ -33,7 +33,9 @@ Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aer
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer (map tiles and preview),
 region_stats (statistics of a map) or the exports to Google Drive (export_image_to_drive,
-export_time_series_to_drive, then task_status).
+export_time_series_to_drive, then task_status). GeoTIFFs on this computer: download_image (one map of a small
+region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
+pixel size, over its ecoregions: the input variables of a model).
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
@@ -181,6 +183,46 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
 	_ready()
 	return _text(services.time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season,
 	                                           quality, scale, folder, name, collection=collection))
+
+
+@tool
+def download_image(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+                   temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                   resolution: Optional[float] = None, crs: str = 'auto', clip: bool = True,
+                   collection: Optional[str] = None) -> str:
+	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
+	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
+	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g.
+	'EPSG:25830'. Returns the path of the file and its grid."""
+	_ready()
+	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, season=season,
+	                                     quality=quality, resolution=resolution, crs=crs, clip=clip,
+	                                     path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}', 'tif'),
+	                                     collection=collection))
+
+
+@tool
+def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = False, overwrite: bool = False) -> str:
+	"""Download several variables as GeoTIFFs on aligned grids over a study area and, if the recipe has ecoregion,
+	over the ecoregions of RESOLVE 2017 that it touches (their union), each grid with its own pixel size: the input
+	variables of a model (e.g. eHabitat+). The files go to the folder NAME of the output folder (the ecoregions to its
+	subfolder ecoregion), numbered in the order of the recipe. area: a region (as in the other tools). recipe:
+	{"study": {"resolution": 10, "buffer": 0}, "ecoregion": {"resolution": 100, "drive": true},
+	"period": ["2018-01-01", "2021-12-31"], "variables": [{"index": "NDVI", "sensor": "Sentinel-2",
+	"metric": ["p95", "p5"]}, {"index": "LSWI", "sensor": "Sentinel-2", "metric": "median"}, {"name": "slope",
+	"image": "COPERNICUS/DEM/GLO30_2024_1", "band": "DEM", "terrain": "slope"}]}; optional: crs, season, quality,
+	temporal (period, annual, monthly) and interannual, collection and band (other collections), drive_folder.
+	Grids with "drive": true are exported to Google Drive (no size limits): the tasks keep running and calling this
+	tool again with the same arguments imports the finished ones (also from Google Drive for desktop). Use dry_run
+	first: it gives the grids, their size and the number of images, without downloading."""
+	_ready()
+	folder = os.path.join(OUTPUT, re.sub(r'[^A-Za-z0-9_-]+', '_', name).strip('_') or 'variables')
+	log = []
+	res = services.download_variables(recipe, area, folder, dry_run=dry_run, overwrite=overwrite, wait=False,
+	                                  log=log.append)
+	if log:
+		res['log'] = '\n'.join(log).strip()
+	return _text(res)
 
 
 @tool

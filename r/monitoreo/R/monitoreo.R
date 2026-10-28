@@ -195,6 +195,36 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
                                   folder, name, collection = collection)
 }
 
+#' Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed by
+#' Earth Engine in tiles: for small regions (big ones: mo_export_image()). Returns the path, the grid and the number
+#' of images.
+#' @param resolution pixel size in metres (default: that of the data).
+#' @param crs "auto" (UTM zone of the region) or a code such as "EPSG:25830".
+#' @export
+mo_download_image <- function(region, variable, sensor, start, end, path, metric = "median", temporal = "period",
+                              interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
+                              clip = TRUE, collection = NULL) {
+  services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                            resolution, crs, path.expand(path), clip, collection = collection)
+}
+
+#' Download a recipe of variables (several variables and metrics, see the Python module monitoreo.recipe) as
+#' GeoTIFFs on aligned grids over a study area, in `folder`, and, if the recipe has `ecoregion`, over the ecoregions
+#' of RESOLVE 2017 that it touches, in `folder`/ecoregion. Running it again downloads only what changed.
+#' @param recipe a list (e.g. from yaml::read_yaml()) or the path of a YAML file.
+#' @param area the path of a vector file of the study area, or a region (mo_wdpa(), mo_bbox(), mo_sf(), ...).
+#' @param dry_run only the grids, their size and the number of images.
+#' @param wait wait for the export tasks to Google Drive (FALSE: run again to import them).
+#' @export
+mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NULL, dry_run = FALSE,
+                                  overwrite = FALSE, wait = TRUE, drive_dir = NULL) {
+  if (is.character(recipe)) recipe <- path.expand(recipe)
+  if (is.character(area)) area <- path.expand(area)
+  services()$download_variables(recipe, area, path.expand(folder), layer, only = only, dry_run = dry_run,
+                                overwrite = overwrite, drive_dir = drive_dir, wait = wait,
+                                log = function(msg) message(msg))
+}
+
 #' State of an export task: PENDING, RUNNING, SUCCEEDED, FAILED or CANCELLED.
 #' @export
 mo_task_status <- function(operation) services()$task_status(operation)

@@ -102,3 +102,27 @@ def test_drive_folders(tmp_path):
 	assert len(drive.folders(str(base))) == 3
 	found = [p.split('/')[-2:] for p in drive.find(str(base), 'x_1')]
 	assert found == [['eHabitat_GEE (1)', 'x_1.tif'], ['eHabitat_GEE (2)', 'x_1-0000000000-0000016384.tif']]
+
+
+def test_recipe(tmp_path):
+	from monitoreo import recipe
+	path = tmp_path / 'recipe.yaml'
+	path.write_text("study: {resolution: 10}\nperiod: ['2018-01-01', '2021-12-31']\nvariables:\n"
+	                "  - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}\n"
+	                "  - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}\n")
+	r = recipe.read(str(path))
+	specs = recipe.expand(r)
+	assert [s['file'] for s in specs] == ['1_NDVI_S2_p95.tif', '2_NDVI_S2_p5.tif', '3_slope.tif']
+	assert specs[0]['period'] == ['2018-01-01', '2021-12-31'] and specs[0]['quality']['clouds'] is True
+	with pytest.raises(ValueError, match='unknown keys'):
+		recipe.read(dict(r, folder='gee'))
+	assert recipe.read(dict(r, folder='gee'), extra={'folder'})
+	with pytest.raises(ValueError, match='two variables'):
+		recipe.expand(dict(r, variables=[{'name': 'a', 'image': 'X', 'band': 'b'}] * 2))
+	with pytest.raises(ValueError, match='variable 1'):
+		recipe.expand(dict(r, variables=[{'index': 'NDVI', 'sensor': 'Sentinel-2'}], period=None))
+	warnings = []
+	recipe.expand(dict(r, variables=[{'index': 'NDSI', 'sensor': 'Sentinel-2', 'metric': 'mean'}]), warn=warnings.append)
+	assert len(warnings) == 1 and 'snow' in warnings[0]
+	many = recipe.expand(dict(r, variables=[{'name': f'v{i}', 'image': 'X', 'band': 'b'} for i in range(10)]))
+	assert many[0]['file'] == '01_v0.tif' and many[-1]['file'] == '10_v9.tif'

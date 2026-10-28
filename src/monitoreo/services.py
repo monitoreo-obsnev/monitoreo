@@ -6,18 +6,24 @@ sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collectio
 A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'bbox': [w, s, e, n]},
 {'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file': 'area.gpkg'}.
 
+Besides time series, maps and statistics, the variables are downloaded as GeoTIFFs: one map (download_image, or
+export_image to Google Drive) or a recipe of several variables on aligned grids over a study area and its ecoregions
+(download_variables, see monitoreo.recipe).
+
 Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthengine authenticate`.
 """
 
 import datetime as dt
+import json
 import os
 import re
 
 import ee
 
 from . import areas, catalog, charts, composite, drive, maps, sensors, timeseries
+from . import recipe as recipes
 from . import variable as variables
-from .grid import Grid
+from .grid import Grid, download
 
 _project = None
 
@@ -271,16 +277,67 @@ def export_image(region, variable=None, sensor=None, start=None, end=None, metri
 	Returns {'operation', 'file', 'folder', 'grid'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, resolution, source)
+	grid = _grid(regions, res, crs)
+	name = _slug(name or _file_stem(variable, sensor, metric, start, end, source))
+	op = drive.export(img, grid, name, folder, _project)
+	return {'operation': op, 'file': name + '.tif', 'folder': folder, 'grid': grid.describe()}
+
+
+def _grid(regions, res, crs):
+	"""Grid of RES metres in CRS ('auto' = WGS 84 / UTM of the centre) that covers REGIONS."""
 	geom = regions.geometry()
 	if str(crs).lower() == 'auto':
 		lon, lat = geom.centroid(1).coordinates().getInfo()
 		crs = areas.utm_of(lon, lat)
 	ring = geom.bounds(res, crs).getInfo()['coordinates'][0]
 	xs, ys = [p[0] for p in ring], [p[1] for p in ring]
-	grid = Grid.around(crs, res, min(xs), min(ys), max(xs), max(ys))
-	name = _slug(name or f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}")
-	op = drive.export(img, grid, name, folder, _project)
-	return {'operation': op, 'file': name + '.tif', 'folder': folder, 'grid': grid.describe()}
+	return Grid.around(crs, res, min(xs), min(ys), max(xs), max(ys))
+
+
+def _file_stem(variable, sensor, metric, start, end, source):
+	return f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}"
+
+
+def download_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
+                   interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
+                   tile=512, workers=8, progress=None, **source):
+	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
+	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region), directly: Earth
+	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). Fine for
+	small regions; for big ones, export_image (Google Drive). Returns {'file', 'grid', 'images'}."""
+	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                 quality, clip, resolution, source)
+	grid = _grid(regions, res, crs)
+	path = path or _slug(_file_stem(variable, sensor, metric, start, end, source)) + '.tif'
+	desc = variables.describe(spec)
+	download(img, grid, path, tile=tile, workers=workers, progress=progress,
+	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
+	return {'file': path, 'grid': grid.describe(), 'images': variables.n_images(spec, regions.geometry())}
+
+
+def download_variables(recipe, area, folder, layer=None, buffer=None, only=None, dry_run=False, overwrite=False,
+                       drive_all=False, drive_dir=None, wait=True, record=recipes.RECORD, tile=512, workers=8, log=None,
+                       progress=None):
+	"""Download the variables of RECIPE (a dictionary or a YAML file, see monitoreo.recipe: variables with one or
+	several metrics, period, pixel filters and pixel sizes) as GeoTIFFs on aligned grids over the study AREA (a vector
+	file, or a region such as {'wdpa_id': 555513}) in FOLDER and, if the recipe has ecoregion: resolution, over the
+	ecoregions of RESOLVE 2017 that it touches in FOLDER/ecoregion. Running it again downloads only what changed
+	(OVERWRITE: everything) and imports the finished exports to Google Drive (WAIT: wait for them). DRY_RUN: only the
+	plan and the number of images. LOG(message) and PROGRESS(file, done, total) follow it.
+	Returns {'area', 'grids', 'ecoregions', 'files', ...} and, unless DRY_RUN, {'done', 'folders', 'pending',
+	'in_drive', 'failed'}."""
+	log = log or recipes._quiet
+	p = recipes.plan(recipe, area, layer, buffer, only, warn=log)
+	out = p.summary()
+	if dry_run:
+		images = recipes.n_images(p)
+		for f in out['files']:
+			f['images'] = images[f['file']]
+		return out
+	res = recipes.run(p, folder, record, overwrite, drive_all, drive_dir, wait=wait, tile=tile, workers=workers,
+	                  project=_project or p.recipe.get('project'), log=log, progress=progress)
+	out.update({k: v for k, v in res.items() if k != 'files'})
+	return out
 
 
 def task_status(operation):

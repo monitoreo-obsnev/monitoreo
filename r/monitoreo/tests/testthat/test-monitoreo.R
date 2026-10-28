@@ -45,3 +45,22 @@ test_that("regions from sf", {
   ts <- mo_time_series(mo_sf(x, "zona"), "NDVI", "Sentinel-2", "2021-01-01", "2021-12-31", step = "annual")
   expect_equal(ts$region, "oeste")
 })
+
+test_that("download of a recipe and of a map", {
+  skip_if_no_python()
+  skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
+  mo_init()
+  out <- tempfile()
+  region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+  recipe <- list(study = list(resolution = 250), period = c("2021-01-01", "2021-12-31"),
+                 variables = list(list(index = "NDVI", sensor = "Modis", metric = c("p5", "p95"))))
+  plan <- mo_download_variables(recipe, region, out, dry_run = TRUE)
+  expect_equal(plan$files[[2]]$file, "2_NDVI_MODIS_p95.tif")
+  res <- mo_download_variables(recipe, region, out)
+  expect_true(res$done)
+  expect_true(all(file.exists(file.path(out, c("1_NDVI_MODIS_p5.tif", "2_NDVI_MODIS_p95.tif")))))
+  img <- mo_download_image(region, "NDVI", "Modis", "2021-01-01", "2021-12-31", file.path(out, "ndvi.tif"),
+                           resolution = 250)
+  expect_equal(img$grid$crs, "EPSG:32630")
+  expect_true(file.exists(img$file))
+})

@@ -237,6 +237,20 @@ def save_ecoregions(eco, path, max_error):
 		for name in ECO_FIELDS:
 			feat.SetField(name, f['properties'].get(name))
 		g = ogr.CreateGeometryFromJson(json.dumps(f['geometry']))
-		feat.SetGeometry(ogr.ForceToMultiPolygon(g))
+		feat.SetGeometry(_polygons(g, ogr))
 		lyr.CreateFeature(feat)
 	ds = None
+
+
+def _polygons(g, ogr):
+	"""MultiPolygon of the polygons of G (a simplified geometry can be a collection with lines or points too)."""
+	if ogr.GT_Flatten(g.GetGeometryType()) != ogr.wkbGeometryCollection:
+		return ogr.ForceToMultiPolygon(g)
+	out = ogr.Geometry(ogr.wkbMultiPolygon)
+	for i in range(g.GetGeometryCount()):
+		part = g.GetGeometryRef(i)
+		if ogr.GT_Flatten(part.GetGeometryType()) in (ogr.wkbPolygon, ogr.wkbMultiPolygon):
+			part = ogr.ForceToMultiPolygon(part)
+			for j in range(part.GetGeometryCount()):
+				out.AddGeometry(part.GetGeometryRef(j))
+	return out

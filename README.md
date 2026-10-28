@@ -20,6 +20,9 @@ GeoJSON):
   Earth Engine: se ven en QGIS, Leaflet o rgee sin descargar nada.
 - **Estadísticas** de esos mapas en cada polígono.
 - **Exportaciones** a Google Drive de mapas (GeoTIFF) y series (CSV) grandes.
+- **Descargas** de GeoTIFF a tu ordenador: un mapa, o una **receta** de varias variables y métricas en rejillas
+  alineadas sobre un área de estudio y, con un píxel más grueso, sobre las ecorregiones que toca (las variables de
+  entrada de un modelo; es lo que usa [eHabitat+](https://github.com/javimarlop/eHabpy)).
 
 Variables: las 32 del catálogo de MonitorEO (NDVI, EVI, NDWI, LSWI, NDSI, NDCI, albedo, temperatura de superficie,
 evapotranspiración, calor latente, LAI, clorofila, aerosoles) de Sentinel-2, Landsat 5-9 y MODIS, y cualquier otra
@@ -101,7 +104,47 @@ monitoreo list --sensor Landsat
 monitoreo info NDVI --sensor Modis
 monitoreo parks "Doñana"
 monitoreo series NDVI --sensor Sentinel-2 --region '{"wdpa_id": 389011}' --start 2020-01-01 --end 2021-12-31 --csv ndvi.csv --png ndvi.png
+monitoreo download receta.yaml --area zona.gpkg --out variables --dry-run
 ```
+
+### Descarga de variables en GeoTIFF
+
+Un mapa, directamente (Earth Engine lo calcula en teselas; para regiones pequeñas, de unos millones de píxeles):
+
+```python
+mo.download_image({'wdpa_id': 389011}, 'NDVI', 'Sentinel-2', '2021-01-01', '2021-12-31', metric='p95',
+                  resolution=20, path='ndvi_p95.tif')
+```
+
+Varias variables, en rejillas alineadas (mismo CRS, bordes múltiplos del píxel, NoData -9999), con una **receta**
+(`monitoreo.recipe`):
+
+```yaml
+crs: auto                          # WGS 84 / UTM del centro del área de estudio, o p. ej. EPSG:25830
+study: {resolution: 10, buffer: 500, drive: false}      # área de estudio: rectángulo + buffer (m), descarga directa
+ecoregion: {resolution: 100, drive: true}               # opcional: ecorregiones RESOLVE 2017 que toca, vía Drive
+drive_folder: MonitorEO
+period: ['2018-01-01', '2021-12-31']
+quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6}
+variables:
+  - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}   # un fichero por métrica
+  - {index: LSWI, sensor: Sentinel-2, metric: median}
+  - {index: LST, sensor: Modis, temporal: annual, metric: max, interannual: median}
+  - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}
+  - {name: precip, image: WORLDCLIM/V1/BIO, band: bio12}
+```
+
+```python
+mo.download_variables('receta.yaml', 'zona.gpkg', 'variables', dry_run=True)   # rejillas, tamaños, nº de imágenes
+mo.download_variables('receta.yaml', 'zona.gpkg', 'variables', log=print)      # o el área: {'wdpa_id': 389011}
+```
+
+Las variables del área de estudio quedan en `variables/` (`1_NDVI_S2_p95.tif`, `2_NDVI_S2_p5.tif`, ... en el orden
+de la receta) y las de las ecorregiones en `variables/ecoregion/`, con sus polígonos en `ecoregions.gpkg` (fuera de
+ellas, sin datos). `monitoreo.json` guarda con qué se hizo cada fichero: al repetirlo solo se descarga lo que haya
+cambiado. Las rejillas con `drive: true` se exportan a Google Drive (sin límites de tamaño ni de tiempo, mejor para
+las grandes) y se importan desde Google Drive para escritorio al terminar; si se interrumpe, al repetirlo no se
+lanzan otra vez: se esperan y se importan.
 
 ## Plugin de QGIS
 
@@ -141,8 +184,9 @@ en `dist/`). Prueba sin ventana con el Python de QGIS:
 
 Herramientas: `list_variables`, `describe_variable`, `find_protected_areas`, `time_series` (tabla, CSV y gráfica),
 `map_layer` (URL de teselas y vista previa), `region_stats`, `export_image_to_drive`,
-`export_time_series_to_drive`, `task_status` y `connect`. Los CSV y PNG se guardan en `MONITOREO_OUTPUT` (por defecto
-`~/MonitorEO`).
+`export_time_series_to_drive`, `task_status`, `download_image` y `download_variables` (GeoTIFF en el ordenador; la
+segunda con una receta, como JSON) y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
+defecto `~/MonitorEO`).
 
 Claude Desktop (`claude_desktop_config.json`), con el entorno de conda:
 
@@ -200,11 +244,15 @@ mo_leaflet(capa)                              # leaflet
 
 x <- mo_image(mo_wdpa(389011), "LST", "Modis", "2021-06-01", "2021-08-31", metric = "mean")
 rgee::Map$addLayer(x$image, x$vis, x$name)   # rgee
+
+mo_download_variables("receta.yaml", "zona.gpkg", "variables")   # GeoTIFF de una receta (o yaml::read_yaml())
+terra::rast(list.files("variables", "\\.tif$", full.names = TRUE))
 ```
 
 Funciones: `mo_init`, `mo_install`, `mo_variables`, `mo_describe`, `mo_protected_areas`, regiones (`mo_wdpa`,
 `mo_ecoregion`, `mo_bbox`, `mo_point`, `mo_geojson`, `mo_sf`), `mo_time_series`, `mo_plot`, `mo_map_layer`,
-`mo_leaflet`, `mo_image`, `mo_region_stats`, `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
+`mo_leaflet`, `mo_image`, `mo_region_stats`, `mo_download_image`, `mo_download_variables`, `mo_export_image`,
+`mo_export_time_series` y `mo_task_status`.
 
 ## Catálogo
 
