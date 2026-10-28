@@ -1,7 +1,7 @@
 Package: monitoreo
 Type: Package
 Title: Satellite Variables of MonitorEO (OBSNEV) with Google Earth Engine
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: person("OBSNEV - Universidad de Granada", role = c("aut", "cre"), email = "javier.martinez@ugr.es")
 Description: Time series, maps, statistics and exports to Google Drive of the variables of the MonitorEO app
     (NDVI, EVI, NDWI, LSWI, NDSI, albedo, land surface temperature, evapotranspiration, LAI, ...) of

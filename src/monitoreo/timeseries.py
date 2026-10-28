@@ -18,6 +18,7 @@ from . import areas, composite, variable
 STEPS = ('daily', '16-day', 'monthly', 'annual')
 COLUMNS = ['region', 'date', 'value', 'n_pixels', 'n_images']
 MAX_ROWS = 4000      # rows per request to Earth Engine (getInfo returns at most 5000 elements)
+MAX_STEPS = 120      # steps per request: reduced together, as the bands of one image
 TARGET_PIXELS = 1e6  # pixels per region and step for the automatic scale
 SPLIT_ERRORS = ('too many concurrent', 'memory limit', 'timed out', 'computation timed out')
 RETRY_ERRORS = ('429', 'quota', 'unavailable', '503', '500', 'deadline', 'internal error')
@@ -69,7 +70,9 @@ def _stat_name(stat):
 def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, steps=None, crs=None, tile_scale=4):
 	"""ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS (default: all
 	the steps of the period) and region of REGIONS (an ee.FeatureCollection with a 'name' property), computed on
-	pixels of SCALE metres in CRS (default: the UTM zone of the regions)."""
+	pixels of SCALE metres in CRS (default: the UTM zone of the regions). The steps are reduced over the regions in a
+	single pass, as the bands of one image: with a reduction per step, Earth Engine went over the regions again for
+	each one (96 months over the Sierra Nevada National Park took 5 minutes)."""
 	if variable.kind(spec) == 'image':
 		raise ValueError('a fixed image has no time series')
 	geom = regions.geometry()
@@ -80,18 +83,19 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	sred = composite.reducer(stat).combine(ee.Reducer.count(), '', True)
 	out = _stat_name(stat)
 	steps = steps if steps is not None else bins(spec, step, geom)
+	bands = [f's{i}' for i in range(len(steps))]
+	img = ee.Image.cat([composite._reduce(col.filterDate(a, b), red).rename(band) for band, (a, b) in zip(bands, steps)])
+	n_images = ee.List([col.filterDate(a, b).size() for a, b in steps])
+	stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)
+	prefix = [f'{band}_' if len(bands) > 1 else '' for band in bands]  # a single band keeps the names of the outputs
 
-	def step_rows(b):
-		b = ee.List(b)
-		start, end = ee.String(b.get(0)), ee.String(b.get(1))
-		sub = col.filterDate(start, end)
-		img = composite._reduce(sub, red)
-		n = sub.size()
-		stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)
-		return stats.map(lambda f: ee.Feature(None, {
-			'region': f.get('name'), 'date': start, 'value': f.get(out), 'n_pixels': f.get('count'), 'n_images': n}))
+	def rows(f):
+		f = ee.Feature(f)
+		return ee.FeatureCollection([ee.Feature(None, {
+			'region': f.get('name'), 'date': a, 'value': f.get(p + out), 'n_pixels': f.get(p + 'count'),
+			'n_images': n_images.get(i)}) for i, (p, (a, _)) in enumerate(zip(prefix, steps))])
 
-	return ee.FeatureCollection(ee.List([list(s) for s in steps]).map(step_rows)).flatten()
+	return stats.map(rows).flatten()
 
 
 def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None, steps=None):
@@ -103,7 +107,7 @@ def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None
 	crs = region_crs(regions)
 	steps = steps if steps is not None else bins(spec, step, geom)
 	n_regions = max(regions.size().getInfo(), 1)
-	block = max(1, MAX_ROWS // n_regions)
+	block = max(1, min(MAX_ROWS // n_regions, MAX_STEPS))
 	rows = []
 	for i in range(0, len(steps), block):
 		rows += _fetch(spec, regions, step, metric, stat, scale, steps[i:i + block], crs)

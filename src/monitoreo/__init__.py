@@ -21,4 +21,4 @@ exports, for Python, QGIS, R and language models (MCP).
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.3.0'
+__version__ = '0.3.1'
