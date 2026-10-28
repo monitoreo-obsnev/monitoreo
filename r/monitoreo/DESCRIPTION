@@ -1,0 +1,16 @@
+Package: monitoreo
+Type: Package
+Title: Satellite Variables of MonitorEO (OBSNEV) with Google Earth Engine
+Version: 0.1.0
+Authors@R: person("OBSNEV - Universidad de Granada", role = c("aut", "cre"), email = "javier.martinez@ugr.es")
+Description: Time series, maps, statistics and exports to Google Drive of the variables of the MonitorEO app
+    (NDVI, EVI, NDWI, LSWI, NDSI, albedo, land surface temperature, evapotranspiration, LAI, ...) of
+    Sentinel-2, Landsat and MODIS, with its pixel filters, computed with Google Earth Engine through the
+    Python package 'monitoreo' (the same functions as its QGIS plugin and its MCP server). Earth Engine
+    images can be shown with 'rgee'.
+License: file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.0)
+Imports: reticulate (>= 1.30), jsonlite
+Suggests: rgee, ggplot2, leaflet, sf, testthat (>= 3.0.0)
+Config/testthat/edition: 3

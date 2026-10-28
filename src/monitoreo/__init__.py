@@ -1,0 +1,21 @@
+"""MonitorEO (OBSNEV) in Python: the variables of the MonitorEO app of Google Earth Engine
+(https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev), their time series, maps and
+exports, for Python, QGIS, R and language models (MCP).
+
+    services   the functions used by every tool (start here): time series, maps, statistics, exports
+    catalog    catalog of variables of MonitorEO (catalog.json, imported from the repository of the app)
+    sensors    collections of each sensor: pixel filters, scale and offset, formula of the variable
+    composite  temporal aggregation: one metric over the period, or by year, month or 16 days and then between years
+    variable   Earth Engine image of a variable described by a dictionary (a 'spec')
+    timeseries time series of a variable over regions
+    maps       colour ramps, map tiles and thumbnails
+    charts     charts of the time series
+    areas      regions: GeoJSON, vector files, protected areas (WDPA), ecoregions (RESOLVE Ecoregions 2017)
+    grid       grids aligned to the pixel size and direct download of an image in tiles (GDAL)
+    drive      export of an image to Google Drive and import of the exported files onto a grid (GDAL)
+    mcp_server server MCP of these functions for language models
+
+It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
+"""
+
+__version__ = '0.1.0'

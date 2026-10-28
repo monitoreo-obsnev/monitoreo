@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monitoreo"
+version = "0.1.0"
+description = "MonitorEO (OBSNEV): variables de satélite de Google Earth Engine, series temporales, mapas y exportaciones, para Python, QGIS, R y modelos de lenguaje (MCP)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "OBSNEV - Universidad de Granada" }]
+dependencies = [
+    "earthengine-api>=0.1.380",
+    "numpy",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.10"]
+plot = ["matplotlib"]
+test = ["pytest"]
+all = ["mcp>=1.10", "matplotlib", "pytest"]
+
+[project.scripts]
+monitoreo = "monitoreo.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+monitoreo = ["catalog.json"]
+
+[tool.pytest.ini_options]
+markers = ["ee: needs Earth Engine (set EE_PROJECT)"]

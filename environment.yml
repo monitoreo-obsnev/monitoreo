@@ -1,0 +1,20 @@
+# Entorno de MonitorEO en Python (paquete monitoreo, servidor MCP y pruebas).
+# Créalo con Miniforge (solo conda-forge, sin las condiciones de uso del canal defaults de Anaconda):
+#   conda env create -f environment.yml
+#   conda activate monitoreo
+#   earthengine authenticate
+name: monitoreo
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - earthengine-api>=1.0
+  - numpy
+  - gdal>=3.6          # lectura de vectores y escritura de GeoTIFF (opcional para las series temporales)
+  - matplotlib         # gráficas de las series temporales
+  - mcp>=1.10          # servidor MCP
+  - pytest
+  - pip
+  - pip:
+      - -e .

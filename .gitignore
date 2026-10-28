@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+qgis/monitoreo_qgis/ext/
+.DS_Store
+.pytest_cache/
