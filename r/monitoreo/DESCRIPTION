@@ -8,7 +8,7 @@ Description: Time series, maps, statistics and exports to Google Drive of the va
     Sentinel-2, Landsat and MODIS, with its pixel filters, computed with Google Earth Engine through the
     Python package 'monitoreo' (the same functions as its QGIS plugin and its MCP server). Earth Engine
     images can be shown with 'rgee'.
-License: file LICENSE
+License: GPL (>= 3)
 Encoding: UTF-8
 Depends: R (>= 4.0)
 Imports: reticulate (>= 1.30), jsonlite

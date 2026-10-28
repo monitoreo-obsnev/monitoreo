@@ -62,6 +62,7 @@ def main():
 					continue
 				path = os.path.join(folder, f)
 				z.write(path, os.path.relpath(path, HERE))
+		z.write(os.path.join(ROOT, 'LICENSE'), os.path.join(os.path.basename(PLUGIN), 'LICENSE'))
 	print(f'{out} ({os.path.getsize(out) / 2 ** 20:.1f} MB)')
 
 

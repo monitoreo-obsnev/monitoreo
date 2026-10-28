@@ -1,5 +1,5 @@
 #### Imports the variable catalog of the MonitorEO app (OBSNEV, Google Earth Engine) into catalog.json
-#### License: CC BY-SA 3.0
+#### License: GPL-3.0-or-later
 
 """
 MonitorEO is a Google Earth Engine app written in JavaScript. Its catalog of

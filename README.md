@@ -290,6 +290,12 @@ Las pruebas usan el código de `src/` del clon aunque el entorno tenga instalada
 línea de comandos o el servidor MCP con cambios sin publicar: `PYTHONPATH=src python -m monitoreo.cli mcp --no-update`
 (o `pip install -e .` en un entorno aparte, que ni `monitoreo mcp` ni eHabitat+ actualizan).
 
-Pendiente: elegir la licencia (`r/monitoreo/LICENSE`, `pyproject.toml`). El repositorio es
-`github.com/monitoreo-obsnev/monitoreo` (en este README, `qgis/monitoreo_qgis/metadata.txt` y
-`r/monitoreo/R/monitoreo.R`); si se publica con otro nombre, hay que cambiarlo ahí.
+## Licencia
+
+Copyright (C) 2026 OBSNEV, Universidad de Granada.
+
+[GNU General Public License v3.0 o posterior](https://www.gnu.org/licenses/gpl-3.0.html) (GPL-3.0-or-later; texto
+completo en `LICENSE`): se puede usar, copiar, modificar y redistribuir, también con fines comerciales, manteniendo
+los avisos de autoría (MonitorEO, OBSNEV, Universidad de Granada) y distribuyendo las versiones modificadas con la
+misma licencia y su código fuente. Es la licencia de los plugins de QGIS (QGIS es GPL v2 o posterior) y admite las
+librerías con licencia Apache 2.0 que lleva el plugin (earthengine-api y las de Google).

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +9,8 @@ description = "MonitorEO (OBSNEV): variables de satélite de Google Earth Engine
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "OBSNEV - Universidad de Granada" }]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 dependencies = [
     "earthengine-api>=0.1.380",
     "numpy",
