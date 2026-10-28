@@ -379,13 +379,16 @@ class MonitorEODock(QDockWidget):
 
 		def work():
 			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'serie.csv'),
-			                            chart=os.path.join(tmp, 'serie.png'), **var)
+			                            **var)
 
 		def done(res):
-			from .results import SeriesDialog
+			from .results import SeriesDialog, chart_png
 			if not res['rows']:
 				self.message('La serie no tiene valores', 'Warning')
 				return
+			# the chart is drawn here, in the main thread: matplotlib in the thread of a task can crash QGIS (the
+			# OpenBLAS of numpy overflows the small stack of those threads on macOS)
+			res['chart'] = chart_png(res, os.path.join(tmp, 'serie.png'))
 			dlg = SeriesDialog(res, self.iface.mainWindow())
 			dlg.show()
 			self.dialogs = getattr(self, 'dialogs', []) + [dlg]

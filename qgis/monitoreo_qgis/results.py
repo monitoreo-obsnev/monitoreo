@@ -1,5 +1,5 @@
 """Window of a time series: chart, table and buttons to save the CSV and the chart. The chart is the PNG of
-monitoreo (matplotlib) or, when QGIS has no matplotlib (e.g. QGIS 4 on macOS), one drawn with Qt."""
+monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt."""
 
 import datetime as dt
 import math
@@ -12,6 +12,17 @@ from qgis.PyQt.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QPus
 
 COLUMNS = [('region', 'Región'), ('date', 'Fecha'), ('value', 'Valor'), ('n_pixels', 'Píxeles'), ('n_images', 'Imágenes')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+
+def chart_png(res, path):
+	"""PNG of the chart of the time series RES made by monitoreo with matplotlib, or None without matplotlib (or if it
+	fails): then the dialog draws it with Qt. Call it from the main thread."""
+	try:
+		from monitoreo import charts
+		charts.time_series_png(res['rows'], path, title=res['title'], ylabel=res['unit'] or None)
+		return path
+	except Exception:
+		return None
 
 
 def nice_ticks(lo, hi, n=5):
