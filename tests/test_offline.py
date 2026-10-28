@@ -149,3 +149,31 @@ def test_update(monkeypatch):
 		raise OSError('no network')
 	monkeypatch.setattr(update, 'latest', offline)
 	assert update.ensure_latest(log=quiet) == 'offline'
+
+
+def test_series_split_and_retry(monkeypatch):
+	import ee
+	calls = []
+
+	def table(spec, regions, step, metric, stat, scale, steps, crs):
+		calls.append(list(steps))
+
+		class FC:
+			def getInfo(self):
+				if len(steps) > 2:
+					raise ee.EEException('Too many concurrent aggregations.')
+				return {'features': [{'properties': {'date': s}} for s in steps]}
+		return FC()
+	monkeypatch.setattr(timeseries, 'table', table)
+	monkeypatch.setattr(timeseries.time, 'sleep', lambda s: None)
+	rows = timeseries._fetch(None, None, 'monthly', 'mean', 'mean', 250, list('abcdefg'), 'EPSG:32630')
+	assert [r['date'] for r in rows] == list('abcdefg') and calls[0] == list('abcdefg')
+
+	def broken(*args):
+		class FC:
+			def getInfo(self):
+				raise ee.EEException('Image.load: asset not found')
+		return FC()
+	monkeypatch.setattr(timeseries, 'table', broken)
+	with pytest.raises(ee.EEException, match='not found'):  # not retried
+		timeseries._fetch(None, None, 'monthly', 'mean', 'mean', 250, list('ab'), 'EPSG:32630')

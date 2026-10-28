@@ -16,6 +16,9 @@ WDPA = 'WCMC/WDPA/current/polygons'
 # Fields of WDPA since 2025: the WDPA ID is SITE_ID (WDPAID before) and NAME_ENG the English name (ORIG_NAME before)
 WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA', 'STATUS_YR']
 REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'bbox', 'point')
+WDPA_MAX_ERROR = 10  # metres: simplification of the protected areas fetched from WDPA (one pixel of Sentinel-2)
+
+_wdpa = {}  # protected areas already fetched: {region as JSON: [GeoJSON features]}
 
 
 def _osr():
@@ -149,6 +152,41 @@ def _named(fc, field):
 	return fc.map(lambda f: f.set('name', ee.String(f.get(field))))
 
 
+def _geojson_polygons(geom):
+	"""The polygons of a GeoJSON geometry (WDPA has geometry collections with lines), or None."""
+	t = geom.get('type')
+	if t in ('Polygon', 'MultiPolygon'):
+		return geom
+	if t != 'GeometryCollection':
+		return None
+	coords = []
+	for g in geom.get('geometries', []):
+		if g.get('type') == 'Polygon':
+			coords.append(g['coordinates'])
+		elif g.get('type') == 'MultiPolygon':
+			coords += g['coordinates']
+	if not coords:
+		return None
+	return dict({k: v for k, v in geom.items() if k not in ('type', 'geometries')}, type='MultiPolygon', coordinates=coords)
+
+
+def _fetched(key, fc):
+	"""The protected areas FC of WDPA as a collection of their geometries, fetched once (simplified by
+	WDPA_MAX_ERROR m, without lines) and kept in memory: every later request carries the geometries instead of
+	searching them again among the 300 000 areas of WDPA (3 months of MODIS over Sierra Nevada: 126 s, 8 s so)."""
+	if key not in _wdpa:
+		info = fc.map(lambda f: ee.Feature(f.geometry(), {'name': f.get('name')}).simplify(WDPA_MAX_ERROR)).getInfo()
+		feats = []
+		for f in info['features']:
+			geom = _geojson_polygons(f['geometry'])
+			if geom:
+				feats.append({'geometry': geom, 'name': f['properties']['name']})
+		if not feats:
+			raise ValueError(f'no protected area of WDPA for {key}: see find_protected_areas')
+		_wdpa[key] = feats
+	return ee.FeatureCollection([ee.Feature(ee.Geometry(f['geometry']), {'name': f['name']}) for f in _wdpa[key]])
+
+
 def region(spec):
 	"""ee.FeatureCollection of a region given as a dictionary with one of:
 	  geojson        a GeoJSON geometry, Feature or FeatureCollection (dict or text); name_field: property with names
@@ -177,9 +215,9 @@ def region(spec):
 	if k == 'wdpa_id':
 		ids = [int(x) for x in (v if isinstance(v, (list, tuple)) else [v])]
 		f = ee.Filter.Or(ee.Filter.inList('SITE_ID', ids), ee.Filter.inList('WDPAID', ids))
-		return _named(ee.FeatureCollection(WDPA).filter(f), 'NAME')
+		return _fetched(json.dumps({k: ids}), _named(ee.FeatureCollection(WDPA).filter(f), 'NAME'))
 	if k == 'wdpa_name':
-		return _named(ee.FeatureCollection(WDPA).filter(ee.Filter.eq('NAME', v)), 'NAME')
+		return _fetched(json.dumps({k: v}), _named(ee.FeatureCollection(WDPA).filter(ee.Filter.eq('NAME', v)), 'NAME'))
 	if k == 'ecoregion_id':
 		ids = [int(x) for x in (v if isinstance(v, (list, tuple)) else [v])]
 		return _named(ee.FeatureCollection(ECOREGIONS).filter(ee.Filter.inList('ECO_ID', ids)), 'ECO_NAME')

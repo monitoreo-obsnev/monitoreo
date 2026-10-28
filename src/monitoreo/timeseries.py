@@ -9,6 +9,7 @@ region, so that steps with few clear observations can be told apart.
 import csv
 import datetime as dt
 import math
+import time
 
 import ee
 
@@ -18,6 +19,8 @@ STEPS = ('daily', '16-day', 'monthly', 'annual')
 COLUMNS = ['region', 'date', 'value', 'n_pixels', 'n_images']
 MAX_ROWS = 4000      # rows per request to Earth Engine (getInfo returns at most 5000 elements)
 TARGET_PIXELS = 1e6  # pixels per region and step for the automatic scale
+SPLIT_ERRORS = ('too many concurrent', 'memory limit', 'timed out', 'computation timed out')
+RETRY_ERRORS = ('429', 'quota', 'unavailable', '503', '500', 'deadline', 'internal error')
 
 
 def bins(spec, step, region_geom=None):
@@ -102,14 +105,31 @@ def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None
 	block = max(1, MAX_ROWS // n_regions)
 	rows = []
 	for i in range(0, len(steps), block):
-		fc = table(spec, regions, step, metric, stat, scale, steps[i:i + block], crs)
-		rows += [f['properties'] for f in fc.getInfo()['features']]
+		rows += _fetch(spec, regions, step, metric, stat, scale, steps[i:i + block], crs)
 		if progress:
 			progress(min(i + block, len(steps)), len(steps))
 	for r in rows:
 		r['region'] = str(r.get('region'))
 	rows.sort(key=lambda r: (r['region'], r['date']))
 	return rows, scale
+
+
+def _fetch(spec, regions, step, metric, stat, scale, steps, crs, retries=4):
+	"""Rows of the STEPS: the request is split in two when Earth Engine has too many aggregations at the same time
+	or runs out of memory or time, and repeated (after 5, 10, 20 s) when it is busy."""
+	for attempt in range(retries):
+		try:
+			fc = table(spec, regions, step, metric, stat, scale, steps, crs)
+			return [f['properties'] for f in fc.getInfo()['features']]
+		except ee.EEException as e:
+			msg = str(e).lower()
+			if any(s in msg for s in SPLIT_ERRORS) and len(steps) > 1:
+				half = len(steps) // 2
+				return (_fetch(spec, regions, step, metric, stat, scale, steps[:half], crs, retries)
+				        + _fetch(spec, regions, step, metric, stat, scale, steps[half:], crs, retries))
+			if attempt == retries - 1 or not any(s in msg for s in SPLIT_ERRORS + RETRY_ERRORS):
+				raise
+		time.sleep(2 ** attempt * 5)
 
 
 def write_csv(rows, path, meta=None):
