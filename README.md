@@ -125,10 +125,13 @@ El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un pan
 
 Los cálculos van en tareas de QGIS (barra de tareas), sin bloquear QGIS.
 
-**Publicar una versión del plugin**: sube `version=` en `qgis/monitoreo_qgis/metadata.txt`, haz commit y crea una
-etiqueta con esa versión precedida de `v` (p. ej. `v0.2.0`; en GitHub Desktop: *History*, botón derecho sobre el
-commit, *Create Tag…*, y después *Push origin*). El flujo `.github/workflows/qgis-plugin.yml` genera el zip en
-GitHub y crea la release con él adjunto; falla si la etiqueta no coincide con `version=`.
+**Publicar una versión del plugin**: sube `version=` en `qgis/monitoreo_qgis/metadata.txt`, haz commit y push, y
+publica una release en GitHub (*Releases > Draft a new release*, etiqueta nueva con esa versión, p. ej. `v0.2.0`,
+*Publish release*). Unos minutos después, el flujo `.github/workflows/qgis-plugin.yml` le adjunta el zip del plugin,
+generado en GitHub (se sigue en la pestaña *Actions*). También vale subir la etiqueta desde GitHub Desktop
+(*History*, botón derecho sobre el commit, *Create Tag…* `v0.2.0`, *Push origin*): el flujo crea la release. Falla
+si la etiqueta no coincide con `version=` (`0.2` y `v0.2.0` valen para `0.2.0`). Para adjuntar el zip a una release
+que ya existe: *Actions > Plugin de QGIS > Run workflow*, con su etiqueta.
 
 Para generar el zip en local: `python qgis/build_plugin.py` (descarga las dependencias; necesita internet; queda
 en `dist/`). Prueba sin ventana con el Python de QGIS:

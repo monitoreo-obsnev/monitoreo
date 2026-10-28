@@ -1,39 +1,77 @@
-# Plugin de QGIS: al subir una etiqueta de versión (v0.1.0, v0.2.0, ...) genera el zip del plugin con
-# qgis/build_plugin.py (con monitoreo y earthengine-api dentro) y crea la release de GitHub con el zip adjunto.
-# Ejecutado a mano (Actions > Plugin de QGIS > Run workflow), deja el zip como artefacto, sin release.
+# Plugin de QGIS: genera el zip del plugin con qgis/build_plugin.py (con monitoreo y earthengine-api dentro) y lo
+# adjunta a la release de GitHub:
+# - al publicar una release en la web (Releases > Draft a new release > Publish release);
+# - al subir una etiqueta v* (p. ej. v0.2.0 desde GitHub Desktop), creando la release si no existe;
+# - a mano (Actions > Plugin de QGIS > Run workflow) con la etiqueta de una release que ya existe; sin etiqueta,
+#   deja el zip como artefacto de la ejecución.
 name: Plugin de QGIS
 
 on:
+  release:
+    types: [published]
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Etiqueta de la release a la que adjuntar el zip (vacío: solo artefacto)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
+
+concurrency:
+  group: qgis-plugin-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
 
 jobs:
   zip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Generar el zip del plugin
         run: python qgis/build_plugin.py
       - name: Comprobar que la versión del plugin es la de la etiqueta
-        if: startsWith(github.ref, 'refs/tags/')
-        run: test -f "dist/monitoreo_qgis-${GITHUB_REF_NAME#v}.zip" || { echo "La etiqueta $GITHUB_REF_NAME no coincide con version= de qgis/monitoreo_qgis/metadata.txt"; exit 1; }
-      - name: Crear la release con el zip
-        if: startsWith(github.ref, 'refs/tags/')
+        if: env.TAG != ''
+        run: |
+          python - <<'EOF'
+          import os, re, sys
+          tag = os.environ['TAG']
+          ver = re.search(r'^version=(.+)$', open('qgis/monitoreo_qgis/metadata.txt').read(), re.M).group(1).strip()
+          def parts(v):  # 0.1 = v0.1.0
+              p = v.strip().lstrip('vV').split('.')
+              while len(p) > 1 and p[-1] == '0':
+                  p.pop()
+              return p
+          if parts(tag) != parts(ver):
+              sys.exit(f'La etiqueta {tag} no coincide con version={ver} de qgis/monitoreo_qgis/metadata.txt')
+          print(f'Etiqueta {tag} = versión {ver} del plugin')
+          EOF
+      - name: Adjuntar el zip a la release
+        if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/monitoreo_qgis-*.zip \
-            --title "MonitorEO $GITHUB_REF_NAME" \
-            --notes "Plugin de QGIS: descarga monitoreo_qgis-${GITHUB_REF_NAME#v}.zip e instálalo en QGIS con Complementos > Administrar e instalar complementos > Instalar a partir de ZIP."
-      - name: Guardar el zip (ejecución manual)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          zip=$(ls dist/monitoreo_qgis-*.zip)
+          notes="Plugin de QGIS: descarga $(basename "$zip") e instálalo en QGIS con Complementos > Administrar e instalar complementos > Instalar a partir de ZIP."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$zip" --clobber
+            if [ -z "$(gh release view "$TAG" --json body --jq .body)" ]; then
+              gh release edit "$TAG" --notes "$notes"
+            fi
+          else
+            gh release create "$TAG" "$zip" --title "MonitorEO $TAG" --notes "$notes"
+          fi
+      - name: Guardar el zip como artefacto (ejecución manual sin etiqueta)
+        if: env.TAG == ''
         uses: actions/upload-artifact@v4
         with:
           name: monitoreo_qgis
