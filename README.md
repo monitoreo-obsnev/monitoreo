@@ -105,8 +105,9 @@ monitoreo series NDVI --sensor Sentinel-2 --region '{"wdpa_id": 389011}' --start
 
 ## Plugin de QGIS
 
-Instalación: **Complementos > Administrar e instalar complementos > Instalar a partir de ZIP** con
-`dist/monitoreo_qgis-0.1.0.zip`. El zip lleva dentro `monitoreo` y la librería de Earth Engine con sus dependencias
+Instalación: descarga `monitoreo_qgis-<versión>.zip` de la última release
+(https://github.com/monitoreo-obsnev/monitoreo/releases/latest) e instálalo en QGIS con **Complementos > Administrar
+e instalar complementos > Instalar a partir de ZIP**. El zip lleva dentro `monitoreo` y la librería de Earth Engine con sus dependencias
 (Python puro, válido en Windows, macOS y Linux), así que no hay que instalar nada más. Está probado en QGIS 3.40
 LTR (Qt5, Python 3.9) y QGIS 4.0 (Qt6, Python 3.12); declara QGIS 3.22 como versión mínima.
 
@@ -124,8 +125,14 @@ El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un pan
 
 Los cálculos van en tareas de QGIS (barra de tareas), sin bloquear QGIS.
 
-Para generar el zip: `python qgis/build_plugin.py` (descarga las dependencias; necesita internet). Prueba sin
-ventana con el Python de QGIS: `EE_PROJECT=... /Applications/QGIS-LTR.app/Contents/MacOS/bin/python3.9 qgis/test_plugin.py`.
+**Publicar una versión del plugin**: sube `version=` en `qgis/monitoreo_qgis/metadata.txt`, haz commit y crea una
+etiqueta con esa versión precedida de `v` (p. ej. `v0.2.0`; en GitHub Desktop: *History*, botón derecho sobre el
+commit, *Create Tag…*, y después *Push origin*). El flujo `.github/workflows/qgis-plugin.yml` genera el zip en
+GitHub y crea la release con él adjunto; falla si la etiqueta no coincide con `version=`.
+
+Para generar el zip en local: `python qgis/build_plugin.py` (descarga las dependencias; necesita internet; queda
+en `dist/`). Prueba sin ventana con el Python de QGIS:
+`EE_PROJECT=... /Applications/QGIS-LTR.app/Contents/MacOS/bin/python3.9 qgis/test_plugin.py`.
 
 ## Servidor MCP (Claude y otros modelos de lenguaje)
 

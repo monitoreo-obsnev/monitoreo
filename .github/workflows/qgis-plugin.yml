@@ -1,0 +1,40 @@
+# Plugin de QGIS: al subir una etiqueta de versión (v0.1.0, v0.2.0, ...) genera el zip del plugin con
+# qgis/build_plugin.py (con monitoreo y earthengine-api dentro) y crea la release de GitHub con el zip adjunto.
+# Ejecutado a mano (Actions > Plugin de QGIS > Run workflow), deja el zip como artefacto, sin release.
+name: Plugin de QGIS
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generar el zip del plugin
+        run: python qgis/build_plugin.py
+      - name: Comprobar que la versión del plugin es la de la etiqueta
+        if: startsWith(github.ref, 'refs/tags/')
+        run: test -f "dist/monitoreo_qgis-${GITHUB_REF_NAME#v}.zip" || { echo "La etiqueta $GITHUB_REF_NAME no coincide con version= de qgis/monitoreo_qgis/metadata.txt"; exit 1; }
+      - name: Crear la release con el zip
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/monitoreo_qgis-*.zip \
+            --title "MonitorEO $GITHUB_REF_NAME" \
+            --notes "Plugin de QGIS: descarga monitoreo_qgis-${GITHUB_REF_NAME#v}.zip e instálalo en QGIS con Complementos > Administrar e instalar complementos > Instalar a partir de ZIP."
+      - name: Guardar el zip (ejecución manual)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoreo_qgis
+          path: dist/monitoreo_qgis-*.zip
