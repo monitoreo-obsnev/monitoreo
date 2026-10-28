@@ -11,6 +11,11 @@ import ee
 DEFAULT_PALETTE = ['000080', '0000FF', '0080FF', '00FFFF', '80FFFF', 'FFFFFF', 'FFFF00', 'FF8000', 'FF0000', '800000']
 
 
+def ramp(entry=None, colours=None):
+	"""Colours (hex, without #) of the ramp of a catalog ENTRY (pm), or COLOURS, or DEFAULT_PALETTE."""
+	return [str(c).lstrip('#') for c in (colours or (entry or {}).get('pm') or DEFAULT_PALETTE)]
+
+
 def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None, palette=None):
 	"""Colour ramp of a single band image ('value'): as MonitorEO, from the percentiles 5 and 95 of the image over
 	REGION_GEOM (or VMIN and VMAX), with the palette of the catalog entry ENTRY (pm) or PALETTE."""
@@ -25,8 +30,7 @@ def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None,
 		vmax = hi if vmax is None else vmax
 	if vmax == vmin:
 		vmax = vmin + 1e-6
-	palette = palette or (entry or {}).get('pm') or DEFAULT_PALETTE
-	return {'min': float(vmin), 'max': float(vmax), 'palette': [str(c).lstrip('#') for c in palette]}
+	return {'min': float(vmin), 'max': float(vmax), 'palette': ramp(entry, palette)}
 
 
 def tile_url(image, vis):

@@ -162,8 +162,13 @@ El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un pan
   extensión del mapa, un área protegida (buscando por nombre en WDPA) o la ecorregión del centro del mapa.
 - **Variable**: variable y sensor del catálogo, periodo, temporada y filtros por píxel.
 - **Serie temporal**: paso, métrica de cada paso y estadístico de la región. Abre una ventana con la gráfica, la tabla
-  y los botones para guardar el CSV y la gráfica.
-- **Mapa**: añade la capa de teselas de Earth Engine al proyecto (se calcula al verla; la URL vale unas horas).
+  y los botones para guardar el CSV y la gráfica. Las series calculadas en la sesión quedan en la lista **Series**:
+  **Ver** vuelve a abrir su ventana.
+- **Mapa**: añade la variable agregada en el tiempo como GeoTIFF temporal, con la rampa de colores de MonitorEO
+  (percentiles 5 y 95) y el mapa centrado en la región; sus valores se consultan con la herramienta **Identificar**.
+  Va a la resolución de los datos o, si la región pasa de 4 millones de píxeles, con píxeles 2, 3... veces mayores
+  (para la resolución completa, la exportación a Google Drive). Si no se puede descargar, añade la capa de teselas de
+  Earth Engine (solo colores).
 - **Exportar a Google Drive**: el mapa en GeoTIFF y la serie en CSV. El panel sigue las tareas y, si Google Drive
   para escritorio está instalado, carga el GeoTIFF en el proyecto al terminar.
 

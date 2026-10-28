@@ -38,6 +38,8 @@ def test_map_layer_and_thumbnail(tmp_path):
 	m = services.map_layer(GUAJARES, 'NDVI', 'Sentinel-2', '2021-01-01', '2021-12-31', metric='median',
 	                       thumbnail=str(tmp_path / 'map.png'))
 	assert m['url'].startswith('https://') and '{z}' in m['url'] and m['min'] < m['max']
+	w, s, e, n = m['bounds']
+	assert abs(w + 3.62) < 1e-3 and abs(n - 36.93) < 1e-3
 	assert open(m['thumbnail'], 'rb').read(4) == b'\x89PNG'
 
 
@@ -50,6 +52,21 @@ def test_region_stats():
 def test_protected_areas():
 	parks = services.find_protected_areas('Sierra Nevada', 10)
 	assert any(p['SITE_ID'] == 389011 for p in parks)
+
+
+def test_wdpa_region_fetched_once():
+	import time
+	from monitoreo import areas
+	areas._wdpa.clear()
+	t = time.time()
+	park = areas.region({'wdpa_id': 389011})  # WDPA has it as a geometry collection with 3 lines
+	first = time.time() - t
+	t = time.time()
+	areas.region({'wdpa_id': 389011})
+	assert time.time() - t < 0.5 < first
+	geom = park.first().geometry()
+	assert geom.type().getInfo() == 'MultiPolygon' and park.first().get('name').getInfo() == 'Sierra Nevada'
+	assert abs(geom.area(100).getInfo() / 1e6 - 859) < 5
 
 
 RECIPE = {'study': {'resolution': 250, 'buffer': 500}, 'ecoregion': {'resolution': 10000},
@@ -104,3 +121,8 @@ def test_download_image(tmp_path):
 	values, n, gt = _values(res['file'])
 	assert res['images'] == 23 and res['grid']['crs'] == 'EPSG:32630' and gt[1] == 250
 	assert 0 < len(values) <= n and 0.1 < values.mean() < 0.8
+	assert res['native_resolution'] == 250 and 0 < res['min'] < res['max'] < 1 and len(res['palette']) > 2
+	small = services.download_image(GUAJARES, 'NDVI', 'Sentinel-2', '2021-06-01', '2021-08-31', max_pixels=10000,
+	                                path=str(tmp_path / 's2.tif'))
+	g = small['grid']
+	assert small['resolution'] % 10 == 0 and small['resolution'] > 10 and g['width'] * g['height'] <= 10000

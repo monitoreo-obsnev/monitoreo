@@ -15,6 +15,7 @@ Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthe
 
 import datetime as dt
 import json
+import math
 import os
 import re
 
@@ -215,17 +216,25 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, clip=True,
               thumbnail=None, **source):
 	"""Map of a variable over REGION aggregated in time (e.g. the median NDVI of 2018-2021): URL of its Earth
-	Engine tiles (XYZ, valid for some hours) and colour ramp. Writes a PNG preview to THUMBNAIL if given.
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'thumbnail'}."""
+	Engine tiles (XYZ, valid for some hours; their values cannot be queried: download_image for that) and colour
+	ramp. Writes a PNG preview to THUMBNAIL if given.
+	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, None, source)
 	entry = variable_entry(spec)
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette)
-	out = dict(vis, url=maps.tile_url(img, vis), name=_title(spec) + f' ({metric})', unit=_unit(spec), thumbnail=None)
+	out = dict(vis, url=maps.tile_url(img, vis), name=_title(spec) + f' ({metric})', unit=_unit(spec),
+	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:
 		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
 		out['thumbnail'] = thumbnail
 	return out
+
+
+def _bounds(regions):
+	"""[west, south, east, north] (degrees) of REGIONS."""
+	ring = regions.geometry().bounds(1).getInfo()['coordinates'][0]
+	return [min(p[0] for p in ring), min(p[1] for p in ring), max(p[0] for p in ring), max(p[1] for p in ring)]
 
 
 def variable_entry(spec):
@@ -300,19 +309,49 @@ def _file_stem(variable, sensor, metric, start, end, source):
 
 def download_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
-                   tile=512, workers=8, progress=None, **source):
+                   max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
 	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region), directly: Earth
-	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). Fine for
-	small regions; for big ones, export_image (Google Drive). Returns {'file', 'grid', 'images'}."""
-	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
-	                                 quality, clip, resolution, source)
+	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). With
+	MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times bigger. Fine for small regions; for big ones at
+	full resolution, export_image (Google Drive).
+	Returns {'file', 'grid', 'resolution', 'native_resolution' (that of the data), 'images', 'name', 'unit', 'min',
+	'max' (percentiles 5 and 95 of the values, as the maps of MonitorEO), 'palette'}."""
+	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
+	                 season=season, quality=quality, **source)
+	regions = areas.region(region)
+	native = float(variables.native_scale(spec))
+	res = float(resolution or native)
 	grid = _grid(regions, res, crs)
+	if max_pixels and grid.pixels > max_pixels:
+		res *= math.ceil(math.sqrt(grid.pixels / max_pixels))
+		grid = _grid(regions, res, grid.crs)
+	img = variables.image(spec, regions.geometry(), res)
+	if clip:
+		img = img.clipToCollection(regions)
 	path = path or _slug(_file_stem(variable, sensor, metric, start, end, source)) + '.tif'
 	desc = variables.describe(spec)
 	download(img, grid, path, tile=tile, workers=workers, progress=progress,
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
-	return {'file': path, 'grid': grid.describe(), 'images': variables.n_images(spec, regions.geometry())}
+	vmin, vmax = _percentiles(path)
+	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
+	        'images': variables.n_images(spec, regions.geometry()), 'name': _title(spec) + f' ({metric})',
+	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
+
+
+def _percentiles(path, lo=5, hi=95):
+	"""Percentiles LO and HI of the valid values of a GeoTIFF (None, None if it has none)."""
+	import numpy as np
+	from osgeo import gdal
+	gdal.UseExceptions()
+	ds = gdal.Open(path)
+	band = ds.GetRasterBand(1)
+	a = band.ReadAsArray()
+	a = a[(a != band.GetNoDataValue()) & np.isfinite(a)]
+	ds = None
+	if not a.size:
+		return None, None
+	return float(np.percentile(a, lo)), float(np.percentile(a, hi))
 
 
 def download_variables(recipe, area, folder, layer=None, buffer=None, only=None, dry_run=False, overwrite=False,

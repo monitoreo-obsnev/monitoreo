@@ -6,10 +6,12 @@ import json
 import os
 import tempfile
 
-from qgis.core import (Qgis, QgsApplication, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsDataSourceUri,
-                       QgsMapLayerProxyModel, QgsProject, QgsRasterLayer, QgsSettings, QgsTask)
+from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+                       QgsDataSourceUri, QgsMapLayerProxyModel, QgsProject, QgsRasterLayer, QgsRasterShader,
+                       QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, Qt, QTimer
+from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout,
                                  QWidget)
@@ -29,12 +31,31 @@ REGIONS = [('Capa (entidades seleccionadas o todas)', 'layer'), ('Extensión del
            ('Área protegida (WDPA)', 'wdpa'), ('Ecorregión del centro del mapa', 'ecoregion')]
 POLL_MS = 30000
 MAX_VERTICES = 20000
+MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
 
 
 def level(name):
 	"""Qgis message level NAME (Info, Warning, Critical, Success) in QGIS 3 and 4."""
 	enum = getattr(Qgis, 'MessageLevel', None)
 	return getattr(enum, name) if enum is not None and hasattr(enum, name) else getattr(Qgis, name)
+
+
+def pseudocolor(layer, vmin, vmax, palette):
+	"""Colour LAYER (band 1) with the colours PALETTE (hex) spread from VMIN to VMAX."""
+	if vmax <= vmin:
+		vmax = vmin + 1e-6
+	n = len(palette)
+	items = [QgsColorRampShader.ColorRampItem(vmin + (vmax - vmin) * i / max(n - 1, 1), QColor('#' + c.lstrip('#')),
+	                                          f'{vmin + (vmax - vmin) * i / max(n - 1, 1):.4g}')
+	         for i, c in enumerate(palette)]
+	ramp = QgsColorRampShader(vmin, vmax)
+	ramp.setColorRampItemList(items)
+	shader = QgsRasterShader()
+	shader.setRasterShaderFunction(ramp)
+	renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
+	renderer.setClassificationMin(vmin)
+	renderer.setClassificationMax(vmax)
+	layer.setRenderer(renderer)
 
 
 def polygon_filter():
@@ -58,6 +79,8 @@ class MonitorEODock(QDockWidget):
 		self.iface = iface
 		self.setObjectName('MonitorEODock')
 		self.tasks = []          # running QgsTasks (kept so that Python does not delete them)
+		self.series = []         # results of the time series of this session
+		self.series_dialogs = {}  # their windows, by index in self.series
 		self.exports = []        # export tasks of Earth Engine being followed
 		self.timer = QTimer(self)
 		self.timer.timeout.connect(self.poll_exports)
@@ -178,6 +201,16 @@ class MonitorEODock(QDockWidget):
 		b = QPushButton('Calcular la serie temporal')
 		b.clicked.connect(self.run_series)
 		f.addRow(b)
+		self.series_list = QComboBox()  # the series computed in this session, to open them again
+		self.series_list.setToolTip('Series calculadas en esta sesión de QGIS')
+		self.show_series_button = QPushButton('Ver')
+		self.show_series_button.setToolTip('Abre otra vez la gráfica y la tabla de la serie elegida')
+		self.show_series_button.clicked.connect(self.show_series)
+		row = QHBoxLayout()
+		row.addWidget(self.series_list, 1)
+		row.addWidget(self.show_series_button)
+		f.addRow('Series', row)
+		self.update_series_list()
 		main.addWidget(box)
 
 		box = QGroupBox('Mapa')
@@ -189,7 +222,9 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Agregación temporal', self.temporal)
 		f.addRow('Métrica entre años', self.interannual)
 		b = QPushButton('Añadir la capa al mapa')
-		b.setToolTip('Capa de teselas de Earth Engine: se calcula al verla, sin descargar nada')
+		b.setToolTip('Descarga el mapa como GeoTIFF temporal, con los valores de la variable (consultables con la '
+		             'herramienta Identificar), a la resolución de los datos o, en regiones grandes, con píxeles '
+		             f'mayores (hasta {MAP_PIXELS / 1e6:g} millones de píxeles)')
 		b.clicked.connect(self.run_map)
 		f.addRow(b)
 		main.addWidget(box)
@@ -389,11 +424,33 @@ class MonitorEODock(QDockWidget):
 			# the chart is drawn here, in the main thread: matplotlib in the thread of a task can crash QGIS (the
 			# OpenBLAS of numpy overflows the small stack of those threads on macOS)
 			res['chart'] = chart_png(res, os.path.join(tmp, 'serie.png'))
-			dlg = SeriesDialog(res, self.iface.mainWindow())
-			dlg.show()
-			self.dialogs = getattr(self, 'dialogs', []) + [dlg]
+			res['label'] = f"{res['title']} · {', '.join(res['regions'])}"
+			self.series.append(res)
+			self.update_series_list()
+			self.series_list.setCurrentIndex(self.series_list.count() - 1)
+			self.show_series()
 
 		self.run_task(f"Serie temporal de {var['variable']} ({var['sensor']})", work, done)
+
+	def update_series_list(self):
+		self.series_list.clear()
+		for i, res in enumerate(self.series):
+			self.series_list.addItem(f"{i + 1}. {res['label']}", i)
+		self.series_list.setEnabled(bool(self.series))
+		self.show_series_button.setEnabled(bool(self.series))
+
+	def show_series(self):
+		"""Open the window of the chosen series (or bring it to the front if it is open)."""
+		from .results import SeriesDialog
+		i = self.series_list.currentData()
+		if i is None:
+			return
+		dlg = self.series_dialogs.get(i)
+		if dlg is None:
+			dlg = self.series_dialogs[i] = SeriesDialog(self.series[i], self.iface.mainWindow())
+		dlg.show()
+		dlg.raise_()
+		dlg.activateWindow()
 
 	def run_map(self):
 		args = self.prepare()
@@ -401,9 +458,47 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		self.run_task(f"Mapa de {var['variable']} ({var['sensor']})",
-		              lambda: services.map_layer(region, metric=metric, temporal=temporal, interannual=inter, **var),
-		              self.add_tile_layer)
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'mapa.tif')
+
+		def work():
+			"""The map as a GeoTIFF with the values; if it cannot be downloaded, Earth Engine tiles (colours only)."""
+			try:
+				return services.download_image(region, metric=metric, temporal=temporal, interannual=inter, path=path,
+				                               max_pixels=MAP_PIXELS, **var)
+			except Exception as e:
+				res = services.map_layer(region, metric=metric, temporal=temporal, interannual=inter, **var)
+				res['error'] = str(e)
+				return res
+
+		self.run_task(f"Mapa de {var['variable']} ({var['sensor']})", work,
+		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
+
+	def add_map_layer(self, res):
+		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95) and zoom to it."""
+		layer = QgsRasterLayer(res['file'], res['name'])
+		if not layer.isValid():
+			raise RuntimeError(f"QGIS no ha podido abrir {res['file']}")
+		if res['min'] is None:
+			self.message(f"{res['name']}: sin valores en la región (sin imágenes, o todo filtrado)", 'Warning', 10)
+		else:
+			pseudocolor(layer, res['min'], res['max'], res['palette'])
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m, "
+		                  f"{res['images']} imágenes. GeoTIFF temporal: {res['file']}")
+		QgsProject.instance().addMapLayer(layer)
+		self.zoom_to(layer.extent(), layer.crs())
+		native = res['resolution'] <= res['native_resolution']
+		self.message(f"Capa añadida: {res['name']}, píxeles de {res['resolution']:g} m"
+		             + ('' if native else ' (región grande: píxeles mayores que los de los datos; para la resolución '
+		                                 'completa, exporta el mapa a Google Drive)')
+		             + '. Consulta los valores con la herramienta Identificar', 'Success', 10)
+
+	def zoom_to(self, rect, crs):
+		canvas = self.iface.mapCanvas()
+		tr = QgsCoordinateTransform(crs, canvas.mapSettings().destinationCrs(), QgsProject.instance())
+		r = tr.transformBoundingBox(rect)
+		r.scale(1.05)
+		canvas.setExtent(r)
+		canvas.refresh()
 
 	def add_tile_layer(self, res):
 		uri = QgsDataSourceUri()
@@ -417,7 +512,9 @@ class MonitorEODock(QDockWidget):
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Rampa de color de {res['min']:.4g} a {res['max']:.4g}: "
 		                  f"{', '.join('#' + c for c in res['palette'])}. Teselas de Earth Engine válidas unas horas.")
 		QgsProject.instance().addMapLayer(layer)
-		self.message(f"Capa añadida: {res['name']} (de {res['min']:.4g} a {res['max']:.4g} {res['unit']})", 'Success')
+		self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))
+		self.message(f"Capa de teselas añadida: {res['name']} (de {res['min']:.4g} a {res['max']:.4g} {res['unit']}; "
+		             f"sin valores consultables: no se pudo descargar el GeoTIFF: {res.get('error')})", 'Warning', 15)
 
 	def run_export_image(self):
 		args = self.prepare()

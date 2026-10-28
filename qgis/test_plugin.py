@@ -114,9 +114,9 @@ print('map layer:', layers[-1].name(), '| valid:', layers[-1].isValid(), '| prov
 dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('monthly'))
 dock.run_series()
 wait(dock)
-res = dock.dialogs[-1].res
+res = dock.series[-1]
 print('series (extent):', len(res['rows']), 'rows, first', res['rows'][0], '| matplotlib chart', bool(res['chart']))
-chart = dock.dialogs[-1].chart
+chart = dock.series_dialogs[len(dock.series) - 1].chart
 if chart is not None and os.environ.get('TEST_OUT'):  # chart drawn with Qt (no matplotlib)
 	chart.resize(860, 360)
 	chart.grab().save(os.path.join(os.environ['TEST_OUT'], 'qt_chart.png'), 'PNG')
@@ -138,7 +138,7 @@ dock.name_field.setField('zona')
 dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('annual'))
 dock.run_series()
 wait(dock)
-res = dock.dialogs[-1].res
+res = dock.series[-1]
 print('series (layer):', [(r['region'], r['date'], round(r['value'], 3)) for r in res['rows']])
 assert sorted(res['regions']) == ['este', 'oeste']
 
