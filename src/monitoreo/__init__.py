@@ -26,9 +26,10 @@ Government of Andalusia.
     drive      export of an image to Google Drive and import of the exported files onto a grid (GDAL)
     mcp_server server MCP of these functions for language models
     update     keeps the installed package at the last version of GitHub (used by the MCP server)
+    publish    reports of results for the static web viewer (folder viewer): COGs, CSVs, report.json, catalogue
     about      description, acknowledgements and logos of MonitorEO-OBSNEV
 
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.3.4'
+__version__ = '0.3.5'

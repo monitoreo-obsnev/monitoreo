@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Resultados de MonitorEO</title>
+	<meta name="description" content="Catálogo de los análisis de seguimiento con datos de satélite publicados por el Observatorio de Cambio Global de Sierra Nevada (OBSNEV, Universidad de Granada) con MonitorEO-OBSNEV.">
+	<link rel="stylesheet" href="assets/viewer.css">
+</head>
+<body>
+	<header class="site-header">
+		<div class="wrap">
+			<a class="brand" href="./"><span class="brand-mark" aria-hidden="true">M</span><strong>MonitorEO</strong><span>Resultados</span></a>
+			<nav aria-label="Enlaces">
+				<a href="https://github.com/monitoreo-obsnev/monitoreo/wiki">Manual</a>
+				<a href="https://github.com/monitoreo-obsnev/monitoreo">Código</a>
+			</nav>
+		</div>
+	</header>
+
+	<main class="wrap">
+		<section class="intro">
+			<h1>Resultados de seguimiento con datos de satélite</h1>
+			<p>Análisis publicados por el Observatorio de Cambio Global de Sierra Nevada (OBSNEV, Universidad de Granada) con MonitorEO-OBSNEV: tendencias, comparaciones de periodos, series y mapas de verdor, nieve, temperatura o incendios. Elija un informe para ver sus mapas, gráficos y datos.</p>
+		</section>
+
+		<form class="filters" id="filters" role="search" aria-label="Filtrar los informes">
+			<div class="field search">
+				<label for="q">Buscar</label>
+				<input id="q" name="q" type="search" placeholder="Parque, variable, pregunta…" autocomplete="off">
+			</div>
+			<div class="field">
+				<label for="parque">Parque o zona</label>
+				<select id="parque" name="parque"><option value="">Todos</option></select>
+			</div>
+			<div class="field">
+				<label for="variable">Variable</label>
+				<select id="variable" name="variable"><option value="">Todas</option></select>
+			</div>
+			<div class="field">
+				<label for="analisis">Análisis</label>
+				<select id="analisis" name="analisis"><option value="">Todos</option></select>
+			</div>
+			<div class="field">
+				<label for="anio">Año de los datos</label>
+				<select id="anio" name="anio"><option value="">Todos</option></select>
+			</div>
+			<button class="button" type="reset">Limpiar</button>
+		</form>
+
+		<p class="count" id="count" aria-live="polite"></p>
+		<div class="cards" id="cards"><p class="loading">Cargando el catálogo…</p></div>
+	</main>
+
+	<footer class="site-footer"><div class="wrap"></div></footer>
+
+	<script src="assets/common.js"></script>
+	<script src="assets/catalog.js"></script>
+</body>
+</html>

@@ -9,6 +9,10 @@
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
+    monitoreo publish REPORT.yaml [...] [--site S]   publish reports in the static viewer of results (administrators)
+    monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
+                                                     update its viewer (after updating monitoreo) and its catalogue
+    monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is and who funds it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
@@ -16,7 +20,8 @@
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
-monitoreo.recipe).
+monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
+monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/MonitorEO/visor.
 """
 
 import argparse
@@ -94,6 +99,14 @@ def main(argv=None):
 	p.add_argument('--no-wait', action='store_true', help='do not wait for the export tasks: run again to import them')
 	p.add_argument('--tile', type=int, default=512, help='size of the tiles computed by Earth Engine (pixels)')
 	p.add_argument('--workers', type=int, default=8, help='tiles computed at the same time')
+	p = sub.add_parser('publish', help='publish reports in the static viewer of results (for its administrators)')
+	p.add_argument('reports', nargs='*', help='YAML files of the reports (see monitoreo.publish)')
+	p.add_argument('--site', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
+	p.add_argument('--remove', action='append', default=[], metavar='ID', help='remove this report from the site')
+	p.add_argument('--check', action='store_true', help='check the catalogue and every report of the site')
+	p = sub.add_parser('serve', help='the viewer of results on this computer (with range requests, as the web servers)')
+	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
+	p.add_argument('--port', type=int, default=8000)
 	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is and who funds it')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
@@ -103,6 +116,12 @@ def main(argv=None):
 	if args.cmd == 'about':
 		print(about.text(args.lang))
 		return
+	if args.cmd == 'serve':
+		from . import publish
+		publish.serve(args.site, args.port)
+		return
+	if args.cmd == 'publish':
+		return _publish(args)
 	from . import services
 	if args.cmd == 'list':
 		_table(services.list_variables(args.sensor, args.text, args.lang),
@@ -153,6 +172,30 @@ def _trend_or_compare(args, services):
 		extra = ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m{extra}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+
+
+def _publish(args):
+	from . import publish, services
+	try:
+		if not (args.reports or args.remove or args.check):
+			publish.install_viewer(args.site)
+			publish.update_catalog(args.site)
+			print(f'Updated the viewer and the catalogue of {publish.site_folder(args.site)}')
+		for rid in args.remove:
+			res = services.remove_report(rid, args.site)
+			print(f"Removed {rid} from {res['site']}")
+		for path in args.reports:
+			res = services.publish_report(path, args.site)
+			for r in res['reports']:
+				print(f"Published {r['id']}: {r['title']}")
+	except (ValueError, RuntimeError, FileNotFoundError) as e:
+		sys.exit(f'ERROR: {e}')
+	problems = services.check_site(args.site)
+	for p in problems:
+		print(f'  {p}', file=sys.stderr)
+	if problems:
+		sys.exit(f'ERROR: {len(problems)} problems in the site')
+	print(f'Site {publish.site_folder(args.site)} is right; see it with: monitoreo serve {args.site or ""}'.rstrip())
 
 
 def _mcp(args):

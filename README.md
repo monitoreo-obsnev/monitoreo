@@ -23,6 +23,7 @@ funciones** (`monitoreo.services`). El manual de cada una, con tutoriales y ejem
 | Plugin de QGIS **MonitorEO** | usuarios de QGIS 3 y 4 | `qgis/monitoreo_qgis` |
 | Servidor MCP | Claude u otros modelos de lenguaje | `src/monitoreo/mcp_server.py` |
 | Paquete de R `monitoreo` | R, con `rgee` | `r/monitoreo` |
+| [Visor de resultados](#visor-de-resultados) | cualquiera, en el navegador (publican los administradores) | `src/monitoreo/viewer`, `monitoreo publish` |
 
 Qué calculan, sobre una región (un área protegida de WDPA, una ecorregión, un rectángulo, un punto, una capa o un
 GeoJSON):
@@ -50,7 +51,8 @@ Sentinel-2 y Landsat (incendios, `catalog.EXTRA`) y cualquier otra colección o 
 nieve, aerosoles), que en la app están desactivados; las nubes de Sentinel-2 se quitan con Cloud Score+.
 
 Todo se calcula con **la cuenta de Earth Engine de cada usuario** y su proyecto de Google Cloud: no hay servidor
-que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cuota mensual por proyecto).
+que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cuota mensual por proyecto). Los
+resultados de un análisis se pueden publicar para cualquiera, sin cuenta, en el [visor de resultados](#visor-de-resultados).
 
 ## Antes de empezar: cuenta de Earth Engine
 
@@ -262,7 +264,8 @@ Herramientas: `list_variables`, `describe_variable`, `find_protected_areas`, `ti
 `export_time_series_to_drive`, `task_status`, `download_image` y `download_variables` (GeoTIFF en el ordenador; la
 segunda con una receta, como JSON), las tendencias estacionales `trend_table`, `trend_map` y `download_trend`, la
 comparación de periodos `compare_series`, `compare_map` y `download_comparison`, la severidad de incendios
-`burn_severity`, y `connect`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
+`burn_severity`, `connect` y, para los administradores del [visor de resultados](#visor-de-resultados),
+`publish_report`. Los CSV, PNG y GeoTIFF se guardan en `MONITOREO_OUTPUT` (por
 defecto `~/MonitorEO`).
 
 **Siempre la última versión de GitHub**: al arrancar, `monitoreo mcp` compara el paquete instalado con el último
@@ -338,6 +341,56 @@ Funciones: `mo_init`, `mo_install`, `mo_variables`, `mo_describe`, `mo_protected
 (`mo_trend_table`, `mo_trend_map`, `mo_download_trend`), comparación de periodos (`mo_compare_series`,
 `mo_compare_map`, `mo_download_comparison`), severidad de incendios (`mo_burn_severity`), `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
 
+## Visor de resultados
+
+Los resultados de un análisis se publican en un **visor web estático** que cualquiera consulta en el navegador, sin
+cuenta de Earth Engine y sin gastar su cuota: un catálogo de informes con filtros (parque, variable, tipo de análisis
+y año de los datos) y una página por informe con el **mapa interactivo** de cada GeoTIFF (el valor de todas sus capas
+al pulsar un píxel), los **gráficos interactivos** de cada CSV, los textos, las descargas y la llamada que produjo cada
+resultado. Los mapas son Cloud Optimized GeoTIFF que el navegador lee por partes (OpenLayers y geotiff.js), y los
+gráficos, Vega-Lite: no hay servidor de mapas (ni GeoServer ni GeoNode) ni teselas que caduquen. Solo publican los
+administradores: el sitio no tiene cuentas ni formularios, y publica quien puede escribir en él.
+
+```bash
+monitoreo publish informe.yaml --site ~/visor   # GeoTIFF a COG, CSV, report.json y catalog.json, y el visor
+monitoreo serve ~/visor                         # el visor en este ordenador: http://127.0.0.1:8000/
+monitoreo publish --check --site ~/visor        # comprueba el catálogo y cada informe
+monitoreo publish --remove ID --site ~/visor    # retira un informe
+monitoreo publish --site ~/visor                # actualiza el visor (tras actualizar monitoreo) y el catálogo
+```
+
+Un informe es un YAML con sus textos (en español) y los resultados del análisis: las respuestas de las herramientas
+MCP guardadas con su llamada, las llamadas y resultados de `monitoreo.services` o los ficheros que escribió el
+servidor MCP (que guarda cada llamada en `MONITOREO_OUTPUT/calls.jsonl`). Un YAML puede tener varios informes en
+`reports:`. Ver `monitoreo.publish` y el manual en la [wiki](https://github.com/monitoreo-obsnev/monitoreo/wiki/Visor-de-resultados).
+
+```yaml
+id: 2026-10-sierra-nevada-verdor
+title: ¿En qué época del año ha cambiado el verdor desde 2001, y dónde?
+summary: Solo septiembre tiene una tendencia significativa del EVI (+0,008 por década, p = 0,015).
+answer: El EVI medio del parque sube en 9 de los 12 meses...
+method: Tendencias con el test de Mann-Kendall y la pendiente de Sen...
+region: {name: Sierra Nevada, full_name: Parque Nacional de Sierra Nevada, area_km2: 859}
+authors: [Observatorio de Cambio Global de Sierra Nevada (OBSNEV), Universidad de Granada]
+files: mcp_out                                 # dónde buscar por su nombre los ficheros de los resultados
+results:
+  - answer: data/sn_trendmap.json              # respuesta de download_trend con su llamada
+    title: Tendencia del EVI medio anual en cada píxel, 2001-2024
+    palette: [8c510a, f2efe6, 01665e]
+  - answer: data/sn_trend.json                 # respuesta de trend_table
+  - answer: data/sn_series.json                # respuesta de time_series
+downloads: [{path: informe.pdf, title: Informe completo (PDF)}]
+```
+
+En Python, `services.publish_report('informe.yaml', site='~/visor')` (o un diccionario); en el servidor MCP,
+`publish_report` con los ficheros que escribieron las otras herramientas y los textos.
+
+El sitio (`--site`, la variable `MONITOREO_SITE` o `~/MonitorEO/visor`) es una carpeta estática: `index.html` (el
+catálogo), `report.html`, `assets/`, `catalog.json` y `reports/<id>/` con `report.json`, `maps/*.tif` (COG),
+`data/*.csv`, `files/` (gráficos PNG y otras descargas) y `thumbnail.png`. Se publica con cualquier servidor web que
+atienda peticiones por rangos de bytes: GitHub Pages (un repositorio aparte, para no cargar este con los mapas) o el
+servidor web del OBSNEV (`rsync -av --delete ~/visor/ servidor:/var/www/visor/`).
+
 ## Catálogo
 
 `src/monitoreo/catalog.json` es el catálogo de la app de MonitorEO, leído (como datos, sin ejecutar JavaScript) del
@@ -363,7 +416,7 @@ Correcciones respecto a la app, en el código:
 ## Desarrollo
 
 ```bash
-pytest tests/test_offline.py                 # sin Earth Engine
+pytest tests/test_offline.py tests/test_publish.py   # sin Earth Engine
 EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine
 ```
 

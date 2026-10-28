@@ -7,11 +7,13 @@ monitoreo.update), so the server always runs that version; --no-update skips it.
 
 It uses the Earth Engine credentials of `earthengine authenticate` and the project of the variable EE_PROJECT (or
 the tool connect). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
-~/MonitorEO). Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
+~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
+that produced each file it publishes. Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
 """
 
 import datetime as dt
 import functools
+import inspect
 import json
 import os
 import re
@@ -25,7 +27,7 @@ except ImportError:
 	from mcp.server.fastmcp.exceptions import ToolError
 
 from . import about as about_
-from . import services
+from . import publish, services
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 MAX_ROWS_SHOWN = 300
@@ -45,7 +47,8 @@ region) and download_variables (several variables and metrics on aligned grids o
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
 pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
-severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF): burn_severity.
+severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF): burn_severity. Only for the
+administrators of the public viewer of results: publish_report, with the files written by those tools.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
@@ -57,16 +60,33 @@ server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
 
 def tool(fn):
-	"""Register FN as a tool whose errors reach the client with their message."""
+	"""Register FN as a tool whose errors reach the client with their message, and whose calls that write files are
+	kept in the log of OUTPUT (see _log)."""
+	sig = inspect.signature(fn)
+
 	@functools.wraps(fn)
 	def wrapped(*args, **kwargs):
 		try:
-			return fn(*args, **kwargs)
+			out = fn(*args, **kwargs)
 		except ToolError:
 			raise
 		except Exception as e:
 			raise ToolError(f'{type(e).__name__}: {e}') from e
+		_log(fn.__name__, sig, args, kwargs, out)
+		return out
 	return server.tool()(wrapped)
+
+
+def _log(name, sig, args, kwargs, out):
+	"""Keep the call of a tool whose answer names a GeoTIFF or a CSV (file, csv) in the log of OUTPUT."""
+	text = out[0] if isinstance(out, list) and out else out
+	try:
+		res = json.loads(text) if isinstance(text, str) else None
+		if isinstance(res, dict) and any(isinstance(res.get(k), str) for k in ('file', 'csv')):
+			call = {k: v for k, v in sig.bind_partial(*args, **kwargs).arguments.items() if v is not None}
+			publish.log_call(name, call, {k: v for k, v in res.items() if k != 'rows'}, OUTPUT)
+	except Exception:  # the log never breaks a tool
+		pass
 
 
 def _ready():
@@ -366,6 +386,31 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	return _text(services.burn_severity(region, sensor, start, end, other_start, other_end, metric, season=season,
 	                                    quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'),
 	                                    csv=_out(stem, 'csv')))
+
+
+@tool
+def publish_report(title: str, summary: str, files: List[str], question: Optional[str] = None,
+                   answer: Optional[str] = None, method: Optional[str] = None, region: Optional[dict] = None,
+                   authors: Optional[List[str]] = None, downloads: Optional[List[str]] = None,
+                   report_id: Optional[str] = None, site: Optional[str] = None) -> str:
+	"""For the administrators of the viewer of results of MonitorEO: publish an analysis as a report of the static
+	web site in the folder site (default: MONITOREO_SITE or ~/MonitorEO/visor). files: the GeoTIFF and CSV files
+	written by the other tools (download_trend, download_comparison, download_image, burn_severity, time_series,
+	trend_table, compare_series) in the order of the page; their calls are read from the log of this server. Texts in
+	Spanish, the language of the viewer: title (e.g. the question of the analysis), summary (the answer in one or two
+	sentences), question, answer (the result; paragraphs separated by a blank line), method; region: {"name": ...,
+	"wdpa_id": ...}; downloads: other files (PDF, figures). The GeoTIFFs become Cloud Optimized GeoTIFFs and the site
+	gets the report, the viewer and its catalogue. It is public only when an administrator deploys the folder (git
+	push to the repository of the site, or rsync to its server); `monitoreo serve` shows it on this computer."""
+	spec = {'title': title, 'summary': summary, 'question': question, 'answer': answer, 'method': method,
+	        'region': region, 'authors': authors, 'downloads': downloads, 'results': list(files)}
+	if report_id:
+		spec['id'] = report_id
+	res = services.publish_report({k: v for k, v in spec.items() if v is not None}, site, OUTPUT,
+	                              publish.calls_log(OUTPUT))
+	res['next'] = (f"see it with `monitoreo serve {res['site']}`, then deploy the folder (git push or rsync) to make "
+	               'it public')
+	return _text(res)
 
 
 @tool

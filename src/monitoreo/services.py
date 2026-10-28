@@ -10,7 +10,8 @@ Besides time series, maps and statistics, the variables are downloaded as GeoTIF
 export_image to Google Drive) or a recipe of several variables on aligned grids over a study area and its ecoregions
 (download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall and Sen: trend_table, trend_map,
 download_trend) and the comparison of a reference period with another (compare_series, compare_map,
-download_comparison) are those of MonitorEO-TEST (see monitoreo.trends).
+download_comparison) are those of MonitorEO-TEST (see monitoreo.trends). The results of an analysis are published
+for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
 
 Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthengine authenticate`.
 """
@@ -681,6 +682,44 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		             severity='USGS, Key & Benson 2006'), default=str)})
 		out.update(file=path, bands=bands)
 	return out
+
+
+# Publication -------------------------------------------------------------------------------------------------------
+
+def publish_report(report, site=None, base=None, log=None):
+	"""Publish the results of an analysis as a report of the static viewer of results of MonitorEO, in the folder SITE
+	(default: MONITOREO_SITE or ~/MonitorEO/visor), for the administrators of the viewer (see monitoreo.publish).
+	REPORT is a dictionary (title, summary, question, answer, method, region, authors, results: the calls and results
+	of the other functions or the files they wrote, downloads, ...) with its paths relative to BASE, or a YAML file
+	with one or several reports. The GeoTIFFs are converted to COG and the CSVs copied; the report gets its
+	report.json and SITE the viewer and the catalogue catalog.json. LOG: the log of the calls of the MCP server, where
+	the call of each file is looked up (default: that of MONITOREO_OUTPUT).
+	Returns {'site', 'catalog', 'reports': [{'id', 'title', 'folder', 'page' (relative to SITE)}]}."""
+	from . import publish
+	if isinstance(report, (str, os.PathLike)):
+		specs = publish.read_specs(report)
+	else:
+		specs = [(report, base)]
+	site = publish.site_folder(site)
+	out = []
+	for spec, folder in specs:
+		r = publish.publish(spec, site, folder, log)
+		out.append({'id': r['id'], 'title': r['title'], 'folder': os.path.join(site, 'reports', r['id']),
+		            'page': f"report.html?id={r['id']}"})
+	return {'site': site, 'catalog': os.path.join(site, 'catalog.json'), 'reports': out}
+
+
+def remove_report(report_id, site=None):
+	"""Remove a report from the viewer of results in the folder SITE and from its catalogue."""
+	from . import publish
+	publish.remove(report_id, site)
+	return {'site': publish.site_folder(site), 'removed': report_id}
+
+
+def check_site(site=None):
+	"""Problems of the catalogue and the reports of the viewer of results in the folder SITE ([] if it is right)."""
+	from . import publish
+	return publish.check_site(site)
 
 
 def task_status(operation):

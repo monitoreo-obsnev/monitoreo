@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monitoreo"
-version = "0.3.4"
+version = "0.3.5"
 description = "MonitorEO-OBSNEV: open monitoring tool of Essential Biodiversity Variables based on satellite sensors (University of Granada), for Python, QGIS, R and language models (MCP)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,7 +30,7 @@ monitoreo = "monitoreo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-monitoreo = ["catalog.json", "logos/*"]
+monitoreo = ["catalog.json", "logos/*", "viewer/*.html", "viewer/assets/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]  # the tests use this clone, whatever version of monitoreo is installed
