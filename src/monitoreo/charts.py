@@ -90,7 +90,8 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('referencia', 'otro periodo'),
                    width=10, height=4.5, dpi=150):
 	"""PNG (bytes) of the comparison of two periods (PROFILE: rows of monitoreo.trends.profile): the mean of each part
-	of the year in the reference period and in the other, a pair of lines per region. LABELS: {part: name}."""
+	of the year in the reference period (blue, circles, solid) and in the other (red, squares, dashed; as REF and
+	COMP in MonitorEO-TEST), or a colour per region if there are several. LABELS: {part: name}."""
 	from matplotlib.figure import Figure
 
 	fig = Figure(figsize=(width, height), dpi=dpi)
@@ -103,10 +104,15 @@ def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('
 	x = list(range(len(parts)))
 	for j, region in enumerate(regions):
 		rows = {r['part']: r for r in profile if r['region'] == region}
-		for key, style, name in (('reference', '-', names[0]), ('other', '--', names[1])):
+		for k, (key, style, marker, name) in enumerate((('reference', '-', 'o', names[0]), ('other', '--', 's', names[1]))):
 			y = [rows[p][key] if p in rows and rows[p][key] is not None else float('nan') for p in parts]
+			color = ('C0', 'C3')[k] if len(regions) == 1 else f'C{j % 10}'
 			lab = name if len(regions) == 1 else f'{region} · {name}'
-			ax.plot(x, y, style, marker='o', ms=3, lw=1.4, color=f'C{j % 10}', label=lab)
+			ax.plot(x, y, style, marker=marker, ms=4 if len(parts) > 1 else 7, lw=1.4, color=color, label=lab)
+			if len(parts) == 1 and y[0] == y[0]:
+				ax.annotate(f'{y[0]:.4g}', (0, y[0]), textcoords='offset points', xytext=(10, -3), fontsize=8, color=color)
+	if len(parts) == 1:
+		ax.set_xlim(-1, 1)
 	ax.set_xticks(x)
 	ax.set_xticklabels([labels.get(p, str(p)) for p in parts], rotation=45 if len(parts) > 12 else 0, fontsize=8)
 	if title:

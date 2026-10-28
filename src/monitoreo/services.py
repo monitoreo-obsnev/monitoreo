@@ -549,7 +549,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		out['csv'] = timeseries.write_csv(profile, csv, meta, COMPARISON_COLUMNS)
 	if chart and any(r['reference'] is not None or r['other'] is not None for r in profile):
 		try:
-			labels = {r['part']: (r['label'][:3] if step == 'monthly' else r['key']) for r in profile}
+			labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in profile}
 			charts.comparison_png(profile, labels, chart, title=title, ylabel=unit or None, names=names)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib

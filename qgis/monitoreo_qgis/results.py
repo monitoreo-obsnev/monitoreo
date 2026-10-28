@@ -46,7 +46,7 @@ def comparison_png(res, step, path):
 	"""PNG of the comparison of periods RES by part of the year (or None). Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		labels = {r['part']: (r['label'][:3] if step == 'monthly' else r['key']) for r in res['profile']}
+		labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in res['profile']}
 		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=res['unit'] or None,
 		                      names=res['names'])
 		return path
