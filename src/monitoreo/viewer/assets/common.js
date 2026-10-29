@@ -97,14 +97,22 @@ const MO = (() => {
 		return (vs || []).map((v) => v.sensor ? `${v.variable} · ${v.sensor}` : v.variable);
 	}
 
-	// The footer: description, acknowledgements and logos of monitoreo.about (in catalog.json).
-	function footer(about) {
+	// The name of a licence {name, url} of catalog.json or report.json, with a link to its text.
+	function license(lic) {
+		return /^https:\/\/\S+$/.test(lic.url || '') ? el('a', {href: lic.url, rel: 'license'}, lic.name) : lic.name;
+	}
+
+	// The footer: description, acknowledgements and logos of monitoreo.about, and the licence of the site (in
+	// catalog.json).
+	function footer(about, lic) {
 		const f = document.querySelector('.site-footer .wrap');
 		if (!f || !about) return;
 		f.replaceChildren(
 			el('h2', {}, about.name || 'MonitorEO-OBSNEV'),
 			el('p', {}, about.description),
 			el('p', {}, about.acknowledgements),
+			lic && el('p', {}, 'Los datos y mapas de este sitio se publican con licencia ', license(lic),
+				', salvo que un informe diga otra', lic.text ? `: ${lic.text}` : '.', ' Cada informe dice cómo citarlo.'),
 			el('div', {class: 'logos'}, (about.logos || []).filter(safePath).map((src, i) =>
 				el('img', {src, alt: i ? 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada' :
 					'Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía', loading: 'lazy'}))),
@@ -118,5 +126,5 @@ const MO = (() => {
 		container.replaceChildren(el('div', {class: 'error', role: 'alert'}, message));
 	}
 
-	return {json, text, el, paragraphs, safePath, num, round, signed, pValue, bytes, date, period, css, variables, footer, fail, MONTHS};
+	return {json, text, el, paragraphs, safePath, num, round, signed, pValue, bytes, date, period, css, variables, license, footer, fail, MONTHS};
 })();

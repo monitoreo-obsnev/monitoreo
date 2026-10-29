@@ -349,7 +349,9 @@ y año de los datos) y una página por informe con el **mapa interactivo** de ca
 al pulsar un píxel), los **gráficos interactivos** de cada CSV, los textos, las descargas y la llamada que produjo cada
 resultado. Los mapas son Cloud Optimized GeoTIFF que el navegador lee por partes (OpenLayers y geotiff.js), y los
 gráficos, Vega-Lite: no hay servidor de mapas (ni GeoServer ni GeoNode) ni teselas que caduquen. Solo publican los
-administradores: el sitio no tiene cuentas ni formularios, y publica quien puede escribir en él.
+administradores: el sitio no tiene cuentas ni formularios, y publica quien puede escribir en él. El sitio público es
+<https://monitoreo-obsnev.github.io/resultados/>, del repositorio
+[monitoreo-obsnev/resultados](https://github.com/monitoreo-obsnev/resultados).
 
 ```bash
 monitoreo publish informe.yaml --site ~/visor   # GeoTIFF a COG, CSV, report.json y catalog.json, y el visor
@@ -380,7 +382,13 @@ results:
   - answer: data/sn_trend.json                 # respuesta de trend_table
   - answer: data/sn_series.json                # respuesta de time_series
 downloads: [{path: informe.pdf, title: Informe completo (PDF)}]
+license: CC-BY-4.0                             # la de sus datos y mapas (por defecto)
 ```
+
+Los datos y mapas se publican con licencia [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es): se
+pueden reutilizar para cualquier fin, también comercial, citando la fuente (cada informe dice cómo citarlo). Un
+informe puede dar otra en `license:` (`CC-BY-SA-4.0`, `CC0-1.0` o `{name, url, text}`); el visor la muestra en el
+informe y en su cita, y la del sitio en el pie de cada página.
 
 En Python, `services.publish_report('informe.yaml', site='~/visor')` (o un diccionario); en el servidor MCP,
 `publish_report` con los ficheros que escribieron las otras herramientas y los textos.
@@ -388,8 +396,15 @@ En Python, `services.publish_report('informe.yaml', site='~/visor')` (o un dicci
 El sitio (`--site`, la variable `MONITOREO_SITE` o `~/MonitorEO/visor`) es una carpeta estática: `index.html` (el
 catálogo), `report.html`, `assets/`, `catalog.json` y `reports/<id>/` con `report.json`, `maps/*.tif` (COG),
 `data/*.csv`, `files/` (gráficos PNG y otras descargas) y `thumbnail.png`. Se publica con cualquier servidor web que
-atienda peticiones por rangos de bytes: GitHub Pages (un repositorio aparte, para no cargar este con los mapas) o el
-servidor web del OBSNEV (`rsync -av --delete ~/visor/ servidor:/var/www/visor/`).
+atienda peticiones por rangos de bytes. El sitio público es una copia de trabajo del repositorio
+`monitoreo-obsnev/resultados` (aparte, para no cargar este con los mapas), servido por GitHub Pages desde su rama
+`main`: publicar es publicar en ella y subir el cambio, y su historia guarda quién publicó qué.
+
+```bash
+git clone git@github.com:monitoreo-obsnev/resultados.git ~/resultados    # una vez
+monitoreo publish informe.yaml --site ~/resultados
+cd ~/resultados && git add -A && git commit -m "Informe ..." && git push   # en línea en un minuto
+```
 
 ## Catálogo
 

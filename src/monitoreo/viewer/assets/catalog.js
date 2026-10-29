@@ -14,7 +14,7 @@
 		MO.fail(cards, `No se puede leer el catálogo (catalog.json): ${e.message}`);
 		return;
 	}
-	MO.footer(catalog.about);
+	MO.footer(catalog.about, catalog.license);
 	const reports = catalog.reports || [];
 
 	const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

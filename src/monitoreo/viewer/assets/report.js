@@ -6,7 +6,7 @@
 	const {el} = MO;
 	const main = document.getElementById('report');
 	const id = new URLSearchParams(location.search).get('id') || '';
-	MO.json('catalog.json').then((c) => MO.footer(c.about)).catch(() => {});
+	MO.json('catalog.json').then((c) => MO.footer(c.about, c.license)).catch(() => {});
 	if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) {
 		MO.fail(main, 'Falta el informe: vuelva al catálogo y elija uno.');
 		return;
@@ -38,7 +38,7 @@
 		['Publicado', MO.date(report.published)],
 		['Autoría', (report.authors || []).join('; ')],
 		report.collection && ['Serie', report.collection],
-		report.license && ['Licencia de los datos', report.license],
+		report.license && ['Licencia', MO.license(report.license)],
 	].filter(Boolean);
 	const head = el('header', {class: 'report-head'},
 		el('a', {class: 'back', href: './'}, '← Catálogo de resultados'),
@@ -112,7 +112,9 @@
 	const url = location.href.split('#')[0];
 	parts.push(el('section', {class: 'prose'}, el('h2', {}, 'Cómo citar'),
 		el('p', {}, `${(report.authors || []).join('; ')} (${report.published.slice(0, 4)}). ${region.full_name || region.name}: ` +
-			`${report.title} Resultados de MonitorEO-OBSNEV, ${MO.date(report.published)}. `, el('a', {href: url}, url))));
+			`${report.title} Resultados de MonitorEO-OBSNEV, ${MO.date(report.published)}. `, el('a', {href: url}, url)),
+		report.license && el('p', {}, 'Los datos y mapas de este informe se publican con licencia ', MO.license(report.license),
+			report.license.text ? `: ${report.license.text}` : '.')));
 
 	main.replaceChildren(...parts);
 	if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();

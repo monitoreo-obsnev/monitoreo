@@ -112,6 +112,7 @@ def test_report(outputs):
 	assert [a['id'] for a in r['analyses']] == ['trend', 'series'] and r['analyses'][0]['name'] == 'Tendencia'
 	assert r['periods'] == [['2001-01-01', '2024-12-31']] and r['years'] == [2001, 2024]
 	assert r['answer'] == 'Primer párrafo.\n\nSegundo párrafo.' and r['software']['monitoreo']
+	assert r['license']['id'] == 'CC-BY-4.0' and r['license']['url'].startswith('https://creativecommons.org/')
 
 	m, series, trend = r['results']
 	assert (m['kind'], series['chart'], trend['chart']) == ('map', 'series', 'trends')
@@ -157,6 +158,7 @@ def test_catalog(outputs):
 	assert sn['summary'] == 'El EVI sube en el 30 % del parque.' and sn['years'] == [2001, 2024]
 	assert cat['reports'][0]['thumbnail'] is None  # no map and no chart of a tool
 	assert 'PID2023-151939OB-I00' in cat['about']['acknowledgements'] and cat['analyses']['trend'] == 'Tendencia'
+	assert cat['license']['name'] == sn['license']['name'] == 'CC BY 4.0'  # of the site and of each report
 	assert all((site / p).is_file() for p in cat['about']['logos'])
 	for page in ('index.html', 'report.html', 'assets/viewer.css', 'assets/common.js', 'assets/catalog.js',
 	             'assets/report.js', 'assets/map.js', 'assets/charts.js', '.nojekyll'):
@@ -181,6 +183,8 @@ def test_problems(outputs):
 		publish.publish(_spec(id='Sierra Nevada'), site, outputs, log='')
 	with pytest.raises(FileNotFoundError):
 		publish.publish(_spec(files=None), site, outputs, log='')  # the files of the answers are not found
+	with pytest.raises(ValueError, match='licence'):
+		publish.publish(_spec(license='GPL'), site, outputs, log='')
 	assert not (site / 'reports' / '2026-10-sierra-nevada-verdor').exists()  # nothing half published
 	r = publish.publish(_spec(), site, outputs, log='')
 	folder = str(site / 'reports' / r['id'])
@@ -189,8 +193,10 @@ def test_problems(outputs):
 	bad['results'][1]['csv'] = '/etc/passwd'
 	bad['files'][0]['path'] = '../../x.tif'
 	bad['published'] = '29/10/2026'
+	bad['license'] = {'name': 'CC BY 4.0', 'url': 'javascript:alert(1)'}
 	problems = ' | '.join(publish.check_report(bad, folder))
-	for text in ('palette of 2 or more colours', 'its CSV is not in files', 'a relative path', 'published is a date'):
+	for text in ('palette of 2 or more colours', 'its CSV is not in files', 'a relative path', 'published is a date',
+	             'license has a name and an https url'):
 		assert text in problems
 	os.remove(os.path.join(folder, r['results'][1]['csv']))
 	assert any('does not exist' in p for p in publish.check_report(r, folder))
@@ -263,6 +269,10 @@ def test_texts():
 	assert publish.unit_text('[ºC]') == '°C' and publish.unit_text('[unitless]') == ''
 	assert publish.unit_text('[ºC]', per_year=True) == '°C/año' and publish.unit_text('', per_year=True) == 'por año'
 	assert publish.slug('Aigüestortes i Estany de Sant Maurici') == 'aiguestortes-i-estany-de-sant-maurici'
+	assert publish.license_of()['id'] == publish.license_of('cc by 4.0')['id'] == 'CC-BY-4.0'
+	assert publish.license_of('CC0-1.0')['name'] == 'CC0 1.0'
+	assert publish.license_of({'name': 'ODbL', 'url': 'https://opendatacommons.org/licenses/odbl/'}) == \
+		{'name': 'ODbL', 'url': 'https://opendatacommons.org/licenses/odbl/'}
 	assert publish.python_call('trend_table', {'region': {'wdpa_id': 1}, 'quality': {'snow': False}, 'alpha': None}) \
 		== 'mo.trend_table(region={"wdpa_id": 1}, quality={"snow": False}, alpha=None)'
 	args = {'variable': 'NDSI', 'sensor': 'Modis', 'start': '2001-01-01', 'end': '2005-12-31',

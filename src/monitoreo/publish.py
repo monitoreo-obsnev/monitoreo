@@ -41,7 +41,7 @@ A report is described in Spanish, the language of the viewer, by a dictionary or
     downloads: [{path: informe.pdf, title: Informe completo (PDF)}]
     thumbnail: fig/sierra_nevada.png     # default: the first map, or the first chart of a tool
     files: mcp_out                       # folders where to look for the files of the results by their name
-    license: CC BY 4.0                   # of the published data (optional)
+    license: CC-BY-4.0                   # of its data and maps: id in LICENSES (default: LICENSE) or {name, url, text}
 
 A YAML file may have several reports in `reports:`, with its other keys as the default of each one. Relative paths
 are relative to the folder of the file.
@@ -69,6 +69,20 @@ CALLS_LOG = 'calls.jsonl'  # log of the MCP server in its folder of files: a lin
 SITE_TITLE = 'Resultados de MonitorEO-OBSNEV'
 NODATA = -9999
 THUMBNAIL_WIDTH = 480
+
+# licences of the data and maps of a report, by their SPDX id (text: after a colon); LICENSE is that of a report that
+# does not give one
+LICENSES = {
+	'CC-BY-4.0': {'name': 'CC BY 4.0', 'url': 'https://creativecommons.org/licenses/by/4.0/deed.es',
+	              'text': 'se pueden copiar, redistribuir y adaptar para cualquier fin, también comercial, citando la '
+	                      'fuente.'},
+	'CC-BY-SA-4.0': {'name': 'CC BY-SA 4.0', 'url': 'https://creativecommons.org/licenses/by-sa/4.0/deed.es',
+	                 'text': 'se pueden copiar, redistribuir y adaptar para cualquier fin, también comercial, citando '
+	                         'la fuente y con la misma licencia.'},
+	'CC0-1.0': {'name': 'CC0 1.0', 'url': 'https://creativecommons.org/publicdomain/zero/1.0/deed.es',
+	            'text': 'dominio público: se pueden usar para cualquier fin sin condiciones.'},
+}
+LICENSE = 'CC-BY-4.0'
 
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
@@ -688,6 +702,18 @@ def _paragraphs(text):
 	return str(text).strip() if text else None
 
 
+def license_of(value=None):
+	"""The licence {id, name, url, text} of a report: an id of LICENSES or its name (e.g. 'CC BY 4.0'), a dictionary
+	{name, url, text} or None (LICENSE)."""
+	if isinstance(value, dict):
+		return {k: str(value[k]) for k in ('id', 'name', 'url', 'text') if value.get(k)}
+	key = str(value or LICENSE).strip().upper()
+	for lid, lic in LICENSES.items():
+		if key in (lid, lic['name'].upper(), lid.replace('-', ' ')):
+			return {'id': lid, **lic}
+	raise ValueError(f'unknown licence {value}: one of {", ".join(LICENSES)} or {{name, url, text}}')
+
+
 def build(spec, rid, base, folders, log, folder):
 	"""Write the files of the report SPEC to FOLDER and return its report.json."""
 	files = _Files(folder)
@@ -731,7 +757,7 @@ def build(spec, rid, base, folders, log, folder):
 		'published': published,
 		'authors': [str(a) for a in _list(spec.get('authors'))] or ['OBSNEV - Universidad de Granada'],
 		'collection': spec.get('collection'), 'keywords': [str(k) for k in _list(spec.get('keywords'))],
-		'license': spec.get('license'), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
+		'license': license_of(spec.get('license')), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
 		'software': {'monitoreo': __version__},
 	}
 
@@ -762,6 +788,7 @@ def publish(spec, site=None, base=None, log=None):
 	rid = str(spec.get('id') or slug(f"{spec.get('published') or dt.date.today()}-{spec['title']}"))
 	if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,79}', rid):
 		raise ValueError(f'the id of a report has lowercase letters, digits and hyphens: {rid}')
+	license_of(spec.get('license'))
 	folders = [_path(p, base) for p in _list(spec.get('files'))]
 	reports = os.path.join(site, 'reports')
 	os.makedirs(reports, exist_ok=True)
@@ -812,7 +839,7 @@ def install_viewer(site=None):
 
 
 CATALOG_KEYS = ('id', 'title', 'question', 'summary', 'region', 'variables', 'analyses', 'periods', 'years',
-                'published', 'authors', 'collection', 'keywords')
+                'published', 'authors', 'collection', 'keywords', 'license')
 
 
 def update_catalog(site=None):
@@ -833,7 +860,8 @@ def update_catalog(site=None):
 	a = about_.about('es')
 	a['logos'] = [f'assets/logos/{os.path.basename(p)}' for p in a['logos']]
 	cat = {'schema': SCHEMA, 'title': SITE_TITLE, 'updated': dt.datetime.now().isoformat(timespec='seconds'),
-	       'software': {'monitoreo': __version__}, 'about': a, 'analyses': ANALYSIS_NAMES, 'reports': entries}
+	       'software': {'monitoreo': __version__}, 'about': a, 'license': license_of(), 'analyses': ANALYSIS_NAMES,
+	       'reports': entries}
 	os.makedirs(site, exist_ok=True)
 	_write_json(cat, os.path.join(site, 'catalog.json'))
 	return cat
@@ -873,6 +901,11 @@ def _legend_problems(legend, where):
 	return [f"{where}: unknown legend type {legend.get('type')}"]
 
 
+def _license_problems(lic, where):
+	ok = isinstance(lic, dict) and lic.get('name') and re.fullmatch(r'https://\S+', str(lic.get('url', '')))
+	return [] if ok else [f'{where} has a name and an https url']
+
+
 def check_report(report, folder=None):
 	"""Problems (texts) of a report.json, and of its files in FOLDER if given; [] if it is right."""
 	p = []
@@ -887,6 +920,7 @@ def check_report(report, folder=None):
 		p.append('published is a date YYYY-MM-DD')
 	if not isinstance(report.get('authors'), list) or not report['authors']:
 		p.append('authors is a list')
+	p += _license_problems(report.get('license'), 'license')
 	region = report.get('region')
 	if not isinstance(region, dict) or not region.get('name'):
 		p.append('region has a name')
@@ -971,6 +1005,7 @@ def check_catalog(cat, site=None):
 		p.append(f'schema is not {SCHEMA}')
 	if not isinstance(cat.get('about'), dict) or not cat['about'].get('acknowledgements'):
 		p.append('about has the description and the acknowledgements')
+	p += _license_problems(cat.get('license'), 'license')
 	if not isinstance(cat.get('reports'), list):
 		return p + ['reports is a list']
 	ids = [r.get('id') for r in cat['reports']]
@@ -981,7 +1016,7 @@ def check_catalog(cat, site=None):
 		p.append('the reports are sorted from the newest')
 	for r in cat['reports']:
 		where = f"report {r.get('id')}"
-		for k in ('title', 'summary', 'region', 'published', 'variables', 'analyses', 'path'):
+		for k in ('title', 'summary', 'region', 'published', 'variables', 'analyses', 'license', 'path'):
 			if r.get(k) is None:
 				p.append(f'{where}: no {k}')
 		if r.get('path') != f"reports/{r.get('id')}/report.json":
