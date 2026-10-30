@@ -5,7 +5,7 @@ import datetime as dt
 
 import pytest
 
-from monitoreo import catalog, charts, composite, drive, fire, sensors, services, timeseries, variable
+from monitoreo import catalog, charts, composite, drive, fire, sensors, services, timeseries, trends, variable
 from monitoreo.grid import Grid
 
 
@@ -179,6 +179,26 @@ def test_series_split_and_retry(monkeypatch):
 	monkeypatch.setattr(timeseries, 'table', broken)
 	with pytest.raises(ee.EEException, match='not found'):  # not retried
 		timeseries._fetch(None, None, 'monthly', 'mean', 'mean', 250, list('ab'), 'EPSG:32630')
+
+
+def test_steps_without_value(monkeypatch):
+	# Earth Engine leaves out the null properties: a year without images (Landsat in 2012) or without valid pixels
+	# has no value, and the trend table of the QGIS plugin 0.2.3 failed with KeyError: 'value'
+	def table(*args):
+		class FC:
+			def getInfo(self):
+				return {'features': [{'properties': {'date': '2011-01-01', 'value': 0.4, 'n_pixels': 30, 'n_images': 10}},
+				                     {'properties': {'date': '2012-01-01', 'n_images': 0}},
+				                     {'properties': {'date': '2013-01-01', 'n_images': 14}},
+				                     {'properties': {'date': '2014-01-01', 'value': 0.5, 'n_pixels': 32, 'n_images': 21}}]}
+		return FC()
+	monkeypatch.setattr(timeseries, 'table', table)
+	rows = timeseries._fetch(None, None, 'annual', 'mean', 'mean', 30, ['2011'], 'EPSG:32630')
+	assert [r['value'] for r in rows] == [0.4, None, None, 0.5] and rows[1]['n_pixels'] == 0
+	for r in rows:
+		r.update(region='zona', part=0, year=int(r['date'][:4]))
+	t = trends.trend_rows(rows, 'annual')[0]
+	assert t['n'] == 2 and t['slope'] == pytest.approx(0.1 / 3) and (t['first_year'], t['last_year']) == (2011, 2014)
 
 
 def test_about():
