@@ -35,4 +35,4 @@ https://doi.org/10.5281/zenodo.23814894
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.3.7'
+__version__ = '0.3.8'
