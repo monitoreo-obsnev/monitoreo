@@ -22,7 +22,7 @@ funciones** (`monitoreo.services`). El manual de cada una, con tutoriales y ejem
 | Herramienta | Para quién | Dónde |
 |---|---|---|
 | Paquete de Python `monitoreo` | scripts, cuadernos, línea de comandos | `src/monitoreo` |
-| Plugin de QGIS **MonitorEO** | usuarios de QGIS 3 y 4 | `qgis/monitoreo_qgis` |
+| Plugin de QGIS **MonitorEO** | usuarios de QGIS 4.0.3 o posterior | `qgis/monitoreo_qgis` |
 | Servidor MCP | Claude u otros modelos de lenguaje | `src/monitoreo/mcp_server.py` |
 | Paquete de R `monitoreo` | R, con `rgee` | `r/monitoreo` |
 | [Visor de resultados](#visor-de-resultados) | cualquiera, en el navegador (publican los administradores) | `src/monitoreo/viewer`, `monitoreo publish` |
@@ -213,8 +213,8 @@ lanzan otra vez: se esperan y se importan.
 Instalación: descarga `monitoreo_qgis-<versión>.zip` de la última release
 (https://github.com/monitoreo-obsnev/monitoreo/releases/latest) e instálalo en QGIS con **Complementos > Administrar
 e instalar complementos > Instalar a partir de ZIP**. El zip lleva dentro `monitoreo` y la librería de Earth Engine con sus dependencias
-(Python puro, válido en Windows, macOS y Linux), así que no hay que instalar nada más. Está probado en QGIS 3.40
-LTR (Qt5, Python 3.9) y QGIS 4.0 (Qt6, Python 3.12); declara QGIS 3.22 como versión mínima.
+(Python puro, válido en Windows, macOS y Linux), así que no hay que instalar nada más. Requiere QGIS 4.0.3 o
+posterior (Qt6, Python 3.12); en QGIS 3 funcionan las versiones del plugin hasta la 0.3.3.
 
 El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un panel con:
 
@@ -252,7 +252,7 @@ que ya existe: *Actions > Plugin de QGIS > Run workflow*, con su etiqueta.
 
 Para generar el zip en local: `python qgis/build_plugin.py` (descarga las dependencias; necesita internet; queda
 en `dist/`). Prueba sin ventana con el Python de QGIS:
-`EE_PROJECT=... /Applications/QGIS-LTR.app/Contents/MacOS/bin/python3.9 qgis/test_plugin.py`.
+`EE_PROJECT=... /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python qgis/test_plugin.py`.
 
 ## Servidor MCP (Claude y otros modelos de lenguaje)
 

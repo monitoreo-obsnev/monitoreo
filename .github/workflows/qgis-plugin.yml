@@ -40,7 +40,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Generar el zip del plugin
+      - name: Instalar los escáneres de seguridad de plugins.qgis.org
+        run: pip install bandit detect-secrets
+      - name: Generar el zip del plugin (y escanearlo como plugins.qgis.org)
         run: python qgis/build_plugin.py
       - name: Comprobar que la versión del plugin es la de la etiqueta
         if: env.TAG != ''

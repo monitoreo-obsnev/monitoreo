@@ -2,7 +2,7 @@
 
     EE_PROJECT=<project> <python of QGIS> qgis/test_plugin.py
 
-(macOS: /Applications/QGIS-LTR.app/Contents/MacOS/bin/python3.9, with QGIS_APP=/Applications/QGIS-LTR.app). It
+(macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
 areas, a map layer and two time series (map extent, and a layer with two polygons), waiting for their QGIS tasks.
 """
@@ -12,7 +12,7 @@ import sys
 import time
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-APP = os.environ.get('QGIS_APP', '/Applications/QGIS-LTR.app')
+APP = os.environ.get('QGIS_APP', '/Applications/QGIS-final-4_0_3.app')
 for proj in ('Contents/Resources/proj', 'Contents/Resources/qgis/proj'):
 	if os.path.exists(os.path.join(APP, proj, 'proj.db')):
 		os.environ.setdefault('PROJ_DATA', os.path.join(APP, proj))
