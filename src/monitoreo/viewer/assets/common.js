@@ -108,15 +108,18 @@ const MO = (() => {
 		'nevadeo_feder.jpg': 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada',
 		'biodiversa.png': 'Biodiversa+, European Biodiversity Partnership'};
 
-	// The footer: description, acknowledgements and logos of monitoreo.about, and the licence of the site (in
-	// catalog.json).
+	// The footer: description, acknowledgements, citation and logos of monitoreo.about, and the licence of the site
+	// (in catalog.json).
 	function footer(about, lic) {
 		const f = document.querySelector('.site-footer .wrap');
 		if (!f || !about) return;
+		const doi = /^10\.\d{4,9}\/\S+$/.test(about.doi || '') && `https://doi.org/${about.doi}`;
 		f.replaceChildren(
 			el('h2', {}, about.name || 'MonitorEO-OBSNEV'),
 			el('p', {}, about.description),
 			el('p', {}, about.acknowledgements),
+			about.citation && el('p', {}, el('strong', {}, 'Cómo citar MonitorEO: '),
+				doi ? [about.citation.replace(doi, ''), el('a', {href: doi}, doi)] : about.citation),
 			lic && el('p', {}, 'Los datos y mapas de este sitio se publican con licencia ', license(lic),
 				', salvo que un informe diga otra', lic.text ? `: ${lic.text}` : '.', ' Cada informe dice cómo citarlo.'),
 			el('div', {class: 'logos'}, (about.logos || []).filter(safePath).map(src =>

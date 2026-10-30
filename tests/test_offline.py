@@ -207,9 +207,10 @@ def test_about():
 		a = services.about(lang)
 		assert a['description'].startswith('MonitorEO-OBSNEV') and 'PID2023-151939OB-I00' in a['acknowledgements']
 		assert 'C-EXP-074-UGR23' in a['acknowledgements'] and 'PCI 2025-163175' in a['acknowledgements']
-		assert len(a['logos']) == 3
+		assert len(a['logos']) == 3 and a['doi'] == about.DOI and f'https://doi.org/{about.DOI}' in a['citation']
 	assert all(open(p, 'rb').read(4) in (b'\x89PNG', b'\xff\xd8\xff\xe0', b'\xff\xd8\xff\xe1') for p in about.LOGOS)
 	assert 'NevadEO' in about.text('en') and 'PRESINMED' in about.text('es') and about.MANUAL in about.text('es')
+	assert f'Cómo citar: {about.CITATION}' in about.text('es') and f'How to cite: {about.CITATION}' in about.text('en')
 
 
 def test_burn_severity_classes():

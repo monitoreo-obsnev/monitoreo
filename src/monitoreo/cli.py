@@ -13,7 +13,7 @@
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
                                                      update its viewer (after updating monitoreo) and its catalogue
     monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
-    monitoreo about [--lang es]                      what MonitorEO-OBSNEV is and who funds it
+    monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
 
@@ -43,7 +43,7 @@ def _table(rows, cols):
 def main(argv=None):
 	from . import about
 	parser = argparse.ArgumentParser(prog='monitoreo', description=about.DESCRIPTION['en'],
-	                                 epilog=about.ACKNOWLEDGEMENTS['en'])
+	                                 epilog=f"{about.ACKNOWLEDGEMENTS['en']} How to cite: {about.CITATION}")
 	parser.add_argument('--version', action='version', version=__version__)
 	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
 	sub = parser.add_subparsers(dest='cmd', required=True)
@@ -107,7 +107,7 @@ def main(argv=None):
 	p = sub.add_parser('serve', help='the viewer of results on this computer (with range requests, as the web servers)')
 	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
 	p.add_argument('--port', type=int, default=8000)
-	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is and who funds it')
+	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is, who funds it and how to cite it')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')

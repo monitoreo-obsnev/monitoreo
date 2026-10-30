@@ -32,8 +32,10 @@ from . import publish, services
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 MAX_ROWS_SHOWN = 300
 
-INSTRUCTIONS = about_.DESCRIPTION['en'] + ' ' + about_.ACKNOWLEDGEMENTS['en'] + """ Mention this funding when the user
-asks about MonitorEO or its sources (the tool about gives it with the logos).
+INSTRUCTIONS = about_.DESCRIPTION['en'] + ' ' + about_.ACKNOWLEDGEMENTS['en'] + ' Cite MonitorEO as: ' + \
+	about_.CITATION + """ Mention this funding when the user asks about MonitorEO or its sources, and this citation
+when results of MonitorEO go into a report, a paper or a map, or the user asks how to cite it (the tool about gives
+both with the logos).
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
@@ -106,10 +108,11 @@ def _text(obj):
 
 @tool
 def about(lang: str = 'en'):
-	"""What MonitorEO-OBSNEV is and who funds it (description and acknowledgements, in 'en' or 'es'), with the logos
-	of the institutions and projects."""
+	"""What MonitorEO-OBSNEV is, who funds it and how to cite it (description, acknowledgements, citation and DOI, in
+	'en' or 'es'), with the logos of the institutions and projects."""
 	a = services.about(lang)
-	return [_text({k: a[k] for k in ('name', 'description', 'acknowledgements', 'manual', 'repository')})] + \
+	keys = ('name', 'description', 'acknowledgements', 'citation', 'doi', 'manual', 'repository')
+	return [_text({k: a[k] for k in keys})] + \
 	       [Image(path=p) for p in a['logos']]
 
 

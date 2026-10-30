@@ -8,7 +8,7 @@ MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables 
 
 MonitorEO-OBSNEV es una herramienta abierta de monitorización de Variables Esenciales de la Biodiversidad basada en sensores satelitales y modelos generados por la Universidad de Granada. Permite a la ciudadanía, gestores y científicos crear mapas y gráficos de métricas clave de los ecosistemas para apoyar la toma de decisiones.
 
-[Manual con ejemplos (wiki)](https://github.com/monitoreo-obsnev/monitoreo/wiki) · [Agradecimientos](#agradecimientos--acknowledgements)
+[Manual con ejemplos (wiki)](https://github.com/monitoreo-obsnev/monitoreo/wiki) · [Cómo citar](#cómo-citar--how-to-cite) · [Agradecimientos](#agradecimientos--acknowledgements)
 
 Las variables de satélite de MonitorEO
 (OBSNEV, Universidad de Granada), calculadas con Google Earth Engine desde cuatro herramientas que usan **las mismas
@@ -429,6 +429,14 @@ EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine
 Las pruebas usan el código de `src/` del clon aunque el entorno tenga instalada la versión de GitHub. Para probar la
 línea de comandos o el servidor MCP con cambios sin publicar: `PYTHONPATH=src python -m monitoreo.cli mcp --no-update`
 (o `pip install -e .` en un entorno aparte, que ni `monitoreo mcp` ni eHabitat+ actualizan).
+
+## Cómo citar / How to cite
+
+> Observatorio de Cambio Global de Sierra Nevada (2026). *MonitorEO* [Software]. Zenodo. https://doi.org/10.5281/zenodo.23814894
+
+El DOI de Zenodo lleva siempre a la última versión; cada versión tiene además el suyo, en su página de Zenodo. Las
+herramientas dan la misma cita: `monitoreo about`, la herramienta `about` del servidor MCP, `mo_about()` y
+`citation("monitoreo")` en R, «Acerca de MonitorEO» en el plugin de QGIS y el pie del visor de resultados.
 
 ## Agradecimientos / Acknowledgements
 

@@ -1,0 +1,15 @@
+# citation("monitoreo"): the same citation as monitoreo.about of Python, with the concept DOI of Zenodo (always the
+# last release; each release has its own DOI too)
+bibentry(
+  bibtype = "Manual",
+  key = "monitoreo",
+  title = "MonitorEO",
+  author = person("Observatorio de Cambio Global de Sierra Nevada"),
+  year = "2026",
+  note = "Software",
+  publisher = "Zenodo",
+  doi = "10.5281/zenodo.23814894",
+  url = "https://doi.org/10.5281/zenodo.23814894",
+  textVersion = paste("Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo.",
+                      "https://doi.org/10.5281/zenodo.23814894")
+)

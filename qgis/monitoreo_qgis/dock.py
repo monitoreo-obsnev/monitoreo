@@ -368,7 +368,7 @@ class MonitorEODock(QDockWidget):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
 
 	def about_box(self):
-		"""What MonitorEO-OBSNEV is and who funds it, with the logos of the institutions and projects."""
+		"""What MonitorEO-OBSNEV is, who funds it and how to cite it, with the logos of the institutions and projects."""
 		from monitoreo import about
 		box = QGroupBox('Acerca de MonitorEO')
 		lay = QVBoxLayout(box)
@@ -378,7 +378,9 @@ class MonitorEODock(QDockWidget):
 			                                    Qt.TransformationMode.SmoothTransformation))
 			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			lay.addWidget(logo)
+		doi = f'https://doi.org/{about.DOI}'
 		for text in (about.DESCRIPTION['es'], about.ACKNOWLEDGEMENTS['es'],
+		             f"<b>{about.HOW_TO_CITE['es']}:</b> " + about.CITATION.replace(doi, f'<a href="{doi}">{doi}</a>'),
 		             f'<a href="{about.MANUAL}">Manual</a> · <a href="{about.REPOSITORY}">Código</a>'):
 			label = QLabel(text)
 			label.setWordWrap(True)

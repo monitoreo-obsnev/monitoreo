@@ -11,6 +11,9 @@ and co-funded by ERDF – European Union, as well as of the NevadEO Project (C-E
 Government of Andalusia. It is also an output of the PRESINMED Project (Preserving the singularity of Mediterranean
 high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) of the Biodiversa+ NBS 2023 call.
 
+How to cite: Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo.
+https://doi.org/10.5281/zenodo.23814894
+
     services   the functions used by every tool (start here): time series, maps, statistics, exports, downloads
     catalog    catalog of variables of MonitorEO (catalog.json)
     sensors    collections of each sensor: pixel filters, scale and offset, formula of the variable
@@ -27,7 +30,7 @@ high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) of the Bio
     mcp_server server MCP of these functions for language models
     update     keeps the installed package at the last version of GitHub (used by the MCP server)
     publish    reports of results for the static web viewer (folder viewer): COGs, CSVs, report.json, catalogue
-    about      description, acknowledgements and logos of MonitorEO-OBSNEV
+    about      description, acknowledgements, citation and logos of MonitorEO-OBSNEV
 
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """

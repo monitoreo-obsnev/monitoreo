@@ -1,11 +1,15 @@
-"""What MonitorEO-OBSNEV is and who funds it: the description and the acknowledgements shown by every tool (README,
-command line, MCP server, R package and QGIS plugin), with the logos of the funders in the folder logos of this
-package. The manual of the tools is the wiki of the repository."""
+"""What MonitorEO-OBSNEV is, who funds it and how to cite it: the description, the acknowledgements and the citation
+shown by every tool (README, command line, MCP server, R package, QGIS plugin and viewer of results), with the logos
+of the funders in the folder logos of this package. The manual of the tools is the wiki of the repository."""
 
 import os
 
 MANUAL = 'https://github.com/monitoreo-obsnev/monitoreo/wiki'  # tutorials of QGIS, MCP, Python and R
 REPOSITORY = 'https://github.com/monitoreo-obsnev/monitoreo'
+DOI = '10.5281/zenodo.23814894'  # concept DOI of Zenodo: always the last release (each release has its own DOI too)
+CITATION = ('Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo. '
+            f'https://doi.org/{DOI}')
+HOW_TO_CITE = {'en': 'How to cite', 'es': 'Cómo citar'}
 
 DESCRIPTION = {
 	'en': 'MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables based on satellite sensors and '
@@ -40,14 +44,17 @@ LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_fede
 
 
 def about(lang='en'):
-	"""{'name', 'description', 'acknowledgements', 'logos' (paths of PNG/JPEG files), 'manual', 'repository'}
-	in LANG ('en' or 'es')."""
+	"""{'name', 'description', 'acknowledgements', 'citation', 'doi', 'logos' (paths of PNG/JPEG files), 'manual',
+	'repository'} in LANG ('en' or 'es')."""
 	lang = lang if lang in DESCRIPTION else 'en'
 	return {'name': 'MonitorEO-OBSNEV', 'description': DESCRIPTION[lang], 'acknowledgements': ACKNOWLEDGEMENTS[lang],
-	        'logos': [p for p in LOGOS if os.path.exists(p)], 'manual': MANUAL, 'repository': REPOSITORY}
+	        'citation': CITATION, 'doi': DOI, 'logos': [p for p in LOGOS if os.path.exists(p)], 'manual': MANUAL,
+	        'repository': REPOSITORY}
 
 
 def text(lang='en'):
-	"""The description and the acknowledgements as plain text."""
+	"""The description, the acknowledgements and the citation as plain text."""
 	a = about(lang)
-	return f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{a['manual']}\n{a['repository']}"
+	lang = lang if lang in HOW_TO_CITE else 'en'
+	return (f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{HOW_TO_CITE[lang]}: {a['citation']}\n\n"
+	        f"{a['manual']}\n{a['repository']}")

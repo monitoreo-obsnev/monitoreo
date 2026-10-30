@@ -158,6 +158,7 @@ def test_catalog(outputs):
 	assert sn['summary'] == 'El EVI sube en el 30 % del parque.' and sn['years'] == [2001, 2024]
 	assert cat['reports'][0]['thumbnail'] is None  # no map and no chart of a tool
 	assert 'PID2023-151939OB-I00' in cat['about']['acknowledgements'] and cat['analyses']['trend'] == 'Tendencia'
+	assert cat['about']['doi'] in cat['about']['citation']
 	assert cat['license']['name'] == sn['license']['name'] == 'CC BY 4.0'  # of the site and of each report
 	assert all((site / p).is_file() for p in cat['about']['logos'])
 	for page in ('index.html', 'report.html', 'assets/viewer.css', 'assets/common.js', 'assets/catalog.js',
