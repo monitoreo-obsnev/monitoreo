@@ -11,6 +11,8 @@ authors:
   - name: "Observatorio de Cambio Global de Sierra Nevada"
     city: Granada
     country: ES
+# concept DOI of Zenodo: always the last release (each release has its own DOI too)
+doi: 10.5281/zenodo.23814894
 repository-code: "https://github.com/monitoreo-obsnev/monitoreo"
 url: "https://github.com/monitoreo-obsnev/monitoreo/wiki"
 license: GPL-3.0-or-later
