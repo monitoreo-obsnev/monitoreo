@@ -8,7 +8,8 @@ graphs of key ecosystem metrics to support decision-making.
 MonitorEO is an output of the EVEREST Project (PID2023-151939OB-I00), funded by MICIU/AEI 10.13039/501100011033,
 and co-funded by ERDF – European Union, as well as of the NevadEO Project (C-EXP-074-UGR23), co-funded by the ERDF
 2014-2020 Program and the Regional Ministry of Economy, Knowledge, Enterprise, and Universities of the Regional
-Government of Andalusia.
+Government of Andalusia. It is also an output of the PRESINMED Project (Preserving the singularity of Mediterranean
+high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) of the Biodiversa+ NBS 2023 call.
 
     services   the functions used by every tool (start here): time series, maps, statistics, exports, downloads
     catalog    catalog of variables of MonitorEO (catalog.json)

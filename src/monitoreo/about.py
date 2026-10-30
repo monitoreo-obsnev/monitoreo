@@ -21,17 +21,22 @@ ACKNOWLEDGEMENTS = {
 	'en': 'MonitorEO is an output of the EVEREST Project (PID2023-151939OB-I00), funded by MICIU/AEI '
 	      '10.13039/501100011033, and co-funded by ERDF – European Union, as well as of the NevadEO Project '
 	      '(C-EXP-074-UGR23), co-funded by the ERDF 2014-2020 Program and the Regional Ministry of Economy, Knowledge, '
-	      'Enterprise, and Universities of the Regional Government of Andalusia.',
+	      'Enterprise, and Universities of the Regional Government of Andalusia. It is also an output of the PRESINMED '
+	      'Project (Preserving the singularity of Mediterranean high-mountain biodiversity hotspots: a NBS approach, '
+	      'PCI 2025-163175) of the Biodiversa+ NBS 2023 call.',
 	'es': 'MonitorEO es un resultado del Proyecto EVEREST (PID2023-151939OB-I00), financiado por MICIU/AEI '
 	      '10.13039/501100011033 y cofinanciado por FEDER – Unión Europea, y del Proyecto NevadEO (C-EXP-074-UGR23), '
 	      'cofinanciado por el Programa FEDER 2014-2020 y la Consejería de Economía, Conocimiento, Empresa y '
-	      'Universidades de la Junta de Andalucía.',
+	      'Universidades de la Junta de Andalucía. Es también un resultado del Proyecto PRESINMED (Preserving the '
+	      'singularity of Mediterranean high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) de la '
+	      'convocatoria Biodiversa+ NBS 2023.',
 }
 
 _LOGOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logos')
 # Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, MICIU + Cofinanciado por la Unión Europea +
-# AEI (EVEREST) and Junta de Andalucía; and the strip of the projects of the call UGR23 co-funded by ERDF (NevadEO)
-LOGOS = [os.path.join(_LOGOS, 'monitoreo_obsnev.png'), os.path.join(_LOGOS, 'nevadeo_feder.jpg')]
+# AEI (EVEREST) and Junta de Andalucía; the strip of the projects of the call UGR23 co-funded by ERDF (NevadEO); and
+# Biodiversa+ (PRESINMED), from https://www.biodiversa.eu/wp-content/uploads/2022/03/biodiversa_logo.svg
+LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_feder.jpg', 'biodiversa.png')]
 
 
 def about(lang='en'):

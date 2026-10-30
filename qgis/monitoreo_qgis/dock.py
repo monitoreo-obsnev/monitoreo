@@ -374,7 +374,8 @@ class MonitorEODock(QDockWidget):
 		lay = QVBoxLayout(box)
 		for path in about.about('es')['logos']:
 			logo = QLabel()
-			logo.setPixmap(QPixmap(path).scaledToWidth(330, Qt.TransformationMode.SmoothTransformation))
+			logo.setPixmap(QPixmap(path).scaled(330, 48, Qt.AspectRatioMode.KeepAspectRatio,
+			                                    Qt.TransformationMode.SmoothTransformation))
 			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			lay.addWidget(logo)
 		for text in (about.DESCRIPTION['es'], about.ACKNOWLEDGEMENTS['es'],

@@ -102,6 +102,12 @@ const MO = (() => {
 		return /^https:\/\/\S+$/.test(lic.url || '') ? el('a', {href: lic.url, rel: 'license'}, lic.name) : lic.name;
 	}
 
+	// The alternative text of each logo of monitoreo.about, by its file name.
+	const LOGO_ALT = {
+		'monitoreo_obsnev.png': 'Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía',
+		'nevadeo_feder.jpg': 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada',
+		'biodiversa.png': 'Biodiversa+, European Biodiversity Partnership'};
+
 	// The footer: description, acknowledgements and logos of monitoreo.about, and the licence of the site (in
 	// catalog.json).
 	function footer(about, lic) {
@@ -113,9 +119,8 @@ const MO = (() => {
 			el('p', {}, about.acknowledgements),
 			lic && el('p', {}, 'Los datos y mapas de este sitio se publican con licencia ', license(lic),
 				', salvo que un informe diga otra', lic.text ? `: ${lic.text}` : '.', ' Cada informe dice cómo citarlo.'),
-			el('div', {class: 'logos'}, (about.logos || []).filter(safePath).map((src, i) =>
-				el('img', {src, alt: i ? 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada' :
-					'Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía', loading: 'lazy'}))),
+			el('div', {class: 'logos'}, (about.logos || []).filter(safePath).map(src =>
+				el('img', {src, alt: LOGO_ALT[src.split('/').pop()] || '', loading: 'lazy'}))),
 			el('div', {class: 'footer-links'},
 				about.manual && el('a', {href: about.manual}, 'Manual'),
 				about.repository && el('a', {href: about.repository}, 'Código (GPL-3.0)')));

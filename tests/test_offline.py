@@ -206,9 +206,10 @@ def test_about():
 	for lang in ('en', 'es'):
 		a = services.about(lang)
 		assert a['description'].startswith('MonitorEO-OBSNEV') and 'PID2023-151939OB-I00' in a['acknowledgements']
-		assert 'C-EXP-074-UGR23' in a['acknowledgements'] and len(a['logos']) == 2
+		assert 'C-EXP-074-UGR23' in a['acknowledgements'] and 'PCI 2025-163175' in a['acknowledgements']
+		assert len(a['logos']) == 3
 	assert all(open(p, 'rb').read(4) in (b'\x89PNG', b'\xff\xd8\xff\xe0', b'\xff\xd8\xff\xe1') for p in about.LOGOS)
-	assert 'NevadEO' in about.text('en') and about.MANUAL in about.text('es')
+	assert 'NevadEO' in about.text('en') and 'PRESINMED' in about.text('es') and about.MANUAL in about.text('es')
 
 
 def test_burn_severity_classes():
