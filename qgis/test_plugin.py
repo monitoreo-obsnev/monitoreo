@@ -3,8 +3,8 @@
     EE_PROJECT=<project> <python of QGIS> qgis/test_plugin.py
 
 (macOS: /Applications/QGIS-LTR.app/Contents/MacOS/bin/python3.9, with QGIS_APP=/Applications/QGIS-LTR.app). It
-loads the plugin as QGIS does, opens its panel and runs a search of protected areas, a map layer and two time series
-(map extent, and a layer with two polygons), waiting for their QGIS tasks.
+loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
+areas, a map layer and two time series (map extent, and a layer with two polygons), waiting for their QGIS tasks.
 """
 
 import os
@@ -88,6 +88,18 @@ _message = dock.message
 dock.message = lambda text, lvl='Info', duration=6: (iface.messages.append(f'{lvl}: {text}'), _message(text, lvl, duration))
 dock.project.setText(os.environ['EE_PROJECT'])
 print('variables:', dock.variable.count(), '| selected:', dock.variable.currentText())
+
+# the buttons ⓘ of the options: a help with a link to the manual, also with each variable (help of the variable and
+# of the filters); the ⓘ of the list of protected areas hides with it
+from monitoreo_qgis.dock import InfoButton  # noqa: E402
+buttons = dock.findChildren(InfoButton)
+selected = dock.variable.currentIndex()
+for i in range(dock.variable.count()):
+	dock.variable.setCurrentIndex(i)
+	assert all('Más en el manual' in b.help() for b in buttons)
+dock.variable.setCurrentIndex(selected)
+assert not dock.wdpa_field.findChild(InfoButton).isVisibleTo(dock)
+print('info buttons:', len(buttons))
 
 # protected areas
 dock.region_kind.setCurrentIndex([dock.region_kind.itemData(i) for i in range(dock.region_kind.count())].index('wdpa'))

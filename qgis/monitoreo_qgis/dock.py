@@ -10,16 +10,18 @@ from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateRe
                        QgsDataSourceUri, QgsMapLayerProxyModel, QgsProject, QgsRasterLayer, QgsRasterShader,
                        QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
-from qgis.PyQt.QtCore import QDate, Qt, QTimer
-from qgis.PyQt.QtGui import QColor, QPixmap
+from qgis.PyQt.QtCore import QDate, QEvent, QPoint, Qt, QTimer, QUrl
+from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout,
-                                 QWidget)
+                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QToolButton,
+                                 QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
 deps.setup_path()
 from monitoreo import services, trends  # noqa: E402
+
+from .helptexts import HELP, filters_help, variable_help  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Mensual', 'monthly'), ('Anual', 'annual'), ('16 días', '16-day'), ('Diario (días con imágenes)', 'daily')]
@@ -73,6 +75,47 @@ def combo(items, current=None):
 	return c
 
 
+class InfoButton(QToolButton):
+	"""Small button ⓘ beside an option: a click shows its help (TEXT, or TEXT() if it is a function) in a balloon
+	that stays until the next click; its links open in the browser."""
+
+	def __init__(self, text):
+		super().__init__()
+		self.help_text = text
+		icon = QgsApplication.getThemeIcon('/mActionPropertiesWidget.svg')  # a blue ⓘ in QGIS 3 and 4
+		if icon.isNull():
+			self.setText('ⓘ')
+		else:
+			self.setIcon(icon)
+		self.setAutoRaise(True)
+		self.setToolTip('Ayuda')
+		self.clicked.connect(self.show_help)
+
+	def help(self):
+		return self.help_text() if callable(self.help_text) else self.help_text
+
+	def show_help(self):
+		QWhatsThis.showText(self.mapToGlobal(QPoint(0, self.height())), self.help(), self)
+
+	def event(self, e):
+		if e.type() == QEvent.Type.WhatsThisClicked:  # a link of the balloon
+			QDesktopServices.openUrl(QUrl(e.href()))
+			QWhatsThis.hideText()
+			return True
+		return super().event(e)
+
+
+def info(field, text):
+	"""FIELD (a widget, or a row of them) with an InfoButton with TEXT at its right, for a row of a QFormLayout."""
+	if isinstance(field, QHBoxLayout):
+		row = field
+	else:
+		row = QHBoxLayout()
+		row.addWidget(field, 1)
+	row.addWidget(InfoButton(text))
+	return row
+
+
 class MonitorEODock(QDockWidget):
 
 	def __init__(self, iface):
@@ -107,14 +150,14 @@ class MonitorEODock(QDockWidget):
 		b.setToolTip('Inicia sesión con tu cuenta de Google en el navegador (como earthengine authenticate)')
 		b.clicked.connect(self.authenticate)
 		row.addWidget(b)
-		f.addRow('Proyecto', row)
+		f.addRow('Proyecto', info(row, HELP['project']))
 		main.addWidget(box)
 
 		box = QGroupBox('Región')
 		f = QFormLayout(box)
 		self.region_kind = combo(REGIONS)
 		self.region_kind.currentIndexChanged.connect(self.region_changed)
-		f.addRow('Región', self.region_kind)
+		f.addRow('Región', info(self.region_kind, HELP['region']))
 		self.layer = QgsMapLayerComboBox()
 		self.layer.setFilters(polygon_filter())
 		self.name_field = QgsFieldComboBox()
@@ -129,8 +172,8 @@ class MonitorEODock(QDockWidget):
 		self.layer_row = QWidget()
 		lf = QFormLayout(self.layer_row)
 		lf.setContentsMargins(0, 0, 0, 0)
-		lf.addRow('Capa', self.layer)
-		lf.addRow('Nombre', self.name_field)
+		lf.addRow('Capa', info(self.layer, HELP['layer']))
+		lf.addRow('Nombre', info(self.name_field, HELP['name_field']))
 		f.addRow(self.layer_row)
 		self.wdpa_row = QWidget()
 		wl = QHBoxLayout(self.wdpa_row)
@@ -142,10 +185,15 @@ class MonitorEODock(QDockWidget):
 		b = QPushButton('Buscar')
 		b.clicked.connect(self.search_wdpa)
 		wl.addWidget(b)
+		wl.addWidget(InfoButton(HELP['wdpa']))
 		f.addRow(self.wdpa_row)
 		self.wdpa = QComboBox()
-		f.addRow('Área', self.wdpa)
-		self.wdpa_label = f.labelForField(self.wdpa)
+		self.wdpa_field = QWidget()  # the list and its ⓘ, shown only with the region WDPA
+		row = info(self.wdpa, HELP['wdpa_area'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.wdpa_field.setLayout(row)
+		f.addRow('Área', self.wdpa_field)
+		self.wdpa_label = f.labelForField(self.wdpa_field)
 		main.addWidget(box)
 
 		box = QGroupBox('Variable')
@@ -156,7 +204,7 @@ class MonitorEODock(QDockWidget):
 			self.variable.setItemData(self.variable.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}",
 			                          Qt.ItemDataRole.ToolTipRole)
 		self.variable.setCurrentIndex(max(0, self.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchContains)))
-		f.addRow('Variable', self.variable)
+		f.addRow('Variable', info(self.variable, lambda: variable_help(self.variable.currentData())))
 		self.start = QDateEdit(QDate.fromString(s.value(SETTINGS + 'start', '2020-01-01'), 'yyyy-MM-dd'))
 		self.end = QDateEdit(QDate.fromString(s.value(SETTINGS + 'end', '2021-12-31'), 'yyyy-MM-dd'))
 		for d in (self.start, self.end):
@@ -166,7 +214,7 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.start)
 		row.addWidget(QLabel('a'))
 		row.addWidget(self.end)
-		f.addRow('Periodo', row)
+		f.addRow('Periodo', info(row, HELP['period']))
 		self.compare_on = QCheckBox('otro periodo:')
 		self.compare_on.setToolTip('Compara el periodo de referencia (el de arriba) con este: la serie temporal da la '
 		                           'media de cada parte del año en los dos periodos y su diferencia, y el mapa, la '
@@ -183,7 +231,7 @@ class MonitorEODock(QDockWidget):
 			if i:
 				row.addWidget(QLabel('a'))
 			row.addWidget(d)
-		f.addRow('Comparar con', row)
+		f.addRow('Comparar con', info(row, HELP['compare']))
 		self.season_on = QCheckBox('solo')
 		self.season_start = QLineEdit('06-01')
 		self.season_end = QLineEdit('09-30')
@@ -197,17 +245,17 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.season_end)
 		row.addWidget(QLabel('de cada año'))
 		row.addStretch()
-		f.addRow('Temporada', row)
+		f.addRow('Temporada', info(row, HELP['season']))
 		self.filters = {}
 		row = QHBoxLayout()
 		for key, label in (('clouds', 'nubes'), ('water', 'agua'), ('snow', 'nieve'), ('aerosols', 'aerosoles')):
 			self.filters[key] = QCheckBox(label)
 			self.filters[key].setChecked(True)
 			row.addWidget(self.filters[key])
-		f.addRow('Quitar píxeles con', row)
+		f.addRow('Quitar píxeles con', info(row, lambda: filters_help(self.variable.currentData())))
 		self.cloud_score = QCheckBox('nubes de Sentinel-2 con Cloud Score+ (si no, con SCL, como MonitorEO)')
 		self.cloud_score.setChecked(True)
-		f.addRow('', self.cloud_score)
+		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
 		main.addWidget(box)
 
 		box = QGroupBox('Serie temporal')
@@ -215,9 +263,9 @@ class MonitorEODock(QDockWidget):
 		self.step = combo(STEPS, 'monthly')
 		self.ts_metric = combo(METRICS, 'mean')
 		self.stat = combo(STATS, 'mean')
-		f.addRow('Paso', self.step)
-		f.addRow('Métrica de cada paso', self.ts_metric)
-		f.addRow('Estadístico de la región', self.stat)
+		f.addRow('Paso', info(self.step, HELP['step']))
+		f.addRow('Métrica de cada paso', info(self.ts_metric, HELP['ts_metric']))
+		f.addRow('Estadístico de la región', info(self.stat, HELP['stat']))
 		b = QPushButton('Calcular la serie temporal')
 		b.clicked.connect(self.run_series)
 		f.addRow(b)
@@ -229,7 +277,7 @@ class MonitorEODock(QDockWidget):
 		row = QHBoxLayout()
 		row.addWidget(self.series_list, 1)
 		row.addWidget(self.show_series_button)
-		f.addRow('Series', row)
+		f.addRow('Series', info(row, HELP['series_list']))
 		self.update_series_list()
 		main.addWidget(box)
 
@@ -244,14 +292,14 @@ class MonitorEODock(QDockWidget):
 		self.update_trend_parts()
 		self.trend_metric = combo(METRICS, 'mean')
 		self.trend_alpha = QCheckBox('solo píxeles con tendencia significativa (p < 0,05)')
-		f.addRow('Partes del año', self.trend_step)
-		f.addRow('Métrica de cada año', self.trend_metric)
+		f.addRow('Partes del año', info(self.trend_step, HELP['trend_step']))
+		f.addRow('Métrica de cada año', info(self.trend_metric, HELP['trend_metric']))
 		b = QPushButton('Tabla de tendencias de la región')
 		b.setToolTip('Tendencia de cada parte del año del estadístico de la región (el de la serie temporal)')
 		b.clicked.connect(self.run_trend_table)
 		f.addRow(b)
-		f.addRow('Parte del año del mapa', self.trend_part)
-		f.addRow('', self.trend_alpha)
+		f.addRow('Parte del año del mapa', info(self.trend_part, HELP['trend_part']))
+		f.addRow('', info(self.trend_alpha, HELP['trend_alpha']))
 		b = QPushButton('Mapa de tendencia')
 		b.setToolTip('GeoTIFF temporal con la pendiente de Sen, τ, Z, p-valor, ordenada y número de años de cada píxel '
 		             '(consultables con la herramienta Identificar)')
@@ -264,9 +312,9 @@ class MonitorEODock(QDockWidget):
 		self.map_metric = combo(METRICS, 'median')
 		self.temporal = combo(TEMPORAL, 'period')
 		self.interannual = combo(METRICS[:4], 'mean')
-		f.addRow('Métrica', self.map_metric)
-		f.addRow('Agregación temporal', self.temporal)
-		f.addRow('Métrica entre años', self.interannual)
+		f.addRow('Métrica', info(self.map_metric, HELP['map_metric']))
+		f.addRow('Agregación temporal', info(self.temporal, HELP['temporal']))
+		f.addRow('Métrica entre años', info(self.interannual, HELP['interannual']))
 		b = QPushButton('Añadir la capa al mapa')
 		b.setToolTip('Descarga el mapa como GeoTIFF temporal, con los valores de la variable (consultables con la '
 		             'herramienta Identificar), a la resolución de los datos o, en regiones grandes, con píxeles '
@@ -281,9 +329,9 @@ class MonitorEODock(QDockWidget):
 		self.resolution.setRange(0, 100000)
 		self.resolution.setSpecialValueText('la de los datos')
 		self.resolution.setSuffix(' m')
-		f.addRow('Resolución', self.resolution)
+		f.addRow('Resolución', info(self.resolution, HELP['resolution']))
 		self.folder = QLineEdit(s.value(SETTINGS + 'folder', 'MonitorEO'))
-		f.addRow('Carpeta de Drive', self.folder)
+		f.addRow('Carpeta de Drive', info(self.folder, HELP['folder']))
 		row = QHBoxLayout()
 		b = QPushButton('Mapa (GeoTIFF)')
 		b.clicked.connect(self.run_export_image)
@@ -313,7 +361,7 @@ class MonitorEODock(QDockWidget):
 	def region_changed(self):
 		kind = self.region_kind.currentData()
 		self.layer_row.setVisible(kind == 'layer')
-		for w in (self.wdpa_row, self.wdpa, self.wdpa_label):
+		for w in (self.wdpa_row, self.wdpa_field, self.wdpa_label):
 			if w is not None:
 				w.setVisible(kind == 'wdpa')
 
