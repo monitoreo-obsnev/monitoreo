@@ -301,8 +301,10 @@ anual, o exportadas a Drive.
 ## R
 
 ```r
-# install.packages(c("reticulate", "rgee"))      # rgee es opcional
-install.packages("r/monitoreo", repos = NULL, type = "source")
+install.packages(c("remotes", "reticulate"))   # y rgee, opcional
+remotes::install_github("monitoreo-obsnev/monitoreo", subdir = "r/monitoreo")
+# una versión concreta (la que se cita con su DOI): ref = "v0.3.2"; desde un clon del repositorio:
+# install.packages("r/monitoreo", repos = NULL, type = "source")
 library(monitoreo)
 
 # El Python de reticulate debe tener el paquete monitoreo: el del entorno de conda,
