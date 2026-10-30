@@ -1,18 +1,17 @@
-"""Catalog of variables of MonitorEO (catalog.json, made by tools/import_catalog.py)."""
+"""Catalog of variables of MonitorEO (catalog.json)."""
 
 import json
 import os
 
 CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'catalog.json')
 
-# Corrections of entries of MonitorEO, applied when an entry is read (catalog.json keeps the values of the app):
-# ref: {field: value}
+# Corrections of entries of catalog.json, applied when an entry is read: ref: {field: value}
 FIXES = {
 	32: {'scale': 0.1},  # Lai of MCD15A3H has a scale of 0.1 (raw 58 = 5.8 m2/m2 in the Amazon rain forest), not 0.01
 }
 
-# Variables that MonitorEO-OBSNEV adds to those of the app: {ref: (entry of the app it copies, changes)}. Their refs
-# start at 101, so that they never collide with the entries of the app.
+# Variables added to those of catalog.json: {ref: (entry of catalog.json it copies, changes)}. Their refs start at
+# 101, so that they never collide with the entries of catalog.json.
 NBR_PALETTE = ['7a0403', 'c0392b', 'e67e22', 'f5cba7', 'f2efe6', 'b8e186', '7fbc41', '4d9221', '276419']
 EXTRA = {
 	101: (3, {'index': 'NBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
@@ -31,7 +30,7 @@ _catalog = None
 
 
 def load():
-	"""The whole catalog: source, fields, collections (date ranges) and variables."""
+	"""The whole catalog: fields, collections (date ranges) and variables."""
 	global _catalog
 	if _catalog is None:
 		with open(CATALOG, encoding='utf-8') as f:
@@ -41,10 +40,10 @@ def load():
 
 def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
-	app = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
-	by_ref = {e['ref']: e for e in app}
+	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
+	by_ref = {e['ref']: e for e in entries}
 	extra = [dict(by_ref[base], **NBR, **changes, ref=ref) for ref, (base, changes) in EXTRA.items() if base in by_ref]
-	return app + extra
+	return entries + extra
 
 
 def find(index, sensor=None, collection=None, ref=None):

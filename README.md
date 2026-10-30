@@ -6,9 +6,9 @@ MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables 
 
 MonitorEO-OBSNEV es una herramienta abierta de monitorización de Variables Esenciales de la Biodiversidad basada en sensores satelitales y modelos generados por la Universidad de Granada. Permite a la ciudadanía, gestores y científicos crear mapas y gráficos de métricas clave de los ecosistemas para apoyar la toma de decisiones.
 
-[App de MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev) · [Manual con ejemplos (wiki)](https://github.com/monitoreo-obsnev/monitoreo/wiki) · [Agradecimientos](#agradecimientos--acknowledgements)
+[Manual con ejemplos (wiki)](https://github.com/monitoreo-obsnev/monitoreo/wiki) · [Agradecimientos](#agradecimientos--acknowledgements)
 
-Las variables de satélite de [MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev)
+Las variables de satélite de MonitorEO
 (OBSNEV, Universidad de Granada), calculadas con Google Earth Engine desde cuatro herramientas que usan **las mismas
 funciones** (`monitoreo.services`). El manual de cada una, con tutoriales y ejemplos, está en la
 [wiki](https://github.com/monitoreo-obsnev/monitoreo/wiki):
@@ -33,11 +33,10 @@ GeoJSON):
 - **Mapas** de la variable agregada en el tiempo (p. ej. la mediana del NDVI de un periodo) como capa de teselas de
   Earth Engine: se ven en QGIS, Leaflet o rgee sin descargar nada.
 - **Estadísticas** de esos mapas en cada polígono.
-- **Tendencias estacionales**, como el análisis de MonitorEO-TEST: para cada mes, cada 16 días o el año, la
-  tendencia de sus valores a lo largo de los años (test de Mann-Kendall y pendiente de Sen), en tabla para la región o
-  en mapa píxel a píxel.
-- **Comparación de dos periodos** (el de referencia y otro, como el modo de comparación de MonitorEO-TEST): la media
-  de cada parte del año en cada periodo y su diferencia, en tabla y gráfica, y el mapa de la diferencia.
+- **Tendencias estacionales**: para cada mes, cada 16 días o el año, la tendencia de sus valores a lo largo de los
+  años (test de Mann-Kendall y pendiente de Sen), en tabla para la región o en mapa píxel a píxel.
+- **Comparación de dos periodos** (el de referencia y otro): la media de cada parte del año en cada periodo y su
+  diferencia, en tabla y gráfica, y el mapa de la diferencia.
 - **Severidad de incendios**: el dNBR (NBR de Sentinel-2 o Landsat antes menos después del fuego) con las clases
   oficiales del USGS (Key y Benson, 2006), con la superficie de cada clase y el GeoTIFF del dNBR y su clase.
 - **Exportaciones** a Google Drive de mapas (GeoTIFF) y series (CSV) grandes.
@@ -48,7 +47,7 @@ GeoJSON):
 Variables: las 32 del catálogo de MonitorEO (NDVI, EVI, NDWI, LSWI, NDSI, NDCI, albedo, temperatura de superficie,
 evapotranspiración, calor latente, LAI, clorofila, aerosoles) de Sentinel-2, Landsat 5-9 y MODIS, el NBR de
 Sentinel-2 y Landsat (incendios, `catalog.EXTRA`) y cualquier otra colección o imagen de Earth Engine. Por defecto se aplican los **filtros por píxel** de MonitorEO (nubes, agua,
-nieve, aerosoles), que en la app están desactivados; las nubes de Sentinel-2 se quitan con Cloud Score+.
+nieve, aerosoles); las nubes de Sentinel-2 se quitan con Cloud Score+.
 
 Todo se calcula con **la cuenta de Earth Engine de cada usuario** y su proyecto de Google Cloud: no hay servidor
 que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cuota mensual por proyecto). Los
@@ -134,10 +133,10 @@ monitoreo compare NDVI --sensor Modis --region '{"wdpa_id": 389011}' --start 201
 
 ### Tendencias estacionales y comparación de periodos
 
-Como el análisis "Tendencias Estacionales" de MonitorEO-TEST (`monitoreo.trends`): cada año da un valor de cada
-**parte del año** (`step`): `'monthly'`, los 12 meses (`m01`…`m12`); `'16-day'`, 23 partes de 16 días desde el 1 de
-enero (días 1-16, 17-32… 353-366: `p01`…`p23`), o `'annual'`, el año (`all`); ese valor es la métrica (`metric`, la
-media por defecto) de las imágenes de esa parte en ese año. La tendencia de cada parte a lo largo de los años: número
+En `monitoreo.trends`, cada año da un valor de cada **parte del año** (`step`): `'monthly'`, los 12 meses
+(`m01`…`m12`); `'16-day'`, 23 partes de 16 días desde el 1 de enero (días 1-16, 17-32… 353-366: `p01`…`p23`), o
+`'annual'`, el año (`all`); ese valor es la métrica (`metric`, la media por defecto) de las imágenes de esa parte en
+ese año. La tendencia de cada parte a lo largo de los años: número
 de años con datos (`n`), τ de Kendall, Z de Mann-Kendall (aproximación normal, sin corrección por empates) y su
 p-valor bilateral, pendiente de Sen (cambio por año) y su valor en el primer año (`intercept`). Mejor con 8 años o más.
 
@@ -167,10 +166,6 @@ s = mo.burn_severity({'wdpa_id': 389013}, 'Sentinel-2', '2023-05-15', '2023-08-1
 s['burned_ha']    # {'El Teide': 956.4}: hectáreas con dNBR >= 0,1
 s['classes'][3]   # {'class': 1, 'label': 'Severidad baja', 'dnbr_min': 0.1, 'dnbr_max': 0.27, 'ha': 559.0, ...}
 ```
-
-Diferencias con MonitorEO-TEST: el número de años `n` es el de cada píxel (años con datos), no el del periodo; el
-p-valor es 2·(1 − Φ(|Z|)) (MonitorEO-TEST calcula `2·(1 − erf(|Z|/√2))`, el doble), y el valor inicial de la recta de
-Sen es el del primer año, no el del año 0.
 
 ### Descarga de variables en GeoTIFF
 
@@ -408,25 +403,19 @@ cd ~/resultados && git add -A && git commit -m "Informe ..." && git push   # en 
 
 ## Catálogo
 
-`src/monitoreo/catalog.json` es el catálogo de la app de MonitorEO, leído (como datos, sin ejecutar JavaScript) del
-repositorio de Earth Engine `users/monitoreo-obsnev/monitoreo-obsnev`; guarda el commit de origen. Para actualizarlo
-cuando cambie la app:
+`src/monitoreo/catalog.json` es el catálogo de variables, que se mantiene en este repositorio: colección, fórmula,
+escala y desplazamiento de las bandas, unidad, bandas de calidad y rampa de colores de cada una. `catalog.EXTRA`
+añade el NBR de Sentinel-2 y Landsat.
 
-```bash
-python tools/import_catalog.py            # clona el repositorio (credenciales de git de earthengine.googlesource.com)
-python tools/import_catalog.py --published   # o desde la app publicada
-```
-
-Correcciones respecto a la app, en el código:
+Detalles del cálculo, en el código:
 
 - `FIXES` en `catalog.py`: la escala del LAI de MCD15A3H es 0.1, no 0.01.
-- La escala y el desplazamiento de las bandas se aplican antes de la fórmula (la app evalúa EVI, el albedo y la
-  clorofila de Sentinel-2 sobre las bandas sin escalar).
+- La escala y el desplazamiento de las bandas se aplican antes de la fórmula (EVI, el albedo y la clorofila de
+  Sentinel-2 necesitan reflectancias, no las bandas sin escalar).
 - Los nombres de banda de las fórmulas se comparan sin mayúsculas (`LST_day_1km` de las entradas 15 y 16).
 - Los valores de bandera de MODIS (p. ej. 250 = nube en `NDSI_Snow_Cover`) se descartan siempre.
 - Landsat 7 solo se usa hasta el 31-5-2003, como dice el catálogo.
-- WDPA cambió su esquema en Earth Engine: el ID es ahora `SITE_ID` (antes `WDPAID`). La app filtra aún por
-  `WDPAID` (`modules/selROI`), por lo que su opción de área protegida por ID ya no encuentra nada.
+- WDPA cambió su esquema en Earth Engine: el ID es ahora `SITE_ID` (antes `WDPAID`).
 
 ## Desarrollo
 

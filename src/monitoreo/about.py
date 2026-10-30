@@ -4,7 +4,6 @@ package. The manual of the tools is the wiki of the repository."""
 
 import os
 
-APP = 'https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev'
 MANUAL = 'https://github.com/monitoreo-obsnev/monitoreo/wiki'  # tutorials of QGIS, MCP, Python and R
 REPOSITORY = 'https://github.com/monitoreo-obsnev/monitoreo'
 
@@ -36,14 +35,14 @@ LOGOS = [os.path.join(_LOGOS, 'monitoreo_obsnev.png'), os.path.join(_LOGOS, 'nev
 
 
 def about(lang='en'):
-	"""{'name', 'description', 'acknowledgements', 'logos' (paths of PNG/JPEG files), 'app', 'manual', 'repository'}
+	"""{'name', 'description', 'acknowledgements', 'logos' (paths of PNG/JPEG files), 'manual', 'repository'}
 	in LANG ('en' or 'es')."""
 	lang = lang if lang in DESCRIPTION else 'en'
 	return {'name': 'MonitorEO-OBSNEV', 'description': DESCRIPTION[lang], 'acknowledgements': ACKNOWLEDGEMENTS[lang],
-	        'logos': [p for p in LOGOS if os.path.exists(p)], 'app': APP, 'manual': MANUAL, 'repository': REPOSITORY}
+	        'logos': [p for p in LOGOS if os.path.exists(p)], 'manual': MANUAL, 'repository': REPOSITORY}
 
 
 def text(lang='en'):
 	"""The description and the acknowledgements as plain text."""
 	a = about(lang)
-	return f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{a['app']}\n{a['manual']}\n{a['repository']}"
+	return f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{a['manual']}\n{a['repository']}"

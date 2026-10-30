@@ -10,7 +10,6 @@
                   es = "MonitorEO-OBSNEV es una herramienta abierta de monitorizaci\u00f3n de Variables Esenciales de la Biodiversidad basada en sensores satelitales y modelos generados por la Universidad de Granada. Permite a la ciudadan\u00eda, gestores y cient\u00edficos crear mapas y gr\u00e1ficos de m\u00e9tricas clave de los ecosistemas para apoyar la toma de decisiones."),
   acknowledgements = c(en = "MonitorEO is an output of the EVEREST Project (PID2023-151939OB-I00), funded by MICIU/AEI 10.13039/501100011033, and co-funded by ERDF \u2013 European Union, as well as of the NevadEO Project (C-EXP-074-UGR23), co-funded by the ERDF 2014-2020 Program and the Regional Ministry of Economy, Knowledge, Enterprise, and Universities of the Regional Government of Andalusia.",
                        es = "MonitorEO es un resultado del Proyecto EVEREST (PID2023-151939OB-I00), financiado por MICIU/AEI 10.13039/501100011033 y cofinanciado por FEDER \u2013 Uni\u00f3n Europea, y del Proyecto NevadEO (C-EXP-074-UGR23), cofinanciado por el Programa FEDER 2014-2020 y la Consejer\u00eda de Econom\u00eda, Conocimiento, Empresa y Universidades de la Junta de Andaluc\u00eda."),
-  app = "https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev",
   manual = "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   repository = "https://github.com/monitoreo-obsnev/monitoreo")
 
@@ -25,11 +24,11 @@
 mo_about <- function(lang = "en") {
   lang <- if (lang %in% c("en", "es")) lang else "en"
   out <- list(description = .about$description[[lang]], acknowledgements = .about$acknowledgements[[lang]],
-              app = .about$app, manual = .about$manual, repository = .about$repository, logos = character())
+              manual = .about$manual, repository = .about$repository, logos = character())
   if (reticulate::py_module_available("monitoreo")) {
     out$logos <- unlist(reticulate::import("monitoreo.about", convert = TRUE)$about(lang)$logos)
   }
-  cat("MonitorEO-OBSNEV\n\n", out$description, "\n\n", out$acknowledgements, "\n\n", out$app, "\n", out$manual, "\n",
+  cat("MonitorEO-OBSNEV\n\n", out$description, "\n\n", out$acknowledgements, "\n\n", out$manual, "\n",
       sep = "")
   invisible(out)
 }
@@ -257,10 +256,9 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
                                 log = function(msg) message(msg))
 }
 
-#' Seasonal trends of a variable over each feature of a region (Mann-Kendall test and Sen's slope), as the
-#' 'Tendencias Estacionales' of MonitorEO: for each part of the year (step "monthly": the months; "16-day": 23 parts
-#' of 16 days from 1 January; "annual": the year), the spatial `stat` of the `metric` of its images in each year and
-#' the trend of those yearly values. Returns a data.frame (region, key, label, n, tau, z, p_value, significant,
+#' Seasonal trends of a variable over each feature of a region (Mann-Kendall test and Sen's slope): for each part
+#' of the year (step "monthly": the months; "16-day": 23 parts of 16 days from 1 January; "annual": the year), the
+#' spatial `stat` of the `metric` of its images in each year and the trend of those yearly values. Returns a data.frame (region, key, label, n, tau, z, p_value, significant,
 #' slope (per year), intercept, first_year, last_year) with the attributes yearly (the yearly values), title, unit,
 #' scale, csv and chart.
 #' @export
@@ -299,11 +297,10 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
                             resolution, crs, path.expand(path), collection = collection)
 }
 
-#' Compare a reference period (start to end) with another (other_start to other_end) over each feature of a region,
-#' as the comparison mode of MonitorEO: the mean of each part of the year over the years of each period and their
-#' difference (other - reference). Returns a data.frame (region, key, label, reference, other, difference,
-#' n_reference, n_other) with the attributes rows (the yearly values of both periods), title, unit, scale, csv and
-#' chart.
+#' Compare a reference period (start to end) with another (other_start to other_end) over each feature of a region:
+#' the mean of each part of the year over the years of each period and their difference (other - reference). Returns
+#' a data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes rows (the
+#' yearly values of both periods), title, unit, scale, csv and chart.
 #' @export
 mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
                               metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,

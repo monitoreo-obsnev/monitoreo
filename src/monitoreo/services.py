@@ -10,7 +10,7 @@ Besides time series, maps and statistics, the variables are downloaded as GeoTIF
 export_image to Google Drive) or a recipe of several variables on aligned grids over a study area and its ecoregions
 (download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall and Sen: trend_table, trend_map,
 download_trend) and the comparison of a reference period with another (compare_series, compare_map,
-download_comparison) are those of MonitorEO-TEST (see monitoreo.trends). The results of an analysis are published
+download_comparison) are described in monitoreo.trends. The results of an analysis are published
 for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
 
 Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthengine authenticate`.
@@ -57,7 +57,7 @@ def project():
 
 def about(lang='en'):
 	"""What MonitorEO-OBSNEV is and who funds it: {'name', 'description', 'acknowledgements', 'logos' (image files),
-	'app', 'manual', 'repository'} in LANG ('en' or 'es')."""
+	'manual', 'repository'} in LANG ('en' or 'es')."""
 	from . import about as about_
 	return about_.about(lang)
 

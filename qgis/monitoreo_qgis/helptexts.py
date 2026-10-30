@@ -74,14 +74,13 @@ HELP = {
 	'filters':
 		'<p>Quita de cada imagen, antes de calcular, los píxeles que sus bandas de calidad marcan con nubes (y sus '
 		'sombras), agua, nieve o muchos aerosoles. Cada producto tiene sus bandas: los aerosoles solo se pueden '
-		'quitar en Landsat 8 y 9 y en el NDVI, EVI y LAI de MODIS. En la app de MonitorEO estos filtros están '
-		'desactivados por defecto.</p>'
+		'quitar en Landsat 8 y 9 y en el NDVI, EVI y LAI de MODIS.</p>'
 		'<p>Desmarca el filtro de lo que mide la variable: <b>nieve</b> con el NDSI y <b>agua</b> con el NDWI, la '
 		'Chl-a y el NDCI.</p>',
 	'cloud_score':
 		'<p>Solo para Sentinel-2, y con la casilla <b>nubes</b> marcada. Marcada, las nubes se quitan con Cloud Score+ '
 		'de Google: un píxel es claro si su puntuación es al menos 0,6. Sin marcar, con la clasificación de escena '
-		'(SCL) de Sentinel-2 (sombras, nubes y cirros), como la app de MonitorEO.</p>'
+		'(SCL) de Sentinel-2: sombras, nubes y cirros.</p>'
 		+ manual('Conceptos#filtros-por-píxel'),
 	'step':
 		'<p>Cada cuánto da un valor la serie: <b>Mensual</b>, <b>Anual</b>, <b>16 días</b> (bloques de 16 días desde '

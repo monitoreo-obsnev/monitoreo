@@ -282,9 +282,8 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		box = QGroupBox('Tendencias (Mann-Kendall y Sen)')
-		box.setToolTip('Tendencia de cada parte del año a lo largo de los años del periodo, como las "Tendencias '
-		               'estacionales" de MonitorEO: τ de Kendall, Z y p-valor de Mann-Kendall y pendiente de Sen '
-		               '(cambio por año). Mejor con 8 años o más')
+		box.setToolTip('Tendencia de cada parte del año a lo largo de los años del periodo: τ de Kendall, Z y p-valor de '
+		               'Mann-Kendall y pendiente de Sen (cambio por año). Mejor con 8 años o más')
 		f = QFormLayout(box)
 		self.trend_step = combo(TREND_STEPS, 'annual')
 		self.trend_part = QComboBox()
@@ -379,8 +378,7 @@ class MonitorEODock(QDockWidget):
 			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			lay.addWidget(logo)
 		for text in (about.DESCRIPTION['es'], about.ACKNOWLEDGEMENTS['es'],
-		             f'<a href="{about.APP}">App de MonitorEO</a> · <a href="{about.MANUAL}">Manual</a> · '
-		             f'<a href="{about.REPOSITORY}">Código</a>'):
+		             f'<a href="{about.MANUAL}">Manual</a> · <a href="{about.REPOSITORY}">Código</a>'):
 			label = QLabel(text)
 			label.setWordWrap(True)
 			label.setOpenExternalLinks(True)

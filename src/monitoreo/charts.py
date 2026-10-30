@@ -92,8 +92,8 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('referencia', 'otro periodo'),
                    width=10, height=4.5, dpi=150):
 	"""PNG (bytes) of the comparison of two periods (PROFILE: rows of monitoreo.trends.profile): the mean of each part
-	of the year in the reference period (blue, circles, solid) and in the other (red, squares, dashed; as REF and
-	COMP in MonitorEO-TEST), or a colour per region if there are several. LABELS: {part: name}."""
+	of the year in the reference period (blue, circles, solid) and in the other (red, squares, dashed), or a colour per
+	region if there are several. LABELS: {part: name}."""
 	from matplotlib.figure import Figure
 
 	fig = Figure(figsize=(width, height), dpi=dpi)

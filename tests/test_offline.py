@@ -11,7 +11,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 34  # the 32 of the app and NBR of Landsat and Sentinel-2
+	assert len(entries) == 34  # the 32 of catalog.json and NBR of Landsat and Sentinel-2
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -20,7 +20,6 @@ def test_catalog():
 	assert catalog.find(None, ref=32)['scale'] == 0.1  # FIXES: scale of LAI
 	with pytest.raises(KeyError):
 		catalog.find('NDVI', 'Planet')
-	assert catalog.load()['source']['imported']
 
 
 def test_list_and_describe():

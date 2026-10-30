@@ -117,7 +117,6 @@ const MO = (() => {
 				el('img', {src, alt: i ? 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada' :
 					'Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía', loading: 'lazy'}))),
 			el('div', {class: 'footer-links'},
-				about.app && el('a', {href: about.app}, 'Aplicación MonitorEO en Earth Engine'),
 				about.manual && el('a', {href: about.manual}, 'Manual'),
 				about.repository && el('a', {href: about.repository}, 'Código (GPL-3.0)')));
 	}

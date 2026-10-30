@@ -109,7 +109,7 @@ def about(lang: str = 'en'):
 	"""What MonitorEO-OBSNEV is and who funds it (description and acknowledgements, in 'en' or 'es'), with the logos
 	of the institutions and projects."""
 	a = services.about(lang)
-	return [_text({k: a[k] for k in ('name', 'description', 'acknowledgements', 'app', 'manual', 'repository')})] + \
+	return [_text({k: a[k] for k in ('name', 'description', 'acknowledgements', 'manual', 'repository')})] + \
 	       [Image(path=p) for p in a['logos']]
 
 
@@ -269,7 +269,7 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
                 metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
                 collection: Optional[str] = None):
-	"""Seasonal trends of a variable over each feature of a region, as the 'Tendencias Estacionales' of MonitorEO:
+	"""Seasonal trends of a variable over each feature of a region:
 	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
 	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
 	Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (change per year). Use 8 or more
@@ -325,7 +325,7 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
                    scale: Optional[float] = None, collection: Optional[str] = None):
 	"""Compare a reference period (start to end) with another (other_start to other_end) over each feature of a
 	region: the mean of each part of the year (step 'monthly', '16-day' or 'annual') over the years of each period
-	and the difference (other - reference), as the comparison mode of MonitorEO. Writes a CSV and a chart of both
+	and the difference (other - reference). Writes a CSV and a chart of both
 	periods by part of the year, and returns the chart."""
 	_ready()
 	stem = f'comparison_{variable}_{sensor}_{start}_{end}_{other_start}_{other_end}'

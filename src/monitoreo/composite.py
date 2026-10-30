@@ -1,16 +1,15 @@
-"""Temporal aggregation of a collection into one image, as in reduceCol (modules/auxCalcIndex) of MonitorEO.
+"""Temporal aggregation of a collection into one image.
 
 temporal = 'period'   one metric over all the images of the period (and season): e.g. p95 of NDVI 2018-2021.
 temporal = 'annual'   the metric of each year (or season of each year), then the interannual metric of those
                       images: e.g. the median of the annual maxima.
 temporal = 'monthly'  the metric of each month, then the interannual metric of each calendar month (e.g. the mean
-           '16-day'   of the twelve Julys), then the mean of the calendar months (the 'interannual mean' of
-                      MonitorEO). '16-day' uses periods of 16 days from the start of each year (or season) instead
-                      of months, grouped by the month in which they start.
+           '16-day'   of the twelve Julys), then the mean of the calendar months. '16-day' uses periods of 16 days
+                      from the start of each year (or season) instead of months, grouped by the month in which
+                      they start.
 
-The period is [first day, last day] (both included). A season ['MM-DD', 'MM-DD'] keeps only those days of each year
-(the 'cutter' of MonitorEO); it can cross the new year (['11-01', '02-28']), and then it belongs to the year in
-which it starts.
+The period is [first day, last day] (both included). A season ['MM-DD', 'MM-DD'] keeps only those days of each year;
+it can cross the new year (['11-01', '02-28']), and then it belongs to the year in which it starts.
 """
 
 import calendar

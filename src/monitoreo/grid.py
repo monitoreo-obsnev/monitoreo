@@ -1,8 +1,8 @@
 """Grids aligned to the pixel size, and download of Earth Engine images on them as GeoTIFF, in tiles.
 
 The edges of a grid are multiples of its pixel size, so grids of the same CRS and pixel size are aligned. Each tile
-is computed by Earth Engine with ee.data.computePixels (the same computation as the app, without exporting to
-Drive); a tile that fails because it is too big or too slow is split into four, down to MIN_TILE pixels.
+is computed by Earth Engine with ee.data.computePixels (the same computation as an export, without exporting
+to Drive); a tile that fails because it is too big or too slow is split into four, down to MIN_TILE pixels.
 """
 
 import concurrent.futures as cf

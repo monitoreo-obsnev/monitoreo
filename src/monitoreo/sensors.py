@@ -1,11 +1,10 @@
-"""Collections of the sensors of MonitorEO: quality masks, scale and offset of the bands and formula of the variable.
+"""Collections of the sensors of MonitorEO: quality masks, scale and offset of the bands and formula of the variable:
 
-Port of sensors/*_cut, modules/sensorList and processFt (modules/auxCalcIndex) of MonitorEO, with these changes:
-  - the pixel filters of the app ('remove pixels with clouds, water, snow, aerosols'), which are switched off
-    there, with the QA bands of the catalog (*_bandQA): SCL for Sentinel-2 (Cloud Score+ for its clouds),
-    QA_PIXEL and SR_QA_AEROSOL for Landsat and the QA bands of each MODIS product;
-  - the scale and offset are applied to the bands before the formula (the app evaluates the formulas with spaces,
-    e.g. EVI or ALBEDO, on the raw bands, and the + 1 of EVI or the - 0.018 of the Landsat albedo then mean nothing);
+  - the pixel filters ('remove pixels with clouds, water, snow, aerosols') use the QA bands of the catalog
+    (*_bandQA): SCL for Sentinel-2 (Cloud Score+ for its clouds), QA_PIXEL and SR_QA_AEROSOL for Landsat and the
+    QA bands of each MODIS product;
+  - the scale and offset are applied to the bands before the formula (constants of the formulas such as the + 1
+    of EVI or the - 0.018 of the Landsat albedo need reflectances, not raw values);
   - band names of the formulas are matched without case (LST_day_1km is the band LST_Day_1km);
   - flag values of the MODIS products (e.g. 250 = cloud in NDSI_Snow_Cover) are masked;
   - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector).
@@ -40,8 +39,8 @@ QUALITY = {
 	'water': True,         # water
 	'snow': True,          # snow and ice
 	'aerosols': True,      # high aerosol content (Landsat 8 and 9, MODIS NDVI, EVI and LAI)
-	'cloud_score': 0.6,    # Sentinel-2 clouds: minimum Cloud Score+ (cs_cdf) of a clear pixel; None = SCL classes,
-	                       # as MonitorEO (in Guajares Cloud Score+ gave an NDVI p5 closer to the reference)
+	'cloud_score': 0.6,    # Sentinel-2 clouds: minimum Cloud Score+ (cs_cdf) of a clear pixel; None = SCL classes
+	                       # (in Guajares Cloud Score+ gave an NDVI p5 closer to the reference)
 	'scene_clouds': None,  # Sentinel-2 and Landsat: maximum cloud cover of a scene (%), None = all scenes
 }
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')

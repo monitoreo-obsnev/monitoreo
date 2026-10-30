@@ -17,7 +17,7 @@ def ramp(entry=None, colours=None):
 
 
 def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None, palette=None):
-	"""Colour ramp of a single band image ('value'): as MonitorEO, from the percentiles 5 and 95 of the image over
+	"""Colour ramp of a single band image ('value'): from the percentiles 5 and 95 of the image over
 	REGION_GEOM (or VMIN and VMAX), with the palette of the catalog entry ENTRY (pm) or PALETTE."""
 	if vmin is None or vmax is None:
 		st = ee.Image(image).reduceRegion(ee.Reducer.percentile([5, 95]), region_geom, scale, bestEffort=True,

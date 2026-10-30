@@ -1,8 +1,7 @@
-"""Seasonal trends (Mann-Kendall test and Sen's slope) and the comparison of a reference period with another, as the
-analysis 'Tendencias Estacionales' (functions/trends) and the comparison mode of MonitorEO-TEST.
+"""Seasonal trends (Mann-Kendall test and Sen's slope) and the comparison of a reference period with another.
 
-Parts of the year: each year of the period gives one value per part of STEP, the METRIC (the mean by default, as
-MonitorEO-TEST) of the images of that part in that year:
+Parts of the year: each year of the period gives one value per part of STEP, the METRIC (the mean by default) of the
+images of that part in that year:
   monthly  12 parts, the months (January of every year, February of every year, ...): m01 ... m12
   16-day   23 parts of 16 days from 1 January (days of the year 1-16, 17-32, ..., 353-366): p01 ... p23
   annual   1 part, the whole year (or the season of each year): all
@@ -14,8 +13,8 @@ The trend of each part is computed on its yearly values (on each pixel, or on a 
   p_value    two-sided p-value of Z, 2 (1 - Phi(|Z|))
   slope      Sen's slope: median of the slopes between pairs of years (units of the variable per year)
   intercept  value of the Sen line in the first year of the period (median of value - slope * (year - first year))
-A part needs MIN_YEARS years with data. Differences from MonitorEO-TEST: n is that of each pixel (years with data),
-not the number of years of the period; its p-value is twice 2 (1 - Phi(|Z|)), and its intercept is that of year 0.
+A part needs MIN_YEARS years with data; n is that of each pixel or region (years with data), not the number of
+years of the period.
 
 The comparison of periods aligns the values of a reference period and of another one by part (the same month or
 16 days, or the year): the mean of the part over the years of each period and their difference (other - reference).
@@ -36,7 +35,7 @@ MIN_YEARS = 2
 MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
           'noviembre', 'diciembre']
 DIVERGING = ['a50026', 'd73027', 'f46d43', 'fdae61', 'fee08b', 'ffffbf', 'd9ef8b', 'a6d96a', '66bd63', '1a9850',
-             '006837']  # decrease (red) to increase (green), as the trend maps of MonitorEO-TEST
+             '006837']  # decrease (red) to increase (green)
 P_VALUE = ['0571b0', '92c5de', 'f7f7f7']  # significant (blue) to not (white)
 YEARS = ['fde725', '5ec962', '21918c', '3b528b', '440154']
 
@@ -53,7 +52,7 @@ def parts(step):
 
 
 def part_key(step, part):
-	"""Short name of a part, as the band suffixes of MonitorEO-TEST: m01, p01, all."""
+	"""Short name of a part: m01, p01, all."""
 	return f'm{part:02d}' if step == 'monthly' else f'p{part:02d}' if step == '16-day' else 'all'
 
 

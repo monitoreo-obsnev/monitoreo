@@ -1,11 +1,4 @@
 {
- "source": {
-  "app": "https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev",
-  "script": "users/monitoreo-obsnev/monitoreo-obsnev",
-  "repository": "https://earthengine.googlesource.com/users/monitoreo-obsnev/monitoreo-obsnev",
-  "commit": "4739996ee09a242e6625a17fb84e72e4a7157a71 2026-04-23",
-  "imported": "2026-10-28"
- },
  "fields": {
   "ref": "ID of the entry",
   "type": "group of variables",
@@ -28,7 +21,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
-  "notes": "comments of the fields in the app"
+  "notes": "comments of the fields"
  },
  "collections": {
   "MODIS/061/MOD10A1": {
