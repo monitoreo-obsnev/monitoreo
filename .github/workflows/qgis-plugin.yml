@@ -4,6 +4,8 @@
 # - al subir una etiqueta v* (p. ej. v0.2.0 desde GitHub Desktop), creando la release si no existe;
 # - a mano (Actions > Plugin de QGIS > Run workflow) con la etiqueta de una release que ya existe; sin etiqueta,
 #   deja el zip como artefacto de la ejecución.
+# Con etiqueta, sube además el zip al repositorio oficial (plugins.qgis.org/plugins/monitoreo_qgis) si esa versión no
+# está ya allí y el repositorio tiene el secreto QGIS_PLUGINS_TOKEN (el token del plugin en plugins.qgis.org).
 name: Plugin de QGIS
 
 on:
@@ -26,6 +28,7 @@ concurrency:
 
 env:
   TAG: ${{ github.event.release.tag_name || inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+  QGIS_PLUGINS: ${{ secrets.QGIS_PLUGINS_TOKEN != '' }}  # 'true' si existe el secreto (sin sacar el token)
 
 jobs:
   zip:
@@ -69,6 +72,21 @@ jobs:
             fi
           else
             gh release create "$TAG" "$zip" --title "MonitorEO $TAG" --notes "$notes"
+          fi
+      - name: Subir el zip a plugins.qgis.org
+        if: env.TAG != '' && env.QGIS_PLUGINS == 'true'
+        env:
+          QGIS_PLUGINS_TOKEN: ${{ secrets.QGIS_PLUGINS_TOKEN }}
+        run: |
+          zip=$(ls dist/monitoreo_qgis-*.zip)
+          ver=$(sed -n 's/^version=//p' qgis/monitoreo_qgis/metadata.txt | tr -d '[:space:]')
+          url=https://plugins.qgis.org/plugins/monitoreo_qgis
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/version/$ver/")" = 200 ]; then
+            echo "La versión $ver ya está en plugins.qgis.org"
+          else
+            curl -sS --fail-with-body -X POST -H "Authorization: Bearer $QGIS_PLUGINS_TOKEN" -F "package=@$zip" \
+              "$url/version/add/api/"
+            echo "Versión $ver subida a plugins.qgis.org: pasa el análisis de seguridad y la aprobación antes de publicarse"
           fi
       - name: Guardar el zip como artefacto (ejecución manual sin etiqueta)
         if: env.TAG == ''
