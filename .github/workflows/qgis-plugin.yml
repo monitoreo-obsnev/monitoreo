@@ -82,12 +82,13 @@ jobs:
         run: |
           zip=$(ls dist/monitoreo_qgis-*.zip)
           ver=$(sed -n 's/^version=//p' qgis/monitoreo_qgis/metadata.txt | tr -d '[:space:]')
-          url=https://plugins.qgis.org/plugins/monitoreo_qgis
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/version/$ver/")" = 200 ]; then
+          site=https://plugins.qgis.org/plugins
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' "$site/monitoreo_qgis/version/$ver/")" = 200 ]; then
             echo "La versión $ver ya está en plugins.qgis.org"
           else
+            # la API de subida con token (plugins/urls.py de github.com/qgis/QGIS-Plugins-Website)
             curl -sS --fail-with-body -X POST -H "Authorization: Bearer $QGIS_PLUGINS_TOKEN" -F "package=@$zip" \
-              "$url/version/add/api/"
+              "$site/api/monitoreo_qgis/version/add/"
             echo "Versión $ver subida a plugins.qgis.org: pasa el análisis de seguridad y la aprobación antes de publicarse"
           fi
       - name: Guardar el zip como artefacto (ejecución manual sin etiqueta)
