@@ -7,12 +7,14 @@ It copies the package monitoreo (src/monitoreo) into monitoreo_qgis/ext and adds
 dependencies as pure Python wheels for Python 3.9 or newer (QGIS 4 has 3.12; on Windows, macOS and Linux), without
 google-cloud-storage, which Earth Engine does not import. It needs pip and internet.
 
-The security scan of plugins.qgis.org (Bandit and detect-secrets) blocks a version with critical findings, and the
-bundled libraries have false positives (constants such as 'nextPageToken', markers of PEM keys). So the zip leaves
-out what the plugin never runs (tests and command lines of the libraries, the discovery documents of
-googleapiclient) and has a .bandit that excludes the bundled libraries and, with detect-secrets installed, a
+The security scan of plugins.qgis.org blocks a version with any finding of Bandit or of detect-secrets (each tool is
+one critical check, whatever the severity of its rules: plugins/security_scanner.py of
+github.com/qgis/QGIS-Plugins-Website), and the bundled libraries have false positives (constants such as
+'nextPageToken', markers of PEM keys). So the zip leaves out what the plugin never runs (tests and command lines of
+the libraries, the discovery documents of googleapiclient; the command line, MCP server, updater and web viewer of
+monitoreo) and has a .bandit that excludes the bundled libraries and, with detect-secrets installed, a
 .secrets.baseline with their findings. With Bandit and detect-secrets installed it scans the zip as plugins.qgis.org
-does and fails if the plugin or monitoreo have a critical finding.
+does and fails if the plugin or monitoreo have any finding.
 """
 
 import argparse
@@ -37,11 +39,9 @@ DEPS = ['google-api-python-client', 'google-auth', 'google-auth-httplib2', 'http
 # never run by the plugin: Earth Engine reads its discovery document from the internet (static_discovery=False)
 UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestcase.py', 'ee/cli', 'ee/mapclient.py',
           'certifi/tests', 'rsa/cli.py']
-# Bandit tests whose findings are critical (they block a version) in plugins.qgis.org/docs/security-scanning/rules
-CRITICAL = ('B102,B103,B105,B106,B107,B111,B201,B202,B301,B302,B304,B305,B306,B307,B312,B321,B323,B401,B402,B412,'
-            'B413,B501,B502,B503,B505,B506,B507,B601,B602,B604,B605,B609,B610,B611,B612,B613,B615,B701')
-SECRET_WARNINGS = {'Base64 High Entropy String', 'Hex High Entropy String', 'Secret Keyword', 'Public IP (ipv4)'}
-OURS = re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
+# modules of monitoreo for the command line and the MCP server (and the web viewer), not used by the plugin
+MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer']
+OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 
 def pip_download(args, dest):
@@ -59,15 +59,15 @@ def bandit_ini():
 
 def scan(out):
 	"""Scan the zip OUT as plugins.qgis.org does (extracted, Bandit with its .bandit and detect-secrets from its folder)
-	and add the .secrets.baseline with the findings of the bundled libraries. Fails if the plugin or monitoreo have a
-	critical finding. Without Bandit or detect-secrets (pip install bandit detect-secrets) it only warns."""
+	and add the .secrets.baseline with the findings of the bundled libraries. Fails if the plugin or monitoreo have any
+	finding (all the tests of Bandit). Without Bandit or detect-secrets (pip install bandit detect-secrets) it only
+	warns."""
 	with tempfile.TemporaryDirectory() as tmp:
 		with zipfile.ZipFile(out) as z:
 			z.extractall(tmp)
 		critical = []
 		if shutil.which('bandit'):
-			r = subprocess.run(['bandit', '-r', tmp, '-f', 'json', '--quiet', '-t', CRITICAL], capture_output=True,
-			                   text=True)
+			r = subprocess.run(['bandit', '-r', tmp, '-f', 'json', '--quiet'], capture_output=True, text=True)
 			critical += [f"{x['filename'].replace(tmp, '')}:{x['line_number']} {x['test_id']} {x['issue_text']}"
 			             for x in json.loads(r.stdout)['results']]
 		else:
@@ -78,7 +78,7 @@ def scan(out):
 			                   text=True, check=True)
 			baseline = json.loads(r.stdout)
 			critical += [f"{f}:{s['line_number']} {s['type']}" for f, found in baseline['results'].items()
-			             if OURS.match(f) for s in found if s['type'] not in SECRET_WARNINGS]
+			             if OURS.match(f) for s in found]
 			baseline['results'] = {f: found for f, found in baseline['results'].items() if not OURS.match(f)}
 			with zipfile.ZipFile(out, 'a', zipfile.ZIP_DEFLATED) as z:
 				z.writestr('monitoreo_qgis/.secrets.baseline', json.dumps(baseline, indent=2) + '\n')
@@ -98,7 +98,7 @@ def main():
 	shutil.rmtree(EXT, ignore_errors=True)
 	os.makedirs(EXT)
 	shutil.copytree(os.path.join(ROOT, 'src', 'monitoreo'), os.path.join(EXT, 'monitoreo'),
-	                ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+	                ignore=shutil.ignore_patterns('__pycache__', '*.pyc', *MONITOREO_UNUSED))
 	if not args.no_ee:
 		with tempfile.TemporaryDirectory() as wheels:
 			pip_download(['--no-deps', 'earthengine-api'] + PURE, wheels)

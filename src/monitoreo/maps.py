@@ -48,7 +48,10 @@ def thumbnail(image, region_geom, vis=None, dimensions=768, path=None):
 	"""PNG (bytes) of IMAGE over REGION_GEOM, coloured with VIS (None if IMAGE is already RGB)."""
 	img = ee.Image(image).visualize(**vis) if vis else ee.Image(image)
 	url = img.getThumbURL({'region': region_geom, 'dimensions': int(dimensions), 'format': 'png'})
-	with urllib.request.urlopen(url, timeout=300) as r:
+	if not url.startswith('https://'):
+		raise ValueError(f'Earth Engine gave a thumbnail URL that is not https: {url}')
+	# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+	with urllib.request.urlopen(url, timeout=300) as r:  # nosec B310
 		png = r.read()
 	if path:
 		with open(path, 'wb') as f:
