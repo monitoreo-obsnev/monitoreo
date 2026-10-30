@@ -32,4 +32,4 @@ high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) of the Bio
 It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
 """
 
-__version__ = '0.3.6'
+__version__ = '0.3.7'
