@@ -253,7 +253,7 @@ class MonitorEODock(QDockWidget):
 			self.filters[key].setChecked(True)
 			row.addWidget(self.filters[key])
 		f.addRow('Quitar píxeles con', info(row, lambda: filters_help(self.variable.currentData())))
-		self.cloud_score = QCheckBox('nubes de Sentinel-2 con Cloud Score+ (si no, con SCL, como MonitorEO)')
+		self.cloud_score = QCheckBox('nubes de Sentinel-2 con Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
 		main.addWidget(box)
