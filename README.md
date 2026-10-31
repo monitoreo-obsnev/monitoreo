@@ -21,6 +21,7 @@ funciones** (`monitoreo.services`). El manual de cada una, con tutoriales y ejem
 
 | Herramienta | Para quién | Dónde |
 |---|---|---|
+| [App de Earth Engine](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo) | cualquiera, en el navegador, sin instalar nada ni tener cuenta | `gee` |
 | Paquete de Python `monitoreo` | scripts, cuadernos, línea de comandos | `src/monitoreo` |
 | Plugin de QGIS **MonitorEO** | usuarios de QGIS 4.0.3 o posterior | `qgis/monitoreo_qgis` |
 | Servidor MCP | Claude u otros modelos de lenguaje | `src/monitoreo/mcp_server.py` |
@@ -54,6 +55,7 @@ nieve, aerosoles); las nubes de Sentinel-2 se quitan con Cloud Score+.
 Todo se calcula con **la cuenta de Earth Engine de cada usuario** y su proyecto de Google Cloud: no hay servidor
 que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cuota mensual por proyecto). Los
 resultados de un análisis se pueden publicar para cualquiera, sin cuenta, en el [visor de resultados](#visor-de-resultados).
+La [app de Earth Engine](#app-de-earth-engine) calcula con el proyecto de MonitorEO, para quien no tiene cuenta.
 
 ## Antes de empezar: cuenta de Earth Engine
 
@@ -346,6 +348,18 @@ Funciones: `mo_init`, `mo_install`, `mo_variables`, `mo_describe`, `mo_protected
 (`mo_trend_table`, `mo_trend_map`, `mo_download_trend`), comparación de periodos (`mo_compare_series`,
 `mo_compare_map`, `mo_download_comparison`), severidad de incendios (`mo_burn_severity`), `mo_export_image`, `mo_export_time_series` y `mo_task_status`.
 
+## App de Earth Engine
+
+**https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo**
+
+Mapas, series temporales, tendencias, comparación de periodos y severidad de incendios en el navegador, sin instalar
+nada ni tener cuenta de Earth Engine: calcula con el proyecto `ee-ugr-default-project`, con límites de tamaño para
+repartir su cuota ([manual](https://github.com/monitoreo-obsnev/monitoreo/wiki/App-de-Earth-Engine)). El código está
+en `gee`: `core.js` es el núcleo del paquete de Python traducido a JavaScript, `ui.js` el panel y `build.py` escribe
+`monitoreo_app.js`, el script que se publica desde el Code Editor (**Apps**), con el catálogo y los textos del
+paquete. `tests/test_gee.py` calcula los mismos casos con la app (en Node, con `npm install` en `gee`) y con el
+paquete, y comprueba que dan lo mismo.
+
 ## Visor de resultados
 
 Los resultados de un análisis se publican en un **visor web estático** que cualquiera consulta en el navegador, sin
@@ -431,7 +445,7 @@ Detalles del cálculo, en el código:
 
 ```bash
 pytest tests/test_offline.py tests/test_publish.py   # sin Earth Engine
-EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine
+EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine (la app de gee, con npm install en gee)
 ```
 
 Las pruebas usan el código de `src/` del clon aunque el entorno tenga instalada la versión de GitHub. Para probar la

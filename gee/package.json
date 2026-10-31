@@ -1,0 +1,8 @@
+{
+  "name": "monitoreo-gee",
+  "private": true,
+  "description": "Tests of the MonitorEO app for the Earth Engine Code Editor (see build.py and tests/test_gee.py)",
+  "devDependencies": {
+    "@google/earthengine": "1.7.48"
+  }
+}
