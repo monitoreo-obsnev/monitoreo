@@ -71,6 +71,10 @@ resultados de un análisis se pueden publicar para cualquiera, sin cuenta, en el
 
 ## Instalación (Python, MCP y R)
 
+¿No has usado nunca Python ni una terminal? La [instalación paso a paso](https://github.com/monitoreo-obsnev/monitoreo/wiki/Instalación-paso-a-paso)
+de la wiki explica cada orden, en Windows y macOS, hasta usar MonitorEO con Claude Desktop. El plugin de QGIS no
+necesita nada de esto.
+
 Con [Miniforge](https://github.com/conda-forge/miniforge) (solo conda-forge; Miniconda usa por defecto el canal
 `defaults` de Anaconda, cuyas condiciones exigen licencia a organizaciones grandes) y el fichero `environment.yml` de
 este repositorio, que instala `monitoreo` desde GitHub:
@@ -214,7 +218,9 @@ Instalación: descarga `monitoreo_qgis-<versión>.zip` de la última release
 (https://github.com/monitoreo-obsnev/monitoreo/releases/latest) e instálalo en QGIS con **Complementos > Administrar
 e instalar complementos > Instalar a partir de ZIP**. El zip lleva dentro `monitoreo` y la librería de Earth Engine con sus dependencias
 (Python puro, válido en Windows, macOS y Linux), así que no hay que instalar nada más. Requiere QGIS 4.0.3 o
-posterior (Qt6, Python 3.12); en QGIS 3 funcionan las versiones del plugin hasta la 0.3.3.
+posterior (Qt6, Python 3.12); en QGIS 3 funcionan las versiones del plugin hasta la 0.3.3. Para identificarse en
+Earth Engine, lo recomendado es el botón **Autenticar…** del panel, que abre el navegador para iniciar sesión con la
+cuenta de Google (sin terminal).
 
 El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un panel con:
 
