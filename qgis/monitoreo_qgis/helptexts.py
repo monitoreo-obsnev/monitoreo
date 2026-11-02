@@ -16,6 +16,21 @@ def manual(page):
 
 
 HELP = {
+	'where':
+		'<p>Dónde se hacen los cálculos; la línea de debajo lo dice siempre, con las credenciales que hacen '
+		'falta:</p><ul>'
+		'<li><b>En la nube de Google (Earth Engine)</b>: con tu cuenta de Google y un proyecto de Google Cloud '
+		'registrado en Earth Engine (la caja de abajo). Tiene todo: las variables de Sentinel-2, Landsat y MODIS, '
+		'todas las regiones, las tendencias, las comparaciones y las exportaciones a Google Drive.</li>'
+		'<li><b>En este ordenador (sin cuenta)</b>: con los datos abiertos de Microsoft Planetary Computer, sin cuenta '
+		'ni credenciales. Tu ordenador lee de cada imagen los píxeles de la región y hace el cálculo. Solo las series '
+		'temporales y los mapas de Sentinel-2 y Landsat, sobre una capa o la extensión del mapa (para un área '
+		'protegida, descarga su polígono de <a href="https://www.protectedplanet.net">protectedplanet.net</a> y úsalo '
+		'como capa). Antes de cada cálculo dice cuántas imágenes y megas lee, y pregunta si son más de 1000 MB.</li>'
+		'</ul><p>Con las mismas imágenes da los mismos valores que Earth Engine, salvo que las nubes de Sentinel-2 se '
+		'quitan con la clasificación SCL, que Sentinel-2 antes de 2022 difiere en torno a 0,01 de NDVI (Planetary '
+		'Computer tiene otros procesados) y que a Planetary Computer le faltan algunas imágenes.</p>'
+		+ manual('QGIS#dónde-se-calcula'),
 	'project':
 		'<p>Proyecto de Google Cloud registrado en Earth Engine: los cálculos se hacen con tu cuenta de Google y '
 		'cuentan en la cuota de ese proyecto. Vacío: el de la variable de entorno EE_PROJECT (o '

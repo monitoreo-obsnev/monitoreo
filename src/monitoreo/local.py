@@ -39,7 +39,7 @@ from . import variable as variables
 from .grid import NODATA, Grid
 
 STAC = 'https://planetarycomputer.microsoft.com/api/stac/v1'
-TOKENS = 'https://planetarycomputer.microsoft.com/api/sas/v1/token/'
+SAS = 'https://planetarycomputer.microsoft.com/api/sas/v1/token/'  # signatures of the files, anonymous
 WHERE = {'where': 'local', 'computed_on': 'on this computer',
          'data': 'Microsoft Planetary Computer (open data: Sentinel-2 L2A, Landsat Collection 2 Level 2)',
          'credentials': 'none'}
@@ -84,7 +84,8 @@ def _json(url, body=None, retries=6):
 	for attempt in range(retries):
 		wait = 2 ** attempt * 2
 		try:
-			with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=120) as r:
+			request = urllib.request.Request(url, data=data, headers=headers)  # nosec B310: https of STAC or SAS
+			with urllib.request.urlopen(request, timeout=120) as r:  # nosec B310
 				return json.load(r)
 		except urllib.error.HTTPError as e:
 			if attempt == retries - 1 or e.code not in (408, 429, 500, 502, 503, 504):
@@ -101,7 +102,7 @@ def _signed(href, collection):
 	with _token_lock:  # one request per collection, not one per thread
 		token, expiry = _tokens.get(collection, (None, 0))
 		if time.time() > expiry - 600:
-			t = _json(TOKENS + collection)
+			t = _json(SAS + collection)
 			token = t['token']
 			expiry = dt.datetime.fromisoformat(t['msft:expiry'].replace('Z', '+00:00')).timestamp()
 			_tokens[collection] = (token, expiry)
@@ -684,11 +685,7 @@ def download_image(spec, region, resolution=None, crs='auto', path=None, clip=Tr
 	entry = check(spec)
 	regs = regions(region)
 	native = float(entry['m'])
-	res = float(resolution or native)
-	grid = grid_of(regs, res, crs)
-	if max_pixels and grid.pixels > max_pixels:
-		res *= math.ceil(math.sqrt(grid.pixels / max_pixels))
-		grid = grid_of(regs, res, grid.crs)
+	grid, res = map_grid(regs, float(resolution or native), crs, max_pixels)
 	img, n = composite_image(spec, regs, grid, progress, workers)
 	if clip:
 		inside = np.zeros(img.shape, bool)
@@ -700,6 +697,16 @@ def download_image(spec, region, resolution=None, crs='auto', path=None, clip=Tr
 	write_geotiff(img, grid, path, {'source': f"{WHERE['data']}, computed on {WHERE['computed_on']}",
 	                                'monitoreo': json.dumps(desc, default=str)})
 	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native, 'images': n}
+
+
+def map_grid(regs, res, crs='auto', max_pixels=None):
+	"""(grid, pixel size) of a map of the regions REGS: pixels of RES m, or 2, 3, ... times bigger if the grid has more
+	than MAX_PIXELS (as services._fit_grid)."""
+	grid = grid_of(regs, res, crs)
+	if max_pixels and grid.pixels > max_pixels:
+		res *= math.ceil(math.sqrt(grid.pixels / max_pixels))
+		grid = grid_of(regs, res, grid.crs)
+	return grid, res
 
 
 def write_geotiff(img, grid, path, metadata=None):
@@ -728,17 +735,17 @@ def write_geotiff(img, grid, path, metadata=None):
 
 # Before computing --------------------------------------------------------------------------------------------------
 
-def plan(spec, region, step=None, scale=None, resolution=None, crs='auto'):
+def plan(spec, region, step=None, scale=None, resolution=None, crs='auto', max_pixels=None):
 	"""What computing SPEC over REGION on this computer reads, to tell the user before starting (it searches the
 	images, without reading them): WHERE and {'images', 'grid', 'read_mb' (megabytes of the pixels read, roughly),
-	'notes'}, with 'steps' and 'scale' for the time series of STEP, or 'resolution' for the map (without STEP)."""
+	'notes'}, with 'steps' and 'scale' for the time series of STEP, or 'resolution' for the map (without STEP; see
+	download_image for RESOLUTION, CRS and MAX_PIXELS)."""
 	entry = check(spec)
 	regs = regions(region)
 	its, _ = _items(entry, spec, regs)
 	out = dict(WHERE, images=len(its), notes=notes(entry, spec))
 	if step is None:
-		res = float(resolution or entry['m'])
-		grid = grid_of(regs, res, crs)
+		grid, res = map_grid(regs, float(resolution or entry['m']), crs, max_pixels)
 		out['resolution'] = res
 	else:
 		res = float(scale or auto_scale(entry, regs))

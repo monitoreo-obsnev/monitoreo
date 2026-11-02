@@ -80,16 +80,16 @@ def where_info(where='gee'):
 
 
 def plan(region, variable=None, sensor=None, start=None, end=None, step=None, metric='mean', temporal='period',
-         interannual='mean', season=None, quality=None, scale=None, resolution=None, crs='auto', where='gee',
-         **source):
+         interannual='mean', season=None, quality=None, scale=None, resolution=None, crs='auto', max_pixels=None,
+         where='gee', **source):
 	"""where_info(WHERE) and, on this computer ('local'), what it reads, without reading it: {'images', 'grid',
 	'read_mb' (megabytes, roughly), 'notes'}, with 'steps' and 'scale' of the time series of STEP, or 'resolution'
-	of the map (without STEP)."""
+	of the map (without STEP; RESOLUTION, CRS and MAX_PIXELS as in download_image)."""
 	info = where_info(where)
 	if where == 'local':
 		spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 		                 season=season, quality=quality, **source)
-		info = local.plan(spec, region, step, scale, resolution, crs)
+		info = local.plan(spec, region, step, scale, resolution, crs, max_pixels)
 	return info
 
 

@@ -250,7 +250,10 @@ Earth Engine), project mi-proyecto, ...; credentials: a Google account with acce
 Diferencias con Earth Engine:
 
 - Solo series temporales y mapas en GeoTIFF de Sentinel-2 y Landsat (MODIS, tendencias, comparaciones, incendios,
-  teselas, exportaciones y recetas siguen en Earth Engine).
+  teselas, exportaciones y recetas siguen en Earth Engine), en Python, en la línea de comandos, en el plugin de QGIS
+  (caja **Dónde se calcula**), en R (`where = "local"`, `mo_where()`, `mo_plan()`) y en el servidor MCP (`where` de
+  `time_series` y `download_image`, y la herramienta `plan`). Todos dan los mismos valores y dicen antes de calcular
+  dónde lo hacen y qué credenciales necesitan.
 - Regiones: rectángulo, punto, GeoJSON o fichero. Las áreas protegidas y las ecorregiones se buscan en Earth Engine:
   descarga su polígono (p. ej. de [protectedplanet.net](https://www.protectedplanet.net)) y úsalo como fichero.
 - Las nubes de Sentinel-2 se quitan con la SCL (Cloud Score+ solo está en Earth Engine).
@@ -274,6 +277,11 @@ cuenta de Google (sin terminal).
 
 El botón **MonitorEO** de la barra de herramientas (o el menú Web) abre un panel con:
 
+- **Dónde se calcula**: en la nube de Google (Earth Engine) o en este ordenador, sin cuenta, con los datos de
+  Planetary Computer (series y mapas de Sentinel-2 y Landsat, ver [Sin Earth
+  Engine](#sin-earth-engine-cálculo-en-tu-ordenador-prototipo)); la línea de debajo dice siempre dónde se calcula y
+  qué credenciales hacen falta, y en este ordenador cada cálculo dice antes cuántas imágenes y megas lee (y pregunta
+  si pasan de 1000 MB). Lo que solo funciona con Earth Engine se desactiva.
 - **Google Earth Engine**: el proyecto, **Conectar** y **Autenticar…**.
 - **Región**: una capa de polígonos (las entidades seleccionadas o todas, con un campo para su nombre), la
   extensión del mapa, un área protegida (buscando por nombre en WDPA) o la ecorregión del centro del mapa.

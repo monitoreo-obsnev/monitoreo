@@ -1,6 +1,11 @@
-"""MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer
-and the exports to Google Drive. The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every
-computation is a function of monitoreo.services, the same as in the MCP server and the R package."""
+"""MonitorEO panel: where it computes, region, variable, period and pixel filters, and the buttons of the time
+series, the map layer and the exports to Google Drive. The work runs in QGIS tasks (QgsTask), so QGIS keeps
+responding; every computation is a function of monitoreo.services, the same as in the MCP server and the R package.
+
+It computes in Google Earth Engine, with the account and project of the user, or on this computer with the open data
+of Microsoft Planetary Computer and no account (monitoreo.local: time series and maps of Sentinel-2 and Landsat). The
+panel always says which one, and which credentials it needs; on this computer, before each computation, also how many
+images and megabytes it reads."""
 
 import json
 import os
@@ -13,17 +18,20 @@ from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QEvent, QPoint, Qt, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QToolButton,
-                                 QVBoxLayout, QWhatsThis, QWidget)
+                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
+                                 QToolButton, QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import services, trends  # noqa: E402
+from monitoreo import local, services, trends  # noqa: E402
 
 from .helptexts import HELP, filters_help, variable_help  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
+WHERE = [('En la nube de Google (Earth Engine)', 'gee'), ('En este ordenador (sin cuenta)', 'local')]
+LOCAL_REGIONS = ('layer', 'extent')  # protected areas and ecoregions are looked up in Earth Engine
+LOCAL_CONFIRM_MB = 1000  # on this computer, ask before reading more
 STEPS = [('Mensual', 'monthly'), ('Anual', 'annual'), ('16 días', '16-day'), ('Diario (días con imágenes)', 'daily')]
 METRICS = [('Media', 'mean'), ('Mediana', 'median'), ('Mínimo', 'min'), ('Máximo', 'max'), ('Percentil 5', 'p5'),
            ('Percentil 10', 'p10'), ('Percentil 90', 'p90'), ('Percentil 95', 'p95')]
@@ -70,9 +78,20 @@ def combo(items, current=None):
 	c = QComboBox()
 	for label, value in items:
 		c.addItem(label, value)
-	if current is not None:
-		c.setCurrentIndex([v for _, v in items].index(current))
+	values = [v for _, v in items]
+	if current is not None and current in values:
+		c.setCurrentIndex(values.index(current))
 	return c
+
+
+def enable_items(box, allowed):
+	"""Enable the items of the combo box BOX whose data ALLOWED(data) accepts, disable the others and, if the current
+	one is disabled, choose the first one allowed."""
+	model = box.model()
+	for i in range(box.count()):
+		model.item(i).setEnabled(bool(allowed(box.itemData(i))))
+	if not allowed(box.currentData()):
+		box.setCurrentIndex(next((i for i in range(box.count()) if allowed(box.itemData(i))), 0))
 
 
 class InfoButton(QToolButton):
@@ -137,7 +156,17 @@ class MonitorEODock(QDockWidget):
 		body = QWidget()
 		main = QVBoxLayout(body)
 
-		box = QGroupBox('Google Earth Engine')
+		box = QGroupBox('Dónde se calcula')
+		f = QFormLayout(box)
+		self.where = combo(WHERE, s.value(SETTINGS + 'where', 'gee'))
+		f.addRow('Calcular', info(self.where, HELP['where']))
+		self.where_label = QLabel()  # always says where it computes and which credentials it needs
+		self.where_label.setWordWrap(True)
+		self.where_label.setStyleSheet('font-size: 11px;')
+		f.addRow(self.where_label)
+		main.addWidget(box)
+
+		box = self.gee_box = QGroupBox('Google Earth Engine')
 		f = QFormLayout(box)
 		self.project = QLineEdit(s.value(SETTINGS + 'project', os.environ.get('EE_PROJECT', '')))
 		self.project.setPlaceholderText('proyecto de Google Cloud registrado en Earth Engine')
@@ -281,7 +310,7 @@ class MonitorEODock(QDockWidget):
 		self.update_series_list()
 		main.addWidget(box)
 
-		box = QGroupBox('Tendencias (Mann-Kendall y Sen)')
+		box = self.trend_box = QGroupBox('Tendencias (Mann-Kendall y Sen)')
 		box.setToolTip('Tendencia de cada parte del año a lo largo de los años del periodo: τ de Kendall, Z y p-valor de '
 		               'Mann-Kendall y pendiente de Sen (cambio por año). Mejor con 8 años o más')
 		f = QFormLayout(box)
@@ -322,7 +351,7 @@ class MonitorEODock(QDockWidget):
 		f.addRow(b)
 		main.addWidget(box)
 
-		box = QGroupBox('Exportar a Google Drive')
+		box = self.export_box = QGroupBox('Exportar a Google Drive')
 		f = QFormLayout(box)
 		self.resolution = QDoubleSpinBox()
 		self.resolution.setRange(0, 100000)
@@ -351,6 +380,58 @@ class MonitorEODock(QDockWidget):
 		scroll.setWidget(body)
 		self.setWidget(scroll)
 		self.region_changed()
+		self.where.currentIndexChanged.connect(self.where_changed)
+		self.project.textChanged.connect(self.update_where_label)
+		self.variable.currentIndexChanged.connect(self.update_where_label)
+		self.start.dateChanged.connect(self.update_where_label)
+		self.where_changed()
+
+	def local(self):
+		return self.where.currentData() == 'local'
+
+	def where_changed(self):
+		"""On this computer: only the time series and maps of Sentinel-2 and Landsat over a layer or the map extent;
+		the rest (MODIS, protected areas, ecoregions, trends, comparisons, Cloud Score+, Drive) needs Earth Engine."""
+		here = self.local()
+		for w in (self.gee_box, self.trend_box, self.export_box, self.compare_on, self.cloud_score):
+			w.setEnabled(not here)
+		if here:
+			self.compare_on.setChecked(False)
+		enable_items(self.variable, lambda v: not here or (v or {}).get('sensor') in local.SENSORS)
+		enable_items(self.region_kind, lambda k: not here or k in LOCAL_REGIONS)
+		self.update_where_label()
+
+	def where_text(self):
+		"""Where the next computation runs and which credentials it needs (rich text)."""
+		if self.local():
+			v = self.variable.currentData() or {}
+			text = ('<b>En este ordenador</b>, con los datos abiertos de Microsoft Planetary Computer. '
+			        '<b>Credenciales: ninguna.</b> Solo series temporales y mapas de Sentinel-2 y Landsat, sobre una '
+			        'capa o la extensión del mapa; antes de cada cálculo se dice cuántas imágenes y megas se leen.')
+			return text + ''.join(f' {n}.' for n in self.local_notes(v))
+		import ee
+		project = self.project.text().strip() or os.environ.get('EE_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT')
+		signed = os.path.exists(ee.oauth.get_credentials_path())
+		return ('<b>En la nube de Google (Earth Engine)</b>, '
+		        + (f'con el proyecto <b>{project}</b>. ' if project else 'con tu proyecto (escríbelo abajo). ')
+		        + '<b>Credenciales:</b> tu cuenta de Google con acceso a Earth Engine ('
+		        + ('ya has iniciado sesión en este ordenador' if signed else
+		           'aún no has iniciado sesión en este ordenador: pulsa <b>Autenticar…</b>')
+		        + ') y un proyecto de Google Cloud registrado en Earth Engine.')
+
+	def local_notes(self, v):
+		"""How the computation on this computer differs from that of Earth Engine for the variable V (local.notes)."""
+		out = []
+		if v.get('sensor') == 'Sentinel-2':
+			out.append('Las nubes de Sentinel-2 se quitan con la clasificación SCL (Cloud Score+ solo está en Earth '
+			           'Engine)')
+			if self.start.date().toString('yyyy-MM-dd') < local.S2_SAME_FROM:
+				out.append('Antes del 25-1-2022, Planetary Computer tiene otros procesados de Sentinel-2 que Earth '
+				           'Engine: el NDVI difiere en torno a 0,01')
+		return out
+
+	def update_where_label(self, *args):
+		self.where_label.setText(self.where_text())
 
 	def sync_fields(self):
 		layer = self.layer.currentLayer()
@@ -404,6 +485,7 @@ class MonitorEODock(QDockWidget):
 
 	def save_settings(self):
 		s = QgsSettings()
+		s.setValue(SETTINGS + 'where', self.where.currentData())
 		s.setValue(SETTINGS + 'project', self.project.text().strip())
 		s.setValue(SETTINGS + 'start', self.start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'end', self.end.date().toString('yyyy-MM-dd'))
@@ -455,7 +537,7 @@ class MonitorEODock(QDockWidget):
 	def variable_args(self):
 		v = self.variable.currentData()
 		quality = {k: w.isChecked() for k, w in self.filters.items()}
-		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
+		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() and not self.local() else None
 		args = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'],
 		        'start': self.start.date().toString('yyyy-MM-dd'), 'end': self.end.date().toString('yyyy-MM-dd'),
 		        'quality': quality}
@@ -465,13 +547,15 @@ class MonitorEODock(QDockWidget):
 
 	# Tasks ------------------------------------------------------------------------------------------------------
 
-	def run_task(self, description, work, done):
-		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar."""
+	def run_task(self, description, work, done, where='gee', quiet=False):
+		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar, which says
+		first where it computes (WHERE: 'gee', with the project of the panel, or 'local')."""
 		self.save_settings()
 		project = self.project.text().strip() or None
 
 		def run(task):
-			services.init(project)
+			if where == 'gee':
+				services.init(project)
 			return work()
 
 		def finished(exception, result=None):
@@ -487,8 +571,27 @@ class MonitorEODock(QDockWidget):
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
-		self.message(f'{description}…', 'Info', 3)
+		if not quiet:
+			on = ('en este ordenador' if where == 'local' else
+			      f"en la nube de Google (Earth Engine), proyecto {project or os.environ.get('EE_PROJECT') or '?'}")
+			self.message(f'{description}… {on}', 'Info', 5)
 		return task
+
+	def run_here(self, description, plan, work, done):
+		"""On this computer: first what it reads (PLAN(), from the catalog, in a task), told in the message bar and,
+		if it is more than LOCAL_CONFIRM_MB, asked; then WORK() and DONE(result) as run_task."""
+		def planned(p):
+			text = (f"{description}: en este ordenador, sin credenciales; lee {p['images']} imágenes de Microsoft "
+			        f"Planetary Computer, unos {p['read_mb']:g} MB")
+			if p['read_mb'] > LOCAL_CONFIRM_MB:
+				answer = QMessageBox.question(self, 'MonitorEO', text + '. Puede tardar. ¿Calcular?')
+				if answer != QMessageBox.StandardButton.Yes:
+					self.message(f'{description}: cancelado', 'Info', 4)
+					return
+			self.message(text, 'Info', 10)
+			self.run_task(description, work, done, 'local', quiet=True)
+
+		self.run_task(f'{description}: qué se lee', plan, planned, 'local', quiet=True)
 
 	def prepare(self):
 		"""Region and variable arguments, or None (with a message) if they are not valid."""
@@ -508,10 +611,12 @@ class MonitorEODock(QDockWidget):
 			ee.Authenticate(auth_mode='localhost', force=True)
 			return True
 
-		task = QgsTask.fromFunction('Autenticar en Earth Engine', lambda t: work(),
-		                            on_finished=lambda e, r=None: self.message(
-			                            'Autenticado en Earth Engine' if e is None else f'Autenticación: {e}',
-			                            'Success' if e is None else 'Critical', 10))
+		def finished(e, r=None):
+			self.message('Autenticado en Earth Engine' if e is None else f'Autenticación: {e}',
+			             'Success' if e is None else 'Critical', 10)
+			self.update_where_label()
+
+		task = QgsTask.fromFunction('Autenticar en Earth Engine', lambda t: work(), on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
 		self.message('Inicia sesión con tu cuenta de Google en el navegador', 'Info', 10)
@@ -554,9 +659,11 @@ class MonitorEODock(QDockWidget):
 		if other:
 			return self.run_comparison(region, var, other, step, metric, stat, tmp)
 
+		where = self.where.currentData()
+
 		def work():
 			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'serie.csv'),
-			                            **var)
+			                            where=where, **var)
 
 		def done(res):
 			from .results import SeriesDialog, chart_png
@@ -570,7 +677,11 @@ class MonitorEODock(QDockWidget):
 			res['kind'] = 'series'
 			self.add_result(res)
 
-		self.run_task(f"Serie temporal de {var['variable']} ({var['sensor']})", work, done)
+		description = f"Serie temporal de {var['variable']} ({var['sensor']})"
+		if where == 'local':
+			return self.run_here(description, lambda: services.plan(region, step=step, metric=metric, where=where, **var),
+			                     work, done)
+		self.run_task(description, work, done)
 
 	def run_comparison(self, region, var, other, step, metric, stat, tmp):
 		if step not in trends.STEPS:
@@ -680,6 +791,13 @@ class MonitorEODock(QDockWidget):
 			opts.update(other_start=other[0], other_end=other[1])
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
 		                   (services.download_image, services.map_layer))
+		description = f"Mapa de {var['variable']} ({var['sensor']})"
+		show = lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res)  # noqa: E731
+		if self.local():  # the GeoTIFF, without tiles to fall back on
+			return self.run_here(description,
+			                     lambda: services.plan(region, max_pixels=MAP_PIXELS, where='local', **opts),
+			                     lambda: services.download_image(region, path=path, max_pixels=MAP_PIXELS,
+			                                                     where='local', **opts), show)
 
 		def work():
 			"""The map as a GeoTIFF with the values (with OTHER, the difference between the periods, and both); if it
@@ -691,8 +809,7 @@ class MonitorEODock(QDockWidget):
 				res['error'] = str(e)
 				return res
 
-		self.run_task(f"Mapa de {var['variable']} ({var['sensor']})", work,
-		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
+		self.run_task(description, work, show)
 
 	def add_map_layer(self, res):
 		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95) and zoom to it."""
@@ -704,13 +821,14 @@ class MonitorEODock(QDockWidget):
 		else:
 			pseudocolor(layer, res['min'], res['max'], res['palette'])
 		bands = ', '.join(res.get('bands') or [])
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m"
+		on = 'en este ordenador (Microsoft Planetary Computer)' if res.get('where') == 'local' else 'en Google Earth Engine'
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m, calculado {on}"
 		                  + (f", {res['images']} imágenes" if res.get('images') is not None else '')
 		                  + (f", bandas {bands}" if bands else '') + f". GeoTIFF temporal: {res['file']}")
 		QgsProject.instance().addMapLayer(layer)
 		self.zoom_to(layer.extent(), layer.crs())
 		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Capa añadida: {res['name']}, píxeles de {res['resolution']:g} m"
+		self.message(f"Capa añadida: {res['name']}, píxeles de {res['resolution']:g} m, calculada {on}"
 		             + ('' if native else ' (región grande: píxeles mayores que los de los datos; para la resolución '
 		                                 'completa, exporta el mapa a Google Drive)')
 		             + '. Consulta los valores con la herramienta Identificar', 'Success', 10)

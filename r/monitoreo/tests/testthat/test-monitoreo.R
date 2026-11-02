@@ -81,3 +81,18 @@ test_that("seasonal trends and comparison of periods", {
   d <- mo_download_trend(region, "NDVI", "Modis", "2014-01-01", "2021-12-31", f)
   expect_equal(unlist(d$bands), c("slope", "tau", "z", "p_value", "intercept", "n"))
 })
+
+test_that("where it computes, and a time series on this computer without Earth Engine", {
+  skip_if_no_python()
+  expect_equal(mo_where("local")$credentials, "none")
+  expect_match(mo_where("gee")$credentials, "Google account")
+  skip_if_offline("planetarycomputer.microsoft.com")
+  region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+  p <- mo_plan(region, "NDVI", "Sentinel-2", "2024-06-01", "2024-07-31", step = "monthly", where = "local")
+  expect_true(p$images > 0 && p$read_mb > 0)
+  expect_message(ts <- mo_time_series(region, "NDVI", "Sentinel-2", "2024-06-01", "2024-07-31", where = "local"),
+                 "on this computer.*credentials: none")
+  expect_equal(attr(ts, "where"), "local")
+  expect_equal(nrow(ts), 2)
+  expect_true(all(ts$value > 0 & ts$value < 1))
+})

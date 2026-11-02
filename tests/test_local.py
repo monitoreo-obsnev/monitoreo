@@ -2,7 +2,9 @@
 regions; with the network and Earth Engine (EE_PROJECT, pytest -m "ee and network"), the same time series and maps
 computed in Earth Engine and on this computer must give the same values."""
 
+import inspect
 import os
+import re
 
 import numpy as np
 import pytest
@@ -141,6 +143,18 @@ def test_where():
 	assert local.notes(s2, {'period': ['2023-01-01', '2023-12-31'], 'quality': {'cloud_score': None}}) == []
 	assert 'other processings' in local.notes(s2, {'period': ['2021-01-01', '2023-12-31'], 'quality': {'cloud_score': None}})[0]
 	assert local.notes(catalog.find('NDVI', 'Landsat'), {'period': ['1990-01-01', '2023-12-31']}) == []
+
+
+def test_mcp_and_r_say_where():
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	for name in ('time_series', 'download_image', 'plan'):
+		assert 'where' in inspect.signature(getattr(mcp_server, name)).parameters, name
+	assert 'where="local"' in mcp_server.INSTRUCTIONS and 'which credentials' in mcp_server.INSTRUCTIONS
+	with open(os.path.join(os.path.dirname(__file__), '..', 'r', 'monitoreo', 'R', 'monitoreo.R'), encoding='utf-8') as f:
+		r = f.read()
+	# every function of R that computes in Earth Engine says it first (the series and maps, where they compute)
+	computing = re.findall(r'\nmo_(\w+) <- function\(region|\nmo_(protected_areas|download_variables) <- function', r)
+	assert r.count('say_gee()') == 14 and r.count('say_where(if (where == "local")') == 2 and len(computing) >= 14
 
 
 def test_cli_says_where_before_computing(capsys):
