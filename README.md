@@ -56,6 +56,8 @@ Todo se calcula con **la cuenta de Earth Engine de cada usuario** y su proyecto 
 que alojar ni coste (el uso no comercial de Earth Engine es gratuito, con una cuota mensual por proyecto). Los
 resultados de un análisis se pueden publicar para cualquiera, sin cuenta, en el [visor de resultados](#visor-de-resultados).
 La [app de Earth Engine](#app-de-earth-engine) calcula con el proyecto de MonitorEO, para quien no tiene cuenta.
+Las series y los mapas de Sentinel-2 y Landsat se pueden calcular también [en tu ordenador, sin Earth
+Engine](#sin-earth-engine-cálculo-en-tu-ordenador-prototipo) ni cuenta (prototipo).
 
 ## Antes de empezar: cuenta de Earth Engine
 
@@ -213,6 +215,52 @@ ellas, sin datos). `monitoreo.json` guarda con qué se hizo cada fichero: al rep
 cambiado. Las rejillas con `drive: true` se exportan a Google Drive (sin límites de tamaño ni de tiempo, mejor para
 las grandes) y se importan desde Google Drive para escritorio al terminar; si se interrumpe, al repetirlo no se
 lanzan otra vez: se esperan y se importan.
+
+### Sin Earth Engine: cálculo en tu ordenador (prototipo)
+
+Las series temporales y los mapas en GeoTIFF de las variables de **Sentinel-2 y Landsat** se pueden calcular en tu
+ordenador, sin cuenta de Earth Engine ni de nada: `where='local'` (en la línea de comandos, `--local`). Las imágenes
+se leen del catálogo abierto de [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com) (Sentinel-2
+L2A y Landsat Colección 2 Nivel 2), y de cada una solo los píxeles de la región, como hace el plugin Semi-Automatic
+Classification de QGIS; solo hace falta GDAL. Las variables, los filtros por píxel, los pasos, las métricas y los
+estadísticos son los mismos y se calculan como en Earth Engine (`monitoreo.local`).
+
+Antes de calcular, cada función y cada orden dicen **dónde se calcula y qué credenciales necesita** y, en tu
+ordenador, cuántas imágenes y megas va a leer (`plan` y `where_info`; con `--plan`, la orden solo dice eso):
+
+```python
+caja = {'bbox': [-3.62, 36.86, -3.50, 36.93]}
+mo.plan(caja, 'NDVI', 'Sentinel-2', '2024-01-01', '2024-12-31', step='monthly', where='local')
+# {'where': 'local', 'computed_on': 'on this computer', 'credentials': 'none', 'images': 68, 'steps': 12,
+#  'scale': 10.0, 'read_mb': 243.6, 'notes': ['Sentinel-2 clouds: SCL classes (Cloud Score+ is only in Earth Engine)'], ...}
+ts = mo.time_series(caja, 'NDVI', 'Sentinel-2', '2024-01-01', '2024-12-31', step='monthly', where='local')
+mo.download_image({'file': 'zona.gpkg'}, 'NDVI', 'Landsat', '2020-01-01', '2020-12-31', metric='median',
+                  path='ndvi.tif', where='local')
+```
+
+```bash
+monitoreo series NDVI --sensor Sentinel-2 --region '{"bbox": [-3.62, 36.86, -3.50, 36.93]}' --start 2024-01-01 --end 2024-12-31 --local --plan
+monitoreo image NDVI --sensor Landsat --region '{"file": "zona.gpkg"}' --start 2020-01-01 --end 2020-12-31 --local --out ndvi.tif
+```
+
+La primera línea de cada orden es, en tu ordenador, `Computing on this computer, with Microsoft Planetary Computer
+(...); credentials: none. 68 images, about 243.6 MB to read. Sentinel-2 clouds: SCL classes (...).`, y en Earth Engine `Computing in Google's cloud (Google
+Earth Engine), project mi-proyecto, ...; credentials: a Google account with access to Earth Engine ...`.
+
+Diferencias con Earth Engine:
+
+- Solo series temporales y mapas en GeoTIFF de Sentinel-2 y Landsat (MODIS, tendencias, comparaciones, incendios,
+  teselas, exportaciones y recetas siguen en Earth Engine).
+- Regiones: rectángulo, punto, GeoJSON o fichero. Las áreas protegidas y las ecorregiones se buscan en Earth Engine:
+  descarga su polígono (p. ej. de [protectedplanet.net](https://www.protectedplanet.net)) y úsalo como fichero.
+- Las nubes de Sentinel-2 se quitan con la SCL (Cloud Score+ solo está en Earth Engine).
+- Con las mismas imágenes, los valores coinciden: diferencias de menos de 0,005 de NDVI por paso en Sentinel-2 desde
+  2022 y en Landsat (`tests/test_local.py`). Antes del 25-1-2022, Planetary Computer tiene otros procesados de
+  Sentinel-2 que Earth Engine y el NDVI difiere en torno a 0,01. A Planetary Computer le faltan algunas imágenes (en
+  Guajares, 5 de las 73 de Sentinel-2 de 2021), así que el número de imágenes de un paso puede ser distinto.
+- Todo se lee por internet y se calcula en tu ordenador: un año de Sentinel-2 a 10 m sobre 80 km² (68 imágenes)
+  tarda unos 20 s, pero una serie larga de una región grande lee gigas (usa `scale` más grande). Planetary Computer
+  es gratuito y sin cuenta, pero sin garantía de servicio.
 
 ## Plugin de QGIS
 
@@ -444,8 +492,9 @@ Detalles del cálculo, en el código:
 ## Desarrollo
 
 ```bash
-pytest tests/test_offline.py tests/test_publish.py   # sin Earth Engine
+pytest tests/test_offline.py tests/test_publish.py tests/test_local.py   # sin Earth Engine ni red
 EE_PROJECT=mi-proyecto pytest -m ee          # con Earth Engine (la app de gee, con npm install en gee)
+EE_PROJECT=mi-proyecto pytest -m "ee and network" tests/test_local.py   # el cálculo en tu ordenador contra Earth Engine
 ```
 
 Las pruebas usan el código de `src/` del clon aunque el entorno tenga instalada la versión de GitHub. Para probar la
