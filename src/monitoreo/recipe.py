@@ -40,7 +40,7 @@ import os
 import re
 import time
 
-from . import areas, catalog, drive, sensors
+from . import __version__, areas, drive, sensors
 from . import variable as variables
 from .grid import Grid, download
 
@@ -264,7 +264,7 @@ def run(p, folder, record=RECORD, overwrite=False, drive_all=False, drive_dir=No
 		rec = recs[name] = load_record(outdir, record)
 		rec['grid'] = g.describe()
 		rec['study_area'] = p.area
-		rec['catalog'] = catalog.load()['source']
+		rec['catalog'] = {'file': 'catalog.json', 'monitoreo': __version__}
 		if name == 'ecoregion':
 			rec['ecoregions'] = p.ecoregions
 			areas.save_ecoregions(p.eco, os.path.join(outdir, 'ecoregions.gpkg'), g.res / 2)
