@@ -357,3 +357,11 @@ def test_geotiff_preview(tmp_path, monkeypatch):
 	result = next(e for e in asyncio.run(run()) if e['type'] == 'result')
 	assert result['image'].startswith('data:image/png') and result['files'][0]['name'] == 'ndvi.tif'
 	assert 'Hecho:' in a.messages[-1]['content'] and '0.9' not in a.messages[-1]['content']
+
+
+def test_default_model():
+	assert [m['name'] for m in assistant.RECOMMENDED][0] == assistant.DEFAULTS['model'] == 'qwen3:8b'
+	assert assistant.default_model('qwen3:8b', ['qwen3:8b', 'gpt-oss:20b']) == 'qwen3:8b'  # the chosen one, installed
+	assert assistant.default_model('qwen3:8b', ['gpt-oss:20b', 'qwen3:4b']) == 'qwen3:4b'  # installed, in their order
+	assert assistant.default_model('qwen3:8b', ['nomic-embed-text']) == 'qwen3:8b'  # not one without tools
+	assert assistant.default_model('qwen3:8b', []) == 'qwen3:8b'

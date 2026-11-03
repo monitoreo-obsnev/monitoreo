@@ -44,7 +44,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'auto', 'model': 'qwen3:8b',
             'context': 16384, 'think': False}
-MODEL_GB = {'qwen3:8b': 5.2, 'qwen3:4b': 2.5, 'gpt-oss:20b': 14}  # download of the usual models, in GB
+RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
+	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recomendado'},
+	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'más rápido y ligero; se equivoca más'},
+	{'name': 'gpt-oss:20b', 'gb': 14, 'note': 'para ordenadores con 16 GB o más de memoria'},
+]
+MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
 MAX_STEPS = 8  # answers of the model to a message of the user
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
 MAX_ROWS_SHOWN = 40
@@ -283,6 +288,14 @@ def chat_model(settings, system, messages, tools):
 	return message
 
 
+def default_model(current, installed):
+	"""The model to use: CURRENT if it is installed, else the first of RECOMMENDED that is (other models may not use
+	tools), else CURRENT, to download it."""
+	if not installed or current in installed:
+		return current
+	return next((m['name'] for m in RECOMMENDED if m['name'] in installed), current)
+
+
 def models(settings):
 	"""Names of the models installed in Ollama, or None if it does not answer."""
 	try:
@@ -355,6 +368,7 @@ class Assistant:
 		self.busy = asyncio.Lock()
 		self.layers = load_layers()
 		self.engine = engine.Engine()
+		self.model_checked = False  # whether the model of the settings was checked against those installed
 		self.reset()
 
 	def base(self):
@@ -706,9 +720,16 @@ def make_app(assistant, token, port):
 			with contextlib.suppress(RuntimeError):
 				await asyncio.to_thread(e.find)
 		base, a = assistant.base(), engine.asset()
+		installed = await asyncio.to_thread(models, {'ollama': base}) if base else None
+		if installed is not None and not assistant.model_checked:  # once: a model installed already, by default
+			assistant.model_checked = True
+			chosen = default_model(s['model'], installed)
+			if chosen != s['model']:
+				s['model'] = chosen
+				save_settings(s)
 		return JSONResponse({'version': __version__, 'signed_in': signed_in(), 'project': s.get('project'),
-		                     'model': s['model'], 'ollama': base or s.get('ollama'),
-		                     'models': await asyncio.to_thread(models, {'ollama': base}) if base else None,
+		                     'model': s['model'], 'ollama': base or s.get('ollama'), 'models': installed,
+		                     'recommended': RECOMMENDED,
 		                     'engine': {'auto': s.get('ollama', 'auto') == 'auto', 'how': e.how,
 		                                'installing': e.installing, 'mb': round(a[1] / 2 ** 20) if a else None},
 		                     'model_gb': MODEL_GB.get(s['model']),

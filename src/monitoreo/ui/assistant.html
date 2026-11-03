@@ -231,16 +231,24 @@ async function refresh() {
   $('account').className = state.signed_in ? 'ok' : 'muted';
   $('signin').textContent = state.signed_in ? 'Cambiar de cuenta' : 'Iniciar sesión con Google';
   if (document.activeElement !== $('project')) $('project').value = state.project || '';
-  const select = $('model');
-  select.replaceChildren();
-  const names = state.models || [];
-  for (const n of names) select.append(el('option', {value: n, text: n}));
-  if (!names.includes(state.model)) select.append(el('option', {value: state.model, text: state.model + ' (sin descargar)'}));
-  select.value = state.model;
-  const eng = state.engine || {}, msg = $('modelMsg');
+  const select = $('model'), names = state.models || [], rec = state.recommended || [];
+  if (document.activeElement !== select) {  // not while the user chooses
+    const label = (name, m) => [name + (m && m.note === 'recomendado' ? ' (recomendado)' : ''),
+      m ? fmt(m.gb) + ' GB' : null, m && m.note !== 'recomendado' ? m.note : null,
+      names.includes(name) ? '✓ descargado' : null].filter(Boolean).join(' · ');
+    select.replaceChildren(...rec.map(m => el('option', {value: m.name, text: label(m.name, m)})));
+    const others = names.filter(n => !rec.some(m => m.name === n));
+    if (others.length) select.append(el('optgroup', {label: 'Otros modelos descargados'},
+                                        ...others.map(n => el('option', {value: n, text: label(n)}))));
+    if (![...select.options].some(o => o.value === state.model)) select.append(el('option', {value: state.model, text: state.model}));
+    select.value = state.model;
+  }
+  const eng = state.engine || {}, msg = $('modelMsg'), have = names.includes(state.model);
+  $('pull').hidden = have && !$('modelName').value.trim();
   const install = state.models === null && eng.auto && eng.mb;  // no Ollama: the assistant installs its own
   $('pull').textContent = install ? 'Instalar' : 'Descargar';
   const once = ' Solo la primera vez: después funciona sin descargar nada.';
+  if (!msg.dataset.busy) msg.className = 'muted';
   if (msg.dataset.busy) {
     // the progress of a download
   } else if (eng.installing) {
@@ -252,11 +260,12 @@ async function refresh() {
   } else if (state.models === null) {
     msg.replaceChildren(eng.auto ? 'Hace falta Ollama: instálalo desde ' : 'Ollama no responde en ' + state.ollama + ': ábrelo o instálalo desde ',
       el('a', {href: 'https://ollama.com/download', target: '_blank', rel: 'noopener', text: 'ollama.com'}), ' y ábrelo.');
-  } else if (!names.includes(state.model)) {
+  } else if (!have) {
     msg.textContent = `Hay que descargar el modelo ${state.model}` + (state.model_gb ? `: unos ${fmt(state.model_gb)} GB.` : '.') +
       once + ' Pulsa Descargar.';
   } else {
-    msg.textContent = '';
+    msg.className = 'ok';
+    msg.textContent = `✓ ${state.model} ya está descargado en este ordenador: no hay que descargar nada.`;
   }
   const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return 'localhost'; } })();
   const local = ['localhost', '127.0.0.1', '::1'].includes(host);
@@ -347,7 +356,8 @@ function progress(what, e) {
   return `${what}: ${Math.round(100 * (e.completed || 0) / e.total)} % de ${mb(e.total)}`;
 }
 
-$('model').onchange = async () => { await api('/api/settings', {model: $('model').value}); refresh(); };
+$('model').onchange = async () => { await api('/api/settings', {model: $('model').value}); $('model').blur(); refresh(); };
+$('modelName').oninput = () => { $('pull').hidden = false; };
 
 $('pull').onclick = async () => {
   const model = $('modelName').value.trim() || $('model').value;
