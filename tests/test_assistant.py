@@ -75,7 +75,7 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
 
 	async def run():
-		a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p', 'ollama': 'http://127.0.0.1:1'})
 		a.tools = assistant.model_tools(TOOLS)
 		return a, [e async for e in a.chat('NDVI de Sierra Nevada en 2021')]
 
@@ -201,3 +201,88 @@ def test_search_name():
 	assert assistant.search_name('ZEPA Doñana') == 'Doñana'
 	assert assistant.search_name('Sierra Nevada') == 'Sierra Nevada'
 	assert assistant.search_name('Parque Nacional') == 'Parque Nacional'  # nothing else: as it was
+
+
+FAKE_OLLAMA = '''#!{python}
+"""A fake ollama: `ollama serve` answers /api/version and /api/tags at OLLAMA_HOST."""
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class H(BaseHTTPRequestHandler):
+	def log_message(self, *a): pass
+	def do_GET(self):
+		body = json.dumps({{'version': 'fake'}} if self.path == '/api/version' else {{'models': []}}).encode()
+		self.send_response(200); self.send_header('Content-Length', str(len(body))); self.end_headers()
+		self.wfile.write(body)
+host, port = os.environ['OLLAMA_HOST'].split(':')
+assert sys.argv[1:] == ['serve']
+HTTPServer((host, int(port)), H).serve_forever()
+'''
+
+
+def _free_port():
+	import socket
+	with socket.socket() as s:
+		s.bind(('127.0.0.1', 0))
+		return s.getsockname()[1]
+
+
+def test_engine_install_and_start(tmp_path, monkeypatch):
+	import hashlib
+	import io
+	import sys
+	import tarfile
+	from monitoreo import engine
+	if sys.platform == 'win32':
+		pytest.skip('the fake ollama is a script')
+	script = FAKE_OLLAMA.format(python=sys.executable).encode()
+	buf = io.BytesIO()
+	with tarfile.open(fileobj=buf, mode='w:gz') as t:
+		info = tarfile.TarInfo('ollama')
+		info.size, info.mode = len(script), 0o755
+		t.addfile(info, io.BytesIO(script))
+	data = buf.getvalue()
+	monkeypatch.setattr(engine, 'ASSETS', {('x', 'y'): ('ollama-x.tgz', len(data), hashlib.sha256(data).hexdigest())})
+	monkeypatch.setattr(engine.platform, 'system', lambda: 'X')
+	monkeypatch.setattr(engine.platform, 'machine', lambda: 'Y')
+	monkeypatch.setattr(engine, 'PORT', _free_port())
+	monkeypatch.setattr(engine, 'SYSTEM_URL', f'http://127.0.0.1:{_free_port()}')  # nothing there
+	monkeypatch.setattr(engine, 'system_binary', lambda: None)
+	monkeypatch.setattr(engine.urllib.request, 'urlopen', _fake_download(data))
+	e = engine.Engine(str(tmp_path / 'ollama'))
+	assert e.find() is None and e.installed() is None  # nothing to use: install it
+	try:
+		steps = [s['status'] for s in e.install()]
+		assert steps[0] == 'Descargando Ollama' and steps[-1] == 'success'
+		assert e.how == 'started' and e.url == f'http://127.0.0.1:{engine.PORT}' and engine.answers(e.url)
+		assert e.installed() == str(tmp_path / 'ollama' / engine.OLLAMA / 'ollama')
+	finally:
+		e.stop()
+	assert e.url is None and not engine.answers(f'http://127.0.0.1:{engine.PORT}')
+	try:
+		assert e.find() == f'http://127.0.0.1:{engine.PORT}' and e.how == 'started'  # installed: started again
+	finally:
+		e.stop()
+	monkeypatch.setattr(engine, 'ASSETS', {('x', 'y'): ('ollama-x.tgz', len(data), '0' * 64)})
+	with pytest.raises(RuntimeError, match='SHA-256'):
+		list(e.install())
+
+
+def _fake_download(data):
+	import io
+	real = __import__('urllib.request').request.urlopen
+
+	def urlopen(url, *a, **k):
+		if isinstance(url, str) and url.startswith('https://github.com/ollama/'):
+			return io.BytesIO(data)
+		return real(url, *a, **k)
+	return urlopen
+
+
+def test_engine_older_version(tmp_path):
+	from monitoreo import engine
+	old = tmp_path / 'v0.1.0'
+	old.mkdir()
+	(old / 'ollama').write_text('')
+	(tmp_path / f'{engine.OLLAMA}.tmp').mkdir()  # an installation that did not end
+	assert engine.Engine(str(tmp_path)).installed() == str(old / 'ollama')  # used until Ollama is installed again
+	assert engine.Engine(str(tmp_path / 'nothing')).installed() is None

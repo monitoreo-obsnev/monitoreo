@@ -1,5 +1,6 @@
 """Assistant of MonitorEO for managers: a chat in the browser, on this computer, with a language model of open weights
-served by Ollama (https://ollama.com) and connected to the MCP server of MonitorEO (monitoreo.mcp_server).
+served by Ollama (https://ollama.com; monitoreo.engine installs it if needed) and connected to the MCP server of
+MonitorEO (monitoreo.mcp_server).
 
     monitoreo assistant [--no-update] [--port 8765] [--no-browser]
 
@@ -31,7 +32,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __version__, areas, report, services
+from . import __version__, areas, engine, report, services
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
@@ -41,8 +42,9 @@ LAYER_TYPES = ('.gpkg', '.geojson', '.json', '.kml', '.zip')  # .zip: a shapefil
 MAX_LAYER = 100 * 2 ** 20  # bytes
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
-DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'http://localhost:11434', 'model': 'qwen3:8b',
+DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'auto', 'model': 'qwen3:8b',
             'context': 16384, 'think': False}
+MODEL_GB = {'qwen3:8b': 5.2, 'qwen3:4b': 2.5, 'gpt-oss:20b': 14}  # download of the usual models, in GB
 MAX_STEPS = 8  # answers of the model to a message of the user
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
 MAX_ROWS_SHOWN = 40
@@ -332,7 +334,17 @@ class Assistant:
 		self.session, self.tools, self.system = None, [], instructions()
 		self.busy = asyncio.Lock()
 		self.layers = load_layers()
+		self.engine = engine.Engine()
 		self.reset()
+
+	def base(self):
+		"""Address of the Ollama in use: that of the settings or, with 'auto', that of the engine (None if there is
+		none yet)."""
+		s = self.settings.get('ollama') or 'auto'
+		return self.engine.url if s == 'auto' else s
+
+	def model_settings(self):
+		return {**self.settings, 'ollama': self.base()}
 
 	def reset(self):
 		self.messages, self.results, self.names, self.question = [], [], {}, None
@@ -396,8 +408,10 @@ class Assistant:
 		for _ in range(MAX_STEPS):
 			yield {'type': 'status', 'text': f"El modelo ({self.settings['model']}) está pensando…"}
 			try:
-				message = await asyncio.to_thread(chat_model, self.settings, self.system_prompt(), self.messages,
-				                                  self.tools)
+				if not self.base():
+					raise ModelError('falta el motor de los modelos: instálalo en Configuración')
+				message = await asyncio.to_thread(chat_model, self.model_settings(), self.system_prompt(),
+				                                  self.messages, self.tools)
 			except ModelError as e:
 				yield {'type': 'error', 'text': f'Modelo de lenguaje: {e}'}
 				return
@@ -653,9 +667,17 @@ def make_app(assistant, token, port):
 		return FileResponse(os.path.join(HERE, 'logos', 'monitoreo_obsnev.png'))
 
 	async def state(request):
-		s = assistant.settings
+		s, e = assistant.settings, assistant.engine
+		if s.get('ollama', 'auto') == 'auto' and not e.url and not e.installing:  # Ollama opened or installed now
+			with contextlib.suppress(RuntimeError):
+				await asyncio.to_thread(e.find)
+		base, a = assistant.base(), engine.asset()
 		return JSONResponse({'version': __version__, 'signed_in': signed_in(), 'project': s.get('project'),
-		                     'model': s['model'], 'ollama': s['ollama'], 'models': await asyncio.to_thread(models, s),
+		                     'model': s['model'], 'ollama': base or s.get('ollama'),
+		                     'models': await asyncio.to_thread(models, {'ollama': base}) if base else None,
+		                     'engine': {'auto': s.get('ollama', 'auto') == 'auto', 'how': e.how,
+		                                'installing': e.installing, 'mb': round(a[1] / 2 ** 20) if a else None},
+		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
 
@@ -713,7 +735,27 @@ def make_app(assistant, token, port):
 
 	async def pull(request):
 		model = str((await request.json()).get('model') or assistant.settings['model']).strip()
-		return ndjson(_pull(assistant.settings['ollama'], model))
+		if not assistant.base():
+			raise ValueError('falta el motor de los modelos: instálalo primero')
+		return ndjson(_threaded(lambda: pull_model(assistant.base(), model)))
+
+	async def install_engine(request):
+		if assistant.engine.installing:
+			raise ValueError('ya se está instalando')
+		return ndjson(_threaded(assistant.engine.install))
+
+	@contextlib.asynccontextmanager
+	async def lifespan(app):
+		if assistant.settings.get('ollama', 'auto') == 'auto':
+			try:
+				await asyncio.to_thread(assistant.engine.find)
+			except RuntimeError as e:
+				print(f'WARNING: {e}', file=sys.stderr)
+		try:
+			async with assistant.connected():
+				yield
+		finally:
+			assistant.engine.stop()
 
 	async def files(request):
 		root = os.path.realpath(OUTPUT)
@@ -732,31 +774,41 @@ def make_app(assistant, token, port):
 		Route('/api/reset', guarded(reset), methods=['POST']),
 		Route('/api/report', guarded(make_report), methods=['POST']),
 		Route('/api/pull', guarded(pull), methods=['POST']),
+		Route('/api/engine/install', guarded(install_engine), methods=['POST']),
 		Route('/api/layer', guarded(add_layer), methods=['POST']),
 		Route('/api/layer/remove', guarded(remove_layer), methods=['POST']),
 		Route('/files/{path:path}', guarded(files)),
-	], lifespan=lambda app: assistant.connected())
+	], lifespan=lifespan)
 
 
-async def _pull(base, model):
-	"""Download a model with Ollama: yields its progress {status, completed, total}."""
-	lines, loop = asyncio.Queue(), asyncio.get_running_loop()
+def pull_model(base, model):
+	"""Download a model with the Ollama at BASE: yields its progress {status, completed, total}."""
+	req = urllib.request.Request(base.rstrip('/') + '/api/pull',
+	                             data=json.dumps({'model': model, 'name': model}).encode(),  # name: older Ollama
+	                             headers={'Content-Type': 'application/json'})
+	try:
+		with urllib.request.urlopen(req, timeout=60) as r:
+			for line in r:
+				yield json.loads(line)
+	except (urllib.error.URLError, OSError, ValueError) as e:
+		raise RuntimeError(f'no se ha podido descargar {model}: {e}') from e
+
+
+async def _threaded(produce):
+	"""Run the generator PRODUCE() in a thread and yield what it yields ({'error'} if it fails)."""
+	items, loop = asyncio.Queue(), asyncio.get_running_loop()
 
 	def work():
-		req = urllib.request.Request(base.rstrip('/') + '/api/pull',
-		                             data=json.dumps({'model': model, 'name': model}).encode(),  # name: older Ollama
-		                             headers={'Content-Type': 'application/json'})
 		try:
-			with urllib.request.urlopen(req, timeout=60) as r:
-				for line in r:
-					loop.call_soon_threadsafe(lines.put_nowait, json.loads(line))
-		except (urllib.error.URLError, OSError, ValueError) as e:
-			loop.call_soon_threadsafe(lines.put_nowait, {'error': f'no se ha podido descargar {model}: {e}'})
-		loop.call_soon_threadsafe(lines.put_nowait, None)
+			for item in produce():
+				loop.call_soon_threadsafe(items.put_nowait, item)
+		except Exception as e:
+			loop.call_soon_threadsafe(items.put_nowait, {'error': str(e)})
+		loop.call_soon_threadsafe(items.put_nowait, None)
 
 	threading.Thread(target=work, daemon=True).start()
-	while (line := await lines.get()) is not None:
-		yield line
+	while (item := await items.get()) is not None:
+		yield item
 
 
 def run(port=PORT, browser=True):

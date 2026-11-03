@@ -237,15 +237,28 @@ async function refresh() {
   for (const n of names) select.append(el('option', {value: n, text: n}));
   if (!names.includes(state.model)) select.append(el('option', {value: state.model, text: state.model + ' (sin descargar)'}));
   select.value = state.model;
-  if (state.models === null) {
-    $('modelMsg').replaceChildren('Ollama no responde en ' + state.ollama + ': instálalo desde ',
+  const eng = state.engine || {}, msg = $('modelMsg');
+  const install = state.models === null && eng.auto && eng.mb;  // no Ollama: the assistant installs its own
+  $('pull').textContent = install ? 'Instalar' : 'Descargar';
+  const once = ' Solo la primera vez: después funciona sin descargar nada.';
+  if (msg.dataset.busy) {
+    // the progress of a download
+  } else if (eng.installing) {
+    msg.textContent = 'Instalando el motor de los modelos…';
+  } else if (install) {
+    const gb = (state.model_gb || 5) + eng.mb / 1024;
+    msg.textContent = `Hay que descargar el modelo de lenguaje y su motor (Ollama): unos ${fmt(Math.round(gb * 10) / 10)} GB.` + once +
+      ' Pulsa Instalar.';
+  } else if (state.models === null) {
+    msg.replaceChildren(eng.auto ? 'Hace falta Ollama: instálalo desde ' : 'Ollama no responde en ' + state.ollama + ': ábrelo o instálalo desde ',
       el('a', {href: 'https://ollama.com/download', target: '_blank', rel: 'noopener', text: 'ollama.com'}), ' y ábrelo.');
   } else if (!names.includes(state.model)) {
-    $('modelMsg').textContent = 'Pulsa Descargar para instalar ' + state.model + '.';
-  } else if (!$('modelMsg').dataset.busy) {
-    $('modelMsg').textContent = '';
+    msg.textContent = `Hay que descargar el modelo ${state.model}` + (state.model_gb ? `: unos ${fmt(state.model_gb)} GB.` : '.') +
+      once + ' Pulsa Descargar.';
+  } else {
+    msg.textContent = '';
   }
-  const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return state.ollama; } })();
+  const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return 'localhost'; } })();
   const local = ['localhost', '127.0.0.1', '::1'].includes(host);
   $('where').replaceChildren(
     'Los cálculos se hacen en Google Earth Engine con tu cuenta de Google y el proyecto ',
@@ -328,6 +341,12 @@ $('saveProject').onclick = async () => {
 const PULL = {'pulling manifest': 'Preparando la descarga', 'verifying sha256 digest': 'Comprobando la descarga',
               'writing manifest': 'Instalando', 'success': 'Descargado'};
 
+function progress(what, e) {
+  if (!e.total) return what + '…';
+  const mb = n => n / 2 ** 20 >= 1024 ? fmt(Math.round(n / 2 ** 30 * 10) / 10) + ' GB' : Math.round(n / 2 ** 20) + ' MB';
+  return `${what}: ${Math.round(100 * (e.completed || 0) / e.total)} % de ${mb(e.total)}`;
+}
+
 $('model').onchange = async () => { await api('/api/settings', {model: $('model').value}); refresh(); };
 
 $('pull').onclick = async () => {
@@ -336,10 +355,17 @@ $('pull').onclick = async () => {
   msg.dataset.busy = '1';
   $('pull').disabled = true;
   try {
+    const eng = state.engine || {};
+    if (state.models === null && eng.auto && eng.mb) {  // first the engine (Ollama), in the folder MonitorEO
+      await stream('/api/engine/install', {}, e => {
+        if (e.error) throw new Error(e.error);
+        msg.textContent = e.status === 'success' ? 'Motor instalado.' : progress(e.status, e);
+      });
+    }
     await stream('/api/pull', {model}, e => {
       if (e.error) throw new Error(e.error);
       const what = /^pulling [0-9a-f]/.test(e.status) ? 'Descargando ' + model : PULL[e.status] || e.status;
-      msg.textContent = e.total ? `${what}: ${Math.round(100 * (e.completed || 0) / e.total)} %` : what + '…';
+      msg.textContent = progress(what, e);
     });
     await api('/api/settings', {model});
     msg.textContent = model + ' descargado.';
