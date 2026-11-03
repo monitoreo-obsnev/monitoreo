@@ -50,12 +50,24 @@ def test_instructions():
 	assert '- NDVI: ' in text and 'Sentinel-2 10 m desde 2017' in text and 'Landsat 30 m desde 1984' in text
 
 
+AREAS = {'Sierra': [{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional'}],
+         'Doñana': [{'SITE_ID': 389012, 'NAME': 'Doñana', 'DESIG': 'Parque Nacional'},
+                    {'SITE_ID': 349268, 'NAME': 'Doñana', 'DESIG': 'Parque Natural'}]}
+
+
+@pytest.fixture(autouse=True)
+def log(tmp_path, monkeypatch):
+	"""The log of the assistant of the tests, not that of the user."""
+	monkeypatch.setattr(assistant, 'LOG', str(tmp_path / 'assistant.log'))
+
+
 class FakeAssistant(assistant.Assistant):
 	"""An assistant whose MCP server answers a time series and the protected areas of WDPA."""
 
 	async def call(self, name, args):
 		if name == 'find_protected_areas':
-			return None, [json.dumps([{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional'}])], []
+			return None, [json.dumps(next((v for k, v in AREAS.items() if k in args.get('text', '')), []))], []
+		self.called = (name, args)
 		return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
 
 
@@ -95,15 +107,37 @@ def test_unknown_protected_area(monkeypatch):
 	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
 	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
 	a.tools = assistant.model_tools(TOOLS)
-	a.messages.append({'role': 'user', 'content': 'NDVI de Doñana'})
 
-	async def run():
-		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': ARGS})]
+	async def run(user, args=ARGS):
+		a.reset()
+		a.messages.append({'role': 'user', 'content': user})
+		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
 
-	assert asyncio.run(run()) == [] and not a.results  # 389011, copied from an example: refused
-	assert 'busca primero el espacio protegido' in a.messages[-1]['content']
-	a.messages.append({'role': 'user', 'content': 'El de WDPA 389011'})  # unless the user gives it
-	assert [e['type'] for e in asyncio.run(run())] == ['running', 'result']
+	# 389011, made up or copied: the assistant searches the place named and takes the one of the designation asked for
+	events = asyncio.run(run('Serie del NDVI en el Parque Nacional de Doñana'))
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result']
+	assert a.called[1]['region'] == {'wdpa_id': 389012}
+	# without the designation, two areas: the model gets them, the user sees them, nothing is computed
+	events = asyncio.run(run('Serie del NDVI de Doñana'))
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas']
+	assert 'SITE_ID 389012' in a.messages[-1]['content'] and 'pregúntale cuál' in a.messages[-1]['content']
+	# no place in the message: the model has to search it, without asking the user
+	assert asyncio.run(run('ndvi de un parque')) == [] and 'Busca tú el espacio' in a.messages[-1]['content']
+	# the model gives the right one (it is among those found)
+	events = asyncio.run(run('NDVI de Sierra Nevada'))
+	assert events[-1]['type'] == 'result' and a.called[1]['region'] == {'wdpa_id': 389011}
+	assert [e['type'] for e in asyncio.run(run('El de WDPA 389011'))][-1] == 'result'  # an ID the user gave
+
+
+def test_place_in():
+	assert assistant.place_in('Evolución mensual del NDVI en el Parque Nacional de Sierra Nevada en 2023') == \
+	       'Parque Nacional de Sierra Nevada'
+	assert assistant.place_in('Doñana en 2024, NDVI') == 'Doñana'
+	assert assistant.place_in('Compara los veranos del Parque Natural de la Sierra de Cazorla, Segura y Las Villas') == \
+	       'Parque Natural de la Sierra de Cazorla, Segura y Las Villas'
+	assert assistant.place_in('Quiero el NDVI de Sentinel-2') is None
+	assert assistant.place_in('ndvi en sierra nevada') is None
+	assert assistant.place_in('Usa el del Parque Nacional') is None  # only a designation
 
 
 def test_not_ready(monkeypatch):

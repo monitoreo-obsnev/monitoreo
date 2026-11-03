@@ -315,6 +315,38 @@ def fix_links(text, question=''):
 	return text
 
 
+NOT_PLACES = {'ndvi', 'evi', 'ndwi', 'lswi', 'ndsi', 'ndci', 'nbr', 'lai', 'lst', 'et', 'le', 'albedo', 'arsl', 'chl',
+              'sentinel', 'landsat', 'modis', 'google', 'earth', 'engine', 'drive', 'monitoreo', 'monitoreo-obsnev',
+              'geotiff', 'csv', 'pdf', 'qgis', 'wdpa', 'obsnev', 'quiero', 'dame', 'haz', 'calcula', 'compara', 'serie',
+              'mapa', 'evolucion', 'tendencia', 'como', 'que', 'cual', 'cuales', 'donde', 'cuando', 'descarga',
+              'exporta', 'muestra', 'necesito', 'puedes', 'hola', 'gracias', 'si', 'no', 'vale', 'usa', 'busca'}
+PLACE = re.compile(r"[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*(?:(?:,?\s+(?:(?:de|del|y)(?:\s+(?:la|las|los|el))?|la|las|los|el)"
+                   r"\s+|,\s+|\s+)[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*)*")
+NOT_PLACE = re.compile(r"\b(?:" + '|'.join(sorted(NOT_PLACES, key=len, reverse=True)) + r")\b[\w-]*|\S*\d\S*", re.I)
+EDGES = re.compile(r"^(?:(?:de|del|la|las|los|el|y)\s+|[\s,])+|(?:\s+(?:de|del|la|las|los|el|y)|[\s,])+$", re.I)
+
+
+def place_in(text):
+	"""The name of a place in a message of the user ('NDVI mensual en el Parque Nacional de Sierra Nevada' ->
+	'Parque Nacional de Sierra Nevada'): the longest run of words in capitals (with de, del, la, commas... inside),
+	cut at the names of variables, sensors and programs and at the words that start requests; one that only starts a
+	sentence, if there is no other."""
+	text = str(text)
+	plain = manual._ascii(text)  # the same length, without accents
+	runs = []
+	for m in PLACE.finditer(text):
+		cuts = [(x.start(), x.end()) for x in NOT_PLACE.finditer(plain, m.start(), m.end())]
+		for a, b in zip([m.start()] + [e for _, e in cuts], [s for s, _ in cuts] + [m.end()]):
+			name = EDGES.sub('', text[a:b])
+			if not name[:1].isupper() or not re.sub(DESIGNATIONS, '', name + ' x', flags=re.I).strip(' x'):
+				continue  # nothing, or only a designation (Parque Nacional)
+			at = text.index(name, a)
+			first = at == 0 or re.search(r'[.!?¿¡:;]\s*$', text[:at])
+			n = len(re.findall(r'(?:^|\s)[A-ZÁÉÍÓÚÑ]', name))
+			runs.append((not (first and n == 1), n, name))
+	return max(runs)[2] if runs else None
+
+
 def other_tool(text):
 	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None."""
 	t = manual._ascii(str(text).lower())
@@ -635,11 +667,18 @@ class Assistant:
 			args = fix_args(name, call.get('arguments'), self.tools)
 			if name == 'find_protected_areas' and args.get('text'):
 				args['text'] = search_name(args['text'])
-			self.check_areas(args)
 			args = self.with_layer(args)
 		except ValueError as e:
 			self._tool_message(name, f'Error: {e}.')
 			return
+		if name in RESULTS + TASKS and self.unknown_areas(args) and not self.not_ready():
+			async for event in self.known_areas(name, args):
+				if 'args' in event:
+					args = event['args']
+				else:
+					yield event
+			if args is None:
+				return
 		title = _title(name, args)
 		if name in RESULTS + TASKS:
 			problem = self.not_ready()
@@ -670,12 +709,11 @@ class Assistant:
 			if name == 'find_protected_areas':
 				found = self._remember_names(text)
 				if found is not None:
-					question = ' '.join(m['content'] for m in self.messages if m['role'] == 'user')
-					shown = [{**a, 'match': bool(a.get('DESIG') and a['DESIG'].lower() in question.lower())}
-					         for a in found]
+					said = self.user_text().lower()
+					shown = [{**a, 'match': bool(a.get('DESIG') and a['DESIG'].lower() in said)} for a in found]
 					yield {'type': 'areas', 'query': args.get('text', ''),
 					       'areas': sorted(shown, key=lambda a: not a['match'])}
-					text = areas_text(found, question)
+					text = areas_text(found, said)
 			self._tool_message(name, text[:MAX_ADVICE])
 			return
 		if name in TASKS:
@@ -755,18 +793,64 @@ class Assistant:
 		"""The names of the regions for the user: protected areas (by WDPA ID) and layers (by file)."""
 		return {**{v['file']: f'Área de estudio «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
 
-	def check_areas(self, args):
-		"""Refuse the WDPA IDs that come neither from find_protected_areas nor from the user: small models copy them
+	def user_text(self):
+		return ' '.join(m['content'] for m in self.messages if m['role'] == 'user')
+
+	def unknown_areas(self, args):
+		"""The WDPA IDs of ARGS that come neither from find_protected_areas nor from the user: small models copy them
 		from the examples or make them up."""
 		region = args.get('region') or args.get('area')
 		ids = region.get('wdpa_id') if isinstance(region, dict) else None
 		if ids is None:
+			return []
+		said = set(re.findall(r'\d+', self.user_text()))
+		return [i for i in (ids if isinstance(ids, list) else [ids]) if str(i) not in self.names and str(i) not in said]
+
+	async def find_areas(self, text):
+		"""Search the protected areas of TEXT (without its designation): (event for the page or None, the areas found
+		with 'match' when their designation is in the messages of the user, text for the model)."""
+		query = search_name(text)
+		error, texts, _ = await self.call('find_protected_areas', {'text': query})
+		if error:
+			return None, [], f'Error: {error}'
+		found = self._remember_names('\n'.join(texts))
+		if found is None:
+			return None, [], '\n'.join(texts)
+		said = self.user_text().lower()
+		shown = sorted(({**a, 'match': bool(a.get('DESIG') and a['DESIG'].lower() in said)} for a in found),
+		               key=lambda a: not a['match'])
+		return {'type': 'areas', 'query': query, 'areas': shown}, shown, areas_text(found, said)
+
+	async def known_areas(self, name, args):
+		"""ARGS with WDPA IDs that are known (see unknown_areas): when the model gives others, the assistant searches
+		the place that the user named and uses the area of the designation asked for, if there is just one; else the
+		model gets the areas found (and the user sees them) and yields None. An async generator of the events, the
+		last one {'args': ...}."""
+		unknown = self.unknown_areas(args)
+		if not unknown:
+			yield {'args': args}
 			return
-		said = {x for m in self.messages if m['role'] == 'user' for x in re.findall(r'\d+', m['content'])}
-		unknown = [i for i in (ids if isinstance(ids, list) else [ids]) if str(i) not in self.names and str(i) not in said]
-		if unknown:
-			raise ValueError(f'el wdpa_id {", ".join(map(str, unknown))} no sale de find_protected_areas: busca '
-			                 'primero el espacio protegido por su nombre con find_protected_areas y usa su SITE_ID')
+		place = place_in(self.user_text())
+		found, text = [], ''
+		if place:
+			yield {'type': 'status', 'text': f'Buscando espacios protegidos con «{search_name(place)}»…'}
+			event, found, text = await self.find_areas(place)
+			if event:
+				yield event
+		key = 'region' if isinstance(args.get('region'), dict) else 'area'
+		matches = [a for a in found if a['match']]
+		if found and not self.unknown_areas(args):  # the ID of the model was among them
+			yield {'args': args}
+		elif len(unknown) == 1 and not isinstance(args[key]['wdpa_id'], list) and (len(matches) == 1 or len(found) == 1):
+			yield {'args': {**args, key: {**args[key], 'wdpa_id': (matches or found)[0]['SITE_ID']}}}
+		else:
+			self._tool_message(name, (
+				f'Error: el wdpa_id {", ".join(map(str, unknown))} no existe. La aplicación ha buscado '
+				f'«{search_name(place)}»: {text}\nUsa el SITE_ID del espacio que pide el usuario y vuelve a llamar a '
+				f'{name}; si hay varios posibles, pregúntale cuál (ve la lista).') if found else (
+				'Error: ese wdpa_id no existe. Busca tú el espacio por su nombre con find_protected_areas y vuelve a '
+				f'llamar a {name} con su SITE_ID; no se lo pidas al usuario.'))
+			yield {'args': None}
 
 	def with_layer(self, args):
 		"""ARGS with a region {"capa": name} as the file of that area of study; also the ways small models give it:
