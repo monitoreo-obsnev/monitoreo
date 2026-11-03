@@ -61,12 +61,19 @@ def log(tmp_path, monkeypatch):
 	monkeypatch.setattr(assistant, 'LOG', str(tmp_path / 'assistant.log'))
 
 
+MAP = {'url': 'https://ee/map/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0], 'min': 0, 'max': 1,
+       'palette': ['ffffff', '00aa00'], 'unit': '[unitless]'}
+
+
 class FakeAssistant(assistant.Assistant):
-	"""An assistant whose MCP server answers a time series and the protected areas of WDPA."""
+	"""An assistant whose MCP server answers a time series, a map (map_layer) and the protected areas of WDPA."""
 
 	async def call(self, name, args):
 		if name == 'find_protected_areas':
 			return None, [json.dumps(next((v for k, v in AREAS.items() if k in args.get('text', '')), []))], []
+		if name == 'map_layer':
+			self.mapped = args
+			return None, [json.dumps(MAP)], []
 		self.called = (name, args)
 		return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
 
@@ -92,7 +99,7 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 		return a, [e async for e in a.chat('NDVI de Sierra Nevada en 2021')]
 
 	a, events = asyncio.run(run())
-	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'assistant']
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'map', 'assistant']
 	assert next(e for e in events if e['type'] == 'areas')['areas'] == [
 		{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional', 'match': False}]
 	result = next(e for e in events if e['type'] == 'result')
@@ -101,6 +108,13 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	assert 'Sierra Nevada' in seen[1]  # the answer of an advice tool goes to the model
 	assert '0.501' not in seen[2] and '0,501' not in seen[2] and 'Hecho:' in seen[2]  # that of a result does not
 	assert len(a.results) == 1 and a.question == 'NDVI de Sierra Nevada en 2021'
+	# the map of the variable over the period of the series, without its preview (only the tiles), for the page
+	shown = next(e for e in events if e['type'] == 'map')
+	assert shown['id'] == 1 and shown['map'] == {'url': MAP['url'], 'bounds': MAP['bounds'], 'pixel': True}
+	assert shown['legend']['palette'] == MAP['palette'] and shown['title'].startswith('Mapa')
+	assert a.mapped == {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
+	                    'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': True}
+	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped.items() if k != 'quick'}
 
 
 def test_unknown_protected_area(monkeypatch):
@@ -115,7 +129,7 @@ def test_unknown_protected_area(monkeypatch):
 
 	# 389011, made up or copied: the assistant searches the place named and takes the one of the designation asked for
 	events = asyncio.run(run('Serie del NDVI en el Parque Nacional de Doñana'))
-	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result']
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'map']
 	assert a.called[1]['region'] == {'wdpa_id': 389012}
 	# without the designation, two areas: the model gets them, the user sees them, nothing is computed
 	events = asyncio.run(run('Serie del NDVI de Doñana'))
@@ -125,8 +139,8 @@ def test_unknown_protected_area(monkeypatch):
 	assert asyncio.run(run('ndvi de un parque')) == [] and 'Busca tú el espacio' in a.messages[-1]['content']
 	# the model gives the right one (it is among those found)
 	events = asyncio.run(run('NDVI de Sierra Nevada'))
-	assert events[-1]['type'] == 'result' and a.called[1]['region'] == {'wdpa_id': 389011}
-	assert [e['type'] for e in asyncio.run(run('El de WDPA 389011'))][-1] == 'result'  # an ID the user gave
+	assert 'result' in [e['type'] for e in events] and a.called[1]['region'] == {'wdpa_id': 389011}
+	assert 'result' in [e['type'] for e in asyncio.run(run('El de WDPA 389011'))]  # an ID the user gave
 
 
 def test_place_in():
@@ -579,8 +593,26 @@ def test_map_and_pixel():
 	assert rid == 2 and a.results[1]['tool'] == 'time_series' and a.events[-1]['type'] == 'result'
 	assert report.region_text(a.results[1]['args']['region']) == 'Píxel en 36,95000, -3,55000 (lat., lon.)'
 	assert url == 'https://ee/new/{z}/{x}/{y}' and a.results[0]['result']['url'] == url
-	with pytest.raises(ValueError, match='no es un mapa'):
+	assert calls[-1] == ('map_layer', {**a.results[0]['args'], 'vmin': 0.1, 'vmax': 0.6, 'quick': True})  # same colours
+	with pytest.raises(ValueError, match='no tiene mapa'):
 		asyncio.run(a.pixel(2, 0, 0))
+
+	# a series: the map of its period, and on a pixel the series with the step of that of the result
+	async def series():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'mean'}
+		a.results.append({'id': 1, 'tool': 'time_series', 'args': args, 'result': SERIES, 'image': None,
+		                  'title': 'Serie'})
+		shown = await a.period_map(a.results[0])
+		calls.clear()
+		return a, shown, await a.pixel(1, -3.55, 36.95)
+
+	a, shown, px = asyncio.run(series())
+	assert shown['type'] == 'map' and shown['map']['url'] == 'https://ee/new/{z}/{x}/{y}'
+	assert a.results[0]['map']['args']['start'] == '2024-01-01'  # the last year of the period, which is longer
+	assert px['value'] == 0.42 and calls[0][1]['metric'] == 'median' and calls[0][1]['start'] == '2024-01-01'
+	assert calls[1][1]['start'] == '2018-01-01'  # the series of the pixel, over the whole period
+	assert calls[1][0] == 'time_series' and calls[1][1]['step'] == 'monthly'  # 7 years, but monthly as the result
 
 
 def test_map_view(monkeypatch):

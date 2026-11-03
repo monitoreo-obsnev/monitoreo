@@ -16,12 +16,18 @@ def ramp(entry=None, colours=None):
 	return [str(c).lstrip('#') for c in (colours or (entry or {}).get('pm') or DEFAULT_PALETTE)]
 
 
-def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None, palette=None):
+def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True):
 	"""Colour ramp of a single band image ('value'): from the percentiles 5 and 95 of the image over
-	REGION_GEOM (or VMIN and VMAX), with the palette of the catalog entry ENTRY (pm) or PALETTE."""
+	REGION_GEOM (or VMIN and VMAX), with the palette of the catalog entry ENTRY (pm) or PALETTE. Without COMPUTE,
+	or if Earth Engine cannot compute them (big regions and long periods run out of memory), the range of ENTRY."""
 	if vmin is None or vmax is None:
-		st = ee.Image(image).reduceRegion(ee.Reducer.percentile([5, 95]), region_geom, scale, bestEffort=True,
-		                                  maxPixels=int(1e6)).getInfo()
+		st = {}
+		if compute:
+			try:
+				st = ee.Image(image).reduceRegion(ee.Reducer.percentile([5, 95]), region_geom, scale, bestEffort=True,
+				                                  maxPixels=int(1e6)).getInfo()
+			except ee.EEException:
+				st = {}
 		lo, hi = st.get('value_p5'), st.get('value_p95')
 		if lo is None or hi is None:
 			lo = (entry or {}).get('minp', 0) if isinstance((entry or {}).get('minp'), (int, float)) else 0

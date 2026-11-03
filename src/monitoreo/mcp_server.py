@@ -173,18 +173,20 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 def map_layer(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
               temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
-              collection: Optional[str] = None):
+              collection: Optional[str] = None, quick: bool = False):
 	"""Map of a variable over a region aggregated in time (e.g. the median NDVI of a period): returns the URL of
 	its Earth Engine map tiles (XYZ, {z}/{x}/{y}, valid for some hours; add it to QGIS as an XYZ layer), the colour
 	ramp and a PNG preview with the outline of the region. temporal: 'period' (METRIC over all the images),
-	'annual', 'monthly' or '16-day' (METRIC of each, then INTERANNUAL between the years)."""
+	'annual', 'monthly' or '16-day' (METRIC of each, then INTERANNUAL between the years). quick: only the tiles, at
+	once (without the preview, and with the colour ramp of the catalog instead of that of the map)."""
 	_ready()
-	png = _out(f'map_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
+	png = None if quick else _out(f'map_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-	                         vmin, vmax, thumbnail=png, collection=collection)
+	                         vmin, vmax, thumbnail=png, quick=quick, collection=collection)
 	out = [_text(res)]
-	with open(png, 'rb') as f:
-		out.append(Image(data=f.read(), format='png'))
+	if png:
+		with open(png, 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
 	return out
 
 

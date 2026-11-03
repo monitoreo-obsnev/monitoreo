@@ -224,15 +224,16 @@ def _build(region, var_name, sensor, start, end, metric, temporal, interannual, 
 
 def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, clip=True,
-              thumbnail=None, **source):
+              thumbnail=None, quick=False, **source):
 	"""Map of a variable over REGION aggregated in time (e.g. the median NDVI of 2018-2021): URL of its Earth
 	Engine tiles (XYZ, valid for some hours; their values cannot be queried: download_image for that) and colour
-	ramp. Writes a PNG preview to THUMBNAIL if given.
+	ramp (from the map, or from the catalog if QUICK: computing it over big regions and long periods takes long).
+	Writes a PNG preview to THUMBNAIL if given.
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, None, source)
 	entry = variable_entry(spec)
-	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette)
+	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_title(spec) + f' ({metric})', unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:

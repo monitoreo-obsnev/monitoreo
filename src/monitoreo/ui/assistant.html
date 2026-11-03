@@ -90,6 +90,9 @@ dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margi
 dt { color: var(--muted); }
 dd { margin: 0; }
 .scroll { overflow-x: auto; }
+table.short tr.extra { display: none; }
+.more { margin-top: 4px; font-size: .9em; }
+.tomap { margin-top: 8px; font-size: .9em; }
 table { border-collapse: collapse; font-size: .85em; margin-top: 8px; min-width: 50%; }
 th, td { border-bottom: 1px solid var(--line); padding: 3px 8px; text-align: right; white-space: nowrap; }
 th { background: var(--soft); }
@@ -492,20 +495,50 @@ function facts(list, open) {
   return el('details', open ? {open: ''} : {}, el('summary', {class: 'muted', text: 'Cómo se calcula'}), dl);
 }
 
+const SHORT_ROWS = 6;  // the rows of a table shown at first; the others with the button
+
 function table(t) {
   const head = el('tr');
   t.labels.forEach(l => head.append(el('th', {text: l})));
   const body = el('tbody');
-  t.rows.forEach(r => { const tr = el('tr'); r.forEach(v => tr.append(el('td', {text: v ?? '–'}))); body.append(tr); });
-  const div = el('div', {class: 'scroll'}, el('table', {}, el('thead', {}, head), body));
+  t.rows.forEach((r, i) => {
+    const tr = el('tr', i >= SHORT_ROWS ? {class: 'extra'} : {});
+    r.forEach(v => tr.append(el('td', {text: v ?? '–'})));
+    body.append(tr);
+  });
+  const tab = el('table', {class: 'short'}, el('thead', {}, head), body);
+  const div = el('div', {class: 'scroll'}, tab);
+  if (t.rows.length > SHORT_ROWS) {
+    const all = `Ver las ${t.rows.length + (t.more || 0)} filas`;
+    const button = el('button', {type: 'button', class: 'more', text: all});
+    button.onclick = () => {
+      const short = tab.classList.toggle('short');
+      button.textContent = short ? all : `Ver solo las ${SHORT_ROWS} primeras`;
+    };
+    div.append(button);
+  }
   if (t.more) div.append(el('p', {class: 'muted', text: `… y ${t.more} filas más en el informe y en el CSV.`}));
   return div;
+}
+
+function mapButton(id) {  // shows the map of the result ID
+  const b = el('button', {type: 'button', class: 'tomap', text: 'Ver en el mapa'});
+  b.onclick = () => {
+    if (!maps[id]) return;
+    showPane('work');
+    $('mapsel').value = id;
+    $('pixel').replaceChildren();
+    if (marker) { marker.remove(); marker = null; }
+    showMap(id);
+    $('mapbox').scrollIntoView({behavior: 'smooth'});
+  };
+  return b;
 }
 
 function resultCard(e) {
   const check = el('input', {type: 'checkbox', 'data-id': e.id});
   check.checked = true;
-  const card = el('article', {class: 'card'},
+  const card = el('article', {class: 'card', 'data-result': e.id},
     el('div', {class: 'head'}, el('h3', {text: `${e.id}. ${e.title}`}),
        el('span', {class: 'muted'}, el('label', {}, check, ' En el informe'), e.table ? ' · ' : '',
           e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Tabla en el informe') : '')));
@@ -517,6 +550,7 @@ function resultCard(e) {
       el('span', {text: fmt(e.legend.max) + (e.legend.unit ? ' ' + e.legend.unit : '')})));
   }
   if (e.table) card.append(table(e.table));
+  if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
   const links = e.files.filter(f => f.url);
   if (links.length) {
@@ -573,8 +607,8 @@ const BASES = {
 };
 
 function addMap(e) {
+  if (!maps[e.id]) $('mapsel').append(el('option', {value: e.id, text: `${e.id}. ${e.title}`}));
   maps[e.id] = e;
-  $('mapsel').append(el('option', {value: e.id, text: `${e.id}. ${e.title}`}));
   $('mapbox').hidden = false;
   $('mapsel').value = e.id;
   showMap(e.id);
@@ -712,6 +746,10 @@ function show(e) {
     running = null;
     $('nres').textContent = $('nres2').textContent = e.id;
     if (e.map) addMap(e);
+  } else if (e.type === 'map') {  // the map of the period of a result over regions
+    addMap(e);
+    const card = $('results').querySelector(`article[data-result="${e.id}"]`);
+    if (card && !card.querySelector('.tomap')) card.querySelector('details').before(mapButton(e.id));
   } else if (e.type === 'error') {
     if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
     notice(e.text, true);

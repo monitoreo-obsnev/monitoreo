@@ -56,7 +56,7 @@ RECOMMENDED = [  # the models of Ollama of the list of the page, the first one b
 MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
 MAX_STEPS = 8  # answers of the model to a message of the user
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
-MAX_ROWS_SHOWN = 40
+MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and the others with a button)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
               'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS')
 
@@ -65,7 +65,8 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map
            'burn_severity', 'download_image', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
-HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit')  # arguments the model does not see
+HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick')  # arguments the model does not see
+PERIOD_MAP = ('time_series', 'region_stats', 'compare_series', 'trend_table')  # with the map of their period
 AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas, for the model
 DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|'
                 r'de la biosfera)|monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial '
@@ -745,6 +746,34 @@ class Assistant:
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
 		self._tool_message(name, receipt(item['id'], item['title']))
+		if name in PERIOD_MAP:
+			yield {'type': 'status', 'text': 'Preparando el mapa del periodo en Google Earth Engine…'}
+			event = await self.period_map(item)
+			if event:
+				yield event
+
+	async def period_map(self, item):
+		"""The map of the variable over the period of a result over regions (its median), for the map of the page:
+		the area, and the value and series of each pixel. Only the last year of a longer period, and with the colours
+		of the catalog: Earth Engine takes minutes to draw the median of years of images over a big area, or to
+		compute its colours. The event for the page, or None if Earth Engine cannot make it (the result is there
+		anyway)."""
+		a = item['args']
+		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality', 'collection')
+		        if a.get(k) is not None}
+		end = dt.date.fromisoformat(args['end'][:10])
+		year_before = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
+		args.update(start=max(args['start'], (year_before + dt.timedelta(days=1)).isoformat()), metric='median')
+		try:
+			error, texts, _ = await self.call('map_layer', {**args, 'quick': True})  # tiles only, in seconds
+			result = json.loads(texts[0]) if not error and texts else {}
+		except Exception as e:
+			error, result = str(e), {}
+		if not isinstance(result, dict) or not result.get('url'):
+			_log({'tool': 'map_layer', 'call': args, 'answer': f'(mapa del resultado {item["id"]}) {error}'})
+			return None
+		item['map'] = {'tool': 'map_layer', 'args': args, 'result': result, 'title': _title('map_layer', args)}
+		return {'type': 'map', 'id': item['id'], **self.map_card(item['map'])}
 
 	async def ask_manual(self, args):
 		"""Answer a call of the tool manual with the sections of the wiki that answer its question; the user sees
@@ -784,33 +813,50 @@ class Assistant:
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
-				card['map'] = {'url': result['url'], 'bounds': result['bounds'], 'pixel': tool == 'map_layer'}
+				card['map'] = self.map_card(item)['map']
 		return card
 
-	def map_item(self, rid):
+	@staticmethod
+	def map_card(m):
+		"""What the map of the page shows of the map M (a result with tiles, or the map of the period of one)."""
+		result = m['result']
+		out = {'title': m['title'], 'legend': None,
+		       'map': {'url': result['url'], 'bounds': result['bounds'], 'pixel': m['tool'] == 'map_layer'}}
+		if result.get('palette'):
+			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
+			                 'unit': report.unit_text(result.get('unit'))}
+		return out
+
+	def map_of(self, rid):
+		"""(result RID, its map: {'tool', 'args', 'result', 'title'}): the result itself if it has tiles, or the map
+		of its period (see period_map)."""
 		item = next((r for r in self.results if r['id'] == rid), None)
+		if item and item.get('map'):
+			return item, item['map']
 		if not item or not isinstance(item['result'], dict) or not item['result'].get('url'):
-			raise ValueError('ese resultado no es un mapa')
-		return item
+			raise ValueError('ese resultado no tiene mapa')
+		return item, item
 
 	async def pixel(self, rid, lon, lat):
 		"""Click on the map of the result RID: the value of the map at the point (maps of map_layer) and the time
 		series of its pixel over the period of the map, computed in Earth Engine (the model takes no part). The series
 		can be kept as a result (keep_pixel, with its key)."""
-		item = self.map_item(rid)
+		item, m = self.map_of(rid)
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
 		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
 		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
-		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(item['result'].get('unit'))}
-		if item['tool'] == 'map_layer':
+		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(m['result'].get('unit'))}
+		if m['tool'] == 'map_layer':
+			ma = m['args']
 			error, texts, _ = await self.call('region_stats', {
-				**base, 'region': point, 'start': a['start'], 'end': a['end'], 'metric': a.get('metric') or 'median',
-				'temporal': a.get('temporal') or 'period'})
+				**base, 'region': point, 'start': ma['start'], 'end': ma['end'], 'metric': ma.get('metric') or 'median',
+				'temporal': ma.get('temporal') or 'period'})
 			stats = json.loads(texts[0]) if not error and texts else []
 			rows = stats.get('rows') if isinstance(stats, dict) else stats
 			out['value'] = rows[0].get('mean') if rows else None
 		days = (dt.date.fromisoformat(end[:10]) - dt.date.fromisoformat(start[:10])).days
-		step = '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'
+		step = a.get('step') if a.get('step') in ('16-day', 'monthly', 'annual') else \
+		       '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'  # that of the series, if any
 		args = {**base, 'region': point, 'start': start, 'end': end, 'step': step}
 		error, texts, images = await self.call('time_series', args)
 		if error:
@@ -833,13 +879,13 @@ class Assistant:
 	async def snapshot(self, rid, view):
 		"""Keep the view of the interactive map of the result RID (VIEW: bounds, zoom, base, opacity, marker) as a
 		result, for the report; returns its number."""
-		item = self.map_item(rid)
+		_, m = self.map_of(rid)
 		image = await asyncio.to_thread(report.map_view, [float(v) for v in view['bounds']], int(view['zoom']),
-		                                item['result']['url'], view.get('base') or 'osm',
+		                                m['result']['url'], view.get('base') or 'osm',
 		                                float(view.get('opacity', 0.85)), view.get('marker'))
-		new = {'id': len(self.results) + 1, 'tool': item['tool'], 'args': item['args'], 'image': image,
-		       'result': {k: v for k, v in item['result'].items() if k != 'thumbnail'},
-		       'title': f"{item['title']} (vista del mapa)",
+		new = {'id': len(self.results) + 1, 'tool': m['tool'], 'args': m['args'], 'image': image,
+		       'result': {k: v for k, v in m['result'].items() if k != 'thumbnail'},
+		       'title': f"{m['title']} (vista del mapa)",
 		       'view': {'bounds': view['bounds'], 'base': view.get('base') or 'osm'}}
 		self.results.append(new)
 		self.emit({'type': 'result', **self.card(new)})
@@ -847,12 +893,15 @@ class Assistant:
 
 	async def refresh_map(self, rid):
 		"""Ask again for the tiles of the map of the result RID (those of Earth Engine expire after some hours)."""
-		item = self.map_item(rid)
-		error, texts, _ = await self.call(item['tool'], item['args'])
+		_, m = self.map_of(rid)
+		args, result = m['args'], m['result']
+		if m['tool'] == 'map_layer':  # only the tiles, with the same colours
+			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max'), 'quick': True}
+		error, texts, _ = await self.call(m['tool'], args)
 		if error:
 			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
-		item['result']['url'] = json.loads(texts[0])['url']
-		return item['result']['url']
+		result['url'] = json.loads(texts[0])['url']
+		return result['url']
 
 	def write_report(self, title, ids=None, tables=()):
 		"""Write the report of the results IDS (default: all), with the tables of values of those in TABLES, and
