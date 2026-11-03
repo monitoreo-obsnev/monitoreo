@@ -143,7 +143,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div id="intro" class="intro">
     <p>Pregunta qué variable o sensor te conviene, o pide un cálculo sobre un espacio protegido o una zona. Los
       resultados aparecen aquí y puedes reunirlos en un informe para imprimir o guardar en PDF. Para calcular sobre
-      tus propios polígonos, añade una capa (GeoPackage, GeoJSON, KML o shapefile en .zip) con el botón o
+      tus propios polígonos, sube tu área de estudio (GeoPackage, GeoJSON, KML o shapefile en .zip) con el botón o
       arrastrándola aquí. <b>El asistente no interpreta los resultados.</b></p>
     <div class="examples">
       <button type="button">¿Qué sensor me conviene para seguir la vegetación de una finca pequeña desde 2015?</button>
@@ -162,7 +162,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <button id="send" class="primary">Enviar</button>
   </form>
   <div class="actions">
-    <button id="addLayer" type="button">Añadir capa…</button>
+    <button id="addLayer" type="button">Subir área de estudio</button>
     <input id="layerFile" type="file" accept=".gpkg,.geojson,.json,.kml,.zip" multiple hidden>
     <button id="report" type="button">Crear informe (<span id="nres">0</span>)</button>
     <button id="reset" type="button">Nueva consulta</button>
@@ -296,11 +296,11 @@ async function refresh() {
 function renderLayers(layers) {
   const box = $('layers');
   box.hidden = !layers.length;
-  box.replaceChildren(el('span', {class: 'muted', text: 'Capas:'}));
+  box.replaceChildren(el('span', {class: 'muted', text: 'Áreas de estudio:'}));
   for (const l of layers) {
-    const remove = el('button', {type: 'button', title: 'Quitar la capa ' + l.name, 'aria-label': 'Quitar la capa ' + l.name, text: '×'});
+    const remove = el('button', {type: 'button', title: 'Quitar el área de estudio ' + l.name, 'aria-label': 'Quitar el área de estudio ' + l.name, text: '×'});
     remove.onclick = async () => {
-      if (!confirm(`¿Quitar la capa «${l.name}»? Se borra su copia en la carpeta MonitorEO/capas.`)) return;
+      if (!confirm(`¿Quitar el área de estudio «${l.name}»? Se borra su copia en la carpeta MonitorEO/capas.`)) return;
       await api('/api/layer/remove', {name: l.name}).catch(e => notice(e.message, true));
       refresh();
     };
@@ -310,18 +310,18 @@ function renderLayers(layers) {
 
 async function upload(files) {
   for (const file of files) {
-    status('Leyendo la capa ' + file.name + '…');
+    status('Leyendo el área de estudio ' + file.name + '…');
     try {
       const r = await fetch('/api/layer?name=' + encodeURIComponent(file.name), {
         method: 'POST', headers: {'X-Token': token, 'Content-Type': 'application/octet-stream'}, body: file});
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || r.statusText);
       $('intro').hidden = true;
-      $('chat').append(el('div', {class: 'notice'}, 'Capa ', el('b', {text: data.name}), ` añadida: ${data.text} ` +
-        `(${data.crs}). Ya puedes pedir cálculos sobre ella, por ejemplo: «Serie anual del NDVI en la capa ` +
+      $('chat').append(el('div', {class: 'notice'}, 'Área de estudio ', el('b', {text: data.name}), ` subida: ${data.text} ` +
+        `(${data.crs}). Ya puedes pedir cálculos sobre ella, por ejemplo: «Serie anual del NDVI en el área de estudio ` +
         `${data.name} desde 2018».`));
       scroll();
-    } catch (e) { notice(`Capa ${file.name}: ${e.message}`, true); }
+    } catch (e) { notice(`Área de estudio ${file.name}: ${e.message}`, true); }
   }
   status(null);
   refresh();
@@ -600,7 +600,7 @@ $('update').onclick = async () => {
 
 $('quit').onclick = async () => {
   if (!confirm((busy ? 'Hay una consulta en marcha y se perderá. ' : '') + '¿Cerrar el asistente? Se cierra también el ' +
-               'motor de los modelos. Los resultados, las capas y los informes se quedan en la carpeta MonitorEO.')) return;
+               'motor de los modelos. Los resultados, las áreas de estudio y los informes se quedan en la carpeta MonitorEO.')) return;
   try { await api('/api/quit', {}); } catch (e) { return notice('No se ha podido cerrar: ' + e.message, true); }
   clearInterval(refresher);
   document.body.replaceChildren(el('div', {class: 'closed'},

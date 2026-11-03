@@ -695,13 +695,13 @@ class Assistant:
 		"""The instructions of the model, with the layers of the user."""
 		if not self.layers:
 			return self.system
-		return self.system + '\n\nCapas del usuario (archivos de su ordenador). Para usar una como región: ' \
-		                     '{"capa": "nombre"}; cada polígono da su propia serie o fila.\n' + \
+		return self.system + '\n\nÁreas de estudio del usuario (capas de polígonos de su ordenador). Para usar una ' \
+		                     'como región: {"capa": "nombre"}; cada polígono da su propia serie o fila.\n' + \
 		       '\n'.join(f'- {k}: {layer_text(v)}' for k, v in self.layers.items())
 
 	def all_names(self):
 		"""The names of the regions for the user: protected areas (by WDPA ID) and layers (by file)."""
-		return {**{v['file']: f'Capa «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
+		return {**{v['file']: f'Área de estudio «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
 
 	def check_areas(self, args):
 		"""Refuse the WDPA IDs that come neither from find_protected_areas nor from the user: small models copy them

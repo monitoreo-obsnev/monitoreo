@@ -177,7 +177,7 @@ def test_layers(tmp_path, monkeypatch):
 	assert args == {'region': {'file': gpkg['file'], 'name_field': 'nombre'}, 'variable': 'NDVI'}
 	with pytest.raises(ValueError, match='no hay ninguna capa'):
 		a.with_layer({'region': {'capa': 'otra'}})
-	assert report.region_text(args['region'], a.all_names()).startswith('Capa «mis_parcelas» (2 polígonos')
+	assert report.region_text(args['region'], a.all_names()).startswith('Área de estudio «mis_parcelas» (2 polígonos')
 	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
 	a.remove_layer('parcelas')
 	assert set(assistant.load_layers()) == {'mis_parcelas'} and not (tmp_path / 'capas' / 'parcelas.zip').exists()
