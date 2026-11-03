@@ -240,8 +240,9 @@ def item_facts(tool, args, result=None, names=None):
 	if result.get('images'):
 		facts.append(('Imágenes', _num(result['images'])))
 	if tool == 'download_image' and result.get('min') is not None:
+		unit = unit_text(result.get('unit'))
 		facts.append(('Valores (percentiles 5 y 95)', f"{_num(result['min'])} a {_num(result['max'])}"
-		                                              + (f" {unit_text(result.get('unit'))}" if unit_text(result.get('unit')) else '')))
+		                                              + (f' {unit}' if unit else '')))
 	if tool in METHODS:
 		facts.append(('Método', METHODS[tool]))
 	return facts

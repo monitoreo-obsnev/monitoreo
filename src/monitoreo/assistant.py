@@ -23,16 +23,19 @@ import os
 import pathlib
 import re
 import secrets
+import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import webbrowser
 import zipfile
 
-from . import __version__, areas, engine, report, services
+from . import __version__, areas, engine, manual, report, services
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
@@ -70,7 +73,31 @@ DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natura
 TASK_STATES = {'PENDING': 'en cola', 'READY': 'en cola', 'RUNNING': 'en marcha', 'SUCCEEDED': 'terminada',
                'COMPLETED': 'terminada', 'FAILED': 'fallida', 'CANCELLED': 'cancelada', 'CANCELLING': 'cancelándose',
                'UNKNOWN': 'desconocido'}
-LABELS = {'list_variables': 'Consultando las variables del catálogo',
+WIKI = 'https://github.com/monitoreo-obsnev/monitoreo/wiki/'
+MANUAL_TOOL = {'type': 'function', 'function': {  # answered by the assistant (monitoreo.manual), not by the MCP server
+	'name': 'manual',
+	'description': 'Busca en el manual de MonitorEO (su wiki) los apartados que responden a una pregunta sobre la '
+	               'herramienta: qué mide una variable, sensores, fechas y resolución, conceptos (métricas, filtros, '
+	               'tendencias, comparaciones, incendios), cómo se instala o se usa, problemas frecuentes y las otras '
+	               'herramientas de MonitorEO. Devuelve los apartados con su enlace.',
+	'parameters': {'type': 'object', 'properties': {'pregunta': {'type': 'string', 'description': 'La pregunta'}},
+	               'required': ['pregunta']}}}
+OTHER_TOOLS = [  # what the assistant does not do, by the words of the request (without accents), and who does it
+	(r'automatic|periodic|se repit|repetir|script|program(ar|acion)|cuaderno|notebook|en lote|'
+	 r'\b[2-9]\d (parques|espacios|zonas|sitios|regiones)',
+	 'el paquete de Python o la línea de comandos', 'automatizar cálculos que se repiten o de muchas regiones a la vez',
+	 WIKI + 'Python'),
+	(r'\ben r\b|\bdesde r\b|paquete de r\b|rstudio|\bterra\b|ggplot', 'el paquete de R', 'hacer los cálculos en R',
+	 WIKI + 'R'),
+	(r'qgis|edit(ar|o) (la |una |mi |mis |las |esta )?capa|digitaliz|mapa para imprimir|maquet|composicion|leyenda del mapa',
+	 'el plugin de QGIS', 'trabajar junto a tus capas en QGIS, editarlas y hacer mapas para imprimir', WIKI + 'QGIS'),
+	(r'sin instalar|en el navegador sin|desde (el|mi) movil|tablet', 'la app de Earth Engine',
+	 'usar MonitorEO en el navegador sin instalar nada', WIKI + 'App-de-Earth-Engine'),
+	(r'publicar|pagina web publica|que lo vea (cualquiera|todo el mundo)', 'el visor de resultados',
+	 'publicar informes para que los vea cualquiera (lo hacen sus administradores)', WIKI + 'Visor-de-resultados'),
+]
+LABELS = {'manual': 'Consultando el manual de MonitorEO',
+          'list_variables': 'Consultando las variables del catálogo',
           'describe_variable': 'Consultando la ficha de {variable}',
           'find_protected_areas': 'Buscando espacios protegidos con «{text}»'}
 
@@ -84,6 +111,8 @@ Qué haces:
 - Ayudas a elegir la variable, el sensor, la región y el periodo de un análisis, y lo lanzas con las herramientas de \
 cálculo de MonitorEO, que calculan en Google Earth Engine con la cuenta del usuario.
 - Aconsejas sobre sensores y variables con la guía de abajo y con list_variables y describe_variable.
+- Respondes preguntas sobre MonitorEO (qué mide una variable, sensores, fechas, resolución, conceptos, cómo se \
+instala o se usa cada herramienta) con la herramienta manual, que busca en su manual.
 
 Reglas:
 1. Nunca ves los resultados de los cálculos: van a la pantalla del usuario y a su informe. Cuando una herramienta de \
@@ -97,6 +126,16 @@ puede elegir uno en ella.
 4. Si falta algo imprescindible (variable, lugar o fechas), propón una opción razonable según la guía y pregunta en \
 una sola frase antes de calcular.
 5. Responde en español, breve y claro.
+6. Para preguntas sobre MonitorEO, consulta manual y responde con lo que dice, en cinco frases como mucho y con el \
+enlace de la página. Puedes añadir una explicación general breve (por ejemplo, qué mide un índice de vegetación), \
+pero no te inventes datos de MonitorEO: si el manual no lo dice, dilo. Usa solo los enlaces que te dé manual o los de \
+la lista de herramientas de abajo.
+7. Si te piden algo que el asistente no puede hacer, dilo y aconseja en una o dos frases la herramienta de MonitorEO \
+que lo hace, de la lista de abajo, con su enlace: cálculos que se repiten solos (cada mes) o de muchas regiones a la \
+vez, el paquete de Python o la línea de comandos; editar capas o hacer mapas para imprimir, el plugin de QGIS; \
+trabajar en R, el paquete de R; probar sin instalar nada, la app de Earth Engine. No escribas código ni órdenes de \
+instalación: su página de la wiki lo explica.
+8. No nombres al usuario tus herramientas internas (time_series, find_protected_areas...): di lo que haces.
 
 Cómo llamar a las herramientas:
 - Región: un objeto JSON con una de estas formas: {{"wdpa_id": SITE_ID}} (un espacio protegido, con el SITE_ID que \
@@ -108,7 +147,23 @@ devuelve find_protected_areas), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [oeste
 minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Tendencia a lo largo de los años: \
 trend_table (8 años o más) y trend_map para ver dónde. Comparar un periodo con otro de referencia: compare_series y \
 compare_map. Incendio: burn_severity.
-- Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor que la de los datos. Varias variables en rejillas alineadas (para un modelo): download_variables, primero con dry_run. Regiones grandes a resolución completa: export_image_to_drive (o export_time_series_to_drive para una serie larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado.
+- Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una \
+comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor \
+que la de los datos. Varias variables en rejillas alineadas (para un modelo): download_variables, primero con \
+dry_run. Regiones grandes a resolución completa: export_image_to_drive (o export_time_series_to_drive para una serie \
+larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado.
+
+Otras herramientas de MonitorEO (las mismas funciones y los mismos resultados):
+- App de Earth Engine: en el navegador, sin instalar nada ni cuenta de Earth Engine; mapas, series, tendencias, \
+comparaciones e incendios, también sobre un polígono dibujado. {wiki}App-de-Earth-Engine
+- Plugin de QGIS: lo mismo sin programar, junto a las capas del usuario, con valores consultables en el mapa y mapas \
+para imprimir en QGIS. {wiki}QGIS
+- Paquete de Python y línea de comandos: automatizar cálculos (scripts, cuadernos, muchas regiones o fechas). \
+{wiki}Python y {wiki}Línea-de-comandos
+- Paquete de R: análisis en R con sf, terra o ggplot2. {wiki}R
+- Servidor MCP: los mismos cálculos con Claude u otro asistente de IA. {wiki}MCP
+- Visor de resultados: publicar informes en una web para que los vea cualquiera (solo sus administradores). \
+{wiki}Visor-de-resultados
 
 Guía de sensores:
 - Sentinel-2: píxel de 10-20 m, una imagen cada 5 días aproximadamente, desde 2017. Para zonas pequeñas o con \
@@ -135,7 +190,7 @@ class ModelError(RuntimeError):
 
 def instructions(today=None):
 	"""The instructions of the model, with the variables of the catalog."""
-	return PROMPT.format(today=(today or dt.date.today()).isoformat(), variables=variables_text())
+	return PROMPT.format(today=(today or dt.date.today()).isoformat(), variables=variables_text(), wiki=WIKI)
 
 
 def variables_text():
@@ -239,6 +294,32 @@ def task_text(tool, text):
 	        'Google Drive. Tarda de minutos a horas; pregunta «¿ha terminado la exportación?» para saberlo.')
 
 
+def fix_links(text, question=''):
+	"""TEXT of the model with its links to the wiki that do not exist (small models make them up) replaced by their
+	page, if it exists, or else by the section of the manual that answers QUESTION best."""
+	links = set(re.findall(re.escape(WIKI) + r'[^\s)\]>"\'«»]*[^\s)\]>"\'«».,;:]', text))
+	if not links:
+		return text
+	secs = manual.sections()
+	pages, urls = {s['name'] for s in secs} or set(manual.PAGES), {s['url'] for s in secs}
+	best = None
+	for link in sorted(links, key=len, reverse=True):
+		page = urllib.parse.unquote(link[len(WIKI):].split('#')[0])
+		if page in pages and ('#' not in link or link in urls):
+			continue
+		if best is None:
+			found = manual.search(question, k=1) if question else []
+			best = found[0]['url'] if found else WIKI
+		text = text.replace(link, WIKI + page if page in pages else best)
+	return text
+
+
+def other_tool(text):
+	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None."""
+	t = manual._ascii(str(text).lower())
+	return next(((name, what, url) for pattern, name, what, url in OTHER_TOOLS if re.search(pattern, t)), None)
+
+
 def receipt(n, title):
 	"""What the model gets of a result: that it was computed and shown, without its values."""
 	return (f'Hecho: «{title}» se ha calculado en Google Earth Engine y se muestra al usuario como resultado {n}. '
@@ -294,6 +375,21 @@ def default_model(current, installed):
 	if not installed or current in installed:
 		return current
 	return next((m['name'] for m in RECOMMENDED if m['name'] in installed), current)
+
+
+def check_update():
+	"""{'available', 'current', 'latest'}: whether GitHub has another version than the installed one, and both
+	commits; None for a local copy (a clone, an editable install) or without connection."""
+	from . import update
+	if update.local_copy():
+		return None
+	inst = update.installed()
+	try:
+		sha = update.latest()
+	except (OSError, ValueError):
+		return None
+	commit = inst[1] if inst else None
+	return {'available': commit != sha, 'current': (commit or '')[:7], 'latest': sha[:7]}
 
 
 def models(settings):
@@ -369,6 +465,9 @@ class Assistant:
 		self.layers = load_layers()
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
+		self.quit = None  # stops the web server (see run)
+		self.restart = False  # whether run starts it again (after an update)
+		self.update_info = None  # see check_update
 		self.reset()
 
 	def base(self):
@@ -397,7 +496,7 @@ class Assistant:
 			async with ClientSession(read, write) as session:
 				await session.initialize()
 				listed = await session.list_tools()
-				self.tools = model_tools([_json(t) for t in listed.tools])
+				self.tools = model_tools([_json(t) for t in listed.tools]) + [MANUAL_TOOL]
 				self.session = session
 				try:
 					yield
@@ -437,6 +536,12 @@ class Assistant:
 
 	async def chat(self, text):
 		"""Answer a message of the user: yields the events for the page (see the module)."""
+		hint = other_tool(text)
+		if hint:  # small models often miss it: the page says it, and the model gets a note
+			name, what, url = hint
+			yield {'type': 'other_tool', 'name': name, 'what': what, 'url': url}
+			text += (f'\n\n(Nota de la aplicación: el asistente no hace esto; se hace con {name} de MonitorEO, para '
+			         f'{what}: {url}. Dilo en una o dos frases con el enlace, sin código ni nombres de herramientas.)')
 		self.messages.append({'role': 'user', 'content': text})
 		self.question = self.question or text
 		for _ in range(MAX_STEPS):
@@ -450,6 +555,7 @@ class Assistant:
 				yield {'type': 'error', 'text': f'Modelo de lenguaje: {e}'}
 				return
 			calls = message.get('tool_calls') or []
+			message['content'] = await asyncio.to_thread(fix_links, message['content'], text)
 			self.messages.append({'role': 'assistant', 'content': message['content'],
 			                      **({'tool_calls': calls} if calls else {})})
 			if message['content']:
@@ -466,6 +572,10 @@ class Assistant:
 		"""Run a call of the model: the answers of the advice tools go to the model, those of the others only to the
 		user (a card on the page and a result for the report) and the model gets a receipt."""
 		name = call.get('name')
+		if name == 'manual':
+			async for event in self.ask_manual(call.get('arguments')):
+				yield event
+			return
 		if name not in ADVICE + RESULTS + TASKS:
 			self._tool_message(name, f'Error: no hay ninguna herramienta {name}.')
 			return
@@ -534,6 +644,25 @@ class Assistant:
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
 		self._tool_message(name, receipt(item['id'], item['title']))
+
+	async def ask_manual(self, args):
+		"""Answer a call of the tool manual with the sections of the wiki that answer its question; the user sees
+		their links."""
+		try:
+			args = json.loads(args) if isinstance(args, str) else (args or {})
+		except ValueError:
+			args = {}
+		question = str(args.get('pregunta') or args.get('question') or '').strip()
+		yield {'type': 'status', 'text': LABELS['manual'] + '…'}
+		found = await asyncio.to_thread(_search_manual, question)
+		if found:
+			yield {'type': 'sources', 'sources': [{'title': f"{s['page']} › {s['title']}" if s['title'] != s['page']
+			                                       else s['page'], 'url': s['url']} for s in found]}
+			text = 'Apartados del manual de MonitorEO (responde con ellos y da el enlace):\n\n' + '\n\n'.join(
+				f"## {s['page']} › {s['title']} ({s['url']})\n{s['text']}" for s in found)
+		else:
+			text = 'El manual no tiene nada sobre eso (o no se ha podido descargar): dilo al usuario.'
+		self._tool_message('manual', text[:MAX_ADVICE])
 
 	def card(self, item):
 		"""What the page shows of a result."""
@@ -654,6 +783,13 @@ class Assistant:
 			return None
 
 
+def _search_manual(question):
+	"""The sections of the wiki for QUESTION; the wiki is downloaded first if it is not on this computer yet."""
+	if not manual.sections():
+		manual.update()
+	return manual.search(question)
+
+
 def _title(name, args):
 	try:
 		return report.item_title(name, args)
@@ -734,6 +870,7 @@ def make_app(assistant, token, port):
 		                                'installing': e.installing, 'mb': round(a[1] / 2 ** 20) if a else None},
 		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
+		                     'update': assistant.update_info,
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
 
 	async def signin(request):
@@ -765,6 +902,25 @@ def make_app(assistant, token, port):
 					yield e
 			yield {'type': 'done'}
 		return ndjson(events())
+
+	async def quit_app(request):
+		"""Close the assistant: the web server stops (and with it the MCP server and the engine of the models)."""
+		if assistant.quit:
+			asyncio.get_running_loop().call_later(0.5, assistant.quit)
+		return JSONResponse({'closed': bool(assistant.quit)})
+
+	async def update_app(request):
+		"""Install the last version of GitHub and start the assistant again with it (the same port and token)."""
+		from . import update
+		if assistant.busy.locked():
+			raise ValueError('espera a que termine la consulta anterior')
+		log = []
+		result = await asyncio.to_thread(update.ensure_latest, 'assistant', log.append)
+		if result != 'updated':
+			raise RuntimeError(f"no se ha actualizado ({log[-1] if log else result})")
+		assistant.restart = True
+		asyncio.get_running_loop().call_later(0.5, assistant.quit)
+		return JSONResponse({'updated': True})
 
 	async def reset(request):
 		if assistant.busy.locked():
@@ -807,6 +963,8 @@ def make_app(assistant, token, port):
 			except RuntimeError as e:
 				print(f'WARNING: {e}', file=sys.stderr)
 		try:
+			threading.Thread(target=manual.update, daemon=True).start()  # the wiki, for the tool manual
+			threading.Thread(target=_watch_updates, args=(assistant,), daemon=True).start()
 			async with assistant.connected():
 				yield
 		finally:
@@ -827,6 +985,8 @@ def make_app(assistant, token, port):
 		Route('/api/settings', guarded(settings), methods=['POST']),
 		Route('/api/chat', guarded(chat), methods=['POST']),
 		Route('/api/reset', guarded(reset), methods=['POST']),
+		Route('/api/quit', guarded(quit_app), methods=['POST']),
+		Route('/api/update', guarded(update_app), methods=['POST']),
 		Route('/api/report', guarded(make_report), methods=['POST']),
 		Route('/api/pull', guarded(pull), methods=['POST']),
 		Route('/api/engine/install', guarded(install_engine), methods=['POST']),
@@ -882,10 +1042,13 @@ def run(port=PORT, browser=True):
 		if browser:
 			webbrowser.open(url)
 		return
-	token = secrets.token_urlsafe(16)
+	token = os.environ.pop('MONITOREO_ASSISTANT_TOKEN', None) or secrets.token_urlsafe(16)  # the same after an update
 	assistant = Assistant()
 	server = uvicorn.Server(uvicorn.Config(make_app(assistant, token, port), host='127.0.0.1', port=port,
-	                                       log_level='warning'))
+	                                       log_level='warning', timeout_graceful_shutdown=3))
+	assistant.quit = lambda: setattr(server, 'should_exit', True)  # the button Cerrar of the page
+	if hasattr(signal, 'SIGHUP'):  # the window of the terminal closed: stop as with Cerrar (and the engine with it)
+		signal.signal(signal.SIGHUP, lambda *_: assistant.quit())
 	os.makedirs(OUTPUT, exist_ok=True)
 	with open(RUNNING, 'w', encoding='utf-8') as f:
 		json.dump({'port': port, 'token': token, 'pid': os.getpid()}, f)
@@ -898,6 +1061,23 @@ def run(port=PORT, browser=True):
 	finally:
 		with contextlib.suppress(OSError):
 			os.remove(RUNNING)
+	if assistant.restart:  # after an update: the new version, with the same port and token (the page goes on)
+		cmd = [sys.executable] + (['-s'] if sys.flags.no_user_site else []) + \
+		      ['-m', 'monitoreo.cli', 'assistant', '--no-update', '--no-browser', '--port', str(port)]
+		env = {**os.environ, 'MONITOREO_ASSISTANT_TOKEN': token}
+		print('Starting the new version of the assistant...', file=sys.stderr)
+		if os.name == 'nt':  # no exec on Windows
+			sys.exit(subprocess.call(cmd, env=env))
+		os.execve(sys.executable, cmd, env)
+	print('The assistant of MonitorEO is closed.', file=sys.stderr)
+
+
+def _watch_updates(assistant, every=6 * 3600):
+	"""Check for a new version on GitHub now and every EVERY seconds (the page shows then the button Actualizar)."""
+	while True:
+		with contextlib.suppress(Exception):
+			assistant.update_info = check_update()
+		time.sleep(every)
 
 
 def _in_use(port):

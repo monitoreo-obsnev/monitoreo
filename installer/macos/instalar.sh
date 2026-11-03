@@ -71,19 +71,21 @@ main() {
 	mkdir -p "$(dirname "$LAUNCHER")"
 	cat > "$LAUNCHER" <<-EOF
 	#!/bin/bash
-	# Abre el asistente de MonitorEO (lo creó su instalador). Para cerrarlo, cierra esta ventana.
-	echo "El asistente de MonitorEO se abre en el navegador. Para cerrarlo, cierra esta ventana."
+	# Abre el asistente de MonitorEO (lo creó su instalador).
+	echo "El asistente de MonitorEO se abre en el navegador. Para cerrarlo, pulsa «Cerrar el asistente» en la página."
 	export PYTHONNOUSERSITE=1
-	exec "$ENV/bin/python" -m monitoreo.cli assistant
+	"$ENV/bin/python" -m monitoreo.cli assistant
+	echo "El asistente está cerrado: ya puedes cerrar esta ventana."
 	EOF
 	chmod +x "$LAUNCHER"
 
 	echo
 	echo "Listo. Para abrir el asistente otra vez: doble clic en «Asistente de MonitorEO» del Escritorio."
-	echo "Ahora se abre en el navegador. Para cerrarlo, cierra esta ventana."
+	echo "Ahora se abre en el navegador. Para cerrarlo, pulsa «Cerrar el asistente» en la página."
 	echo
 	export PYTHONNOUSERSITE=1
-	exec "$ENV/bin/python" -m monitoreo.cli assistant
+	"$ENV/bin/python" -m monitoreo.cli assistant
+	echo "El asistente está cerrado: ya puedes cerrar esta ventana."
 }
 
 main "$@"

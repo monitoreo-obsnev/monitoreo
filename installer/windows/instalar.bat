@@ -54,9 +54,9 @@ if not exist "%ENV%\Scripts\monitoreo.exe" goto :fail
 :launcher
 > "%DIR%\Asistente de MonitorEO.bat" (
   echo @echo off
-  echo rem Abre el asistente de MonitorEO, creado por su instalador. Para cerrarlo, cierra esta ventana.
+  echo rem Abre el asistente de MonitorEO, creado por su instalador.
   echo title Asistente de MonitorEO
-  echo echo El asistente de MonitorEO se abre en el navegador. Para cerrarlo, cierra esta ventana.
+  echo echo El asistente de MonitorEO se abre en el navegador. Para cerrarlo, pulsa "Cerrar el asistente" en la pagina.
   echo set PYTHONNOUSERSITE=1
   echo "%ENV%\python.exe" -m monitoreo.cli assistant
 )
@@ -64,7 +64,7 @@ powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).Creat
 
 echo.
 echo Listo. Para abrir el asistente otra vez: doble clic en "Asistente de MonitorEO" del Escritorio.
-echo Ahora se abre en el navegador. Para cerrarlo, cierra esta ventana.
+echo Ahora se abre en el navegador. Para cerrarlo, pulsa "Cerrar el asistente" en la pagina.
 echo.
 "%ENV%\python.exe" -m monitoreo.cli assistant
 exit /b

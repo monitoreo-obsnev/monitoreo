@@ -365,3 +365,67 @@ def test_default_model():
 	assert assistant.default_model('qwen3:8b', ['gpt-oss:20b', 'qwen3:4b']) == 'qwen3:4b'  # installed, in their order
 	assert assistant.default_model('qwen3:8b', ['nomic-embed-text']) == 'qwen3:8b'  # not one without tools
 	assert assistant.default_model('qwen3:8b', []) == 'qwen3:8b'
+
+
+WIKI_PAGES = {
+	'Conceptos': '# Conceptos\n\nIntro.\n\n## Variables\n\n| `NDVI` | Índice de vegetación de diferencia normalizada | '
+	             'Sentinel-2 (10 m) |\n\n## Filtros por píxel\n\nSe quitan las nubes y la nieve.\n',
+	'Python': '# Python\n\n## Serie temporal\n\n```python\nmo.time_series(variable="NDVI")  # NDVI NDVI NDVI\n```\n',
+	'Home': '# Inicio\n\n## Cómo citar\n\nCítalo con su DOI: [Zenodo](https://doi.org/x).\n<img src="images/a.png">\n',
+}
+
+
+def test_manual(tmp_path):
+	from monitoreo import manual
+	for name, text in WIKI_PAGES.items():
+		(tmp_path / f'{name}.md').write_text(text, encoding='utf-8')
+	(tmp_path / '_Sidebar.md').write_text('[Inicio](Home)', encoding='utf-8')
+	secs = manual.sections(str(tmp_path))
+	assert {(s['page'], s['title']) for s in secs} >= {('Conceptos', 'Variables'), ('Inicio', 'Cómo citar')}
+	cite = next(s for s in secs if s['title'] == 'Cómo citar')
+	assert cite['url'].endswith('/wiki/Home#cómo-citar') and cite['text'] == 'Cítalo con su DOI: Zenodo.'
+	assert manual.search('¿Qué es el NDVI?', folder=str(tmp_path))[0]['title'] == 'Variables'  # not the code
+	assert manual.search('¿cómo cito MonitorEO?', folder=str(tmp_path))[0]['title'] == 'Cómo citar'
+	assert manual.search('filtro de nubes', folder=str(tmp_path))[0]['title'] == 'Filtros por píxel'
+	assert manual.search('xyz', folder=str(tmp_path)) == []
+	assert manual.words('Imágenes, citar y cito') == ['imagen', 'cit', 'cit']
+
+
+def test_manual_tool(monkeypatch):
+	found = [{'page': 'Conceptos', 'title': 'Variables', 'url': 'https://w/Conceptos#variables', 'text': 'NDVI: ...'}]
+	monkeypatch.setattr(assistant, '_search_manual', lambda q: found if 'NDVI' in q else [])
+	a = FakeAssistant({**assistant.DEFAULTS})
+	a.tools = assistant.model_tools(TOOLS) + [assistant.MANUAL_TOOL]
+
+	async def run(question):
+		return [e async for e in a.run_tool({'name': 'manual', 'arguments': {'pregunta': question}})]
+
+	events = asyncio.run(run('¿Qué es el NDVI?'))
+	assert events[-1] == {'type': 'sources', 'sources': [{'title': 'Conceptos › Variables',
+	                                                     'url': 'https://w/Conceptos#variables'}]}
+	assert 'NDVI: ...' in a.messages[-1]['content'] and 'https://w/Conceptos#variables' in a.messages[-1]['content']
+	asyncio.run(run('otra cosa'))
+	assert 'El manual no tiene nada' in a.messages[-1]['content']
+	assert 'App-de-Earth-Engine' in assistant.instructions() and 'manual' in assistant.instructions()
+
+
+def test_other_tool():
+	assert assistant.other_tool('Quiero el NDVI de 30 parques cada mes de forma automática')[0].startswith('el paquete de Python')
+	assert assistant.other_tool('¿Lo puedo hacer en R?')[0] == 'el paquete de R'
+	assert assistant.other_tool('quiero editar mi capa')[0] == 'el plugin de QGIS'
+	assert assistant.other_tool('Serie del NDVI de cada mes de 2024 en Doñana') is None
+	assert assistant.other_tool('¿Qué es el NDVI?') is None
+
+
+def test_check_update(monkeypatch):
+	from monitoreo import update
+	monkeypatch.setattr(update, 'local_copy', lambda: None)
+	monkeypatch.setattr(update, 'installed', lambda: ('0.3.11', 'a' * 40, None))
+	monkeypatch.setattr(update, 'latest', lambda: 'b' * 40)
+	assert assistant.check_update() == {'available': True, 'current': 'aaaaaaa', 'latest': 'bbbbbbb'}
+	monkeypatch.setattr(update, 'latest', lambda: 'a' * 40)
+	assert assistant.check_update()['available'] is False
+	monkeypatch.setattr(update, 'latest', lambda: (_ for _ in ()).throw(OSError('offline')))
+	assert assistant.check_update() is None
+	monkeypatch.setattr(update, 'local_copy', lambda: '/src/monitoreo')
+	assert assistant.check_update() is None  # a clone is not updated
