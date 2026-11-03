@@ -1,0 +1,60 @@
+# Instaladores del asistente para gestores: los zips de installer/macos y installer/windows (el de macOS conserva el
+# permiso de ejecución del .command), adjuntos a la release de GitHub con nombres fijos, para que la wiki los enlace
+# en releases/latest/download/asistente-monitoreo-macos.zip y ...-windows.zip:
+# - al publicar una release o subir una etiqueta v* (como el flujo del plugin de QGIS);
+# - a mano (Actions > Instaladores del asistente > Run workflow) con la etiqueta de una release que ya existe; sin
+#   etiqueta, deja los zips como artefacto de la ejecución.
+# Los instaladores descargan el environment.yml de main, así que valen para cualquier release.
+name: Instaladores del asistente
+
+on:
+  release:
+    types: [published]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Etiqueta de la release a la que adjuntar los zips (vacío: solo artefacto)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: installers-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+
+jobs:
+  zips:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar los instaladores
+        run: |
+          bash -n "installer/macos/Instalar el asistente de MonitorEO.command"
+          file "installer/windows/Instalar el asistente de MonitorEO.bat" | grep -q CRLF
+      - name: Generar los zips
+        run: |
+          mkdir -p dist
+          chmod +x "installer/macos/Instalar el asistente de MonitorEO.command"
+          (cd installer/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Instalar el asistente de MonitorEO.command")
+          (cd installer/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Instalar el asistente de MonitorEO.bat")
+          unzip -Z dist/asistente-monitoreo-macos.zip | grep -q -- '-rwx'
+      - uses: actions/upload-artifact@v4
+        if: env.TAG == ''
+        with:
+          name: instaladores
+          path: dist/*.zip
+      - name: Adjuntar los zips a la release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # con una etiqueta nueva, la release la puede estar creando a la vez el flujo del plugin de QGIS
+          for i in $(seq 18); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 10; done
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes "" || true
+          gh release upload "$TAG" dist/asistente-monitoreo-macos.zip dist/asistente-monitoreo-windows.zip --clobber
