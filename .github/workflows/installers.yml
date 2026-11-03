@@ -1,6 +1,8 @@
-# Instaladores del asistente para gestores: los zips de installer/macos y installer/windows (el de macOS conserva el
-# permiso de ejecución del .command), adjuntos a la release de GitHub con nombres fijos, para que la wiki los enlace
-# en releases/latest/download/asistente-monitoreo-macos.zip y ...-windows.zip:
+# Instaladores del asistente para gestores: installer/macos/instalar.sh e installer/windows/instalar.bat, comprimidos
+# como "Instalar el asistente de MonitorEO.command" (con su permiso de ejecución) y ".bat", adjuntos a la release de
+# GitHub con nombres fijos, para que la wiki los enlace en releases/latest/download/asistente-monitoreo-macos.zip y
+# ...-windows.zip (la wiki da además las órdenes de una línea que los descargan con curl, sin el bloqueo de los
+# ficheros descargados con el navegador):
 # - al publicar una release o subir una etiqueta v* (como el flujo del plugin de QGIS);
 # - a mano (Actions > Instaladores del asistente > Run workflow) con la etiqueta de una release que ya existe; sin
 #   etiqueta, deja los zips como artefacto de la ejecución.
@@ -35,14 +37,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Comprobar los instaladores
         run: |
-          bash -n "installer/macos/Instalar el asistente de MonitorEO.command"
-          file "installer/windows/Instalar el asistente de MonitorEO.bat" | grep -q CRLF
+          bash -n installer/macos/instalar.sh
+          file installer/windows/instalar.bat | grep -q CRLF
       - name: Generar los zips
         run: |
-          mkdir -p dist
-          chmod +x "installer/macos/Instalar el asistente de MonitorEO.command"
-          (cd installer/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Instalar el asistente de MonitorEO.command")
-          (cd installer/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Instalar el asistente de MonitorEO.bat")
+          mkdir -p dist build/macos build/windows
+          install -m 755 installer/macos/instalar.sh "build/macos/Instalar el asistente de MonitorEO.command"
+          cp installer/windows/instalar.bat "build/windows/Instalar el asistente de MonitorEO.bat"
+          (cd build/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Instalar el asistente de MonitorEO.command")
+          (cd build/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Instalar el asistente de MonitorEO.bat")
           unzip -Z dist/asistente-monitoreo-macos.zip | grep -q -- '-rwx'
       - uses: actions/upload-artifact@v4
         if: env.TAG == ''

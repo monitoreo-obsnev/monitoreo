@@ -1,2 +1,4 @@
-*.bat text eol=crlf
-*.command text eol=lf
+# el .bat se guarda tal cual, con los finales de línea de Windows: cmd lo lee mal con los de Unix, y así lo sirve
+# también raw.githubusercontent.com (instalación con curl)
+*.bat -text
+*.sh text eol=lf
