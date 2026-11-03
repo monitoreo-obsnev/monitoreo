@@ -40,6 +40,7 @@ from . import __version__, areas, engine, manual, report, services
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
 RUNNING = os.path.join(OUTPUT, '.assistant')  # port and token of the assistant that is running
+LOG = os.path.join(OUTPUT, 'assistant.log')  # the calls of the model and their errors, to find out what went wrong
 LAYERS = os.path.join(OUTPUT, 'capas')  # the vector files added by the user, and their list capas.json
 LAYER_TYPES = ('.gpkg', '.geojson', '.json', '.kml', '.zip')  # .zip: a shapefile (or another of these) compressed
 MAX_LAYER = 100 * 2 ** 20  # bytes
@@ -456,12 +457,15 @@ def signed_in():
 
 
 class Assistant:
-	"""A conversation with the model and the MCP server of MonitorEO, and its results."""
+	"""A conversation with the model and the MCP server of MonitorEO, and its results. Each message of the user is
+	answered by a task of its own (start), whose events are kept (emit) and sent to every page that follows them
+	(follow): the answer goes on without the page, and a page opened again shows the whole conversation."""
 
 	def __init__(self, settings=None):
 		self.settings = settings or load_settings()
 		self.session, self.tools, self.system = None, [], instructions()
-		self.busy = asyncio.Lock()
+		self.task = None  # that of the message being answered
+		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
 		self.layers = load_layers()
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
@@ -481,6 +485,54 @@ class Assistant:
 
 	def reset(self):
 		self.messages, self.results, self.names, self.question = [], [], {}, None
+
+	def running(self):
+		"""Whether a message is being answered."""
+		return bool(self.task and not self.task.done())
+
+	def emit(self, event):
+		"""Keep an event of the conversation and wake the pages that follow it."""
+		self.events.append({**event, 'seq': self.offset + len(self.events)})
+		changed, self.changed = self.changed, asyncio.Event()
+		changed.set()
+
+	async def follow(self, since=0, ping=15):
+		"""The events of the conversation from the number SINCE on, and then the new ones as they come (a ping every
+		PING seconds without any, so that a page that is not there any more is noticed)."""
+		while True:
+			changed = self.changed  # before reading the events: one emitted meanwhile sets it
+			for e in self.events[max(since - self.offset, 0):]:
+				yield e
+				since = e['seq'] + 1
+			try:
+				await asyncio.wait_for(changed.wait(), ping)
+			except asyncio.TimeoutError:
+				yield {'type': 'ping'}
+
+	def start(self, text):
+		"""Answer a message of the user in a task of its own."""
+		if self.running():
+			raise ValueError('espera a que termine la consulta anterior')
+
+		async def answer():
+			self.emit({'type': 'user', 'text': text})
+			try:
+				async for e in self.chat(text):
+					self.emit(e)
+			except Exception as e:  # the conversation goes on
+				self.emit({'type': 'error', 'text': f'El asistente ha fallado: {type(e).__name__}: {e}'})
+			finally:
+				self.emit({'type': 'done'})
+		self.task = asyncio.create_task(answer())
+
+	def new_conversation(self):
+		"""Forget the conversation and its results (their files stay); the pages get a reset."""
+		if self.running():
+			raise ValueError('espera a que termine la consulta anterior')
+		self.reset()
+		self.offset += len(self.events)
+		self.events = []
+		self.emit({'type': 'reset'})
 
 	@contextlib.asynccontextmanager
 	async def connected(self):
@@ -695,9 +747,9 @@ class Assistant:
 		"""The instructions of the model, with the layers of the user."""
 		if not self.layers:
 			return self.system
-		return self.system + '\n\nÁreas de estudio del usuario (capas de polígonos de su ordenador). Para usar una ' \
-		                     'como región: {"capa": "nombre"}; cada polígono da su propia serie o fila.\n' + \
-		       '\n'.join(f'- {k}: {layer_text(v)}' for k, v in self.layers.items())
+		return self.system + '\n\nÁreas de estudio del usuario (capas de polígonos de su ordenador), con la región que ' \
+		                     'las usa; cada polígono da su propia serie o fila:\n' + \
+		       '\n'.join(f'- {k} ({layer_text(v)}): región {{"capa": "{k}"}}' for k, v in self.layers.items())
 
 	def all_names(self):
 		"""The names of the regions for the user: protected areas (by WDPA ID) and layers (by file)."""
@@ -717,16 +769,29 @@ class Assistant:
 			                 'primero el espacio protegido por su nombre con find_protected_areas y usa su SITE_ID')
 
 	def with_layer(self, args):
-		"""ARGS with a region {"capa": name} as the file of that layer."""
+		"""ARGS with a region {"capa": name} as the file of that area of study; also the ways small models give it:
+		the name alone, {"area_de_estudio": name}, "capa parcelas"..."""
 		arg = 'area' if 'area' in args and 'region' not in args else 'region'  # area: download_variables
 		region = args.get(arg)
-		if not isinstance(region, dict) or not (region.get('capa') or region.get('layer')):
+		if isinstance(region, dict) and (region.get('capa') or region.get('layer')):
+			key = str(region.get('capa') or region.get('layer'))
+		elif isinstance(region, dict) and not any(k in region for k in areas.REGION_KEYS):
+			names = [v for v in region.values() if isinstance(v, str)]
+			key = names[0] if len(names) == 1 else None
+		else:
+			key = region if isinstance(region, str) else None
+		if key is None:
 			return args
-		key = str(region.get('capa') or region.get('layer')).strip()
+		key = re.sub(r'^(la |el )?(capa|area de estudio|área de estudio)\s+', '', key.strip(), flags=re.I).strip('«»"\' ')
 		layer = self.layers.get(key) or next((v for k, v in self.layers.items() if key.lower() in (
 			k.lower(), v['original'].lower(), os.path.splitext(v['original'])[0].lower())), None)
+		if not layer:  # small models copy the examples ({"capa": "nombre"}): the one the user named, if only one
+			said = ' '.join(m['content'] for m in self.messages if m['role'] == 'user').lower()
+			named = [v for k, v in self.layers.items() if re.search(r'\b' + re.escape(k.lower()) + r'\b', said)]
+			layer = named[0] if len(named) == 1 else None
 		if not layer:
-			raise ValueError(f'no hay ninguna capa «{key}»; las capas son: {", ".join(self.layers) or "ninguna"}')
+			raise ValueError(f'no hay ningún área de estudio «{key}»; las áreas de estudio son: '
+			                 f'{", ".join(self.layers) or "ninguna"} (región: {{"capa": "nombre"}})')
 		return {**args, arg: {'file': layer['file'],
 		                      **({'name_field': layer['name_field']} if layer.get('name_field') else {})}}
 
@@ -770,6 +835,9 @@ class Assistant:
 
 	def _tool_message(self, name, text):
 		self.messages.append({'role': 'tool', 'tool_name': name, 'content': text})
+		_log({'tool': name, 'call': next((c.get('function') for m in reversed(self.messages[:-1])
+		                                   for c in m.get('tool_calls') or [] if (c.get('function') or {}).get('name') == name),
+		                                  None), 'answer': text[:300]})
 
 	def _remember_names(self, text):
 		"""Keep the names of the protected areas of an answer of find_protected_areas, and return them with only
@@ -788,6 +856,15 @@ def _search_manual(question):
 	if not manual.sections():
 		manual.update()
 	return manual.search(question)
+
+
+def _log(entry):
+	"""Add ENTRY to LOG (a JSON line with the time); the log never breaks the assistant."""
+	with contextlib.suppress(OSError, TypeError, ValueError):
+		os.makedirs(OUTPUT, exist_ok=True)
+		with open(LOG, 'a', encoding='utf-8') as f:
+			f.write(json.dumps({'time': dt.datetime.now().isoformat(timespec='seconds'), **entry}, ensure_ascii=False,
+			                   default=str) + '\n')
 
 
 def _title(name, args):
@@ -870,7 +947,7 @@ def make_app(assistant, token, port):
 		                                'installing': e.installing, 'mb': round(a[1] / 2 ** 20) if a else None},
 		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
-		                     'update': assistant.update_info,
+		                     'update': assistant.update_info, 'busy': assistant.running(),
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
 
 	async def signin(request):
@@ -893,15 +970,11 @@ def make_app(assistant, token, port):
 		text = str((await request.json()).get('text') or '').strip()
 		if not text:
 			raise ValueError('mensaje vacío')
-		if assistant.busy.locked():
-			raise ValueError('espera a que termine la consulta anterior')
+		assistant.start(text)
+		return JSONResponse({})
 
-		async def events():
-			async with assistant.busy:
-				async for e in assistant.chat(text):
-					yield e
-			yield {'type': 'done'}
-		return ndjson(events())
+	async def events(request):
+		return ndjson(assistant.follow(int(request.query_params.get('since') or 0)))
 
 	async def quit_app(request):
 		"""Close the assistant: the web server stops (and with it the MCP server and the engine of the models)."""
@@ -912,7 +985,7 @@ def make_app(assistant, token, port):
 	async def update_app(request):
 		"""Install the last version of GitHub and start the assistant again with it (the same port and token)."""
 		from . import update
-		if assistant.busy.locked():
+		if assistant.running():
 			raise ValueError('espera a que termine la consulta anterior')
 		log = []
 		result = await asyncio.to_thread(update.ensure_latest, 'assistant', log.append)
@@ -923,9 +996,7 @@ def make_app(assistant, token, port):
 		return JSONResponse({'updated': True})
 
 	async def reset(request):
-		if assistant.busy.locked():
-			raise ValueError('espera a que termine la consulta anterior')
-		assistant.reset()
+		assistant.new_conversation()
 		return JSONResponse({})
 
 	async def make_report(request):
@@ -984,6 +1055,7 @@ def make_app(assistant, token, port):
 		Route('/api/signin', guarded(signin), methods=['POST']),
 		Route('/api/settings', guarded(settings), methods=['POST']),
 		Route('/api/chat', guarded(chat), methods=['POST']),
+		Route('/api/events', guarded(events)),
 		Route('/api/reset', guarded(reset), methods=['POST']),
 		Route('/api/quit', guarded(quit_app), methods=['POST']),
 		Route('/api/update', guarded(update_app), methods=['POST']),

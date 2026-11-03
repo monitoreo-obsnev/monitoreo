@@ -172,11 +172,17 @@ def test_layers(tmp_path, monkeypatch):
 	assert gpkg['crs'] == 'EPSG:25830' and gpkg['name_field'] == 'nombre'
 	shp = a.add_layer('parcelas.zip', (tmp_path / 'parcelas.zip').read_bytes())
 	assert shp['file'].startswith('/vsizip/') and shp['file'].endswith('carpeta/parcelas.shp') and shp['features'] == 2
-	assert '- parcelas: 2 polígonos, 200 ha, nombres del campo nombre' in a.system_prompt()
+	assert '- parcelas (2 polígonos, 200 ha, nombres del campo nombre): región {"capa": "parcelas"}' in a.system_prompt()
 	args = a.with_layer({'region': {'capa': 'Mis parcelas'}, 'variable': 'NDVI'})
 	assert args == {'region': {'file': gpkg['file'], 'name_field': 'nombre'}, 'variable': 'NDVI'}
-	with pytest.raises(ValueError, match='no hay ninguna capa'):
+	for region in ('mis_parcelas', 'Mis parcelas', {'area_de_estudio': 'mis_parcelas'}, 'capa mis_parcelas',
+	               {'capa': 'el área de estudio «mis_parcelas»'}):  # the ways small models give it
+		assert a.with_layer({'region': region})['region'] == args['region']
+	with pytest.raises(ValueError, match='no hay ningún área de estudio'):
 		a.with_layer({'region': {'capa': 'otra'}})
+	a.messages.append({'role': 'user', 'content': 'Serie del NDVI en el área de estudio mis_parcelas'})
+	assert a.with_layer({'region': {'capa': 'nombre'}})['region'] == args['region']  # the example, copied
+	assert a.with_layer({'region': {'bbox': [0, 0, 1, 1]}}) == {'region': {'bbox': [0, 0, 1, 1]}}
 	assert report.region_text(args['region'], a.all_names()).startswith('Área de estudio «mis_parcelas» (2 polígonos')
 	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
 	a.remove_layer('parcelas')
@@ -429,3 +435,44 @@ def test_check_update(monkeypatch):
 	assert assistant.check_update() is None
 	monkeypatch.setattr(update, 'local_copy', lambda: '/src/monitoreo')
 	assert assistant.check_update() is None  # a clone is not updated
+
+
+def test_events_of_the_conversation(monkeypatch):
+	answers = iter([{'content': 'Primera respuesta.'}, {'content': 'Segunda.'}])
+	monkeypatch.setattr(assistant, 'chat_model', lambda *a: next(answers))
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'ollama': 'http://127.0.0.1:1'})
+		a.tools = assistant.model_tools(TOOLS)
+
+		async def until_done(since=0):
+			got = []
+			async for e in a.follow(since, ping=0.05):
+				got.append(e)
+				if e['type'] == 'done':
+					return got
+
+		a.start('Hola')
+		with pytest.raises(ValueError, match='espera'):
+			a.start('Otra')  # one message at a time
+		first = await until_done()
+		later = await until_done()  # a page opened afterwards gets the whole conversation again
+		a.start('Otra pregunta')
+		second = await until_done(first[-1]['seq'] + 1)  # and one that follows, only what is new
+		a.new_conversation()
+		after_reset = [e async for e in _take(a.follow(second[-1]['seq'] + 1), 1)]
+		return first, later, second, after_reset, a
+
+	first, later, second, after_reset, a = asyncio.run(run())
+	assert [e['type'] for e in first if e['type'] != 'status'] == ['user', 'assistant', 'done']
+	assert later == first and [e['seq'] for e in first] == list(range(len(first)))
+	assert second[0] == {'type': 'user', 'text': 'Otra pregunta', 'seq': len(first)}
+	assert after_reset[0]['type'] == 'reset' and not a.messages and not a.running()
+
+
+async def _take(events, n):
+	async for e in events:
+		yield e
+		n -= 1
+		if not n:
+			return

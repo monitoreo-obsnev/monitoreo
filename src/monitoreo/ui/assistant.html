@@ -203,9 +203,9 @@ async function api(path, body) {
   return data;
 }
 
-async function stream(path, body, onEvent) {
-  const r = await fetch(path, {method: 'POST', headers: {'X-Token': token, 'Content-Type': 'application/json'},
-                               body: JSON.stringify(body)});
+async function stream(path, body, onEvent, method = 'POST') {
+  const r = await fetch(path, {method, headers: {'X-Token': token, 'Content-Type': 'application/json'},
+                               body: method === 'GET' ? undefined : JSON.stringify(body)});
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || r.statusText); }
   const reader = r.body.getReader(), decoder = new TextDecoder();
   let buffer = '';
@@ -227,7 +227,8 @@ function fileUrl(url) { return url + (url.includes('?') ? '&' : '?') + 't=' + en
 // --- settings ---------------------------------------------------------------------------------------------------
 async function refresh() {
   try { state = await api('/api/state'); } catch (e) {
-    if (!refresh.failed) notice(/token/.test(e.message) ? 'Esta página es de una sesión anterior del asistente: ' +
+    refresh.stale = /token/.test(e.message);  // a page of a session before: its token is not valid
+    if (!refresh.failed) notice(refresh.stale ? 'Esta página es de una sesión anterior del asistente: ' +
       'ciérrala y abre el asistente otra vez.' : 'No hay conexión con el asistente: ' + e.message, true);
     refresh.failed = true;
     return;
@@ -496,45 +497,71 @@ function status(text) {
   $('status').replaceChildren(el('span', {class: 'spinner'}), text || '');
 }
 
+// --- the conversation: the events of the assistant, all of them from the first one when the page opens -------------
+let running = null, nextEvent = 0;
+
+function show(e) {
+  if (e.type === 'user') {
+    busy = true;
+    $('send').disabled = true;
+    $('intro').hidden = true;
+    question = question || e.text;
+    message('user', e.text);
+  } else if (e.type === 'done') {
+    busy = false;
+    $('send').disabled = false;
+    status(null);
+    if (running) { running.querySelector('.spinner')?.remove(); running = null; }
+  } else if (e.type === 'reset') {
+    $('chat').replaceChildren($('intro'));
+    $('intro').hidden = false;
+    question = running = null;
+    $('nres').textContent = 0;
+  } else if (e.type === 'status') status(e.text);
+  else if (e.type === 'assistant') message('assistant', e.text);
+  else if (e.type === 'areas') $('chat').append(areasCard(e));
+  else if (e.type === 'notice') notice(e.text);
+  else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'Para ' + e.what + ', MonitorEO tiene ',
+    el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'su manual'}), '.'));
+  else if (e.type === 'sources') $('chat').append(el('div', {class: 'notice'}, 'Del manual: ',
+    ...e.sources.flatMap((s, i) => [i ? ' · ' : '', el('a', {href: s.url, target: '_blank', rel: 'noopener', text: s.title})])));
+  else if (e.type === 'running') {
+    status(e.text);
+    running = el('article', {class: 'card'}, el('div', {}, el('span', {class: 'spinner'}), e.text), facts(e.facts, true));
+    $('chat').append(running);
+  } else if (e.type === 'result') {
+    const card = resultCard(e);
+    if (running) running.replaceWith(card); else $('chat').append(card);
+    running = null;
+    $('nres').textContent = e.id;
+  } else if (e.type === 'error') {
+    if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
+    notice(e.text, true);
+  }
+}
+
+async function follow() {  // the events from nextEvent on, again after a cut (the assistant restarted, the network)
+  for (;;) {
+    try {
+      await stream('/api/events?since=' + nextEvent, null, e => {
+        if (e.type === 'ping') return;
+        nextEvent = e.seq + 1;
+        show(e);
+        scroll();
+      }, 'GET');
+    } catch (e) { /* the assistant is not there: try again */ }
+    if (refresh.stale) return;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+
 async function send(text) {
   text = text.trim();
   if (!text || busy) return;
-  busy = true;
-  $('send').disabled = true;
-  $('intro').hidden = true;
-  question = question || text;
-  message('user', text);
-  $('text').value = '';
-  let running = null;
   try {
-    await stream('/api/chat', {text}, e => {
-      if (e.type === 'status') status(e.text);
-      else if (e.type === 'assistant') message('assistant', e.text);
-      else if (e.type === 'areas') $('chat').append(areasCard(e));
-      else if (e.type === 'notice') notice(e.text);
-      else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'Para ' + e.what + ', MonitorEO tiene ',
-        el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'su manual'}), '.'));
-      else if (e.type === 'sources') $('chat').append(el('div', {class: 'notice'}, 'Del manual: ',
-        ...e.sources.flatMap((s, i) => [i ? ' · ' : '', el('a', {href: s.url, target: '_blank', rel: 'noopener', text: s.title})])));
-      else if (e.type === 'running') {
-        status(e.text);
-        running = el('article', {class: 'card'}, el('div', {}, el('span', {class: 'spinner'}), e.text), facts(e.facts, true));
-        $('chat').append(running);
-      } else if (e.type === 'result') {
-        const card = resultCard(e);
-        if (running) running.replaceWith(card); else $('chat').append(card);
-        running = null;
-        $('nres').textContent = e.id;
-      } else if (e.type === 'error') {
-        if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
-        notice(e.text, true);
-      }
-      scroll();
-    });
+    await api('/api/chat', {text});  // the events of the answer come by follow
+    $('text').value = '';
   } catch (e) { notice(e.message, true); }
-  status(null);
-  busy = false;
-  $('send').disabled = false;
   $('text').focus();
 }
 
@@ -548,11 +575,7 @@ $('reset').onclick = async () => {
   if (busy) return;
   if ($('chat').querySelector('.card') &&
       !confirm('Se borran la conversación y sus resultados de esta página (sus archivos se quedan en la carpeta MonitorEO). ¿Seguir?')) return;
-  try { await api('/api/reset', {}); } catch (e) { return notice(e.message, true); }
-  $('chat').replaceChildren($('intro'));
-  $('intro').hidden = false;
-  question = null;
-  $('nres').textContent = 0;
+  try { await api('/api/reset', {}); } catch (e) { return notice(e.message, true); }  // the page clears with its event
 };
 
 $('report').onclick = () => {
@@ -612,6 +635,7 @@ $('quit').onclick = async () => {
 };
 
 refresh();
+follow();
 const refresher = setInterval(() => { if (!busy) refresh(); }, 15000);
 </script>
 </body>
