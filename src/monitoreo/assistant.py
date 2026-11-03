@@ -69,6 +69,8 @@ HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick'
 PERIOD_MAP = ('time_series', 'region_stats', 'compare_series', 'trend_table')  # with the map of their period
 MAX_MAP_STEPS = 400  # maps of the steps of a result that the page offers (the last ones)
 UNITS = {'annual': 'años', 'monthly': 'meses', '16-day': 'periodos de 16 días'}
+ALPHA = 0.05  # the trends whose pixels are kept by «Solo píxeles significativos» (Mann-Kendall p < ALPHA)
+SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
 AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas, for the model
 DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|'
                 r'de la biosfera)|monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial '
@@ -878,28 +880,37 @@ class Assistant:
 		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']],
 		        'steps_label': 'Parte del año' if m['tool'] == 'trend_map' else 'Fecha'}
 
-	async def step_map(self, rid, key):
-		"""The map of the step KEY of the result RID (see map_steps), made the first time with the colours of the
-		map of the result, so that they can be compared: what the page shows of it."""
+	async def step_map(self, rid, key, significant=False):
+		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time
+		with the colours of the map of the result, so that they can be compared; of a trend with SIGNIFICANT, only its
+		pixels with Mann-Kendall p < ALPHA. What the page shows of it, with the key that names it."""
 		item, main = self.map_of(rid)
 		maps = item.setdefault('maps', {})
-		if key not in maps:
+		significant = significant and main['tool'] == 'trend_map'
+		name = key + (SIGNIFICANT if significant else '')
+		if not name:
+			return {'key': '', **self.map_card(main)}
+		if name not in maps:
 			step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
-			if not step:
+			if key and not step:
 				raise ValueError('ese mapa no existe')
 			a = item['args']
-			if 'part' in step:  # the trend of a part of the year
+			if not key:  # the map of the result
+				tool, args = main['tool'], dict(main['args'])
+			elif 'part' in step:  # the trend of a part of the year
 				tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
 			else:
 				tool = 'map_layer'
 				args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
 				args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+			if significant:
+				args['alpha'] = ALPHA
 			r = main['result']
 			error, texts, _ = await self.call(tool, {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': True})
 			if error:
 				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
-			maps[key] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
-		return {'key': key, **self.map_card(maps[key])}
+			maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
+		return {'key': name, **self.map_card(maps[name])}
 
 	async def ask_manual(self, args):
 		"""Answer a call of the tool manual with the sections of the wiki that answer its question; the user sees
@@ -949,7 +960,8 @@ class Assistant:
 		result = m['result']
 		out = {'title': m['title'], 'legend': None,
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
-		               'pixel': m['tool'] in ('map_layer', 'trend_map')}}  # with the value of the pixel
+		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
+		               'trend': m['tool'] == 'trend_map'}}  # with «Solo píxeles significativos»
 		if result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
 			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
@@ -1074,6 +1086,8 @@ class Assistant:
 		if tool == 'trend_map' and args.get('part'):
 			label = next((s['label'] for s in map_steps(tool, args) if s['part'] == args['part']), '')
 			title += f" ({label.replace('Tendencia de', '').replace('Tendencia del', '').strip()})" if label else ''
+		if tool == 'trend_map' and args.get('alpha'):
+			title += f", solo píxeles significativos (p < {report._num(args['alpha'])})"
 		return title + (f' · {region}' if region else '')
 
 	def region_name(self, args):
@@ -1323,7 +1337,8 @@ def make_app(assistant, token, port):
 
 	async def step_map(request):
 		body = await request.json()
-		return JSONResponse(await assistant.step_map(int(body['id']), str(body['key'])))
+		return JSONResponse(await assistant.step_map(int(body['id']), str(body.get('key') or ''),
+		                                             bool(body.get('significant'))))
 
 	async def snapshot(request):
 		body = await request.json()

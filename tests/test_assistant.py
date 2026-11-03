@@ -110,7 +110,7 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	assert len(a.results) == 1 and a.question == 'NDVI de Sierra Nevada en 2021'
 	# the map of the variable over the period of the series, without its preview (only the tiles), for the page
 	shown = next(e for e in events if e['type'] == 'map')
-	assert shown['id'] == 1 and shown['map'] == {'url': MAP['url'], 'bounds': MAP['bounds'], 'pixel': True}
+	assert shown['id'] == 1 and shown['map'] == {'url': MAP['url'], 'bounds': MAP['bounds'], 'pixel': True, 'trend': False}
 	assert shown['legend']['palette'] == MAP['palette'] and shown['title'] == result['title']  # the list of maps
 	assert result['title'].endswith(' · Sierra Nevada (Parque Nacional)')  # the region, in the titles
 	assert a.mapped == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
@@ -683,7 +683,8 @@ def test_map_and_pixel():
 		return a, card, px, rid, url
 
 	a, card, px, rid, url = asyncio.run(run())
-	assert card['map'] == {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0], 'pixel': True}
+	assert card['map'] == {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0], 'pixel': True,
+	                       'trend': False}
 	assert px['value'] == 0.42 and px['image'].startswith('data:image/png') and px['n'] == 12
 	assert calls[0] == ('region_stats', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'season': ['06-01', '08-31'],
 	                                     'region': {'point': [-3.55, 36.95]}, 'start': '2024-06-01',
@@ -756,6 +757,24 @@ def test_map_and_pixel():
 	assert shown['steps_label'] == 'Parte del año' and shown['steps'][6]['label'] == 'Tendencia de julio'
 	assert calls[1][0] == 'trend_map' and calls[1][1]['step'] == 'monthly' and calls[1][1]['part'] == 7
 	assert calls[2][0] == 'trend_map' and calls[2][1]['quick'] and calls[2][1]['part'] == 7
+
+	# «Solo píxeles significativos»: the same maps with only the pixels of p < 0.05, and their pixels
+	async def significant():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'median'}
+		a.results.append({'id': 1, 'tool': 'trend_table', 'args': args, 'result': {}, 'image': None, 'title': 'T'})
+		await a.period_map(a.results[0])
+		calls.clear()
+		main, month = await a.step_map(1, '', True), await a.step_map(1, 'part:7', True)
+		return main, month, await a.pixel(1, -3.55, 36.95, 'part:7|p<0.05'), await a.step_map(1, '', False)
+
+	main, month, px, plain = asyncio.run(significant())
+	assert main['key'] == '|p<0.05' and month['key'] == 'part:7|p<0.05' and plain['key'] == ''
+	assert calls[0][0] == 'trend_map' and calls[0][1]['alpha'] == 0.05 and calls[0][1]['step'] == 'annual'
+	assert calls[1][1]['alpha'] == 0.05 and calls[1][1]['part'] == 7 and calls[1][1]['quick']
+	assert main['title'].endswith('(p < 0,05) · WDPA 389011') and main['map']['trend'] and px['value'] == 0.007
+	facts = dict(report.item_facts('trend_map', {**ARGS, 'step': 'annual', 'alpha': 0.05}))
+	assert facts['Píxeles'] == 'solo los de tendencia significativa (Mann-Kendall, p < 0,05)'
 
 	# a map of interannual values (of each year): the series of a pixel, by years
 	a.results.append({'id': 2, 'tool': 'map_layer', 'image': None, 'title': 'Mapa',

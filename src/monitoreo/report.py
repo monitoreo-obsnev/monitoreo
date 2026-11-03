@@ -231,6 +231,8 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Tamaño de píxel del cálculo', f"{_num(result['scale'])} m"))
 	if tool == 'trend_table':
 		facts.append(('Significativa si', f"p < {_num(args.get('alpha') or 0.05)}"))
+	if tool in ('trend_map', 'download_trend') and args.get('alpha'):
+		facts.append(('Píxeles', f"solo los de tendencia significativa (Mann-Kendall, p < {_num(args['alpha'])})"))
 	if tool == 'burn_severity' and result.get('burned_ha'):
 		burned = result['burned_ha']
 		facts.append(('Área quemada', '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1

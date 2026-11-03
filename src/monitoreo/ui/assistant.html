@@ -209,6 +209,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <div class="maphead">
       <label>Mapa <select id="mapsel"></select></label>
       <label id="steplabel" hidden title="El mapa de cada año, mes o periodo del resultado (se prepara en Google Earth Engine al elegirlo)"><span id="steptitle">Fecha</span> <select id="mapstep"></select></label>
+      <label id="siglabel" hidden title="Muestra solo los píxeles cuya tendencia es significativa (prueba de Mann-Kendall, p &lt; 0,05)"><input type="checkbox" id="significant"> Solo píxeles significativos (p &lt; 0,05)</label>
       <label>Fondo <select id="basemap">
         <option value="osm">Mapa (OpenStreetMap)</option>
         <option value="eox">Sentinel-2 sin nubes (EOX, todo el mundo)</option>
@@ -656,10 +657,12 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
   $('steptitle').textContent = e.steps_label || 'Fecha';
   $('steplabel').hidden = !steps.length;
   display(id, '', e, true);
+  if (e.map.trend && $('significant').checked) showStep('');  // the box stays as it was
 }
 
 function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page
   current = {id, key, map: m.map, legend: m.legend, title: m.title};
+  $('siglabel').hidden = !m.map.trend;
   if (overlay) overlay.remove();
   overlay = L.tileLayer(m.map.url, {opacity: Number($('opacity').value), maxZoom: 20,
                                     attribution: 'MonitorEO · Google Earth Engine'})
@@ -693,23 +696,31 @@ $('query').onclick = () => {
   mapHint();
 };
 
-async function showStep(key) {  // the map of a year, month or period of the result shown, made the first time
-  if (!current) return;
-  const id = current.id, e = maps[id];
+const SIGNIFICANT = '|p<0.05';  // in the key of a map with only the significant pixels of a trend (as the server)
+const significant = () => !$('siglabel').hidden && $('significant').checked;
+
+async function showStep(key) {  // the map of a year, month or period of the result shown (with only its significant
+  if (!current) return;         // pixels if the box says so), made the first time
+  const id = current.id, e = maps[id], sig = significant(), name = key + (sig ? SIGNIFICANT : '');
   $('pixel').replaceChildren();
-  if (!key) return display(id, '', e, false);
+  if (!name) return display(id, '', e, false);
   e.cache = e.cache || {};
-  if (!e.cache[key]) {
-    const label = $('mapstep').selectedOptions[0]?.textContent || key;
+  if (!e.cache[name]) {
+    const label = ($('mapstep').selectedOptions[0]?.textContent || e.main || key) + (sig ? ', solo píxeles significativos' : '');
     $('maphint').replaceChildren(el('span', {class: 'spinner'}), `Preparando el mapa de ${label} en Google Earth Engine…`);
-    try { e.cache[key] = await api('/api/map/step', {id, key}); } catch (err) {
+    try { e.cache[name] = await api('/api/map/step', {id, key, significant: sig}); } catch (err) {
       notice('No se ha podido preparar ese mapa: ' + err.message, true);
-      if (current.id === id) { $('mapstep').value = current.key; display(id, current.key, current, false); }
+      if (current.id === id) {
+        $('mapstep').value = current.key.replace(SIGNIFICANT, '');
+        $('significant').checked = current.key.endsWith(SIGNIFICANT);
+        display(id, current.key, current, false);
+      }
       return;
     }
   }
-  if (current.id === id && $('mapstep').value === key) display(id, key, e.cache[key], false);
+  if (current.id === id && $('mapstep').value === key && significant() === sig) display(id, name, e.cache[name], false);
 }
+$('significant').onchange = () => showStep($('mapstep').value);
 
 async function refreshTiles(id, key) {  // the tiles of Earth Engine expire after some hours: ask for them again, once
   const name = id + '/' + key;
