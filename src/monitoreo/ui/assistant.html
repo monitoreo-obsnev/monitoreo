@@ -67,6 +67,8 @@ button {
   background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
 }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#map.querying, #map.querying .leaflet-interactive { cursor: default; }  /* querying pixels: an arrow, not a hand */
 button:disabled { opacity: .55; cursor: default; }
 .ok { color: var(--accent); font-weight: 600; }
 .where { font-size: .85em; color: var(--muted); margin: 8px 2px 4px; }
@@ -206,13 +208,14 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div id="mapbox" hidden>
     <div class="maphead">
       <label>Mapa <select id="mapsel"></select></label>
-      <label id="steplabel" hidden title="El mapa de cada año, mes o periodo del resultado (se prepara en Google Earth Engine al elegirlo)">Fecha <select id="mapstep"></select></label>
+      <label id="steplabel" hidden title="El mapa de cada año, mes o periodo del resultado (se prepara en Google Earth Engine al elegirlo)"><span id="steptitle">Fecha</span> <select id="mapstep"></select></label>
       <label>Fondo <select id="basemap">
         <option value="osm">Mapa (OpenStreetMap)</option>
         <option value="eox">Sentinel-2 sin nubes (EOX, todo el mundo)</option>
         <option value="pnoa">Ortofoto PNOA (solo España)</option>
       </select></label>
       <label>Opacidad <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
+      <button id="query" type="button" aria-pressed="false" title="Con la consulta activada, pincha en el mapa para ver el valor de un píxel y su serie temporal">Consultar píxel</button>
       <button id="snapshot" type="button" title="Guarda lo que se ve en el mapa (fondo, encuadre y píxel marcado) como un resultado">Añadir esta vista al informe</button>
     </div>
     <div id="map"></div>
@@ -645,11 +648,12 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
   if (!leaflet) {
     leaflet = L.map('map', {zoomControl: true});
     base = BASES[$('basemap').value]().addTo(leaflet);
-    leaflet.on('click', ev => pixelAt(ev.latlng));
+    leaflet.on('click', ev => { if (querying) pixelAt(ev.latlng); });
   }
   const steps = e.steps || [];
   $('mapstep').replaceChildren(el('option', {value: '', text: e.main || 'Todo el periodo'}),
                                ...steps.map(s => el('option', {value: s.key, text: s.label})));
+  $('steptitle').textContent = e.steps_label || 'Fecha';
   $('steplabel').hidden = !steps.length;
   display(id, '', e, true);
 }
@@ -672,9 +676,22 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
     lg.append(el('span', {text: fmt(m.legend.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
               el('span', {text: fmt(m.legend.max) + (m.legend.unit ? ' ' + m.legend.unit : '')}));
   }
-  $('maphint').textContent = 'Pincha en el mapa para ver ' + (m.map.pixel ? 'el valor de un píxel y ' : '') +
-    'la serie temporal de ese píxel (se calculan en Google Earth Engine).';
+  mapHint();
 }
+
+let querying = false;  // whether a click on the map queries its pixel
+function mapHint() {
+  const what = current && current.map.pixel ? 'el valor de un píxel y su serie temporal' : 'la serie temporal de un píxel';
+  $('maphint').textContent = querying ? `Pincha en el mapa para ver ${what} (se calculan en Google Earth Engine).`
+                                      : `Pulsa «Consultar píxel» para ver ${what}.`;
+}
+$('query').onclick = () => {
+  querying = !querying;
+  $('query').setAttribute('aria-pressed', String(querying));
+  $('query').textContent = querying ? 'Consultando píxeles (pulsa para terminar)' : 'Consultar píxel';
+  $('map').classList.toggle('querying', querying);
+  mapHint();
+};
 
 async function showStep(key) {  // the map of a year, month or period of the result shown, made the first time
   if (!current) return;
@@ -716,7 +733,8 @@ async function pixelAt(latlng) {
     const r = await api('/api/pixel', {id: e.id, key: e.key, lon: latlng.lng, lat: latlng.lat});
     const coord = v => v.toLocaleString('es-ES', {minimumFractionDigits: 5, maximumFractionDigits: 5});
     const head = el('div', {}, el('b', {text: `Píxel ${coord(r.lat)}, ${coord(r.lon)}`}));
-    if (r.value != null) head.append(` · valor en este mapa: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}`);
+    if (r.value != null) head.append(` · ${r.label || 'valor'} en este mapa: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
+                                     (r.p_value != null ? ` (p-valor ${fmt(r.p_value)})` : ''));
     else if (e.map.pixel) head.append(' · sin valor en este mapa (píxel sin datos)');
     const keep = el('button', {type: 'button', text: 'Guardar la serie como resultado'});
     keep.onclick = async () => {

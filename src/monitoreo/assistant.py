@@ -264,7 +264,12 @@ def open_end(args, said, today=None):
 def map_steps(tool, args):
 	"""[{'key', 'label', 'start', 'end'}] of the maps of each step of a result: its years, months or periods of 16
 	days (its step, or the temporal aggregation of its map; years for a whole period), with its season. [] if it is
-	not a map of a variable nor a result over regions, or if it has only one step."""
+	not a map of a variable nor a result over regions, or if it has only one step. Those of a trend are its parts of
+	the year (the trend of each month or 16 days, key 'part:N')."""
+	if tool in ('trend_table', 'trend_map'):
+		n = {'monthly': 12, '16-day': 23}.get(args.get('step'), 0)
+		return [{'key': f'part:{p}', 'label': f'Tendencia de {report.MONTHS[p - 1]}' if n == 12 else
+		         f'Tendencia del periodo {p} de 16 días', 'part': p} for p in range(1, n + 1)]
 	if tool not in PERIOD_MAP + ('map_layer',) or not args.get('start') or not args.get('end'):
 		return []
 	unit = args.get('temporal') if tool in ('map_layer', 'region_stats') else args.get('step')
@@ -291,6 +296,10 @@ def main_label(m, args):
 	year."""
 	a = m['args']
 	period = report.period_text(a['start'], a['end'])
+	if m['tool'] == 'trend_map':
+		if a.get('part'):
+			return next((s['label'] for s in map_steps('trend_map', a) if s['part'] == a['part']), f"Parte {a['part']}")
+		return f'Tendencia anual: pendiente de Sen de los valores de cada año ({period})'
 	if a.get('temporal') in UNITS:
 		stat = report.STATS.get(a.get('interannual') or 'mean', a.get('interannual'))
 		return f"Valor interanual: {stat} de los {UNITS[a['temporal']]} ({period})"
@@ -761,7 +770,7 @@ class Assistant:
 					yield event
 			if args is None:
 				return
-		title = _title(name, args)
+		title = self.titled(name, args)
 		if name in RESULTS + TASKS:
 			problem = self.not_ready()
 			if problem:
@@ -812,7 +821,7 @@ class Assistant:
 			                                  result.get('min'), result.get('max'))
 			images = [preview] if preview else []
 		item = {'id': len(self.results) + 1, 'tool': name, 'args': args, 'result': result,
-		        'image': images[0] if images else None, 'title': _title(name, args)}
+		        'image': images[0] if images else None, 'title': title}
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
 		self._tool_message(name, receipt(item['id'], item['title']))
@@ -832,28 +841,34 @@ class Assistant:
 		a = item['args']
 		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality', 'collection')
 		        if a.get(k) is not None}
-		if item['tool'] == 'region_stats':
+		tool = 'map_layer'
+		if item['tool'] == 'trend_table':  # the trend of the values of each year on each pixel
+			tool = 'trend_map'
+			args.update(step='annual', metric=a.get('metric') or 'mean')
+		elif item['tool'] == 'region_stats':
 			args.update({k: a[k] for k in ('metric', 'temporal', 'interannual') if a.get(k) is not None})
 		else:
 			end = dt.date.fromisoformat(args['end'][:10])
 			year_before = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
 			args.update(start=max(args['start'], (year_before + dt.timedelta(days=1)).isoformat()), metric='median')
 		try:
-			error, texts, _ = await self.call('map_layer', {**args, 'quick': True})  # tiles only, in seconds
+			error, texts, _ = await self.call(tool, {**args, 'quick': True})  # tiles only, in seconds
 			result = json.loads(texts[0]) if not error and texts else {}
 		except Exception as e:
 			error, result = str(e), {}
 		if not isinstance(result, dict) or not result.get('url'):
-			_log({'tool': 'map_layer', 'call': args, 'answer': f'(mapa del resultado {item["id"]}) {error}'})
+			_log({'tool': tool, 'call': args, 'answer': f'(mapa del resultado {item["id"]}) {error}'})
 			return None
-		item['map'] = {'tool': 'map_layer', 'args': args, 'result': result, 'title': _title('map_layer', args)}
-		return {'type': 'map', 'id': item['id'], **self.map_card(item['map']), **self.steps_card(item)}
+		item['map'] = {'tool': tool, 'args': args, 'result': result, 'title': self.titled(tool, args)}
+		return {'type': 'map', 'id': item['id'], **self.map_card(item['map']), **self.steps_card(item),
+		        'title': item['title']}  # in the list of maps, that of the result
 
 	def steps_card(self, item):
 		"""What the page offers of the maps of each step of the result ITEM (see map_steps): {'main', 'steps'}."""
 		_, m = self.map_of(item['id'])
 		item.setdefault('steps', map_steps(item['tool'], item['args']))
-		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']]}
+		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']],
+		        'steps_label': 'Parte del año' if m['tool'] == 'trend_map' else 'Fecha'}
 
 	async def step_map(self, rid, key):
 		"""The map of the step KEY of the result RID (see map_steps), made the first time with the colours of the
@@ -865,15 +880,17 @@ class Assistant:
 			if not step:
 				raise ValueError('ese mapa no existe')
 			a = item['args']
-			args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
-			args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+			if 'part' in step:  # the trend of a part of the year
+				tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
+			else:
+				tool = 'map_layer'
+				args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
+				args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
 			r = main['result']
-			error, texts, _ = await self.call('map_layer', {**args, 'vmin': r.get('min'), 'vmax': r.get('max'),
-			                                                'quick': True})
+			error, texts, _ = await self.call(tool, {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': True})
 			if error:
 				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
-			maps[key] = {'tool': 'map_layer', 'args': args, 'result': json.loads(texts[0]),
-			             'title': _title('map_layer', args)}
+			maps[key] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
 		return {'key': key, **self.map_card(maps[key])}
 
 	async def ask_manual(self, args):
@@ -923,10 +940,11 @@ class Assistant:
 		"""What the map of the page shows of the map M (a result with tiles, or the map of the period of one)."""
 		result = m['result']
 		out = {'title': m['title'], 'legend': None,
-		       'map': {'url': result['url'], 'bounds': result['bounds'], 'pixel': m['tool'] == 'map_layer'}}
+		       'map': {'url': result['url'], 'bounds': result['bounds'],
+		               'pixel': m['tool'] in ('map_layer', 'trend_map')}}  # with the value of the pixel
 		if result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
-			                 'unit': report.unit_text(result.get('unit'))}
+			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
 		return out
 
 	def map_of(self, rid, key=None):
@@ -951,8 +969,18 @@ class Assistant:
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
 		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
 		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
-		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(m['result'].get('unit'))}
-		if m['tool'] == 'map_layer':
+		unit = str(m['result'].get('unit'))
+		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
+		       'label': 'valor'}
+		if m['tool'] == 'trend_map':  # the trend at the pixel: Mann-Kendall and Sen of its part of the year
+			ma = m['args']
+			error, texts, _ = await self.call('trend_table', {
+				**base, 'region': point, 'start': ma['start'], 'end': ma['end'], 'step': ma.get('step') or 'annual',
+				'metric': ma.get('metric') or 'mean'})
+			trend = json.loads(texts[0]) if not error and texts else {}
+			row = next((r for r in trend.get('trends') or [] if not ma.get('part') or r.get('part') == ma['part']), {})
+			out.update(value=row.get('slope'), p_value=row.get('p_value'), label='pendiente de Sen')
+		elif m['tool'] == 'map_layer':
 			ma = m['args']
 			error, texts, _ = await self.call('region_stats', {
 				**base, 'region': point, 'start': ma['start'], 'end': ma['end'], 'metric': ma.get('metric') or 'median',
@@ -1002,7 +1030,7 @@ class Assistant:
 		some hours)."""
 		_, m = self.map_of(rid, key)
 		args, result = m['args'], m['result']
-		if m['tool'] == 'map_layer':  # only the tiles, with the same colours
+		if m['tool'] in ('map_layer', 'trend_map'):  # only the tiles, with the same colours
 			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max'), 'quick': True}
 		error, texts, _ = await self.call(m['tool'], args)
 		if error:
@@ -1030,6 +1058,26 @@ class Assistant:
 	def all_names(self):
 		"""The names of the regions for the user: protected areas (by WDPA ID) and layers (by file)."""
 		return {**{v['file']: f'Área de estudio «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
+
+	def titled(self, tool, args):
+		"""The title of a result, with the name of its region (results of the same thing in other areas differ) and
+		the part of the year of a trend map."""
+		region, title = self.region_name(args), _title(tool, args)
+		if tool == 'trend_map' and args.get('part'):
+			label = next((s['label'] for s in map_steps(tool, args) if s['part'] == args['part']), '')
+			title += f" ({label.replace('Tendencia de', '').replace('Tendencia del', '').strip()})" if label else ''
+		return title + (f' · {region}' if region else '')
+
+	def region_name(self, args):
+		"""A short name of the region of ARGS: the protected area, the area of study, the pixel..."""
+		region = args.get('region') if isinstance(args.get('region'), dict) else args.get('area')
+		if not isinstance(region, dict):
+			return ''
+		if 'wdpa_id' in region:
+			ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
+			return '; '.join(self.names.get(str(i), f'WDPA {i}') for i in ids)
+		key = next((k for k, v in self.layers.items() if v['file'] == region.get('file')), None)
+		return f'área de estudio «{key}»' if key else report.region_text(region, self.all_names())
 
 	def user_text(self):
 		return ' '.join(m['content'] for m in self.messages if m['role'] == 'user')

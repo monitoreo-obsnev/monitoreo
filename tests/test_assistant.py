@@ -111,7 +111,8 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	# the map of the variable over the period of the series, without its preview (only the tiles), for the page
 	shown = next(e for e in events if e['type'] == 'map')
 	assert shown['id'] == 1 and shown['map'] == {'url': MAP['url'], 'bounds': MAP['bounds'], 'pixel': True}
-	assert shown['legend']['palette'] == MAP['palette'] and shown['title'].startswith('Mapa')
+	assert shown['legend']['palette'] == MAP['palette'] and shown['title'] == result['title']  # the list of maps
+	assert result['title'].endswith(' · Sierra Nevada (Parque Nacional)')  # the region, in the titles
 	assert a.mapped == {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	                    'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': True}
 	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped.items() if k != 'quick'}
@@ -483,10 +484,19 @@ def test_map_steps():
 	assert assistant.map_steps('compare_map', {'start': '2018-01-01', 'end': '2024-12-31'}) == []
 	assert len(assistant.map_steps('time_series', {'start': '1984-01-01', 'end': '2024-12-31', 'step': 'daily'})) == \
 	       assistant.MAX_MAP_STEPS  # the last ones
-	m = {'args': {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual', 'interannual': 'median'}}
+	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
+	                                   'interannual': 'median'}}
 	assert assistant.main_label(m, m['args']) == 'Valor interanual: mediana de los años (2018-2024)'
-	m = {'args': {'start': '2018-01-01', 'end': '2024-12-31'}}
+	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31'}}
 	assert assistant.main_label(m, m['args']) == 'Todo el periodo (2018-2024)'
+	# a trend: the annual one, and that of each month
+	steps = assistant.map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})
+	assert len(steps) == 12 and steps[6] == {'key': 'part:7', 'label': 'Tendencia de julio', 'part': 7}
+	assert assistant.map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}) == []
+	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}}
+	assert assistant.main_label(m, m['args']).startswith('Tendencia anual: pendiente de Sen')
+	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'part': 7}}
+	assert assistant.main_label(m, m['args']) == 'Tendencia de julio'
 
 
 def test_interannual():
@@ -631,8 +641,11 @@ def test_map_and_pixel():
 			calls.append((name, args))
 			if name == 'region_stats':
 				return None, [json.dumps({'rows': [{'region': 'point', 'mean': 0.42, 'n_pixels': 1}], 'unit': '[unitless]'})], []
-			if name == 'map_layer':
-				return None, [json.dumps({'url': 'https://ee/new/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0]})], []
+			if name in ('map_layer', 'trend_map'):
+				return None, [json.dumps({'url': 'https://ee/new/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0],
+				                          'unit': '[unitless] / year' if name == 'trend_map' else '[unitless]'})], []
+			if name == 'trend_table':
+				return None, [json.dumps({'trends': [{'part': p, 'slope': p / 1000, 'p_value': 0.2} for p in (1, 7)]})], []
 			return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
 
 	async def run():
@@ -689,13 +702,38 @@ def test_map_and_pixel():
 
 	shown, px = asyncio.run(step())
 	assert shown['key'] == '2019-03-01/2019-03-31'
-	assert shown['title'] == 'Mapa de NDVI (Sentinel-2), 1 mar 2019 - 31 mar 2019'
+	assert shown['title'] == 'Mapa de NDVI (Sentinel-2), 1 mar 2019 - 31 mar 2019 · WDPA 389011'
 	assert calls[0] == ('map_layer', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'vmin': None,
 	                                  'vmax': None, 'quick': True})
 	assert calls[1][0] == 'region_stats' and calls[1][1]['start'] == '2019-03-01' and calls[2][0] == 'time_series'
 	with pytest.raises(ValueError, match='no existe'):
 		asyncio.run(a.step_map(1, '1990-01-01/1990-01-31'))
+
+	# a trend: the map of the annual one, and of a month; their tiles again, with the same colours
+	async def trend():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'median'}
+		a.results.append({'id': 1, 'tool': 'trend_table', 'args': args, 'result': {}, 'image': None, 'title': 'T'})
+		calls.clear()
+		shown = await a.period_map(a.results[0])
+		month = await a.step_map(1, 'part:7')
+		await a.refresh_map(1, 'part:7')
+		return shown, month, await a.pixel(1, -3.55, 36.95, 'part:7')
+
+	shown, month, px = asyncio.run(trend())
+	assert month['title'].startswith('Mapa de la tendencia de NDVI (Sentinel-2), 2018-2024 (julio)')
+	assert month['legend'] is None or month['legend']['unit'] == 'por año'
+	assert px['value'] == 0.007 and px['p_value'] == 0.2  # the slope of July at the pixel
+	assert px['label'] == 'pendiente de Sen' and px['unit'] == 'por año'
+	assert calls[3][0] == 'trend_table' and calls[3][1]['step'] == 'monthly' and calls[3][1]['region'] == {
+		'point': [-3.55, 36.95]}
+	assert calls[0] == ('trend_map', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
+	                                  'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual',
+	                                  'metric': 'median', 'quick': True})
+	assert shown['steps_label'] == 'Parte del año' and shown['steps'][6]['label'] == 'Tendencia de julio'
+	assert calls[1][0] == 'trend_map' and calls[1][1]['step'] == 'monthly' and calls[1][1]['part'] == 7
+	assert calls[2][0] == 'trend_map' and calls[2][1]['quick'] and calls[2][1]['part'] == 7
 
 	# a map of interannual values (of each year): the series of a pixel, by years
 	a.results.append({'id': 2, 'tool': 'map_layer', 'image': None, 'title': 'Mapa',

@@ -468,11 +468,13 @@ def _trend(region, variable, sensor, start, end, step, part, metric, season, qua
 
 def trend_map(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, output='slope',
               metric='mean', season=None, quality=None, alpha=None, vmin=None, vmax=None, palette=None,
-              thumbnail=None, **source):
+              thumbnail=None, quick=False, **source):
 	"""Map of the trend of a part of the year (PART: month 1-12 with STEP 'monthly', 1-23 with '16-day', none with
 	'annual') of a variable over REGION, computed on each pixel: OUTPUT is 'slope' (Sen, per year), 'tau', 'z',
 	'p_value', 'intercept' or 'n' (years with data); ALPHA (e.g. 0.05) leaves only the pixels with p_value < ALPHA.
-	Earth Engine tiles (the values cannot be queried: download_trend for that).
+	Earth Engine tiles (the values cannot be queried: download_trend for that). QUICK: with a fixed colour ramp
+	(slope: ±2 % of the range of the variable in the catalog per year) instead of that of the map, which takes
+	minutes over big regions and long periods.
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'}."""
 	if output not in trends.OUTPUTS:
 		raise ValueError(f"unknown output {output}: use {', '.join(trends.OUTPUTS)}")
@@ -480,7 +482,14 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	                                                quality, alpha, None, source)
 	band = img.select(output)
 	vis = trends.vis(output)
-	if vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None)):
+	if quick and (vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None))):
+		entry = variable_entry(spec) or {}
+		span = entry.get('maxp', 1) - entry.get('minp', 0) if all(
+			isinstance(entry.get(k), (int, float)) for k in ('minp', 'maxp')) else 1
+		years = int(str(end)[:4]) - int(str(start)[:4]) + 1
+		lo, hi = {'slope': (-0.02 * span, 0.02 * span), 'n': (0, years)}.get(output, (None, None))
+		vis = trends.vis(output, lo, hi) or maps.vis_params(band.rename('value'), None, entry, native, compute=False)
+	elif vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None)):
 		auto = maps.vis_params(band.rename('value'), regions.geometry(), variable_entry(spec), native)
 		vis = trends.vis(output, auto['min'], auto['max']) or auto
 	vis = dict(vis, **({'min': vmin} if vmin is not None else {}), **({'max': vmax} if vmax is not None else {}))

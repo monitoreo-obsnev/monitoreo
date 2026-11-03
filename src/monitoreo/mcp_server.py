@@ -297,16 +297,19 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 def trend_map(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
               part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
               season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
-              collection: Optional[str] = None):
+              collection: Optional[str] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
+              quick: bool = False):
 	"""Map of the trend of a part of the year computed on each pixel (see trend_table): part is the month (1-12)
 	with step 'monthly', 1-23 with '16-day', nothing with 'annual'; output 'slope' (Sen, per year), 'tau', 'z',
 	'p_value', 'intercept' or 'n' (years with data); alpha (e.g. 0.05) keeps only the significant pixels. Returns
-	the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview."""
+	the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview. quick: only the tiles, at once
+	(without the preview, and with a fixed colour ramp instead of that of the map)."""
 	_ready()
-	thumb = _out(f'trend_{variable}_{sensor}_{step}_{part}_{output}', 'png')
+	thumb = None if quick else _out(f'trend_{variable}_{sensor}_{step}_{part}_{output}', 'png')
 	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
-	                         quality=quality, alpha=alpha, thumbnail=thumb, collection=collection)
-	return [_text(res), Image(path=res['thumbnail'])]
+	                         quality=quality, alpha=alpha, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
+	                         collection=collection)
+	return [_text(res)] + ([Image(path=res['thumbnail'])] if thumb else [])
 
 
 @tool
