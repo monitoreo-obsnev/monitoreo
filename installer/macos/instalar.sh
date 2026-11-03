@@ -96,7 +96,7 @@ main() {
 	chmod +x "$APP/Contents/MacOS/asistente"
 
 	echo
-	echo "Listo. El asistente se abre ahora en su ventana; para cerrarlo, cierra la ventana o pulsa «Cerrar el asistente»."
+	echo "Listo. El asistente se abre ahora en su ventana; para cerrarlo, cierra esa ventana."
 	echo "Para abrirlo otra vez: doble clic en «Asistente de MonitorEO» del Escritorio. Ya puedes cerrar el Terminal."
 	open "$APP"
 }

@@ -58,7 +58,7 @@ if exist "%DIR%\Asistente de MonitorEO.bat" del "%DIR%\Asistente de MonitorEO.ba
 powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Asistente de MonitorEO.lnk')); $s.TargetPath = Join-Path $env:ENV 'pythonw.exe'; $s.Arguments = '-s -m monitoreo.cli assistant'; $s.WorkingDirectory = $env:DIR; $s.IconLocation = (Join-Path $env:ENV 'python.exe') + ',0'; $s.Save()"
 
 echo.
-echo Listo. El asistente se abre ahora en su ventana; para cerrarlo, cierra la ventana o pulsa "Cerrar el asistente".
+echo Listo. El asistente se abre ahora en su ventana; para cerrarlo, cierra esa ventana.
 echo Para abrirlo otra vez: doble clic en "Asistente de MonitorEO" del Escritorio. Ya puedes cerrar esta ventana.
 start "" "%ENV%\pythonw.exe" -s -m monitoreo.cli assistant
 exit /b

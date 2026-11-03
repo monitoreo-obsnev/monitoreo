@@ -573,6 +573,7 @@ class Assistant:
 		self.quit = None  # stops the web server (see run)
 		self.restart = False  # whether run starts it again (after an update)
 		self.update_info = None  # see check_update
+		self.in_window = False  # whether the page is in a window of its own (closing it closes the assistant)
 		self.reset()
 
 	def base(self):
@@ -1296,6 +1297,7 @@ def make_app(assistant, token, port):
 		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
 		                     'update': assistant.update_info, 'busy': assistant.running(),
+		                     'window': assistant.in_window,
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
 
 	async def signin(request):
@@ -1484,7 +1486,7 @@ def run(port=PORT, browser=True, window=True):
 		json.dump({'port': port, 'token': token, 'pid': os.getpid()}, f)
 	url = f'http://127.0.0.1:{port}/?t={token}'
 	print(f'Assistant of MonitorEO {__version__}: {url} (Ctrl+C to stop it)', file=sys.stderr)
-	in_window = window and _webview() is not None
+	in_window = assistant.in_window = window and _webview() is not None
 	try:
 		if in_window:  # the server in a thread, the window in this one (macOS wants it so)
 			thread = threading.Thread(target=server.run, daemon=True)
@@ -1494,14 +1496,19 @@ def run(port=PORT, browser=True, window=True):
 					break
 				time.sleep(0.1)
 
+			asked = threading.Event()  # closed by Cerrar (which asked already), an update or the terminal
+
 			def ready(win):  # Cerrar, an update or the window of the terminal closed: the window too
-				assistant.quit = lambda: (assistant.end_streams(), setattr(server, 'should_exit', True), win.destroy())
-			in_window = _show_window(url, ready)
+				assistant.quit = lambda: (asked.set(), assistant.end_streams(), setattr(server, 'should_exit', True),
+				                          win.destroy())
+			in_window = _show_window(url, ready, lambda: assistant.running() and not asked.is_set())
 			if in_window:  # the window was closed
 				assistant.end_streams()
 				server.should_exit = True
-			elif browser:
-				webbrowser.open(url)
+			else:
+				assistant.in_window = False
+				if browser:
+					webbrowser.open(url)
 			thread.join()
 		else:
 			if browser:
@@ -1539,9 +1546,23 @@ def _webview():
 		return None
 
 
-def _show_window(url, ready=None):
-	"""Show URL in a window of its own and wait until it is closed (READY(window) when it is created); False if this
-	computer cannot open it."""
+WINDOW_TEXTS = {  # of pywebview: the question when the window closes while computing, and the menu of macOS
+	'global.quitConfirmation': 'Hay un cálculo en marcha y se perderá. ¿Cerrar el asistente? Se cierra también el '
+	                           'motor de los modelos; los resultados, las áreas de estudio y los informes se quedan en '
+	                           'la carpeta MonitorEO.',
+	'global.ok': 'Aceptar', 'global.quit': 'Cerrar', 'global.cancel': 'Cancelar', 'global.saveFile': 'Guardar archivo',
+	'cocoa.menu.about': 'Acerca de', 'cocoa.menu.services': 'Servicios', 'cocoa.menu.view': 'Visualización',
+	'cocoa.menu.edit': 'Edición', 'cocoa.menu.hide': 'Ocultar', 'cocoa.menu.hideOthers': 'Ocultar otros',
+	'cocoa.menu.showAll': 'Mostrar todo', 'cocoa.menu.quit': 'Salir de', 'cocoa.menu.fullscreen': 'Pantalla completa',
+	'cocoa.menu.cut': 'Cortar', 'cocoa.menu.copy': 'Copiar', 'cocoa.menu.paste': 'Pegar',
+	'cocoa.menu.selectAll': 'Seleccionar todo', 'windows.fileFilter.allFiles': 'Todos los archivos',
+	'windows.fileFilter.otherFiles': 'Otros tipos de archivo', 'linux.openFile': 'Abrir archivo',
+	'linux.openFiles': 'Abrir archivos', 'linux.openFolder': 'Abrir carpeta'}
+
+
+def _show_window(url, ready=None, busy=None):
+	"""Show URL in a window of its own and wait until it is closed (READY(window) when it is created); closing it
+	(or quitting, Cmd+Q in macOS) asks first while BUSY() is true. False if this computer cannot open it."""
 	webview = _webview()
 	if webview is None:
 		return False
@@ -1550,9 +1571,11 @@ def _show_window(url, ready=None):
 		webview.settings['ALLOW_DOWNLOADS'] = True  # CSV and GeoTIFF
 		win = webview.create_window('Asistente de MonitorEO', url, width=1400, height=900, min_size=(720, 520),
 		                            text_select=True)
+		if busy:  # pywebview asks (confirm_close) after this event, in the thread of the window
+			win.events.closing += lambda: setattr(win, 'confirm_close', bool(busy()))
 		if ready:
 			ready(win)
-		webview.start()
+		webview.start(localization=WINDOW_TEXTS)
 		return True
 	except Exception as e:
 		print(f'WARNING: cannot open a window of its own ({type(e).__name__}: {e}): the browser instead',

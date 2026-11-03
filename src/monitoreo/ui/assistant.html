@@ -343,6 +343,7 @@ async function refresh() {
   if (ready && !refresh.done) $('setup').open = false;
   refresh.done = true;
   $('nres').textContent = state.results;
+  $('quit').hidden = !!state.window;  // in a window of its own, its cross closes it (and asks while computing)
   const up = state.update;
   $('update').hidden = !(up && up.available);
   if (up) $('update').title = `Hay una versión nueva de MonitorEO (${up.latest}); tienes la ${up.current || 'de antes'}`;

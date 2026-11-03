@@ -553,6 +553,28 @@ def test_update_in_window(monkeypatch):
 	assert 'Actualizando MonitorEO' in windows[0]['html'] and windows[1] == 'closed'
 
 
+def test_window_asks_while_computing(monkeypatch):
+	# the cross of the window (or Cmd+Q) asks before closing only while something is computed, as Cerrar
+	import sys
+	import types
+
+	class Handlers(list):
+		def __iadd__(self, func):
+			self.append(func)
+			return self
+	win = types.SimpleNamespace(confirm_close=False, events=types.SimpleNamespace(closing=Handlers()))
+	texts, busy = {}, [True]
+	fake = types.SimpleNamespace(settings={}, create_window=lambda *a, **k: win,
+	                             start=lambda localization=None: texts.update(localization))
+	monkeypatch.setitem(sys.modules, 'webview', fake)
+	assert assistant._show_window('http://127.0.0.1:1/', busy=lambda: busy[0])
+	win.events.closing[0]()
+	assert win.confirm_close is True and 'cálculo en marcha' in texts['global.quitConfirmation']
+	busy[0] = False
+	win.events.closing[0]()
+	assert win.confirm_close is False and texts['global.quit'] == 'Cerrar'
+
+
 def test_events_of_the_conversation(monkeypatch):
 	answers = iter([{'content': 'Primera respuesta.'}, {'content': 'Segunda.'}])
 	monkeypatch.setattr(assistant, 'chat_model', lambda *a: next(answers))
