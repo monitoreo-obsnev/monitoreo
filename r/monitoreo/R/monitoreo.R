@@ -1,11 +1,6 @@
 # MonitorEO (OBSNEV) for R: the functions of the Python package monitoreo (monitoreo.services) through reticulate,
 # so R computes exactly the same as the QGIS plugin and the MCP server. With rgee, the images of mo_image() are
 # Earth Engine objects that rgee::Map$addLayer() shows.
-#
-# Every function computes in Google's cloud (Google Earth Engine, with your Google account and project), except
-# mo_time_series() and mo_download_image() with where = "local": on this computer, with the open data of Microsoft
-# Planetary Computer and no account (Sentinel-2 and Landsat). Before computing, every function says where it
-# computes and which credentials it needs (a message; on this computer, also how many images and megabytes it reads).
 
 .mo <- new.env(parent = emptyenv())
 
@@ -77,34 +72,6 @@ mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   invisible(services()$init(project))
 }
 
-#' Where a computation runs and which credentials it needs: "gee" (in Google's cloud, Google Earth Engine, with your
-#' Google account and a Google Cloud project: the default of every function) or "local" (on this computer, with the
-#' open data of Microsoft Planetary Computer and no account: mo_time_series() and mo_download_image() of Sentinel-2
-#' and Landsat). A list with where, computed_on, data and credentials (and project, for "gee").
-#' @export
-mo_where <- function(where = "gee") services()$where_info(where)
-
-#' What a computation will do, before doing it: where it runs and which credentials it needs and, on this computer
-#' (where = "local"), how many images and megabytes it reads (it searches the catalog, without reading them), the
-#' steps and scale of the time series of `step`, or the resolution of the map (step = NULL), and how it differs from
-#' Earth Engine (notes).
-#' @export
-mo_plan <- function(region, variable, sensor, start, end, step = NULL, metric = "mean", temporal = "period",
-                    interannual = "mean", season = NULL, quality = NULL, scale = NULL, resolution = NULL,
-                    crs = "auto", where = "gee", collection = NULL) {
-  services()$plan(region, variable, sensor, start, end, step, metric, temporal, interannual, season, quality,
-                  scale, resolution, crs, where = where, collection = collection)
-}
-
-# Say where a computation runs and which credentials it needs, before running it (a message, which
-# suppressMessages() hides). INFO: from mo_where() or mo_plan().
-say_where <- function(info) {
-  message(services()$where_text(info))
-  invisible(info)
-}
-
-say_gee <- function() say_where(services()$where_info("gee"))
-
 # A list of Python dictionaries (rows) as a data.frame, with dates as Date and None as NA.
 rows_df <- function(rows) {
   if (length(rows) == 0) return(data.frame())
@@ -132,7 +99,6 @@ mo_describe <- function(variable, sensor = NULL, collection = NULL) {
 #' Protected areas of WDPA whose name contains `text` (SITE_ID is the WDPA ID).
 #' @export
 mo_protected_areas <- function(text, limit = 20) {
-  say_gee()
   rows_df(services()$find_protected_areas(text, as.integer(limit)))
 }
 
@@ -167,22 +133,17 @@ mo_sf <- function(x, name = NULL) {
 #' Time series of a variable over a region: a value per step ("daily", "16-day", "monthly", "annual") and feature
 #' of the region, reduced in time with `metric` and over the region with `stat`, with the number of images and of
 #' valid pixels of each value. Returns a data.frame (region, date, value, n_pixels, n_images) with the attributes
-#' title, unit, scale, csv, where, computed_on and credentials.
-#' @param where "gee" (Google Earth Engine) or "local" (this computer, without an account: Sentinel-2 and Landsat;
-#'   see mo_where()).
+#' title, unit and scale.
 #' @export
 mo_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean", stat = "mean",
-                           season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
-                           where = "gee") {
-  s <- services()
-  say_where(if (where == "local") {
-    mo_plan(region, variable, sensor, start, end, step, metric, season = season, quality = quality, scale = scale,
-            where = where, collection = collection)
-  } else s$where_info(where))
-  res <- s$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
-                       quality = quality, scale = scale, csv = csv, collection = collection, where = where)
+                           season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL) {
+  res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
+                                quality = quality, scale = scale, csv = csv, collection = collection)
   df <- rows_df(res$rows)
-  for (k in c("title", "unit", "scale", "csv", "where", "computed_on", "credentials")) attr(df, k) <- res[[k]]
+  attr(df, "title") <- res$title
+  attr(df, "unit") <- res$unit
+  attr(df, "scale") <- res$scale
+  attr(df, "csv") <- res$csv
   df
 }
 
@@ -212,7 +173,6 @@ mo_plot <- function(ts) {
 mo_map_layer <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
                          thumbnail = NULL, collection = NULL) {
-  say_gee()
   services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
                        vmax, thumbnail = thumbnail, collection = collection)
 }
@@ -229,7 +189,6 @@ mo_leaflet <- function(layer) {
 #' @export
 mo_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                      interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL) {
-  say_gee()
   s <- services()
   out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                            clip, collection = collection)
@@ -246,7 +205,6 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
 #' @export
 mo_region_stats <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, scale = NULL, collection = NULL) {
-  say_gee()
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
                                  quality = quality, scale = scale, collection = collection)
   df <- rows_df(res$rows)
@@ -261,7 +219,6 @@ mo_region_stats <- function(region, variable, sensor, start, end, metric = "medi
 mo_export_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
                             name = NULL, collection = NULL) {
-  say_gee()
   services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
                           quality = quality, resolution = resolution, crs = crs, folder = folder, name = name,
                           collection = collection)
@@ -272,29 +229,21 @@ mo_export_image <- function(region, variable, sensor, start, end, metric = "medi
 mo_export_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean",
                                   stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
                                   name = NULL, collection = NULL) {
-  say_gee()
   services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality, scale,
                                   folder, name, collection = collection)
 }
 
 #' Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed by
-#' Earth Engine in tiles: for small regions (big ones: mo_export_image()). Returns the path, the grid, the number
-#' of images and where it was computed.
+#' Earth Engine in tiles: for small regions (big ones: mo_export_image()). Returns the path, the grid and the number
+#' of images.
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs "auto" (UTM zone of the region) or a code such as "EPSG:25830".
-#' @param where "gee" (Google Earth Engine) or "local" (computed on this computer, without an account: Sentinel-2
-#'   and Landsat; see mo_where()).
 #' @export
 mo_download_image <- function(region, variable, sensor, start, end, path, metric = "median", temporal = "period",
                               interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                              clip = TRUE, collection = NULL, where = "gee") {
-  s <- services()
-  say_where(if (where == "local") {
-    mo_plan(region, variable, sensor, start, end, NULL, metric, temporal, interannual, season, quality,
-            resolution = resolution, crs = crs, where = where, collection = collection)
-  } else s$where_info(where))
-  s$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, resolution,
-                   crs, path.expand(path), clip, collection = collection, where = where)
+                              clip = TRUE, collection = NULL) {
+  services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                            resolution, crs, path.expand(path), clip, collection = collection)
 }
 
 #' Download a recipe of variables (several variables and metrics, see the Python module monitoreo.recipe) as
@@ -309,7 +258,6 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
                                   overwrite = FALSE, wait = TRUE, drive_dir = NULL) {
   if (is.character(recipe)) recipe <- path.expand(recipe)
   if (is.character(area)) area <- path.expand(area)
-  say_gee()
   services()$download_variables(recipe, area, path.expand(folder), layer, only = only, dry_run = dry_run,
                                 overwrite = overwrite, drive_dir = drive_dir, wait = wait,
                                 log = function(msg) message(msg))
@@ -324,7 +272,6 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 mo_trend_table <- function(region, variable, sensor, start, end, step = "annual", metric = "mean", stat = "mean",
                            season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL, chart = NULL,
                            collection = NULL) {
-  say_gee()
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
                                 collection = collection)
@@ -342,7 +289,6 @@ mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", 
                          metric = "mean", season = NULL, quality = NULL, alpha = NULL, thumbnail = NULL,
                          collection = NULL) {
   if (!is.null(part)) part <- as.integer(part)
-  say_gee()
   services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
                        quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection)
 }
@@ -354,7 +300,6 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
                               crs = "auto", collection = NULL) {
   if (!is.null(part)) part <- as.integer(part)
-  say_gee()
   services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
                             resolution, crs, path.expand(path), collection = collection)
 }
@@ -367,7 +312,6 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
                               metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
                               csv = NULL, chart = NULL, collection = NULL) {
-  say_gee()
   res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
                                    season = season, quality = quality, scale = scale, csv = csv, chart = chart,
                                    collection = collection)
@@ -382,7 +326,6 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
 #' @export
 mo_compare_map <- function(region, variable, sensor, start, end, other_start, other_end, metric = "median",
                            temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL) {
-  say_gee()
   services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                          season = season, quality = quality, thumbnail = thumbnail, collection = collection)
 }
@@ -393,7 +336,6 @@ mo_compare_map <- function(region, variable, sensor, start, end, other_start, ot
 mo_download_comparison <- function(region, variable, sensor, start, end, other_start, other_end, path,
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
                                    resolution = NULL, crs = "auto", collection = NULL) {
-  say_gee()
   services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                  season = season, quality = quality, resolution = resolution, crs = crs,
                                  path = path.expand(path), collection = collection)
@@ -407,7 +349,6 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
                              csv = NULL) {
-  say_gee()
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
                                   path = if (is.null(path)) NULL else path.expand(path), csv = csv)

@@ -151,11 +151,11 @@ def band_names(entry):
 	return _band_names[col]
 
 
-def parse_formula(entry, names=None):
+def parse_formula(entry):
 	"""(kind, bands) of the formula of ENTRY: ('nd', [b1, b2]) for N(b1,b2), else ('expr', {name: band}) with the
-	band of every name of the expression (matched without case) among NAMES (default: the bands of its collection)."""
+	band of every name of the expression (matched without case)."""
 	ft = entry['ft'].strip()
-	names = names or band_names(entry)
+	names = band_names(entry)
 	lower = {b.lower(): b for b in names}
 
 	def band(name):

@@ -4,9 +4,8 @@
     monitoreo info VARIABLE [--sensor S]             everything about a variable
     monitoreo parks TEXT                             protected areas of WDPA with TEXT in their name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
-                     [--local] [--plan]
     monitoreo image VARIABLE --sensor S --region JSON --start D --end D --out F.tif [--metric median]
-                    [--resolution M] [--local] [--plan]      GeoTIFF of the map of a variable aggregated in time
+                    [--resolution M]                 GeoTIFF of the map of a variable aggregated in time
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
@@ -19,11 +18,6 @@
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
-
-Before computing, every command says where it computes and which credentials it needs: in Google Earth Engine (a
-Google account and a project), or, for series and image with --local, on this computer with the open data of
-Microsoft Planetary Computer (no account; Sentinel-2 and Landsat; it also says how many images and megabytes it
-reads). --plan says only that, without computing.
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
@@ -77,7 +71,6 @@ def main(argv=None):
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
 	p.add_argument('--png')
-	_where_args(p)
 	p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, aggregated in time')
 	p.add_argument('variable')
 	p.add_argument('--sensor', required=True)
@@ -89,7 +82,6 @@ def main(argv=None):
 	p.add_argument('--interannual', default='mean')
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
 	p.add_argument('--out', required=True, help='GeoTIFF file')
-	_where_args(p)
 	for name, help_ in (('trend', 'seasonal trends (Mann-Kendall and Sen) of a variable over a region'),
 	                    ('compare', 'a reference period against another, by part of the year')):
 		p = sub.add_parser(name, help=help_)
@@ -156,57 +148,25 @@ def main(argv=None):
 		return
 	if args.cmd == 'download':
 		return _download(args, services)
-	if args.cmd in ('series', 'image'):
-		return _series_or_image(args, services)
 	services.init(args.project)
-	print(services.where_text(services.where_info('gee')), file=sys.stderr)
 	if args.cmd == 'parks':
 		_table(_fmt(services.find_protected_areas(args.text, args.limit)), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)
 		return
-
-
-def _where_args(p):
-	p.add_argument('--local', action='store_true',
-	               help='compute on this computer, with the open data of Microsoft Planetary Computer and no account '
-	                    '(Sentinel-2 and Landsat); default: in Google Earth Engine, with your account and project')
-	p.add_argument('--plan', action='store_true',
-	               help='only say where it would compute, with which credentials and (--local) how much it would read')
-
-
-def _series_or_image(args, services):
-	"""series and image: say where they compute and what they need (and read), then compute, unless --plan."""
-	where = 'local' if args.local else 'gee'
-	region = json.loads(args.region)
-	common = dict(variable=args.variable, sensor=args.sensor, start=args.start, end=args.end, where=where)
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
-	try:
-		if where == 'gee' and not args.plan:
-			services.init(args.project)
-		if args.cmd == 'series':
-			info = services.plan(region, step=args.step, metric=args.metric, scale=args.scale, **common)
-		else:
-			info = services.plan(region, metric=args.metric, temporal=args.temporal, interannual=args.interannual,
-			                     resolution=args.resolution, **common)
-		if where == 'gee' and args.project:
-			info['project'] = args.project
-		print(services.where_text(info), file=sys.stderr)
-		if args.plan:
-			return
-		if args.cmd == 'image':
-			res = services.download_image(region, metric=args.metric, temporal=args.temporal,
-			                              interannual=args.interannual, resolution=args.resolution, path=args.out,
-			                              progress=progress, **common)
-			print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
-			      f"{res['resolution']:g} m | {res['images']} images | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
-			      f"{res['unit']}" if res['min'] is not None else f"{res['file']}: no valid pixel")
-			return
-		res = services.time_series(region, step=args.step, metric=args.metric, stat=args.stat, scale=args.scale,
-		                           csv=args.csv, chart=args.png, progress=progress, **common)
-	except (ValueError, RuntimeError, KeyError) as e:
-		sys.exit(f'ERROR: {e}')
+	if args.cmd == 'image':
+		res = services.download_image(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
+		                              args.metric, args.temporal, args.interannual, resolution=args.resolution,
+		                              path=args.out, progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
+		print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
+		      f"{res['resolution']:g} m | {res['images']} images | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
+		      f"{res['unit']}" if res['min'] is not None else f"{res['file']}: no valid pixel")
+		return
+	res = services.time_series(json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.step,
+	                           args.metric, args.stat, scale=args.scale, csv=args.csv, chart=args.png,
+	                           progress=progress)
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
@@ -278,7 +238,6 @@ def _download(args, services):
 	try:
 		rec = recipe.read(args.recipe)
 		services.init(args.project or rec.get('project') or None)
-		print(services.where_text(services.where_info('gee')), file=sys.stderr)
 		area = json.loads(args.area) if args.area.lstrip().startswith('{') else args.area
 
 		def progress(file, done, total):

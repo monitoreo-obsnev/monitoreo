@@ -14,11 +14,6 @@ download_comparison) are described in monitoreo.trends. The results of an analys
 for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
 
 Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthengine authenticate`.
-
-Everything is computed in Google Earth Engine, except the time series and maps of Sentinel-2 and Landsat with
-where='local': they are computed on this computer, with the open data of Microsoft Planetary Computer, without an
-account (see monitoreo.local). where_info and plan say where a computation runs and which credentials it needs (and,
-on this computer, how much it reads), to tell the user before starting it.
 """
 
 import datetime as dt
@@ -29,7 +24,7 @@ import re
 
 import ee
 
-from . import areas, catalog, charts, composite, drive, fire, local, maps, sensors, timeseries, trends
+from . import areas, catalog, charts, composite, drive, fire, maps, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -58,48 +53,6 @@ def init(project=None):
 
 def project():
 	return _project
-
-
-# Where the computations run ----------------------------------------------------------------------------------------
-
-GEE = {'where': 'gee', 'computed_on': "in Google's cloud (Google Earth Engine)", 'data': 'the catalog of Earth Engine',
-       'credentials': 'a Google account with access to Earth Engine (earthengine authenticate) and a Google Cloud '
-                      'project registered in Earth Engine'}
-
-
-def where_info(where='gee'):
-	"""Where a computation runs and what it needs, to tell the user before starting it: {'where', 'computed_on',
-	'data', 'credentials'} of 'gee' (Google Earth Engine, the default of every function; with 'project') or 'local'
-	(this computer, with the open data of Microsoft Planetary Computer and no account: the time series and maps of
-	Sentinel-2 and Landsat, see monitoreo.local)."""
-	if where == 'gee':
-		return dict(GEE, project=_project or os.environ.get('EE_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT'))
-	if where == 'local':
-		return dict(local.WHERE)
-	raise ValueError(f"unknown where {where}: 'gee' (Google Earth Engine) or 'local' (this computer)")
-
-
-def plan(region, variable=None, sensor=None, start=None, end=None, step=None, metric='mean', temporal='period',
-         interannual='mean', season=None, quality=None, scale=None, resolution=None, crs='auto', max_pixels=None,
-         where='gee', **source):
-	"""where_info(WHERE) and, on this computer ('local'), what it reads, without reading it: {'images', 'grid',
-	'read_mb' (megabytes, roughly), 'notes'}, with 'steps' and 'scale' of the time series of STEP, or 'resolution'
-	of the map (without STEP; RESOLUTION, CRS and MAX_PIXELS as in download_image)."""
-	info = where_info(where)
-	if where == 'local':
-		spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
-		                 season=season, quality=quality, **source)
-		info = local.plan(spec, region, step, scale, resolution, crs, max_pixels)
-	return info
-
-
-def where_text(info):
-	"""One line that says where a computation runs and what it needs (INFO: of where_info or plan)."""
-	text = f"Computing {info['computed_on']}" + (f", project {info['project']}" if info.get('project') else '')
-	text += f", with {info['data']}; credentials: {info['credentials']}"
-	if 'images' in info:
-		text += f". {info['images']} images, about {info['read_mb']:g} MB to read"
-	return text + ''.join(f'. {n}' for n in info.get('notes', [])) + '.'
 
 
 def about(lang='en'):
@@ -207,24 +160,18 @@ def _slug(text):
 # Time series -------------------------------------------------------------------------------------------------------
 
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
-                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, where='gee', **source):
+                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
-	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. Computed in Google Earth Engine,
-	or on this computer with WHERE 'local' (see where_info).
-	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title', and those
-	of where_info}."""
-	info = where_info(where)
+	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given.
+	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
-	if where == 'local':
-		rows, used_scale = local.series(spec, region, step, metric, stat, scale, progress)
-		info['notes'] = local.notes(variables.entry_of(spec), spec)
-	else:
-		rows, used_scale = timeseries.series(spec, areas.region(region), step, metric, stat, scale, progress)
+	regions = areas.region(region)
+	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
 	unit = _unit(spec)
 	title = _title(spec, step, metric, stat)
 	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title,
-	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows}), **info}
+	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': unit, 'scale_m': used_scale}
@@ -372,37 +319,30 @@ def _file_stem(variable, sensor, metric, start, end, source):
 
 def download_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
-                   max_pixels=None, tile=512, workers=8, progress=None, where='gee', **source):
+                   max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
 	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region), directly: Earth
 	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). With
 	MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times bigger. Fine for small regions; for big ones at
-	full resolution, export_image (Google Drive). With WHERE 'local', computed on this computer (see where_info),
-	reading WORKERS images at a time.
+	full resolution, export_image (Google Drive).
 	Returns {'file', 'grid', 'resolution', 'native_resolution' (that of the data), 'images', 'name', 'unit', 'min',
-	'max' (percentiles 5 and 95 of the values, as the maps of MonitorEO), 'palette', and those of where_info}."""
-	info = where_info(where)
+	'max' (percentiles 5 and 95 of the values, as the maps of MonitorEO), 'palette'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                 season=season, quality=quality, **source)
+	regions = areas.region(region)
+	native = float(variables.native_scale(spec))
+	grid, res = _fit_grid(regions, float(resolution or native), crs, max_pixels)
+	img = variables.image(spec, regions.geometry(), res)
+	if clip:
+		img = img.clipToCollection(regions)
 	path = path or _slug(_file_stem(variable, sensor, metric, start, end, source)) + '.tif'
-	if where == 'local':
-		out = local.download_image(spec, region, resolution, crs, path, clip, max_pixels, progress, workers)
-		info['notes'] = local.notes(variables.entry_of(spec), spec)
-	else:
-		regions = areas.region(region)
-		native = float(variables.native_scale(spec))
-		grid, res = _fit_grid(regions, float(resolution or native), crs, max_pixels)
-		img = variables.image(spec, regions.geometry(), res)
-		if clip:
-			img = img.clipToCollection(regions)
-		desc = variables.describe(spec)
-		download(img, grid, path, tile=tile, workers=workers, progress=progress,
-		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
-		out = {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
-		       'images': variables.n_images(spec, regions.geometry())}
+	desc = variables.describe(spec)
+	download(img, grid, path, tile=tile, workers=workers, progress=progress,
+	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
 	vmin, vmax = _percentiles(path)
-	return dict(out, name=_title(spec) + f' ({metric})', unit=_unit(spec), min=vmin, max=vmax,
-	            palette=maps.ramp(variable_entry(spec)), **info)
+	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
+	        'images': variables.n_images(spec, regions.geometry()), 'name': _title(spec) + f' ({metric})',
+	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
 
 
 def _fit_grid(regions, res, crs, max_pixels=None):

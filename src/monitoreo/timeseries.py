@@ -49,11 +49,6 @@ def auto_scale(spec, regions):
 	TARGET_PIXELS pixels (rounded to 10, 20, 50, 100, 200, ... m)."""
 	native = variable.native_scale(spec)
 	area = regions.map(lambda f: ee.Feature(None, {'a': f.geometry().area(1)})).aggregate_max('a').getInfo() or 0
-	return nice_scale(native, area)
-
-
-def nice_scale(native, area):
-	"""Pixel size (m) of auto_scale for data of NATIVE m and a biggest region of AREA m²."""
 	need = math.sqrt(area / TARGET_PIXELS) if area else native
 	if need <= native:
 		return native

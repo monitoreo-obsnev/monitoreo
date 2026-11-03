@@ -4,8 +4,7 @@
 
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
-areas, a map layer and two time series (map extent, and a layer with two polygons), waiting for their QGIS tasks;
-then trends, a comparison of periods and, on this computer (without Earth Engine), a time series and a map.
+areas, a map layer and two time series (map extent, and a layer with two polygons), waiting for their QGIS tasks.
 """
 
 import os
@@ -24,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsFeature, QgsField, QgsGeometry,  # noqa: E402
                        QgsProject, QgsRectangle, QgsVectorLayer)
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
-from qgis.PyQt.QtCore import Qt, QVariant  # noqa: E402
+from qgis.PyQt.QtCore import QVariant  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow  # noqa: E402
 
 app = QgsApplication([], True)
@@ -196,39 +195,6 @@ assert len(new) == 1 and new[0].bandCount() == 3, iface.messages[-2:]
 layer = new[0]
 print('comparison map:', layer.name(), '| bands', [layer.bandName(i) for i in range(1, 4)])
 dock.compare_on.setChecked(False)
-
-# on this computer, without Earth Engine: only Sentinel-2 and Landsat over a layer or the map extent, and the panel
-# says where it computes and which credentials it needs, before and while computing
-assert 'Earth Engine' in dock.where_label.text() and 'Credenciales' in dock.where_label.text()
-dock.where.setCurrentIndex([dock.where.itemData(i) for i in range(dock.where.count())].index('local'))
-assert 'En este ordenador' in dock.where_label.text() and 'Credenciales: ninguna' in dock.where_label.text()
-model = dock.variable.model()
-assert all(model.item(i).isEnabled() == (dock.variable.itemData(i)['sensor'] != 'Modis') for i in range(dock.variable.count()))
-assert not dock.trend_box.isEnabled() and not dock.export_box.isEnabled() and not dock.gee_box.isEnabled()
-assert not dock.region_kind.model().item(2).isEnabled() and not dock.compare_on.isEnabled()
-dock.region_kind.setCurrentIndex(1)
-dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchContains))
-dock.start.setDate(QDate(2024, 6, 1))
-dock.end.setDate(QDate(2024, 7, 31))
-dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('monthly'))
-n_messages = len(iface.messages)
-dock.run_series()
-wait(dock)
-wait(dock)  # the plan, then the series
-res = dock.series[-1]
-assert res['where'] == 'local' and [r['date'] for r in res['rows']] == ['2024-06-01', '2024-07-01'], iface.messages[-3:]
-said = iface.messages[n_messages:]
-assert any('en este ordenador, sin credenciales' in m and 'imágenes' in m and 'MB' in m for m in said), said
-print('series (this computer):', [(r['date'], round(r['value'], 3), r['n_images']) for r in res['rows']])
-before = set(QgsProject.instance().mapLayers())
-dock.run_map()
-wait(dock)
-wait(dock)
-new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
-assert len(new) == 1 and 'en este ordenador' in new[0].serverProperties().abstract(), iface.messages[-3:]
-print('map (this computer):', new[0].name(), '|', new[0].width(), 'x', new[0].height())
-dock.where.setCurrentIndex(0)
-assert dock.trend_box.isEnabled() and model.item(dock.variable.findText('NDVI · Modis', Qt.MatchFlag.MatchContains)).isEnabled()
 
 print('messages:', iface.messages)
 plugin.unload()

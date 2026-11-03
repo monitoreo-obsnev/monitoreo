@@ -6,11 +6,9 @@
 monitoreo.update), so the server always runs that version; --no-update skips it.
 
 It uses the Earth Engine credentials of `earthengine authenticate` and the project of the variable EE_PROJECT (or
-the tool connect), except time_series and download_image with where="local": they compute on this computer with the
-open data of Microsoft Planetary Computer, without credentials (monitoreo.local). Files (CSV tables, PNG charts and
-maps) are written to the folder MONITOREO_OUTPUT (default: ~/MonitorEO), and the call of each tool that writes files
-to its log calls.jsonl, where publish_report finds the call that produced each file it publishes. Works with the MCP
-Python SDK 1.x (FastMCP) and 2.x (MCPServer).
+the tool connect). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
+~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
+that produced each file it publishes. Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
 """
 
 import datetime as dt
@@ -58,16 +56,7 @@ A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
 features give one series per feature. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
-Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
-
-Where it computes: every tool computes in Google's cloud (Google Earth Engine), with the Google account of the user
-(earthengine authenticate) and a Google Cloud project registered in Earth Engine (EE_PROJECT or connect), except
-time_series and download_image with where="local": on this computer, with the open data of Microsoft Planetary
-Computer and no account or credentials (only Sentinel-2 and Landsat, and regions bbox, point, geojson or file; the
-values are those of Earth Engine, with the clouds of Sentinel-2 from its SCL classes). Before computing, always tell
-the user where it will compute and which credentials it needs; with where="local", call plan first and tell them how
-many images and megabytes it will read. Never switch between both without telling them: their answers say where they
-were computed (where, computed_on, credentials, notes)."""
+Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive."""
 
 server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
@@ -128,21 +117,6 @@ def about(lang: str = 'en'):
 
 
 @tool
-def plan(region: dict, variable: str, sensor: str, start: str, end: str, step: Optional[str] = None,
-         metric: str = 'mean', temporal: str = 'period', interannual: str = 'mean',
-         season: Optional[List[str]] = None, quality: Optional[dict] = None, scale: Optional[float] = None,
-         resolution: Optional[float] = None, crs: str = 'auto', where: str = 'gee',
-         collection: Optional[str] = None) -> str:
-	"""Where a computation runs and which credentials it needs, before running it: where 'gee' (Google's cloud, with
-	the Google account and project of the user) or 'local' (this computer, with the open data of Microsoft Planetary
-	Computer and no credentials). For 'local' it also searches the images, without reading them: how many and how many
-	megabytes it reads, the steps and scale of the time series of STEP, or the resolution of the map (without STEP),
-	and how it differs from Earth Engine (notes). Tell the user before calling time_series or download_image."""
-	return _text(services.plan(region, variable, sensor, start, end, step, metric, temporal, interannual, season,
-	                           quality, scale, resolution, crs, where=where, collection=collection))
-
-
-@tool
 def connect(project: str) -> str:
 	"""Connect to Earth Engine with this Google Cloud project (registered in Earth Engine), instead of EE_PROJECT."""
 	return f'Connected to Earth Engine with the project {services.init(project)}'
@@ -172,24 +146,19 @@ def find_protected_areas(text: str, limit: int = 10) -> str:
 @tool
 def time_series(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'monthly',
                 metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
-                quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None,
-                where: str = 'gee'):
+                quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, pN) and over the region with STAT
 	(mean, median, min, max, std, pN), with the number of images and of valid pixels of each value. Writes a CSV
 	table and a PNG chart (paths in the answer) and returns the chart. quality: pixel filters, e.g.
-	{"snow": false} or {"cloud_score": null} (SCL clouds); scale: pixel size of the statistics in metres. where:
-	'gee' (Google Earth Engine, with the account of the user) or 'local' (this computer, no credentials: Sentinel-2
-	and Landsat; see plan)."""
-	if where != 'local':
-		_ready()
+	{"snow": false} or {"cloud_score": null} (SCL clouds); scale: pixel size of the statistics in metres."""
+	_ready()
 	stem = f'{variable}_{sensor}_{step}_{metric}_{start}_{end}'
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                           collection=collection, where=where)
+	                           collection=collection)
 	rows = res['rows']
-	summary = {k: res.get(k) for k in ('title', 'unit', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'where',
-	                                   'computed_on', 'credentials', 'notes') if k in res}
+	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'n_steps', 'regions', 'csv', 'chart')}
 	summary['rows'] = rows[:MAX_ROWS_SHOWN]
 	if len(rows) > MAX_ROWS_SHOWN:
 		summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
@@ -262,18 +231,16 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
 def download_image(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
                    temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                    resolution: Optional[float] = None, crs: str = 'auto', clip: bool = True,
-                   collection: Optional[str] = None, where: str = 'gee') -> str:
+                   collection: Optional[str] = None) -> str:
 	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
 	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
 	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g.
-	'EPSG:25830'. where: 'gee' (Google Earth Engine) or 'local' (computed on this computer, no credentials:
-	Sentinel-2 and Landsat; see plan). Returns the path of the file, its grid and where it was computed."""
-	if where != 'local':
-		_ready()
+	'EPSG:25830'. Returns the path of the file and its grid."""
+	_ready()
 	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, season=season,
 	                                     quality=quality, resolution=resolution, crs=crs, clip=clip,
 	                                     path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}', 'tif'),
-	                                     collection=collection, where=where))
+	                                     collection=collection))
 
 
 @tool
