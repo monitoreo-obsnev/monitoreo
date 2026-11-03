@@ -74,11 +74,11 @@ def _pip(*args):
 	               check=True, stdout=sys.stderr)
 
 
-def ensure_latest(extras='', log=_stderr):
+def ensure_latest(extras='', log=_stderr, installing=None):
 	"""Install the last version of GitHub if the installed one is another, with the dependencies of EXTRAS (e.g.
-	'mcp,plot'). Returns 'updated' (the new version is used by the modules imported from now on: restart the
-	program), 'current', 'local' (a local copy, see local_copy, left as it is) or 'offline' (GitHub cannot be reached,
-	or the update failed: the installed version goes on)."""
+	'mcp,plot'), calling INSTALLING() before (it takes some minutes). Returns 'updated' (the new version is used by
+	the modules imported from now on: restart the program), 'current', 'local' (a local copy, see local_copy, left as
+	it is) or 'offline' (GitHub cannot be reached, or the update failed: the installed version goes on)."""
 	inst = installed()
 	local = local_copy()
 	try:
@@ -94,6 +94,8 @@ def ensure_latest(extras='', log=_stderr):
 		log(f'monitoreo {inst[0]} ({sha[:7]}): the last version of GitHub')
 		return 'current'
 	log(f'monitoreo: installing the last version of GitHub ({REPO}, {sha[:7]})...')
+	if installing:
+		installing()
 	try:
 		_pip('--force-reinstall', '--no-deps', requirement(sha))  # the version number may be the same as the installed one
 		_pip(requirement(sha, extras))  # the dependencies that are missing, if any

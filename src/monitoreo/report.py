@@ -4,7 +4,8 @@
 
 ITEMS are the results of the tools, in the order of the report: {'tool', 'args', 'result'} with the arguments of the
 call and its answer (the dictionary of the MCP server or of monitoreo.services), and optionally 'image' (a PNG file
-or its data as a data: URL) when the answer does not name its chart or preview. Everything in the report comes from
+or its data as a data: URL) when the answer does not name its chart or preview, and 'table': False to leave out its
+table of values. Everything in the report comes from
 them and from the catalog: it has no text written by a language model, nor an interpretation of the results. The
 charts, maps and logos are embedded in the file, so it can be moved, sent and opened without connection; long tables
 go to an annex at the end. The texts are in Spanish, as those of the viewer of results (monitoreo.publish).
@@ -16,6 +17,7 @@ import html
 import math
 import os
 import re
+import urllib.request
 
 from . import __version__, services
 from .publish import MONTHS, SENSORS, STEPS, default_title, period_text, python_call, season_text, slug, unit_text
@@ -67,7 +69,7 @@ TABLES = {
 	                                               ('reference', 'Referencia{u}'), ('other', 'Otro periodo{u}'),
 	                                               ('difference', 'Diferencia{u}'), ('n_reference', 'Años de ref.'),
 	                                               ('n_other', 'Años del otro')]),
-	'region_stats': ((None,), [('region', 'Región'), ('mean', 'Media{u}'), ('std', 'Desv. típica'), ('min', 'Mín.'),
+	'region_stats': (('rows',), [('region', 'Región'), ('mean', 'Media{u}'), ('std', 'Desv. típica'), ('min', 'Mín.'),
 	                           ('p5', 'P5'), ('p50', 'Mediana'), ('p95', 'P95'), ('max', 'Máx.'),
 	                           ('n_pixels', 'Píxeles')]),
 	'download_variables': (('files',), [('file', 'Archivo'), ('images', 'Imágenes'), ('pixel_filters', 'Píxeles descartados')]),
@@ -284,8 +286,8 @@ def item_table(tool, result, args=None):
 	if tool not in TABLES:
 		return None
 	keys, cols = TABLES[tool]
-	rows = result if keys == (None,) else next((result.get(k) for k in keys if isinstance(result, dict) and
-	                                            result.get(k)), None)
+	rows = result if isinstance(result, list) else next((result.get(k) for k in keys if isinstance(result, dict) and
+	                                                     result.get(k)), None)
 	if not isinstance(rows, list) or not rows:
 		return None
 	unit = unit_text(result.get('unit') if isinstance(result, dict) else (_entry(
@@ -322,7 +324,10 @@ def region_text(region, names=None):
 		return f'Rectángulo de longitud {_num(w)} a {_num(e)} y latitud {_num(s)} a {_num(n)}'
 	if 'point' in region:
 		lon, lat = region['point']
-		return f"Círculo de {_num(region.get('buffer') or 0)} m de radio en {_num(lat)}, {_num(lon)} (lat., lon.)"
+		where = f"{lat:.5f}, {lon:.5f}".replace('.', ',').replace(', ', '; ', 1).replace('; ', ', ')
+		if not region.get('buffer'):
+			return f'Píxel en {where} (lat., lon.)'
+		return f"Círculo de {_num(region['buffer'])} m de radio en {where} (lat., lon.)"
 	if 'file' in region:
 		return names.get(str(region['file'])) or f"Archivo {os.path.basename(str(region['file']))}"
 	if 'geojson' in region:
@@ -336,7 +341,7 @@ def _item(item, n, names, annex):
 	tool, args, result = item['tool'], item.get('args') or {}, item.get('result')
 	title = item.get('title') or item_title(tool, args, result if isinstance(result, dict) else None)
 	out = [f'<section class="result"><h2>{n}. {_e(title)}</h2><dl>']
-	out += [f'<dt>{_e(k)}</dt><dd>{_e(v)}</dd>' for k, v in item_facts(tool, args, result, names)]
+	out += [f'<dt>{_e(k)}</dt><dd>{_e(v)}</dd>' for k, v in item_facts(tool, args, result, names) + view_facts(item)]
 	out.append('</dl>')
 	image = item.get('image') or (result.get('chart') or result.get('thumbnail') if isinstance(result, dict) else None)
 	if image:
@@ -346,7 +351,7 @@ def _item(item, n, names, annex):
 			if isinstance(result, dict) and result.get('palette'):
 				out.append(_legend(result))
 			out.append('</figure>')
-	table = item_table(tool, result, args)
+	table = item_table(tool, result, args) if item.get('table', True) else None
 	if table:
 		labels, rows = table
 		if len(rows) <= MAX_ROWS:
@@ -362,6 +367,107 @@ def _item(item, n, names, annex):
 		out.append(f'<h3>Para reproducirlo en Python</h3><code>import monitoreo.services as mo<br>{_e(call)}</code>')
 	out.append('</section>')
 	return ''.join(out)
+
+
+# the base maps of the interactive map of the assistant, to draw its views (map_view): tiles {z}/{x}/{y}, or WMS
+BASEMAPS = {
+	'osm': {'name': 'OpenStreetMap', 'tiles': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'max': 19,
+	        'credit': '© colaboradores de OpenStreetMap'},
+	'eox': {'name': 'Sentinel-2 cloudless 2023 de EOX (s2maps.eu, datos modificados de Copernicus Sentinel)', 'max': 15,
+	        'tiles': 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg',
+	        'credit': 'Sentinel-2 cloudless 2023, EOX (Copernicus)'},
+	'pnoa': {'name': 'Ortofoto PNOA (IGN)', 'max': 20, 'credit': 'PNOA © Instituto Geográfico Nacional',
+	         'wms': 'https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&STYLES=&'
+	                'LAYERS=OI.OrthoimageCoverage&CRS=EPSG:3857&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg&BBOX={bbox}'},
+}
+TILE = 256
+WEB_MERCATOR = 20037508.342789244
+
+
+def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_pixels=4096 ** 2):
+	"""A PNG (data: URL) of a view of the interactive map: the tiles of the base map BASE (see BASEMAPS) and, over
+	them with OPACITY, those of OVERLAY (the template {z}/{x}/{y} of the tiles of Earth Engine), over BOUNDS
+	[w, s, e, n] at ZOOM, with MARKER ([lon, lat]) circled and the credits of the base map."""
+	import io
+	from concurrent.futures import ThreadPoolExecutor
+	from PIL import Image, ImageDraw, ImageFont
+	w, s, e, n = bounds
+	zoom = int(zoom)
+	(x0, y0), (x1, y1) = _pixel(w, n, zoom), _pixel(e, s, zoom)
+	width, height = int(round(x1 - x0)), int(round(y1 - y0))
+	if width <= 0 or height <= 0 or width * height > max_pixels:
+		raise ValueError('la vista del mapa es demasiado grande: acércate más')
+	tiles = [(tx, ty) for tx in range(int(x0 // TILE), int((x1 - 1) // TILE) + 1)
+	         for ty in range(int(y0 // TILE), int((y1 - 1) // TILE) + 1)]
+	b = BASEMAPS.get(base) or BASEMAPS['osm']
+
+	def get(url):
+		try:
+			req = urllib.request.Request(url, headers={'User-Agent': f'MonitorEO/{__version__} '
+			                                                        '(+https://github.com/monitoreo-obsnev/monitoreo)'})
+			with urllib.request.urlopen(req, timeout=30) as r:
+				return Image.open(io.BytesIO(r.read())).convert('RGBA')
+		except Exception:  # a missing tile leaves its place empty
+			return None
+
+	def urls(tx, ty):
+		z = min(zoom, b['max'])  # beyond the zoom of the base map: its tile of a lower zoom, cut and enlarged
+		k = 2 ** (zoom - z)
+		if 'wms' in b:
+			size = 2 * WEB_MERCATOR / 2 ** zoom
+			bbox = f'{-WEB_MERCATOR + tx * size},{WEB_MERCATOR - (ty + 1) * size},{-WEB_MERCATOR + (tx + 1) * size},' \
+			       f'{WEB_MERCATOR - ty * size}'
+			base_url = b['wms'].format(bbox=bbox)
+		else:
+			base_url = b['tiles'].format(z=z, x=tx // k, y=ty // k)
+		return base_url, overlay.format(z=zoom, x=tx, y=ty), k, (tx % k, ty % k)
+
+	with ThreadPoolExecutor(8) as pool:
+		got = list(pool.map(lambda t: (t, urls(*t)), tiles))
+		images = list(pool.map(lambda g: (get(g[1][0]), get(g[1][1])), got))
+	canvas = Image.new('RGBA', (width, height), (240, 240, 240, 255))
+	for ((tx, ty), (_, _, k, (dx, dy))), (base_tile, over) in zip(got, images):
+		at = (int(tx * TILE - x0), int(ty * TILE - y0))
+		if base_tile is not None:
+			if k > 1:
+				part = TILE // k
+				base_tile = base_tile.crop((dx * part, dy * part, (dx + 1) * part, (dy + 1) * part)).resize((TILE, TILE))
+			canvas.paste(base_tile, at)
+		if over is not None:
+			alpha = over.getchannel('A').point(lambda v: int(v * opacity))
+			over.putalpha(alpha)
+			layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
+			layer.paste(over, at)
+			canvas = Image.alpha_composite(canvas, layer)
+	draw = ImageDraw.Draw(canvas)
+	if marker:
+		mx, my = _pixel(marker[0], marker[1], zoom)
+		mx, my = mx - x0, my - y0
+		draw.ellipse((mx - 8, my - 8, mx + 8, my + 8), outline=(255, 138, 0, 255), width=3)
+	credit = f"{b['credit']} · MonitorEO, Google Earth Engine"
+	for size in (13, 11, 9):  # the credits fit in the width of the view
+		try:
+			font = ImageFont.load_default(size=size)
+		except TypeError:  # Pillow before 10.1
+			font = ImageFont.load_default()
+		tw, th = draw.textbbox((0, 0), credit, font=font)[2:]
+		if tw <= width - 10:
+			break
+	else:
+		credit = b['credit']
+		tw, th = draw.textbbox((0, 0), credit, font=font)[2:]
+	draw.rectangle((width - tw - 10, height - th - 8, width, height), fill=(255, 255, 255, 210))
+	draw.text((width - tw - 5, height - th - 5), credit, fill=(40, 40, 40, 255), font=font)
+	buf = io.BytesIO()
+	canvas.convert('RGB').save(buf, 'PNG', optimize=True)
+	return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+
+def _pixel(lon, lat, zoom):
+	"""The pixel of the world at ZOOM (Web Mercator, tiles of 256) of a point."""
+	n = TILE * 2 ** zoom
+	lat = max(min(lat, 85.0511), -85.0511)
+	return (lon + 180) / 360 * n, (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n
 
 
 def tif_preview(path, palette=None, vmin=None, vmax=None, width=900):
@@ -391,6 +497,16 @@ def tif_preview(path, palette=None, vmin=None, vmax=None, width=900):
 		return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
 	except Exception:  # a preview never breaks a result
 		return None
+
+
+def view_facts(item):
+	"""The facts of a view of the interactive map (an item with 'view': bounds and base map)."""
+	view = item.get('view')
+	if not view:
+		return []
+	w, s, e, n = view['bounds']
+	return [('Vista del mapa', f'longitud {_num(w)} a {_num(e)}, latitud {_num(s)} a {_num(n)}'),
+	        ('Mapa de fondo', (BASEMAPS.get(view.get('base')) or BASEMAPS['osm'])['name'])]
 
 
 def _legend(result):

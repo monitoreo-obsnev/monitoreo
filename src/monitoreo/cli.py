@@ -18,8 +18,9 @@
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
-    monitoreo assistant [--port 8765] [--no-update]  chat in the browser for managers, with a language model of
-                                                     Ollama and the MCP server, at the last version of GitHub
+    monitoreo assistant [--port 8765] [--browser] [--no-update]   chat for managers in a window of its own (or
+                                                     the browser), with a language model of Ollama and the MCP server,
+                                                     at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
@@ -33,6 +34,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 
 from . import __version__
 
@@ -126,9 +128,11 @@ def main(argv=None):
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
-	p = sub.add_parser('assistant', help='chat in the browser for managers (language model of Ollama and MCP server)')
+	p = sub.add_parser('assistant', help='chat for managers, in a window of its own (language model of Ollama and '
+	                                     'MCP server)')
 	p.add_argument('--port', type=int, default=8765)
-	p.add_argument('--no-browser', action='store_true', help='do not open the browser')
+	p.add_argument('--browser', action='store_true', help='open it in the browser instead of in a window of its own')
+	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
 
@@ -242,17 +246,65 @@ def _mcp(args):
 
 
 def _assistant(args):
-	"""Start the assistant, after installing the last version of GitHub (then it starts again, with that version)."""
-	if not args.no_update:
+	"""Start the assistant, after installing the last version of GitHub (then it starts again, with that version);
+	if it is open already, only open it."""
+	if sys.stderr is None or sys.stdout is None:  # pythonw.exe (Windows) or an app of macOS: the messages to a file
+		folder = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
+		os.makedirs(folder, exist_ok=True)
+		sys.stdout = sys.stderr = open(os.path.join(folder, 'assistant-output.log'), 'a', encoding='utf-8', buffering=1)
+	if not args.no_update and not _listening(args.port):
 		from . import update
-		if update.ensure_latest('assistant') == 'updated':
-			cmd = [sys.executable, '-m', 'monitoreo.cli', 'assistant', '--no-update', '--port', str(args.port)] + \
-			      (['--no-browser'] if args.no_browser else [])
+		window = not (args.browser or args.no_browser)
+		if (_update_in_window() if window else update.ensure_latest('assistant')) in ('updated', 'shown'):
+			cmd = [sys.executable] + (['-s'] if sys.flags.no_user_site else []) + \
+			      ['-m', 'monitoreo.cli', 'assistant', '--no-update', '--port', str(args.port)] + \
+			      (['--browser'] if args.browser else []) + (['--no-browser'] if args.no_browser else [])
 			if os.name == 'nt':
 				sys.exit(subprocess.call(cmd))
 			os.execv(sys.executable, cmd)
 	from . import assistant
-	assistant.run(args.port, browser=not args.no_browser)
+	assistant.run(args.port, browser=not args.no_browser, window=not (args.browser or args.no_browser))
+
+
+def _listening(port):
+	import socket
+	with socket.socket() as s:
+		return s.connect_ex(('127.0.0.1', port)) == 0
+
+
+UPDATING = '''<!doctype html><meta charset="utf-8"><body style="font: 15px system-ui, sans-serif; margin: 28px;
+color: #1f2d27; background: #fff"><h2 style="margin: 0 0 12px; color: #2e6b4f">Actualizando MonitorEO…</h2>
+<p>Hay una versión nueva en GitHub: se descarga e instala (tarda un minuto) y después se abre el asistente.</p>'''
+
+
+def _update_in_window():
+	"""update.ensure_latest('assistant') with a small window that says so while it installs a new version (an
+	assistant opened without a terminal shows nothing else meanwhile): 'shown' if that window was shown, as then the
+	assistant has to start in another process (pywebview starts once in each)."""
+	from . import update
+	try:
+		import webview
+	except Exception:  # without pywebview the assistant opens in the browser: as in a terminal
+		return update.ensure_latest('assistant')
+	installing, done, out = threading.Event(), threading.Event(), {}
+
+	def work():
+		try:
+			out['result'] = update.ensure_latest('assistant', installing=installing.set)
+		finally:
+			done.set()
+			installing.set()
+	threading.Thread(target=work, daemon=True).start()
+	installing.wait()
+	if done.is_set():  # the last version, or no connection: nothing to show
+		return out.get('result', 'offline')
+	try:
+		win = webview.create_window('Asistente de MonitorEO', html=UPDATING, width=520, height=200, resizable=False)
+		webview.start(lambda: (done.wait(), win.destroy()))
+	except Exception as e:
+		print(f'WARNING: cannot show the window of the update ({type(e).__name__}: {e})', file=sys.stderr)
+	done.wait()
+	return 'shown'
 
 
 def _download(args, services):

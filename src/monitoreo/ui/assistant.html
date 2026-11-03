@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Asistente de MonitorEO</title>
 <link rel="icon" href="/logo.png">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<script src="/vendor/leaflet/leaflet.js"></script>
 <style>
 :root {
   --bg: #f5f7f5; --panel: #ffffff; --ink: #1d2327; --muted: #5b6770; --line: #d9dfe3;
@@ -21,9 +23,28 @@ html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  display: grid; grid-template-rows: auto 1fr auto; height: 100dvh;
+  display: grid; grid-template-rows: auto auto 1fr; height: 100dvh;
 }
-header, main, footer { width: 100%; max-width: 980px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+header { width: 100%; max-width: 1600px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+#panes { min-height: 0; width: 100%; max-width: 1600px; margin: 0 auto; padding: 0 16px; display: grid;
+         grid-template-columns: minmax(380px, 42%) 1fr; gap: 0 18px; }
+#talk { min-height: 0; display: grid; grid-template-rows: 1fr auto; }
+#work { min-height: 0; overflow-y: auto; padding: 8px 2px 12px; }
+#tabs { display: none; }
+#mapbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+          margin-bottom: 10px; }
+#map { height: 54vh; min-height: 300px; border-radius: 8px; margin-top: 8px; background: var(--soft); }
+.maphead { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: .9em; }
+.maphead select { max-width: 100%; }
+#mapsel { max-width: min(520px, 100%); }
+#pixel:not(:empty) { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: .92em; }
+#pixel img { max-width: 100%; margin-top: 6px; border-radius: 6px; background: #fff; }
+@media (max-width: 999px) {
+  #tabs { display: flex; gap: 6px; padding: 6px 16px 0; }
+  #tabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #panes { grid-template-columns: 1fr; }
+  body[data-pane="talk"] #work, body[data-pane="work"] #talk { display: none; }
+}
 header { padding-top: 12px; }
 .brand { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
 .brand img { height: 34px; max-width: 100%; object-fit: contain; object-position: left; }
@@ -139,6 +160,13 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div id="layers" class="layers" hidden></div>
 </header>
 
+<nav id="tabs">
+  <button type="button" data-pane="talk" class="on">Conversación</button>
+  <button type="button" data-pane="work">Resultados (<span id="nres2">0</span>)</button>
+</nav>
+
+<div id="panes">
+<section id="talk">
 <main id="chat" aria-live="polite">
   <div id="intro" class="intro">
     <p>Pregunta qué variable o sensor te conviene, o pide un cálculo sobre un espacio protegido o una zona. Los
@@ -168,12 +196,35 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <button id="reset" type="button">Nueva consulta</button>
   </div>
 </footer>
+</section>
+
+<aside id="work" aria-label="Resultados">
+  <div id="mapbox" hidden>
+    <div class="maphead">
+      <label>Mapa <select id="mapsel"></select></label>
+      <label>Fondo <select id="basemap">
+        <option value="osm">Mapa (OpenStreetMap)</option>
+        <option value="eox">Sentinel-2 sin nubes (EOX, todo el mundo)</option>
+        <option value="pnoa">Ortofoto PNOA (solo España)</option>
+      </select></label>
+      <label>Opacidad <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
+      <button id="snapshot" type="button" title="Guarda lo que se ve en el mapa (fondo, encuadre y píxel marcado) como un resultado">Añadir esta vista al informe</button>
+    </div>
+    <div id="map"></div>
+    <div id="maplegend" class="legend"></div>
+    <p id="maphint" class="muted" style="margin: 6px 0 0"></p>
+    <div id="pixel"></div>
+  </div>
+  <div id="results"><p id="noresults" class="muted">Aquí aparecen los resultados y sus mapas.</p></div>
+</aside>
+</div>
 
 <dialog id="reportDialog">
   <form method="dialog">
     <label>Título del informe<input id="reportTitle" required></label>
-    <p class="muted">Se incluyen los resultados marcados con «En el informe». Se guarda en la carpeta
-      MonitorEO/informes y se abre en el navegador, desde donde se puede imprimir o guardar en PDF.</p>
+    <p class="muted">Se incluyen los resultados marcados con «En el informe» (y su tabla de valores, los que tienen
+      marcada «Tabla en el informe»). Se guarda en la carpeta MonitorEO/informes y se abre en el navegador, desde donde
+      se puede imprimir o guardar en PDF.</p>
     <menu><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></menu>
   </form>
 </dialog>
@@ -456,7 +507,8 @@ function resultCard(e) {
   check.checked = true;
   const card = el('article', {class: 'card'},
     el('div', {class: 'head'}, el('h3', {text: `${e.id}. ${e.title}`}),
-       el('label', {class: 'muted'}, check, ' En el informe')));
+       el('span', {class: 'muted'}, el('label', {}, check, ' En el informe'), e.table ? ' · ' : '',
+          e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Tabla en el informe') : '')));
   if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
   if (e.legend) {
     const colours = e.legend.palette.map(c => '#' + c.replace('#', '')).join(', ');
@@ -497,6 +549,124 @@ function status(text) {
   $('status').replaceChildren(el('span', {class: 'spinner'}), text || '');
 }
 
+// --- the panels and the map of the results ------------------------------------------------------------------------
+document.body.dataset.pane = 'talk';
+function showPane(name) {
+  document.body.dataset.pane = name;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.pane === name));
+  if (name === 'work' && leaflet) setTimeout(() => leaflet.invalidateSize(), 50);
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showPane(b.dataset.pane));
+
+let leaflet = null, base = null, overlay = null, marker = null, current = null, refreshed = {};
+const maps = {};
+const BASES = {
+  osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                         {maxZoom: 19, attribution: '© colaboradores de OpenStreetMap'}),
+  eox: () => L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg',
+                         {maxNativeZoom: 15, maxZoom: 20,
+                          attribution: 'Sentinel-2 cloudless 2023 de <a href="https://s2maps.eu">EOX</a> ' +
+                                       '(datos modificados de Copernicus Sentinel)'}),
+  pnoa: () => L.tileLayer.wms('https://www.ign.es/wms-inspire/pnoa-ma',
+                              {layers: 'OI.OrthoimageCoverage', format: 'image/jpeg', maxZoom: 20,
+                               attribution: 'PNOA © Instituto Geográfico Nacional'}),
+};
+
+function addMap(e) {
+  maps[e.id] = e;
+  $('mapsel').append(el('option', {value: e.id, text: `${e.id}. ${e.title}`}));
+  $('mapbox').hidden = false;
+  $('mapsel').value = e.id;
+  showMap(e.id);
+}
+
+function clearMaps() {
+  Object.keys(maps).forEach(k => delete maps[k]);
+  $('mapsel').replaceChildren();
+  $('mapbox').hidden = true;
+  $('pixel').replaceChildren();
+  if (overlay) { overlay.remove(); overlay = null; }
+  if (marker) { marker.remove(); marker = null; }
+  current = null;
+}
+
+function showMap(id) {
+  const e = maps[id];
+  if (!e || typeof L === 'undefined') return;
+  if (!leaflet) {
+    leaflet = L.map('map', {zoomControl: true});
+    base = BASES[$('basemap').value]().addTo(leaflet);
+    leaflet.on('click', ev => pixelAt(ev.latlng));
+  }
+  current = e;
+  if (overlay) overlay.remove();
+  overlay = L.tileLayer(e.map.url, {opacity: Number($('opacity').value), maxZoom: 20,
+                                    attribution: 'MonitorEO · Google Earth Engine'})
+    .on('tileerror', () => refreshTiles(id)).addTo(leaflet);
+  const [w, s, east, n] = e.map.bounds;
+  leaflet.fitBounds([[s, w], [n, east]], {padding: [12, 12]});
+  setTimeout(() => leaflet.invalidateSize(), 50);
+  const lg = $('maplegend');
+  lg.replaceChildren();
+  if (e.legend) {
+    const colours = e.legend.palette.map(c => '#' + c.replace('#', '')).join(', ');
+    lg.append(el('span', {text: fmt(e.legend.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
+              el('span', {text: fmt(e.legend.max) + (e.legend.unit ? ' ' + e.legend.unit : '')}));
+  }
+  $('maphint').textContent = 'Pincha en el mapa para ver ' + (e.map.pixel ? 'el valor de un píxel y ' : '') +
+    'la serie temporal de ese píxel (se calculan en Google Earth Engine).';
+}
+
+async function refreshTiles(id) {  // the tiles of Earth Engine expire after some hours: ask for them again, once
+  if (refreshed[id]) return;
+  refreshed[id] = true;
+  try {
+    const r = await api('/api/map/refresh', {id});
+    maps[id].map.url = r.url;
+    if (current && current.id === id && overlay) overlay.setUrl(r.url);
+  } catch (e) { notice('El mapa ha caducado y no se ha podido renovar: ' + e.message, true); }
+}
+
+async function pixelAt(latlng) {
+  if (!current) return;
+  const e = current, box = $('pixel');
+  if (marker) marker.remove();
+  marker = L.circleMarker(latlng, {radius: 6, color: '#ff8a00', weight: 3, fillOpacity: 0}).addTo(leaflet);
+  box.replaceChildren(el('span', {class: 'spinner'}), 'Calculando el píxel en Google Earth Engine…');
+  try {
+    const r = await api('/api/pixel', {id: e.id, lon: latlng.lng, lat: latlng.lat});
+    const coord = v => v.toLocaleString('es-ES', {minimumFractionDigits: 5, maximumFractionDigits: 5});
+    const head = el('div', {}, el('b', {text: `Píxel ${coord(r.lat)}, ${coord(r.lon)}`}));
+    if (r.value != null) head.append(` · valor en este mapa: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}`);
+    else if (e.map.pixel) head.append(' · sin valor en este mapa (píxel sin datos)');
+    const keep = el('button', {type: 'button', text: 'Guardar la serie como resultado'});
+    keep.onclick = async () => {
+      keep.disabled = true;
+      try { await api('/api/pixel/keep', {key: r.key}); keep.textContent = 'Guardada en los resultados'; }
+      catch (err) { keep.disabled = false; notice(err.message, true); }
+    };
+    box.replaceChildren(head, r.image ? el('img', {src: r.image, alt: r.title}) : el('p', {text: 'Sin serie: no hay imágenes válidas.'}),
+                        el('div', {style: 'margin-top: 6px'}, keep));
+  } catch (err) { box.replaceChildren('No se ha podido calcular el píxel: ' + err.message); }
+}
+
+$('mapsel').onchange = () => { $('pixel').replaceChildren(); if (marker) { marker.remove(); marker = null; } showMap(Number($('mapsel').value)); };
+$('basemap').onchange = () => { if (!leaflet) return; base.remove(); base = BASES[$('basemap').value]().addTo(leaflet); base.bringToBack(); };
+$('opacity').oninput = () => { if (overlay) overlay.setOpacity(Number($('opacity').value)); };
+$('snapshot').onclick = async () => {
+  if (!current || !leaflet) return;
+  const b = leaflet.getBounds(), button = $('snapshot');
+  button.disabled = true;
+  button.textContent = 'Preparando la vista…';
+  try {
+    await api('/api/map/snapshot', {id: current.id, bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+                                    zoom: leaflet.getZoom(), base: $('basemap').value, opacity: Number($('opacity').value),
+                                    marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null});
+  } catch (e) { notice('No se ha podido guardar la vista: ' + e.message, true); }
+  button.disabled = false;
+  button.textContent = 'Añadir esta vista al informe';
+};
+
 // --- the conversation: the events of the assistant, all of them from the first one when the page opens -------------
 let running = null, nextEvent = 0;
 
@@ -516,7 +686,10 @@ function show(e) {
     $('chat').replaceChildren($('intro'));
     $('intro').hidden = false;
     question = running = null;
-    $('nres').textContent = 0;
+    $('nres').textContent = $('nres2').textContent = 0;
+    $('results').replaceChildren($('noresults'));
+    $('noresults').hidden = false;
+    clearMaps();
   } else if (e.type === 'status') status(e.text);
   else if (e.type === 'assistant') message('assistant', e.text);
   else if (e.type === 'areas') $('chat').append(areasCard(e));
@@ -530,10 +703,15 @@ function show(e) {
     running = el('article', {class: 'card'}, el('div', {}, el('span', {class: 'spinner'}), e.text), facts(e.facts, true));
     $('chat').append(running);
   } else if (e.type === 'result') {
-    const card = resultCard(e);
-    if (running) running.replaceWith(card); else $('chat').append(card);
+    const card = resultCard(e), link = el('a', {href: '#', text: e.title});
+    $('results').append(card);
+    $('noresults').hidden = true;
+    link.onclick = ev => { ev.preventDefault(); showPane('work'); card.scrollIntoView({behavior: 'smooth'}); };
+    const line = el('div', {class: 'notice'}, `Resultado ${e.id}: `, link, e.map ? ' (con su mapa)' : '');
+    if (running) running.replaceWith(line); else $('chat').append(line);
     running = null;
-    $('nres').textContent = e.id;
+    $('nres').textContent = $('nres2').textContent = e.id;
+    if (e.map) addMap(e);
   } else if (e.type === 'error') {
     if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
     notice(e.text, true);
@@ -588,8 +766,9 @@ $('report').onclick = () => {
 $('reportDialog').onclose = async () => {
   if ($('reportDialog').returnValue !== 'ok') return;
   const ids = [...document.querySelectorAll('input[data-id]:checked')].map(c => Number(c.dataset.id));
+  const tables = [...document.querySelectorAll('input[data-table]:checked')].map(c => Number(c.dataset.table));
   try {
-    const r = await api('/api/report', {title: $('reportTitle').value, ids});
+    const r = await api('/api/report', {title: $('reportTitle').value, ids, tables});
     const div = el('div', {class: 'notice'}, 'Informe guardado en ', el('code', {text: r.path}),
                    ' y abierto en el navegador. ');
     if (r.url) div.append(el('a', {href: fileUrl(r.url), target: '_blank', rel: 'noopener', text: 'Abrirlo otra vez'}));

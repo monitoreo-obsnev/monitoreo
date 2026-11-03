@@ -265,7 +265,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
                  interannual='mean', season=None, quality=None, stats=('mean', 'std', 'min', 'p5', 'p50', 'p95', 'max'),
                  scale=None, **source):
 	"""Statistics over each feature of REGION of the map of a variable aggregated in time:
-	[{region, mean, std, min, p5, p50, p95, max, n_pixels}]."""
+	{'rows': [{region, mean, std, min, p5, p50, p95, max, n_pixels}], 'scale', 'unit', 'title'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, False, None, source)
 	scale = scale or timeseries.auto_scale(spec, regions)

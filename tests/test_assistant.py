@@ -471,6 +471,32 @@ def test_check_update(monkeypatch):
 	assert assistant.check_update() is None  # a clone is not updated
 
 
+def test_update_in_window(monkeypatch):
+	# opened without a terminal: a small window says that it is installing a new version, only while it does
+	import sys
+	import threading
+	import types
+	from monitoreo import cli, update
+	windows, shown = [], threading.Event()
+
+	def create_window(*args, **kwargs):
+		windows.append(kwargs)
+		shown.set()
+		return types.SimpleNamespace(destroy=lambda: windows.append('closed'))
+	fake = types.SimpleNamespace(create_window=create_window, start=lambda func: func())
+	monkeypatch.setitem(sys.modules, 'webview', fake)
+	monkeypatch.setattr(update, 'ensure_latest', lambda extras, installing=None: 'current')
+	assert cli._update_in_window() == 'current' and windows == []
+
+	def new_version(extras, installing=None):
+		installing()
+		shown.wait(5)  # pip takes a while
+		return 'updated'
+	monkeypatch.setattr(update, 'ensure_latest', new_version)
+	assert cli._update_in_window() == 'shown'  # the assistant starts in another process
+	assert 'Actualizando MonitorEO' in windows[0]['html'] and windows[1] == 'closed'
+
+
 def test_events_of_the_conversation(monkeypatch):
 	answers = iter([{'content': 'Primera respuesta.'}, {'content': 'Segunda.'}])
 	monkeypatch.setattr(assistant, 'chat_model', lambda *a: next(answers))
@@ -510,3 +536,74 @@ async def _take(events, n):
 		n -= 1
 		if not n:
 			return
+
+
+def test_report_without_tables(tmp_path):
+	items = [{'tool': 'time_series', 'args': ARGS, 'result': SERIES, 'table': False},
+	         {'tool': 'region_stats', 'args': ARGS, 'result': {'rows': [{'region': 'r', 'mean': 0.4, 'n_pixels': 1234}]}}]
+	text = open(report.write(items, str(tmp_path / 'i.html'), title='t'), encoding='utf-8').read()
+	assert '<td>0,501</td>' not in text and '1.234' in text  # the table of the series out, that of the stats in
+
+
+def test_map_and_pixel():
+	calls = []
+
+	class Maps(FakeAssistant):
+		async def call(self, name, args):
+			calls.append((name, args))
+			if name == 'region_stats':
+				return None, [json.dumps({'rows': [{'region': 'point', 'mean': 0.42, 'n_pixels': 1}], 'unit': '[unitless]'})], []
+			if name == 'map_layer':
+				return None, [json.dumps({'url': 'https://ee/new/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0]})], []
+			return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
+
+	async def run():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {**ARGS, 'start': '2024-06-01', 'end': '2024-08-31', 'season': ['06-01', '08-31']}
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Mapa',
+		                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0],
+		                             'min': 0.1, 'max': 0.6, 'palette': ['ffffff', '00aa00'], 'unit': '[unitless]'}})
+		card = a.card(a.results[0])
+		px = await a.pixel(1, -3.55, 36.95)
+		rid = a.keep_pixel(px['key'])
+		url = await a.refresh_map(1)
+		return a, card, px, rid, url
+
+	a, card, px, rid, url = asyncio.run(run())
+	assert card['map'] == {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0], 'pixel': True}
+	assert px['value'] == 0.42 and px['image'].startswith('data:image/png') and px['n'] == 12
+	assert calls[0] == ('region_stats', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'season': ['06-01', '08-31'],
+	                                     'region': {'point': [-3.55, 36.95]}, 'start': '2024-06-01',
+	                                     'end': '2024-08-31', 'metric': 'median', 'temporal': 'period'})
+	assert calls[1][0] == 'time_series' and calls[1][1]['step'] == '16-day'  # a period of months: by 16 days
+	assert rid == 2 and a.results[1]['tool'] == 'time_series' and a.events[-1]['type'] == 'result'
+	assert report.region_text(a.results[1]['args']['region']) == 'Píxel en 36,95000, -3,55000 (lat., lon.)'
+	assert url == 'https://ee/new/{z}/{x}/{y}' and a.results[0]['result']['url'] == url
+	with pytest.raises(ValueError, match='no es un mapa'):
+		asyncio.run(a.pixel(2, 0, 0))
+
+
+def test_map_view(monkeypatch):
+	pytest.importorskip('PIL')
+	import base64
+	import io
+	from PIL import Image
+	seen = []
+
+	def urlopen(req, timeout=None):
+		url = req.full_url
+		seen.append(url)
+		colour = (200, 200, 200, 255) if 'openstreetmap' in url else (255, 0, 0, 255)
+		buf = io.BytesIO()
+		Image.new('RGBA', (256, 256), colour).save(buf, 'PNG')
+		return io.BytesIO(buf.getvalue())
+
+	monkeypatch.setattr(report.urllib.request, 'urlopen', urlopen)
+	url = report.map_view([-3.6, 36.86, -3.5, 36.93], 13, 'https://ee/{z}/{x}/{y}', 'osm', 0.5, [-3.55, 36.9])
+	img = Image.open(io.BytesIO(base64.b64decode(url.split(',')[1])))
+	assert img.size == (int(round(report._pixel(-3.5, 0, 13)[0] - report._pixel(-3.6, 0, 13)[0])), img.size[1])
+	r, g, b = img.getpixel((5, 5))
+	assert 220 <= r <= 235 and 95 <= g <= 105  # the red of the overlay at half opacity over the grey base
+	assert any('openstreetmap' in u for u in seen) and any(u.startswith('https://ee/13/') for u in seen)
+	with pytest.raises(ValueError, match='demasiado grande'):
+		report.map_view([-10, 35, 5, 44], 14, 'https://ee/{z}/{x}/{y}')

@@ -139,11 +139,13 @@ def test_update(monkeypatch):
 	monkeypatch.setattr(update, 'local_copy', lambda: None)
 	monkeypatch.setattr(update, 'latest', lambda: new)
 	monkeypatch.setattr(update, 'installed', lambda: ('0.2.0', old, None))
-	assert update.ensure_latest('mcp,plot', log=quiet) == 'updated'
+	told = []  # installing() is called before pip
+	assert update.ensure_latest('mcp,plot', log=quiet, installing=lambda: told.append(len(calls))) == 'updated'
 	url = f'https://github.com/monitoreo-obsnev/monitoreo/archive/{new}.zip'
 	assert calls == [('--force-reinstall', '--no-deps', f'monitoreo @ {url}'), (f'monitoreo[mcp,plot] @ {url}',)]
+	assert told == [0]
 	monkeypatch.setattr(update, 'installed', lambda: ('0.2.0', new, None))
-	assert update.ensure_latest(log=quiet) == 'current'
+	assert update.ensure_latest(log=quiet, installing=lambda: told.append(len(calls))) == 'current' and told == [0]
 	monkeypatch.setattr(update, 'local_copy', lambda: '/clone/src/monitoreo')
 	assert update.ensure_latest(log=quiet) == 'local' and len(calls) == 2
 

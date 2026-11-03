@@ -498,6 +498,7 @@ class Assistant:
 		self.session, self.tools, self.system = None, [], instructions()
 		self.task = None  # that of the message being answered
 		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
+		self.loop, self.closing = None, False  # that of the web server; closing: the pages stop following
 		self.layers = load_layers()
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
@@ -516,7 +517,7 @@ class Assistant:
 		return {**self.settings, 'ollama': self.base()}
 
 	def reset(self):
-		self.messages, self.results, self.names, self.question = [], [], {}, None
+		self.messages, self.results, self.names, self.question, self.pixels = [], [], {}, None, []
 
 	def running(self):
 		"""Whether a message is being answered."""
@@ -531,15 +532,25 @@ class Assistant:
 	async def follow(self, since=0, ping=15):
 		"""The events of the conversation from the number SINCE on, and then the new ones as they come (a ping every
 		PING seconds without any, so that a page that is not there any more is noticed)."""
-		while True:
+		while not self.closing:
 			changed = self.changed  # before reading the events: one emitted meanwhile sets it
 			for e in self.events[max(since - self.offset, 0):]:
 				yield e
 				since = e['seq'] + 1
+			if self.closing:
+				return
 			try:
 				await asyncio.wait_for(changed.wait(), ping)
 			except asyncio.TimeoutError:
 				yield {'type': 'ping'}
+
+	def end_streams(self):
+		"""Let the pages stop following the conversation (the web server closes); from any thread."""
+		def end():
+			self.closing = True
+			self.changed.set()
+		if self.loop and not self.loop.is_closed():
+			self.loop.call_soon_threadsafe(end)
 
 	def start(self, text):
 		"""Answer a message of the user in a task of its own."""
@@ -759,7 +770,8 @@ class Assistant:
 		tool, args, result = item['tool'], item['args'], item['result']
 		table = report.item_table(tool, result, args)
 		card = {'id': item['id'], 'title': item['title'], 'image': item['image'],
-		        'facts': _facts(tool, args, result, self.all_names()), 'table': None, 'files': [], 'legend': None}
+		        'facts': _facts(tool, args, result, self.all_names()) + report.view_facts(item), 'table': None,
+		        'files': [], 'legend': None}
 		if table:
 			labels, rows = table
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
@@ -771,11 +783,81 @@ class Assistant:
 				if result.get(k):
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
+			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
+				card['map'] = {'url': result['url'], 'bounds': result['bounds'], 'pixel': tool == 'map_layer'}
 		return card
 
-	def write_report(self, title, ids=None):
-		"""Write the report of the results IDS (default: all) and return its path."""
-		items = [r for r in self.results if ids is None or r['id'] in ids]
+	def map_item(self, rid):
+		item = next((r for r in self.results if r['id'] == rid), None)
+		if not item or not isinstance(item['result'], dict) or not item['result'].get('url'):
+			raise ValueError('ese resultado no es un mapa')
+		return item
+
+	async def pixel(self, rid, lon, lat):
+		"""Click on the map of the result RID: the value of the map at the point (maps of map_layer) and the time
+		series of its pixel over the period of the map, computed in Earth Engine (the model takes no part). The series
+		can be kept as a result (keep_pixel, with its key)."""
+		item = self.map_item(rid)
+		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
+		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
+		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
+		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(item['result'].get('unit'))}
+		if item['tool'] == 'map_layer':
+			error, texts, _ = await self.call('region_stats', {
+				**base, 'region': point, 'start': a['start'], 'end': a['end'], 'metric': a.get('metric') or 'median',
+				'temporal': a.get('temporal') or 'period'})
+			stats = json.loads(texts[0]) if not error and texts else []
+			rows = stats.get('rows') if isinstance(stats, dict) else stats
+			out['value'] = rows[0].get('mean') if rows else None
+		days = (dt.date.fromisoformat(end[:10]) - dt.date.fromisoformat(start[:10])).days
+		step = '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'
+		args = {**base, 'region': point, 'start': start, 'end': end, 'step': step}
+		error, texts, images = await self.call('time_series', args)
+		if error:
+			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+		result = json.loads(texts[0])
+		where = f'{lat:.5f}, {lon:.5f}'.replace('.', ',')
+		title = f"Serie {report.STEPS.get(step, step)} de {a.get('variable', '')} en el píxel {where}"
+		self.pixels.append({'tool': 'time_series', 'args': args, 'result': result,
+		                    'image': images[0] if images else None, 'title': title})
+		return {**out, 'key': len(self.pixels) - 1, 'title': title, 'image': images[0] if images else None,
+		        'n': len(result.get('rows') or [])}
+
+	def keep_pixel(self, key):
+		"""Keep the series of a pixel (see pixel) as a result, for the report; returns its number."""
+		item = {**self.pixels[int(key)], 'id': len(self.results) + 1}
+		self.results.append(item)
+		self.emit({'type': 'result', **self.card(item)})
+		return item['id']
+
+	async def snapshot(self, rid, view):
+		"""Keep the view of the interactive map of the result RID (VIEW: bounds, zoom, base, opacity, marker) as a
+		result, for the report; returns its number."""
+		item = self.map_item(rid)
+		image = await asyncio.to_thread(report.map_view, [float(v) for v in view['bounds']], int(view['zoom']),
+		                                item['result']['url'], view.get('base') or 'osm',
+		                                float(view.get('opacity', 0.85)), view.get('marker'))
+		new = {'id': len(self.results) + 1, 'tool': item['tool'], 'args': item['args'], 'image': image,
+		       'result': {k: v for k, v in item['result'].items() if k != 'thumbnail'},
+		       'title': f"{item['title']} (vista del mapa)",
+		       'view': {'bounds': view['bounds'], 'base': view.get('base') or 'osm'}}
+		self.results.append(new)
+		self.emit({'type': 'result', **self.card(new)})
+		return new['id']
+
+	async def refresh_map(self, rid):
+		"""Ask again for the tiles of the map of the result RID (those of Earth Engine expire after some hours)."""
+		item = self.map_item(rid)
+		error, texts, _ = await self.call(item['tool'], item['args'])
+		if error:
+			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+		item['result']['url'] = json.loads(texts[0])['url']
+		return item['result']['url']
+
+	def write_report(self, title, ids=None, tables=()):
+		"""Write the report of the results IDS (default: all), with the tables of values of those in TABLES, and
+		return its path."""
+		items = [{**r, 'table': r['id'] in tables} for r in self.results if ids is None or r['id'] in ids]
 		if not items:
 			raise ValueError('no hay resultados para el informe')
 		return report.write(items, title=title or self.question, question=self.question,
@@ -1008,6 +1090,27 @@ def make_app(assistant, token, port):
 		with open(os.path.join(HERE, 'ui', 'assistant.html'), encoding='utf-8') as f:
 			return HTMLResponse(f.read(), headers={'Cache-Control': 'no-store'})
 
+	async def vendor(request):  # the libraries of the page (Leaflet), kept in the package
+		root = os.path.realpath(os.path.join(HERE, 'ui', 'vendor'))
+		path = os.path.realpath(os.path.join(root, request.path_params['path']))
+		if not path.startswith(root + os.sep) or not os.path.isfile(path):
+			return Response('not found', status_code=404)
+		return FileResponse(path)
+
+	async def pixel(request):
+		body = await request.json()
+		return JSONResponse(await assistant.pixel(int(body['id']), float(body['lon']), float(body['lat'])))
+
+	async def keep_pixel(request):
+		return JSONResponse({'id': assistant.keep_pixel((await request.json())['key'])})
+
+	async def refresh_map(request):
+		return JSONResponse({'url': await assistant.refresh_map(int((await request.json())['id']))})
+
+	async def snapshot(request):
+		body = await request.json()
+		return JSONResponse({'id': await assistant.snapshot(int(body['id']), body)})
+
 	async def logo(request):
 		return FileResponse(os.path.join(HERE, 'logos', 'monitoreo_obsnev.png'))
 
@@ -1085,7 +1188,8 @@ def make_app(assistant, token, port):
 
 	async def make_report(request):
 		body = await request.json()
-		path = await asyncio.to_thread(assistant.write_report, body.get('title'), body.get('ids'))
+		path = await asyncio.to_thread(assistant.write_report, body.get('title'), body.get('ids'),
+		                               set(body.get('tables') or []))
 		webbrowser.open(pathlib.Path(path).resolve().as_uri())
 		return JSONResponse({'path': path, 'url': _file_url(path)})
 
@@ -1112,6 +1216,7 @@ def make_app(assistant, token, port):
 
 	@contextlib.asynccontextmanager
 	async def lifespan(app):
+		assistant.loop = asyncio.get_running_loop()
 		if assistant.settings.get('ollama', 'auto') == 'auto':
 			try:
 				await asyncio.to_thread(assistant.engine.find)
@@ -1135,6 +1240,11 @@ def make_app(assistant, token, port):
 	return Starlette(routes=[
 		Route('/', guarded(index, need_token=False)),
 		Route('/logo.png', guarded(logo, need_token=False)),
+		Route('/vendor/{path:path}', guarded(vendor, need_token=False)),
+		Route('/api/pixel', guarded(pixel), methods=['POST']),
+		Route('/api/pixel/keep', guarded(keep_pixel), methods=['POST']),
+		Route('/api/map/refresh', guarded(refresh_map), methods=['POST']),
+		Route('/api/map/snapshot', guarded(snapshot), methods=['POST']),
 		Route('/api/state', guarded(state)),
 		Route('/api/signin', guarded(signin), methods=['POST']),
 		Route('/api/settings', guarded(settings), methods=['POST']),
@@ -1182,8 +1292,10 @@ async def _threaded(produce):
 		yield item
 
 
-def run(port=PORT, browser=True):
-	"""Start the assistant on PORT and open it in the browser; if it is running already, only open it."""
+def run(port=PORT, browser=True, window=True):
+	"""Start the assistant on PORT and open it: in a window of its own (pywebview), closing which closes the
+	assistant, if WINDOW and this computer can; else in the browser if BROWSER. If it is running already, only open
+	it."""
 	import uvicorn
 	if _in_use(port):
 		try:
@@ -1195,14 +1307,14 @@ def run(port=PORT, browser=True):
 			sys.exit(f'ERROR: the port {port} is in use: start the assistant with --port N')
 		url = f"http://127.0.0.1:{port}/?t={running['token']}"
 		print(f'The assistant of MonitorEO is running already: {url}', file=sys.stderr)
-		if browser:
+		if not (window and _show_window(url)) and browser:
 			webbrowser.open(url)
 		return
 	token = os.environ.pop('MONITOREO_ASSISTANT_TOKEN', None) or secrets.token_urlsafe(16)  # the same after an update
 	assistant = Assistant()
 	server = uvicorn.Server(uvicorn.Config(make_app(assistant, token, port), host='127.0.0.1', port=port,
 	                                       log_level='warning', timeout_graceful_shutdown=3))
-	assistant.quit = lambda: setattr(server, 'should_exit', True)  # the button Cerrar of the page
+	assistant.quit = lambda: (assistant.end_streams(), setattr(server, 'should_exit', True))  # the button Cerrar
 	if hasattr(signal, 'SIGHUP'):  # the window of the terminal closed: stop as with Cerrar (and the engine with it)
 		signal.signal(signal.SIGHUP, lambda *_: assistant.quit())
 	os.makedirs(OUTPUT, exist_ok=True)
@@ -1210,16 +1322,36 @@ def run(port=PORT, browser=True):
 		json.dump({'port': port, 'token': token, 'pid': os.getpid()}, f)
 	url = f'http://127.0.0.1:{port}/?t={token}'
 	print(f'Assistant of MonitorEO {__version__}: {url} (Ctrl+C to stop it)', file=sys.stderr)
-	if browser:
-		threading.Thread(target=_open_when_started, args=(server, url), daemon=True).start()
+	in_window = window and _webview() is not None
 	try:
-		server.run()
+		if in_window:  # the server in a thread, the window in this one (macOS wants it so)
+			thread = threading.Thread(target=server.run, daemon=True)
+			thread.start()
+			for _ in range(600):
+				if server.started or not thread.is_alive():
+					break
+				time.sleep(0.1)
+
+			def ready(win):  # Cerrar, an update or the window of the terminal closed: the window too
+				assistant.quit = lambda: (assistant.end_streams(), setattr(server, 'should_exit', True), win.destroy())
+			in_window = _show_window(url, ready)
+			if in_window:  # the window was closed
+				assistant.end_streams()
+				server.should_exit = True
+			elif browser:
+				webbrowser.open(url)
+			thread.join()
+		else:
+			if browser:
+				threading.Thread(target=_open_when_started, args=(server, url), daemon=True).start()
+			server.run()
 	finally:
 		with contextlib.suppress(OSError):
 			os.remove(RUNNING)
 	if assistant.restart:  # after an update: the new version, with the same port and token (the page goes on)
 		cmd = [sys.executable] + (['-s'] if sys.flags.no_user_site else []) + \
-		      ['-m', 'monitoreo.cli', 'assistant', '--no-update', '--no-browser', '--port', str(port)]
+		      ['-m', 'monitoreo.cli', 'assistant', '--no-update', '--port', str(port)] + \
+		      ([] if in_window else ['--no-browser'])  # a window again; a page in the browser reloads by itself
 		env = {**os.environ, 'MONITOREO_ASSISTANT_TOKEN': token}
 		print('Starting the new version of the assistant...', file=sys.stderr)
 		if os.name == 'nt':  # no exec on Windows
@@ -1234,6 +1366,36 @@ def _watch_updates(assistant, every=6 * 3600):
 		with contextlib.suppress(Exception):
 			assistant.update_info = check_update()
 		time.sleep(every)
+
+
+def _webview():
+	"""The module webview (pywebview), or None if it is not installed."""
+	try:
+		import webview
+		return webview
+	except Exception:  # not installed, or without what it needs (Linux without GTK nor Qt)
+		return None
+
+
+def _show_window(url, ready=None):
+	"""Show URL in a window of its own and wait until it is closed (READY(window) when it is created); False if this
+	computer cannot open it."""
+	webview = _webview()
+	if webview is None:
+		return False
+	try:
+		webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = True  # the wiki and other pages, in the browser
+		webview.settings['ALLOW_DOWNLOADS'] = True  # CSV and GeoTIFF
+		win = webview.create_window('Asistente de MonitorEO', url, width=1400, height=900, min_size=(720, 520),
+		                            text_select=True)
+		if ready:
+			ready(win)
+		webview.start()
+		return True
+	except Exception as e:
+		print(f'WARNING: cannot open a window of its own ({type(e).__name__}: {e}): the browser instead',
+		      file=sys.stderr)
+		return False
 
 
 def _in_use(port):

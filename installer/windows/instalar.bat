@@ -8,8 +8,9 @@ rem   curl -fsSLo "%TEMP%\instalar-monitoreo.bat" https://raw.githubusercontent.
 rem
 rem Instala en %USERPROFILE%\MonitorEO\entorno, sin permisos de administrador, el entorno de Python de MonitorEO
 rem (Python, Earth Engine, GDAL y el paquete monitoreo, del environment.yml del repositorio) con micromamba, que deja
-rem en %USERPROFILE%\MonitorEO\micromamba. Pone en el Escritorio el acceso "Asistente de MonitorEO", que lo abre, y
-rem lo abre. Si el entorno ya existe, solo crea el acceso y abre el asistente; para instalarlo de nuevo, borra la
+rem en %USERPROFILE%\MonitorEO\micromamba. Pone en el Escritorio el acceso "Asistente de MonitorEO", que lo abre en
+rem su ventana con pythonw.exe, sin consola (sus mensajes van a %USERPROFILE%\MonitorEO\assistant-output.log), y lo
+rem abre. Si el entorno ya existe, solo crea el acceso y abre el asistente; para instalarlo de nuevo, borra la
 rem carpeta entorno. Sin acentos: cmd lee este fichero con la pagina de codigos de la consola.
 setlocal
 title Instalador del asistente de MonitorEO
@@ -52,21 +53,14 @@ set "MAMBA_ROOT_PREFIX=%MAMBA_DIR%"
 if not exist "%ENV%\Scripts\monitoreo.exe" goto :fail
 
 :launcher
-> "%DIR%\Asistente de MonitorEO.bat" (
-  echo @echo off
-  echo rem Abre el asistente de MonitorEO, creado por su instalador.
-  echo title Asistente de MonitorEO
-  echo echo El asistente de MonitorEO se abre en el navegador. Para cerrarlo, pulsa "Cerrar el asistente" en la pagina.
-  echo set PYTHONNOUSERSITE=1
-  echo "%ENV%\python.exe" -m monitoreo.cli assistant
-)
-powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Asistente de MonitorEO.lnk')); $s.TargetPath = Join-Path $env:DIR 'Asistente de MonitorEO.bat'; $s.WorkingDirectory = $env:DIR; $s.IconLocation = (Join-Path $env:ENV 'python.exe') + ',0'; $s.Save()"
+rem el acceso de las versiones anteriores abria una consola con este .bat
+if exist "%DIR%\Asistente de MonitorEO.bat" del "%DIR%\Asistente de MonitorEO.bat"
+powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Asistente de MonitorEO.lnk')); $s.TargetPath = Join-Path $env:ENV 'pythonw.exe'; $s.Arguments = '-s -m monitoreo.cli assistant'; $s.WorkingDirectory = $env:DIR; $s.IconLocation = (Join-Path $env:ENV 'python.exe') + ',0'; $s.Save()"
 
 echo.
-echo Listo. Para abrir el asistente otra vez: doble clic en "Asistente de MonitorEO" del Escritorio.
-echo Ahora se abre en el navegador. Para cerrarlo, pulsa "Cerrar el asistente" en la pagina.
-echo.
-"%ENV%\python.exe" -m monitoreo.cli assistant
+echo Listo. El asistente se abre ahora en su ventana; para cerrarlo, cierra la ventana o pulsa "Cerrar el asistente".
+echo Para abrirlo otra vez: doble clic en "Asistente de MonitorEO" del Escritorio. Ya puedes cerrar esta ventana.
+start "" "%ENV%\pythonw.exe" -s -m monitoreo.cli assistant
 exit /b
 
 :damaged
