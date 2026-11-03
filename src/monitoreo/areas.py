@@ -122,6 +122,43 @@ def _features_from_geojson(gj, name_field=None):
 	return out
 
 
+NAME_FIELDS = ('name', 'nombre', 'nom', 'denominacion', 'denominación', 'label', 'etiqueta', 'id')
+
+
+def describe_file(path, layer=None):
+	"""What a vector file has, to use it as a region: {'features' (with polygons), 'area_ha' (of their union),
+	'bounds' ([w, s, e, n] in EPSG:4326), 'crs', 'fields', 'name_field' (a field with a different value in each
+	feature that can name them, or None), 'layers' (of the file)}."""
+	ogr = _ogr()
+	ds = ogr.Open(path)
+	if ds is None:
+		raise ValueError(f'cannot open {path}')
+	layers = [ds.GetLayer(i).GetName() for i in range(ds.GetLayerCount())]
+	lyr = ds.GetLayerByName(layer) if layer else ds.GetLayer(0)
+	defn = lyr.GetLayerDefn()
+	fields = [defn.GetFieldDefn(i).GetName() for i in range(defn.GetFieldCount())]
+	values, count = {f: [] for f in fields}, 0
+	for feat in lyr:
+		g = feat.GetGeometryRef()
+		if g is None or ogr.GT_Flatten(g.GetGeometryType()) not in (ogr.wkbPolygon, ogr.wkbMultiPolygon):
+			continue
+		count += 1
+		for f in fields:
+			values[f].append(feat.GetField(f))
+	if not count:
+		raise ValueError(f'{path} has no polygons')
+	union, srs = read_vector(path, layer)
+	area = transform(union, srs, srs_of(utm_crs(union, srs))).GetArea() / 1e4
+	w, s, e, n = bounds(union, srs, 'EPSG:4326')
+	unique = [f for f in fields if all(v not in (None, '') for v in values[f]) and len(set(values[f])) == count]
+	named = [f for f in unique if f.lower() in NAME_FIELDS]
+	text = [f for f in unique if all(isinstance(v, str) for v in values[f])]
+	code = srs.GetAuthorityCode(None)
+	return {'features': count, 'area_ha': area, 'bounds': [w, s, e, n],
+	        'crs': f'{srs.GetAuthorityName(None)}:{code}' if code else srs.GetName(), 'fields': fields,
+	        'name_field': (named or text or [None])[0], 'layers': layers}
+
+
 def _features_from_file(path, layer=None, name_field=None, simplify=None):
 	ogr = _ogr()
 	ds = ogr.Open(path)

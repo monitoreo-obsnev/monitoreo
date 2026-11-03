@@ -18,6 +18,8 @@
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
+    monitoreo assistant [--port 8765] [--no-update]  chat in the browser for managers, with a language model of
+                                                     Ollama and the MCP server, at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
@@ -124,6 +126,10 @@ def main(argv=None):
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
+	p = sub.add_parser('assistant', help='chat in the browser for managers (language model of Ollama and MCP server)')
+	p.add_argument('--port', type=int, default=8765)
+	p.add_argument('--no-browser', action='store_true', help='do not open the browser')
+	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
 
 	if args.cmd == 'about':
@@ -135,6 +141,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'publish':
 		return _publish(args)
+	if args.cmd == 'assistant':
+		return _assistant(args)
 	from . import services
 	if args.cmd == 'list':
 		_table(services.list_variables(args.sensor, args.text, args.lang),
@@ -231,6 +239,20 @@ def _mcp(args):
 			os.execv(sys.executable, cmd)
 	from . import mcp_server
 	mcp_server.main()
+
+
+def _assistant(args):
+	"""Start the assistant, after installing the last version of GitHub (then it starts again, with that version)."""
+	if not args.no_update:
+		from . import update
+		if update.ensure_latest('assistant') == 'updated':
+			cmd = [sys.executable, '-m', 'monitoreo.cli', 'assistant', '--no-update', '--port', str(args.port)] + \
+			      (['--no-browser'] if args.no_browser else [])
+			if os.name == 'nt':
+				sys.exit(subprocess.call(cmd))
+			os.execv(sys.executable, cmd)
+	from . import assistant
+	assistant.run(args.port, browser=not args.no_browser)
 
 
 def _download(args, services):

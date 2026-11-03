@@ -1,0 +1,203 @@
+"""Tests of the assistant and of its report that need neither Earth Engine nor a language model."""
+
+import asyncio
+import json
+
+import pytest
+
+from monitoreo import assistant, report
+
+TOOLS = [
+	{'name': 'time_series', 'description': 'Time series.', 'inputSchema': {'type': 'object', 'properties': {
+		'region': {'type': 'object', 'additionalProperties': True}, 'variable': {'type': 'string'},
+		'sensor': {'type': 'string'}, 'start': {'type': 'string'}, 'end': {'type': 'string'},
+		'season': {'anyOf': [{'type': 'array', 'items': {'type': 'string'}}, {'type': 'null'}]},
+		'collection': {'type': 'string'}}, 'required': ['region', 'variable', 'collection']}},
+	{'name': 'connect', 'description': 'Connect.', 'inputSchema': {'type': 'object', 'properties': {
+		'project': {'type': 'string'}}}},
+	{'name': 'find_protected_areas', 'description': 'Protected areas.', 'inputSchema': {'type': 'object', 'properties': {
+		'text': {'type': 'string'}, 'limit': {'type': 'integer'}}, 'required': ['text']}},
+]
+ROWS = [{'region': 'region', 'date': f'2021-{m:02d}-01', 'value': 0.5 + m / 1000, 'n_pixels': 100, 'n_images': 4}
+        for m in range(1, 13)]
+SERIES = {'title': 'NDVI', 'unit': '[unitless]', 'scale': 10, 'n_steps': 12, 'regions': ['region'], 'rows': ROWS,
+          'csv': '/tmp/ndvi.csv', 'chart': None}
+ARGS = {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2021-01-01',
+        'end': '2021-12-31'}
+
+
+def test_model_tools():
+	tools = assistant.model_tools(TOOLS)
+	assert [t['function']['name'] for t in tools] == ['time_series', 'find_protected_areas']  # not connect
+	series = tools[0]['function']
+	assert 'collection' not in series['parameters']['properties']
+	assert series['parameters']['required'] == ['region', 'variable']
+	assert series['description'].endswith(assistant.RECEIPT_NOTE)
+	assert 'limit' not in tools[1]['function']['parameters']['properties']
+
+
+def test_fix_args():
+	tools = assistant.model_tools(TOOLS)
+	args = assistant.fix_args('time_series', {'region': '{"wdpa_id": 389011}', 'variable': 'NDVI', 'collection': 'X',
+	                                          'season': '["06-01", "08-31"]', 'unknown': 1, 'sensor': None}, tools)
+	assert args == {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'season': ['06-01', '08-31']}
+	assert assistant.fix_args('time_series', '{"variable": "EVI"}', tools) == {'variable': 'EVI'}
+
+
+def test_instructions():
+	text = assistant.instructions()
+	assert 'No interpretes resultados' in text
+	assert '- NDVI: ' in text and 'Sentinel-2 10 m desde 2017' in text and 'Landsat 30 m desde 1984' in text
+
+
+class FakeAssistant(assistant.Assistant):
+	"""An assistant whose MCP server answers a time series and the protected areas of WDPA."""
+
+	async def call(self, name, args):
+		if name == 'find_protected_areas':
+			return None, [json.dumps([{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional'}])], []
+		return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
+
+
+def test_the_model_does_not_get_the_results(monkeypatch):
+	answers = iter([
+		{'content': '', 'tool_calls': [{'function': {'name': 'find_protected_areas', 'arguments': {'text': 'Sierra'}}}]},
+		{'content': '', 'tool_calls': [{'function': {'name': 'time_series', 'arguments': ARGS}}]},
+		{'content': 'Listo: la serie está en pantalla.'},
+	])
+	seen = []
+
+	def model(settings, system, messages, tools):
+		seen.append(json.dumps(messages, ensure_ascii=False))
+		return next(answers)
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+		a.tools = assistant.model_tools(TOOLS)
+		return a, [e async for e in a.chat('NDVI de Sierra Nevada en 2021')]
+
+	a, events = asyncio.run(run())
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'assistant']
+	assert next(e for e in events if e['type'] == 'areas')['areas'] == [
+		{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional', 'match': False}]
+	result = next(e for e in events if e['type'] == 'result')
+	assert result['table']['rows'][0][1] == '0,501' and result['image'].startswith('data:image/png')
+	assert 'Sierra Nevada (Parque Nacional) (WDPA 389011)' in dict(result['facts'])['Región']
+	assert 'Sierra Nevada' in seen[1]  # the answer of an advice tool goes to the model
+	assert '0.501' not in seen[2] and '0,501' not in seen[2] and 'Hecho:' in seen[2]  # that of a result does not
+	assert len(a.results) == 1 and a.question == 'NDVI de Sierra Nevada en 2021'
+
+
+def test_unknown_protected_area(monkeypatch):
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS)
+	a.messages.append({'role': 'user', 'content': 'NDVI de Doñana'})
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': ARGS})]
+
+	assert asyncio.run(run()) == [] and not a.results  # 389011, copied from an example: refused
+	assert 'busca primero el espacio protegido' in a.messages[-1]['content']
+	a.messages.append({'role': 'user', 'content': 'El de WDPA 389011'})  # unless the user gives it
+	assert [e['type'] for e in asyncio.run(run())] == ['running', 'result']
+
+
+def test_not_ready(monkeypatch):
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS)
+
+	async def run():
+		args = {**ARGS, 'region': {'bbox': [-3.62, 36.86, -3.50, 36.93]}}
+		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
+
+	events = asyncio.run(run())
+	assert events[0]['type'] == 'error' and 'inicia sesión' in events[0]['text'] and not a.results
+
+
+def test_report(tmp_path):
+	items = [{'tool': 'time_series', 'args': ARGS, 'result': SERIES},
+	         {'tool': 'time_series', 'args': ARGS, 'result': {**SERIES, 'rows': ROWS * 5}},
+	         {'tool': 'region_stats', 'args': ARGS, 'result': [{'region': 'r', 'mean': 0.4, 'n_pixels': 1234}]}]
+	path = report.write(items, str(tmp_path / 'informe.html'), title='NDVI <2021>', question='¿NDVI?', project='p',
+	                    names={'389011': 'Sierra Nevada'})
+	text = open(path, encoding='utf-8').read()
+	assert '<title>NDVI &lt;2021&gt;</title>' in text and 'calculado en Google Earth Engine con el proyecto p' in text
+	assert 'Sierra Nevada (WDPA 389011)' in text and 'Serie mensual de NDVI (Sentinel-2), 2021' in text
+	assert '<td>0,501</td>' in text and '1.234' in text  # numbers as written in Spanish
+	assert 'Anexo: tablas completas' in text and 'Tabla 2.' in text  # the table of 60 rows goes to the annex
+	assert 'mo.time_series(region={&quot;wdpa_id&quot;: 389011}' in text and 'zenodo' in text.lower()
+	assert text.count('data:image/') >= 3  # the logos, embedded
+	assert report.item_table('trend_table', {'unit': '[ºC]', 'trends': [
+		{'label': 'enero', 'n': 20, 'slope': 0.05, 'p_value': 0.01, 'significant': True}]})[0] == \
+	       ['Parte del año', 'Años', 'Pendiente de Sen (°C/año)', 'p-valor', 'Significativa']
+
+
+def _polygons(path, driver):
+	"""Two squares of 1 km (100 ha) in ETRS89 / UTM 30N with the field nombre, written with GDAL."""
+	from osgeo import ogr, osr
+	ogr.UseExceptions()
+	srs = osr.SpatialReference()
+	srs.ImportFromEPSG(25830)
+	ds = ogr.GetDriverByName(driver).CreateDataSource(str(path))
+	lyr = ds.CreateLayer('parcelas', srs, ogr.wkbPolygon)
+	lyr.CreateField(ogr.FieldDefn('nombre', ogr.OFTString))
+	for i, name in enumerate(('norte', 'sur')):
+		x, y = 450000, 4110000 - 2000 * i
+		f = ogr.Feature(lyr.GetLayerDefn())
+		f.SetField('nombre', name)
+		f.SetGeometry(ogr.CreateGeometryFromWkt(f'POLYGON(({x} {y},{x + 1000} {y},{x + 1000} {y + 1000},{x} {y + 1000},'
+		                                        f'{x} {y}))'))
+		lyr.CreateFeature(f)
+	ds = None
+
+
+def test_layers(tmp_path, monkeypatch):
+	pytest.importorskip('osgeo')
+	import zipfile
+	monkeypatch.setattr(assistant, 'LAYERS', str(tmp_path / 'capas'))
+	_polygons(tmp_path / 'Mis parcelas.gpkg', 'GPKG')
+	(tmp_path / 'shp').mkdir()
+	_polygons(tmp_path / 'shp' / 'parcelas.shp', 'ESRI Shapefile')
+	with zipfile.ZipFile(tmp_path / 'parcelas.zip', 'w') as z:
+		for p in (tmp_path / 'shp').iterdir():
+			z.write(p, f'carpeta/{p.name}')
+	a = assistant.Assistant({**assistant.DEFAULTS})
+	gpkg = a.add_layer('Mis parcelas.gpkg', (tmp_path / 'Mis parcelas.gpkg').read_bytes())
+	assert gpkg['name'] == 'mis_parcelas' and gpkg['features'] == 2 and abs(gpkg['area_ha'] - 200) < 0.5
+	assert gpkg['crs'] == 'EPSG:25830' and gpkg['name_field'] == 'nombre'
+	shp = a.add_layer('parcelas.zip', (tmp_path / 'parcelas.zip').read_bytes())
+	assert shp['file'].startswith('/vsizip/') and shp['file'].endswith('carpeta/parcelas.shp') and shp['features'] == 2
+	assert '- parcelas: 2 polígonos, 200 ha, nombres del campo nombre' in a.system_prompt()
+	args = a.with_layer({'region': {'capa': 'Mis parcelas'}, 'variable': 'NDVI'})
+	assert args == {'region': {'file': gpkg['file'], 'name_field': 'nombre'}, 'variable': 'NDVI'}
+	with pytest.raises(ValueError, match='no hay ninguna capa'):
+		a.with_layer({'region': {'capa': 'otra'}})
+	assert report.region_text(args['region'], a.all_names()).startswith('Capa «mis_parcelas» (2 polígonos')
+	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
+	a.remove_layer('parcelas')
+	assert set(assistant.load_layers()) == {'mis_parcelas'} and not (tmp_path / 'capas' / 'parcelas.zip').exists()
+	with pytest.raises(ValueError, match='formato no admitido'):
+		a.add_layer('parcelas.shp', b'')
+
+
+def test_areas_text():
+	areas = [{'SITE_ID': 68175, 'NAME': 'Parque Nacional de Doñana', 'DESIG': 'Ramsar Site', 'REP_AREA': 1116.0},
+	         {'SITE_ID': 389012, 'NAME': 'Doñana', 'DESIG': 'Parque Nacional', 'REP_AREA': 534.2}]
+	lines = assistant.areas_text(areas, 'NDVI en el Parque Nacional de Doñana').splitlines()
+	assert lines[1] == '- SITE_ID 389012: Doñana, Parque Nacional, 534,2 km² (su designación coincide con la consulta)'
+	assert lines[2] == '- SITE_ID 68175: Parque Nacional de Doñana, Ramsar Site, 1.116 km²'
+	assert 'Ningún espacio' in assistant.areas_text([], 'x')
+
+
+def test_search_name():
+	assert assistant.search_name('Parque Nacional de Doñana') == 'Doñana'
+	assert assistant.search_name('parque natural de la Sierra de Cazorla') == 'Sierra de Cazorla'
+	assert assistant.search_name('Reserva Natural Concertada del Peñón') == 'Peñón'
+	assert assistant.search_name('ZEPA Doñana') == 'Doñana'
+	assert assistant.search_name('Sierra Nevada') == 'Sierra Nevada'
+	assert assistant.search_name('Parque Nacional') == 'Parque Nacional'  # nothing else: as it was

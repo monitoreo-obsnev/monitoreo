@@ -19,6 +19,7 @@ mismo resultado en todas.
 | [App de Earth Engine](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo) | cualquiera, en el navegador, sin instalar nada ni tener cuenta | [App de Earth Engine](https://github.com/monitoreo-obsnev/monitoreo/wiki/App-de-Earth-Engine) | `gee` |
 | Plugin de QGIS **MonitorEO** | usuarios de QGIS 4.0.3 o posterior | [QGIS](https://github.com/monitoreo-obsnev/monitoreo/wiki/QGIS) | `qgis/monitoreo_qgis` |
 | Servidor MCP | Claude u otros modelos de lenguaje | [MCP](https://github.com/monitoreo-obsnev/monitoreo/wiki/MCP) | `src/monitoreo/mcp_server.py` |
+| Asistente para gestores | gestores, en el navegador, con un modelo abierto en su ordenador (Ollama) y el servidor MCP; informes en PDF sin interpretación | [Asistente](https://github.com/monitoreo-obsnev/monitoreo/wiki/Asistente) | `src/monitoreo/assistant.py`, `monitoreo assistant` |
 | Paquete de Python `monitoreo` | scripts, cuadernos, línea de comandos | [Python](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python), [Línea de comandos](https://github.com/monitoreo-obsnev/monitoreo/wiki/Línea-de-comandos) | `src/monitoreo` |
 | Paquete de R `monitoreo` | R, con `sf`, `terra` o `rgee` | [R](https://github.com/monitoreo-obsnev/monitoreo/wiki/R) | `r/monitoreo` |
 | Visor de resultados | cualquiera, en el navegador (publican los administradores) | [Visor de resultados](https://github.com/monitoreo-obsnev/monitoreo/wiki/Visor-de-resultados) | `src/monitoreo/viewer`, `monitoreo publish` |

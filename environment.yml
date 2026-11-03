@@ -16,6 +16,8 @@ dependencies:
   - gdal>=3.6          # lectura de vectores y escritura de GeoTIFF (opcional para las series temporales)
   - matplotlib         # gráficas de las series temporales
   - mcp>=1.10          # servidor MCP
+  - starlette          # asistente para gestores (monitoreo assistant)
+  - uvicorn
   - pytest
   - pip
   - pip:
