@@ -53,13 +53,18 @@ PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_prox
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map', 'compare_series', 'compare_map',
-           'burn_severity')  # their answers go only to the user and the report
-HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'resolution', 'crs', 'lang', 'limit')  # arguments the model does not see
+           'burn_severity', 'download_image', 'download_trend', 'download_comparison',
+           'download_variables')  # their answers go only to the user and the report
+TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
+HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit')  # arguments the model does not see
 AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas, for the model
 DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|'
                 r'de la biosfera)|monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial '
                 r'conservaci[oó]n|zec|zepa|lic)\b( (de la|de los|de las|del|de)\b)?\s*')  # removed from the searches
 
+TASK_STATES = {'PENDING': 'en cola', 'READY': 'en cola', 'RUNNING': 'en marcha', 'SUCCEEDED': 'terminada',
+               'COMPLETED': 'terminada', 'FAILED': 'fallida', 'CANCELLED': 'cancelada', 'CANCELLING': 'cancelándose',
+               'UNKNOWN': 'desconocido'}
 LABELS = {'list_variables': 'Consultando las variables del catálogo',
           'describe_variable': 'Consultando la ficha de {variable}',
           'find_protected_areas': 'Buscando espacios protegidos con «{text}»'}
@@ -98,6 +103,7 @@ devuelve find_protected_areas), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [oeste
 minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Tendencia a lo largo de los años: \
 trend_table (8 años o más) y trend_map para ver dónde. Comparar un periodo con otro de referencia: compare_series y \
 compare_map. Incendio: burn_severity.
+- Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor que la de los datos. Varias variables en rejillas alineadas (para un modelo): download_variables, primero con dry_run. Regiones grandes a resolución completa: export_image_to_drive (o export_time_series_to_drive para una serie larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado.
 
 Guía de sensores:
 - Sentinel-2: píxel de 10-20 m, una imagen cada 5 días aproximadamente, desde 2017. Para zonas pequeñas o con \
@@ -153,7 +159,7 @@ def model_tools(tools):
 	the arguments in HIDDEN."""
 	out = []
 	for t in tools:
-		if t['name'] not in ADVICE + RESULTS:
+		if t['name'] not in ADVICE + RESULTS + TASKS:
 			continue
 		schema = json.loads(json.dumps(t.get('inputSchema') or {'type': 'object', 'properties': {}}))
 		props = schema.setdefault('properties', {})
@@ -212,6 +218,20 @@ def areas_text(areas, question=''):
 	         for i, a in enumerate(ranked)]
 	return (f'{len(areas)} espacios protegidos; el usuario ve esta lista y puede elegir uno en ella:\n' + '\n'.join(lines)
 	        if areas else 'Ningún espacio protegido con ese nombre: pide al usuario otro nombre o una capa.')
+
+
+def task_text(tool, text):
+	"""What the user reads of an answer of the exports to Google Drive or of task_status."""
+	try:
+		r = json.loads(text)
+	except ValueError:
+		return text
+	if tool == 'task_status':
+		state = TASK_STATES.get(r.get('state'), r.get('state'))
+		progress = f" ({round(100 * r['progress'])} %)" if isinstance(r.get('progress'), (int, float)) else ''
+		return f'Exportación a Google Drive: {state}{progress}.' + (f" {r['error']}" if r.get('error') else '')
+	return (f"Exportación a Google Drive en marcha: {r.get('file', '')} en la carpeta {r.get('folder', '')} de tu "
+	        'Google Drive. Tarda de minutos a horas; pregunta «¿ha terminado la exportación?» para saberlo.')
 
 
 def receipt(n, title):
@@ -432,7 +452,7 @@ class Assistant:
 		"""Run a call of the model: the answers of the advice tools go to the model, those of the others only to the
 		user (a card on the page and a result for the report) and the model gets a receipt."""
 		name = call.get('name')
-		if name not in ADVICE + RESULTS:
+		if name not in ADVICE + RESULTS + TASKS:
 			self._tool_message(name, f'Error: no hay ninguna herramienta {name}.')
 			return
 		try:
@@ -445,14 +465,18 @@ class Assistant:
 			self._tool_message(name, f'Error: {e}.')
 			return
 		title = _title(name, args)
-		if name in RESULTS:
+		if name in RESULTS + TASKS:
 			problem = self.not_ready()
 			if problem:
 				yield {'type': 'error', 'text': problem[0].upper() + problem[1:] + '.'}
 				self._tool_message(name, f'Error: no se ha calculado; {problem}.')
 				return
+		if name in RESULTS:
 			yield {'type': 'running', 'text': f'Calculando en Google Earth Engine: {title}…',
 			       'facts': _facts(name, args, None, self.all_names())}
+		elif name in TASKS:
+			yield {'type': 'status', 'text': ('Consultando la exportación' if name == 'task_status' else
+			                                  'Lanzando la exportación a Google Drive') + '…'}
 		else:
 			yield {'type': 'status', 'text': LABELS[name].format(**{k: args.get(k, '') for k in ('variable', 'text')})
 			                                 + '…'}
@@ -478,10 +502,19 @@ class Assistant:
 					text = areas_text(found, question)
 			self._tool_message(name, text[:MAX_ADVICE])
 			return
+		if name in TASKS:
+			text = '\n'.join(texts)
+			yield {'type': 'notice', 'text': task_text(name, text)}
+			self._tool_message(name, text[:MAX_ADVICE])
+			return
 		try:
 			result = json.loads(texts[0]) if texts else {}
 		except ValueError:
 			result = {'text': texts[0]}
+		if not images and isinstance(result, dict) and str(result.get('file', '')).endswith('.tif'):
+			preview = await asyncio.to_thread(report.tif_preview, result['file'], result.get('palette'),
+			                                  result.get('min'), result.get('max'))
+			images = [preview] if preview else []
 		item = {'id': len(self.results) + 1, 'tool': name, 'args': args, 'result': result,
 		        'image': images[0] if images else None, 'title': _title(name, args)}
 		self.results.append(item)
@@ -530,7 +563,7 @@ class Assistant:
 	def check_areas(self, args):
 		"""Refuse the WDPA IDs that come neither from find_protected_areas nor from the user: small models copy them
 		from the examples or make them up."""
-		region = args.get('region')
+		region = args.get('region') or args.get('area')
 		ids = region.get('wdpa_id') if isinstance(region, dict) else None
 		if ids is None:
 			return
@@ -542,7 +575,8 @@ class Assistant:
 
 	def with_layer(self, args):
 		"""ARGS with a region {"capa": name} as the file of that layer."""
-		region = args.get('region')
+		arg = 'area' if 'area' in args and 'region' not in args else 'region'  # area: download_variables
+		region = args.get(arg)
 		if not isinstance(region, dict) or not (region.get('capa') or region.get('layer')):
 			return args
 		key = str(region.get('capa') or region.get('layer')).strip()
@@ -550,8 +584,8 @@ class Assistant:
 			k.lower(), v['original'].lower(), os.path.splitext(v['original'])[0].lower())), None)
 		if not layer:
 			raise ValueError(f'no hay ninguna capa «{key}»; las capas son: {", ".join(self.layers) or "ninguna"}')
-		return {**args, 'region': {'file': layer['file'],
-		                           **({'name_field': layer['name_field']} if layer.get('name_field') else {})}}
+		return {**args, arg: {'file': layer['file'],
+		                      **({'name_field': layer['name_field']} if layer.get('name_field') else {})}}
 
 	def add_layer(self, filename, data):
 		"""Keep a vector file (its name and content) in LAYERS as a layer that the model can use as a region."""

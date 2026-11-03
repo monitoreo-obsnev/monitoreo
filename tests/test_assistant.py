@@ -286,3 +286,74 @@ def test_engine_older_version(tmp_path):
 	(tmp_path / f'{engine.OLLAMA}.tmp').mkdir()  # an installation that did not end
 	assert engine.Engine(str(tmp_path)).installed() == str(old / 'ollama')  # used until Ollama is installed again
 	assert engine.Engine(str(tmp_path / 'nothing')).installed() is None
+
+
+def test_downloads_and_exports(monkeypatch):
+	tools = assistant.model_tools(TOOLS + [
+		{'name': n, 'description': n, 'inputSchema': {'type': 'object', 'properties': {
+			'region': {'type': 'object'}, 'resolution': {'type': 'number'}, 'crs': {'type': 'string'},
+			'operation': {'type': 'string'}}}}
+		for n in ('download_image', 'export_image_to_drive', 'task_status', 'publish_report')])
+	names = [t['function']['name'] for t in tools]
+	assert 'download_image' in names and 'export_image_to_drive' in names and 'publish_report' not in names
+	props = next(t for t in tools if t['function']['name'] == 'download_image')['function']['parameters']['properties']
+	assert 'resolution' in props and 'crs' not in props
+	tif = {'file': '/tmp/NDVI.tif', 'grid': {'crs': 'EPSG:32630', 'resolution': 20, 'width': 1200, 'height': 800},
+	       'resolution': 20, 'native_resolution': 10, 'images': 12, 'name': 'NDVI', 'unit': '[unitless]',
+	       'min': 0.12, 'max': 0.63, 'palette': ['ffffff', '00aa00']}
+	facts = dict(report.item_facts('download_image', ARGS, tif))
+	assert facts['GeoTIFF'] == '1.200 × 800 píxeles de 20 m (los datos, de 10 m), en EPSG:32630'
+	assert facts['Valores (percentiles 5 y 95)'] == '0,12 a 0,63' and facts['Imágenes'] == '12'
+	assert report.item_title('download_image', ARGS) == 'Mapa de NDVI (Sentinel-2), 2021 (GeoTIFF)'
+	assert assistant.task_text('task_status', json.dumps({'state': 'RUNNING', 'progress': 0.42})) == \
+	       'Exportación a Google Drive: en marcha (42 %).'
+	assert 'carpeta MonitorEO' in assistant.task_text('export_image_to_drive', json.dumps(
+		{'operation': 'projects/p/operations/X', 'file': 'NDVI.tif', 'folder': 'MonitorEO'}))
+	recipe = {'period': ['2018-01-01', '2021-12-31'], 'variables': [{'index': 'NDVI', 'sensor': 'Sentinel-2',
+	                                                                 'metric': ['p95', 'p5']}]}
+	plan = {'grids': {'study': {'width': 500, 'height': 400, 'resolution': 10, 'mb_per_variable': 0.76}},
+	        'files': [{'file': '01_NDVI_p95.tif', 'pixel_filters': ['clouds', 'snow'], 'images': 310}]}
+	facts = dict(report.item_facts('download_variables', {'recipe': recipe, 'area': {'bbox': [0, 0, 1, 1]},
+	                                                       'name': 'modelo', 'dry_run': True}, plan))
+	assert facts['Variables'] == 'NDVI (Sentinel-2): percentil 95, percentil 5' and 'solo el plan' in facts['Descarga']
+	assert report.item_table('download_variables', plan)[1] == [['01_NDVI_p95.tif', '310', 'nubes, nieve']]
+
+
+def test_geotiff_preview(tmp_path, monkeypatch):
+	pytest.importorskip('osgeo')
+	pytest.importorskip('matplotlib')
+	import numpy as np
+	from osgeo import gdal, osr
+	gdal.UseExceptions()
+	path = str(tmp_path / 'ndvi.tif')
+	ds = gdal.GetDriverByName('GTiff').Create(path, 40, 30, 1, gdal.GDT_Float32)
+	srs = osr.SpatialReference()
+	srs.ImportFromEPSG(32630)
+	ds.SetProjection(srs.ExportToWkt())
+	ds.SetGeoTransform([450000, 10, 0, 4090000, 0, -10])
+	band = ds.GetRasterBand(1)
+	band.SetNoDataValue(-9999)
+	a = np.linspace(0, 1, 1200, dtype='float32').reshape(30, 40)
+	a[:5] = -9999
+	band.WriteArray(a)
+	ds = None
+	assert report.tif_preview(path, ['ffffff', '00aa00'], 0.1, 0.9).startswith('data:image/png;base64,')
+	assert report.tif_preview(str(tmp_path / 'nothing.tif')) is None
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+
+	class Downloads(FakeAssistant):
+		async def call(self, name, args):
+			return None, [json.dumps({'file': path, 'palette': ['ffffff', '00aa00'], 'min': 0.1, 'max': 0.9,
+			                          'grid': {'crs': 'EPSG:32630', 'width': 40, 'height': 30}, 'resolution': 10})], []
+
+	a = Downloads({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS + [{'name': 'download_image', 'description': '', 'inputSchema': {
+		'type': 'object', 'properties': {'region': {'type': 'object'}, 'variable': {'type': 'string'}}}}])
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'download_image', 'arguments': {
+			'region': {'bbox': [-3.62, 36.86, -3.5, 36.93]}, 'variable': 'NDVI'}})]
+
+	result = next(e for e in asyncio.run(run()) if e['type'] == 'result')
+	assert result['image'].startswith('data:image/png') and result['files'][0]['name'] == 'ndvi.tif'
+	assert 'Hecho:' in a.messages[-1]['content'] and '0.9' not in a.messages[-1]['content']

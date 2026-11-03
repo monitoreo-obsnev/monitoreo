@@ -475,6 +475,7 @@ async function send(text) {
       if (e.type === 'status') status(e.text);
       else if (e.type === 'assistant') message('assistant', e.text);
       else if (e.type === 'areas') $('chat').append(areasCard(e));
+      else if (e.type === 'notice') notice(e.text);
       else if (e.type === 'running') {
         status(e.text);
         running = el('article', {class: 'card'}, el('div', {}, el('span', {class: 'spinner'}), e.text), facts(e.facts, true));

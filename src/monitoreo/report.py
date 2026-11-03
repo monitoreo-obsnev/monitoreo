@@ -39,6 +39,14 @@ METHODS = {
 	'compare_series': 'Para cada parte del año, la media de sus valores en los años de cada periodo y la diferencia '
 	                  'entre ambas (otro periodo menos referencia).',
 	'compare_map': 'En cada píxel, la métrica temporal del otro periodo menos la del periodo de referencia.',
+	'download_image': 'La métrica temporal de las imágenes del periodo en cada píxel, en un GeoTIFF (float32, NoData '
+	                  '-9999).',
+	'download_trend': 'La tendencia calculada en cada píxel (prueba de Mann-Kendall y pendiente de Sen, cambio por '
+	                  'año), en un GeoTIFF con una banda por resultado (NoData -9999).',
+	'download_comparison': 'En cada píxel, la métrica temporal del otro periodo menos la del periodo de referencia, en '
+	                       'un GeoTIFF con las bandas diferencia, referencia y otro periodo (NoData -9999).',
+	'download_variables': 'Cada variable de la receta, con sus métricas, en un GeoTIFF por variable sobre rejillas '
+	                      'alineadas del área de estudio y, si la receta lo pide, de sus ecorregiones.',
 	'burn_severity': 'dNBR: NBR del periodo anterior al incendio menos NBR del posterior, con las clases de severidad '
 	                 'del USGS (Key y Benson, 2006). Área quemada: dNBR ≥ 0,1.',
 }
@@ -62,6 +70,7 @@ TABLES = {
 	'region_stats': ((None,), [('region', 'Región'), ('mean', 'Media{u}'), ('std', 'Desv. típica'), ('min', 'Mín.'),
 	                           ('p5', 'P5'), ('p50', 'Mediana'), ('p95', 'P95'), ('max', 'Máx.'),
 	                           ('n_pixels', 'Píxeles')]),
+	'download_variables': (('files',), [('file', 'Archivo'), ('images', 'Imágenes'), ('pixel_filters', 'Píxeles descartados')]),
 	'burn_severity': (('classes',), [('region', 'Región'), ('label', 'Clase de severidad'), ('dnbr_min', 'dNBR desde'),
 	                                 ('dnbr_max', 'dNBR hasta'), ('ha', 'Hectáreas')]),
 }
@@ -168,14 +177,19 @@ def item_title(tool, args, result=None):
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
 		                           season=season_text(args.get('season')))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'burn_severity'):
-		return default_title(tool, args)
+	if tool in ('time_series', 'trend_table', 'compare_series', 'burn_severity', 'download_image', 'download_trend',
+	            'download_comparison'):
+		return default_title(tool, args) + (' (GeoTIFF)' if tool == 'download_image' else '')
+	if tool == 'download_variables':
+		return f"Variables en GeoTIFF: {args.get('name', '')}" + (' (plan, sin descargar)' if args.get('dry_run') else '')
 	return (result or {}).get('title') or tool
 
 
 def item_facts(tool, args, result=None, names=None):
 	"""How a result was computed: [(label, text)] in Spanish."""
 	result = result if isinstance(result, dict) else {}
+	if tool == 'download_variables':
+		return _recipe_facts(args, result, names)
 	facts = [('Región', region_text(args.get('region'), names or {}))]
 	entry = _entry(args.get('variable') or ('NBR' if tool == 'burn_severity' else None), args.get('sensor') or
 	               ('Sentinel-2' if tool == 'burn_severity' else None))
@@ -190,14 +204,14 @@ def item_facts(tool, args, result=None, names=None):
 	if args.get('other_start') and args.get('other_end'):
 		label = 'Después del incendio' if tool == 'burn_severity' else 'Otro periodo'
 		facts.append((label, period_text(args['other_start'], args['other_end']) + season_text(args.get('season'))))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map'):
-		step = args.get('step') or ('annual' if tool.startswith('trend') else 'monthly')
+	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend'):
+		step = args.get('step') or ('annual' if 'trend' in tool else 'monthly')
 		facts.append(('Paso', STEPS.get(step, step)))
-	if tool == 'trend_map' and args.get('part'):
+	if tool in ('trend_map', 'download_trend') and args.get('part'):
 		part = int(args['part'])
 		facts.append(('Parte del año', MONTHS[part - 1] if args.get('step') == 'monthly' else f'periodo {part}'))
-	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity')
-	                                else 'mean')
+	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
+	                                                      'download_image', 'download_comparison') else 'mean')
 	facts.append(('Métrica temporal', _stat(metric)))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Estadístico espacial', _stat(args.get('stat') or 'mean')))
@@ -214,8 +228,53 @@ def item_facts(tool, args, result=None, names=None):
 		burned = result['burned_ha']
 		facts.append(('Área quemada', '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
 		              else f'{_num(next(iter(burned.values())))} ha'))
+	grid = result.get('grid')
+	if isinstance(grid, dict) and grid.get('width'):
+		native = result.get('native_resolution')
+		res = result.get('resolution') or grid.get('resolution')
+		facts.append(('GeoTIFF', f"{_num(grid['width'])} × {_num(grid['height'])} píxeles de {_num(res)} m"
+		                         + (f' (los datos, de {_num(native)} m)' if native and native != res else '')
+		                         + f", en {grid.get('crs', '')}"))
+	if result.get('bands'):
+		facts.append(('Bandas', ', '.join(map(str, result['bands']))))
+	if result.get('images'):
+		facts.append(('Imágenes', _num(result['images'])))
+	if tool == 'download_image' and result.get('min') is not None:
+		facts.append(('Valores (percentiles 5 y 95)', f"{_num(result['min'])} a {_num(result['max'])}"
+		                                              + (f" {unit_text(result.get('unit'))}" if unit_text(result.get('unit')) else '')))
 	if tool in METHODS:
 		facts.append(('Método', METHODS[tool]))
+	return facts
+
+
+def _recipe_facts(args, result, names):
+	"""How the variables of a recipe (download_variables) were downloaded."""
+	recipe = args.get('recipe') or {}
+	facts = [('Área de estudio', region_text(args.get('area'), names or {}))]
+	variables = []
+	for v in recipe.get('variables') or []:
+		metric = v.get('metric') or 'median'
+		metrics = ', '.join(_stat(m) for m in (metric if isinstance(metric, list) else [metric]))
+		what = v.get('index') or v.get('name') or v.get('image') or '?'
+		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}: {metrics}")
+	if variables:
+		facts.append(('Variables', '; '.join(variables)))
+	period = recipe.get('period')
+	if isinstance(period, list) and len(period) == 2:
+		facts.append(('Periodo', period_text(*period) + season_text(recipe.get('season'))))
+	for name, g in (result.get('grids') or {}).items():
+		label = {'study': 'Rejilla del área de estudio', 'ecoregion': 'Rejilla de las ecorregiones'}.get(name, name)
+		facts.append((label, f"{_num(g.get('width'))} × {_num(g.get('height'))} píxeles de {_num(g.get('resolution'))} m"
+		                     f", {_num(g.get('mb_per_variable'))} MB por variable"))
+	if args.get('dry_run'):
+		facts.append(('Descarga', 'solo el plan: no se ha descargado nada'))
+	elif result:
+		facts.append(('Descarga', 'completa' if result.get('done') else
+		              f"pendiente: {len(result.get('pending') or [])} exportaciones a Google Drive en marcha"))
+		if result.get('folders'):
+			facts.append(('Carpetas', '; '.join(map(str, result['folders'].values() if isinstance(result['folders'], dict)
+			                                         else result['folders']))))
+	facts.append(('Método', METHODS['download_variables']))
 	return facts
 
 
@@ -235,7 +294,9 @@ def item_table(tool, result, args=None):
 		cols = [c for c in cols if c[0] != 'region']
 	cols = [c for c in cols if any(c[0] in r for r in rows)]
 	labels = [label.format(u=u, uy=uy) for _, label in cols]
-	body = [[r.get(k) if k in ('region', 'label', 'date') else _num(r.get(k)) for k, _ in cols] for r in rows]
+	body = [[r.get(k) if k in ('region', 'label', 'date', 'file') else
+	         ', '.join(FILTERS.get(x, x) for x in r[k]) if isinstance(r.get(k), list) else _num(r.get(k))
+	         for k, _ in cols] for r in rows]
 	return labels, body
 
 
@@ -300,6 +361,35 @@ def _item(item, n, names, annex):
 		out.append(f'<h3>Para reproducirlo en Python</h3><code>import monitoreo.services as mo<br>{_e(call)}</code>')
 	out.append('</section>')
 	return ''.join(out)
+
+
+def tif_preview(path, palette=None, vmin=None, vmax=None, width=900):
+	"""A PNG (data: URL) of the first band of a GeoTIFF with the colours PALETTE from VMIN to VMAX (default: its
+	percentiles 5 and 95), at most WIDTH pixels wide; None without GDAL or matplotlib, or if it cannot read it."""
+	try:
+		import io
+		import numpy as np
+		from matplotlib import colors
+		from matplotlib import pyplot as plt
+		from osgeo import gdal
+		gdal.UseExceptions()
+		ds = gdal.Open(path)
+		band = ds.GetRasterBand(1)
+		step = max(1, int(math.ceil(ds.RasterXSize / width)))
+		a = band.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
+		nodata = band.GetNoDataValue()
+		a = np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
+		if a.count() == 0:
+			return None
+		lo, hi = (vmin, vmax) if vmin is not None and vmax is not None else np.percentile(a.compressed(), [5, 95])
+		cmap = colors.LinearSegmentedColormap.from_list('p', ['#' + c.lstrip('#') for c in palette or
+		                                                      ['440154', '21918c', 'fde725']])
+		cmap.set_bad(alpha=0)
+		buf = io.BytesIO()
+		plt.imsave(buf, a, cmap=cmap, vmin=lo, vmax=hi, format='png')
+		return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+	except Exception:  # a preview never breaks a result
+		return None
 
 
 def _legend(result):
