@@ -124,7 +124,8 @@ o bajos, ni qué significan).
 corresponde a personal técnico, por ejemplo del OBSNEV.
 3. Para un espacio protegido, busca siempre su identificador con find_protected_areas, directamente y sin pedir \
 permiso, y nunca te lo inventes. Si hay varios candidatos, pregunta cuál: el usuario ve la lista de la búsqueda y \
-puede elegir uno en ella.
+puede elegir uno en ella. Cuando elige uno («Calcula lo que he pedido con el espacio..., WDPA N»), haz el cálculo que \
+pidió con ese SITE_ID, sin preguntar, aunque ya lo hayas hecho con otro.
 4. Si falta algo imprescindible (variable, lugar o fechas), propón una opción razonable según la guía y pregunta en \
 una sola frase antes de calcular.
 5. Responde en español, breve y claro.
@@ -143,7 +144,8 @@ Cómo llamar a las herramientas:
 - Región: un objeto JSON con una de estas formas: {{"wdpa_id": SITE_ID}} (un espacio protegido, con el SITE_ID que \
 devuelve find_protected_areas), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [oeste, sur, este, norte]}} o \
 {{"point": [lon, lat], "buffer": metros}}.
-- Fechas: "AAAA-MM-DD". Temporada de cada año: season ["MM-DD", "MM-DD"], p. ej. ["06-01", "08-31"] para el verano.
+- Fechas: "AAAA-MM-DD"; «desde 2018», sin final, es hasta hoy. Temporada de cada año: season ["MM-DD", "MM-DD"], \
+p. ej. ["06-01", "08-31"] para el verano.
 - Sensor: "Sentinel-2", "Landsat" o "Modis". La variable, como en el catálogo (NDVI, EVI, NDWI, LST...).
 - Evolución en el tiempo: time_series (step "monthly" o "annual"; las series largas en regiones grandes tardan \
 minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Tendencia a lo largo de los años: \
@@ -234,6 +236,25 @@ def model_tools(tools):
 		out.append({'type': 'function', 'function': {'name': t['name'], 'description': description,
 		                                             'parameters': schema}})
 	return out
+
+
+SINCE = re.compile(r'\bdesde\s+(?:el\s+)?(?:año\s+)?(?:(?:\d{1,2}\s+de\s+)?[a-záéíóú]+\s+(?:de|del)\s+)?'
+                   r'((?:19|20)\d{2})\b', re.I)
+YEAR = re.compile(r'\b(?:19|20)\d{2}\b')
+
+
+def open_end(args, said, today=None):
+	"""ARGS up to today when the last message of the user that gives a year (SAID, all of them) asks «desde 2018»
+	with no end, and the model ends before: small models end it at the end of a year, or at today's day of the year
+	asked for."""
+	today = (today or dt.date.today()).isoformat()
+	if not isinstance(args.get('end'), str) or args['end'] >= today:
+		return args
+	text = next((t for t in reversed(said) if YEAR.search(t)), '')
+	since = SINCE.search(text)
+	if since and len(YEAR.findall(text)) == 1 and not re.search(r'\bhasta\b', text, re.I):
+		return {**args, 'end': today}
+	return args
 
 
 def fix_args(name, args, tools):
@@ -680,6 +701,8 @@ class Assistant:
 			if name == 'find_protected_areas' and args.get('text'):
 				args['text'] = search_name(args['text'])
 			args = self.with_layer(args)
+			if name in RESULTS + TASKS:
+				args = open_end(args, [m['content'] for m in self.messages if m['role'] == 'user'])
 		except ValueError as e:
 			self._tool_message(name, f'Error: {e}.')
 			return

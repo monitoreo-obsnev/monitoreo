@@ -76,6 +76,7 @@ main { overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; }
 .examples button { text-align: left; font-size: .9em; }
 .examples button.match { border: 2px solid var(--accent); font-weight: 600; }
+.examples button.chosen { background: var(--soft); border: 2px dashed var(--accent); }
 .msg { margin: 10px 0; max-width: 85%; padding: 8px 12px; border-radius: 10px; overflow-wrap: anywhere; }
 .msg.user { background: var(--user); margin-left: auto; }
 .msg.assistant { background: var(--panel); border: 1px solid var(--line); }
@@ -563,14 +564,24 @@ function resultCard(e) {
 function areasCard(e) {
   const list = el('div', {class: 'examples'});
   for (const a of e.areas) {
+    const name = a.NAME + (a.DESIG ? ' (' + a.DESIG + ')' : '');
     const b = el('button', {type: 'button', class: a.match ? 'match' : '',
       text: [a.NAME, a.DESIG, a.ISO3, a.REP_AREA != null ? fmt(a.REP_AREA) + ' km²' : null].filter(Boolean).join(' · ')
             + ` (WDPA ${a.SITE_ID})` + (a.match ? ' · coincide con tu consulta' : '')});
-    b.onclick = () => send(`Usa ${a.NAME}${a.DESIG ? ' (' + a.DESIG + ')' : ''}, WDPA ${a.SITE_ID}`);
+    b.onclick = () => {  // also while something is computed: then it is sent when that ends
+      list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
+      b.classList.add('chosen');
+      const text = `Calcula lo que he pedido con el espacio ${name}, WDPA ${a.SITE_ID}`;
+      if (!busy) return send(text);
+      pending = text;
+      notice(`Cuando termine lo que está en marcha, se calculará con ${name}.`);
+    };
     list.append(b);
   }
+  const help = e.areas.some(a => a.match) ? 'El resaltado coincide con tu consulta y es el que se usa; pulsa otro para ' +
+    'calcular con él (también mientras calcula: se hace después).' : 'Pulsa uno para calcular con él.';
   return el('article', {class: 'card'}, el('h3', {text: `Espacios protegidos con «${e.query}»`}),
-            e.areas.length ? el('p', {class: 'muted', text: 'Pulsa uno para usarlo.'}) : el('p', {text: 'Ninguno.'}), list);
+            e.areas.length ? el('p', {class: 'muted', text: help}) : el('p', {text: 'Ninguno.'}), list);
 }
 
 function fmt(v) {
@@ -702,7 +713,7 @@ $('snapshot').onclick = async () => {
 };
 
 // --- the conversation: the events of the assistant, all of them from the first one when the page opens -------------
-let running = null, nextEvent = 0;
+let running = null, nextEvent = 0, pending = null;  // pending: a message for when the answer in progress ends
 
 function show(e) {
   if (e.type === 'user') {
@@ -716,6 +727,7 @@ function show(e) {
     $('send').disabled = false;
     status(null);
     if (running) { running.querySelector('.spinner')?.remove(); running = null; }
+    if (pending) { const text = pending; pending = null; send(text); }
   } else if (e.type === 'reset') {
     $('chat').replaceChildren($('intro'));
     $('intro').hidden = false;
@@ -773,7 +785,8 @@ async function follow() {  // the events from nextEvent on, again after a cut (t
 
 async function send(text) {
   text = text.trim();
-  if (!text || busy) return;
+  if (!text) return;
+  if (busy) return notice('Espera a que termine lo que está en marcha.', true);
   try {
     await api('/api/chat', {text});  // the events of the answer come by follow
     $('text').value = '';

@@ -471,6 +471,19 @@ def test_other_tool():
 	assert assistant.other_tool('¿Qué es el NDVI?') is None
 
 
+def test_open_end():
+	today = assistant.dt.date(2026, 11, 3)
+	args = {'variable': 'NDVI', 'start': '2025-01-01', 'end': '2025-11-03'}
+	for said in (['Evolución mensual del NDVI en el Parque Nacional de Sierra Nevada desde 2025'],
+	             ['NDVI desde el año 2025 en Doñana', 'Calcula lo que he pedido con el espacio Doñana, WDPA 349467'],
+	             ['NDVI desde enero de 2025']):
+		assert assistant.open_end(args, said, today)['end'] == '2026-11-03', said
+	for said in (['NDVI desde 2025 hasta junio'], ['NDVI de 2025'], ['NDVI desde 2018 a 2025'],
+	             ['NDVI desde 2018', 'y ahora solo 2025']):  # an end, or a later message with its years
+		assert assistant.open_end(args, said, today) == args, said
+	assert assistant.open_end({**args, 'end': '2026-11-03'}, ['desde 2025'], today)['end'] == '2026-11-03'
+
+
 def test_check_update(monkeypatch):
 	from monitoreo import update
 	monkeypatch.setattr(update, 'local_copy', lambda: None)
