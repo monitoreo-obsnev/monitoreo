@@ -119,9 +119,11 @@ cálculo de MonitorEO, que calculan en Google Earth Engine con la cuenta del usu
 instala o se usa cada herramienta) con la herramienta manual, que busca en su manual.
 
 Reglas:
-1. Nunca ves los resultados de los cálculos: van a la pantalla del usuario y a su informe. Cuando una herramienta de \
-cálculo responda «Hecho», di en una frase qué se ha calculado y nada sobre sus valores (ni si suben, bajan, son altos \
-o bajos, ni qué significan).
+1. Nunca ves los resultados de los cálculos: van a la pantalla del usuario y a su informe, con su gráfica, su tabla \
+y su mapa. Cuando una herramienta de cálculo responda «Hecho», di en una frase qué se ha calculado y nada sobre sus \
+valores (ni si suben, bajan, son altos o bajos, ni qué significan). El asistente sí muestra gráficas, tablas y mapas: \
+si piden uno que ya está calculado, di en qué resultado está (p. ej. «La gráfica está en el resultado 1, en \
+Resultados, a la derecha.»); si no, haz el cálculo que lo da. Nunca digas que el asistente no muestra gráficas.
 2. No interpretes resultados aunque te lo pidan: di que el asistente no interpreta resultados y que su interpretación \
 corresponde a personal técnico, por ejemplo del OBSNEV.
 3. Para un espacio protegido, busca siempre su identificador con find_protected_areas, directamente y sin pedir \
@@ -152,8 +154,9 @@ p. ej. ["06-01", "08-31"] para el verano.
 - Evolución en el tiempo: time_series (step "monthly" o "annual"; las series largas en regiones grandes tardan \
 minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Valor interanual (p. ej. la media de las \
 medianas anuales): temporal "annual" (o "monthly"), metric la de cada año ("median") e interannual la de entre años \
-("mean"); temporal no admite otros valores. Tendencia a lo largo de los años: trend_table (8 años o más) y trend_map \
-para ver dónde. Comparar un periodo con otro de referencia: compare_series y \
+("mean"); temporal no admite otros valores. Tendencia a lo largo de los años (Mann-Kendall y pendiente de Sen, 8 \
+años o más): trend_table, con step "monthly" para la de cada mes; da la tabla y la gráfica del área y el mapa de la \
+tendencia en cada píxel (de cada mes, en la página), así que no hace falta trend_map. Comparar un periodo con otro de referencia: compare_series y \
 compare_map. Incendio: burn_severity.
 - Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una \
 comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor \
@@ -432,8 +435,9 @@ def other_tool(text):
 
 def receipt(n, title):
 	"""What the model gets of a result: that it was computed and shown, without its values."""
-	return (f'Hecho: «{title}» se ha calculado en Google Earth Engine y se muestra al usuario como resultado {n}. '
-	        'No ves sus valores: no los describas ni los interpretes.')
+	return (f'Hecho: «{title}» se ha calculado en Google Earth Engine y el asistente lo muestra al usuario, con su '
+	        f'gráfica, su tabla o su mapa, como resultado {n} (en Resultados, a la derecha). Tú no ves sus valores: no los '
+	        'describas ni los interpretes.')
 
 
 def ollama(base, path, payload=None, timeout=600):
@@ -770,7 +774,11 @@ class Assistant:
 					yield event
 			if args is None:
 				return
-		title = self.titled(name, args)
+		tool = name  # the tool computed: that of the call, but the trend over an area instead of its map
+		if name == 'trend_map' and not ('point' in (args.get('region') or {}) and not args['region'].get('buffer')):
+			tool = 'trend_table'  # its table and chart (Sen and Mann-Kendall of each part, for the whole area) and the
+			args = {k: v for k, v in args.items() if k not in ('part', 'output', 'alpha')}  # map of each pixel, too
+		title = self.titled(tool, args)
 		if name in RESULTS + TASKS:
 			problem = self.not_ready()
 			if problem:
@@ -779,7 +787,7 @@ class Assistant:
 				return
 		if name in RESULTS:
 			yield {'type': 'running', 'text': f'Calculando en Google Earth Engine: {title}…',
-			       'facts': _facts(name, args, None, self.all_names())}
+			       'facts': _facts(tool, args, None, self.all_names())}
 		elif name in TASKS:
 			yield {'type': 'status', 'text': ('Consultando la exportación' if name == 'task_status' else
 			                                  'Lanzando la exportación a Google Drive') + '…'}
@@ -787,7 +795,7 @@ class Assistant:
 			yield {'type': 'status', 'text': LABELS[name].format(**{k: args.get(k, '') for k in ('variable', 'text')})
 			                                 + '…'}
 		try:
-			error, texts, images = await self.call(name, args)
+			error, texts, images = await self.call(tool, args)
 		except Exception as e:  # the MCP server stopped
 			error, texts, images = f'{type(e).__name__}: {e}', [], []
 		if error:
@@ -820,12 +828,12 @@ class Assistant:
 			preview = await asyncio.to_thread(report.tif_preview, result['file'], result.get('palette'),
 			                                  result.get('min'), result.get('max'))
 			images = [preview] if preview else []
-		item = {'id': len(self.results) + 1, 'tool': name, 'args': args, 'result': result,
+		item = {'id': len(self.results) + 1, 'tool': tool, 'args': args, 'result': result,
 		        'image': images[0] if images else None, 'title': title}
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
 		self._tool_message(name, receipt(item['id'], item['title']))
-		if name in PERIOD_MAP:
+		if tool in PERIOD_MAP:
 			yield {'type': 'status', 'text': 'Preparando el mapa del periodo en Google Earth Engine…'}
 			event = await self.period_map(item)
 			if event:

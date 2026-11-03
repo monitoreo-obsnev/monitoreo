@@ -71,8 +71,8 @@ class FakeAssistant(assistant.Assistant):
 	async def call(self, name, args):
 		if name == 'find_protected_areas':
 			return None, [json.dumps(next((v for k, v in AREAS.items() if k in args.get('text', '')), []))], []
-		if name == 'map_layer':
-			self.mapped = args
+		if name in ('map_layer', 'trend_map'):
+			self.mapped = (name, args)
 			return None, [json.dumps(MAP)], []
 		self.called = (name, args)
 		return None, [json.dumps(SERIES)], ['data:image/png;base64,iVBORw0KGgo=']
@@ -113,9 +113,31 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	assert shown['id'] == 1 and shown['map'] == {'url': MAP['url'], 'bounds': MAP['bounds'], 'pixel': True}
 	assert shown['legend']['palette'] == MAP['palette'] and shown['title'] == result['title']  # the list of maps
 	assert result['title'].endswith(' · Sierra Nevada (Parque Nacional)')  # the region, in the titles
-	assert a.mapped == {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
-	                    'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': True}
-	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped.items() if k != 'quick'}
+	assert a.mapped == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
+	                                  'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': True})
+	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped[1].items() if k != 'quick'}
+
+
+def test_trend_map_of_an_area(monkeypatch):
+	# the model asks for the trend of each pixel of an area (without its part of the year): the assistant computes
+	# the trend over the area (table and chart of each month), which brings the map of each pixel, of each month
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+	props = {k: {'type': 'string'} for k in ('variable', 'sensor', 'start', 'end', 'step', 'metric')}
+	a.tools = assistant.model_tools(TOOLS + [{'name': 'trend_map', 'description': 'Trend map.', 'inputSchema': {
+		'type': 'object', 'properties': {**props, 'region': {'type': 'object'}, 'part': {'type': 'integer'}}}}])
+	a.names['389011'] = 'Sierra Nevada (Parque Nacional)'
+	a.messages.append({'role': 'user', 'content': 'Tendencia mensual de cada píxel de la WDPA 389011 desde 2018'})
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'trend_map', 'arguments': {**ARGS, 'step': 'monthly'}})]
+	events = asyncio.run(run())
+	assert a.called[0] == 'trend_table' and a.called[1]['step'] == 'monthly' and 'part' not in a.called[1]
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['running', 'result', 'map']
+	assert a.results[0]['tool'] == 'trend_table' and a.results[0]['title'].startswith('Tendencia de cada mes de NDVI')
+	shown = events[-1]
+	assert a.mapped[0] == 'trend_map' and a.mapped[1]['step'] == 'annual' and len(shown['steps']) == 12
+	assert a.messages[-1]['tool_name'] == 'trend_map' and a.messages[-1]['content'].startswith('Hecho')
 
 
 def test_unknown_protected_area(monkeypatch):
