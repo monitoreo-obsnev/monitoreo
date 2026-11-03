@@ -20,7 +20,8 @@ import re
 import urllib.request
 
 from . import __version__, services
-from .publish import MONTHS, SENSORS, STEPS, default_title, period_text, python_call, season_text, slug, unit_text
+from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, period_text, python_call, season_text, slug, \
+	unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
@@ -215,6 +216,10 @@ def item_facts(tool, args, result=None, names=None):
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison') else 'mean')
 	facts.append(('Métrica temporal', _stat(metric)))
+	if args.get('temporal') in PARTS:  # the metric of each year, month or 16 days, then that between the years
+		each = {'annual': 'año', 'monthly': 'mes', '16-day': 'periodo de 16 días'}[args['temporal']]
+		facts.append(('Agregación temporal', f"{_stat(metric)} de cada {each} y, entre los años, "
+		                                      f"{_stat(args.get('interannual') or 'mean')} (valor interanual)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Estadístico espacial', _stat(args.get('stat') or 'mean')))
 	if entry:

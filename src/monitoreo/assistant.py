@@ -35,7 +35,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __version__, areas, engine, manual, report, services
+from . import __version__, areas, composite, engine, manual, report, services
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
@@ -67,6 +67,8 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick')  # arguments the model does not see
 PERIOD_MAP = ('time_series', 'region_stats', 'compare_series', 'trend_table')  # with the map of their period
+MAX_MAP_STEPS = 400  # maps of the steps of a result that the page offers (the last ones)
+UNITS = {'annual': 'años', 'monthly': 'meses', '16-day': 'periodos de 16 días'}
 AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas, for the model
 DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|'
                 r'de la biosfera)|monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial '
@@ -148,8 +150,10 @@ devuelve find_protected_areas), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [oeste
 p. ej. ["06-01", "08-31"] para el verano.
 - Sensor: "Sentinel-2", "Landsat" o "Modis". La variable, como en el catálogo (NDVI, EVI, NDWI, LST...).
 - Evolución en el tiempo: time_series (step "monthly" o "annual"; las series largas en regiones grandes tardan \
-minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Tendencia a lo largo de los años: \
-trend_table (8 años o más) y trend_map para ver dónde. Comparar un periodo con otro de referencia: compare_series y \
+minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Valor interanual (p. ej. la media de las \
+medianas anuales): temporal "annual" (o "monthly"), metric la de cada año ("median") e interannual la de entre años \
+("mean"); temporal no admite otros valores. Tendencia a lo largo de los años: trend_table (8 años o más) y trend_map \
+para ver dónde. Comparar un periodo con otro de referencia: compare_series y \
 compare_map. Incendio: burn_severity.
 - Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una \
 comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor \
@@ -257,6 +261,42 @@ def open_end(args, said, today=None):
 	return args
 
 
+def map_steps(tool, args):
+	"""[{'key', 'label', 'start', 'end'}] of the maps of each step of a result: its years, months or periods of 16
+	days (its step, or the temporal aggregation of its map; years for a whole period), with its season. [] if it is
+	not a map of a variable nor a result over regions, or if it has only one step."""
+	if tool not in PERIOD_MAP + ('map_layer',) or not args.get('start') or not args.get('end'):
+		return []
+	unit = args.get('temporal') if tool in ('map_layer', 'region_stats') else args.get('step')
+	unit = 'monthly' if unit == 'daily' else unit if unit in UNITS else 'annual'
+	try:
+		wins = composite.windows((args['start'][:10], args['end'][:10]), args.get('season'))
+	except (ValueError, TypeError):
+		return []
+	parts = [(ws, we) for _, ws, we in wins] if unit == 'annual' else \
+	        [(bs, be) for win in wins for _, bs, be in composite.bins(win, unit)]
+	steps = []
+	for first, after in parts[-MAX_MAP_STEPS:]:
+		last = after - dt.timedelta(days=1)
+		label = str(first.year) if unit == 'annual' and first.year == last.year else \
+		        f'{report.MONTHS[first.month - 1][:3]} {first.year}' if unit == 'monthly' else \
+		        report.period_text(first.isoformat(), last.isoformat())
+		steps.append({'key': f'{first.isoformat()}/{last.isoformat()}', 'label': label, 'start': first.isoformat(),
+		              'end': last.isoformat()})
+	return steps if len(steps) > 1 else []
+
+
+def main_label(m, args):
+	"""The name in the page of the map M of a result of ARGS: its interannual value, its whole period or its last
+	year."""
+	a = m['args']
+	period = report.period_text(a['start'], a['end'])
+	if a.get('temporal') in UNITS:
+		stat = report.STATS.get(a.get('interannual') or 'mean', a.get('interannual'))
+		return f"Valor interanual: {stat} de los {UNITS[a['temporal']]} ({period})"
+	return f'Último año del periodo ({period})' if a['start'] > args['start'] else f'Todo el periodo ({period})'
+
+
 def fix_args(name, args, tools):
 	"""The arguments of a call of the model as the tool wants them: without those it does not know or in HIDDEN, and
 	with the objects and lists that small models give as JSON text decoded."""
@@ -274,7 +314,13 @@ def fix_args(name, args, tools):
 			except ValueError:
 				pass
 		out[k] = v
+	if out.get('temporal') in TEMPORAL_ALIASES:  # small models write what they want: «interannual»
+		out['temporal'] = TEMPORAL_ALIASES[out['temporal']]
 	return out
+
+
+TEMPORAL_ALIASES = {'interannual': 'annual', 'interanual': 'annual', 'yearly': 'annual', 'year': 'annual',
+                    'anual': 'annual', 'month': 'monthly', 'mensual': 'monthly', 'total': 'period', 'all': 'period'}
 
 
 def _wants(schema, types):
@@ -776,17 +822,21 @@ class Assistant:
 				yield event
 
 	async def period_map(self, item):
-		"""The map of the variable over the period of a result over regions (its median), for the map of the page:
-		the area, and the value and series of each pixel. Only the last year of a longer period, and with the colours
-		of the catalog: Earth Engine takes minutes to draw the median of years of images over a big area, or to
-		compute its colours. The event for the page, or None if Earth Engine cannot make it (the result is there
-		anyway)."""
+		"""The map of the variable over the period of a result over regions, for the map of the page: the area, and
+		the value and series of each pixel; the maps of each of its steps are made when the page asks for them
+		(step_map). That of region_stats is the map of its statistics; that of the others, the median of the last year
+		of the period. With the colours of the catalog: Earth Engine takes minutes to draw the median of years of
+		images over a big area, or to compute its colours. The event for the page, or None if Earth Engine cannot
+		make it (the result is there anyway)."""
 		a = item['args']
 		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality', 'collection')
 		        if a.get(k) is not None}
-		end = dt.date.fromisoformat(args['end'][:10])
-		year_before = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
-		args.update(start=max(args['start'], (year_before + dt.timedelta(days=1)).isoformat()), metric='median')
+		if item['tool'] == 'region_stats':
+			args.update({k: a[k] for k in ('metric', 'temporal', 'interannual') if a.get(k) is not None})
+		else:
+			end = dt.date.fromisoformat(args['end'][:10])
+			year_before = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
+			args.update(start=max(args['start'], (year_before + dt.timedelta(days=1)).isoformat()), metric='median')
 		try:
 			error, texts, _ = await self.call('map_layer', {**args, 'quick': True})  # tiles only, in seconds
 			result = json.loads(texts[0]) if not error and texts else {}
@@ -796,7 +846,34 @@ class Assistant:
 			_log({'tool': 'map_layer', 'call': args, 'answer': f'(mapa del resultado {item["id"]}) {error}'})
 			return None
 		item['map'] = {'tool': 'map_layer', 'args': args, 'result': result, 'title': _title('map_layer', args)}
-		return {'type': 'map', 'id': item['id'], **self.map_card(item['map'])}
+		return {'type': 'map', 'id': item['id'], **self.map_card(item['map']), **self.steps_card(item)}
+
+	def steps_card(self, item):
+		"""What the page offers of the maps of each step of the result ITEM (see map_steps): {'main', 'steps'}."""
+		_, m = self.map_of(item['id'])
+		item.setdefault('steps', map_steps(item['tool'], item['args']))
+		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']]}
+
+	async def step_map(self, rid, key):
+		"""The map of the step KEY of the result RID (see map_steps), made the first time with the colours of the
+		map of the result, so that they can be compared: what the page shows of it."""
+		item, main = self.map_of(rid)
+		maps = item.setdefault('maps', {})
+		if key not in maps:
+			step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
+			if not step:
+				raise ValueError('ese mapa no existe')
+			a = item['args']
+			args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
+			args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+			r = main['result']
+			error, texts, _ = await self.call('map_layer', {**args, 'vmin': r.get('min'), 'vmax': r.get('max'),
+			                                                'quick': True})
+			if error:
+				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+			maps[key] = {'tool': 'map_layer', 'args': args, 'result': json.loads(texts[0]),
+			             'title': _title('map_layer', args)}
+		return {'key': key, **self.map_card(maps[key])}
 
 	async def ask_manual(self, args):
 		"""Answer a call of the tool manual with the sections of the wiki that answer its question; the user sees
@@ -837,6 +914,7 @@ class Assistant:
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
 				card['map'] = self.map_card(item)['map']
+				card.update(self.steps_card(item))
 		return card
 
 	@staticmethod
@@ -850,21 +928,25 @@ class Assistant:
 			                 'unit': report.unit_text(result.get('unit'))}
 		return out
 
-	def map_of(self, rid):
+	def map_of(self, rid, key=None):
 		"""(result RID, its map: {'tool', 'args', 'result', 'title'}): the result itself if it has tiles, or the map
-		of its period (see period_map)."""
+		of its period (see period_map); with KEY, the map of that step (see step_map)."""
 		item = next((r for r in self.results if r['id'] == rid), None)
+		if item and key:
+			if key not in item.get('maps', {}):
+				raise ValueError('ese mapa no existe')
+			return item, item['maps'][key]
 		if item and item.get('map'):
 			return item, item['map']
 		if not item or not isinstance(item['result'], dict) or not item['result'].get('url'):
 			raise ValueError('ese resultado no tiene mapa')
 		return item, item
 
-	async def pixel(self, rid, lon, lat):
+	async def pixel(self, rid, lon, lat, key=None):
 		"""Click on the map of the result RID: the value of the map at the point (maps of map_layer) and the time
 		series of its pixel over the period of the map, computed in Earth Engine (the model takes no part). The series
 		can be kept as a result (keep_pixel, with its key)."""
-		item, m = self.map_of(rid)
+		item, m = self.map_of(rid, key)
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
 		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
 		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
@@ -878,8 +960,8 @@ class Assistant:
 			rows = stats.get('rows') if isinstance(stats, dict) else stats
 			out['value'] = rows[0].get('mean') if rows else None
 		days = (dt.date.fromisoformat(end[:10]) - dt.date.fromisoformat(start[:10])).days
-		step = a.get('step') if a.get('step') in ('16-day', 'monthly', 'annual') else \
-		       '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'  # that of the series, if any
+		step = a.get('step') if a.get('step') in UNITS else a.get('temporal') if a.get('temporal') in UNITS else \
+		       '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'  # that of the result, if any
 		args = {**base, 'region': point, 'start': start, 'end': end, 'step': step}
 		error, texts, images = await self.call('time_series', args)
 		if error:
@@ -902,7 +984,7 @@ class Assistant:
 	async def snapshot(self, rid, view):
 		"""Keep the view of the interactive map of the result RID (VIEW: bounds, zoom, base, opacity, marker) as a
 		result, for the report; returns its number."""
-		_, m = self.map_of(rid)
+		_, m = self.map_of(rid, view.get('key'))
 		image = await asyncio.to_thread(report.map_view, [float(v) for v in view['bounds']], int(view['zoom']),
 		                                m['result']['url'], view.get('base') or 'osm',
 		                                float(view.get('opacity', 0.85)), view.get('marker'))
@@ -914,9 +996,10 @@ class Assistant:
 		self.emit({'type': 'result', **self.card(new)})
 		return new['id']
 
-	async def refresh_map(self, rid):
-		"""Ask again for the tiles of the map of the result RID (those of Earth Engine expire after some hours)."""
-		_, m = self.map_of(rid)
+	async def refresh_map(self, rid, key=None):
+		"""Ask again for the tiles of the map of the result RID, or of its step KEY (those of Earth Engine expire after
+		some hours)."""
+		_, m = self.map_of(rid, key)
 		args, result = m['args'], m['result']
 		if m['tool'] == 'map_layer':  # only the tiles, with the same colours
 			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max'), 'quick': True}
@@ -1171,13 +1254,19 @@ def make_app(assistant, token, port):
 
 	async def pixel(request):
 		body = await request.json()
-		return JSONResponse(await assistant.pixel(int(body['id']), float(body['lon']), float(body['lat'])))
+		return JSONResponse(await assistant.pixel(int(body['id']), float(body['lon']), float(body['lat']),
+		                                          body.get('key') or None))
 
 	async def keep_pixel(request):
 		return JSONResponse({'id': assistant.keep_pixel((await request.json())['key'])})
 
 	async def refresh_map(request):
-		return JSONResponse({'url': await assistant.refresh_map(int((await request.json())['id']))})
+		body = await request.json()
+		return JSONResponse({'url': await assistant.refresh_map(int(body['id']), body.get('key') or None)})
+
+	async def step_map(request):
+		body = await request.json()
+		return JSONResponse(await assistant.step_map(int(body['id']), str(body['key'])))
 
 	async def snapshot(request):
 		body = await request.json()
@@ -1316,6 +1405,7 @@ def make_app(assistant, token, port):
 		Route('/api/pixel', guarded(pixel), methods=['POST']),
 		Route('/api/pixel/keep', guarded(keep_pixel), methods=['POST']),
 		Route('/api/map/refresh', guarded(refresh_map), methods=['POST']),
+		Route('/api/map/step', guarded(step_map), methods=['POST']),
 		Route('/api/map/snapshot', guarded(snapshot), methods=['POST']),
 		Route('/api/state', guarded(state)),
 		Route('/api/signin', guarded(signin), methods=['POST']),

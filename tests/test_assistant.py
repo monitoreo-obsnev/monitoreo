@@ -471,6 +471,35 @@ def test_other_tool():
 	assert assistant.other_tool('¿Qué es el NDVI?') is None
 
 
+def test_map_steps():
+	# the maps that the page offers of a result: those of its steps, or of the years of a map
+	steps = assistant.map_steps('map_layer', {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
+	                                          'season': ['06-01', '08-31']})
+	assert [s['label'] for s in steps] == [str(y) for y in range(2018, 2025)]
+	assert steps[0]['start'] == '2018-06-01' and steps[0]['end'] == '2018-08-31'  # the summer of each year
+	steps = assistant.map_steps('time_series', {'start': '2024-01-01', 'end': '2024-02-29', 'step': '16-day'})
+	assert [s['label'] for s in steps][:2] == ['1 ene 2024 - 16 ene 2024', '17 ene 2024 - 1 feb 2024']
+	assert assistant.map_steps('map_layer', {'start': '2024-06-01', 'end': '2024-08-31'}) == []  # one year: one map
+	assert assistant.map_steps('compare_map', {'start': '2018-01-01', 'end': '2024-12-31'}) == []
+	assert len(assistant.map_steps('time_series', {'start': '1984-01-01', 'end': '2024-12-31', 'step': 'daily'})) == \
+	       assistant.MAX_MAP_STEPS  # the last ones
+	m = {'args': {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual', 'interannual': 'median'}}
+	assert assistant.main_label(m, m['args']) == 'Valor interanual: mediana de los años (2018-2024)'
+	m = {'args': {'start': '2018-01-01', 'end': '2024-12-31'}}
+	assert assistant.main_label(m, m['args']) == 'Todo el periodo (2018-2024)'
+
+
+def test_interannual():
+	# small models write temporal «interannual»: the annual values, then the interannual one; the facts say so
+	tools = assistant.model_tools([{'name': 'map_layer', 'description': '', 'inputSchema': {'type': 'object',
+	                                'properties': {'temporal': {'type': 'string'}, 'metric': {'type': 'string'}}}}])
+	assert assistant.fix_args('map_layer', {'temporal': 'interannual', 'metric': 'median'}, tools) == \
+	       {'temporal': 'annual', 'metric': 'median'}
+	facts = dict(report.item_facts('map_layer', {**ARGS, 'metric': 'median', 'temporal': 'annual'}))
+	assert facts['Agregación temporal'] == 'mediana de cada año y, entre los años, media (valor interanual)'
+	assert 'Agregación temporal' not in dict(report.item_facts('map_layer', ARGS))
+
+
 def test_open_end():
 	today = assistant.dt.date(2026, 11, 3)
 	args = {'variable': 'NDVI', 'start': '2025-01-01', 'end': '2025-11-03'}
@@ -622,10 +651,37 @@ def test_map_and_pixel():
 
 	a, shown, px = asyncio.run(series())
 	assert shown['type'] == 'map' and shown['map']['url'] == 'https://ee/new/{z}/{x}/{y}'
+	assert shown['main'] == 'Último año del periodo (2024)' and len(shown['steps']) == 84  # the months of 7 years
+	assert shown['steps'][0] == {'key': '2018-01-01/2018-01-31', 'label': 'ene 2018'}
 	assert a.results[0]['map']['args']['start'] == '2024-01-01'  # the last year of the period, which is longer
 	assert px['value'] == 0.42 and calls[0][1]['metric'] == 'median' and calls[0][1]['start'] == '2024-01-01'
 	assert calls[1][1]['start'] == '2018-01-01'  # the series of the pixel, over the whole period
 	assert calls[1][0] == 'time_series' and calls[1][1]['step'] == 'monthly'  # 7 years, but monthly as the result
+
+	# the map of a month, with the colours of that of the result; its pixel, and its tiles again
+	async def step():
+		calls.clear()
+		shown = await a.step_map(1, '2019-03-01/2019-03-31')
+		await a.step_map(1, '2019-03-01/2019-03-31')  # made once
+		return shown, await a.pixel(1, -3.55, 36.95, '2019-03-01/2019-03-31')
+
+	shown, px = asyncio.run(step())
+	assert shown['key'] == '2019-03-01/2019-03-31'
+	assert shown['title'] == 'Mapa de NDVI (Sentinel-2), 1 mar 2019 - 31 mar 2019'
+	assert calls[0] == ('map_layer', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
+	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'vmin': None,
+	                                  'vmax': None, 'quick': True})
+	assert calls[1][0] == 'region_stats' and calls[1][1]['start'] == '2019-03-01' and calls[2][0] == 'time_series'
+	with pytest.raises(ValueError, match='no existe'):
+		asyncio.run(a.step_map(1, '1990-01-01/1990-01-31'))
+
+	# a map of interannual values (of each year): the series of a pixel, by years
+	a.results.append({'id': 2, 'tool': 'map_layer', 'image': None, 'title': 'Mapa',
+	                  'args': {**ARGS, 'start': '2021-06-01', 'end': '2024-08-31', 'temporal': 'annual'},
+	                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0]}})
+	calls.clear()
+	asyncio.run(a.pixel(2, -3.55, 36.95))
+	assert calls[0][1]['temporal'] == 'annual' and calls[1][1]['step'] == 'annual'
 
 
 def test_map_view(monkeypatch):
