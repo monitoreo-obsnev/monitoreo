@@ -23,7 +23,8 @@
                                                      at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
-project is --project, the variable EE_PROJECT or (download) project: of the recipe. The recipe of download is a YAML
+project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
+`earthengine authenticate`; without one, it computes with the shared account of MonitorEO. The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
 monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
 monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/MonitorEO/visor.
@@ -51,7 +52,8 @@ def main(argv=None):
 	parser = argparse.ArgumentParser(prog='monitoreo', description=about.DESCRIPTION['en'],
 	                                 epilog=f"{about.ACKNOWLEDGEMENTS['en']} How to cite: {about.CITATION}")
 	parser.add_argument('--version', action='version', version=__version__)
-	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
+	parser.add_argument('--project', help='Earth Engine project, with your account of `earthengine authenticate` '
+	                    '(default: EE_PROJECT; none: the shared account of MonitorEO)')
 	sub = parser.add_subparsers(dest='cmd', required=True)
 	p = sub.add_parser('list', help='variables of the catalog')
 	p.add_argument('--sensor')

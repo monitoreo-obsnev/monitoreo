@@ -140,14 +140,15 @@ class MonitorEODock(QDockWidget):
 		box = QGroupBox('Google Earth Engine')
 		f = QFormLayout(box)
 		self.project = QLineEdit(s.value(SETTINGS + 'project', os.environ.get('EE_PROJECT', '')))
-		self.project.setPlaceholderText('proyecto de Google Cloud registrado en Earth Engine')
+		self.project.setPlaceholderText('vacío: cuenta compartida de MonitorEO · o tu proyecto de Google Cloud')
 		row = QHBoxLayout()
 		row.addWidget(self.project)
 		b = QPushButton('Conectar')
 		b.clicked.connect(self.connect)
 		row.addWidget(b)
 		b = QPushButton('Autenticar…')
-		b.setToolTip('Inicia sesión con tu cuenta de Google en el navegador (como earthengine authenticate)')
+		b.setToolTip('Inicia sesión con tu cuenta de Google en el navegador (como earthengine authenticate), para '
+		             'calcular con tu proyecto y exportar a Google Drive')
 		b.clicked.connect(self.authenticate)
 		row.addWidget(b)
 		f.addRow('Proyecto', info(row, HELP['project']))
@@ -471,7 +472,7 @@ class MonitorEODock(QDockWidget):
 		project = self.project.text().strip() or None
 
 		def run(task):
-			services.init(project)
+			services.init(project, shared=not project)  # an empty field: the shared account of MonitorEO
 			return work()
 
 		def finished(exception, result=None):
@@ -499,8 +500,10 @@ class MonitorEODock(QDockWidget):
 			return None
 
 	def connect(self):
-		self.run_task('Conectar con Earth Engine', lambda: services.project(),
-		              lambda p: self.message(f'Conectado con Earth Engine (proyecto {p})', 'Success'))
+		self.run_task('Conectar con Earth Engine', lambda: (services.project(), services.shared()),
+		              lambda r: self.message(f'Conectado con Earth Engine con la cuenta compartida de MonitorEO '
+		                                     f'(proyecto {r[0]})' if r[1] else
+		                                     f'Conectado con Earth Engine con tu cuenta (proyecto {r[0]})', 'Success'))
 
 	def authenticate(self):
 		def work():

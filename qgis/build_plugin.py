@@ -11,8 +11,8 @@ The security scan of plugins.qgis.org blocks a version with any finding of Bandi
 one critical check, whatever the severity of its rules: plugins/security_scanner.py of
 github.com/qgis/QGIS-Plugins-Website), and the bundled libraries have false positives (constants such as
 'nextPageToken', markers of PEM keys). So the zip leaves out what the plugin never runs (tests and command lines of
-the libraries, the discovery documents of googleapiclient; the command line, MCP server, updater and web viewer of
-monitoreo) and has a .bandit that excludes the bundled libraries and, with detect-secrets installed, a
+the libraries, the discovery documents of googleapiclient; the command line, MCP server, updater, assistant and web
+viewer of monitoreo) and has a .bandit that excludes the bundled libraries and, with detect-secrets installed, a
 .secrets.baseline with their findings. With Bandit and detect-secrets installed it scans the zip as plugins.qgis.org
 does and fails if the plugin or monitoreo have any finding.
 """
@@ -39,8 +39,10 @@ DEPS = ['google-api-python-client', 'google-auth', 'google-auth-httplib2', 'http
 # never run by the plugin: Earth Engine reads its discovery document from the internet (static_discovery=False)
 UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestcase.py', 'ee/cli', 'ee/mapclient.py',
           'certifi/tests', 'rsa/cli.py']
-# modules of monitoreo for the command line and the MCP server (and the web viewer), not used by the plugin
-MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer']
+# modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual and report) and
+# the web viewer, not used by the plugin
+MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py',
+                    'report.py', 'ui']
 OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 

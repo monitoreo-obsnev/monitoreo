@@ -188,6 +188,8 @@ def test_not_ready(monkeypatch):
 
 	events = asyncio.run(run())
 	assert events[0]['type'] == 'error' and 'inicia sesión' in events[0]['text'] and not a.results
+	a.settings['project'] = ''  # without a project: the shared account of MonitorEO, with no sign-in
+	assert a.not_ready() is None
 
 
 def test_report(tmp_path):
@@ -203,6 +205,8 @@ def test_report(tmp_path):
 	assert 'Anexo: tablas completas' in text and 'Tabla 2.' in text  # the table of 60 rows goes to the annex
 	assert 'mo.time_series(region={&quot;wdpa_id&quot;: 389011}' in text and 'zenodo' in text.lower()
 	assert text.count('data:image/') >= 3  # the logos, embedded
+	text = open(report.write(items[:1], str(tmp_path / 'c.html'), title='t', shared=True), encoding='utf-8').read()
+	assert 'calculado en Google Earth Engine con la cuenta compartida de MonitorEO' in text
 	assert report.item_table('trend_table', {'unit': '[ºC]', 'trends': [
 		{'label': 'enero', 'n': 20, 'slope': 0.05, 'p_value': 0.01, 'significant': True}]})[0] == \
 	       ['Parte del año', 'Años', 'Pendiente de Sen (°C/año)', 'p-valor', 'Significativa']

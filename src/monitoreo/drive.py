@@ -24,6 +24,8 @@ DONE, FAILED = 'SUCCEEDED', ('FAILED', 'CANCELLED', 'UNKNOWN')
 def export(image, grid, name, folder, project, nodata=NODATA):
 	"""Start a task that exports the first band of IMAGE on GRID to FOLDER of Google Drive as NAME (float32, NoData
 	= NODATA). Returns the name of its operation (projects/<project>/operations/<id>)."""
+	from . import services
+	services.need_own_account()
 	img = ee.Image(image).select([0]).toFloat().unmask(nodata, False)
 	task = ee.batch.Export.image.toDrive(
 		image=img, description=re.sub(r'[^A-Za-z0-9_,:;-]', '_', name)[:100], folder=folder, fileNamePrefix=name,

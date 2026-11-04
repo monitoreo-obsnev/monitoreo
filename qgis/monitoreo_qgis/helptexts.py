@@ -17,12 +17,16 @@ def manual(page):
 
 HELP = {
 	'project':
-		'<p>Proyecto de Google Cloud registrado en Earth Engine: los cálculos se hacen con tu cuenta de Google y '
-		'cuentan en la cuota de ese proyecto. Vacío: el de la variable de entorno EE_PROJECT (o '
-		'GOOGLE_CLOUD_PROJECT). Se recuerda para la próxima vez.</p>'
+		'<p><b>Vacío</b>: los cálculos se hacen en Earth Engine con la <b>cuenta compartida de MonitorEO</b>, sin '
+		'iniciar sesión ni tener cuenta de Earth Engine. Con ella no se puede exportar a Google Drive: los GeoTIFF se '
+		'descargan a este ordenador.</p>'
+		'<p>Con <b>tu proyecto</b> de Google Cloud registrado en Earth Engine, los cálculos se hacen con tu cuenta de '
+		'Google y cuentan en la cuota de ese proyecto; así también se exporta a tu Google Drive. Se recuerda para la '
+		'próxima vez.</p>'
 		'<p><b>Autenticar…</b> abre el navegador para iniciar sesión con tu cuenta de Google, una vez en cada '
-		'ordenador (como <code>earthengine authenticate</code>). <b>Conectar</b> comprueba que el proyecto funciona; '
-		'no es obligatorio, porque cada cálculo se conecta solo.</p>' + manual('Primeros-pasos'),
+		'ordenador (como <code>earthengine authenticate</code>); solo hace falta para usar tu proyecto. '
+		'<b>Conectar</b> comprueba que la conexión funciona; no es obligatorio, porque cada cálculo se conecta '
+		'solo.</p>' + manual('Primeros-pasos'),
 	'region':
 		'<p>Sobre qué se calcula:</p><ul>'
 		'<li><b>Capa</b>: los polígonos de una capa del proyecto, los seleccionados o, si no hay selección, todos. '
@@ -152,6 +156,8 @@ HELP = {
 		'<p>Carpeta de tu Google Drive donde Earth Engine deja los ficheros; si no existe, la crea. Las exportaciones '
 		'no tienen límite de tamaño y siguen en Earth Engine aunque cierres QGIS. El panel sigue cada tarea y avisa al '
 		'terminar; con Google Drive para escritorio, el GeoTIFF se añade al proyecto en cuanto se sincroniza.</p>'
+		'<p>Exportar necesita tu cuenta de Google y tu proyecto (arriba, en <b>Proyecto</b>): con la cuenta compartida '
+		'de MonitorEO no se puede, porque los ficheros van al Google Drive de la cuenta que calcula.</p>'
 		'<p>El mapa usa las opciones del grupo <b>Mapa</b>, y la serie, las del grupo <b>Serie temporal</b>.</p>'
 		+ manual('QGIS#8-exportar-a-google-drive'),
 }

@@ -7,8 +7,9 @@ MonitorEO (monitoreo.mcp_server).
 The model helps to choose the variable, the sensor, the region and the period of an analysis and calls the tools of
 MonitorEO, but it never gets their results: they go to the screen and to the report (monitoreo.report), and the model
 only gets a receipt. So it can advise but cannot interpret the results. The tools compute in Google Earth Engine with
-the Google account of the user (who signs in from the browser, as with `earthengine authenticate`) and their Google
-Cloud project; the model gets only the text of the conversation. The settings (project, address of Ollama, model) are
+the shared account of MonitorEO or, when the user gives their Google Cloud project, with their Google account (who
+signs in from the browser, as with `earthengine authenticate`) and that project, which can also export to Google
+Drive; the model gets only the text of the conversation. The settings (project, address of Ollama, model) are
 kept in ~/MonitorEO/assistant.json.
 
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
@@ -115,7 +116,8 @@ Granada) para gestores de espacios naturales. Hoy es {today}.
 
 Qué haces:
 - Ayudas a elegir la variable, el sensor, la región y el periodo de un análisis, y lo lanzas con las herramientas de \
-cálculo de MonitorEO, que calculan en Google Earth Engine con la cuenta del usuario.
+cálculo de MonitorEO, que calculan en Google Earth Engine con la cuenta compartida de MonitorEO o, si el usuario \
+ha puesto su proyecto en Configuración, con su cuenta de Google.
 - Aconsejas sobre sensores y variables con la guía de abajo y con list_variables y describe_variable.
 - Respondes preguntas sobre MonitorEO (qué mide una variable, sensores, fechas, resolución, conceptos, cómo se \
 instala o se usa cada herramienta) con la herramienta manual, que busca en su manual.
@@ -164,7 +166,9 @@ compare_map. Incendio: burn_severity.
 comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor \
 que la de los datos. Varias variables en rejillas alineadas (para un modelo): download_variables, primero con \
 dry_run. Regiones grandes a resolución completa: export_image_to_drive (o export_time_series_to_drive para una serie \
-larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado.
+larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado. Los \
+exports a Google Drive necesitan la cuenta del usuario: con la cuenta compartida, dile que inicie sesión con su cuenta \
+de Google y ponga su proyecto en Configuración.
 
 Otras herramientas de MonitorEO (las mismas funciones y los mismos resultados):
 - App de Earth Engine: en el navegador, sin instalar nada ni cuenta de Earth Engine; mapas, series, tendencias, \
@@ -695,11 +699,12 @@ class Assistant:
 		return error, texts, images
 
 	async def connect(self, project):
-		"""Use this Google Cloud project; returns the answer of the MCP server."""
+		"""Use this Google Cloud project (empty: the shared account of MonitorEO); returns the answer of the MCP
+		server."""
 		self.settings['project'] = project.strip()
 		save_settings(self.settings)
-		if not signed_in():
-			return 'Proyecto guardado: inicia sesión con Google para usarlo'
+		if self.settings['project'] and not signed_in():
+			return 'Proyecto guardado: inicia sesión con tu cuenta de Google para usarlo'
 		error, texts, _ = await self.call('connect', {'project': self.settings['project']})
 		if error:
 			raise RuntimeError(re.sub(r'^\w+Error: ', '', error))
@@ -707,10 +712,9 @@ class Assistant:
 
 	def not_ready(self):
 		"""Why the tools cannot compute yet, or None."""
-		if not signed_in():
-			return 'antes de calcular, inicia sesión con tu cuenta de Google (botón «Iniciar sesión con Google»)'
-		if not self.settings.get('project'):
-			return 'antes de calcular, escribe tu proyecto de Google Cloud registrado en Earth Engine'
+		if self.settings.get('project') and not signed_in():
+			return ('antes de calcular con tu proyecto, inicia sesión con tu cuenta de Google (botón «Usar mi cuenta de '
+			        'Google») o deja vacío el proyecto para calcular con la cuenta compartida de MonitorEO')
 		return None
 
 	async def chat(self, text):
@@ -1065,7 +1069,8 @@ class Assistant:
 		if not items:
 			raise ValueError('no hay resultados para el informe')
 		return report.write(items, title=title or self.question, question=self.question,
-		                    project=self.settings.get('project'), names=self.all_names())
+		                    project=self.settings.get('project'), shared=not self.settings.get('project'),
+		                    names=self.all_names())
 
 	def system_prompt(self):
 		"""The instructions of the model, with the layers of the user."""

@@ -4,7 +4,7 @@ the input variables of a model, such as those of eHabitat+.
 
 A recipe is a dictionary, or a YAML file, with the grids and the variables:
 
-    project: my-project                # Earth Engine project (default: EE_PROJECT)
+    project: my-project                # Earth Engine project (default: EE_PROJECT; none: the shared account)
     crs: auto                          # CRS of the grids: auto = WGS 84 / UTM of the centre of the study area
     study: {resolution: 10, buffer: 0, drive: false}
     ecoregion: {resolution: 100, crs: null, drive: true}     # optional; crs null = that of the study area

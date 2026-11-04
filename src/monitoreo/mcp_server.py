@@ -5,8 +5,9 @@
 `monitoreo mcp` first installs the last version of the package in GitHub if the installed one is another (see
 monitoreo.update), so the server always runs that version; --no-update skips it.
 
-It uses the Earth Engine credentials of `earthengine authenticate` and the project of the variable EE_PROJECT (or
-the tool connect). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
+With a project (the variable EE_PROJECT or the tool connect) it computes with the Earth Engine credentials of
+`earthengine authenticate` and that project; without one, with the shared account of MonitorEO (no exports to
+Google Drive). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
 ~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
 that produced each file it publishes. Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
 """
@@ -56,7 +57,9 @@ A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {
 {"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
 features give one series per feature. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
-Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive."""
+Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
+Without a project of the user (EE_PROJECT or connect) the tools compute with the shared account of MonitorEO, which
+cannot export to Google Drive: the exports need the user's own Earth Engine account and project."""
 
 server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
@@ -117,9 +120,15 @@ def about(lang: str = 'en'):
 
 
 @tool
-def connect(project: str) -> str:
-	"""Connect to Earth Engine with this Google Cloud project (registered in Earth Engine), instead of EE_PROJECT."""
-	return f'Connected to Earth Engine with the project {services.init(project)}'
+def connect(project: str = '') -> str:
+	"""Connect to Earth Engine with this Google Cloud project (registered in Earth Engine) and the Google account of
+	`earthengine authenticate`, instead of EE_PROJECT; with no project, with the shared account of MonitorEO (which
+	cannot export to Google Drive)."""
+	project = project.strip()
+	p = services.init(project or None, shared=not project)
+	if services.shared():
+		return f'Connected to Earth Engine with the shared account of MonitorEO (project {p})'
+	return f'Connected to Earth Engine with the project {p}'
 
 
 @tool
@@ -208,7 +217,7 @@ def export_image_to_drive(region: dict, variable: str, sensor: str, start: str, 
                           folder: str = 'MonitorEO', name: Optional[str] = None,
                           collection: Optional[str] = None) -> str:
 	"""Export the map of a variable over a region to a GeoTIFF in a folder of the Google Drive of the Earth Engine
-	account (a batch task, without limits of size). resolution: pixel size in metres (default: that of the data);
+	account (a batch task, without limits of size; it needs the user's own account, not the shared one). resolution: pixel size in metres (default: that of the data);
 	crs: 'auto' (UTM zone of the region) or e.g. 'EPSG:25830'. Check it with task_status."""
 	_ready()
 	return _text(services.export_image(region, variable, sensor, start, end, metric, temporal, season=season,
@@ -223,7 +232,7 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
                                 scale: Optional[float] = None, folder: str = 'MonitorEO',
                                 name: Optional[str] = None, collection: Optional[str] = None) -> str:
 	"""Export a time series (as time_series) to a CSV file in a folder of Google Drive: for long series or many
-	regions. Check it with task_status."""
+	regions (it needs the user's own Earth Engine account, not the shared one). Check it with task_status."""
 	_ready()
 	return _text(services.time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season,
 	                                           quality, scale, folder, name, collection=collection))

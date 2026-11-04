@@ -125,21 +125,22 @@ footer .logos img { height: 44px; }
 """
 
 
-def write(items, path=None, title=None, question=None, project=None, names=None, date=None):
+def write(items, path=None, title=None, question=None, project=None, names=None, date=None, shared=False):
 	"""Write the report of ITEMS (see the module) to PATH (default: a file in ~/MonitorEO/informes named after the
-	title and the time). QUESTION is that of the user, PROJECT the Google Cloud project that computed the results
-	and NAMES the names of the protected areas by their WDPA ID. Returns the path."""
+	title and the time). QUESTION is that of the user, PROJECT the Google Cloud project that computed the results (or
+	SHARED: the shared account of MonitorEO) and NAMES the names of the protected areas by their WDPA ID. Returns the
+	path."""
 	title = title or 'Informe de MonitorEO'
 	if not path:
 		os.makedirs(FOLDER, exist_ok=True)
 		path = os.path.join(FOLDER, f'{slug(title)[:60] or "informe"}_{dt.datetime.now():%Y%m%d-%H%M%S}.html')
-	text = html_report(items, title, question, project, names, date)
+	text = html_report(items, title, question, project, names, date, shared)
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(text)
 	return path
 
 
-def html_report(items, title, question=None, project=None, names=None, date=None):
+def html_report(items, title, question=None, project=None, names=None, date=None, shared=False):
 	"""The HTML of the report (see write)."""
 	date = date or dt.date.today()
 	a = services.about('es')
@@ -156,7 +157,8 @@ def html_report(items, title, question=None, project=None, names=None, date=None
 	       'Desactiva «Encabezados y pies de página» en las opciones del diálogo de impresión.</p>',
 	       f'<h1>{_e(title)}</h1>',
 	       f'<p class="meta">{_long_date(date)} · {len(items)} resultado{"s" if len(items) != 1 else ""}'
-	       + (f' · calculado en Google Earth Engine con el proyecto {_e(project)}' if project else '') + '</p>']
+	       + (f' · calculado en Google Earth Engine con el proyecto {_e(project)}' if project else
+	          ' · calculado en Google Earth Engine con la cuenta compartida de MonitorEO' if shared else '') + '</p>']
 	if question:
 		out.append(f'<div class="question"><b>Consulta:</b> {_e(question)}</div>')
 	out.append('<p class="note">Este informe recoge los resultados de los cálculos y cómo se obtuvieron, sin '

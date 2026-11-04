@@ -32,7 +32,8 @@ https://doi.org/10.5281/zenodo.23814894
     publish    reports of results for the static web viewer (folder viewer): COGs, CSVs, report.json, catalogue
     about      description, acknowledgements, citation and logos of MonitorEO-OBSNEV
 
-It needs the Earth Engine API (earthengine-api) and an Earth Engine project: call services.init(project) first.
+It needs the Earth Engine API (earthengine-api): call services.init() first, with your Earth Engine project or, without
+one, to compute with the shared account of MonitorEO.
 """
 
-__version__ = '0.3.18'
+__version__ = '0.3.19'

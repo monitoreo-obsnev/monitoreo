@@ -61,15 +61,17 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
   invisible(TRUE)
 }
 
-#' Connect to Earth Engine with the credentials of `earthengine authenticate` (or rgee::ee_Initialize()) and a
-#' Google Cloud project registered in Earth Engine.
-#' @param project project (default: the variable EE_PROJECT).
+#' Connect to Earth Engine. With a Google Cloud project registered in Earth Engine, with the credentials of
+#' `earthengine authenticate` (or rgee::ee_Initialize()) and the quota of that project; with "" (or no EE_PROJECT),
+#' with the shared account of MonitorEO, which needs no account of Earth Engine but cannot export to Google Drive.
+#' @param project project (default: the variable EE_PROJECT; "": the shared account of MonitorEO).
 #' @param python optional path of the Python with monitoreo (see reticulate::use_python()).
+#' @return the project whose quota is used, invisibly.
 #' @export
 mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   if (!is.null(python)) reticulate::use_python(python, required = TRUE)
-  if (!nzchar(project)) project <- NULL
-  invisible(services()$init(project))
+  own <- !is.null(project) && nzchar(project)
+  invisible(services()$init(if (own) project else NULL, shared = !own))
 }
 
 # A list of Python dictionaries (rows) as a data.frame, with dates as Date and None as NA.

@@ -13,7 +13,8 @@ download_trend) and the comparison of a reference period with another (compare_s
 download_comparison) are described in monitoreo.trends. The results of an analysis are published
 for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
 
-Call init(project) first (or set EE_PROJECT): it uses the credentials of `earthengine authenticate`.
+Call init() first. With a project (init(project) or the variable EE_PROJECT) it computes with the Google account of
+`earthengine authenticate` and the quota of that project; without one, with the shared account of MonitorEO.
 """
 
 import datetime as dt
@@ -29,17 +30,25 @@ from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
 
+# Broker of the shared account of MonitorEO (broker/ in the repository): tokens of one hour of a service account that
+# only computes in Earth Engine with the quota of the project of MonitorEO. MONITOREO_BROKER replaces it.
+BROKER = 'https://monitoreo-broker-872770286973.europe-west1.run.app'
+
 _project = None
+_shared = False
 
 
-def init(project=None):
-	"""Connect to Earth Engine with the credentials of `earthengine authenticate` and the Google Cloud PROJECT
-	registered in Earth Engine (default: the variable EE_PROJECT). Returns the project."""
-	global _project
-	project = project or os.environ.get('EE_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT')
+def init(project=None, shared=False):
+	"""Connect to Earth Engine and return the project whose quota is used. With a PROJECT (default: the variable
+	EE_PROJECT), with the credentials of `earthengine authenticate` (the Google account of the user) and that Google
+	Cloud project registered in Earth Engine. Without one, or with SHARED (whatever EE_PROJECT says: a field of
+	project left empty), with the shared account of MonitorEO: a token of one hour from its broker, renewed by itself,
+	and the project of MonitorEO; it cannot export to Google Drive (see need_own_account)."""
+	global _project, _shared
+	project = None if shared else project or os.environ.get('EE_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT')
 	if not project:
-		raise RuntimeError('give the Earth Engine project: init(project=...) or the variable EE_PROJECT')
-	if project == _project:
+		return _init_shared()
+	if project == _project and not _shared:
 		return project
 	try:
 		ee.Initialize(project=project)
@@ -47,12 +56,56 @@ def init(project=None):
 		raise RuntimeError(f'cannot connect to Earth Engine with the project {project}: {e}. Run '
 		                   '`earthengine authenticate` once and check that the project is registered in Earth Engine '
 		                   '(https://developers.google.com/earth-engine/guides/access)') from e
-	_project = project
+	_project, _shared = project, False
+	return project
+
+
+def _shared_token():
+	"""(token, expiry as a naive UTC datetime, project) of the shared account of MonitorEO, from its broker."""
+	import requests  # a dependency of earthengine-api, with the certificates of certifi (also in QGIS)
+	r = requests.get(os.environ.get('MONITOREO_BROKER', BROKER).rstrip('/') + '/token', timeout=30,
+	                 headers={'User-Agent': 'monitoreo'})
+	if r.status_code != 200:
+		raise RuntimeError(r.json().get('error') if 'json' in r.headers.get('Content-Type', '') else r.status_code)
+	d = r.json()
+	expiry = dt.datetime.fromtimestamp(d['expires_at'], dt.timezone.utc).replace(tzinfo=None)
+	return d['access_token'], expiry, d['project']
+
+
+def _init_shared():
+	global _project, _shared
+	if _shared:
+		return _project
+	import google.oauth2.credentials
+	try:
+		token, expiry, project = _shared_token()
+		credentials = google.oauth2.credentials.Credentials(
+			token, expiry=expiry, refresh_handler=lambda request, scopes=None: _shared_token()[:2])
+		ee.Initialize(credentials=credentials, project=project)
+	except Exception as e:
+		raise RuntimeError(f'cannot connect to Earth Engine with the shared account of MonitorEO: {e}. Try again later '
+		                   'or use your own account: run `earthengine authenticate` once and give your Google Cloud '
+		                   'project (init(project=...) or the variable EE_PROJECT)') from e
+	_project, _shared = project, True
 	return project
 
 
 def project():
 	return _project
+
+
+def shared():
+	"""Whether Earth Engine is used with the shared account of MonitorEO (and not with the user's own)."""
+	return _shared
+
+
+def need_own_account(what='Exporting to Google Drive'):
+	"""Stop with a clear message when WHAT cannot be done with the shared account of MonitorEO."""
+	if _shared:
+		raise RuntimeError(f'{what} needs your own Earth Engine account (the files go to the Google Drive of the '
+		                   'account that computes): run `earthengine authenticate` once and give your Google Cloud '
+		                   'project (init(project=...) or the variable EE_PROJECT). With the shared account of '
+		                   'MonitorEO, download_image and download_variables save the GeoTIFFs on this computer.')
 
 
 def about(lang='en'):
@@ -189,6 +242,7 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
                          stat='mean', season=None, quality=None, scale=None, folder='MonitorEO', name=None, **source):
 	"""Export the time series to a CSV file in FOLDER of Google Drive (for long series or many regions).
 	Returns {'operation', 'file', 'folder'}."""
+	need_own_account()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	regions = areas.region(region)
 	table = timeseries.table(spec, regions, step, metric, stat, scale)

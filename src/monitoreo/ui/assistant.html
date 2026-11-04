@@ -143,13 +143,13 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <summary>Configuración <span id="summary" class="muted"></span></summary>
     <div class="setup">
       <div class="row">
-        <span class="label">Cuenta de Google</span>
+        <span class="label">Cuenta de Earth Engine</span>
         <span id="account" class="muted">…</span>
-        <button id="signin" type="button">Iniciar sesión con Google</button>
+        <button id="signin" type="button">Usar mi cuenta de Google</button>
       </div>
       <div class="row">
-        <label class="label" for="project">Proyecto de Google Cloud</label>
-        <input id="project" placeholder="el que ves arriba a la derecha en el Code Editor de Earth Engine">
+        <label class="label" for="project">Tu proyecto (opcional)</label>
+        <input id="project" placeholder="vacío: la cuenta compartida de MonitorEO · o tu proyecto de Google Cloud registrado en Earth Engine">
         <button id="saveProject" type="button">Guardar</button>
         <span id="projectMsg" class="muted"></span>
       </div>
@@ -295,9 +295,13 @@ async function refresh() {
   }
   refresh.failed = false;
   $('version').textContent = 'MonitorEO ' + state.version;
-  $('account').textContent = state.signed_in ? 'sesión iniciada en este ordenador' : 'sin iniciar sesión';
-  $('account').className = state.signed_in ? 'ok' : 'muted';
-  $('signin').textContent = state.signed_in ? 'Cambiar de cuenta' : 'Iniciar sesión con Google';
+  const own = !!state.project, accountOk = !own || state.signed_in;
+  $('account').textContent = !own ? 'la cuenta compartida de MonitorEO: no hace falta iniciar sesión' +
+      (state.signed_in ? ' (para usar la tuya, escribe tu proyecto)' : '') :
+    state.signed_in ? 'tu cuenta de Google (sesión iniciada en este ordenador)' :
+    'para calcular con tu proyecto, inicia sesión con tu cuenta de Google';
+  $('account').className = accountOk ? 'ok' : 'muted';
+  $('signin').textContent = state.signed_in ? 'Cambiar de cuenta' : 'Usar mi cuenta de Google';
   if (document.activeElement !== $('project')) $('project').value = state.project || '';
   const select = $('model'), names = state.models || [], rec = state.recommended || [];
   if (document.activeElement !== select) {  // not while the user chooses
@@ -338,11 +342,14 @@ async function refresh() {
   const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return 'localhost'; } })();
   const local = ['localhost', '127.0.0.1', '::1'].includes(host);
   $('where').replaceChildren(
-    'Los cálculos se hacen en Google Earth Engine con tu cuenta de Google y el proyecto ',
-    el('b', {text: state.project || '(sin elegir)'}), '. El modelo de lenguaje (', el('b', {text: state.model}),
+    ...(own ? ['Los cálculos se hacen en Google Earth Engine con tu cuenta de Google y el proyecto ',
+               el('b', {text: state.project}), '.']
+            : ['Los cálculos se hacen en Google Earth Engine con la ', el('b', {text: 'cuenta compartida de MonitorEO'}),
+               ': para exportar a Google Drive, usa tu cuenta y tu proyecto.']),
+    ' El modelo de lenguaje (', el('b', {text: state.model}),
     local ? ', en este ordenador' : ', en ' + host,
     ') solo recibe el texto de la conversación: no ve los resultados ni los interpreta.');
-  const ready = state.signed_in && state.project && state.models && state.models.includes(state.model);
+  const ready = accountOk && state.models && state.models.includes(state.model);
   $('summary').textContent = ready ? '· todo listo' : '· falta completar';
   if (ready && !refresh.done) $('setup').open = false;
   refresh.done = true;

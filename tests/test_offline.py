@@ -220,3 +220,46 @@ def test_burn_severity_classes():
 	assert fire.limits(1) == (0.1, 0.27) and fire.limits(-2) == (None, -0.25) and fire.limits(4) == (0.66, None)
 	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 2.0}], 'Teide')
 	assert len(rows) == 7 and {r['class']: r['ha'] for r in rows}[1] == 12.5 and rows[0]['ha'] == 0.0
+
+
+def test_shared_account(monkeypatch):
+	# without a project, init connects with the shared account of MonitorEO: tokens of its broker, renewed when they
+	# expire; it cannot export to Google Drive
+	import time
+	import types
+
+	import requests
+	for v in ('EE_PROJECT', 'GOOGLE_CLOUD_PROJECT', 'MONITOREO_BROKER'):
+		monkeypatch.delenv(v, raising=False)
+	monkeypatch.setattr(services, '_project', None)
+	monkeypatch.setattr(services, '_shared', False)
+	asked = []
+
+	def get(url, timeout, headers):
+		asked.append(url)
+		return types.SimpleNamespace(status_code=200, headers={'Content-Type': 'application/json'},
+		                             json=lambda: {'access_token': f'token{len(asked)}', 'project': 'shared-project',
+		                                           'expires_at': time.time() + 3600})
+	monkeypatch.setattr(requests, 'get', get)
+	got = {}
+	monkeypatch.setattr(services.ee, 'Initialize', lambda credentials=None, project=None: got.update(c=credentials,
+	                                                                                                  p=project))
+	assert services.init() == 'shared-project' and services.shared() and got['p'] == 'shared-project'
+	assert asked == [services.BROKER + '/token'] and got['c'].token == 'token1' and got['c'].valid
+	got['c'].refresh(None)
+	assert got['c'].token == 'token2' and got['c'].valid
+	assert services.init() == 'shared-project' and len(asked) == 2  # already connected
+	with pytest.raises(RuntimeError, match='own Earth Engine account'):
+		services.time_series_to_drive({'bbox': [0, 0, 1, 1]}, 'NDVI', 'Sentinel-2', '2020-01-01', '2020-02-01')
+	with pytest.raises(RuntimeError, match='own Earth Engine account'):
+		drive.export(None, None, 'name', 'MonitorEO', 'shared-project')
+
+	monkeypatch.setattr(services.ee, 'Initialize', lambda project=None: got.update(c=None, p=project))
+	assert services.init('mine') == 'mine' and not services.shared() and got['p'] == 'mine'
+	services.need_own_account()  # nothing to stop with the user's own account
+
+	monkeypatch.setattr(services, '_project', None)
+	monkeypatch.setattr(requests, 'get', lambda url, timeout, headers: types.SimpleNamespace(
+		status_code=429, headers={'Content-Type': 'application/json'}, json=lambda: {'error': 'too many requests'}))
+	with pytest.raises(RuntimeError, match='shared account of MonitorEO: too many requests'):
+		services.init()
