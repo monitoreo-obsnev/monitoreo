@@ -4,7 +4,8 @@
 
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
-areas, a map layer and two time series (map extent, and a layer with two polygons), waiting for their QGIS tasks.
+areas, a map layer, two time series (map extent, and a layer with two polygons) with the maps of two of their dates,
+trends with their map and a comparison of periods, waiting for their QGIS tasks.
 """
 
 import os
@@ -24,7 +25,7 @@ from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsFeature,
                        QgsProject, QgsRectangle, QgsVectorLayer)
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtCore import QVariant  # noqa: E402
-from qgis.PyQt.QtWidgets import QMainWindow  # noqa: E402
+from qgis.PyQt.QtWidgets import QCheckBox, QComboBox, QMainWindow, QPushButton  # noqa: E402
 
 app = QgsApplication([], True)
 QgsApplication.setPrefixPath(os.path.join(APP, 'Contents', 'MacOS'), True)
@@ -134,6 +135,33 @@ if chart is not None and os.environ.get('TEST_OUT'):  # chart drawn with Qt (no 
 	chart.grab().save(os.path.join(os.environ['TEST_OUT'], 'qt_chart.png'), 'PNG')
 	print('Qt chart saved')
 
+
+def add_from_window(res, index=0, significant=False):
+	"""Add the map INDEX of res['maps'] with the button of the window of the result RES; the layers of its group."""
+	dlg = dock.series_dialogs[dock.series.index(res)]
+	dlg.findChild(QComboBox).setCurrentIndex(index)
+	if significant:
+		dlg.findChild(QCheckBox).setChecked(True)
+	next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Añadir al mapa').click()
+	wait(dock)
+	group = QgsProject.instance().layerTreeRoot().findGroup(res['label'])
+	assert group is not None, iface.messages[-3:]
+	return [n.layer() for n in group.findLayers()]
+
+
+# the maps of two dates of the series (June and July), in the group of the series, with the colours of the first one
+# and their days in the Temporal Controller
+assert [m['label'] for m in res['maps'][:3]] == ['Todo el periodo (2021)', 'ene 2021', 'feb 2021'], res['maps'][:3]
+add_from_window(res, 6)
+july, june = add_from_window(res, 7)  # the last one on top
+ramps = [(r.classificationMin(), r.classificationMax()) for r in (june.renderer(), july.renderer())]
+assert ramps[0] == ramps[1], ramps
+times = [l.temporalProperties().fixedTemporalRange() for l in (june, july)]
+assert all(l.temporalProperties().isActive() for l in (june, july))
+assert [(t.begin().toString('yyyy-MM-dd'), t.end().toString('yyyy-MM-dd')) for t in times] == \
+       [('2021-06-01', '2021-07-01'), ('2021-07-01', '2021-08-01')], times
+print('maps of the series:', [l.name() for l in (june, july)], '| colours', ramps[0])
+
 # time series over a layer with two polygons, in UTM
 lyr = QgsVectorLayer('Polygon?crs=EPSG:25830', 'zonas', 'memory')
 lyr.dataProvider().addAttributes([QgsField('zona', QVariant.String)])  # (deprecated in QGIS 4, still works)
@@ -166,6 +194,10 @@ res = dock.series[-1]
 assert res['kind'] == 'trends' and res['rows'][0]['n'] == 8, res['rows']
 print('trends:', [(r['key'], r['n'], round(r['tau'], 2), round(r['p_value'], 3), round(r['slope'], 4)) for r in res['rows']],
       '| chart', bool(res['chart']))
+assert [m['label'] for m in res['maps']] == ['Tendencia anual (2014-2021)'], res['maps']  # by years: no parts
+layers = add_from_window(res, 0, significant=True)
+assert len(layers) == 1 and layers[0].bandCount() == 6 and layers[0].name().endswith('(p < 0,05)'), iface.messages[-2:]
+print('map of the trends:', layers[0].name())
 before = set(QgsProject.instance().mapLayers())
 dock.run_trend_map()
 wait(dock)

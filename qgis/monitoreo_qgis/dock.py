@@ -7,10 +7,10 @@ import os
 import tempfile
 
 from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsDataSourceUri, QgsMapLayerProxyModel, QgsProject, QgsRasterLayer, QgsRasterShader,
-                       QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
+                       QgsDataSourceUri, QgsDateTimeRange, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
+                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
-from qgis.PyQt.QtCore import QDate, QEvent, QPoint, Qt, QTimer, QUrl
+from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QToolButton,
@@ -19,7 +19,8 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import services, trends  # noqa: E402
+from monitoreo import services, steps, trends  # noqa: E402
+from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, filters_help, variable_help  # noqa: E402
 
@@ -33,6 +34,7 @@ TREND_STEPS = [('Año', 'annual'), ('Meses', 'monthly'), ('16 días', '16-day')]
 REGIONS = [('Capa (entidades seleccionadas o todas)', 'layer'), ('Extensión del mapa', 'extent'),
            ('Área protegida (WDPA)', 'wdpa'), ('Ecorregión del centro del mapa', 'ecoregion')]
 POLL_MS = 30000
+ALPHA = 0.05  # «Solo píxeles significativos»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
 MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
 
@@ -61,9 +63,35 @@ def pseudocolor(layer, vmin, vmax, palette):
 	layer.setRenderer(renderer)
 
 
-def polygon_filter():
-	enum = getattr(Qgis, 'LayerFilter', None)
-	return enum.PolygonLayer if enum is not None and hasattr(enum, 'PolygonLayer') else QgsMapLayerProxyModel.PolygonLayer
+def dated(layer, first, last):
+	"""Give LAYER the days FIRST to LAST (YYYY-MM-DD) in the Temporal Controller of QGIS."""
+	props = layer.temporalProperties()
+	props.setMode(Qgis.RasterTemporalMode.FixedTemporalRange)
+	begin = QDateTime(QDate.fromString(first, 'yyyy-MM-dd'), QTime(0, 0))
+	end = QDateTime(QDate.fromString(last, 'yyyy-MM-dd').addDays(1), QTime(0, 0))
+	props.setFixedTemporalRange(QgsDateTimeRange(begin, end, True, False))
+	props.setIsActive(True)
+
+
+def add_layer(layer, group=None):
+	"""Add LAYER to the project, on top of the layer tree or of GROUP."""
+	if group is None:
+		QgsProject.instance().addMapLayer(layer)
+	else:
+		QgsProject.instance().addMapLayer(layer, False)
+		group.insertLayer(0, layer)
+
+
+def result_maps(tool, args):
+	"""The maps that the window of a result of TOOL ('time_series' or 'trend_table') with ARGS offers: that of its
+	whole period (of a trend, the trend of the values of each year) and those of each of its steps (its years, months
+	or periods of 16 days; of a trend, its parts of the year), as in the assistant (see monitoreo.steps)."""
+	period = period_text(args['start'], args['end'])
+	if tool == 'trend_table':
+		main = {'key': '', 'label': f'Tendencia anual ({period})', 'step': 'annual'}
+	else:
+		main = {'key': '', 'label': f'Todo el periodo ({period})', 'start': args['start'], 'end': args['end']}
+	return [main] + steps.map_steps(tool, args)
 
 
 def combo(items, current=None):
@@ -160,7 +188,7 @@ class MonitorEODock(QDockWidget):
 		self.region_kind.currentIndexChanged.connect(self.region_changed)
 		f.addRow('Región', info(self.region_kind, HELP['region']))
 		self.layer = QgsMapLayerComboBox()
-		self.layer.setFilters(polygon_filter())
+		self.layer.setFilters(Qgis.LayerFilter.PolygonLayer)
 		self.name_field = QgsFieldComboBox()
 		self.name_field.setAllowEmptyFieldName(True)
 		self.layer.layerChanged.connect(lambda layer: self.sync_fields())
@@ -571,6 +599,8 @@ class MonitorEODock(QDockWidget):
 			res['chart'] = chart_png(res, os.path.join(tmp, 'serie.png'))
 			res['label'] = f"{res['title']} · {', '.join(res['regions'])}"
 			res['kind'] = 'series'
+			res['args'] = dict(var, region=region, step=step, metric=metric)
+			res['maps'] = result_maps('time_series', res['args'])
 			self.add_result(res)
 
 		self.run_task(f"Serie temporal de {var['variable']} ({var['sensor']})", work, done)
@@ -623,6 +653,8 @@ class MonitorEODock(QDockWidget):
 			res['chart'] = trends_png(res, os.path.join(tmp, 'tendencias.png'))  # in the main thread
 			res['label'] = f"Tendencias: {res['title']}"
 			res['kind'] = 'trends'
+			res['args'] = dict(var, region=region, step=step, metric=metric)
+			res['maps'] = result_maps('trend_table', res['args'])
 			self.add_result(res)
 
 		self.run_task(f"Tendencias de {var['variable']} ({var['sensor']})", work, done)
@@ -633,7 +665,7 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		step, part, metric = self.trend_step.currentData(), self.trend_part.currentData(), self.trend_metric.currentData()
-		alpha = 0.05 if self.trend_alpha.isChecked() else None
+		alpha = ALPHA if self.trend_alpha.isChecked() else None
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'tendencia.tif')
 
 		def work():
@@ -665,7 +697,7 @@ class MonitorEODock(QDockWidget):
 		if dlg is None:
 			res = self.series[i]
 			cls = SeriesDialog if res.get('kind', 'series') == 'series' else ResultDialog
-			dlg = self.series_dialogs[i] = cls(res, self.iface.mainWindow())
+			dlg = self.series_dialogs[i] = cls(res, self.iface.mainWindow(), self.add_result_map)
 		dlg.show()
 		dlg.raise_()
 		dlg.activateWindow()
@@ -697,23 +729,29 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Mapa de {var['variable']} ({var['sensor']})", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
-	def add_map_layer(self, res):
-		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95) and zoom to it."""
-		layer = QgsRasterLayer(res['file'], res['name'])
+	def add_map_layer(self, res, name=None, group=None, colors=None, zoom=True, period=None):
+		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95, or COLORS: (min, max))
+		and zoom to it; with GROUP, in that group of the layer tree, and with PERIOD (first and last day), with those
+		days in the Temporal Controller."""
+		name = name or res['name']
+		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS no ha podido abrir {res['file']}")
 		if res['min'] is None:
-			self.message(f"{res['name']}: sin valores en la región (sin imágenes, o todo filtrado)", 'Warning', 10)
+			self.message(f"{name}: sin valores en la región (sin imágenes, o todo filtrado)", 'Warning', 10)
 		else:
-			pseudocolor(layer, res['min'], res['max'], res['palette'])
+			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
 		bands = ', '.join(res.get('bands') or [])
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m"
 		                  + (f", {res['images']} imágenes" if res.get('images') is not None else '')
 		                  + (f", bandas {bands}" if bands else '') + f". GeoTIFF temporal: {res['file']}")
-		QgsProject.instance().addMapLayer(layer)
-		self.zoom_to(layer.extent(), layer.crs())
+		if period:
+			dated(layer, *period)
+		add_layer(layer, group)
+		if zoom:
+			self.zoom_to(layer.extent(), layer.crs())
 		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Capa añadida: {res['name']}, píxeles de {res['resolution']:g} m"
+		self.message(f"Capa añadida: {name}, píxeles de {res['resolution']:g} m"
 		             + ('' if native else ' (región grande: píxeles mayores que los de los datos; para la resolución '
 		                                 'completa, exporta el mapa a Google Drive)')
 		             + '. Consulta los valores con la herramienta Identificar', 'Success', 10)
@@ -726,21 +764,68 @@ class MonitorEODock(QDockWidget):
 		canvas.setExtent(r)
 		canvas.refresh()
 
-	def add_tile_layer(self, res):
+	def add_tile_layer(self, res, name=None, group=None, zoom=True):
+		name = name or res['name']
 		uri = QgsDataSourceUri()
 		uri.setParam('type', 'xyz')
 		uri.setParam('url', res['url'])
 		uri.setParam('zmin', '0')
 		uri.setParam('zmax', '20')
-		layer = QgsRasterLayer(bytes(uri.encodedUri()).decode(), res['name'], 'wms')
+		layer = QgsRasterLayer(bytes(uri.encodedUri()).decode(), name, 'wms')
 		if not layer.isValid():
 			raise RuntimeError('QGIS no ha podido abrir las teselas de Earth Engine')
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Rampa de color de {res['min']:.4g} a {res['max']:.4g}: "
 		                  f"{', '.join('#' + c for c in res['palette'])}. Teselas de Earth Engine válidas unas horas.")
-		QgsProject.instance().addMapLayer(layer)
-		self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))
-		self.message(f"Capa de teselas añadida: {res['name']} (de {res['min']:.4g} a {res['max']:.4g} {res['unit']}; "
+		add_layer(layer, group)
+		if zoom:
+			self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))
+		self.message(f"Capa de teselas añadida: {name} (de {res['min']:.4g} a {res['max']:.4g} {res['unit']}; "
 		             f"sin valores consultables: no se pudo descargar el GeoTIFF: {res.get('error')})", 'Warning', 15)
+
+	def result_group(self, res):
+		"""The group of the layer tree with the maps of the result RES (made the first time, on top)."""
+		root = QgsProject.instance().layerTreeRoot()
+		return root.findGroup(res['label']) or root.insertGroup(0, res['label'])
+
+	def add_result_map(self, res, entry, significant=False):
+		"""Add the map ENTRY (one of res['maps']: its whole period or one of its steps) of the series or trends RES,
+		as a GeoTIFF in the group of the result, with the colours of the first map of the result, so that its maps can
+		be compared; the dates of a series, with their days in the Temporal Controller of QGIS. Trends with
+		SIGNIFICANT: only the pixels with p < ALPHA. If the GeoTIFF cannot be downloaded, Earth Engine tiles."""
+		a = res['args']
+		region = a['region']
+		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season') if k in a}
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'mapa.tif')
+		if res['kind'] == 'trends':
+			opts = dict(var, start=a['start'], end=a['end'], step=entry.get('step') or a['step'], part=entry.get('part'),
+			            metric=a['metric'], alpha=ALPHA if significant else None)
+			download, tiles = services.download_trend, services.trend_map
+		else:
+			opts = dict(var, start=entry['start'], end=entry['end'], metric=a['metric'])
+			download, tiles = services.download_image, services.map_layer
+		colors = res.get('colors')  # (min, max) of the first map of the result
+		name = f"{res['title'].split(' | ')[0]} · {entry['label']}" + (' (p < 0,05)' if significant else '')
+		period = (entry['start'], entry['end']) if res['kind'] == 'series' and entry['key'] else None
+
+		def work():
+			try:
+				return download(region, path=path, max_pixels=MAP_PIXELS, **opts)
+			except Exception as e:
+				out = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
+				out['error'] = str(e)
+				return out
+
+		def done(r):
+			first = 'colors' not in res
+			if first and r.get('min') is not None:
+				res['colors'] = (r['min'], r['max'])
+			group = self.result_group(res)
+			if 'url' in r:
+				self.add_tile_layer(r, name, group, zoom=first)
+			else:
+				self.add_map_layer(r, name, group, res.get('colors'), zoom=first, period=period)
+
+		self.run_task(f'Mapa de {name}', work, done)
 
 	def run_export_image(self):
 		args = self.prepare()

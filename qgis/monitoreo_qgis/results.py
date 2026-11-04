@@ -1,6 +1,7 @@
 """Windows of the results: chart, table and buttons to save the CSV and the chart. The chart of a time series is the
 PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt; those of
-the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table)."""
+the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
+Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year."""
 
 import datetime as dt
 import math
@@ -8,8 +9,8 @@ import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
 from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
-from qgis.PyQt.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton, QTableWidget,
-                                 QTableWidgetItem, QVBoxLayout, QWidget)
+from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
+                                 QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 COLUMNS = [('region', 'Región'), ('date', 'Fecha'), ('value', 'Valor'), ('n_pixels', 'Píxeles'), ('n_images', 'Imágenes')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -54,6 +55,33 @@ def comparison_png(res, step, path):
 		return None
 
 
+def map_row(res, add_map):
+	"""Row of the window of the series or trends RES with its maps (res['maps']: that of its whole period and those of
+	each of its dates or parts of the year) and the button that adds the chosen one (ADD_MAP(res, map, significant));
+	None if it has no maps."""
+	if add_map is None or not res.get('maps'):
+		return None
+	trends = res.get('kind') == 'trends'
+	row = QHBoxLayout()
+	row.addWidget(QLabel('Mapa de'))
+	choice = QComboBox()
+	for m in res['maps']:
+		choice.addItem(m['label'])
+	row.addWidget(choice, 1)
+	significant = QCheckBox('Solo píxeles significativos (p < 0,05)') if trends else None
+	if significant:
+		row.addWidget(significant)
+	b = QPushButton('Añadir al mapa')
+	b.setToolTip(('GeoTIFF temporal con la pendiente de Sen, τ, Z, p-valor, ordenada y número de años de cada píxel'
+	              if trends else 'GeoTIFF temporal con los valores de cada píxel, con sus fechas en el Controlador '
+	                             'temporal de QGIS') + ' (consultables con la herramienta Identificar), en el grupo de '
+	             'este resultado y con los colores de su primer mapa, para poder compararlos')
+	b.clicked.connect(lambda: add_map(res, res['maps'][choice.currentIndex()],
+	                                  bool(significant and significant.isChecked())))
+	row.addWidget(b)
+	return row
+
+
 def _cell(v):
 	if v is None:
 		return ''
@@ -65,7 +93,7 @@ def _cell(v):
 class ResultDialog(QDialog):
 	"""Window of the trends or of the comparison of periods: chart (PNG), table and buttons to save them."""
 
-	def __init__(self, res, parent=None):
+	def __init__(self, res, parent=None, add_map=None):
 		super().__init__(parent)
 		self.res = res
 		trends = res.get('kind') == 'trends'
@@ -90,6 +118,9 @@ class ResultDialog(QDialog):
 				table.setItem(i, j, QTableWidgetItem(_cell(r.get(key))))
 		table.resizeColumnsToContents()
 		lay.addWidget(table, 1)
+		maps = map_row(res, add_map)
+		if maps:
+			lay.addLayout(maps)
 		row = QHBoxLayout()
 		row.addStretch()
 		for text, path, filt in (('Guardar CSV…', res.get('csv'), 'CSV (*.csv)'),
@@ -200,7 +231,7 @@ class ChartWidget(QWidget):
 
 class SeriesDialog(QDialog):
 
-	def __init__(self, res, parent=None):
+	def __init__(self, res, parent=None, add_map=None):
 		super().__init__(parent)
 		self.res = res
 		self.setWindowTitle(f"MonitorEO: {res['title']}")
@@ -225,6 +256,9 @@ class SeriesDialog(QDialog):
 				table.setItem(i, j, QTableWidgetItem('' if v is None else (f'{v:.6g}' if isinstance(v, float) else str(v))))
 		table.resizeColumnsToContents()
 		lay.addWidget(table, 1)
+		maps = map_row(res, add_map)
+		if maps:
+			lay.addLayout(maps)
 		row = QHBoxLayout()
 		row.addStretch()
 		if res.get('csv'):

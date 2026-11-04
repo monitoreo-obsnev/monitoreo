@@ -6,6 +6,7 @@ import json
 import pytest
 
 from monitoreo import assistant, report
+from monitoreo.steps import MAX_MAP_STEPS, map_steps
 
 TOOLS = [
 	{'name': 'time_series', 'description': 'Time series.', 'inputSchema': {'type': 'object', 'properties': {
@@ -500,25 +501,25 @@ def test_other_tool():
 
 def test_map_steps():
 	# the maps that the page offers of a result: those of its steps, or of the years of a map
-	steps = assistant.map_steps('map_layer', {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
+	steps = map_steps('map_layer', {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
 	                                          'season': ['06-01', '08-31']})
 	assert [s['label'] for s in steps] == [str(y) for y in range(2018, 2025)]
 	assert steps[0]['start'] == '2018-06-01' and steps[0]['end'] == '2018-08-31'  # the summer of each year
-	steps = assistant.map_steps('time_series', {'start': '2024-01-01', 'end': '2024-02-29', 'step': '16-day'})
+	steps = map_steps('time_series', {'start': '2024-01-01', 'end': '2024-02-29', 'step': '16-day'})
 	assert [s['label'] for s in steps][:2] == ['1 ene 2024 - 16 ene 2024', '17 ene 2024 - 1 feb 2024']
-	assert assistant.map_steps('map_layer', {'start': '2024-06-01', 'end': '2024-08-31'}) == []  # one year: one map
-	assert assistant.map_steps('compare_map', {'start': '2018-01-01', 'end': '2024-12-31'}) == []
-	assert len(assistant.map_steps('time_series', {'start': '1984-01-01', 'end': '2024-12-31', 'step': 'daily'})) == \
-	       assistant.MAX_MAP_STEPS  # the last ones
+	assert map_steps('map_layer', {'start': '2024-06-01', 'end': '2024-08-31'}) == []  # one year: one map
+	assert map_steps('compare_map', {'start': '2018-01-01', 'end': '2024-12-31'}) == []
+	assert len(map_steps('time_series', {'start': '1984-01-01', 'end': '2024-12-31', 'step': 'daily'})) == \
+	       MAX_MAP_STEPS  # the last ones
 	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
 	                                   'interannual': 'median'}}
 	assert assistant.main_label(m, m['args']) == 'Valor interanual: mediana de los años (2018-2024)'
 	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31'}}
 	assert assistant.main_label(m, m['args']) == 'Todo el periodo (2018-2024)'
 	# a trend: the annual one, and that of each month
-	steps = assistant.map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})
+	steps = map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})
 	assert len(steps) == 12 and steps[6] == {'key': 'part:7', 'label': 'Tendencia de julio', 'part': 7}
-	assert assistant.map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}) == []
+	assert map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}) == []
 	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}}
 	assert assistant.main_label(m, m['args']).startswith('Tendencia anual: pendiente de Sen')
 	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'part': 7}}
