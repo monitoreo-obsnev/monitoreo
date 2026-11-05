@@ -1,208 +1,215 @@
-"""Help of the options of the MonitorEO panel, shown by their buttons ⓘ: short texts in Spanish (rich text of Qt),
-each ending with a link to the section of the manual (the wiki of the repository) that explains it. The help of the
-variable and of the pixel filters also describes the variable chosen (variable_help, filters_help)."""
+"""Help of the options of the MonitorEO panel, shown by their buttons ⓘ: short texts in English (rich text of Qt),
+each ending with a link to the section of the manual (the English pages of the wiki of the repository) that explains
+it. The help of the variable and of the pixel filters also describes the variable chosen (variable_help,
+filters_help)."""
 
 from . import deps
 
 deps.setup_path()
 from monitoreo import about, sensors, services  # noqa: E402
 
-FILTER_NAMES = {'clouds': 'nubes', 'water': 'agua', 'snow': 'nieve', 'aerosols': 'aerosoles'}
-MEASURED = {'water': 'el agua', 'snow': 'la nieve', 'aerosols': 'los aerosoles'}
+MANUAL = f'{about.MANUAL}/QGIS-plugin'  # the English page of the plugin in the wiki
+FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
+MEASURED = {'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 
 
 def manual(page):
-	return f'<p><a href="{about.MANUAL}/{page}">Más en el manual</a></p>'
+	"""Link to PAGE of the wiki (an English page, with the anchor of its section: 'Concepts#regions')."""
+	return f'<p><a href="{about.MANUAL}/{page}">More in the manual</a></p>'
 
 
 HELP = {
 	'project':
-		'<p><b>Vacío</b>: los cálculos se hacen en Earth Engine con la <b>cuenta compartida de MonitorEO</b>, sin '
-		'iniciar sesión ni tener cuenta de Earth Engine. Con ella no se puede exportar a Google Drive: los GeoTIFF se '
-		'descargan a este ordenador.</p>'
-		'<p>Con <b>tu proyecto</b> de Google Cloud registrado en Earth Engine, los cálculos se hacen con tu cuenta de '
-		'Google y cuentan en la cuota de ese proyecto; así también se exporta a tu Google Drive. Se recuerda para la '
-		'próxima vez.</p>'
-		'<p><b>Autenticar…</b> abre el navegador para iniciar sesión con tu cuenta de Google, una vez en cada '
-		'ordenador (como <code>earthengine authenticate</code>); solo hace falta para usar tu proyecto. '
-		'<b>Conectar</b> comprueba que la conexión funciona; no es obligatorio, porque cada cálculo se conecta '
-		'solo.</p>' + manual('Primeros-pasos'),
+		'<p><b>Empty</b>: the computations run in Earth Engine with the <b>shared account of MonitorEO</b>, with no '
+		'sign-in and no Earth Engine account of your own. With it you cannot export to Google Drive: the GeoTIFFs are '
+		'downloaded to this computer.</p>'
+		'<p>With <b>your Google Cloud project</b> registered in Earth Engine, the computations run with your Google '
+		'account and count in the quota of that project; then you can also export to your Google Drive. It is '
+		'remembered for the next time.</p>'
+		'<p><b>Authenticate…</b> opens the browser to sign in with your Google account, once on each computer (as '
+		'<code>earthengine authenticate</code>); it is only needed to use your project. <b>Connect</b> checks that '
+		'the connection works; it is not required, because each computation connects by itself.</p>'
+		+ manual('Getting-started'),
 	'eecu':
-		'<p>La barra muestra qué parte de tus EECU (las unidades de cálculo de Earth Engine) de este mes has gastado. '
-		'Se renuevan el día 1 de cada mes.</p>'
-		'<p>Con la <b>cuenta compartida</b> (proyecto vacío) son tus <b>research EECUs</b>: cada usuario tiene los '
-		'suyos (10 EECU-h al mes), para que nadie gaste los de todos, y son <b>solo para investigación</b>. Cuando los '
-		'gastas, la cuenta compartida no calcula para ti hasta el mes siguiente: cambia a tu propia cuenta escribiendo '
-		'tu proyecto en <b>Proyecto</b> y pulsando <b>Autenticar…</b>.</p>'
-		'<p>Con <b>tu proyecto</b>, son los de ese proyecto, frente a la cuota mensual de su <b>nivel</b> de Earth '
-		'Engine, que se elige en la lista (Community: 150 EECU-h al mes; Contributor: 1000; Partner: 100 000). Para '
-		'leerlos, el proyecto debe tener activada la API de Cloud Monitoring (gratuita). Cuando se agota, Earth Engine '
-		'no se para, pero calcula mucho más despacio hasta el mes siguiente.</p>'
-		'<p>Avisa cuando queda menos del 10 %. La barra se actualiza después de cada cálculo; <b>Consultar</b> pregunta '
-		'otra vez.</p>'
-		+ manual('Conceptos#eecu-gastados-este-mes'),
+		'<p>The bar shows what part of your EECUs (the compute units of Earth Engine) of this month you have spent. '
+		'They restart on the 1st of each month.</p>'
+		'<p>With the <b>shared account</b> (empty project) they are your <b>research EECUs</b>: each user has their '
+		'own (25 EECU-hours a month, while the project of MonitorEO has EECUs left for its users), so that no one '
+		'spends those of everyone, and they are <b>only for research</b>. '
+		'When you have spent them, the shared account does not compute for you until the next month: switch to your '
+		'own account by writing your project in <b>Project</b> and pressing <b>Authenticate…</b>.</p>'
+		'<p>With <b>your project</b>, they are those of that project, against the monthly quota of its Earth Engine '
+		'<b>tier</b>, chosen in the list (Community: 150 EECU-hours a month; Contributor: 1,000; Partner: 100,000). To '
+		'read them, the project must have the Cloud Monitoring API enabled (free). When the quota is spent, Earth '
+		'Engine does not stop, but it computes much more slowly until the next month.</p>'
+		'<p>It warns when less than 10% is left. The bar is updated after each computation; <b>Check</b> asks '
+		'again.</p>'
+		+ manual('Concepts#eecus-spent-this-month'),
 	'region':
-		'<p>Sobre qué se calcula:</p><ul>'
-		'<li><b>Capa</b>: los polígonos de una capa del proyecto, los seleccionados o, si no hay selección, todos. '
-		'Cada polígono da su propia serie.</li>'
-		'<li><b>Extensión del mapa</b>: el rectángulo que se ve en el mapa al pulsar el botón del cálculo.</li>'
-		'<li><b>Área protegida (WDPA)</b>: un área de la World Database on Protected Areas, buscada por su '
-		'nombre.</li>'
-		'<li><b>Ecorregión del centro del mapa</b>: la ecorregión de RESOLVE 2017 que contiene el centro de la '
-		'vista.</li></ul>' + manual('Conceptos#regiones'),
+		'<p>What is computed over:</p><ul>'
+		'<li><b>Layer</b>: the polygons of a layer of the project, the selected ones or, if there is no selection, all '
+		'of them. Each polygon gives its own series.</li>'
+		'<li><b>Map extent</b>: the rectangle seen in the map when the button of the computation is pressed.</li>'
+		'<li><b>Protected area (WDPA)</b>: an area of the World Database on Protected Areas, searched by its '
+		'name.</li>'
+		'<li><b>Ecoregion at the center of the map</b>: the RESOLVE 2017 ecoregion that contains the center of the '
+		'view.</li></ul>' + manual('Concepts#regions'),
 	'layer':
-		'<p>Capa de polígonos del proyecto, en cualquier sistema de coordenadas. Si tiene entidades seleccionadas, se '
-		'usan solo esas; si no, todas. Cada polígono da su propia serie (una línea en la gráfica).</p>'
-		'<p>Las capas con más de 20 000 vértices se simplifican antes de enviarlas a Earth Engine.</p>'
-		+ manual('Conceptos#regiones'),
+		'<p>Layer of polygons of the project, in any coordinate system. If it has selected features, only those are '
+		'used; if not, all of them. Each polygon gives its own series (a line in the chart).</p>'
+		'<p>Layers with more than 20,000 vertices are simplified before they are sent to Earth Engine.</p>'
+		+ manual('Concepts#regions'),
 	'name_field':
-		'<p>Campo con el nombre de cada polígono, que identifica sus series en la gráfica, la tabla y el CSV. Vacío: '
-		'el número de la entidad en QGIS.</p>' + manual('Conceptos#regiones'),
+		'<p>Field with the name of each polygon, which identifies its series in the chart, the table and the CSV. '
+		'Empty: the number of the feature in QGIS.</p>' + manual('Concepts#regions'),
 	'wdpa':
-		'<p>Escribe parte del nombre de un área protegida y pulsa <b>Buscar</b> (o Intro): la lista <b>Área</b> trae '
-		'hasta 30 áreas de la <a href="https://www.protectedplanet.net">WDPA</a> con ese texto en su nombre.</p>'
-		+ manual('QGIS#2-elegir-la-región'),
+		'<p>Write part of the name of a protected area and press <b>Search</b> (or Enter): the list <b>Area</b> brings '
+		'up to 30 areas of the <a href="https://www.protectedplanet.net">WDPA</a> with that text in their name.</p>'
+		+ manual('QGIS-plugin#2-choose-the-region'),
 	'wdpa_area':
-		'<p>El área protegida sobre la que se calcula. Cada entrada dice su nombre, su designación, su país, su '
-		'superficie y su ID de WDPA.</p>'
-		'<p>Fíjate en la designación: un mismo nombre suele tener varias figuras (parque nacional, parque natural, '
-		'ZEC, ZEPA) con límites distintos.</p>' + manual('Conceptos#regiones'),
+		'<p>The protected area over which it computes. Each entry tells its name, its designation, its country, its '
+		'area and its WDPA ID.</p>'
+		'<p>Look at the designation: the same name often has several designations (national park, natural park, SAC, '
+		'SPA) with different boundaries.</p>' + manual('Concepts#regions'),
 	'variable':
-		'<p>Variable y sensor. Cada entrada dice la variable, el sensor, el tamaño del píxel y la colección de Earth '
-		'Engine. Sentinel-2 (10 m) empieza en 2017; Landsat (30 m), en 1984, y MODIS (de 250 m a 4,6 km), en 2000: '
-		'para series largas y tendencias, Landsat o MODIS.</p>',
+		'<p>Variable and sensor. Each entry tells the variable, the sensor, the pixel size and the Earth Engine '
+		'collection. Sentinel-2 (10 m) starts in 2017; Landsat (30 m), in 1984, and MODIS (from 250 m to 4.6 km), in '
+		'2000: for long series and trends, Landsat or MODIS.</p>',
 	'period':
-		'<p>Primer y último día, ambos incluidos. Cada sensor tiene sus fechas (ver la ayuda de <b>Variable</b>). Si '
-		'marcas <b>Comparar con</b>, este es el periodo de referencia.</p>'
-		'<p>Los periodos largos con Sentinel-2 sobre áreas grandes tardan minutos: empieza con un año.</p>'
-		+ manual('Conceptos#periodo-y-temporada'),
+		'<p>First and last day, both included. Each sensor has its dates (see the help of <b>Variable</b>). If you '
+		'check <b>Compare with</b>, this is the reference period.</p>'
+		'<p>Long periods with Sentinel-2 over big areas take minutes: start with one year.</p>'
+		+ manual('Concepts#period-and-season'),
 	'compare':
-		'<p>Marca <b>otro periodo</b> para compararlo con el de arriba, el de referencia:</p><ul>'
-		'<li><b>Calcular la serie temporal</b> da la media de cada parte del año (mes, 16 días o año, según el '
-		'<b>Paso</b>; el diario no vale) en cada periodo y su diferencia (otro − referencia).</li>'
-		'<li><b>Añadir la capa al mapa</b> añade la diferencia de la métrica del mapa, con las bandas difference, '
-		'reference y other.</li></ul>'
-		'<p>Las tendencias y las exportaciones a Google Drive usan solo el periodo de referencia.</p>'
-		+ manual('Conceptos#comparación-de-dos-periodos'),
+		'<p>Check <b>other period</b> to compare it with the period above, the reference period:</p><ul>'
+		'<li><b>Compute the time series</b> gives the mean of each part of the year (month, 16 days or year, '
+		'according to the <b>Step</b>; not daily) in each period and their difference (other − reference).</li>'
+		'<li><b>Add the layer to the map</b> adds the difference of the metric of the map, with the bands difference, '
+		'reference and other.</li></ul>'
+		'<p>The trends and the exports to Google Drive use only the reference period.</p>'
+		+ manual('Concepts#comparison-of-two-periods'),
 	'season':
-		'<p>Con la casilla <b>solo</b>, solo cuentan los días entre esas dos fechas (MM-DD) de cada año del periodo: '
-		'de 06-01 a 09-30, el verano. Puede cruzar el año (de 11-01 a 02-28): entonces cuenta en el año en que '
-		'empieza.</p><p>Vale para todo: series, mapas, tendencias, comparaciones y exportaciones.</p>'
-		+ manual('Conceptos#periodo-y-temporada'),
+		'<p>With the check box <b>only</b>, only the days between those two dates (MM-DD) of each year of the period '
+		'count: from 06-01 to 09-30, the summer. It can cross the end of the year (from 11-01 to 02-28): then it '
+		'counts in the year in which it starts.</p><p>It applies to everything: series, maps, trends, comparisons and '
+		'exports.</p>'
+		+ manual('Concepts#period-and-season'),
 	'filters':
-		'<p>Quita de cada imagen, antes de calcular, los píxeles que sus bandas de calidad marcan con nubes (y sus '
-		'sombras), agua, nieve o muchos aerosoles. Cada producto tiene sus bandas: los aerosoles solo se pueden '
-		'quitar en Landsat 8 y 9 y en el NDVI, EVI y LAI de MODIS.</p>'
-		'<p>Desmarca el filtro de lo que mide la variable: <b>nieve</b> con el NDSI y <b>agua</b> con el NDWI, la '
-		'Chl-a y el NDCI.</p>',
+		'<p>Removes from each image, before computing, the pixels that its quality bands mark with clouds (and their '
+		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '
+		'Landsat 8 and 9 and in the NDVI, EVI and LAI of MODIS.</p>'
+		'<p>Uncheck the filter of what the variable measures: <b>snow</b> with the NDSI and <b>water</b> with the '
+		'NDWI, the Chl-a and the NDCI.</p>',
 	'cloud_score':
-		'<p>Solo para Sentinel-2, y con la casilla <b>nubes</b> marcada. Marcada, las nubes se quitan con Cloud Score+ '
-		'de Google: un píxel es claro si su puntuación es al menos 0,6. Sin marcar, con la clasificación de escena '
-		'(SCL) de Sentinel-2: sombras, nubes y cirros.</p>'
-		+ manual('Conceptos#filtros-por-píxel'),
+		'<p>Only for Sentinel-2, and with the check box <b>clouds</b> checked. Checked, clouds are removed with '
+		'Google\'s Cloud Score+: a pixel is clear if its score is at least 0.6. Unchecked, with the scene '
+		'classification (SCL) of Sentinel-2: shadows, clouds and cirrus.</p>'
+		+ manual('Concepts#per-pixel-filters'),
 	'step':
-		'<p>Cada cuánto da un valor la serie: <b>Mensual</b>, <b>Anual</b>, <b>16 días</b> (bloques de 16 días desde '
-		'el 1 de enero de cada año) o <b>Diario</b> (cada día con imágenes). Los pasos largos tardan menos y tienen '
-		'menos huecos por las nubes.</p><p>Para comparar periodos, mensual, 16 días o anual.</p>'
-		+ manual('Conceptos#del-montón-de-imágenes-a-un-número-métrica-y-estadístico'),
+		'<p>How often the series gives a value: <b>Monthly</b>, <b>Annual</b>, <b>16 days</b> (blocks of 16 days from '
+		'January 1 of each year) or <b>Daily</b> (each day with images). Long steps take less time and have fewer gaps '
+		'because of clouds.</p><p>To compare periods: monthly, 16 days or annual.</p>'
+		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'ts_metric':
-		'<p>Cómo se resumen en cada píxel las imágenes de cada paso: con paso mensual y <b>Media</b>, la media de las '
-		'imágenes de cada mes. La mediana y los percentiles resisten mejor los valores anómalos, como nubes que se '
-		'escapan a los filtros.</p>'
-		+ manual('Conceptos#del-montón-de-imágenes-a-un-número-métrica-y-estadístico'),
+		'<p>How the images of each step are summarized on each pixel: with the step Monthly and <b>Mean</b>, the mean '
+		'of the images of each month. The median and the percentiles resist outliers better, such as clouds that '
+		'escape the filters.</p>'
+		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'stat':
-		'<p>Cómo se resumen los píxeles de la región (de cada polígono) en un valor por paso, después de la métrica de '
-		'cada paso. La <b>Desviación típica</b> mide lo distintos que son los píxeles entre sí.</p>'
-		'<p>También es el estadístico de la <b>Tabla de tendencias de la región</b> y de la comparación de '
-		'periodos.</p>' + manual('Conceptos#del-montón-de-imágenes-a-un-número-métrica-y-estadístico'),
+		'<p>How the pixels of the region (of each polygon) are summarized in one value per step, after the metric of '
+		'each step. The <b>Standard deviation</b> measures how different the pixels are from each other.</p>'
+		'<p>It is also the statistic of the <b>Trend table of the region</b> and of the comparison of periods.</p>'
+		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'series_list':
-		'<p>Series temporales, tablas de tendencias y comparaciones calculadas en esta sesión de QGIS. Elige una y '
-		'pulsa <b>Ver</b> para abrir otra vez su ventana, con la gráfica, la tabla y los botones <b>Guardar CSV…</b> y '
-		'<b>Guardar gráfica…</b>.</p><p>La lista se pierde al cerrar QGIS: guarda lo que quieras conservar.</p>'
-		+ manual('QGIS#5-calcular-la-serie-temporal'),
+		'<p>Time series, trend tables and comparisons computed in this QGIS session. Choose one and press <b>Show</b> '
+		'to open its window again, with the chart, the table and the buttons <b>Save CSV…</b> and <b>Save '
+		'chart…</b>.</p><p>The list is lost when QGIS is closed: save what you want to keep.</p>'
+		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'trend_step':
-		'<p>Partes del año cuya tendencia se calcula a lo largo de los años del periodo: <b>Año</b> (el año entero, o '
-		'la temporada si está marcada), <b>Meses</b> (cada uno de los 12) o <b>16 días</b> (23 bloques desde el 1 de '
-		'enero). Cada año da un valor de cada parte; con esos valores, el test de Mann-Kendall dice si hay tendencia y '
-		'la pendiente de Sen, cuánto cambia la variable por año.</p>'
-		'<p>Hacen falta al menos 2 años, y mejor 8 o más: para series largas, Landsat o MODIS.</p>'
-		+ manual('Conceptos#tendencias-estacionales-mann-kendall-y-sen'),
+		'<p>Parts of the year whose trend is computed over the years of the period: <b>Year</b> (the whole year, or '
+		'the season if it is checked), <b>Months</b> (each of the 12) or <b>16 days</b> (23 blocks from January 1). '
+		'Each year gives a value of each part; with those values, the Mann-Kendall test tells whether there is a trend, '
+		'and Sen\'s slope, how much the variable changes per year.</p>'
+		'<p>At least 2 years are needed, and better 8 or more: for long series, Landsat or MODIS.</p>'
+		+ manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'trend_metric':
-		'<p>Cómo se resumen las imágenes de cada parte del año en cada año: con <b>Meses</b> y <b>Media</b>, la media '
-		'de las imágenes de cada julio. En la tabla, ese valor se calcula para la región con el <b>Estadístico de la '
-		'región</b> del grupo Serie temporal; en el mapa, en cada píxel.</p>'
-		+ manual('Conceptos#tendencias-estacionales-mann-kendall-y-sen'),
+		'<p>How the images of each part of the year are summarized in each year: with <b>Months</b> and <b>Mean</b>, '
+		'the mean of the images of each July. In the table, that value is computed for the region with the '
+		'<b>Statistic of the region</b> of the group Time series; in the map, on each pixel.</p>'
+		+ manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'trend_part':
-		'<p>La parte del año que pinta el <b>Mapa de tendencia</b>: un mes o un bloque de 16 días (con <b>Año</b>, el '
-		'año entero).</p>'
-		'<p>El mapa tiene seis bandas por píxel: pendiente de Sen (la que se pinta, de rojo, descenso, a verde, '
-		'aumento), τ de Kendall, Z, p-valor, ordenada (el valor de la recta en el primer año) y número de años con '
-		'datos. Consúltalas con <b>Identificar</b>.</p>'
-		+ manual('QGIS#6-tendencias'),
+		'<p>The part of the year that the <b>Trend map</b> paints: a month or a block of 16 days (with <b>Year</b>, '
+		'the whole year).</p>'
+		'<p>The map has six bands per pixel: Sen\'s slope (the one painted, from red, decrease, to green, increase), '
+		'Kendall\'s τ, Z, p-value, intercept (the value of the line in the first year) and number of years with data. '
+		'Query them with <b>Identify Features</b>.</p>'
+		+ manual('QGIS-plugin#6-trends'),
 	'trend_alpha':
-		'<p>Marcada, el mapa de tendencia solo muestra los píxeles con tendencia significativa (p-valor &lt; 0,05); '
-		'los demás quedan sin datos. Sin marcar, muestra todos.</p>'
-		'<p>Un p-valor alto no prueba que no haya cambio: con pocos años o mucha variabilidad, el test no tiene '
-		'potencia para verlo.</p>' + manual('Conceptos#tendencias-estacionales-mann-kendall-y-sen'),
+		'<p>Checked, the trend map only shows the pixels with a significant trend (p-value &lt; 0.05); the others are '
+		'left with no data. Unchecked, it shows all of them.</p>'
+		'<p>A high p-value does not prove that there is no change: with few years or much variability, the test has no '
+		'power to see it.</p>' + manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'map_metric':
-		'<p>Cómo se resumen en cada píxel las imágenes del periodo (o de cada año o mes, según la <b>Agregación '
-		'temporal</b>). La <b>Mediana</b> resiste mejor que la media los valores anómalos.</p>'
-		'<p>Con <b>Comparar con</b> marcado, se calcula en los dos periodos y la capa es su diferencia.</p>'
-		+ manual('Conceptos#mapas-agregación-en-el-tiempo'),
+		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
+		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>'
+		'<p>With <b>Compare with</b> checked, it is computed in the two periods and the layer is their difference.</p>'
+		+ manual('Concepts#maps-aggregation-over-time'),
 	'temporal':
-		'<ul><li><b>Todo el periodo</b>: la métrica de todas las imágenes del periodo.</li>'
-		'<li><b>Cada año y entre años</b>: la métrica de cada año y, después, la <b>Métrica entre años</b> de esos '
-		'valores. Con Máximo y Mediana, la mediana de los máximos anuales.</li>'
-		'<li><b>Cada mes y entre años</b>: la métrica de cada mes; después, la métrica entre años de cada mes del '
-		'calendario (p. ej. la media de todos los julios) y, al final, la media de esos meses.</li></ul>'
-		+ manual('Conceptos#mapas-agregación-en-el-tiempo'),
+		'<ul><li><b>Whole period</b>: the metric of all the images of the period.</li>'
+		'<li><b>Each year, then between years</b>: the metric of each year and, then, the <b>Metric between years</b> '
+		'of those values. With Maximum and Median, the median of the annual maxima.</li>'
+		'<li><b>Each month, then between years</b>: the metric of each month; then, the metric between years of each '
+		'month of the calendar (e.g. the mean of all the Julys) and, at the end, the mean of those months.</li></ul>'
+		+ manual('Concepts#maps-aggregation-over-time'),
 	'interannual':
-		'<p>Solo con <b>Cada año y entre años</b> o <b>Cada mes y entre años</b>: cómo se combinan los valores de los '
-		'distintos años. Con <b>Todo el periodo</b> no se usa.</p>'
-		+ manual('Conceptos#mapas-agregación-en-el-tiempo'),
+		'<p>Only with <b>Each year, then between years</b> or <b>Each month, then between years</b>: how the values of '
+		'the different years are combined. With <b>Whole period</b> it is not used.</p>'
+		+ manual('Concepts#maps-aggregation-over-time'),
 	'resolution':
-		'<p>Tamaño del píxel del GeoTIFF de <b>Mapa (GeoTIFF)</b>, en metros. Con 0, <i>la de los datos</i>: 10 m en '
-		'Sentinel-2, 30 m en Landsat y de 250 m a 4,6 km en MODIS. Un píxel mayor da un fichero más pequeño y una '
-		'exportación más rápida.</p>'
-		'<p>Las capas de <b>Añadir la capa al mapa</b> no la usan: van a la resolución de los datos hasta 4 millones '
-		'de píxeles y, en regiones mayores, con píxeles más grandes.</p>' + manual('QGIS#8-exportar-a-google-drive'),
+		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
+		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
+		'faster export.</p>'
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they have the resolution of the data up to 4 '
+		'million pixels and, in bigger regions, bigger pixels.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':
-		'<p>Carpeta de tu Google Drive donde Earth Engine deja los ficheros; si no existe, la crea. Las exportaciones '
-		'no tienen límite de tamaño y siguen en Earth Engine aunque cierres QGIS. El panel sigue cada tarea y avisa al '
-		'terminar; con Google Drive para escritorio, el GeoTIFF se añade al proyecto en cuanto se sincroniza.</p>'
-		'<p>Exportar necesita tu cuenta de Google y tu proyecto (arriba, en <b>Proyecto</b>): con la cuenta compartida '
-		'de MonitorEO no se puede, porque los ficheros van al Google Drive de la cuenta que calcula.</p>'
-		'<p>El mapa usa las opciones del grupo <b>Mapa</b>, y la serie, las del grupo <b>Serie temporal</b>.</p>'
-		+ manual('QGIS#8-exportar-a-google-drive'),
+		'<p>Folder of your Google Drive where Earth Engine leaves the files; if it does not exist, Earth Engine makes '
+		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '
+		'task and tells you when it ends; with Google Drive for desktop, the GeoTIFF is added to the project as soon as '
+		'it is synced.</p>'
+		'<p>Exporting needs your Google account and your project (above, in <b>Project</b>): the shared account of '
+		'MonitorEO cannot export, because the files go to the Google Drive of the account that computes.</p>'
+		'<p>The map uses the options of the group <b>Map</b>, and the series, those of the group <b>Time '
+		'series</b>.</p>'
+		+ manual('QGIS-plugin#8-export-to-google-drive'),
 }
 
 
 def describe(v):
-	"""Description of the catalog of V, an item of services.list_variables."""
-	return services.describe_variable(v['variable'], v['sensor'], v['collection'])
+	"""Description of the catalog of V, an item of services.list_variables, with the English names of the catalog."""
+	return services.describe_variable(v['variable'], v['sensor'], v['collection'], lang='en')
 
 
 def filter_lines(v, d):
 	"""The filters that can be applied to V (described by D) and those that remove what it measures."""
 	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f)]
-	out = [f"Con {v['variable']} de {v['sensor']} se pueden quitar: {', '.join(names) or 'ningún filtro'}."]
+	out = [f"With {v['variable']} of {v['sensor']} you can remove: {', '.join(names) or 'no filter'}."]
 	for f in d['measures']:
 		if d['pixel_filters'].get(f):
-			out.append(f"<b>{v['variable']} mide {MEASURED[f]}: desmarca {FILTER_NAMES[f]}</b>, o lo quitará.")
+			out.append(f"<b>{v['variable']} measures {MEASURED[f]}: uncheck {FILTER_NAMES[f]}</b>, or it will remove "
+			           "it.")
 	return out
 
 
 def variable_help(v):
 	"""Help of the variable: the general text and the variable V chosen."""
 	d = describe(v)
-	unit = v['unit'].strip('[]')
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
-	         f"Unidad: {'sin unidades' if unit == 'unitless' else unit}. Píxel de {v['resolution_m']} m. Fechas: "
-	         f"{v['dates'].replace('now', 'hoy')}. Colección: {v['collection']}."] + filter_lines(v, d)
-	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Conceptos#variables')
+	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
+	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
+	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#variables')
 
 
 def filters_help(v):
 	"""Help of the pixel filters, with those of the variable V chosen."""
 	lines = filter_lines(v, describe(v))
-	return HELP['filters'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Conceptos#filtros-por-píxel')
+	return HELP['filters'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#per-pixel-filters')

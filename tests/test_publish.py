@@ -59,7 +59,7 @@ def outputs(tmp_path):
 	_tif(out / 'trend_EVI_Modis_annual_None_2001-01-01_2024-12-31_20261028-233108.tif',
 	     ['slope', 'tau', 'z', 'p_value', 'intercept', 'n'], [0.001, 0.3, 2.0, 0.01, 0.2, 24])
 	_csv(out / 'trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233025.csv', [
-		{'region': 'Sierra Nevada', 'key': 'all', 'label': 'año', 'n': 24, 'tau': 0.3, 'z': 2.0, 'p_value': 0.01,
+		{'region': 'Sierra Nevada', 'key': 'all', 'label': 'year', 'n': 24, 'tau': 0.3, 'z': 2.0, 'p_value': 0.01,
 		 'significant': True, 'slope': 0.001, 'intercept': 0.2, 'first_year': 2001, 'last_year': 2024,
 		 'variable': 'EVI', 'sensor': 'Modis', 'step': 'annual', 'unit': '[unitless]'}])
 	_csv(out / 'EVI_Modis_annual_mean_2001-01-01_2024-12-31_20261028-233410.csv', [
@@ -108,11 +108,12 @@ def test_report(outputs):
 	assert r['region']['wdpa_id'] == 389011 and r['region']['name'] == 'Sierra Nevada'  # the WDPA ID of the calls
 	w, s, e, n = r['region']['bounds']
 	assert -3.6 < w < e < -3.4 and 37.0 < s < n < 37.2
-	assert r['variables'] == [{'variable': 'EVI', 'sensor': 'MODIS', 'name': 'Índice de Vegetación Mejorado', 'unit': ''}]
-	assert [a['id'] for a in r['analyses']] == ['trend', 'series'] and r['analyses'][0]['name'] == 'Tendencia'
+	assert r['variables'] == [{'variable': 'EVI', 'sensor': 'MODIS', 'name': 'Enhanced Vegetation Index', 'unit': ''}]
+	assert [a['id'] for a in r['analyses']] == ['trend', 'series'] and r['analyses'][0]['name'] == 'Trend'
 	assert r['periods'] == [['2001-01-01', '2024-12-31']] and r['years'] == [2001, 2024]
 	assert r['answer'] == 'Primer párrafo.\n\nSegundo párrafo.' and r['software']['monitoreo']
-	assert r['license']['id'] == 'CC-BY-4.0' and r['license']['url'].startswith('https://creativecommons.org/')
+	assert r['license']['id'] == 'CC-BY-4.0' and r['license']['url'] == 'https://creativecommons.org/licenses/by/4.0/deed.en'
+	assert r['license']['text'].startswith('they can be copied, redistributed and adapted for any purpose')
 
 	m, series, trend = r['results']
 	assert (m['kind'], series['chart'], trend['chart']) == ('map', 'series', 'trends')
@@ -125,7 +126,8 @@ def test_report(outputs):
 	assert list(bands) == ['slope', 'tau', 'z', 'p_value', 'intercept', 'n']
 	assert bands['slope']['legend'] == {'type': 'continuous', 'min': -0.002, 'max': 0.002,
 	                                    'palette': ['#8c510a', '#f2efe6', '#01665e']}  # range of the result, palette of the report
-	assert bands['slope']['unit'] == 'por año' and bands['n']['unit'] == 'años'
+	assert bands['slope']['unit'] == 'per year' and bands['n']['unit'] == 'years'
+	assert (bands['slope']['label'], bands['p_value']['label']) == ("Sen's slope", 'Mann-Kendall p-value')
 	assert (bands['tau']['legend']['min'], bands['tau']['legend']['max']) == (-1.0, 1.0)
 	assert bands['p_value']['stats']['count'] == 20 * 13  # the NoData rows left out
 	assert m['call']['tool'] == 'download_trend' and m['call']['args'] == TREND_CALL['args']
@@ -135,10 +137,13 @@ def test_report(outputs):
 	sen = series['sen']  # the Sen line of the trend of the same series
 	assert len(sen) == 1 and sen[0]['trend'] == trend['id'] and sen[0]['origin'] == 2001
 	assert sen[0]['slope'] == 0.001 and sen[0]['significant'] is True and sen[0]['period'] == '2001-2024'
-	assert trend['title'] == 'Tendencia anual de EVI (MODIS), 2001-2024' and trend['slope_unit'] == 'por año'
+	assert trend['title'] == 'Annual trend of EVI (MODIS), 2001-2024' and trend['slope_unit'] == 'per year'
+	assert m['title'] == 'Map of the annual trend of EVI (MODIS), 2001-2024'
 
 	paths = [f['path'] for f in r['files']]
 	assert paths == [m['cog'], series['csv'], trend['csv'], 'files/informe.pdf']
+	assert [f['title'] for f in r['files']][:3] == [f'Map (GeoTIFF): {m["title"]}', 'Table (CSV): EVI medio anual',
+	                                                f'Table (CSV): {trend["title"]}']
 	assert all(f['bytes'] == os.path.getsize(folder / f['path']) for f in r['files'])
 	assert r['thumbnail'] == 'thumbnail.png' and (folder / 'thumbnail.png').read_bytes()[:4] == b'\x89PNG'
 
@@ -157,10 +162,18 @@ def test_catalog(outputs):
 	assert sn['thumbnail'] == 'reports/2026-10-sierra-nevada-verdor/thumbnail.png'
 	assert sn['summary'] == 'El EVI sube en el 30 % del parque.' and sn['years'] == [2001, 2024]
 	assert cat['reports'][0]['thumbnail'] is None  # no map and no chart of a tool
-	assert 'PID2023-151939OB-I00' in cat['about']['acknowledgements'] and cat['analyses']['trend'] == 'Tendencia'
+	assert 'PID2023-151939OB-I00' in cat['about']['acknowledgements'] and cat['analyses']['trend'] == 'Trend'
+	assert cat['about']['description'].startswith('MonitorEO-OBSNEV is an open monitoring tool')
 	assert cat['about']['doi'] in cat['about']['citation']
 	assert cat['license']['name'] == sn['license']['name'] == 'CC BY 4.0'  # of the site and of each report
 	assert all((site / p).is_file() for p in cat['about']['logos'])
+	# a report published by an older version, with the names of its analyses in Spanish: in English in the catalogue
+	path = site / sn['path']
+	old = json.loads(path.read_text(encoding='utf-8'))
+	old['analyses'] = [{'id': 'trend', 'name': 'Tendencia'}, {'id': 'series', 'name': 'Serie temporal'}]
+	path.write_text(json.dumps(old), encoding='utf-8')
+	names = {r['id']: [a['name'] for a in r['analyses']] for r in publish.update_catalog(site)['reports']}
+	assert names['2026-10-sierra-nevada-verdor'] == ['Trend', 'Time series']
 	for page in ('index.html', 'report.html', 'assets/viewer.css', 'assets/common.js', 'assets/catalog.js',
 	             'assets/report.js', 'assets/map.js', 'assets/charts.js', '.nojekyll'):
 		assert (site / page).is_file()
@@ -263,12 +276,12 @@ def test_mcp_log(tmp_path, monkeypatch):
 def test_texts():
 	assert publish.period_text('2001-01-01', '2024-12-31') == '2001-2024'
 	assert publish.period_text('2023-01-01', '2023-12-31') == '2023'
-	assert publish.period_text('2023-05-15', '2023-08-14') == '15 may 2023 - 14 ago 2023'
-	assert publish.season_text(['06-01', '08-31']) == ' (de junio a agosto)'
-	assert publish.season_text(['12-01', '02-28']) == ' (de diciembre a febrero)'
-	assert publish.season_text(['05-15', '08-14']) == ' (del 15 de mayo al 14 de agosto)'
+	assert publish.period_text('2023-05-15', '2023-08-14') == '15 May 2023 - 14 Aug 2023'
+	assert publish.season_text(['06-01', '08-31']) == ' (June to August)'
+	assert publish.season_text(['12-01', '02-28']) == ' (December to February)'
+	assert publish.season_text(['05-15', '08-14']) == ' (15 May to 14 August)'
 	assert publish.unit_text('[ºC]') == '°C' and publish.unit_text('[unitless]') == ''
-	assert publish.unit_text('[ºC]', per_year=True) == '°C/año' and publish.unit_text('', per_year=True) == 'por año'
+	assert publish.unit_text('[ºC]', per_year=True) == '°C/year' and publish.unit_text('', per_year=True) == 'per year'
 	assert publish.slug('Aigüestortes i Estany de Sant Maurici') == 'aiguestortes-i-estany-de-sant-maurici'
 	assert publish.license_of()['id'] == publish.license_of('cc by 4.0')['id'] == 'CC-BY-4.0'
 	assert publish.license_of('CC0-1.0')['name'] == 'CC0 1.0'
@@ -279,8 +292,17 @@ def test_texts():
 	args = {'variable': 'NDSI', 'sensor': 'Modis', 'start': '2001-01-01', 'end': '2005-12-31',
 	        'other_start': '2020-01-01', 'other_end': '2024-12-31', 'season': ['03-01', '05-31']}
 	assert publish.default_title('download_comparison', args) == \
-		'Mapa de la diferencia de NDSI (MODIS): 2020-2024 menos 2001-2005 (de marzo a mayo)'
-	assert publish.default_title('compare_series', args).startswith('NDSI (MODIS) por meses: 2020-2024 frente a 2001-2005')
+		'Map of the difference of NDSI (MODIS): 2020-2024 minus 2001-2005 (March to May)'
+	assert publish.default_title('compare_series', args) == \
+		'NDSI (MODIS) by month: 2020-2024 compared with 2001-2005 (March to May)'
+	assert publish.default_title('time_series', dict(args, step='16-day')) == \
+		'16-day time series of NDSI (MODIS), 2001-2005 (March to May)'
+	assert publish.default_title('trend_table', dict(args, step='monthly')) == \
+		'Trend of each month of NDSI (MODIS), 2001-2005 (March to May)'
+	assert publish.default_title('download_trend', dict(args, step='monthly', part=7)) == \
+		'Map of the trend of July of NDSI (MODIS), 2001-2005 (March to May)'
+	assert publish.default_title('burn_severity', dict(args, sensor='Sentinel-2')) == \
+		'Burn severity (dNBR of Sentinel-2): before, 2001-2005; after, 2020-2024'
 
 
 def test_server(tmp_path):
@@ -315,4 +337,4 @@ def test_viewer_files():
 			assert re.search(re.escape(src) + r'" integrity="sha384-', html), src
 		else:
 			assert os.path.isfile(os.path.join(publish.VIEWER, src)), src
-	assert '<html lang="es">' in html
+	assert html.count('<html lang="en">') == 2 and 'wiki/Results-viewer"' in html

@@ -21,7 +21,7 @@ class MonitorEOPlugin:
 	def initGui(self):
 		self.action = QAction(QIcon(os.path.join(HERE, 'icon.png')), 'MonitorEO', self.iface.mainWindow())
 		self.action.setCheckable(True)
-		self.action.setToolTip('MonitorEO: series temporales y mapas de Google Earth Engine')
+		self.action.setToolTip('MonitorEO: time series and maps of Google Earth Engine')
 		self.action.triggered.connect(self.toggle)
 		self.iface.addToolBarIcon(self.action)
 		self.iface.addPluginToWebMenu('MonitorEO', self.action)
@@ -41,7 +41,7 @@ class MonitorEOPlugin:
 			if problem:
 				from qgis.PyQt.QtWidgets import QMessageBox
 				QMessageBox.critical(self.iface.mainWindow(), 'MonitorEO',
-				                     f'Faltan librerías del plugin ({problem}). Instala el plugin desde su zip completo.')
+				                     f'Libraries of the plugin are missing ({problem}). Install the plugin from its complete zip.')
 				self.action.setChecked(False)
 				return
 			from .dock import MonitorEODock

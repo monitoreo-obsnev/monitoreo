@@ -24,19 +24,20 @@ deps.setup_path()
 from monitoreo import services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
-from .helptexts import HELP, filters_help, variable_help  # noqa: E402
+from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
-STEPS = [('Mensual', 'monthly'), ('Anual', 'annual'), ('16 días', '16-day'), ('Diario (días con imágenes)', 'daily')]
-METRICS = [('Media', 'mean'), ('Mediana', 'median'), ('Mínimo', 'min'), ('Máximo', 'max'), ('Percentil 5', 'p5'),
-           ('Percentil 10', 'p10'), ('Percentil 90', 'p90'), ('Percentil 95', 'p95')]
-STATS = [('Media', 'mean'), ('Mediana', 'median'), ('Mínimo', 'min'), ('Máximo', 'max'), ('Desviación típica', 'std')]
-TEMPORAL = [('Todo el periodo', 'period'), ('Cada año y entre años', 'annual'), ('Cada mes y entre años', 'monthly')]
-TREND_STEPS = [('Año', 'annual'), ('Meses', 'monthly'), ('16 días', '16-day')]
-REGIONS = [('Capa (entidades seleccionadas o todas)', 'layer'), ('Extensión del mapa', 'extent'),
-           ('Área protegida (WDPA)', 'wdpa'), ('Ecorregión del centro del mapa', 'ecoregion')]
+STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
+METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max'), ('Percentile 5', 'p5'),
+           ('Percentile 10', 'p10'), ('Percentile 90', 'p90'), ('Percentile 95', 'p95')]
+STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max'), ('Standard deviation', 'std')]
+TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
+            ('Each month, then between years', 'monthly')]
+TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
+REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
+           ('Protected area (WDPA)', 'wdpa'), ('Ecoregion at the center of the map', 'ecoregion')]
 POLL_MS = 30000
-ALPHA = 0.05  # «Solo píxeles significativos»: the pixels with Mann-Kendall p < ALPHA
+ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
 MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
 
@@ -90,9 +91,9 @@ def result_maps(tool, args):
 	or periods of 16 days; of a trend, its parts of the year), as in the assistant (see monitoreo.steps)."""
 	period = period_text(args['start'], args['end'])
 	if tool == 'trend_table':
-		main = {'key': '', 'label': f'Tendencia anual ({period})', 'step': 'annual'}
+		main = {'key': '', 'label': f'Annual trend ({period})', 'step': 'annual'}
 	else:
-		main = {'key': '', 'label': f'Todo el periodo ({period})', 'start': args['start'], 'end': args['end']}
+		main = {'key': '', 'label': f'Whole period ({period})', 'start': args['start'], 'end': args['end']}
 	return [main] + steps.map_steps(tool, args)
 
 
@@ -118,7 +119,7 @@ class InfoButton(QToolButton):
 		else:
 			self.setIcon(icon)
 		self.setAutoRaise(True)
-		self.setToolTip('Ayuda')
+		self.setToolTip('Help')
 		self.clicked.connect(self.show_help)
 
 	def help(self):
@@ -172,45 +173,45 @@ class MonitorEODock(QDockWidget):
 		box = QGroupBox('Google Earth Engine')
 		f = QFormLayout(box)
 		self.project = QLineEdit(s.value(SETTINGS + 'project', os.environ.get('EE_PROJECT', '')))
-		self.project.setPlaceholderText('vacío: cuenta compartida de MonitorEO · o tu proyecto de Google Cloud')
+		self.project.setPlaceholderText('empty: shared account of MonitorEO · or your Google Cloud project')
 		row = QHBoxLayout()
 		row.addWidget(self.project)
-		b = QPushButton('Conectar')
+		b = QPushButton('Connect')
 		b.clicked.connect(self.connect)
 		row.addWidget(b)
-		b = QPushButton('Autenticar…')
-		b.setToolTip('Inicia sesión con tu cuenta de Google en el navegador (como earthengine authenticate), para '
-		             'calcular con tu proyecto y exportar a Google Drive')
+		b = QPushButton('Authenticate…')
+		b.setToolTip('Sign in with your Google account in the browser (as earthengine authenticate), to compute with '
+		             'your project and export to Google Drive')
 		b.clicked.connect(self.authenticate)
 		row.addWidget(b)
-		f.addRow('Proyecto', info(row, HELP['project']))
+		f.addRow('Project', info(row, HELP['project']))
 		row = QHBoxLayout()
 		self.eecu_bar = QProgressBar()
 		self.eecu_bar.setRange(0, 100)
 		self.eecu_bar.setValue(0)
-		self.eecu_bar.setFormat('sin consultar')
-		self.eecu_bar.setToolTip('EECU (unidades de cálculo de Earth Engine) gastados este mes')
+		self.eecu_bar.setFormat('not checked yet')
+		self.eecu_bar.setToolTip('EECUs (compute units of Earth Engine) spent this month')
 		row.addWidget(self.eecu_bar, 1)
 		tier = s.value(SETTINGS + 'eecu_tier', 'Community')
 		self.eecu_tier = combo([(k, k) for k in services.EECU_TIERS],
 		                       tier if tier in services.EECU_TIERS else 'Community')
-		self.eecu_tier.setToolTip('Nivel de Earth Engine de tu proyecto, con su cuota mensual: Community 150 EECU-h, '
-		                          'Contributor 1000, Partner 100 000 (con la cuenta compartida no se usa)')
+		self.eecu_tier.setToolTip('Earth Engine tier of your project, with its monthly quota: Community 150 EECU-hours, '
+		                          'Contributor 1,000, Partner 100,000 (not used with the shared account)')
 		self.eecu_tier.currentIndexChanged.connect(lambda i: self.check_eecu())
 		row.addWidget(self.eecu_tier)
-		b = QPushButton('Consultar')
-		b.setToolTip('Consulta otra vez los EECU gastados este mes')
+		b = QPushButton('Check')
+		b.setToolTip('Ask again for the EECUs spent this month')
 		b.clicked.connect(lambda: self.check_eecu(refresh=True, asked=True))
 		row.addWidget(b)
-		self.eecu_label = QLabel('EECU del mes')
+		self.eecu_label = QLabel('EECUs of the month')
 		f.addRow(self.eecu_label, info(row, HELP['eecu']))
 		main.addWidget(box)
 
-		box = QGroupBox('Región')
+		box = QGroupBox('Region')
 		f = QFormLayout(box)
 		self.region_kind = combo(REGIONS)
 		self.region_kind.currentIndexChanged.connect(self.region_changed)
-		f.addRow('Región', info(self.region_kind, HELP['region']))
+		f.addRow('Region', info(self.region_kind, HELP['region']))
 		self.layer = QgsMapLayerComboBox()
 		self.layer.setFilters(Qgis.LayerFilter.PolygonLayer)
 		self.name_field = QgsFieldComboBox()
@@ -225,17 +226,17 @@ class MonitorEODock(QDockWidget):
 		self.layer_row = QWidget()
 		lf = QFormLayout(self.layer_row)
 		lf.setContentsMargins(0, 0, 0, 0)
-		lf.addRow('Capa', info(self.layer, HELP['layer']))
-		lf.addRow('Nombre', info(self.name_field, HELP['name_field']))
+		lf.addRow('Layer', info(self.layer, HELP['layer']))
+		lf.addRow('Name', info(self.name_field, HELP['name_field']))
 		f.addRow(self.layer_row)
 		self.wdpa_row = QWidget()
 		wl = QHBoxLayout(self.wdpa_row)
 		wl.setContentsMargins(0, 0, 0, 0)
 		self.wdpa_text = QLineEdit()
-		self.wdpa_text.setPlaceholderText('nombre del área (p. ej. Sierra Nevada)')
+		self.wdpa_text.setPlaceholderText('name of the area (e.g. Sierra Nevada)')
 		self.wdpa_text.returnPressed.connect(self.search_wdpa)
 		wl.addWidget(self.wdpa_text)
-		b = QPushButton('Buscar')
+		b = QPushButton('Search')
 		b.clicked.connect(self.search_wdpa)
 		wl.addWidget(b)
 		wl.addWidget(InfoButton(HELP['wdpa']))
@@ -245,14 +246,16 @@ class MonitorEODock(QDockWidget):
 		row = info(self.wdpa, HELP['wdpa_area'])
 		row.setContentsMargins(0, 0, 0, 0)
 		self.wdpa_field.setLayout(row)
-		f.addRow('Área', self.wdpa_field)
+		f.addRow('Area', self.wdpa_field)
 		self.wdpa_label = f.labelForField(self.wdpa_field)
 		main.addWidget(box)
 
 		box = QGroupBox('Variable')
 		f = QFormLayout(box)
 		self.variable = QComboBox()
-		for v in services.list_variables():
+		for v in services.list_variables(lang='en'):  # the English names of the catalog (vname_en, type_en)
+			if v.get('two_periods'):  # RBR: only the burn severity of the Python package, the MCP server and the app
+				continue
 			self.variable.addItem(f"{v['variable']} · {v['sensor']} · {v['resolution_m']} m · {v['collection'].split('/')[-1]}", v)
 			self.variable.setItemData(self.variable.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}",
 			                          Qt.ItemDataRole.ToolTipRole)
@@ -265,13 +268,13 @@ class MonitorEODock(QDockWidget):
 			d.setDisplayFormat('yyyy-MM-dd')
 		row = QHBoxLayout()
 		row.addWidget(self.start)
-		row.addWidget(QLabel('a'))
+		row.addWidget(QLabel('to'))
 		row.addWidget(self.end)
-		f.addRow('Periodo', info(row, HELP['period']))
-		self.compare_on = QCheckBox('otro periodo:')
-		self.compare_on.setToolTip('Compara el periodo de referencia (el de arriba) con este: la serie temporal da la '
-		                           'media de cada parte del año en los dos periodos y su diferencia, y el mapa, la '
-		                           'diferencia (este periodo menos el de referencia)')
+		f.addRow('Period', info(row, HELP['period']))
+		self.compare_on = QCheckBox('other period:')
+		self.compare_on.setToolTip('Compares the reference period (the one above) with this one: the time series gives '
+		                           'the mean of each part of the year in the two periods and their difference, and the '
+		                           'map, the difference (this period minus the reference period)')
 		self.other_start = QDateEdit(QDate.fromString(s.value(SETTINGS + 'other_start', '2023-01-01'), 'yyyy-MM-dd'))
 		self.other_end = QDateEdit(QDate.fromString(s.value(SETTINGS + 'other_end', '2023-12-31'), 'yyyy-MM-dd'))
 		row = QHBoxLayout()
@@ -282,10 +285,10 @@ class MonitorEODock(QDockWidget):
 			d.setEnabled(False)
 			self.compare_on.toggled.connect(d.setEnabled)
 			if i:
-				row.addWidget(QLabel('a'))
+				row.addWidget(QLabel('to'))
 			row.addWidget(d)
-		f.addRow('Comparar con', info(row, HELP['compare']))
-		self.season_on = QCheckBox('solo')
+		f.addRow('Compare with', info(row, HELP['compare']))
+		self.season_on = QCheckBox('only')
 		self.season_start = QLineEdit('06-01')
 		self.season_end = QLineEdit('09-30')
 		for w in (self.season_start, self.season_end):
@@ -294,38 +297,38 @@ class MonitorEODock(QDockWidget):
 		row = QHBoxLayout()
 		row.addWidget(self.season_on)
 		row.addWidget(self.season_start)
-		row.addWidget(QLabel('a'))
+		row.addWidget(QLabel('to'))
 		row.addWidget(self.season_end)
-		row.addWidget(QLabel('de cada año'))
+		row.addWidget(QLabel('of each year'))
 		row.addStretch()
-		f.addRow('Temporada', info(row, HELP['season']))
+		f.addRow('Season', info(row, HELP['season']))
 		self.filters = {}
 		row = QHBoxLayout()
-		for key, label in (('clouds', 'nubes'), ('water', 'agua'), ('snow', 'nieve'), ('aerosols', 'aerosoles')):
+		for key, label in (('clouds', 'clouds'), ('water', 'water'), ('snow', 'snow'), ('aerosols', 'aerosols')):
 			self.filters[key] = QCheckBox(label)
 			self.filters[key].setChecked(True)
 			row.addWidget(self.filters[key])
-		f.addRow('Quitar píxeles con', info(row, lambda: filters_help(self.variable.currentData())))
-		self.cloud_score = QCheckBox('nubes de Sentinel-2 con Cloud Score+')  # unchecked, with SCL: in its help ⓘ
+		f.addRow('Remove pixels with', info(row, lambda: filters_help(self.variable.currentData())))
+		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
 		main.addWidget(box)
 
-		box = QGroupBox('Serie temporal')
+		box = QGroupBox('Time series')
 		f = QFormLayout(box)
 		self.step = combo(STEPS, 'monthly')
 		self.ts_metric = combo(METRICS, 'mean')
 		self.stat = combo(STATS, 'mean')
-		f.addRow('Paso', info(self.step, HELP['step']))
-		f.addRow('Métrica de cada paso', info(self.ts_metric, HELP['ts_metric']))
-		f.addRow('Estadístico de la región', info(self.stat, HELP['stat']))
-		b = QPushButton('Calcular la serie temporal')
+		f.addRow('Step', info(self.step, HELP['step']))
+		f.addRow('Metric of each step', info(self.ts_metric, HELP['ts_metric']))
+		f.addRow('Statistic of the region', info(self.stat, HELP['stat']))
+		b = QPushButton('Compute the time series')
 		b.clicked.connect(self.run_series)
 		f.addRow(b)
 		self.series_list = QComboBox()  # the series computed in this session, to open them again
-		self.series_list.setToolTip('Series calculadas en esta sesión de QGIS')
-		self.show_series_button = QPushButton('Ver')
-		self.show_series_button.setToolTip('Abre otra vez la gráfica y la tabla de la serie elegida')
+		self.series_list.setToolTip('Series computed in this QGIS session')
+		self.show_series_button = QPushButton('Show')
+		self.show_series_button.setToolTip('Open again the chart and the table of the chosen series')
 		self.show_series_button.clicked.connect(self.show_series)
 		row = QHBoxLayout()
 		row.addWidget(self.series_list, 1)
@@ -334,61 +337,61 @@ class MonitorEODock(QDockWidget):
 		self.update_series_list()
 		main.addWidget(box)
 
-		box = QGroupBox('Tendencias (Mann-Kendall y Sen)')
-		box.setToolTip('Tendencia de cada parte del año a lo largo de los años del periodo: τ de Kendall, Z y p-valor de '
-		               'Mann-Kendall y pendiente de Sen (cambio por año). Mejor con 8 años o más')
+		box = QGroupBox('Trends (Mann-Kendall and Sen)')
+		box.setToolTip("Trend of each part of the year over the years of the period: Kendall's τ, Mann-Kendall Z and "
+		               "p-value, and Sen's slope (change per year). Better with 8 years or more")
 		f = QFormLayout(box)
 		self.trend_step = combo(TREND_STEPS, 'annual')
 		self.trend_part = QComboBox()
 		self.trend_step.currentIndexChanged.connect(self.update_trend_parts)
 		self.update_trend_parts()
 		self.trend_metric = combo(METRICS, 'mean')
-		self.trend_alpha = QCheckBox('solo píxeles con tendencia significativa (p < 0,05)')
-		f.addRow('Partes del año', info(self.trend_step, HELP['trend_step']))
-		f.addRow('Métrica de cada año', info(self.trend_metric, HELP['trend_metric']))
-		b = QPushButton('Tabla de tendencias de la región')
-		b.setToolTip('Tendencia de cada parte del año del estadístico de la región (el de la serie temporal)')
+		self.trend_alpha = QCheckBox('only pixels with a significant trend (p < 0.05)')
+		f.addRow('Parts of the year', info(self.trend_step, HELP['trend_step']))
+		f.addRow('Metric of each year', info(self.trend_metric, HELP['trend_metric']))
+		b = QPushButton('Trend table of the region')
+		b.setToolTip('Trend of each part of the year of the statistic of the region (that of the time series)')
 		b.clicked.connect(self.run_trend_table)
 		f.addRow(b)
-		f.addRow('Parte del año del mapa', info(self.trend_part, HELP['trend_part']))
+		f.addRow('Part of the year of the map', info(self.trend_part, HELP['trend_part']))
 		f.addRow('', info(self.trend_alpha, HELP['trend_alpha']))
-		b = QPushButton('Mapa de tendencia')
-		b.setToolTip('GeoTIFF temporal con la pendiente de Sen, τ, Z, p-valor, ordenada y número de años de cada píxel '
-		             '(consultables con la herramienta Identificar)')
+		b = QPushButton('Trend map')
+		b.setToolTip("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel "
+		             '(queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_trend_map)
 		f.addRow(b)
 		main.addWidget(box)
 
-		box = QGroupBox('Mapa')
+		box = QGroupBox('Map')
 		f = QFormLayout(box)
 		self.map_metric = combo(METRICS, 'median')
 		self.temporal = combo(TEMPORAL, 'period')
 		self.interannual = combo(METRICS[:4], 'mean')
-		f.addRow('Métrica', info(self.map_metric, HELP['map_metric']))
-		f.addRow('Agregación temporal', info(self.temporal, HELP['temporal']))
-		f.addRow('Métrica entre años', info(self.interannual, HELP['interannual']))
-		b = QPushButton('Añadir la capa al mapa')
-		b.setToolTip('Descarga el mapa como GeoTIFF temporal, con los valores de la variable (consultables con la '
-		             'herramienta Identificar), a la resolución de los datos o, en regiones grandes, con píxeles '
-		             f'mayores (hasta {MAP_PIXELS / 1e6:g} millones de píxeles)')
+		f.addRow('Metric', info(self.map_metric, HELP['map_metric']))
+		f.addRow('Temporal aggregation', info(self.temporal, HELP['temporal']))
+		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
+		b = QPushButton('Add the layer to the map')
+		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
+		             'Identify Features tool), at the resolution of the data or, in big regions, with bigger pixels '
+		             f'(up to {MAP_PIXELS / 1e6:g} million pixels)')
 		b.clicked.connect(self.run_map)
 		f.addRow(b)
 		main.addWidget(box)
 
-		box = QGroupBox('Exportar a Google Drive')
+		box = QGroupBox('Export to Google Drive')
 		f = QFormLayout(box)
 		self.resolution = QDoubleSpinBox()
 		self.resolution.setRange(0, 100000)
-		self.resolution.setSpecialValueText('la de los datos')
+		self.resolution.setSpecialValueText('that of the data')
 		self.resolution.setSuffix(' m')
-		f.addRow('Resolución', info(self.resolution, HELP['resolution']))
+		f.addRow('Resolution', info(self.resolution, HELP['resolution']))
 		self.folder = QLineEdit(s.value(SETTINGS + 'folder', 'MonitorEO'))
-		f.addRow('Carpeta de Drive', info(self.folder, HELP['folder']))
+		f.addRow('Drive folder', info(self.folder, HELP['folder']))
 		row = QHBoxLayout()
-		b = QPushButton('Mapa (GeoTIFF)')
+		b = QPushButton('Map (GeoTIFF)')
 		b.clicked.connect(self.run_export_image)
 		row.addWidget(b)
-		b = QPushButton('Serie (CSV)')
+		b = QPushButton('Series (CSV)')
 		b.clicked.connect(self.run_export_series)
 		row.addWidget(b)
 		f.addRow(row)
@@ -423,18 +426,18 @@ class MonitorEODock(QDockWidget):
 	def about_box(self):
 		"""What MonitorEO-OBSNEV is, who funds it and how to cite it, with the logos of the institutions and projects."""
 		from monitoreo import about
-		box = QGroupBox('Acerca de MonitorEO')
+		box = QGroupBox('About MonitorEO')
 		lay = QVBoxLayout(box)
-		for path in about.about('es')['logos']:
+		for path in about.about('en')['logos']:
 			logo = QLabel()
 			logo.setPixmap(QPixmap(path).scaled(330, 48, Qt.AspectRatioMode.KeepAspectRatio,
 			                                    Qt.TransformationMode.SmoothTransformation))
 			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			lay.addWidget(logo)
 		doi = f'https://doi.org/{about.DOI}'
-		for text in (about.DESCRIPTION['es'], about.ACKNOWLEDGEMENTS['es'],
-		             f"<b>{about.HOW_TO_CITE['es']}:</b> " + about.CITATION.replace(doi, f'<a href="{doi}">{doi}</a>'),
-		             f'<a href="{about.MANUAL}">Manual</a> · <a href="{about.REPOSITORY}">Código</a>'):
+		for text in (about.DESCRIPTION['en'], about.ACKNOWLEDGEMENTS['en'],
+		             f"<b>{about.HOW_TO_CITE['en']}:</b> " + about.CITATION.replace(doi, f'<a href="{doi}">{doi}</a>'),
+		             f'<a href="{MANUAL}">Manual</a> · <a href="{about.REPOSITORY}">Code</a>'):
 			label = QLabel(text)
 			label.setWordWrap(True)
 			label.setOpenExternalLinks(True)
@@ -481,15 +484,15 @@ class MonitorEODock(QDockWidget):
 			return {'ecoregion_at': [c.x(), c.y()]}
 		if kind == 'wdpa':
 			if self.wdpa.currentData() is None:
-				raise ValueError('busca un área protegida y elígela en la lista')
+				raise ValueError('search for a protected area and choose it in the list')
 			return {'wdpa_id': self.wdpa.currentData()}
 		layer = self.layer.currentLayer()
 		if layer is None:
-			raise ValueError('elige una capa de polígonos')
+			raise ValueError('choose a layer of polygons')
 		self.sync_fields()
 		feats = list(layer.getSelectedFeatures()) or list(layer.getFeatures())
 		if not feats:
-			raise ValueError(f'la capa {layer.name()} no tiene entidades')
+			raise ValueError(f'the layer {layer.name()} has no features')
 		tr = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance())
 		field = self.name_field.currentField()
 		vertices = sum(f.geometry().constGet().nCoordinates() for f in feats if f.hasGeometry())
@@ -554,42 +557,42 @@ class MonitorEODock(QDockWidget):
 			return None
 
 	def connect(self):
-		self.run_task('Conectar con Earth Engine', lambda: (services.project(), services.shared()),
-		              lambda r: self.message(f'Conectado con Earth Engine con la cuenta compartida de MonitorEO '
-		                                     f'(proyecto {r[0]})' if r[1] else
-		                                     f'Conectado con Earth Engine con tu cuenta (proyecto {r[0]})', 'Success'))
+		self.run_task('Connect to Earth Engine', lambda: (services.project(), services.shared()),
+		              lambda r: self.message(f'Connected to Earth Engine with the shared account of MonitorEO '
+		                                     f'(project {r[0]})' if r[1] else
+		                                     f'Connected to Earth Engine with your account (project {r[0]})', 'Success'))
 
 	def check_eecu(self, refresh=False, asked=False):
 		"""Show in its bar the EECUs of Earth Engine spent this month, in a task of QGIS; warn when less than 10 % are
-		left (once a month, or ASKED by the button Consultar, which also asks again: REFRESH)."""
+		left (once a month, or ASKED by the button Check, which also asks again: REFRESH)."""
 		project = self.project.text().strip() or None
 		tier = self.eecu_tier.currentData()
 
 		def run(task):
 			if project:  # the research EECUs of the shared account are asked without connecting (also when spent)
 				services.init(project, warn=False)
-			return services.eecu_usage(tier, refresh=refresh, lang='es', shared=not project)
+			return services.eecu_usage(tier, refresh=refresh, lang='en', shared=not project)
 
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
 			if exception is not None:
 				self.eecu_bar.setValue(0)
-				self.eecu_bar.setFormat('no se pueden consultar')
+				self.eecu_bar.setFormat('cannot be checked')
 				self.eecu_bar.setToolTip(str(exception))
 				if asked:
-					self.message(f'EECU del mes: {exception}', 'Warning', 15)
+					self.message(f'EECUs of the month: {exception}', 'Warning', 15)
 				return
 			self.show_eecu(result, asked)
 
-		task = QgsTask.fromFunction('Consultar los EECU de Earth Engine del mes', run, on_finished=finished)
+		task = QgsTask.fromFunction('Check the EECUs of Earth Engine of the month', run, on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
 
 	def show_eecu(self, u, asked=False):
-		used = u['used_percent']
+		used = 100 - u.get('left_percent', 100 - u['used_percent'])  # what can no longer be used (also by the project)
 		self.eecu_bar.setValue(int(min(100, round(used))))
-		self.eecu_bar.setFormat(f'{used:.1f} % gastado'.replace('.', ','))
-		self.eecu_label.setText('research EECUs' if u['account'] == 'shared' else 'EECU del mes')
+		self.eecu_bar.setFormat(f'{used:.1f}% used')
+		self.eecu_label.setText('research EECUs' if u['account'] == 'shared' else 'EECUs of the month')
 		self.eecu_bar.setToolTip(u['text'])
 		color = '#c0392b' if u['low'] else '#d68910' if used >= 75 else '#2e7d32'
 		self.eecu_bar.setStyleSheet(f'QProgressBar {{ text-align: center; }} '
@@ -597,7 +600,7 @@ class MonitorEODock(QDockWidget):
 		key = (u['project'], u['account'], u['month'])
 		if u['warning'] and (asked or key not in self.eecu_warned):
 			self.eecu_warned.add(key)
-			hint = ' En este panel: escribe tu proyecto en «Proyecto» y pulsa «Autenticar…».' \
+			hint = ' In this panel: write your project in "Project" and press "Authenticate…".' \
 				if u['account'] == 'shared' else ''
 			self.message(u['warning'] + hint, 'Warning', 60)
 		elif asked:
@@ -609,13 +612,13 @@ class MonitorEODock(QDockWidget):
 			ee.Authenticate(auth_mode='localhost', force=True)
 			return True
 
-		task = QgsTask.fromFunction('Autenticar en Earth Engine', lambda t: work(),
+		task = QgsTask.fromFunction('Authenticate with Earth Engine', lambda t: work(),
 		                            on_finished=lambda e, r=None: self.message(
-			                            'Autenticado en Earth Engine' if e is None else f'Autenticación: {e}',
+			                            'Authenticated with Earth Engine' if e is None else f'Authentication: {e}',
 			                            'Success' if e is None else 'Critical', 10))
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
-		self.message('Inicia sesión con tu cuenta de Google en el navegador', 'Info', 10)
+		self.message('Sign in with your Google account in the browser', 'Info', 10)
 
 	def search_wdpa(self):
 		text = self.wdpa_text.text().strip()
@@ -625,11 +628,11 @@ class MonitorEODock(QDockWidget):
 		def done(parks):
 			self.wdpa.clear()
 			for p in parks:
-				self.wdpa.addItem(f"{p['NAME']} · {p.get('DESIG', '')} · {p.get('ISO3', '')} · {p.get('REP_AREA', 0):.0f} km² "
+				self.wdpa.addItem(f"{p['NAME']} · {p.get('DESIG', '')} · {p.get('ISO3', '')} · {p.get('REP_AREA', 0):,.0f} km² "
 				                  f"(WDPA {p['SITE_ID']})", int(p['SITE_ID']))
-			self.message(f'{len(parks)} áreas protegidas con "{text}"', 'Info', 4)
+			self.message(f'{len(parks)} protected areas with "{text}"', 'Info', 4)
 
-		self.run_task('Buscar áreas protegidas', lambda: services.find_protected_areas(text, 30), done)
+		self.run_task('Search protected areas', lambda: services.find_protected_areas(text, 30), done)
 
 	def other_period(self):
 		"""(first day, last day) of the period to compare with the reference one, or None."""
@@ -656,51 +659,51 @@ class MonitorEODock(QDockWidget):
 			return self.run_comparison(region, var, other, step, metric, stat, tmp)
 
 		def work():
-			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'serie.csv'),
+			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'series.csv'),
 			                            **var)
 
 		def done(res):
 			from .results import SeriesDialog, chart_png
 			if not res['rows']:
-				self.message('La serie no tiene valores', 'Warning')
+				self.message('The series has no values', 'Warning')
 				return
 			# the chart is drawn here, in the main thread: matplotlib in the thread of a task can crash QGIS (the
 			# OpenBLAS of numpy overflows the small stack of those threads on macOS)
-			res['chart'] = chart_png(res, os.path.join(tmp, 'serie.png'))
+			res['chart'] = chart_png(res, os.path.join(tmp, 'series.png'))
 			res['label'] = f"{res['title']} · {', '.join(res['regions'])}"
 			res['kind'] = 'series'
 			res['args'] = dict(var, region=region, step=step, metric=metric)
 			res['maps'] = result_maps('time_series', res['args'])
 			self.add_result(res)
 
-		self.run_task(f"Serie temporal de {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Time series of {var['variable']} ({var['sensor']})", work, done)
 
 	def run_comparison(self, region, var, other, step, metric, stat, tmp):
 		if step not in trends.STEPS:
-			self.message('Para comparar periodos, elige el paso mensual, de 16 días o anual', 'Warning')
+			self.message('To compare periods, choose the step Monthly, 16 days or Annual', 'Warning')
 			return
 
 		def work():
 			return services.compare_series(region, other_start=other[0], other_end=other[1], step=step, metric=metric,
-			                               stat=stat, csv=os.path.join(tmp, 'comparacion.csv'), **var)
+			                               stat=stat, csv=os.path.join(tmp, 'comparison.csv'), **var)
 
 		def done(res):
 			from .results import comparison_png
 			if not any(r['reference'] is not None or r['other'] is not None for r in res['profile']):
-				self.message('La comparación no tiene valores', 'Warning')
+				self.message('The comparison has no values', 'Warning')
 				return
-			res['chart'] = comparison_png(res, step, os.path.join(tmp, 'comparacion.png'))  # in the main thread
-			res['label'] = f"Comparación: {res['title']}"
+			res['chart'] = comparison_png(res, step, os.path.join(tmp, 'comparison.png'))  # in the main thread
+			res['label'] = f"Comparison: {res['title']}"
 			res['kind'] = 'comparison'
 			self.add_result(res)
 
-		self.run_task(f"Comparación de periodos de {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Comparison of periods of {var['variable']} ({var['sensor']})", work, done)
 
 	def update_trend_parts(self):
 		step = self.trend_step.currentData()
 		self.trend_part.clear()
 		for p in trends.parts(step):
-			self.trend_part.addItem('el año' if step == 'annual' else trends.part_label(step, p), p)
+			self.trend_part.addItem('the year' if step == 'annual' else trends.part_label(step, p), p)
 		self.trend_part.setEnabled(step != 'annual')
 
 	def run_trend_table(self):
@@ -713,21 +716,21 @@ class MonitorEODock(QDockWidget):
 
 		def work():
 			return services.trend_table(region, step=step, metric=metric, stat=stat,
-			                            csv=os.path.join(tmp, 'tendencias.csv'), **var)
+			                            csv=os.path.join(tmp, 'trends.csv'), **var)
 
 		def done(res):
 			from .results import trends_png
 			if not any(r['slope'] is not None for r in res['rows']):
-				self.message('No hay años suficientes para calcular tendencias (hacen falta 2 o más)', 'Warning')
+				self.message('There are not enough years to compute trends (2 or more are needed)', 'Warning')
 				return
-			res['chart'] = trends_png(res, os.path.join(tmp, 'tendencias.png'))  # in the main thread
-			res['label'] = f"Tendencias: {res['title']}"
+			res['chart'] = trends_png(res, os.path.join(tmp, 'trends.png'))  # in the main thread
+			res['label'] = f"Trends: {res['title']}"
 			res['kind'] = 'trends'
 			res['args'] = dict(var, region=region, step=step, metric=metric)
 			res['maps'] = result_maps('trend_table', res['args'])
 			self.add_result(res)
 
-		self.run_task(f"Tendencias de {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Trends of {var['variable']} ({var['sensor']})", work, done)
 
 	def run_trend_map(self):
 		args = self.prepare()
@@ -736,7 +739,7 @@ class MonitorEODock(QDockWidget):
 		region, var = args
 		step, part, metric = self.trend_step.currentData(), self.trend_part.currentData(), self.trend_metric.currentData()
 		alpha = ALPHA if self.trend_alpha.isChecked() else None
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'tendencia.tif')
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'trend.tif')
 
 		def work():
 			try:
@@ -747,7 +750,7 @@ class MonitorEODock(QDockWidget):
 				res['error'] = str(e)
 				return res
 
-		self.run_task(f"Mapa de tendencia de {var['variable']} ({var['sensor']})", work,
+		self.run_task(f"Trend map of {var['variable']} ({var['sensor']})", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
 	def update_series_list(self):
@@ -778,7 +781,7 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'mapa.tif')
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
 		other = self.other_period()
 		opts = dict(var, metric=metric, temporal=temporal, interannual=inter)
 		if other:
@@ -796,7 +799,7 @@ class MonitorEODock(QDockWidget):
 				res['error'] = str(e)
 				return res
 
-		self.run_task(f"Mapa de {var['variable']} ({var['sensor']})", work,
+		self.run_task(f"Map of {var['variable']} ({var['sensor']})", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
 	def add_map_layer(self, res, name=None, group=None, colors=None, zoom=True, period=None):
@@ -806,25 +809,25 @@ class MonitorEODock(QDockWidget):
 		name = name or res['name']
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
-			raise RuntimeError(f"QGIS no ha podido abrir {res['file']}")
+			raise RuntimeError(f"QGIS could not open {res['file']}")
 		if res['min'] is None:
-			self.message(f"{name}: sin valores en la región (sin imágenes, o todo filtrado)", 'Warning', 10)
+			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
 		else:
 			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
 		bands = ', '.join(res.get('bands') or [])
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, píxeles de {res['resolution']:g} m"
-		                  + (f", {res['images']} imágenes" if res.get('images') is not None else '')
-		                  + (f", bandas {bands}" if bands else '') + f". GeoTIFF temporal: {res['file']}")
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, pixels of {res['resolution']:g} m"
+		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
+		                  + (f", bands {bands}" if bands else '') + f". Temporary GeoTIFF: {res['file']}")
 		if period:
 			dated(layer, *period)
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
 		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Capa añadida: {name}, píxeles de {res['resolution']:g} m"
-		             + ('' if native else ' (región grande: píxeles mayores que los de los datos; para la resolución '
-		                                 'completa, exporta el mapa a Google Drive)')
-		             + '. Consulta los valores con la herramienta Identificar', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
+		             + ('' if native else ' (big region: pixels bigger than those of the data; for the full resolution, '
+		                                 'export the map to Google Drive)')
+		             + '. Query the values with the Identify Features tool', 'Success', 10)
 
 	def zoom_to(self, rect, crs):
 		canvas = self.iface.mapCanvas()
@@ -843,14 +846,14 @@ class MonitorEODock(QDockWidget):
 		uri.setParam('zmax', '20')
 		layer = QgsRasterLayer(bytes(uri.encodedUri()).decode(), name, 'wms')
 		if not layer.isValid():
-			raise RuntimeError('QGIS no ha podido abrir las teselas de Earth Engine')
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Rampa de color de {res['min']:.4g} a {res['max']:.4g}: "
-		                  f"{', '.join('#' + c for c in res['palette'])}. Teselas de Earth Engine válidas unas horas.")
+			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
+		                  f"{', '.join('#' + c for c in res['palette'])}. Earth Engine tiles, valid for a few hours.")
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))
-		self.message(f"Capa de teselas añadida: {name} (de {res['min']:.4g} a {res['max']:.4g} {res['unit']}; "
-		             f"sin valores consultables: no se pudo descargar el GeoTIFF: {res.get('error')})", 'Warning', 15)
+		self.message(f"Tile layer added: {name} (from {res['min']:.4g} to {res['max']:.4g} {res['unit']}; "
+		             f"no queryable values: the GeoTIFF could not be downloaded: {res.get('error')})", 'Warning', 15)
 
 	def result_group(self, res):
 		"""The group of the layer tree with the maps of the result RES (made the first time, on top)."""
@@ -865,7 +868,7 @@ class MonitorEODock(QDockWidget):
 		a = res['args']
 		region = a['region']
 		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season') if k in a}
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'mapa.tif')
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
 		if res['kind'] == 'trends':
 			opts = dict(var, start=a['start'], end=a['end'], step=entry.get('step') or a['step'], part=entry.get('part'),
 			            metric=a['metric'], alpha=ALPHA if significant else None)
@@ -874,7 +877,7 @@ class MonitorEODock(QDockWidget):
 			opts = dict(var, start=entry['start'], end=entry['end'], metric=a['metric'])
 			download, tiles = services.download_image, services.map_layer
 		colors = res.get('colors')  # (min, max) of the first map of the result
-		name = f"{res['title'].split(' | ')[0]} · {entry['label']}" + (' (p < 0,05)' if significant else '')
+		name = f"{res['title'].split(' | ')[0]} · {entry['label']}" + (' (p < 0.05)' if significant else '')
 		period = (entry['start'], entry['end']) if res['kind'] == 'series' and entry['key'] else None
 
 		def work():
@@ -895,7 +898,7 @@ class MonitorEODock(QDockWidget):
 			else:
 				self.add_map_layer(r, name, group, res.get('colors'), zoom=first, period=period)
 
-		self.run_task(f'Mapa de {name}', work, done)
+		self.run_task(f'Map of {name}', work, done)
 
 	def run_export_image(self):
 		args = self.prepare()
@@ -905,7 +908,7 @@ class MonitorEODock(QDockWidget):
 		res = self.resolution.value() or None
 		folder = self.folder.text().strip() or 'MonitorEO'
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		self.run_task(f"Exportar el mapa de {var['variable']}",
+		self.run_task(f"Export the map of {var['variable']}",
 		              lambda: services.export_image(region, metric=metric, temporal=temporal, interannual=inter,
 		                                            resolution=res, folder=folder, **var), self.follow_export)
 
@@ -916,7 +919,7 @@ class MonitorEODock(QDockWidget):
 		region, var = args
 		folder = self.folder.text().strip() or 'MonitorEO'
 		step, metric, stat = self.step.currentData(), self.ts_metric.currentData(), self.stat.currentData()
-		self.run_task(f"Exportar la serie de {var['variable']}",
+		self.run_task(f"Export the series of {var['variable']}",
 		              lambda: services.time_series_to_drive(region, step=step, metric=metric, stat=stat, folder=folder,
 		                                                    **var), self.follow_export)
 
@@ -926,7 +929,7 @@ class MonitorEODock(QDockWidget):
 		res['state'] = 'PENDING'
 		self.exports.append(res)
 		self.show_exports()
-		self.message(f"Exportando {res['file']} a Google Drive/{res['folder']}", 'Info')
+		self.message(f"Exporting {res['file']} to Google Drive/{res['folder']}", 'Info')
 		if not self.timer.isActive():
 			self.timer.start(POLL_MS)
 
@@ -952,7 +955,7 @@ class MonitorEODock(QDockWidget):
 						self.message(f"{e['file']}: {st['state'].lower()} {st['error'] or ''}", 'Critical', 15)
 			self.show_exports()
 
-		task = QgsTask.fromFunction('MonitorEO: estado de las exportaciones', lambda t: work(),
+		task = QgsTask.fromFunction('MonitorEO: state of the exports', lambda t: work(),
 		                            on_finished=lambda exc, r=None: done(r) if exc is None else None)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
@@ -965,7 +968,7 @@ class MonitorEODock(QDockWidget):
 			files += services.find_exported(os.path.join(root, e['folder']), e['file'])
 		tifs = [f for f in files if f.lower().endswith('.tif')]
 		if not tifs:
-			self.message(f"{e['file']} está en Google Drive/{e['folder']}", 'Success', 10)
+			self.message(f"{e['file']} is in Google Drive/{e['folder']}", 'Success', 10)
 			return
 		path = tifs[0]
 		if len(tifs) > 1:
@@ -975,4 +978,4 @@ class MonitorEODock(QDockWidget):
 		layer = QgsRasterLayer(path, os.path.splitext(e['file'])[0])
 		if layer.isValid():
 			QgsProject.instance().addMapLayer(layer)
-			self.message(f"{e['file']} añadido desde Google Drive ({path})", 'Success', 10)
+			self.message(f"{e['file']} added from Google Drive ({path})", 'Success', 10)

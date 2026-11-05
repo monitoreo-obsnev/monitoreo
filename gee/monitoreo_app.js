@@ -115,10 +115,11 @@ var CATALOG = {
    "ref": 1,
    "scale": 0.1,
    "sensor": "Modis",
-   "tr": "8-d\u00edas",
+   "tr": "8-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
-   "unit": "[kg/m\u00b2/8d\u00edas]",
+   "unit": "[kg/m\u00b2/8 days]",
    "vname": "Evapotranspiraci\u00f3n",
    "vname_en": "Evapotranspiration"
   },
@@ -151,16 +152,17 @@ var CATALOG = {
    "ref": 2,
    "scale": 10000,
    "sensor": "Modis",
-   "tr": "8-d\u00edas",
+   "tr": "8-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
-   "unit": "[J/m\u00b2/d\u00eda]",
+   "unit": "[J/m\u00b2/day]",
    "vname": "Calor Latente",
    "vname_en": "Latent Heat"
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
     "nir",
     "swir1"
@@ -195,7 +197,8 @@ var CATALOG = {
    "ref": 3,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -239,7 +242,8 @@ var CATALOG = {
    "ref": 4,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -248,7 +252,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
     "green",
     "swir1"
@@ -278,7 +282,8 @@ var CATALOG = {
    "ref": 5,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -316,7 +321,8 @@ var CATALOG = {
    "ref": 6,
    "scale": 1,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -354,7 +360,8 @@ var CATALOG = {
    "ref": 7,
    "scale": 1,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -393,7 +400,8 @@ var CATALOG = {
    "ref": 8,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -402,7 +410,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
     "green",
     "nir"
@@ -436,7 +444,8 @@ var CATALOG = {
    "ref": 9,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -479,7 +488,8 @@ var CATALOG = {
    "ref": 10,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -488,7 +498,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
     "blue": "blue",
     "nir": "nir",
@@ -535,7 +545,8 @@ var CATALOG = {
    "ref": 11,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
    "type_en": "Radiation balance",
    "unit": "[unitless]",
@@ -588,7 +599,8 @@ var CATALOG = {
    "ref": 12,
    "scale": 0.001,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
    "type_en": "Radiation balance",
    "unit": "[unitless]",
@@ -648,7 +660,8 @@ var CATALOG = {
    "ref": 13,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
    "type_en": "Radiation balance",
    "unit": "[unitless]",
@@ -657,7 +670,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
     "st": "st"
    },
@@ -685,7 +698,8 @@ var CATALOG = {
    "ref": 14,
    "scale": 0.00341802,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
    "unit": "[\u00baC]",
@@ -722,7 +736,8 @@ var CATALOG = {
    "ref": 15,
    "scale": 0.02,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
    "unit": "[\u00baC]",
@@ -759,7 +774,8 @@ var CATALOG = {
    "ref": 16,
    "scale": 0.02,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
    "unit": "[\u00baC]",
@@ -801,7 +817,8 @@ var CATALOG = {
    "ref": 17,
    "scale": 1,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[mg m\u207b\u00b3]",
@@ -843,7 +860,8 @@ var CATALOG = {
    "ref": 18,
    "scale": 1,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[mg m\u207b\u00b3]",
@@ -887,7 +905,8 @@ var CATALOG = {
    "ref": 19,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[mg m\u207b\u00b3]",
@@ -896,7 +915,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
     "blue": "blue",
     "nir": "nir",
@@ -931,7 +950,8 @@ var CATALOG = {
    "ref": 20,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -973,7 +993,8 @@ var CATALOG = {
    "ref": 21,
    "scale": 0.0001,
    "sensor": "Modis",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1015,7 +1036,8 @@ var CATALOG = {
    "ref": 22,
    "scale": 0.0001,
    "sensor": "Modis",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1059,7 +1081,8 @@ var CATALOG = {
    "ref": 23,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1068,7 +1091,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
     "nir",
     "red"
@@ -1102,7 +1125,8 @@ var CATALOG = {
    "ref": 24,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1144,7 +1168,8 @@ var CATALOG = {
    "ref": 25,
    "scale": 0.0001,
    "sensor": "Modis",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1186,7 +1211,8 @@ var CATALOG = {
    "ref": 26,
    "scale": 0.0001,
    "sensor": "Modis",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1229,7 +1255,8 @@ var CATALOG = {
    "ref": 27,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1275,7 +1302,8 @@ var CATALOG = {
    "ref": 28,
    "scale": 0.001,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Nutrientes / Aerosoles",
    "type_en": "Nutrient/Aerosols Inputs",
    "unit": "[unitless]",
@@ -1317,7 +1345,8 @@ var CATALOG = {
    "ref": 29,
    "scale": "#",
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Balance de Agua",
    "type_en": "Water balance",
    "unit": "[unitless]",
@@ -1354,7 +1383,8 @@ var CATALOG = {
    "ref": 30,
    "scale": 0.02,
    "sensor": "Modis",
-   "tr": "diario",
+   "tr": "daily",
+   "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
    "unit": "[\u00baC]",
@@ -1398,6 +1428,7 @@ var CATALOG = {
    "scale": 0.0001,
    "sensor": "Sentinel-2",
    "tr": "5-days",
+   "two_periods": null,
    "type": "Carbon (Primary Production)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1440,6 +1471,7 @@ var CATALOG = {
    "scale": 0.1,
    "sensor": "Modis",
    "tr": "4-days",
+   "two_periods": null,
    "type": "Carbon (Primary Production)",
    "type_en": "Carbon (Primary Production)",
    "unit": "[unitless]",
@@ -1448,7 +1480,7 @@ var CATALOG = {
   },
   {
    "col": "LANDSAT",
-   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -Hoy)-Landsat9 (2021/10/31-Hoy)",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
     "nir",
     "swir2"
@@ -1475,7 +1507,8 @@ var CATALOG = {
    "ref": 101,
    "scale": 2.75e-05,
    "sensor": "Landsat",
-   "tr": "16-d\u00edas",
+   "tr": "16-days",
+   "two_periods": null,
    "type": "Perturbaciones",
    "type_en": "Disturbances",
    "unit": "[unitless]",
@@ -1511,12 +1544,87 @@ var CATALOG = {
    "ref": 102,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
-   "tr": "5-d\u00edas",
+   "tr": "5-days",
+   "two_periods": null,
    "type": "Perturbaciones",
    "type_en": "Disturbances",
    "unit": "[unitless]",
    "vname": "\u00cdndice Normalizado de Quema",
    "vname_en": "Normalized Burn Ratio"
+  },
+  {
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": [
+    "B8A",
+    "B12"
+   ],
+   "fk": "nd",
+   "ft": "N(B8A,B12)",
+   "index": "RBR",
+   "large_areas": false,
+   "m": 20,
+   "maxp": 1,
+   "minp": -0.5,
+   "offset": 0,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 103,
+   "scale": 0.0001,
+   "sensor": "Sentinel-2",
+   "tr": "5-days",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "\u00cdndice Relativizado de Quema",
+   "vname_en": "Relativized Burn Ratio"
+  },
+  {
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "nir",
+    "swir2"
+   ],
+   "fk": "nd",
+   "ft": "N(nir,swir2)",
+   "index": "RBR",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 1,
+   "minp": -0.5,
+   "offset": -0.2,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 104,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "tr": "16-days",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "\u00cdndice Relativizado de Quema",
+   "vname_en": "Relativized Burn Ratio"
   }
  ]
 };
@@ -2407,7 +2515,9 @@ var MonitorEO = (function () {
 		[4, 0.66, 'Severidad alta', 'High severity']
 	];
 	var BURNED = 0.1;
-	var SEVERITY_COLOURS = ['1a9850', '91cf60', 'f2efe6', 'fee08b', 'fdae61', 'f46d43', '7a0177'];
+	// colours of the classes of UN-SPIDER (Recommended Practice: Burn Severity Mapping in Google Earth Engine), as
+	// fire.COLOURS of the Python package
+	var SEVERITY_COLOURS = ['7a8737', 'acbe4d', '0ae042', 'fff70b', 'ffaf38', 'ff641b', 'a41fd6'];
 
 	function severityLimits(i) {
 		return [SEVERITY[i][1], i + 1 < SEVERITY.length ? SEVERITY[i + 1][1] : null];
@@ -2432,6 +2542,35 @@ var MonitorEO = (function () {
 		var bands = ['dnbr', 'severity', 'nbr_before', 'nbr_after'];
 		return {image: ee.Image.cat([dnbr, severity.toFloat(), img.select('reference'), img.select('other')]).rename(bands),
 			hectares: stats};
+	}
+
+	// services.burn_severity with index RBR (services._rbr): {image (bands rbr, dnbr, nbr_before, nbr_after), stats
+	// (ee.FeatureCollection of the regions with the statistics of the RBR and the hectares with values)}. BEFORE and
+	// AFTER are specs of the entry RBR of the catalog (103 Sentinel-2, 104 Landsat)
+	var RBR_OFFSET = 1.001;  // catalog.RBR_OFFSET: RBR = dNBR / (NBR before + 1.001)
+	var RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
+
+	function burnRatio(before, after, regions, scale, crs) {
+		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
+		var pre = img.select('reference'), post = img.select('other');
+		var dnbr = pre.subtract(post).rename('dnbr');
+		var rbr = dnbr.divide(pre.add(RBR_OFFSET)).rename('rbr');  // fire.rbr
+		var reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', true)
+			.combine(ee.Reducer.percentile([10, 90]), '', true).combine(ee.Reducer.minMax(), '', true)
+			.combine(ee.Reducer.sum(), '', true);
+		var stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions({
+			collection: regions, reducer: reducer, scale: scale, crs: crs, tileScale: 4});
+		return {image: ee.Image.cat([rbr, dnbr, pre, post]).rename(['rbr', 'dnbr', 'nbr_before', 'nbr_after']),
+			stats: stats};
+	}
+
+	// the rows of services._rbr from the features of the statistics of burnRatio
+	function rbrTable(features) {
+		return features.map(function (f) {
+			var p = f.properties;
+			return {region: String(p.name), mean: p.rbr_mean, median: p.rbr_median, p10: p.rbr_p10, p90: p.rbr_p90,
+				min: p.rbr_min, max: p.rbr_max, ha: p.ha_sum || 0};
+		});
 	}
 
 	// fire.table: rows of every class of a region from the GROUPS of the grouped sum of hectares
@@ -2484,7 +2623,8 @@ var MonitorEO = (function () {
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
 		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
-		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable,
+		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
+		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
 		ramp: ramp, percentiles: percentiles, visParams: visParams
 	};
 })();
@@ -2536,7 +2676,10 @@ var MonitorEO = (function () {
 			o_tau: '\u03c4 de Kendall', o_z: 'Z de Mann-Kendall', o_p_value: 'p-valor', o_intercept: 'Valor inicial',
 			o_n: 'A\u00f1os con datos', significant: 'Solo p\u00edxeles con tendencia significativa (p < 0,05)',
 			trendMap: 'Mapa de tendencia', seeChart: 'Valores de cada a\u00f1o de',
-			fire: 'Severidad de un incendio (dNBR)', sensor: 'Sensor', before: 'Antes del incendio',
+			fire: 'Severidad de un incendio (dNBR o RBR)', sensor: 'Sensor', before: 'Antes del incendio',
+			index: '\u00cdndice', idx_dNBR: 'dNBR (clases del USGS)', idx_RBR: 'RBR (continuo, sin clases)',
+			rbrNote: 'RBR = dNBR / (NBR antes + 1,001), con el NBR de B8A y B12 de Sentinel-2 (NIR y SWIR2 de ' +
+				'Landsat), sin correcci\u00f3n fenol\u00f3gica y sin multiplicar por 1000.',
 			after: 'Despu\u00e9s del incendio', burn: 'Calcular la severidad',
 			burned: 'Superficie quemada (dNBR \u2265 0,1): %s ha',
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'C\u00f3digo', cite: 'C\u00f3mo citar',
@@ -2583,7 +2726,10 @@ var MonitorEO = (function () {
 			o_tau: 'Kendall\'s \u03c4', o_z: 'Mann-Kendall Z', o_p_value: 'p-value', o_intercept: 'Initial value',
 			o_n: 'Years with data', significant: 'Only pixels with a significant trend (p < 0.05)',
 			trendMap: 'Trend map', seeChart: 'Values of each year of',
-			fire: 'Burn severity of a fire (dNBR)', sensor: 'Sensor', before: 'Before the fire', after: 'After the fire',
+			fire: 'Burn severity of a fire (dNBR or RBR)', sensor: 'Sensor', before: 'Before the fire', after: 'After the fire',
+			index: 'Index', idx_dNBR: 'dNBR (USGS classes)', idx_RBR: 'RBR (continuous, no classes)',
+			rbrNote: 'RBR = dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (NIR and SWIR2 of ' +
+				'Landsat), without phenological correction and without the factor 1000.',
 			burn: 'Compute the severity', burned: 'Burned area (dNBR \u2265 0.1): %s ha',
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing\u2026', progress: 'Computing\u2026 %s of %s steps', close: 'Close', csv: 'Download CSV',
@@ -2612,7 +2758,7 @@ var MonitorEO = (function () {
 	};
 
 	var state = {
-		lang: 'es', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null,
+		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null,
 		region: null, regionName: null, info: null,
 		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
@@ -2620,7 +2766,8 @@ var MonitorEO = (function () {
 		mapMetric: 'median', temporal: 'period', interannual: 'mean',
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
-		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31']
+		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
+		fireIndex: 'dNBR'
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -2860,8 +3007,8 @@ var MonitorEO = (function () {
 		return mo.byRef(state.ref);
 	}
 
-	function variableItems() {
-		return mo.variables().slice().sort(function (a, b) {
+	function variableItems() {  // without RBR, which compares two periods (Burn severity)
+		return mo.variables().filter(function (e) { return !e.two_periods; }).sort(function (a, b) {
 			return a.index < b.index ? -1 : a.index > b.index ? 1 : a.sensor < b.sensor ? -1 : a.sensor > b.sensor ? 1 :
 				a.ref - b.ref;
 		}).map(function (e) {
@@ -3378,7 +3525,37 @@ var MonitorEO = (function () {
 
 	// Burn severity -------------------------------------------------------------------------------------------------
 
+	// RBR: a continuous map of red (burned) to green (regrowth), its statistics over each region and its GeoTIFF
+	function burnRatio() {
+		var ref = state.fireSensor === 'Landsat' ? 104 : 103;
+		var e = mo.byRef(ref);
+		if (!ready(e)) return;
+		checkPeriod(state.fireBefore);
+		checkPeriod(state.fireAfter);
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var scale = Number(e.m);
+		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
+		var name = title(e, ['RBR', before.period.join('/') + ' \u2192 ' + after.period.join('/')]);
+		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
+		map.addLayer(out.image.select('rbr'), vis, name);
+		colourBar(vis, name);
+		var id = start();
+		out.stats.evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.rbrTable(fc.features);
+			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var table = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(rows.map(function (r) {
+				return [r.region].concat(stats.map(function (k) { return r[k] === null ? '' : num(r[k], 3); }),
+					[num(r.ha, 4)]);
+			}));
+			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(t('rbrNote'), SMALL), ui.Chart(table, 'Table'),
+				ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RBR_COLUMNS, name),
+				downloadWidget(out.image, e, ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], name)]);
+		}));
+	}
+
 	function burn() {
+		if (state.fireIndex === 'RBR') return burnRatio();
 		var ref = state.fireSensor === 'Landsat' ? 101 : 102;
 		var e = mo.byRef(ref);
 		if (!ready(e)) return;
@@ -3416,6 +3593,9 @@ var MonitorEO = (function () {
 		var w = [header(t('fire'))];
 		w.push(row(ui.Label(t('sensor')), select([{value: 'Sentinel-2', label: 'Sentinel-2 (10 m)'},
 			{value: 'Landsat', label: 'Landsat (30 m)'}], state.fireSensor, function (v) { state.fireSensor = v; })));
+		w.push(row(ui.Label(t('index')), select(['dNBR', 'RBR'].map(function (i) {
+			return {value: i, label: t('idx_' + i)};
+		}), state.fireIndex, function (v) { state.fireIndex = v; }, '190px')));
 		w.push(ui.Label(t('before'), {margin: '4px 8px 0 8px'}));
 		w.push(row(box(state.fireBefore[0], function (v) { state.fireBefore[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.fireBefore[1], function (v) { state.fireBefore[1] = v.trim(); })));
@@ -3434,7 +3614,8 @@ var MonitorEO = (function () {
 		w.push(ui.Label(a.description[state.lang], SMALL));
 		w.push(ui.Label(a.acknowledgements[state.lang], SMALL));
 		w.push(ui.Label(t('cite') + ': ' + a.citation, SMALL, 'https://doi.org/' + a.doi));
-		w.push(row(ui.Label(t('manual'), {fontSize: '12px'}, a.manual),
+		w.push(row(ui.Label(t('manual'), {fontSize: '12px'}, a.manual + (state.lang === 'en' ? '/Earth-Engine-app' :
+			'/App-de-Earth-Engine')),
 			ui.Label(t('repository'), {fontSize: '12px'}, a.repository)));
 		a.logos.forEach(function (url) {
 			w.push(ui.Label({value: 'MonitorEO', imageUrl: url, style: {margin: '8px'}}));

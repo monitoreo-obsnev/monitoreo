@@ -8,8 +8,10 @@ scope of Earth Engine and monitoreo-public may only compute in Earth Engine with
 read Google Drive, Cloud Storage or anything else of the project). See deploy.sh.
 
     GET /token?user=ID  ->  {"access_token": "...", "expires_at": <seconds since 1970, UTC>, "project": "..."}
-    GET /usage?user=ID  ->  {"user": ID, "used_hours": <EECU-hours>, "limit_hours": <EECU-hours>, "resets": "YYYY-MM-DD",
-                             "project": "...", "project_used_hours": ..., "project_limit_hours": ..., "updated": ...}
+    GET /usage?user=ID  ->  {"user": ID, "used_hours": <EECU-hours>, "limit_hours": <EECU-hours>,
+                             "left_hours": <EECU-hours>, "resets": "YYYY-MM-DD", "project": "...",
+                             "project_used_hours": ..., "project_limit_hours": ..., "project_reserve_hours": ...,
+                             "updated": ...}
     GET /               ->  what this service is
 
 Each user of the shared account has research EECUs (the compute of Earth Engine) for each month: USER_LIMIT
@@ -18,12 +20,17 @@ of the tools (mo-<16 hex digits>), which tags their computations in Earth Engine
 spends is the metric "Completed EECU-seconds" of Cloud Monitoring by workload tag since the first day of the month at
 midnight Pacific Time (when the quotas of Earth Engine restart), read by monitoreo-broker (role Monitoring Viewer of the
 project) every USAGE_TTL seconds. A user who has spent theirs gets no more tokens until the next month (the token they
-have lasts at most one more hour), and the tools tell them to use their own account. Without an ID (versions of the
-tools before 0.3.21) there is no token, unless REQUIRE_USER is 0. If Cloud Monitoring does not answer, tokens are given.
+have lasts at most one more hour), and the tools tell them to use their own account. The users of the shared account
+also stop getting tokens when the whole project (they, the app of Earth Engine and the team) has spent its monthly
+quota but PROJECT_RESERVE EECU-hours, which are kept for the app of Earth Engine and the team (they are not limited by
+user): what a user has left (left_hours) is the least of what is left of their own and of the project before its
+reserve. Without an ID (versions of the tools before 0.3.21) there is no token, unless REQUIRE_USER is 0. If Cloud
+Monitoring does not answer, tokens are given.
 
 Environment: PUBLIC_SA (e-mail of monitoreo-public), EE_PROJECT (project of the quota), LIMIT (tokens per address and
-hour, default 60), USER_LIMIT (research EECU-hours a month of each user, default 10), EECU_LIMIT (EECU-hours a month of
-the tier of EE_PROJECT, default 150: the Community tier), REQUIRE_USER (default 1) and PORT (given by Cloud Run). It
+hour, default 60), USER_LIMIT (research EECU-hours a month of each user, default 25), EECU_LIMIT (EECU-hours a month of
+the tier of EE_PROJECT, default 1000: the Contributor tier), PROJECT_RESERVE (EECU-hours of EECU_LIMIT not given to the
+users of the shared account, default 10 % of EECU_LIMIT), REQUIRE_USER (default 1) and PORT (given by Cloud Run). It
 only needs the standard library of Python.
 """
 
@@ -41,8 +48,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 PUBLIC_SA = os.environ['PUBLIC_SA']
 PROJECT = os.environ['EE_PROJECT']
 LIMIT = int(os.environ.get('LIMIT', '60'))
-EECU_LIMIT = float(os.environ.get('EECU_LIMIT', '150'))
-USER_LIMIT = float(os.environ.get('USER_LIMIT', '10'))
+EECU_LIMIT = float(os.environ.get('EECU_LIMIT', '1000'))
+USER_LIMIT = float(os.environ.get('USER_LIMIT', '25'))
+PROJECT_RESERVE = float(os.environ.get('PROJECT_RESERVE') or 0.1 * EECU_LIMIT)
 REQUIRE_USER = os.environ.get('REQUIRE_USER', '1') != '0'
 USER = re.compile(r'mo-[0-9a-f]{16}')
 SCOPES = ['https://www.googleapis.com/auth/earthengine']
@@ -137,10 +145,14 @@ def usage():
 def user_usage(user):
 	"""What /usage answers for USER (None: only the project)."""
 	u, (_, resets) = usage(), month()
+	project_left = max(0.0, EECU_LIMIT - PROJECT_RESERVE - u['project_hours'])  # for all the users of the shared account
 	out = {'project': PROJECT, 'project_used_hours': round(u['project_hours'], 3), 'project_limit_hours': EECU_LIMIT,
+	       'project_reserve_hours': PROJECT_RESERVE, 'project_left_hours': round(project_left, 3),
 	       'resets': resets.isoformat(), 'updated': u['updated']}
 	if user:
-		out.update(user=user, used_hours=round(u['users'].get(user, 0.0), 3), limit_hours=USER_LIMIT)
+		used = u['users'].get(user, 0.0)
+		out.update(user=user, used_hours=round(used, 3), limit_hours=USER_LIMIT,
+		           left_hours=round(max(0.0, min(USER_LIMIT - used, project_left)), 3))
 	return out
 
 
@@ -152,11 +164,17 @@ def spent(user):
 	except Exception as e:  # noqa: BLE001
 		print(f'usage: {type(e).__name__} {getattr(e, "code", "")}', flush=True)
 		return None
-	if u['used_hours'] < USER_LIMIT:
-		return None
-	return {'code': 'spent', 'used_hours': u['used_hours'], 'limit_hours': USER_LIMIT, 'resets': u['resets'],
-	        'error': f"you have spent your research EECUs of this month ({u['used_hours']:.1f} of {USER_LIMIT:g} "
-	                 f"EECU-hours): the shared account of MonitorEO computes for you again on {u['resets']}"}
+	if u['used_hours'] >= USER_LIMIT:
+		return {'code': 'spent', 'used_hours': u['used_hours'], 'limit_hours': USER_LIMIT, 'resets': u['resets'],
+		        'error': f"you have spent your research EECUs of this month ({u['used_hours']:.1f} of {USER_LIMIT:g} "
+		                 f"EECU-hours): the shared account of MonitorEO computes for you again on {u['resets']}"}
+	if u['project_left_hours'] <= 0:
+		return {'code': 'project', 'used_hours': u['used_hours'], 'limit_hours': USER_LIMIT, 'resets': u['resets'],
+		        'project_used_hours': u['project_used_hours'], 'project_limit_hours': EECU_LIMIT,
+		        'error': f"the shared account of MonitorEO has spent the EECUs of this month for its users "
+		                 f"({u['project_used_hours']:.0f} of {EECU_LIMIT:g} EECU-hours of the project, of which "
+		                 f"{PROJECT_RESERVE:g} are kept for the app of Earth Engine): it computes again on {u['resets']}"}
+	return None
 
 
 def allowed(address, limit=LIMIT):

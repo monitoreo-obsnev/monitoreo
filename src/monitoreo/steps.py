@@ -8,7 +8,7 @@ from .publish import MONTHS, period_text
 
 PERIOD_MAP = ('time_series', 'region_stats', 'compare_series', 'trend_table')  # with the map of their period
 MAX_MAP_STEPS = 400  # maps of the steps of a result that are offered (the last ones)
-UNITS = {'annual': 'años', 'monthly': 'meses', '16-day': 'periodos de 16 días'}
+UNITS = {'annual': 'years', 'monthly': 'months', '16-day': '16-day periods'}
 
 
 def map_steps(tool, args):
@@ -18,8 +18,8 @@ def map_steps(tool, args):
 	the year (the trend of each month or 16 days, key 'part:N')."""
 	if tool in ('trend_table', 'trend_map'):
 		n = {'monthly': 12, '16-day': 23}.get(args.get('step'), 0)
-		return [{'key': f'part:{p}', 'label': f'Tendencia de {MONTHS[p - 1]}' if n == 12 else
-		         f'Tendencia del periodo {p} de 16 días', 'part': p} for p in range(1, n + 1)]
+		return [{'key': f'part:{p}', 'label': f'Trend of {MONTHS[p - 1]}' if n == 12 else
+		         f'Trend of 16-day period {p}', 'part': p} for p in range(1, n + 1)]
 	if tool not in PERIOD_MAP + ('map_layer',) or not args.get('start') or not args.get('end'):
 		return []
 	unit = args.get('temporal') if tool in ('map_layer', 'region_stats') else args.get('step')

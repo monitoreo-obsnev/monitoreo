@@ -1,13 +1,13 @@
-# Instaladores del asistente para gestores: installer/macos/instalar.sh e installer/windows/instalar.bat, comprimidos
-# como "Instalar el asistente de MonitorEO.command" (con su permiso de ejecución) y ".bat", adjuntos a la release de
-# GitHub con nombres fijos, para que la wiki los enlace en releases/latest/download/asistente-monitoreo-macos.zip y
-# ...-windows.zip (la wiki da además las órdenes de una línea que los descargan con curl, sin el bloqueo de los
-# ficheros descargados con el navegador):
-# - al publicar una release o subir una etiqueta v* (como el flujo del plugin de QGIS);
-# - a mano (Actions > Instaladores del asistente > Run workflow) con la etiqueta de una release que ya existe; sin
-#   etiqueta, deja los zips como artefacto de la ejecución.
-# Los instaladores descargan el environment.yml de main, así que valen para cualquier release.
-name: Instaladores del asistente
+# Installers of the assistant for managers: installer/macos/instalar.sh and installer/windows/instalar.bat, zipped
+# as "Install the MonitorEO assistant.command" (with its execute permission) and ".bat", attached to the GitHub
+# release with fixed names, so that the wiki links them as releases/latest/download/asistente-monitoreo-macos.zip and
+# ...-windows.zip (the wiki also gives the one-line commands that download them with curl, without the block of the
+# files downloaded with the browser):
+# - when a release is published or a tag v* is pushed (like the workflow of the QGIS plugin);
+# - by hand (Actions > Assistant installers > Run workflow) with the tag of a release that already exists; without a
+#   tag, it leaves the zips as an artifact of the run.
+# The installers download the environment.yml of main, so they work for any release.
+name: Assistant installers
 
 on:
   release:
@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Etiqueta de la release a la que adjuntar los zips (vacío: solo artefacto)'
+        description: 'Tag of the release to attach the zips to (empty: only an artifact)'
         required: false
         default: ''
 
@@ -35,29 +35,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Comprobar los instaladores
+      - name: Check the installers
         run: |
           bash -n installer/macos/instalar.sh
           file installer/windows/instalar.bat | grep -q CRLF
-      - name: Generar los zips
+      - name: Make the zips
         run: |
           mkdir -p dist build/macos build/windows
-          install -m 755 installer/macos/instalar.sh "build/macos/Instalar el asistente de MonitorEO.command"
-          cp installer/windows/instalar.bat "build/windows/Instalar el asistente de MonitorEO.bat"
-          (cd build/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Instalar el asistente de MonitorEO.command")
-          (cd build/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Instalar el asistente de MonitorEO.bat")
+          install -m 755 installer/macos/instalar.sh "build/macos/Install the MonitorEO assistant.command"
+          cp installer/windows/instalar.bat "build/windows/Install the MonitorEO assistant.bat"
+          (cd build/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Install the MonitorEO assistant.command")
+          (cd build/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Install the MonitorEO assistant.bat")
           unzip -Z dist/asistente-monitoreo-macos.zip | grep -q -- '-rwx'
       - uses: actions/upload-artifact@v4
         if: env.TAG == ''
         with:
-          name: instaladores
+          name: installers
           path: dist/*.zip
-      - name: Adjuntar los zips a la release
+      - name: Attach the zips to the release
         if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # con una etiqueta nueva, la release la puede estar creando a la vez el flujo del plugin de QGIS
+          # with a new tag, the workflow of the QGIS plugin may be creating the release at the same time
           for i in $(seq 18); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 10; done
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes "" || true
           gh release upload "$TAG" dist/asistente-monitoreo-macos.zip dist/asistente-monitoreo-windows.zip --clobber

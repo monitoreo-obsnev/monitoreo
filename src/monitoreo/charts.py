@@ -74,7 +74,7 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 				ax.plot([x0, x1], [t['intercept'], t['intercept'] + t['slope'] * (x1 - x0)], '--', color=color, lw=1)
 				label = label or t['label']
 				if len(regions) == 1:
-					label += f"  {t['slope']:+.3g}/año, p={t['p_value']:.2g}"
+					label += f"  {t['slope']:+.3g}/year, p={t['p_value']:.2g}"
 		ax.set_title(label, fontsize=8)
 		ax.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))  # whole years
 		ax.tick_params(labelsize=7)
@@ -89,7 +89,7 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 	return _png(fig, path)
 
 
-def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('referencia', 'otro periodo'),
+def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('reference period', 'other period'),
                    width=10, height=4.5, dpi=150):
 	"""PNG (bytes) of the comparison of two periods (PROFILE: rows of monitoreo.trends.profile): the mean of each part
 	of the year in the reference period (blue, circles, solid) and in the other (red, squares, dashed), or a colour per

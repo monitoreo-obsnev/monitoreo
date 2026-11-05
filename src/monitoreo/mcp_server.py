@@ -53,7 +53,8 @@ region) and download_variables (several variables and metrics on aligned grids o
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
 pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
-severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF): burn_severity. Only for the
+severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
+Burn Ratio, a continuous index): burn_severity. Only for the
 administrators of the public viewer of results: publish_report, with the files written by those tools.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
@@ -63,11 +64,17 @@ features give one series per feature. Dates are YYYY-MM-DD; season is ["MM-DD", 
 Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
 Without a project of the user (EE_PROJECT or connect) the tools compute with the shared account of MonitorEO, which
 cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
-account each user has research EECUs for each month (compute of Earth Engine, 10 EECU-hours), only for research; who
-has spent them cannot compute with it until the next month. eecu_usage tells the percent of them spent (with the
+account each user has research EECUs for each month (compute of Earth Engine, 25 EECU-hours), only for research; who
+has spent them cannot compute with it until the next month, and nor can anyone when the users of the shared account
+have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. eecu_usage tells the percent of them spent (with the
 user's own account, of the monthly EECU quota of their project). When an answer has eecu_warning (less than 10 % of
 the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
-Engine account and Google Cloud project (connect)."""
+Engine account and Google Cloud project (connect).
+
+The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
+Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables) when the user writes in
+Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + about_.MANUAL + \
+	"""/English (English) and """ + about_.MANUAL + """ (Spanish)."""
 
 server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
@@ -164,19 +171,20 @@ def connect(project: str = '') -> str:
 def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = 'en') -> str:
 	"""EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
 	each month: used and left percent, EECU-hours, a bar of text and a warning when less than 10 % are left. With the
-	shared account of MonitorEO they are the research EECUs of this user (10 EECU-hours a month, only for research;
-	when they are spent, the shared account does not compute for them until the next month and they must switch to
-	their own account: connect). With the user's own project, the monthly quota of that project (the Cloud Monitoring
-	API must be enabled in it), against limit: its EECU-hours a month or tier (Community 150, Contributor 1000, Partner
-	100000; default MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: es or
-	en."""
+	shared account of MonitorEO they are the research EECUs of this user (25 EECU-hours a month, only for research,
+	and at most what the project has left for all the users of the shared account; when they are spent, the shared
+	account does not compute for them until the next month and they must switch to their own account: connect). With
+	the user's own project, the monthly quota of that project (the Cloud Monitoring API must be enabled in it), against
+	limit: its EECU-hours a month or tier (Community 150, Contributor 1000, Partner 100000; default
+	MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: en or
+	es."""
 	return _text(services.eecu_usage(limit, refresh, lang))
 
 
 @tool
-def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'es') -> str:
+def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en') -> str:
 	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis), collection, resolution,
-	dates and unit. Filter by sensor or by text in the name. lang: es or en."""
+	dates and unit. Filter by sensor or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang))
 
 
@@ -432,19 +440,24 @@ def download_comparison(region: dict, variable: str, sensor: str, start: str, en
 @tool
 def burn_severity(region: dict, start: str, end: str, other_start: str, other_end: str, sensor: str = 'Sentinel-2',
                   metric: str = 'median', season: Optional[List[str]] = None, quality: Optional[dict] = None,
-                  resolution: Optional[float] = None, crs: str = 'auto') -> str:
+                  resolution: Optional[float] = None, crs: str = 'auto', index: str = 'dNBR') -> str:
 	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
 	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
 	Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
 	of the region (unburned, low, moderate-low, moderate-high and high severity, and enhanced regrowth) and the burned
 	area (dNBR >= 0.1), writes them to a CSV and downloads a GeoTIFF with the bands dnbr, severity (class -2 to 4),
 	nbr_before and nbr_after. Use periods without the fire: e.g. the 3 months before it and the 2-3 months after it
-	ends. For small regions (bigger ones: lower resolution)."""
+	ends. For small regions (bigger ones: lower resolution). index "RBR" (only when the user asks for it): the
+	Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (20 m; Landsat:
+	NIR and SWIR2), without phenological correction and on the scale of the dNBR (articles multiply it by 1000): a
+	continuous index without classes; returns its mean, median, p10, p90, min and max and the hectares with values
+	over each feature, and a GeoTIFF with the bands rbr, dnbr, nbr_before and nbr_after."""
 	_ready()
-	stem = f'burn_severity_{sensor}_{start}_{end}_{other_start}_{other_end}'
+	rbr = str(index).upper() == 'RBR'
+	stem = f"burn_severity_{'RBR_' if rbr else ''}{sensor}_{start}_{end}_{other_start}_{other_end}"
 	return _text(services.burn_severity(region, sensor, start, end, other_start, other_end, metric, season=season,
 	                                    quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'),
-	                                    csv=_out(stem, 'csv')))
+	                                    csv=_out(stem, 'csv'), index=index))
 
 
 @tool

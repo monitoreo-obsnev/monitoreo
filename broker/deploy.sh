@@ -4,10 +4,12 @@
 #     broker/deploy.sh PROJECT [REGION]
 #
 # PROJECT must be registered in Earth Engine and have billing (Cloud Run). It can be run again: what exists is kept.
-# USER_LIMIT (default 10) is the research EECU-hours of each user of the shared account a month: who spends them gets no
-# more tokens until the next month. EECU_LIMIT (EECU-hours a month of the Earth Engine tier of PROJECT: 150 Community,
-# 1000 Contributor, 100000 Partner; default 150) is only told by GET /usage. REQUIRE_USER=0 gives tokens to the versions
-# of the tools without the ID of their user (before 0.3.21), outside those limits.
+# USER_LIMIT (default 25) is the research EECU-hours of each user of the shared account a month: who spends them gets no
+# more tokens until the next month. EECU_LIMIT is the EECU-hours a month of the Earth Engine tier of PROJECT (150
+# Community, 1000 Contributor, 100000 Partner; default 1000): the users of the shared account stop getting tokens when
+# the project has spent all of it but PROJECT_RESERVE (default 10 % of EECU_LIMIT), kept for the app of Earth Engine
+# and the team. REQUIRE_USER=0 gives tokens to the versions of the tools without the ID of their user (before 0.3.21),
+# outside those limits.
 # It creates two service accounts, without keys:
 #   monitoreo-public  computes in Earth Engine with the quota of PROJECT and nothing else (the role monitoreoCompute,
 #                     below); the broker gives tokens of 1 hour of this account.
@@ -24,8 +26,9 @@
 set -euo pipefail
 PROJECT=${1:?usage: deploy.sh PROJECT [REGION]}
 REGION=${2:-europe-west1}
-EECU_LIMIT=${EECU_LIMIT:-150}
-USER_LIMIT=${USER_LIMIT:-10}
+EECU_LIMIT=${EECU_LIMIT:-1000}
+USER_LIMIT=${USER_LIMIT:-25}
+PROJECT_RESERVE=${PROJECT_RESERVE:-$(( EECU_LIMIT / 10 ))}
 REQUIRE_USER=${REQUIRE_USER:-1}
 HERE=$(cd "$(dirname "$0")" && pwd)
 PUBLIC=monitoreo-public@$PROJECT.iam.gserviceaccount.com
@@ -62,7 +65,7 @@ gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:$BUIL
 gcloud run deploy monitoreo-broker --source "$HERE" --project "$PROJECT" --region "$REGION" \
   --build-service-account "projects/$PROJECT/serviceAccounts/$BUILD" \
   --service-account "$BROKER" --allow-unauthenticated --max-instances 2 --memory 256Mi --cpu 1 \
-  --set-env-vars "PUBLIC_SA=$PUBLIC,EE_PROJECT=$PROJECT,EECU_LIMIT=$EECU_LIMIT,USER_LIMIT=$USER_LIMIT,REQUIRE_USER=$REQUIRE_USER" \
+  --set-env-vars "PUBLIC_SA=$PUBLIC,EE_PROJECT=$PROJECT,EECU_LIMIT=$EECU_LIMIT,USER_LIMIT=$USER_LIMIT,PROJECT_RESERVE=$PROJECT_RESERVE,REQUIRE_USER=$REQUIRE_USER" \
   --quiet
 
 gcloud run services describe monitoreo-broker --project "$PROJECT" --region "$REGION" --format 'value(status.url)'

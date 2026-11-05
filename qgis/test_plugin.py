@@ -97,7 +97,7 @@ buttons = dock.findChildren(InfoButton)
 selected = dock.variable.currentIndex()
 for i in range(dock.variable.count()):
 	dock.variable.setCurrentIndex(i)
-	assert all('Más en el manual' in b.help() for b in buttons)
+	assert all('More in the manual' in b.help() for b in buttons)
 dock.variable.setCurrentIndex(selected)
 assert not dock.wdpa_field.findChild(InfoButton).isVisibleTo(dock)
 print('info buttons:', len(buttons))
@@ -142,7 +142,7 @@ def add_from_window(res, index=0, significant=False):
 	dlg.findChild(QComboBox).setCurrentIndex(index)
 	if significant:
 		dlg.findChild(QCheckBox).setChecked(True)
-	next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Añadir al mapa').click()
+	next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Add to the map').click()
 	wait(dock)
 	group = QgsProject.instance().layerTreeRoot().findGroup(res['label'])
 	assert group is not None, iface.messages[-3:]
@@ -151,7 +151,7 @@ def add_from_window(res, index=0, significant=False):
 
 # the maps of two dates of the series (June and July), in the group of the series, with the colours of the first one
 # and their days in the Temporal Controller
-assert [m['label'] for m in res['maps'][:3]] == ['Todo el periodo (2021)', 'ene 2021', 'feb 2021'], res['maps'][:3]
+assert [m['label'] for m in res['maps'][:3]] == ['Whole period (2021)', 'Jan 2021', 'Feb 2021'], res['maps'][:3]
 add_from_window(res, 6)
 july, june = add_from_window(res, 7)  # the last one on top
 ramps = [(r.classificationMin(), r.classificationMax()) for r in (june.renderer(), july.renderer())]
@@ -163,24 +163,24 @@ assert [(t.begin().toString('yyyy-MM-dd'), t.end().toString('yyyy-MM-dd')) for t
 print('maps of the series:', [l.name() for l in (june, july)], '| colours', ramps[0])
 
 # time series over a layer with two polygons, in UTM
-lyr = QgsVectorLayer('Polygon?crs=EPSG:25830', 'zonas', 'memory')
-lyr.dataProvider().addAttributes([QgsField('zona', QVariant.String)])  # (deprecated in QGIS 4, still works)
+lyr = QgsVectorLayer('Polygon?crs=EPSG:25830', 'zones', 'memory')
+lyr.dataProvider().addAttributes([QgsField('zone', QVariant.String)])  # (deprecated in QGIS 4, still works)
 lyr.updateFields()
-for name, x0 in (('oeste', 445000), ('este', 450000)):
+for name, x0 in (('west', 445000), ('east', 450000)):
 	f = QgsFeature(lyr.fields())
 	f.setGeometry(QgsGeometry.fromRect(QgsRectangle(x0, 4079000, x0 + 4000, 4084000)))
-	f['zona'] = name
+	f['zone'] = name
 	lyr.dataProvider().addFeature(f)
 QgsProject.instance().addMapLayer(lyr)
 dock.region_kind.setCurrentIndex(0)
 dock.layer.setLayer(lyr)
-dock.name_field.setField('zona')
+dock.name_field.setField('zone')
 dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('annual'))
 dock.run_series()
 wait(dock)
 res = dock.series[-1]
 print('series (layer):', [(r['region'], r['date'], round(r['value'], 3)) for r in res['rows']])
-assert sorted(res['regions']) == ['este', 'oeste']
+assert sorted(res['regions']) == ['east', 'west']
 
 # seasonal trends (MODIS, by years) and their map, over the map extent
 from qgis.PyQt.QtCore import QDate  # noqa: E402
@@ -194,9 +194,9 @@ res = dock.series[-1]
 assert res['kind'] == 'trends' and res['rows'][0]['n'] == 8, res['rows']
 print('trends:', [(r['key'], r['n'], round(r['tau'], 2), round(r['p_value'], 3), round(r['slope'], 4)) for r in res['rows']],
       '| chart', bool(res['chart']))
-assert [m['label'] for m in res['maps']] == ['Tendencia anual (2014-2021)'], res['maps']  # by years: no parts
+assert [m['label'] for m in res['maps']] == ['Annual trend (2014-2021)'], res['maps']  # by years: no parts
 layers = add_from_window(res, 0, significant=True)
-assert len(layers) == 1 and layers[0].bandCount() == 6 and layers[0].name().endswith('(p < 0,05)'), iface.messages[-2:]
+assert len(layers) == 1 and layers[0].bandCount() == 6 and layers[0].name().endswith('(p < 0.05)'), iface.messages[-2:]
 print('map of the trends:', layers[0].name())
 before = set(QgsProject.instance().mapLayers())
 dock.run_trend_map()

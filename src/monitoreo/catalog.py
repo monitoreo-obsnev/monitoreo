@@ -16,6 +16,20 @@ NBR_PALETTE = ['7a0403', 'c0392b', 'e67e22', 'f5cba7', 'f2efe6', 'b8e186', '7fbc
 EXTRA = {
 	101: (3, {'index': 'NBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
 	102: (4, {'index': 'NBR', 'ft': 'N(B8,B12)', 'f': '(B8 - B12) / (B8 + B12)'}),  # Sentinel-2
+	# RBR: compares a period before and one after a fire (only burn_severity with index 'RBR'); the formula is the NBR
+	# of each image: B8A and B12 in Sentinel-2 (NBR5n of Silva-Cardoza et al. 2022), NIR and SWIR2 in Landsat
+	103: (4, {'index': 'RBR', 'ft': 'N(B8A,B12)', 'f': '(B8A - B12) / (B8A + B12)', 'm': 20}),  # Sentinel-2
+	104: (3, {'index': 'RBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
+}
+RBR_OFFSET = 1.001  # RBR = dNBR / (NBR before + RBR_OFFSET) (Parks et al. 2014)
+RBR = {
+	'vname': 'Índice Relativizado de Quema', 'vname_en': 'Relativized Burn Ratio', 'vname_fr': 'Relativized Burn Ratio',
+	'vname_de': 'Relativized Burn Ratio', 'two_periods': True, 'minp': -0.5, 'maxp': 1,
+	'notes': {'f': 'RBR = dNBR / (NBR before + 1.001), dNBR = NBR before - NBR after the fire, without phenological '
+	               'correction and without the factor 1000 of the articles (0.478 here is 478 there), like the dNBR of '
+	               'MonitorEO; NBR of B8A and B12 in Sentinel-2 (Silva-Cardoza et al. 2022, '
+	               'https://doi.org/10.3390/rs14133122; Parks et al. 2014, https://doi.org/10.3390/rs6031827). It '
+	               'compares two periods: burn_severity with index RBR computes it (a continuous map, no classes).'},
 }
 NBR = {
 	'type': 'Perturbaciones', 'type_en': 'Disturbances', 'type_fr': 'Disturbances', 'type_de': 'Disturbances',
@@ -42,7 +56,8 @@ def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
-	extra = [dict(by_ref[base], **NBR, **changes, ref=ref) for ref, (base, changes) in EXTRA.items() if base in by_ref]
+	extra = [dict(by_ref[base], **dict(NBR, **(RBR if changes['index'] == 'RBR' else {}), **changes), ref=ref)
+	         for ref, (base, changes) in EXTRA.items() if base in by_ref]
 	return entries + extra
 
 

@@ -32,8 +32,8 @@ from . import variable as variables
 STEPS = ('monthly', '16-day', 'annual')
 OUTPUTS = ('slope', 'tau', 'z', 'p_value', 'intercept', 'n')
 MIN_YEARS = 2
-MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
-          'noviembre', 'diciembre']
+MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+          'November', 'December']
 DIVERGING = ['a50026', 'd73027', 'f46d43', 'fdae61', 'fee08b', 'ffffbf', 'd9ef8b', 'a6d96a', '66bd63', '1a9850',
              '006837']  # decrease (red) to increase (green)
 P_VALUE = ['0571b0', '92c5de', 'f7f7f7']  # significant (blue) to not (white)
@@ -57,13 +57,13 @@ def part_key(step, part):
 
 
 def part_label(step, part):
-	"""Name of a part for people: 'julio', 'días 177-192', 'año'."""
+	"""Name of a part for people: 'July', 'days 177-192', 'year'."""
 	if step == 'monthly':
 		return MONTHS[part - 1]
 	if step == '16-day':
 		first = (part - 1) * 16 + 1
-		return f'días {first}-{min(first + 15, 366)}'
-	return 'año'
+		return f'days {first}-{min(first + 15, 366)}'
+	return 'year'
 
 
 def part_of(step, day):

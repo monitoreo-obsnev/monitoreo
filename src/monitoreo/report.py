@@ -8,7 +8,7 @@ or its data as a data: URL) when the answer does not name its chart or preview, 
 table of values. Everything in the report comes from
 them and from the catalog: it has no text written by a language model, nor an interpretation of the results. The
 charts, maps and logos are embedded in the file, so it can be moved, sent and opened without connection; long tables
-go to an annex at the end. The texts are in Spanish, as those of the viewer of results (monitoreo.publish).
+go to an annex at the end. The texts are in English, as those of the viewer of results (monitoreo.publish).
 """
 
 import base64
@@ -20,62 +20,68 @@ import re
 import urllib.request
 
 from . import __version__, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, period_text, python_call, season_text, slug, \
-	unit_text
+from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, period_text, python_call, \
+	season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
 
-TITLES = {'region_stats': 'Estadísticas de {var}, {period}{season}', 'map_layer': 'Mapa de {var}, {period}{season}',
-          'trend_map': 'Mapa de la tendencia de {var}, {period}{season}',
-          'compare_map': 'Mapa de la diferencia de {var}: {other} menos {period}{season}'}
+TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 'Map of {var}, {period}{season}',
+          'trend_map': 'Map of the trend of {var}, {period}{season}',
+          'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}'}
 
 METHODS = {
-	'time_series': 'Para cada paso de tiempo, la métrica temporal de las imágenes del paso en cada píxel y, sobre la '
-	               'región, el estadístico espacial de esos valores.',
-	'region_stats': 'La métrica temporal de las imágenes del periodo en cada píxel y sus estadísticas sobre la región.',
-	'map_layer': 'La métrica temporal de las imágenes del periodo en cada píxel.',
-	'trend_table': 'Para cada parte del año, su valor en cada año (el estadístico espacial de la métrica temporal) y '
-	               'la tendencia de esos valores a lo largo de los años: prueba de Mann-Kendall (τ, Z y p-valor) y '
-	               'pendiente de Sen (cambio por año).',
-	'trend_map': 'La tendencia calculada en cada píxel: prueba de Mann-Kendall y pendiente de Sen (cambio por año).',
-	'compare_series': 'Para cada parte del año, la media de sus valores en los años de cada periodo y la diferencia '
-	                  'entre ambas (otro periodo menos referencia).',
-	'compare_map': 'En cada píxel, la métrica temporal del otro periodo menos la del periodo de referencia.',
-	'download_image': 'La métrica temporal de las imágenes del periodo en cada píxel, en un GeoTIFF (float32, NoData '
+	'time_series': 'For each time step, the temporal metric of the images of the step on each pixel and, over the '
+	               'region, the spatial statistic of those values.',
+	'region_stats': 'The temporal metric of the images of the period on each pixel and its statistics over the region.',
+	'map_layer': 'The temporal metric of the images of the period on each pixel.',
+	'trend_table': 'For each part of the year, its value in each year (the spatial statistic of the temporal metric) '
+	               "and the trend of those values over the years: Mann-Kendall test (τ, Z and p-value) and Sen's "
+	               'slope (change per year).',
+	'trend_map': "The trend computed on each pixel: Mann-Kendall test and Sen's slope (change per year).",
+	'compare_series': 'For each part of the year, the mean of its values in the years of each period and the '
+	                  'difference between both (other period minus reference period).',
+	'compare_map': 'On each pixel, the temporal metric of the other period minus that of the reference period.',
+	'download_image': 'The temporal metric of the images of the period on each pixel, in a GeoTIFF (float32, NoData '
 	                  '-9999).',
-	'download_trend': 'La tendencia calculada en cada píxel (prueba de Mann-Kendall y pendiente de Sen, cambio por '
-	                  'año), en un GeoTIFF con una banda por resultado (NoData -9999).',
-	'download_comparison': 'En cada píxel, la métrica temporal del otro periodo menos la del periodo de referencia, en '
-	                       'un GeoTIFF con las bandas diferencia, referencia y otro periodo (NoData -9999).',
-	'download_variables': 'Cada variable de la receta, con sus métricas, en un GeoTIFF por variable sobre rejillas '
-	                      'alineadas del área de estudio y, si la receta lo pide, de sus ecorregiones.',
-	'burn_severity': 'dNBR: NBR del periodo anterior al incendio menos NBR del posterior, con las clases de severidad '
-	                 'del USGS (Key y Benson, 2006). Área quemada: dNBR ≥ 0,1.',
+	'download_trend': "The trend computed on each pixel (Mann-Kendall test and Sen's slope, change per year), in a "
+	                  'GeoTIFF with a band per result (NoData -9999).',
+	'download_comparison': 'On each pixel, the temporal metric of the other period minus that of the reference '
+	                       'period, in a GeoTIFF with the bands difference, reference and other (NoData -9999).',
+	'download_variables': 'Each variable of the recipe, with its metrics, in a GeoTIFF per variable on aligned grids '
+	                      'of the study area and, if the recipe asks for it, of its ecoregions.',
+	'burn_severity': 'dNBR: NBR of the period before the fire minus NBR of the period after it, with the severity '
+	                 'classes of the USGS (Key and Benson, 2006). Burned area: dNBR ≥ 0.1.',
+	'burn_severity_rbr': 'RBR (Relativized Burn Ratio, Parks et al., 2014): dNBR / (NBR before + 1.001), with the NBR '
+	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
+	                     '(2022), without phenological correction and without the factor 1000 of the articles. A '
+	                     'continuous index, without classes.',
 }
 
-FILTERS = {'clouds': 'nubes', 'water': 'agua', 'snow': 'nieve', 'aerosols': 'aerosoles'}
-STATS = {'mean': 'media', 'median': 'mediana', 'min': 'mínimo', 'max': 'máximo', 'std': 'desviación típica',
-         'sum': 'suma', 'count': 'número'}
+FILTERS = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
+STATS = {'mean': 'mean', 'median': 'median', 'min': 'minimum', 'max': 'maximum', 'std': 'standard deviation',
+         'sum': 'sum', 'count': 'count'}
 
 # the table of each tool: its key in the answer (the first one found), and its columns (key, label); in the labels,
 # {u} is the unit of the variable and {uy} that unit per year
 TABLES = {
-	'time_series': (('rows',), [('region', 'Región'), ('date', 'Fecha'), ('value', 'Valor{u}'),
-	                            ('n_images', 'Imágenes'), ('n_pixels', 'Píxeles válidos')]),
-	'trend_table': (('trends', 'rows'), [('region', 'Región'), ('label', 'Parte del año'), ('n', 'Años'),
-	                                     ('slope', 'Pendiente de Sen{uy}'), ('tau', 'τ de Kendall'),
-	                                     ('p_value', 'p-valor'), ('significant', 'Significativa')]),
-	'compare_series': (('comparison', 'profile'), [('region', 'Región'), ('label', 'Parte del año'),
-	                                               ('reference', 'Referencia{u}'), ('other', 'Otro periodo{u}'),
-	                                               ('difference', 'Diferencia{u}'), ('n_reference', 'Años de ref.'),
-	                                               ('n_other', 'Años del otro')]),
-	'region_stats': (('rows',), [('region', 'Región'), ('mean', 'Media{u}'), ('std', 'Desv. típica'), ('min', 'Mín.'),
-	                           ('p5', 'P5'), ('p50', 'Mediana'), ('p95', 'P95'), ('max', 'Máx.'),
-	                           ('n_pixels', 'Píxeles')]),
-	'download_variables': (('files',), [('file', 'Archivo'), ('images', 'Imágenes'), ('pixel_filters', 'Píxeles descartados')]),
-	'burn_severity': (('classes',), [('region', 'Región'), ('label', 'Clase de severidad'), ('dnbr_min', 'dNBR desde'),
-	                                 ('dnbr_max', 'dNBR hasta'), ('ha', 'Hectáreas')]),
+	'time_series': (('rows',), [('region', 'Region'), ('date', 'Date'), ('value', 'Value{u}'),
+	                            ('n_images', 'Images'), ('n_pixels', 'Valid pixels')]),
+	'trend_table': (('trends', 'rows'), [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Years'),
+	                                     ('slope', "Sen's slope{uy}"), ('tau', "Kendall's τ"),
+	                                     ('p_value', 'p-value'), ('significant', 'Significant')]),
+	'compare_series': (('comparison', 'profile'), [('region', 'Region'), ('label', 'Part of the year'),
+	                                               ('reference', 'Reference period{u}'), ('other', 'Other period{u}'),
+	                                               ('difference', 'Difference{u}'), ('n_reference', 'Years (reference)'),
+	                                               ('n_other', 'Years (other)')]),
+	'region_stats': (('rows',), [('region', 'Region'), ('mean', 'Mean{u}'), ('std', 'Std. dev.'), ('min', 'Min.'),
+	                           ('p5', 'P5'), ('p50', 'Median'), ('p95', 'P95'), ('max', 'Max.'),
+	                           ('n_pixels', 'Pixels')]),
+	'download_variables': (('files',), [('file', 'File'), ('images', 'Images'), ('pixel_filters', 'Discarded pixels')]),
+	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
+	                                          ('dnbr_max', 'dNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
+	                                          ('p10', 'RBR percentile 10'), ('p90', 'RBR percentile 90'),
+	                                          ('min', 'RBR minimum'), ('max', 'RBR maximum'), ('ha', 'Hectares')]),
 }
 
 CSS = """
@@ -130,10 +136,10 @@ def write(items, path=None, title=None, question=None, project=None, names=None,
 	title and the time). QUESTION is that of the user, PROJECT the Google Cloud project that computed the results (or
 	SHARED: the shared account of MonitorEO) and NAMES the names of the protected areas by their WDPA ID. Returns the
 	path."""
-	title = title or 'Informe de MonitorEO'
+	title = title or 'MonitorEO report'
 	if not path:
 		os.makedirs(FOLDER, exist_ok=True)
-		path = os.path.join(FOLDER, f'{slug(title)[:60] or "informe"}_{dt.datetime.now():%Y%m%d-%H%M%S}.html')
+		path = os.path.join(FOLDER, f'{slug(title)[:60] or "report"}_{dt.datetime.now():%Y%m%d-%H%M%S}.html')
 	text = html_report(items, title, question, project, names, date, shared)
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(text)
@@ -143,40 +149,40 @@ def write(items, path=None, title=None, question=None, project=None, names=None,
 def html_report(items, title, question=None, project=None, names=None, date=None, shared=False):
 	"""The HTML of the report (see write)."""
 	date = date or dt.date.today()
-	a = services.about('es')
+	a = services.about('en')
 	logos = [_data_url(p) for p in a['logos']]
 	annex = []
 	sections = [_item(item, i + 1, names or {}, annex) for i, item in enumerate(items)]
-	out = ['<!doctype html><html lang="es"><head><meta charset="utf-8">',
+	out = ['<!doctype html><html lang="en"><head><meta charset="utf-8">',
 	       '<meta name="viewport" content="width=device-width, initial-scale=1">',
 	       f'<title>{_e(title)}</title><style>{CSS}</style></head><body><main>',
 	       f'<header class="top"><img src="{logos[0]}" alt="MonitorEO-OBSNEV"><div><b>MonitorEO-OBSNEV</b><br>'
-	       '<span class="meta">Observatorio de Cambio Global de Sierra Nevada · Universidad de Granada</span></div>'
+	       '<span class="meta">Sierra Nevada Global Change Observatory · University of Granada</span></div>'
 	       '</header>',
-	       '<p class="hint noprint">Para guardarlo en PDF: <b>Imprimir</b> y, como destino, <b>Guardar como PDF</b>. '
-	       'Desactiva «Encabezados y pies de página» en las opciones del diálogo de impresión.</p>',
+	       '<p class="hint noprint">To save it as a PDF: <b>Print</b> and, as the destination, <b>Save as PDF</b>. '
+	       'Turn off “Headers and footers” in the options of the print dialog.</p>',
 	       f'<h1>{_e(title)}</h1>',
-	       f'<p class="meta">{_long_date(date)} · {len(items)} resultado{"s" if len(items) != 1 else ""}'
-	       + (f' · calculado en Google Earth Engine con el proyecto {_e(project)}' if project else
-	          ' · calculado en Google Earth Engine con la cuenta compartida de MonitorEO' if shared else '') + '</p>']
+	       f'<p class="meta">{_long_date(date)} · {len(items)} result{"s" if len(items) != 1 else ""}'
+	       + (f' · computed in Google Earth Engine with the project {_e(project)}' if project else
+	          ' · computed in Google Earth Engine with the shared account of MonitorEO' if shared else '') + '</p>']
 	if question:
-		out.append(f'<div class="question"><b>Consulta:</b> {_e(question)}</div>')
-	out.append('<p class="note">Este informe recoge los resultados de los cálculos y cómo se obtuvieron, sin '
-	           'interpretarlos. Su interpretación corresponde a personal técnico.</p>')
+		out.append(f'<div class="question"><b>Question:</b> {_e(question)}</div>')
+	out.append('<p class="note">This report gathers the results of the computations and how they were obtained, '
+	           'without interpreting them. Their interpretation is up to technical staff.</p>')
 	out += sections
 	if annex:
-		out.append('<section class="annex"><h2>Anexo: tablas completas</h2>' + ''.join(annex) + '</section>')
-	out.append(f'<footer><p><b>Cómo citar MonitorEO:</b> {_e(a["citation"])}</p>'
+		out.append('<section class="annex"><h2>Annex: full tables</h2>' + ''.join(annex) + '</section>')
+	out.append(f'<footer><p><b>How to cite MonitorEO:</b> {_e(a["citation"])}</p>'
 	           f'<p>{_e(a["acknowledgements"])}</p>'
-	           f'<p class="meta">Generado con MonitorEO {_e(__version__)} · Manual: {_e(a["manual"])}</p>'
+	           f'<p class="meta">Made with MonitorEO {_e(__version__)} · Manual: {_e(a["manual"])}</p>'
 	           '<div class="logos">' + ''.join(f'<img src="{u}" alt="">' for u in logos) + '</div></footer>')
-	out.append('<button class="print noprint" onclick="window.print()">Imprimir o guardar en PDF</button>')
+	out.append('<button class="print noprint" onclick="window.print()">Print or save as PDF</button>')
 	out.append('</main></body></html>')
 	return '\n'.join(out)
 
 
 def item_title(tool, args, result=None):
-	"""The title in Spanish of the result of a call."""
+	"""The title in English of the result of a call."""
 	if tool in TITLES:
 		v = f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
@@ -186,83 +192,84 @@ def item_title(tool, args, result=None):
 	            'download_comparison'):
 		return default_title(tool, args) + (' (GeoTIFF)' if tool == 'download_image' else '')
 	if tool == 'download_variables':
-		return f"Variables en GeoTIFF: {args.get('name', '')}" + (' (plan, sin descargar)' if args.get('dry_run') else '')
+		return f"Variables in GeoTIFF: {args.get('name', '')}" + (' (plan, not downloaded)' if args.get('dry_run') else '')
 	return (result or {}).get('title') or tool
 
 
 def item_facts(tool, args, result=None, names=None):
-	"""How a result was computed: [(label, text)] in Spanish."""
+	"""How a result was computed: [(label, text)] in English."""
 	result = result if isinstance(result, dict) else {}
 	if tool == 'download_variables':
 		return _recipe_facts(args, result, names)
-	facts = [('Región', region_text(args.get('region'), names or {}))]
-	entry = _entry(args.get('variable') or ('NBR' if tool == 'burn_severity' else None), args.get('sensor') or
+	facts = [('Region', region_text(args.get('region'), names or {}))]
+	entry = _entry(args.get('variable') or (fire_variable(args) if tool == 'burn_severity' else None), args.get('sensor') or
 	               ('Sentinel-2' if tool == 'burn_severity' else None))
 	if entry:
 		facts.append(('Variable', f"{entry.get('name', '')} ({entry.get('index', '')})"))
-		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, píxel de {entry.get('m', '?')} m, "
-		                        f"colección {entry.get('col', '')}"))
+		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
+		                        f"collection {entry.get('col', '')}"))
 	if args.get('start') and args.get('end'):
-		label = 'Antes del incendio' if tool == 'burn_severity' else \
-			'Periodo de referencia' if args.get('other_start') else 'Periodo'
+		label = 'Before the fire' if tool == 'burn_severity' else \
+			'Reference period' if args.get('other_start') else 'Period'
 		facts.append((label, period_text(args['start'], args['end']) + season_text(args.get('season'))))
 	if args.get('other_start') and args.get('other_end'):
-		label = 'Después del incendio' if tool == 'burn_severity' else 'Otro periodo'
+		label = 'After the fire' if tool == 'burn_severity' else 'Other period'
 		facts.append((label, period_text(args['other_start'], args['other_end']) + season_text(args.get('season'))))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend'):
 		step = args.get('step') or ('annual' if 'trend' in tool else 'monthly')
-		facts.append(('Paso', STEPS.get(step, step)))
+		facts.append(('Step', STEPS.get(step, step)))
 	if tool in ('trend_map', 'download_trend') and args.get('part'):
 		part = int(args['part'])
-		facts.append(('Parte del año', MONTHS[part - 1] if args.get('step') == 'monthly' else f'periodo {part}'))
+		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison') else 'mean')
-	facts.append(('Métrica temporal', _stat(metric)))
+	facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS:  # the metric of each year, month or 16 days, then that between the years
-		each = {'annual': 'año', 'monthly': 'mes', '16-day': 'periodo de 16 días'}[args['temporal']]
-		facts.append(('Agregación temporal', f"{_stat(metric)} de cada {each} y, entre los años, "
-		                                      f"{_stat(args.get('interannual') or 'mean')} (valor interanual)"))
+		each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[args['temporal']]
+		facts.append(('Temporal aggregation', f"{_stat(metric)} of each {each} and, between the years, "
+		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
-		facts.append(('Estadístico espacial', _stat(args.get('stat') or 'mean')))
+		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
 	if entry:
 		filters = dict(entry.get('pixel_filters') or {})
 		filters.update({k: bool(v) for k, v in (args.get('quality') or {}).items() if k in FILTERS})
 		on = [FILTERS[k] for k, v in filters.items() if v and k in FILTERS]
-		facts.append(('Píxeles descartados', ', '.join(on) if on else 'ninguno'))
+		facts.append(('Discarded pixels', ', '.join(on) if on else 'none'))
 	if result.get('scale'):
-		facts.append(('Tamaño de píxel del cálculo', f"{_num(result['scale'])} m"))
+		facts.append(('Pixel size of the computation', f"{_num(result['scale'])} m"))
 	if tool == 'trend_table':
-		facts.append(('Significativa si', f"p < {_num(args.get('alpha') or 0.05)}"))
+		facts.append(('Significant if', f"p < {_num(args.get('alpha') or 0.05)}"))
 	if tool in ('trend_map', 'download_trend') and args.get('alpha'):
-		facts.append(('Píxeles', f"solo los de tendencia significativa (Mann-Kendall, p < {_num(args['alpha'])})"))
+		facts.append(('Pixels', f"only those with a significant trend (Mann-Kendall, p < {_num(args['alpha'])})"))
 	if tool == 'burn_severity' and result.get('burned_ha'):
 		burned = result['burned_ha']
-		facts.append(('Área quemada', '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
+		facts.append(('Burned area', '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
 		              else f'{_num(next(iter(burned.values())))} ha'))
 	grid = result.get('grid')
 	if isinstance(grid, dict) and grid.get('width'):
 		native = result.get('native_resolution')
 		res = result.get('resolution') or grid.get('resolution')
-		facts.append(('GeoTIFF', f"{_num(grid['width'])} × {_num(grid['height'])} píxeles de {_num(res)} m"
-		                         + (f' (los datos, de {_num(native)} m)' if native and native != res else '')
-		                         + f", en {grid.get('crs', '')}"))
+		facts.append(('GeoTIFF', f"{_num(grid['width'])} × {_num(grid['height'])} pixels of {_num(res)} m"
+		                         + (f' (the data, of {_num(native)} m)' if native and native != res else '')
+		                         + f", in {grid.get('crs', '')}"))
 	if result.get('bands'):
-		facts.append(('Bandas', ', '.join(map(str, result['bands']))))
+		facts.append(('Bands', ', '.join(map(str, result['bands']))))
 	if result.get('images'):
-		facts.append(('Imágenes', _num(result['images'])))
+		facts.append(('Images', _num(result['images'])))
 	if tool == 'download_image' and result.get('min') is not None:
 		unit = unit_text(result.get('unit'))
-		facts.append(('Valores (percentiles 5 y 95)', f"{_num(result['min'])} a {_num(result['max'])}"
-		                                              + (f' {unit}' if unit else '')))
+		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
+		                                               + (f' {unit}' if unit else '')))
 	if tool in METHODS:
-		facts.append(('Método', METHODS[tool]))
+		rbr = tool == 'burn_severity' and fire_variable(args) == 'RBR'
+		facts.append(('Method', METHODS['burn_severity_rbr' if rbr else tool]))
 	return facts
 
 
 def _recipe_facts(args, result, names):
 	"""How the variables of a recipe (download_variables) were downloaded."""
 	recipe = args.get('recipe') or {}
-	facts = [('Área de estudio', region_text(args.get('area'), names or {}))]
+	facts = [('Study area', region_text(args.get('area'), names or {}))]
 	variables = []
 	for v in recipe.get('variables') or []:
 		metric = v.get('metric') or 'median'
@@ -273,20 +280,20 @@ def _recipe_facts(args, result, names):
 		facts.append(('Variables', '; '.join(variables)))
 	period = recipe.get('period')
 	if isinstance(period, list) and len(period) == 2:
-		facts.append(('Periodo', period_text(*period) + season_text(recipe.get('season'))))
+		facts.append(('Period', period_text(*period) + season_text(recipe.get('season'))))
 	for name, g in (result.get('grids') or {}).items():
-		label = {'study': 'Rejilla del área de estudio', 'ecoregion': 'Rejilla de las ecorregiones'}.get(name, name)
-		facts.append((label, f"{_num(g.get('width'))} × {_num(g.get('height'))} píxeles de {_num(g.get('resolution'))} m"
-		                     f", {_num(g.get('mb_per_variable'))} MB por variable"))
+		label = {'study': 'Grid of the study area', 'ecoregion': 'Grid of the ecoregions'}.get(name, name)
+		facts.append((label, f"{_num(g.get('width'))} × {_num(g.get('height'))} pixels of {_num(g.get('resolution'))} m"
+		                     f", {_num(g.get('mb_per_variable'))} MB per variable"))
 	if args.get('dry_run'):
-		facts.append(('Descarga', 'solo el plan: no se ha descargado nada'))
+		facts.append(('Download', 'only the plan: nothing has been downloaded'))
 	elif result:
-		facts.append(('Descarga', 'completa' if result.get('done') else
-		              f"pendiente: {len(result.get('pending') or [])} exportaciones a Google Drive en marcha"))
+		facts.append(('Download', 'complete' if result.get('done') else
+		              f"pending: {len(result.get('pending') or [])} exports to Google Drive running"))
 		if result.get('folders'):
-			facts.append(('Carpetas', '; '.join(map(str, result['folders'].values() if isinstance(result['folders'], dict)
-			                                         else result['folders']))))
-	facts.append(('Método', METHODS['download_variables']))
+			facts.append(('Folders', '; '.join(map(str, result['folders'].values() if isinstance(result['folders'], dict)
+			                                        else result['folders']))))
+	facts.append(('Method', METHODS['download_variables']))
 	return facts
 
 
@@ -313,36 +320,36 @@ def item_table(tool, result, args=None):
 
 
 def region_text(region, names=None):
-	"""A region of the tools (see monitoreo.areas) in Spanish."""
+	"""A region of the tools (see monitoreo.areas) in English."""
 	names = names or {}
 	if not isinstance(region, dict):
 		return str(region)
 	if 'wdpa_id' in region:
 		ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
-		return '; '.join(f'{names[str(i)]} (WDPA {i})' if str(i) in names else f'Espacio protegido WDPA {i}'
+		return '; '.join(f'{names[str(i)]} (WDPA {i})' if str(i) in names else f'Protected area WDPA {i}'
 		                 for i in ids)
 	if 'wdpa_name' in region:
-		return f"Espacio protegido «{region['wdpa_name']}»"
+		return f"Protected area “{region['wdpa_name']}”"
 	if 'ecoregion_id' in region:
-		return f"Ecorregión {region['ecoregion_id']}"
+		return f"Ecoregion {region['ecoregion_id']}"
 	if 'ecoregion_at' in region:
 		lon, lat = region['ecoregion_at']
-		return f'Ecorregión del punto {_num(lat)}, {_num(lon)} (lat., lon.)'
+		return f'Ecoregion of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
 	if 'bbox' in region:
 		w, s, e, n = region['bbox']
-		return f'Rectángulo de longitud {_num(w)} a {_num(e)} y latitud {_num(s)} a {_num(n)}'
+		return f'Rectangle of longitude {_num(w)} to {_num(e)} and latitude {_num(s)} to {_num(n)}'
 	if 'point' in region:
 		lon, lat = region['point']
-		where = f"{lat:.5f}, {lon:.5f}".replace('.', ',').replace(', ', '; ', 1).replace('; ', ', ')
+		where = f"{lat:.5f}, {lon:.5f}"
 		if not region.get('buffer'):
-			return f'Píxel en {where} (lat., lon.)'
-		return f"Círculo de {_num(region['buffer'])} m de radio en {where} (lat., lon.)"
+			return f'Pixel at {where} (lat., lon.)'
+		return f"Circle of {_num(region['buffer'])} m radius at {where} (lat., lon.)"
 	if 'file' in region:
-		return names.get(str(region['file'])) or f"Archivo {os.path.basename(str(region['file']))}"
+		return names.get(str(region['file'])) or f"File {os.path.basename(str(region['file']))}"
 	if 'geojson' in region:
 		g = region['geojson']
 		n = len(g.get('features', [])) if isinstance(g, dict) and g.get('type') == 'FeatureCollection' else 1
-		return f'Geometría GeoJSON ({n} elemento{"s" if n != 1 else ""})'
+		return f'GeoJSON geometry ({n} feature{"s" if n != 1 else ""})'
 	return str(region)
 
 
@@ -366,14 +373,14 @@ def _item(item, n, names, annex):
 		if len(rows) <= MAX_ROWS:
 			out.append(_table(labels, rows))
 		else:
-			out.append(f'<p class="note">Tabla de {len(rows)} filas: en el anexo (tabla {n}).</p>')
-			annex.append(f'<h3>Tabla {n}. {_e(title)}</h3>' + _table(labels, rows))
+			out.append(f'<p class="note">Table of {len(rows)} rows: in the annex (table {n}).</p>')
+			annex.append(f'<h3>Table {n}. {_e(title)}</h3>' + _table(labels, rows))
 	files = [result.get(k) for k in ('csv', 'file') if isinstance(result, dict) and result.get(k)]
 	if files:
-		out.append('<p class="note">Archivos: ' + ' · '.join(_e(f) for f in files) + '</p>')
+		out.append('<p class="note">Files: ' + ' · '.join(_e(f) for f in files) + '</p>')
 	call = python_call(tool, args)
 	if call:
-		out.append(f'<h3>Para reproducirlo en Python</h3><code>import monitoreo.services as mo<br>{_e(call)}</code>')
+		out.append(f'<h3>To reproduce it in Python</h3><code>import monitoreo.services as mo<br>{_e(call)}</code>')
 	out.append('</section>')
 	return ''.join(out)
 
@@ -381,11 +388,11 @@ def _item(item, n, names, annex):
 # the base maps of the interactive map of the assistant, to draw its views (map_view): tiles {z}/{x}/{y}, or WMS
 BASEMAPS = {
 	'osm': {'name': 'OpenStreetMap', 'tiles': 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'max': 19,
-	        'credit': '© colaboradores de OpenStreetMap'},
-	'eox': {'name': 'Sentinel-2 cloudless 2023 de EOX (s2maps.eu, datos modificados de Copernicus Sentinel)', 'max': 15,
+	        'credit': '© OpenStreetMap contributors'},
+	'eox': {'name': 'Sentinel-2 cloudless 2023 by EOX (s2maps.eu, modified Copernicus Sentinel data)', 'max': 15,
 	        'tiles': 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg',
 	        'credit': 'Sentinel-2 cloudless 2023, EOX (Copernicus)'},
-	'pnoa': {'name': 'Ortofoto PNOA (IGN)', 'max': 20, 'credit': 'PNOA © Instituto Geográfico Nacional',
+	'pnoa': {'name': 'PNOA orthophoto (IGN)', 'max': 20, 'credit': 'PNOA © Instituto Geográfico Nacional',
 	         'wms': 'https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&STYLES=&'
 	                'LAYERS=OI.OrthoimageCoverage&CRS=EPSG:3857&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg&BBOX={bbox}'},
 }
@@ -405,7 +412,7 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 	(x0, y0), (x1, y1) = _pixel(w, n, zoom), _pixel(e, s, zoom)
 	width, height = int(round(x1 - x0)), int(round(y1 - y0))
 	if width <= 0 or height <= 0 or width * height > max_pixels:
-		raise ValueError('la vista del mapa es demasiado grande: acércate más')
+		raise ValueError('the view of the map is too big: zoom in')
 	tiles = [(tx, ty) for tx in range(int(x0 // TILE), int((x1 - 1) // TILE) + 1)
 	         for ty in range(int(y0 // TILE), int((y1 - 1) // TILE) + 1)]
 	b = BASEMAPS.get(base) or BASEMAPS['osm']
@@ -514,8 +521,8 @@ def view_facts(item):
 	if not view:
 		return []
 	w, s, e, n = view['bounds']
-	return [('Vista del mapa', f'longitud {_num(w)} a {_num(e)}, latitud {_num(s)} a {_num(n)}'),
-	        ('Mapa de fondo', (BASEMAPS.get(view.get('base')) or BASEMAPS['osm'])['name'])]
+	return [('Map view', f'longitude {_num(w)} to {_num(e)}, latitude {_num(s)} to {_num(n)}'),
+	        ('Base map', (BASEMAPS.get(view.get('base')) or BASEMAPS['osm'])['name'])]
 
 
 def _legend(result):
@@ -545,30 +552,28 @@ def _entry(variable, sensor):
 def _stat(s):
 	s = str(s)
 	m = re.fullmatch(r'p(\d+)', s)
-	return f'percentil {m.group(1)}' if m else STATS.get(s, s)
+	return f'percentile {m.group(1)}' if m else STATS.get(s, s)
 
 
 def _num(v, digits=4):
-	"""A number as written in Spanish: 1.234 (thousands), 0,1234."""
+	"""A number as written in English: 1,234 (thousands), 0.1234."""
 	if v is None or v == '' or (isinstance(v, float) and math.isnan(v)):
 		return '–'
 	if isinstance(v, bool):
-		return 'sí' if v else 'no'
+		return 'yes' if v else 'no'
 	if isinstance(v, int) or (isinstance(v, float) and abs(v) >= 1000):
-		s = f'{v:,.0f}'
-	elif isinstance(v, float):
-		s = '0' if v == 0 else f'{v:.{digits}g}'
-	else:
-		return str(v)
-	return s.replace(',', ' ').replace('.', ',').replace(' ', '.')
+		return f'{v:,.0f}'
+	if isinstance(v, float):
+		return '0' if v == 0 else f'{v:.{digits}g}'
+	return str(v)
 
 
 def _numeric(s):
-	return bool(re.fullmatch(r'[-−]?[\d.]+(,\d+)?(e[-+]?\d+)?|–|sí|no', s))
+	return bool(re.fullmatch(r'[-−]?[\d,]+(\.\d+)?(e[-+]?\d+)?|–|yes|no', s))
 
 
 def _long_date(d):
-	return f'{d.day} de {MONTHS[d.month - 1]} de {d.year}'
+	return f'{d.day} {MONTHS[d.month - 1]} {d.year}'
 
 
 def _data_url(path):

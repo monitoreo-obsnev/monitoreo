@@ -8,11 +8,11 @@ MO.chart = (() => {
 		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max', 'ha',
 		'scale_m']);
 	const COLUMNS = {
-		region: 'Región', date: 'Fecha', value: 'Valor', n_images: 'Imágenes', n_pixels: 'Píxeles válidos',
-		label: 'Parte del año', n: 'Años', tau: 'τ', z: 'Z', p_value: 'p-valor', significant: 'Significativa',
-		slope: 'Pendiente', intercept: 'Valor inicial', first_year: 'Primer año', last_year: 'Último año',
-		reference: 'Referencia', other: 'Otro periodo', difference: 'Diferencia', n_reference: 'Años (ref.)',
-		n_other: 'Años (otro)', class: 'Clase', dnbr_min: 'dNBR desde', dnbr_max: 'dNBR hasta', ha: 'Hectáreas',
+		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
+		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
+		slope: 'Slope', intercept: 'Initial value', first_year: 'First year', last_year: 'Last year',
+		reference: 'Reference', other: 'Other period', difference: 'Difference', n_reference: 'Years (ref.)',
+		n_other: 'Years (other)', class: 'Class', dnbr_min: 'dNBR from', dnbr_max: 'dNBR to', ha: 'Hectares',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
@@ -20,12 +20,12 @@ MO.chart = (() => {
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
 		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'ha'],
 	};
-	const LOCALE = {decimal: ',', thousands: '.', grouping: [3], currency: ['', ' €'], minus: '−'};
+	const LOCALE = {decimal: '.', thousands: ',', grouping: [3], currency: ['$', ''], minus: '−'};
 	const TIME_LOCALE = {
-		dateTime: '%A, %e de %B de %Y, %X', date: '%d/%m/%Y', time: '%H:%M:%S', periods: ['AM', 'PM'],
-		days: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
-		shortDays: ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'],
-		months: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+		dateTime: '%A, %e %B %Y, %X', date: '%d/%m/%Y', time: '%H:%M:%S', periods: ['AM', 'PM'],
+		days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+		shortDays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+		months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
 		shortMonths: MO.MONTHS,
 	};
 	const views = [];
@@ -76,7 +76,7 @@ MO.chart = (() => {
 		const res = await vegaEmbed(box, spec, {
 			renderer: 'svg', actions: {export: true, source: false, compiled: false, editor: false},
 			formatLocale: LOCALE, timeFormatLocale: TIME_LOCALE, tooltip: {theme: dark() ? 'dark' : 'light'},
-			i18n: {PNG_ACTION: 'Guardar como PNG', SVG_ACTION: 'Guardar como SVG', CLICK_TO_VIEW_ACTIONS: 'Opciones del gráfico'},
+			i18n: {PNG_ACTION: 'Save as PNG', SVG_ACTION: 'Save as SVG', CLICK_TO_VIEW_ACTIONS: 'Options of the chart'},
 		});
 		return res;
 	}
@@ -92,13 +92,13 @@ MO.chart = (() => {
 	function seriesSpec(rows, result) {
 		const regions = regionsOf(rows);
 		const annual = result.step === 'annual';
-		const label = (r) => regions.length > 1 ? r : (annual ? 'Media de cada año' : 'Media de cada mes');
+		const label = (r) => regions.length > 1 ? r : (annual ? 'Mean of each year' : 'Mean of each month');
 		const data = rows.map((r) => ({...r, t: utc(r.date), serie: label(r.region)}));
 		const md = String(rows[0]?.date || '2000-01-01').slice(4, 10);
 		const sen = (result.sen || []).flatMap((s) => [s.from, s.to].map((y) => ({
 			t: utc(`${y}${md}`), value: s.intercept + s.slope * (y - s.origin), region: s.region,
-			serie: `Recta de Sen ${s.period}` + (regions.length > 1 ? ` · ${s.region}` : '') +
-				(s.significant ? ` (p ${MO.pValue(s.p_value).startsWith('<') ? '' : '= '}${MO.pValue(s.p_value)})` : ' (no significativa)'),
+			serie: `Sen line ${s.period}` + (regions.length > 1 ? ` · ${s.region}` : '') +
+				(s.significant ? ` (p ${MO.pValue(s.p_value).startsWith('<') ? '' : '= '}${MO.pValue(s.p_value)})` : ' (not significant)'),
 			slope: s.slope, p_value: s.p_value})));
 		const domain = [...new Set(data.map((d) => d.serie).concat(sen.map((d) => d.serie)))];
 		const color = {field: 'serie', type: 'nominal', scale: {domain, range: palette()},
@@ -108,18 +108,18 @@ MO.chart = (() => {
 			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, annual ? {format: '%Y'} : {})});
 		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
 		const long = !annual && rows.length > 60;
-		const tipTime = {field: 't', type: 'temporal', timeUnit: annual ? 'utcyear' : 'utcyearmonth', title: annual ? 'Año' : 'Mes',
-			format: annual ? '%Y' : '%B de %Y'};
+		const tipTime = {field: 't', type: 'temporal', timeUnit: annual ? 'utcyear' : 'utcyearmonth', title: annual ? 'Year' : 'Month',
+			format: annual ? '%Y' : '%B %Y'};
 		const tooltip = regions.length > 1
 			? [tipTime, ...regions.map((r) => ({field: r, type: 'quantitative', title: r, format: '.4~g'}))]
-			: [tipTime, {field: 'value', type: 'quantitative', title: 'Valor', format: '.4~g'},
-				{field: 'n_images', type: 'quantitative', title: 'Imágenes'}, {field: 'n_pixels', type: 'quantitative', title: 'Píxeles válidos', format: ',d'}];
+			: [tipTime, {field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
+				{field: 'n_images', type: 'quantitative', title: 'Images'}, {field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}];
 		const layers = [
 			{mark: {type: 'line', interpolate: 'linear', invalid: 'break-paths-show-domains'}, encoding: {x: x(long), y, color}},
 			annual && {mark: {type: 'point', filled: true, size: 40, opacity: 1}, encoding: {x: x(long), y, color}},
 			sen.length && {data: {values: sen}, mark: {type: 'line', strokeDash: [6, 4], strokeWidth: 2},
 				encoding: {x: x(long), y, color, detail: {field: 'serie'},
-					tooltip: [{field: 'serie', title: 'Recta'}, {field: 'slope', title: 'Pendiente por año', format: '+.3~g'}]}},
+					tooltip: [{field: 'serie', title: 'Line'}, {field: 'slope', title: 'Slope per year', format: '+.3~g'}]}},
 			{transform: regions.length > 1 ? [{pivot: 'region', value: 'value', groupby: ['t']}] : [],
 				mark: {type: 'rule', color: MO.css('--ink-2'), strokeWidth: 1},
 				params: [{name: 'hover', select: {type: 'point', encodings: ['x'], nearest: true, on: 'pointerover', clear: 'pointerout'}}],
@@ -133,7 +133,7 @@ MO.chart = (() => {
 			height: 46, width: 'container',
 			mark: {type: 'line', strokeWidth: 1, invalid: 'break-paths-show-domains'},
 			params: [{name: 'brush', select: {type: 'interval', encodings: ['x']}}],
-			encoding: {x: {field: 't', type: 'temporal', title: 'Arrastre aquí para elegir los años', scale: {type: 'utc'},
+			encoding: {x: {field: 't', type: 'temporal', title: 'Drag here to choose the years', scale: {type: 'utc'},
 				axis: {format: '%Y', labelOverlap: true, titleFontSize: 11, titleColor: MO.css('--muted')}},
 			y: {field: 'value', type: 'quantitative', title: null, axis: {labels: false, grid: false}, scale: {zero: false}},
 			color: Object.assign({}, color, {legend: null})},
@@ -143,7 +143,7 @@ MO.chart = (() => {
 	// Trends of each part of the year (Sen slope, coloured where significant).
 	function trendsSpec(rows, result) {
 		const alpha = result.alpha || 0.05;
-		const yes = `Significativa (p < ${MO.num(alpha)})`, no = 'No significativa';
+		const yes = `Significant (p < ${MO.num(alpha)})`, no = 'Not significant';
 		const order = [...new Map(rows.map((r) => [r.key, r.label])).values()];
 		const data = rows.map((r) => ({...r, sig: r.significant ? yes : no, decade: r.slope === null ? null : r.slope * 10}));
 		const monthly = result.step === 'monthly';
@@ -154,14 +154,14 @@ MO.chart = (() => {
 					encoding: {
 						x: {field: 'label', type: 'ordinal', sort: order, title: null,
 							axis: {labelAngle: 0, labelExpr: monthly ? monthLabel() : 'datum.label'}},
-						y: {field: 'slope', type: 'quantitative', title: `Pendiente de Sen (${result.slope_unit || 'por año'})`},
+						y: {field: 'slope', type: 'quantitative', title: `Sen's slope (${result.slope_unit || 'per year'})`},
 						color: {field: 'sig', type: 'nominal', scale: {domain: [yes, no], range: [MO.css('--series-1'), MO.css('--not-significant')]},
 							legend: {columns: narrow ? 1 : 2}},
-						tooltip: [{field: 'label', title: monthly ? 'Mes' : 'Parte del año'},
-							{field: 'slope', title: 'Pendiente por año', format: '+.3~g'},
-							{field: 'decade', title: 'Pendiente por década', format: '+.3~g'},
-							{field: 'p_value', title: 'p-valor', format: '.2~g'}, {field: 'tau', title: 'τ de Kendall', format: '.2f'},
-							{field: 'n', title: 'Años con datos'}]}},
+						tooltip: [{field: 'label', title: monthly ? 'Month' : 'Part of the year'},
+							{field: 'slope', title: 'Slope per year', format: '+.3~g'},
+							{field: 'decade', title: 'Slope per decade', format: '+.3~g'},
+							{field: 'p_value', title: 'p-value', format: '.2~g'}, {field: 'tau', title: "Kendall's τ", format: '.2f'},
+							{field: 'n', title: 'Years with data'}]}},
 				{mark: {type: 'rule', color: MO.css('--baseline')}, encoding: {y: {datum: 0}}},
 			],
 		};
@@ -169,36 +169,36 @@ MO.chart = (() => {
 
 	// Trend of the year (one part): the numbers, without a chart.
 	function trendTiles(rows, result) {
-		const unit = result.slope_unit || 'por año';
+		const unit = result.slope_unit || 'per year';
 		return rows.map((r) => el('div', {},
 			rows.length > 1 && el('p', {class: 'region-name'}, r.region),
 			el('div', {class: 'stats'},
-				el('div', {class: 'stat'}, el('div', {class: 'label'}, `Pendiente de Sen (${unit})`),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, `Sen's slope (${unit})`),
 					el('div', {class: 'value'}, MO.signed(r.slope, 3)),
-					el('div', {class: 'sub'}, `${MO.signed(r.slope * 10, 3)} por década`)),
-				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'p-valor de Mann-Kendall'),
+					el('div', {class: 'sub'}, `${MO.signed(r.slope * 10, 3)} per decade`)),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Mann-Kendall p-value'),
 					el('div', {class: 'value'}, MO.pValue(r.p_value)),
 					el('div', {class: 'sub'}, el('span', {class: `badge ${r.significant ? 'yes' : 'no'}`},
-						r.significant ? `Significativa (p < ${MO.num(result.alpha || 0.05)})` : 'No significativa'))),
-				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'τ de Kendall'), el('div', {class: 'value'}, MO.num(r.tau, 2))),
-				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Años con datos'), el('div', {class: 'value'}, MO.num(r.n)),
+						r.significant ? `Significant (p < ${MO.num(result.alpha || 0.05)})` : 'Not significant'))),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, "Kendall's τ"), el('div', {class: 'value'}, MO.num(r.tau, 2))),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Years with data'), el('div', {class: 'value'}, MO.num(r.n)),
 					el('div', {class: 'sub'}, `${r.first_year}-${r.last_year}`)))));
 	}
 
 	// Comparison of two periods: the value of each part of the year in both, and their difference.
 	function comparisonSpec(rows, result) {
-		const [a, b] = result.names || ['Referencia', 'Otro periodo'];
+		const [a, b] = result.names || ['Reference period', 'Other period'];
 		const order = [...new Map(rows.map((r) => [r.key, r.label])).values()];
 		const monthly = result.step === 'monthly';
 		const long = rows.flatMap((r) => [
-			{label: r.label, periodo: a, value: r.reference, years: r.n_reference, difference: r.difference},
-			{label: r.label, periodo: b, value: r.other, years: r.n_other, difference: r.difference}]);
+			{label: r.label, period: a, value: r.reference, years: r.n_reference, difference: r.difference},
+			{label: r.label, period: b, value: r.other, years: r.n_other, difference: r.difference}]);
 		const x = {field: 'label', type: 'ordinal', sort: order, title: null,
 			axis: {labelAngle: 0, labelExpr: monthly ? monthLabel() : 'datum.label'}};
-		const color = {field: 'periodo', type: 'nominal', scale: {domain: [a, b], range: [MO.css('--series-1'), MO.css('--series-other')]}};
-		const tooltip = [{field: 'label', title: monthly ? 'Mes' : 'Parte del año'}, {field: 'periodo', title: 'Periodo'},
-			{field: 'value', title: 'Valor', format: '.4~g'}, {field: 'years', title: 'Años con datos'},
-			{field: 'difference', title: `Diferencia (${b} − ${a})`, format: '+.3~g'}];
+		const color = {field: 'period', type: 'nominal', scale: {domain: [a, b], range: [MO.css('--series-1'), MO.css('--series-other')]}};
+		const tooltip = [{field: 'label', title: monthly ? 'Month' : 'Part of the year'}, {field: 'period', title: 'Period'},
+			{field: 'value', title: 'Value', format: '.4~g'}, {field: 'years', title: 'Years with data'},
+			{field: 'difference', title: `Difference (${b} − ${a})`, format: '+.3~g'}];
 		return {
 			vconcat: [
 				{data: {values: long}, height: 240, width: 'container', layer: [
@@ -206,12 +206,12 @@ MO.chart = (() => {
 					{mark: {type: 'point', filled: true, size: 55, opacity: 1}, encoding: {x, y: {field: 'value', type: 'quantitative'}, color, tooltip}},
 				]},
 				{data: {values: rows}, height: 120, width: 'container',
-					title: {text: `Diferencia: ${b} menos ${a}`, fontSize: 12.5, fontWeight: 'normal', color: MO.css('--ink-2')},
+					title: {text: `Difference: ${b} minus ${a}`, fontSize: 12.5, fontWeight: 'normal', color: MO.css('--ink-2')},
 					layer: [
 						{mark: {type: 'bar', width: {band: 0.6}, color: MO.css('--ink-2')},
 							encoding: {x, y: {field: 'difference', type: 'quantitative', title: result.unit || result.call?.args?.variable || null},
-								tooltip: [{field: 'label', title: monthly ? 'Mes' : 'Parte del año'},
-									{field: 'difference', title: 'Diferencia', format: '+.3~g'}]}},
+								tooltip: [{field: 'label', title: monthly ? 'Month' : 'Part of the year'},
+									{field: 'difference', title: 'Difference', format: '+.3~g'}]}},
 						{mark: {type: 'rule', color: MO.css('--baseline')}, encoding: {y: {datum: 0}}},
 					]},
 			],
@@ -219,21 +219,23 @@ MO.chart = (() => {
 		};
 	}
 
-	// Burn severity: hectares of each class (without the unburned one, much bigger), and the burned area.
+	// Burn severity: hectares of each class (without the unburned one, much bigger), and the burned area. The names of
+	// the classes are those of the legend of the result (its CSV may have been written in another language).
 	function burnSpec(rows, result) {
 		const classes = result.classes || [];
-		const data = rows.filter((r) => r.class !== 0);
+		const names = new Map(classes.map((c) => [c.value, c.label]));
+		const data = rows.filter((r) => r.class !== 0).map((r) => ({...r, label: names.get(r.class) ?? r.label}));
 		return {
 			data: {values: data}, width: 'container', height: {step: 30},
 			layer: [
 				{mark: {type: 'bar', height: {band: 0.7}},
 					encoding: {
 						y: {field: 'label', type: 'nominal', sort: classes.map((c) => c.label), title: null},
-						x: {field: 'ha', type: 'quantitative', title: 'Hectáreas'},
+						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
 						color: {field: 'label', type: 'nominal', legend: null,
 							scale: {domain: classes.map((c) => c.label), range: classes.map((c) => c.color)}},
-						tooltip: [{field: 'label', title: 'Clase'}, {field: 'ha', title: 'Hectáreas', format: ',.1f'},
-							{field: 'dnbr_min', title: 'dNBR desde', format: '.2f'}, {field: 'dnbr_max', title: 'dNBR hasta', format: '.2f'}]}},
+						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
+							{field: 'dnbr_min', title: 'dNBR from', format: '.2f'}, {field: 'dnbr_max', title: 'dNBR to', format: '.2f'}]}},
 				{mark: {type: 'text', align: 'left', dx: 5, fontSize: 12.5},
 					transform: [{calculate: "datum.ha < 10 ? format(datum.ha, ',.1f') : format(datum.ha, ',.0f')", as: 'text'}],
 					encoding: {y: {field: 'label', type: 'nominal', sort: classes.map((c) => c.label)}, x: {field: 'ha', type: 'quantitative'},
@@ -245,19 +247,19 @@ MO.chart = (() => {
 	function burnTiles(rows) {
 		const sum = (f) => rows.filter(f).reduce((s, r) => s + (r.ha || 0), 0);
 		return el('div', {class: 'stats'},
-			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Superficie quemada (dNBR ≥ 0,1)'),
+			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Burned area (dNBR ≥ 0.1)'),
 				el('div', {class: 'value'}, `${MO.round(sum((r) => r.class >= 1))} ha`)),
-			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Severidad moderada o alta'),
+			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Moderate or high severity'),
 				el('div', {class: 'value'}, `${MO.round(sum((r) => r.class >= 2))} ha`)),
-			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Sin quemar'),
+			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Unburned'),
 				el('div', {class: 'value'}, `${MO.round(sum((r) => r.class === 0))} ha`)),
-			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Rebrote (dNBR < −0,1)'),
+			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Regrowth (dNBR < −0.1)'),
 				el('div', {class: 'value'}, `${MO.round(sum((r) => r.class < 0))} ha`)));
 	}
 
 	function table(rows, kind) {
 		const cols = (TABLES[kind] || Object.keys(rows[0] || {})).filter((c) => rows.length && c in rows[0]);
-		const cell = (c, v) => c === 'significant' ? (v ? 'sí' : 'no') : c === 'p_value' ? MO.pValue(v) :
+		const cell = (c, v) => c === 'significant' ? (v ? 'yes' : 'no') : c === 'p_value' ? MO.pValue(v) :
 			typeof v === 'number' ? (['n', 'n_images', 'n_pixels', 'first_year', 'last_year', 'class', 'n_reference', 'n_other'].includes(c) ? String(v) : MO.num(v)) : (v ?? '–');
 		return el('div', {class: 'table-wrap'}, el('table', {class: 'data'},
 			el('thead', {}, el('tr', {}, cols.map((c) => el('th', {scope: 'col'}, COLUMNS[c] || c)))),
@@ -292,7 +294,7 @@ MO.chart = (() => {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => r.region === regions[0]);
 			container.append(el('div', {class: 'map-controls'}, el('div', {class: 'field grow'},
-				el('label', {for: id}, 'Región'),
+				el('label', {for: id}, 'Region'),
 				el('select', {id, onchange: (e) => { current = rows.filter((r) => r.region === e.target.value); draw(current); }},
 					regions.map((r) => el('option', {value: r}, r))))));
 		}

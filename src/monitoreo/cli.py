@@ -62,7 +62,7 @@ def main(argv=None):
 	p = sub.add_parser('list', help='variables of the catalog')
 	p.add_argument('--sensor')
 	p.add_argument('--text')
-	p.add_argument('--lang', default='es')
+	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('info', help='everything about a variable')
 	p.add_argument('variable')
 	p.add_argument('--sensor')
@@ -315,8 +315,8 @@ def _listening(port):
 
 
 UPDATING = '''<!doctype html><meta charset="utf-8"><body style="font: 15px system-ui, sans-serif; margin: 28px;
-color: #1f2d27; background: #fff"><h2 style="margin: 0 0 12px; color: #2e6b4f">Actualizando MonitorEO…</h2>
-<p>Hay una versión nueva en GitHub: se descarga e instala (tarda un minuto) y después se abre el asistente.</p>'''
+color: #1f2d27; background: #fff"><h2 style="margin: 0 0 12px; color: #2e6b4f">Updating MonitorEO…</h2>
+<p>There is a new version on GitHub: it is downloaded and installed (a minute) and then the assistant opens.</p>'''
 
 
 def _update_in_window():
@@ -341,7 +341,7 @@ def _update_in_window():
 	if done.is_set():  # the last version, or no connection: nothing to show
 		return out.get('result', 'offline')
 	try:
-		win = webview.create_window('Asistente de MonitorEO', html=UPDATING, width=520, height=200, resizable=False)
+		win = webview.create_window('MonitorEO Assistant', html=UPDATING, width=520, height=200, resizable=False)
 		webview.start(lambda: (done.wait(), win.destroy()))
 	except Exception as e:
 		print(f'WARNING: cannot show the window of the update ({type(e).__name__}: {e})', file=sys.stderr)

@@ -89,7 +89,7 @@ mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
 }
 
 #' EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
-#' each month. With the shared account of MonitorEO they are your research EECUs (10 EECU-hours a month, only for
+#' each month. With the shared account of MonitorEO they are your research EECUs (25 EECU-hours a month, only for
 #' research): when they are spent it does not compute for you until the next month, so switch to your own account
 #' (mo_init("<your project>")). With your own project (the Cloud Monitoring API must be enabled in it), the monthly
 #' quota of that project, against `limit`.
@@ -121,7 +121,7 @@ rows_df <- function(rows) {
 
 #' Variables of the catalog of MonitorEO.
 #' @export
-mo_variables <- function(sensor = NULL, text = NULL, lang = "es") {
+mo_variables <- function(sensor = NULL, text = NULL, lang = "en") {
   rows_df(services()$list_variables(sensor, text, lang))
 }
 
@@ -380,14 +380,18 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
 #' classes of the USGS (Key & Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). Returns a data.frame (region,
 #' class, label, dnbr_min, dnbr_max, ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title
 #' and, with `path`, file: a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
+#' With `index = "RBR"`, the Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of
+#' Sentinel-2 (Silva-Cardoza et al. 2022), without phenological correction and on the scale of the dNBR: a
+#' data.frame (region, mean, median, p10, p90, min, max, ha) and a GeoTIFF with the bands rbr, dnbr, nbr_before and
+#' nbr_after.
 #' @export
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                             csv = NULL) {
+                             csv = NULL, index = "dNBR") {
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
-                                  path = if (is.null(path)) NULL else path.expand(path), csv = csv)
-  df <- rows_df(res$classes)
+                                  path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index)
+  df <- rows_df(if (identical(res$index, "RBR")) res$stats else res$classes)
   attr(df, "burned_ha") <- unlist(res$burned_ha)
   attr(df, "title") <- res$title
   attr(df, "file") <- res$file

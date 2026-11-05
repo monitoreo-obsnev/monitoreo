@@ -1,12 +1,12 @@
-# Plugin de QGIS: genera el zip del plugin con qgis/build_plugin.py (con monitoreo y earthengine-api dentro) y lo
-# adjunta a la release de GitHub:
-# - al publicar una release en la web (Releases > Draft a new release > Publish release);
-# - al subir una etiqueta v* (p. ej. v0.2.0 desde GitHub Desktop), creando la release si no existe;
-# - a mano (Actions > Plugin de QGIS > Run workflow) con la etiqueta de una release que ya existe; sin etiqueta,
-#   deja el zip como artefacto de la ejecución.
-# Con etiqueta, sube además el zip al repositorio oficial (plugins.qgis.org/plugins/monitoreo_qgis) si esa versión no
-# está ya allí y el repositorio tiene el secreto QGIS_PLUGINS_TOKEN (el token del plugin en plugins.qgis.org).
-name: Plugin de QGIS
+# QGIS plugin: makes the zip of the plugin with qgis/build_plugin.py (with monitoreo and earthengine-api inside) and
+# attaches it to the GitHub release:
+# - when a release is published on the web (Releases > Draft a new release > Publish release);
+# - when a tag v* is pushed (e.g. v0.2.0 from GitHub Desktop), creating the release if it does not exist;
+# - by hand (Actions > QGIS plugin > Run workflow) with the tag of a release that already exists; without a tag, it
+#   leaves the zip as an artifact of the run.
+# With a tag, it also uploads the zip to the official repository (plugins.qgis.org/plugins/monitoreo_qgis) if that
+# version is not there yet and the repository has the secret QGIS_PLUGINS_TOKEN (the token of the plugin there).
+name: QGIS plugin
 
 on:
   release:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Etiqueta de la release a la que adjuntar el zip (vacío: solo artefacto)'
+        description: 'Tag of the release to attach the zip to (empty: only an artifact)'
         required: false
         default: ''
 
@@ -28,7 +28,7 @@ concurrency:
 
 env:
   TAG: ${{ github.event.release.tag_name || inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
-  QGIS_PLUGINS: ${{ secrets.QGIS_PLUGINS_TOKEN != '' }}  # 'true' si existe el secreto (sin sacar el token)
+  QGIS_PLUGINS: ${{ secrets.QGIS_PLUGINS_TOKEN != '' }}  # 'true' if the secret exists (without exposing the token)
 
 jobs:
   zip:
@@ -40,11 +40,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Instalar los escáneres de seguridad de plugins.qgis.org
+      - name: Install the security scanners of plugins.qgis.org
         run: pip install bandit detect-secrets
-      - name: Generar el zip del plugin (y escanearlo como plugins.qgis.org)
+      - name: Make the zip of the plugin (and scan it like plugins.qgis.org)
         run: python qgis/build_plugin.py
-      - name: Comprobar que la versión del plugin es la de la etiqueta
+      - name: Check that the version of the plugin is that of the tag
         if: env.TAG != ''
         run: |
           python - <<'EOF'
@@ -57,16 +57,16 @@ jobs:
                   p.pop()
               return p
           if parts(tag) != parts(ver):
-              sys.exit(f'La etiqueta {tag} no coincide con version={ver} de qgis/monitoreo_qgis/metadata.txt')
-          print(f'Etiqueta {tag} = versión {ver} del plugin')
+              sys.exit(f'The tag {tag} does not match version={ver} of qgis/monitoreo_qgis/metadata.txt')
+          print(f'Tag {tag} = version {ver} of the plugin')
           EOF
-      - name: Adjuntar el zip a la release
+      - name: Attach the zip to the release
         if: env.TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           zip=$(ls dist/monitoreo_qgis-*.zip)
-          notes="Plugin de QGIS: descarga $(basename "$zip") e instálalo en QGIS con Complementos > Administrar e instalar complementos > Instalar a partir de ZIP."
+          notes="QGIS plugin: download $(basename "$zip") and install it in QGIS with Plugins > Manage and Install Plugins > Install from ZIP."
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$zip" --clobber
             if [ -z "$(gh release view "$TAG" --json body --jq .body)" ]; then
@@ -75,7 +75,7 @@ jobs:
           else
             gh release create "$TAG" "$zip" --title "MonitorEO $TAG" --notes "$notes"
           fi
-      - name: Subir el zip a plugins.qgis.org
+      - name: Upload the zip to plugins.qgis.org
         if: env.TAG != '' && env.QGIS_PLUGINS == 'true'
         env:
           QGIS_PLUGINS_TOKEN: ${{ secrets.QGIS_PLUGINS_TOKEN }}
@@ -84,14 +84,14 @@ jobs:
           ver=$(sed -n 's/^version=//p' qgis/monitoreo_qgis/metadata.txt | tr -d '[:space:]')
           site=https://plugins.qgis.org/plugins
           if [ "$(curl -s -o /dev/null -w '%{http_code}' "$site/monitoreo_qgis/version/$ver/")" = 200 ]; then
-            echo "La versión $ver ya está en plugins.qgis.org"
+            echo "Version $ver is already in plugins.qgis.org"
           else
-            # la API de subida con token (plugins/urls.py de github.com/qgis/QGIS-Plugins-Website)
+            # the upload API with a token (plugins/urls.py of github.com/qgis/QGIS-Plugins-Website)
             curl -sS --fail-with-body -X POST -H "Authorization: Bearer $QGIS_PLUGINS_TOKEN" -F "package=@$zip" \
               "$site/api/monitoreo_qgis/version/add/"
-            echo "Versión $ver subida a plugins.qgis.org: pasa el análisis de seguridad y la aprobación antes de publicarse"
+            echo "Version $ver uploaded to plugins.qgis.org: it goes through the security scan and the approval before it is published"
           fi
-      - name: Guardar el zip como artefacto (ejecución manual sin etiqueta)
+      - name: Keep the zip as an artifact (manual run without a tag)
         if: env.TAG == ''
         uses: actions/upload-artifact@v4
         with:

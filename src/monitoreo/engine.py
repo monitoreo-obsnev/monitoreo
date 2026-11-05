@@ -114,7 +114,7 @@ class Engine:
 				break
 			time.sleep(0.2)
 		self.stop()
-		raise RuntimeError(f"Ollama no arranca: mira {os.path.join(self.folder, 'ollama.log')}")
+		raise RuntimeError(f"Ollama does not start: see {os.path.join(self.folder, 'ollama.log')}")
 
 	def stop(self):
 		"""Stop the Ollama started by the assistant."""
@@ -132,7 +132,7 @@ class Engine:
 		"""Download Ollama to the folder of the engine and start it: yields the progress {status, completed, total}."""
 		a = asset()
 		if not a:
-			raise RuntimeError('no hay Ollama para instalar en este sistema: instálalo desde https://ollama.com/download')
+			raise RuntimeError('there is no Ollama to install on this system: install it from https://ollama.com/download')
 		name, size, sha = a
 		self.installing = True
 		try:
@@ -148,11 +148,11 @@ class Engine:
 					f.write(chunk)
 					digest.update(chunk)
 					done += len(chunk)
-					yield {'status': 'Descargando Ollama', 'completed': done, 'total': size}
+					yield {'status': 'Downloading Ollama', 'completed': done, 'total': size}
 			if digest.hexdigest() != sha:
 				os.remove(part)
-				raise RuntimeError('la descarga de Ollama no coincide con su SHA-256: no se ha instalado')
-			yield {'status': 'Instalando Ollama'}
+				raise RuntimeError('the download of Ollama does not match its SHA-256: it has not been installed')
+			yield {'status': 'Installing Ollama'}
 			dest = os.path.join(self.folder, OLLAMA)
 			tmp = dest + '.tmp'
 			shutil.rmtree(tmp, ignore_errors=True)
@@ -166,10 +166,10 @@ class Engine:
 					shutil.rmtree(os.path.join(self.folder, old), ignore_errors=True)
 			binary = self.installed()
 			if not binary:
-				raise RuntimeError(f'{name} no tiene el programa ollama')
+				raise RuntimeError(f'{name} does not have the program ollama')
 			if os.name != 'nt':
 				os.chmod(binary, 0o755)
-			yield {'status': 'Arrancando Ollama'}
+			yield {'status': 'Starting Ollama'}
 			self.stop()
 			self.start(binary)
 			yield {'status': 'success'}
@@ -191,5 +191,5 @@ def _extract(path, dest):
 		try:
 			subprocess.run(['tar', '--zstd', '-xf', path, '-C', dest], check=True, capture_output=True)
 		except (OSError, subprocess.CalledProcessError) as e:
-			raise RuntimeError('para instalar Ollama hace falta tar con zstd; o instálalo desde '
+			raise RuntimeError('installing Ollama needs tar with zstd; or install it from '
 			                   'https://ollama.com/download') from e

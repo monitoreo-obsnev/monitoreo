@@ -109,9 +109,21 @@ var CASES = {
 				if (err) return done(err);
 				var rows = [];
 				fc.features.forEach(function (f) {
-					rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'es'));
+					rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'en'));
 				});
 				done(null, {classes: rows});
+			});
+		});
+	},
+	burn_rbr: function (c, regions, done) {
+		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		after.period = c.after;
+		var entry = mo.entryOf(before);
+		setup(entry, regions, function (error, g) {
+			if (error) return done(error);
+			mo.burnRatio(before, after, regions, Number(entry.m), g.crs).stats.evaluate(function (fc, err) {
+				if (err) return done(err);
+				done(null, {stats: mo.rbrTable(fc.features)});
 			});
 		});
 	}

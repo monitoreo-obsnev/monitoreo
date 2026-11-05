@@ -12,14 +12,15 @@ from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
                                  QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
-COLUMNS = [('region', 'Región'), ('date', 'Fecha'), ('value', 'Valor'), ('n_pixels', 'Píxeles'), ('n_images', 'Imágenes')]
+COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-TREND_COLUMNS = [('region', 'Región'), ('label', 'Parte del año'), ('n', 'Años'), ('tau', 'τ de Kendall'), ('z', 'Z'),
-                 ('p_value', 'p-valor'), ('significant', 'Significativa'), ('slope', 'Pendiente de Sen (por año)'),
-                 ('intercept', 'Valor inicial (Sen)'), ('first_year', 'Primer año'), ('last_year', 'Último año')]
-COMPARISON_COLUMNS = [('region', 'Región'), ('label', 'Parte del año'), ('reference', 'Periodo de referencia'),
-                      ('other', 'Otro periodo'), ('difference', 'Diferencia'), ('n_reference', 'Años de referencia'),
-                      ('n_other', 'Años del otro')]
+TREND_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Years'), ('tau', "Kendall's τ"),
+                 ('z', 'Z'), ('p_value', 'p-value'), ('significant', 'Significant'),
+                 ('slope', "Sen's slope (per year)"), ('intercept', 'Initial value (Sen)'), ('first_year', 'First year'),
+                 ('last_year', 'Last year')]
+COMPARISON_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('reference', 'Reference period'),
+                      ('other', 'Other period'), ('difference', 'Difference'),
+                      ('n_reference', 'Years of the reference'), ('n_other', 'Years of the other')]
 
 
 def chart_png(res, path):
@@ -63,19 +64,19 @@ def map_row(res, add_map):
 		return None
 	trends = res.get('kind') == 'trends'
 	row = QHBoxLayout()
-	row.addWidget(QLabel('Mapa de'))
+	row.addWidget(QLabel('Map of'))
 	choice = QComboBox()
 	for m in res['maps']:
 		choice.addItem(m['label'])
 	row.addWidget(choice, 1)
-	significant = QCheckBox('Solo píxeles significativos (p < 0,05)') if trends else None
+	significant = QCheckBox('Significant pixels only (p < 0.05)') if trends else None
 	if significant:
 		row.addWidget(significant)
-	b = QPushButton('Añadir al mapa')
-	b.setToolTip(('GeoTIFF temporal con la pendiente de Sen, τ, Z, p-valor, ordenada y número de años de cada píxel'
-	              if trends else 'GeoTIFF temporal con los valores de cada píxel, con sus fechas en el Controlador '
-	                             'temporal de QGIS') + ' (consultables con la herramienta Identificar), en el grupo de '
-	             'este resultado y con los colores de su primer mapa, para poder compararlos')
+	b = QPushButton('Add to the map')
+	b.setToolTip(("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel"
+	              if trends else 'Temporary GeoTIFF with the values of each pixel, with its dates in the Temporal '
+	                             'Controller of QGIS') + ' (queryable with the Identify Features tool), in the group of '
+	             'this result and with the colors of its first map, so that they can be compared')
 	b.clicked.connect(lambda: add_map(res, res['maps'][choice.currentIndex()],
 	                                  bool(significant and significant.isChecked())))
 	row.addWidget(b)
@@ -86,7 +87,7 @@ def _cell(v):
 	if v is None:
 		return ''
 	if isinstance(v, bool):
-		return 'sí' if v else 'no'
+		return 'yes' if v else 'no'
 	return f'{v:.6g}' if isinstance(v, float) else str(v)
 
 
@@ -102,9 +103,9 @@ class ResultDialog(QDialog):
 		self.setWindowTitle(f"MonitorEO: {res['label']}")
 		self.resize(980, 760)
 		lay = QVBoxLayout(self)
-		unit = f"{res['unit']} por año" if trends else res['unit']
-		info = QLabel(f"{res['title']} · {unit} · píxeles de {res['scale']:g} m"
-		              + (' · significativa: p < 0,05 (Mann-Kendall)' if trends else ' · diferencia = otro periodo - referencia'))
+		unit = f"{res['unit']} per year" if trends else res['unit']
+		info = QLabel(f"{res['title']} · {unit} · pixels of {res['scale']:g} m"
+		              + (' · significant: p < 0.05 (Mann-Kendall)' if trends else ' · difference = other period - reference'))
 		info.setWordWrap(True)
 		lay.addWidget(info)
 		if res.get('chart'):
@@ -123,19 +124,19 @@ class ResultDialog(QDialog):
 			lay.addLayout(maps)
 		row = QHBoxLayout()
 		row.addStretch()
-		for text, path, filt in (('Guardar CSV…', res.get('csv'), 'CSV (*.csv)'),
-		                         ('Guardar gráfica…', res.get('chart'), 'PNG (*.png)')):
+		for text, path, filt in (('Save CSV…', res.get('csv'), 'CSV (*.csv)'),
+		                         ('Save chart…', res.get('chart'), 'PNG (*.png)')):
 			if path:
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
 				row.addWidget(b)
-		b = QPushButton('Cerrar')
+		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
 		lay.addLayout(row)
 
 	def save(self, src, filt):
-		path, _ = QFileDialog.getSaveFileName(self, 'Guardar', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
+		path, _ = QFileDialog.getSaveFileName(self, 'Save', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
 		if path:
 			shutil.copyfile(src, path)
 
@@ -171,7 +172,7 @@ class ChartWidget(QWidget):
 		p.fillRect(self.rect(), QColor('white'))
 		pts = [(d, v) for s in self.series.values() for d, v in s if v is not None]
 		if not pts:
-			p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'Sin valores')
+			p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'No values')
 			return
 		d0, d1 = min(d for d, _ in pts), max(d for d, _ in pts)
 		v0, v1 = min(v for _, v in pts), max(v for _, v in pts)
@@ -237,7 +238,7 @@ class SeriesDialog(QDialog):
 		self.setWindowTitle(f"MonitorEO: {res['title']}")
 		self.resize(900, 720)
 		lay = QVBoxLayout(self)
-		info = QLabel(f"{res['title']} · {res['unit']} · píxeles de {res['scale']:g} m · {len(res['rows'])} valores")
+		info = QLabel(f"{res['title']} · {res['unit']} · pixels of {res['scale']:g} m · {len(res['rows']):,} values")
 		info.setWordWrap(True)
 		lay.addWidget(info)
 		self.chart = None
@@ -262,19 +263,19 @@ class SeriesDialog(QDialog):
 		row = QHBoxLayout()
 		row.addStretch()
 		if res.get('csv'):
-			b = QPushButton('Guardar CSV…')
+			b = QPushButton('Save CSV…')
 			b.clicked.connect(lambda: self.save(res['csv'], 'CSV (*.csv)'))
 			row.addWidget(b)
-		b = QPushButton('Guardar gráfica…')
+		b = QPushButton('Save chart…')
 		b.clicked.connect(self.save_chart)
 		row.addWidget(b)
-		b = QPushButton('Cerrar')
+		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
 		lay.addLayout(row)
 
 	def save(self, src, filt):
-		path, _ = QFileDialog.getSaveFileName(self, 'Guardar', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
+		path, _ = QFileDialog.getSaveFileName(self, 'Save', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
 		if path:
 			shutil.copyfile(src, path)
 
@@ -282,6 +283,6 @@ class SeriesDialog(QDialog):
 		if self.res.get('chart'):
 			self.save(self.res['chart'], 'PNG (*.png)')
 			return
-		path, _ = QFileDialog.getSaveFileName(self, 'Guardar', 'serie.png', 'PNG (*.png)')
+		path, _ = QFileDialog.getSaveFileName(self, 'Save', 'series.png', 'PNG (*.png)')
 		if path:
 			self.chart.grab().save(path, 'PNG')

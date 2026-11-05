@@ -1,5 +1,6 @@
 // Catalogue of the reports (catalog.json): a card per report, with filters by park, variable, analysis and year of
-// the data and a search box. The filters are kept in the address (?parque=...&anio=...), to share a selection.
+// the data and a search box. The filters are kept in the address (?area=...&year=...), to share a selection; the
+// addresses of the viewer in Spanish (?parque=...&analisis=...&anio=...) are read too.
 'use strict';
 
 (async () => {
@@ -11,7 +12,7 @@
 	try {
 		catalog = await MO.json('catalog.json');
 	} catch (e) {
-		MO.fail(cards, `No se puede leer el catálogo (catalog.json): ${e.message}`);
+		MO.fail(cards, `Cannot read the catalog (catalog.json): ${e.message}`);
 		return;
 	}
 	MO.footer(catalog.about, catalog.license);
@@ -27,7 +28,7 @@
 		r._years = new Set(yearsOf(r));
 		r._text = fold([r.title, r.question, r.summary, r.region?.name, r.region?.full_name, r.collection,
 			...(r.keywords || []), ...(r.variables || []).flatMap((v) => [v.variable, v.name, v.sensor]),
-			...(r.analyses || []).map((a) => a.name)].join(' '));
+			...(r.analyses || []).flatMap((a) => [MO.analysis(a), a.name])].join(' '));
 	}
 
 	// options of the filters, from the reports
@@ -36,24 +37,27 @@
 		for (const [value, label] of pairs) sel.append(el('option', {value}, label));
 	};
 	const uniq = (pairs) => [...new Map(pairs).entries()];
-	const byLabel = (a, b) => String(a[1]).localeCompare(String(b[1]), 'es');
-	options('parque', uniq(reports.map((r) => [r.region?.name, r.region?.name])).filter(([v]) => v).sort(byLabel));
+	const byLabel = (a, b) => String(a[1]).localeCompare(String(b[1]), 'en');
+	options('area', uniq(reports.map((r) => [r.region?.name, r.region?.name])).filter(([v]) => v).sort(byLabel));
 	options('variable', uniq(reports.flatMap((r) => (r.variables || []).map((v) => [v.variable, v.name ? `${v.variable} · ${v.name}` : v.variable]))).sort(byLabel));
-	options('analisis', uniq(reports.flatMap((r) => (r.analyses || []).map((a) => [a.id, a.name]))).sort(byLabel));
+	options('analysis', uniq(reports.flatMap((r) => (r.analyses || []).map((a) => [a.id, MO.analysis(a)]))).sort(byLabel));
 	const years = [...new Set(reports.flatMap((r) => [...r._years]))].sort((a, b) => b - a);
-	options('anio', years.map((y) => [String(y), String(y)]));
+	options('year', years.map((y) => [String(y), String(y)]));
 
-	// the filters of the address
+	// the filters of the address (and those of the addresses in Spanish)
 	const params = new URLSearchParams(location.search);
-	for (const name of ['q', 'parque', 'variable', 'analisis', 'anio']) {
+	for (const [old, name] of [['parque', 'area'], ['analisis', 'analysis'], ['anio', 'year']]) {
+		if (params.has(old) && !params.has(name)) params.set(name, params.get(old));
+	}
+	for (const name of ['q', 'area', 'variable', 'analysis', 'year']) {
 		const input = form.elements[name];
 		if (params.has(name)) input.value = params.get(name);
 	}
 
 	function card(r) {
 		const thumb = r.thumbnail && MO.safePath(r.thumbnail)
-			? el('img', {src: r.thumbnail, alt: `Mapa o gráfico del informe: ${r.title}`, loading: 'lazy'})
-			: el('span', {class: 'none'}, 'Sin imagen');
+			? el('img', {src: r.thumbnail, alt: `Map or chart of the report: ${r.title}`, loading: 'lazy'})
+			: el('span', {class: 'none'}, 'No image');
 		const span = r.years ? (r.years[0] === r.years[1] ? String(r.years[0]) : `${r.years[0]}-${r.years[1]}`) : null;
 		return el('a', {class: 'card', href: `report.html?id=${encodeURIComponent(r.id)}`},
 			el('div', {class: 'thumb'}, thumb),
@@ -63,25 +67,25 @@
 				r.summary && el('p', {}, r.summary),
 				el('div', {class: 'meta'},
 					MO.variables(r.variables).map((v) => el('span', {class: 'chip'}, v)),
-					span && el('span', {class: 'chip', title: 'Años de los datos'}, span),
-					(r.analyses || []).map((a) => el('span', {class: 'chip analysis'}, a.name))),
-				el('div', {class: 'card-foot'}, `Publicado el ${MO.date(r.published)}` + (r.collection ? ` · ${r.collection}` : ''))));
+					span && el('span', {class: 'chip', title: 'Years of the data'}, span),
+					(r.analyses || []).map((a) => el('span', {class: 'chip analysis'}, MO.analysis(a)))),
+				el('div', {class: 'card-foot'}, `Published on ${MO.date(r.published)}` + (r.collection ? ` · ${r.collection}` : ''))));
 	}
 
 	function update() {
 		const f = Object.fromEntries(new FormData(form).entries());
 		const q = fold(f.q).split(/\s+/).filter(Boolean);
 		const shown = reports.filter((r) =>
-			(!f.parque || r.region?.name === f.parque) &&
+			(!f.area || r.region?.name === f.area) &&
 			(!f.variable || (r.variables || []).some((v) => v.variable === f.variable)) &&
-			(!f.analisis || (r.analyses || []).some((a) => a.id === f.analisis)) &&
-			(!f.anio || r._years.has(Number(f.anio))) &&
+			(!f.analysis || (r.analyses || []).some((a) => a.id === f.analysis)) &&
+			(!f.year || r._years.has(Number(f.year))) &&
 			q.every((w) => r._text.includes(w)));
 		cards.replaceChildren(...(shown.length ? shown.map(card) :
-			[el('p', {class: 'empty'}, 'Ningún informe cumple estos filtros.')]));
+			[el('p', {class: 'empty'}, 'No report matches these filters.')]));
 		count.textContent = shown.length === reports.length
-			? `${reports.length} informe${reports.length === 1 ? '' : 's'} publicado${reports.length === 1 ? '' : 's'}`
-			: `${shown.length} de ${reports.length} informes`;
+			? `${reports.length} report${reports.length === 1 ? '' : 's'} published`
+			: `${shown.length} of ${reports.length} reports`;
 		const p = new URLSearchParams(Object.entries(f).filter(([, v]) => v));
 		history.replaceState(null, '', p.toString() ? `?${p}` : location.pathname);
 	}

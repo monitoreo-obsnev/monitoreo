@@ -5,6 +5,7 @@ of the funders in the folder logos of this package. The manual of the tools is t
 import os
 
 MANUAL = 'https://github.com/monitoreo-obsnev/monitoreo/wiki'  # tutorials of QGIS, MCP, Python and R
+HOME = {'en': '/English', 'es': ''}  # the home page of the manual in each language (every page has both)
 REPOSITORY = 'https://github.com/monitoreo-obsnev/monitoreo'
 DOI = '10.5281/zenodo.23814894'  # concept DOI of Zenodo: always the last release (each release has its own DOI too)
 CITATION = ('Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo. '
@@ -44,12 +45,12 @@ LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_fede
 
 
 def about(lang='en'):
-	"""{'name', 'description', 'acknowledgements', 'citation', 'doi', 'logos' (paths of PNG/JPEG files), 'manual',
-	'repository'} in LANG ('en' or 'es')."""
+	"""{'name', 'description', 'acknowledgements', 'citation', 'doi', 'logos' (paths of PNG/JPEG files), 'manual' (its
+	home page in LANG), 'repository'} in LANG ('en' or 'es')."""
 	lang = lang if lang in DESCRIPTION else 'en'
 	return {'name': 'MonitorEO-OBSNEV', 'description': DESCRIPTION[lang], 'acknowledgements': ACKNOWLEDGEMENTS[lang],
-	        'citation': CITATION, 'doi': DOI, 'logos': [p for p in LOGOS if os.path.exists(p)], 'manual': MANUAL,
-	        'repository': REPOSITORY}
+	        'citation': CITATION, 'doi': DOI, 'logos': [p for p in LOGOS if os.path.exists(p)],
+	        'manual': MANUAL + HOME[lang], 'repository': REPOSITORY}
 
 
 def text(lang='en'):

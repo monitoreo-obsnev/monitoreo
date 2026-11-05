@@ -6,7 +6,7 @@ import json
 import pytest
 
 from monitoreo import assistant, report
-from monitoreo.steps import MAX_MAP_STEPS, map_steps
+from monitoreo.steps import MAX_MAP_STEPS, UNITS, map_steps
 
 TOOLS = [
 	{'name': 'time_series', 'description': 'Time series.', 'inputSchema': {'type': 'object', 'properties': {
@@ -47,13 +47,18 @@ def test_fix_args():
 
 def test_instructions():
 	text = assistant.instructions()
-	assert 'No interpretes resultados' in text
-	assert '- NDVI: ' in text and 'Sentinel-2 10 m desde 2017' in text and 'Landsat 30 m desde 1984' in text
+	assert 'Do not interpret results' in text and 'never make it up' in text
+	assert "Answer in the language of the user's last message (a question in Spanish gets the answer in Spanish" in text
+	assert 'español' not in text and '«since 2018»' in text
+	assert '- NDVI: ' in text and 'Sentinel-2 10 m since 2017' in text and 'Landsat 30 m since 1984' in text
+	for page in ('Earth-Engine-app', 'QGIS-plugin', 'Python-package', 'Command-line', 'R-package', 'MCP-server',
+	             'Results-viewer'):  # the English pages of the wiki
+		assert assistant.WIKI + page + '\n' in text or assistant.WIKI + page + ' ' in text, page
 
 
 AREAS = {'Sierra': [{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional'}],
-         'Doñana': [{'SITE_ID': 389012, 'NAME': 'Doñana', 'DESIG': 'Parque Nacional'},
-                    {'SITE_ID': 349268, 'NAME': 'Doñana', 'DESIG': 'Parque Natural'}]}
+         'Doñana': [{'SITE_ID': 389012, 'NAME': 'Doñana', 'DESIG': 'Parque Nacional', 'DESIG_ENG': 'National Park'},
+                    {'SITE_ID': 349268, 'NAME': 'Doñana', 'DESIG': 'Parque Natural', 'DESIG_ENG': 'Natural Park'}]}
 
 
 @pytest.fixture(autouse=True)
@@ -83,7 +88,7 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	answers = iter([
 		{'content': '', 'tool_calls': [{'function': {'name': 'find_protected_areas', 'arguments': {'text': 'Sierra'}}}]},
 		{'content': '', 'tool_calls': [{'function': {'name': 'time_series', 'arguments': ARGS}}]},
-		{'content': 'Listo: la serie está en pantalla.'},
+		{'content': 'Done: the series is on the screen.'},
 	])
 	seen = []
 
@@ -104,10 +109,10 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	assert next(e for e in events if e['type'] == 'areas')['areas'] == [
 		{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'DESIG': 'Parque Nacional', 'match': False}]
 	result = next(e for e in events if e['type'] == 'result')
-	assert result['table']['rows'][0][1] == '0,501' and result['image'].startswith('data:image/png')
-	assert 'Sierra Nevada (Parque Nacional) (WDPA 389011)' in dict(result['facts'])['Región']
+	assert result['table']['rows'][0][1] == report._num(0.501) and result['image'].startswith('data:image/png')
+	assert 'Sierra Nevada (Parque Nacional) (WDPA 389011)' in result['facts'][0][1]  # the region
 	assert 'Sierra Nevada' in seen[1]  # the answer of an advice tool goes to the model
-	assert '0.501' not in seen[2] and '0,501' not in seen[2] and 'Hecho:' in seen[2]  # that of a result does not
+	assert '0.501' not in seen[2] and '0,501' not in seen[2] and 'Done:' in seen[2]  # that of a result does not
 	assert len(a.results) == 1 and a.question == 'NDVI de Sierra Nevada en 2021'
 	# the map of the variable over the period of the series, without its preview (only the tiles), for the page
 	shown = next(e for e in events if e['type'] == 'map')
@@ -128,17 +133,18 @@ def test_trend_map_of_an_area(monkeypatch):
 	a.tools = assistant.model_tools(TOOLS + [{'name': 'trend_map', 'description': 'Trend map.', 'inputSchema': {
 		'type': 'object', 'properties': {**props, 'region': {'type': 'object'}, 'part': {'type': 'integer'}}}}])
 	a.names['389011'] = 'Sierra Nevada (Parque Nacional)'
-	a.messages.append({'role': 'user', 'content': 'Tendencia mensual de cada píxel de la WDPA 389011 desde 2018'})
+	a.messages.append({'role': 'user', 'content': 'Monthly trend of each pixel of the WDPA 389011 since 2018'})
 
 	async def run():
 		return [e async for e in a.run_tool({'name': 'trend_map', 'arguments': {**ARGS, 'step': 'monthly'}})]
 	events = asyncio.run(run())
 	assert a.called[0] == 'trend_table' and a.called[1]['step'] == 'monthly' and 'part' not in a.called[1]
 	assert [e['type'] for e in events if e['type'] != 'status'] == ['running', 'result', 'map']
-	assert a.results[0]['tool'] == 'trend_table' and a.results[0]['title'].startswith('Tendencia de cada mes de NDVI')
+	assert a.results[0]['tool'] == 'trend_table'
+	assert a.results[0]['title'] == report.item_title('trend_table', a.called[1]) + ' · Sierra Nevada (Parque Nacional)'
 	shown = events[-1]
 	assert a.mapped[0] == 'trend_map' and a.mapped[1]['step'] == 'annual' and len(shown['steps']) == 12
-	assert a.messages[-1]['tool_name'] == 'trend_map' and a.messages[-1]['content'].startswith('Hecho')
+	assert a.messages[-1]['tool_name'] == 'trend_map' and a.messages[-1]['content'].startswith('Done')
 
 
 def test_unknown_protected_area(monkeypatch):
@@ -158,9 +164,15 @@ def test_unknown_protected_area(monkeypatch):
 	# without the designation, two areas: the model gets them, the user sees them, nothing is computed
 	events = asyncio.run(run('Serie del NDVI de Doñana'))
 	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas']
-	assert 'SITE_ID 389012' in a.messages[-1]['content'] and 'pregúntale cuál' in a.messages[-1]['content']
+	assert 'SITE_ID 389012' in a.messages[-1]['content'] and 'ask the user which one' in a.messages[-1]['content']
+	# the same in English: the designation after the name, as in WDPA (DESIG_ENG)
+	events = asyncio.run(run('NDVI series in the Doñana National Park'))
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'map']
+	assert a.called[1]['region'] == {'wdpa_id': 389012}
+	assert [e['type'] for e in asyncio.run(run('NDVI series of Doñana')) if e['type'] != 'status'] == ['areas']
 	# no place in the message: the model has to search it, without asking the user
-	assert asyncio.run(run('ndvi de un parque')) == [] and 'Busca tú el espacio' in a.messages[-1]['content']
+	assert asyncio.run(run('ndvi de un parque')) == [] and 'Search the area yourself' in a.messages[-1]['content']
+	assert asyncio.run(run('ndvi of a park')) == [] and 'Search the area yourself' in a.messages[-1]['content']
 	# the model gives the right one (it is among those found)
 	events = asyncio.run(run('NDVI de Sierra Nevada'))
 	assert 'result' in [e['type'] for e in events] and a.called[1]['region'] == {'wdpa_id': 389011}
@@ -176,6 +188,17 @@ def test_place_in():
 	assert assistant.place_in('Quiero el NDVI de Sentinel-2') is None
 	assert assistant.place_in('ndvi en sierra nevada') is None
 	assert assistant.place_in('Usa el del Parque Nacional') is None  # only a designation
+	# in English
+	assert assistant.place_in('Monthly evolution of the NDVI in the Sierra Nevada National Park in 2023') == \
+	       'Sierra Nevada National Park'
+	assert assistant.place_in('Doñana in 2024, NDVI') == 'Doñana'
+	assert assistant.place_in('The NDVI of the National Park of Sierra Nevada') == 'National Park of Sierra Nevada'
+	assert assistant.place_in('Compare the summers of the Sierra de Cazorla, Segura y Las Villas Natural Park') == \
+	       'Sierra de Cazorla, Segura y Las Villas Natural Park'
+	assert assistant.place_in('Can I get the NDVI of Doñana since January 2018?') == 'Doñana'  # not the month
+	assert assistant.place_in('I want the NDVI of Sentinel-2') is None
+	assert assistant.place_in('Annual series of NDVI in the study area parcelas') is None
+	assert assistant.place_in('Use the one of the National Park') is None
 
 
 def test_not_ready(monkeypatch):
@@ -188,7 +211,7 @@ def test_not_ready(monkeypatch):
 		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
 
 	events = asyncio.run(run())
-	assert events[0]['type'] == 'error' and 'inicia sesión' in events[0]['text'] and not a.results
+	assert events[0]['type'] == 'error' and 'sign in' in events[0]['text'] and not a.results
 	a.settings['project'] = ''  # without a project: the shared account of MonitorEO, with no sign-in
 	assert a.not_ready() is None
 
@@ -197,20 +220,20 @@ def test_report(tmp_path):
 	items = [{'tool': 'time_series', 'args': ARGS, 'result': SERIES},
 	         {'tool': 'time_series', 'args': ARGS, 'result': {**SERIES, 'rows': ROWS * 5}},
 	         {'tool': 'region_stats', 'args': ARGS, 'result': [{'region': 'r', 'mean': 0.4, 'n_pixels': 1234}]}]
-	path = report.write(items, str(tmp_path / 'informe.html'), title='NDVI <2021>', question='¿NDVI?', project='p',
+	path = report.write(items, str(tmp_path / 'report.html'), title='NDVI <2021>', question='NDVI?', project='p',
 	                    names={'389011': 'Sierra Nevada'})
 	text = open(path, encoding='utf-8').read()
-	assert '<title>NDVI &lt;2021&gt;</title>' in text and 'calculado en Google Earth Engine con el proyecto p' in text
-	assert 'Sierra Nevada (WDPA 389011)' in text and 'Serie mensual de NDVI (Sentinel-2), 2021' in text
-	assert '<td>0,501</td>' in text and '1.234' in text  # numbers as written in Spanish
-	assert 'Anexo: tablas completas' in text and 'Tabla 2.' in text  # the table of 60 rows goes to the annex
+	assert '<title>NDVI &lt;2021&gt;</title>' in text and 'computed in Google Earth Engine with the project p' in text
+	assert 'Sierra Nevada (WDPA 389011)' in text and 'Monthly time series of NDVI (Sentinel-2), 2021' in text
+	assert '<td>0.501</td>' in text and '1,234' in text  # numbers as written in English
+	assert 'Annex: full tables' in text and 'Table 2.' in text  # the table of 60 rows goes to the annex
 	assert 'mo.time_series(region={&quot;wdpa_id&quot;: 389011}' in text and 'zenodo' in text.lower()
 	assert text.count('data:image/') >= 3  # the logos, embedded
 	text = open(report.write(items[:1], str(tmp_path / 'c.html'), title='t', shared=True), encoding='utf-8').read()
-	assert 'calculado en Google Earth Engine con la cuenta compartida de MonitorEO' in text
+	assert 'computed in Google Earth Engine with the shared account of MonitorEO' in text
 	assert report.item_table('trend_table', {'unit': '[ºC]', 'trends': [
-		{'label': 'enero', 'n': 20, 'slope': 0.05, 'p_value': 0.01, 'significant': True}]})[0] == \
-	       ['Parte del año', 'Años', 'Pendiente de Sen (°C/año)', 'p-valor', 'Significativa']
+		{'label': 'January', 'n': 20, 'slope': 0.05, 'p_value': 0.01, 'significant': True}]})[0] == \
+	       ['Part of the year', 'Years', "Sen's slope (°C/year)", 'p-value', 'Significant']
 
 
 def _polygons(path, driver):
@@ -248,22 +271,25 @@ def test_layers(tmp_path, monkeypatch):
 	assert gpkg['crs'] == 'EPSG:25830' and gpkg['name_field'] == 'nombre'
 	shp = a.add_layer('parcelas.zip', (tmp_path / 'parcelas.zip').read_bytes())
 	assert shp['file'].startswith('/vsizip/') and shp['file'].endswith('carpeta/parcelas.shp') and shp['features'] == 2
-	assert '- parcelas (2 polígonos, 200 ha, nombres del campo nombre): región {"capa": "parcelas"}' in a.system_prompt()
-	args = a.with_layer({'region': {'capa': 'Mis parcelas'}, 'variable': 'NDVI'})
+	assert '- parcelas (2 polygons, 200 ha, names in the field nombre): region {"layer": "parcelas"}' in a.system_prompt()
+	args = a.with_layer({'region': {'layer': 'Mis parcelas'}, 'variable': 'NDVI'})
 	assert args == {'region': {'file': gpkg['file'], 'name_field': 'nombre'}, 'variable': 'NDVI'}
 	for region in ('mis_parcelas', 'Mis parcelas', {'area_de_estudio': 'mis_parcelas'}, 'capa mis_parcelas',
-	               {'capa': 'el área de estudio «mis_parcelas»'}):  # the ways small models give it
+	               {'capa': 'el área de estudio «mis_parcelas»'}, {'capa': 'Mis parcelas'},  # the ways small models
+	               {'study_area': 'mis_parcelas'}, 'layer mis_parcelas',  # give it, in Spanish and in English
+	               {'layer': 'the study area «mis_parcelas»'}):
 		assert a.with_layer({'region': region})['region'] == args['region']
-	with pytest.raises(ValueError, match='no hay ningún área de estudio'):
-		a.with_layer({'region': {'capa': 'otra'}})
+	with pytest.raises(ValueError, match='there is no study area'):
+		a.with_layer({'region': {'layer': 'otra'}})
 	a.messages.append({'role': 'user', 'content': 'Serie del NDVI en el área de estudio mis_parcelas'})
-	assert a.with_layer({'region': {'capa': 'nombre'}})['region'] == args['region']  # the example, copied
+	assert a.with_layer({'region': {'layer': 'name'}})['region'] == args['region']  # the example, copied
+	assert a.with_layer({'region': {'capa': 'nombre'}})['region'] == args['region']
 	assert a.with_layer({'region': {'bbox': [0, 0, 1, 1]}}) == {'region': {'bbox': [0, 0, 1, 1]}}
-	assert report.region_text(args['region'], a.all_names()).startswith('Área de estudio «mis_parcelas» (2 polígonos')
+	assert report.region_text(args['region'], a.all_names()).startswith('Study area «mis_parcelas» (2 polygons')
 	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
 	a.remove_layer('parcelas')
 	assert set(assistant.load_layers()) == {'mis_parcelas'} and not (tmp_path / 'capas' / 'parcelas.zip').exists()
-	with pytest.raises(ValueError, match='formato no admitido'):
+	with pytest.raises(ValueError, match='format not supported'):
 		a.add_layer('parcelas.shp', b'')
 
 
@@ -271,9 +297,14 @@ def test_areas_text():
 	areas = [{'SITE_ID': 68175, 'NAME': 'Parque Nacional de Doñana', 'DESIG': 'Ramsar Site', 'REP_AREA': 1116.0},
 	         {'SITE_ID': 389012, 'NAME': 'Doñana', 'DESIG': 'Parque Nacional', 'REP_AREA': 534.2}]
 	lines = assistant.areas_text(areas, 'NDVI en el Parque Nacional de Doñana').splitlines()
-	assert lines[1] == '- SITE_ID 389012: Doñana, Parque Nacional, 534,2 km² (su designación coincide con la consulta)'
-	assert lines[2] == '- SITE_ID 68175: Parque Nacional de Doñana, Ramsar Site, 1.116 km²'
-	assert 'Ningún espacio' in assistant.areas_text([], 'x')
+	assert lines[0].startswith('2 protected areas; the user sees this list')
+	assert lines[1] == f'- SITE_ID 389012: Doñana, Parque Nacional, {report._num(534.2)} km² (its designation matches ' \
+	                   'the request)'
+	assert lines[2] == f'- SITE_ID 68175: Parque Nacional de Doñana, Ramsar Site, {report._num(1116.0)} km²'
+	assert 'No protected area' in assistant.areas_text([], 'x')
+	areas[1]['DESIG_ENG'] = 'National Park'  # in English: that of WDPA in English
+	assert 'SITE_ID 389012' in assistant.areas_text(areas, 'NDVI in the Doñana National Park').splitlines()[1]
+	assert assistant.designated({'DESIG_ENG': 'Special Protection Area (Birds Directive)'}, 'the special protection area')
 
 
 def test_search_name():
@@ -283,6 +314,12 @@ def test_search_name():
 	assert assistant.search_name('ZEPA Doñana') == 'Doñana'
 	assert assistant.search_name('Sierra Nevada') == 'Sierra Nevada'
 	assert assistant.search_name('Parque Nacional') == 'Parque Nacional'  # nothing else: as it was
+	assert assistant.search_name('Doñana National Park') == 'Doñana'  # in English, after the name
+	assert assistant.search_name('the Doñana National Park') == 'Doñana'
+	assert assistant.search_name('National Park of Sierra Nevada') == 'Sierra Nevada'
+	assert assistant.search_name('Sierra Nevada Biosphere Reserve') == 'Sierra Nevada'
+	assert assistant.search_name('Doñana SPA') == 'Doñana' and assistant.search_name('SAC Sierra Nevada') == 'Sierra Nevada'
+	assert assistant.search_name('National Park') == 'National Park'
 
 
 FAKE_OLLAMA = '''#!{python}
@@ -334,7 +371,7 @@ def test_engine_install_and_start(tmp_path, monkeypatch):
 	assert e.find() is None and e.installed() is None  # nothing to use: install it
 	try:
 		steps = [s['status'] for s in e.install()]
-		assert steps[0] == 'Descargando Ollama' and steps[-1] == 'success'
+		assert steps[0] == 'Downloading Ollama' and steps[-1] == 'success'
 		assert e.how == 'started' and e.url == f'http://127.0.0.1:{engine.PORT}' and engine.answers(e.url)
 		assert e.installed() == str(tmp_path / 'ollama' / engine.OLLAMA / 'ollama')
 	finally:
@@ -384,12 +421,12 @@ def test_downloads_and_exports(monkeypatch):
 	       'resolution': 20, 'native_resolution': 10, 'images': 12, 'name': 'NDVI', 'unit': '[unitless]',
 	       'min': 0.12, 'max': 0.63, 'palette': ['ffffff', '00aa00']}
 	facts = dict(report.item_facts('download_image', ARGS, tif))
-	assert facts['GeoTIFF'] == '1.200 × 800 píxeles de 20 m (los datos, de 10 m), en EPSG:32630'
-	assert facts['Valores (percentiles 5 y 95)'] == '0,12 a 0,63' and facts['Imágenes'] == '12'
-	assert report.item_title('download_image', ARGS) == 'Mapa de NDVI (Sentinel-2), 2021 (GeoTIFF)'
+	assert facts['GeoTIFF'] == '1,200 × 800 pixels of 20 m (the data, of 10 m), in EPSG:32630'
+	assert facts['Values (percentiles 5 and 95)'] == '0.12 to 0.63' and facts['Images'] == '12'
+	assert report.item_title('download_image', ARGS) == 'Map of NDVI (Sentinel-2), 2021 (GeoTIFF)'
 	assert assistant.task_text('task_status', json.dumps({'state': 'RUNNING', 'progress': 0.42})) == \
-	       'Exportación a Google Drive: en marcha (42 %).'
-	assert 'carpeta MonitorEO' in assistant.task_text('export_image_to_drive', json.dumps(
+	       'Export to Google Drive: running (42%).'
+	assert 'folder MonitorEO' in assistant.task_text('export_image_to_drive', json.dumps(
 		{'operation': 'projects/p/operations/X', 'file': 'NDVI.tif', 'folder': 'MonitorEO'}))
 	recipe = {'period': ['2018-01-01', '2021-12-31'], 'variables': [{'index': 'NDVI', 'sensor': 'Sentinel-2',
 	                                                                 'metric': ['p95', 'p5']}]}
@@ -397,8 +434,8 @@ def test_downloads_and_exports(monkeypatch):
 	        'files': [{'file': '01_NDVI_p95.tif', 'pixel_filters': ['clouds', 'snow'], 'images': 310}]}
 	facts = dict(report.item_facts('download_variables', {'recipe': recipe, 'area': {'bbox': [0, 0, 1, 1]},
 	                                                       'name': 'modelo', 'dry_run': True}, plan))
-	assert facts['Variables'] == 'NDVI (Sentinel-2): percentil 95, percentil 5' and 'solo el plan' in facts['Descarga']
-	assert report.item_table('download_variables', plan)[1] == [['01_NDVI_p95.tif', '310', 'nubes, nieve']]
+	assert facts['Variables'] == 'NDVI (Sentinel-2): percentile 95, percentile 5' and 'only the plan' in facts['Download']
+	assert report.item_table('download_variables', plan)[1] == [['01_NDVI_p95.tif', '310', 'clouds, snow']]
 
 
 def test_geotiff_preview(tmp_path, monkeypatch):
@@ -438,7 +475,7 @@ def test_geotiff_preview(tmp_path, monkeypatch):
 
 	result = next(e for e in asyncio.run(run()) if e['type'] == 'result')
 	assert result['image'].startswith('data:image/png') and result['files'][0]['name'] == 'ndvi.tif'
-	assert 'Hecho:' in a.messages[-1]['content'] and '0.9' not in a.messages[-1]['content']
+	assert 'Done:' in a.messages[-1]['content'] and '0.9' not in a.messages[-1]['content']
 
 
 def test_default_model():
@@ -454,6 +491,9 @@ WIKI_PAGES = {
 	             'Sentinel-2 (10 m) |\n\n## Filtros por píxel\n\nSe quitan las nubes y la nieve.\n',
 	'Python': '# Python\n\n## Serie temporal\n\n```python\nmo.time_series(variable="NDVI")  # NDVI NDVI NDVI\n```\n',
 	'Home': '# Inicio\n\n## Cómo citar\n\nCítalo con su DOI: [Zenodo](https://doi.org/x).\n<img src="images/a.png">\n',
+	'Concepts': '# Concepts\n\nIntro.\n\n## Variables\n\n| `NDVI` | Normalized difference vegetation index | '
+	            'Sentinel-2 (10 m) |\n\n## Pixel filters\n\nThe clouds and the snow are removed.\n',
+	'English': '# MonitorEO\n\n## How to cite\n\nCite it with its DOI: [Zenodo](https://doi.org/x).\n',
 }
 
 
@@ -471,32 +511,131 @@ def test_manual(tmp_path):
 	assert manual.search('filtro de nubes', folder=str(tmp_path))[0]['title'] == 'Filtros por píxel'
 	assert manual.search('xyz', folder=str(tmp_path)) == []
 	assert manual.words('Imágenes, citar y cito') == ['imagen', 'cit', 'cit']
+	# in English: the English pages, with their anchors
+	cite = next(s for s in secs if s['title'] == 'How to cite')
+	assert cite['lang'] == 'en' and cite['url'].endswith('/wiki/English#how-to-cite')
+	found = manual.search('What is the NDVI?', folder=str(tmp_path))[0]
+	assert found['title'] == 'Variables' and found['url'].endswith('/wiki/Concepts#variables')
+	assert manual.search('How do I cite MonitorEO?', folder=str(tmp_path))[0]['url'].endswith('/wiki/English#how-to-cite')
+	assert manual.search('cloud filters', folder=str(tmp_path))[0]['url'].endswith('/wiki/Concepts#pixel-filters')
+	assert manual.search('¿Qué es el NDVI?', folder=str(tmp_path))[0]['url'].endswith('/wiki/Conceptos#variables')
+	assert manual.search('NDVI', folder=str(tmp_path))[0]['url'].endswith('/wiki/Concepts#variables')
+	assert manual.search('NDVI', folder=str(tmp_path), lang='es')[0]['url'].endswith('/wiki/Conceptos#variables')
+	assert manual.words('Images, citing and cited', 'en') == ['imag', 'cit', 'cit']
+	# a page without its English page yet: the Spanish one, for the questions in English too
+	found = manual.search('How do I use the time series in Python?', folder=str(tmp_path))
+	assert found[0]['url'].endswith('/wiki/Python#serie-temporal')
+	assert manual.language('¿Qué es el NDVI?') == manual.language('NDVI de Doñana') == 'es'
+	assert manual.language('What is the NDVI of Doñana?') == manual.language('NDVI') == 'en'
+	assert manual.language('Compare the summers of 2023 to 2025 with those of 2018 to 2022 in Doñana') == 'en'
+
+
+def test_manual_update(tmp_path, monkeypatch):
+	# the pages of the sidebar and their English pages are downloaded; an English page not written yet is skipped
+	from monitoreo import manual
+	pages = {'_Sidebar': '[Inicio](Home) [Conceptos](Conceptos) [R](R)', 'Home': '# Inicio\n\nHola.\n',
+	         'Conceptos': '# Conceptos\n\n## Filtros\n\nNubes.\n', 'R': '# R\n\n## Instalación\n\nCon `remotes::install_github`.\n',
+	         'English': '# MonitorEO\n\nHello.\n', 'Concepts': '# Concepts\n\n## Filters\n\nClouds.\n'}
+	asked = []
+
+	def urlopen(url, timeout=None):
+		import io
+		import urllib.parse
+		name = urllib.parse.unquote(url[len(manual.RAW):-3])
+		asked.append(name)
+		if name not in pages:
+			raise manual.urllib.error.HTTPError(url, 404, 'Not Found', {}, None)
+		return io.BytesIO(pages[name].encode())
+
+	monkeypatch.setattr(manual.urllib.request, 'urlopen', urlopen)
+	assert manual.update(str(tmp_path)) == 5
+	assert asked == ['_Sidebar', 'Home', 'Conceptos', 'R', 'English', 'Concepts', 'R-package']
+	assert manual.search('How do I install it in R?', folder=str(tmp_path))[0]['url'].endswith('/wiki/R#instalación')
+	assert manual.search('cloud filters', folder=str(tmp_path))[0]['url'].endswith('/wiki/Concepts#filters')
+	assert manual.search('filtro de nubes', folder=str(tmp_path))[0]['url'].endswith('/wiki/Conceptos#filtros')
 
 
 def test_manual_tool(monkeypatch):
 	found = [{'page': 'Conceptos', 'title': 'Variables', 'url': 'https://w/Conceptos#variables', 'text': 'NDVI: ...'}]
-	monkeypatch.setattr(assistant, '_search_manual', lambda q: found if 'NDVI' in q else [])
+	asked = []
+
+	def search(q, lang=None):
+		asked.append((q, lang))
+		return found if 'NDVI' in q else []
+	monkeypatch.setattr(assistant, '_search_manual', search)
 	a = FakeAssistant({**assistant.DEFAULTS})
 	a.tools = assistant.model_tools(TOOLS) + [assistant.MANUAL_TOOL]
 
-	async def run(question):
-		return [e async for e in a.run_tool({'name': 'manual', 'arguments': {'pregunta': question}})]
+	async def run(question, key='question'):
+		return [e async for e in a.run_tool({'name': 'manual', 'arguments': {key: question}})]
 
-	events = asyncio.run(run('¿Qué es el NDVI?'))
+	events = asyncio.run(run('¿Qué es el NDVI?', 'pregunta'))  # the name of the argument before
 	assert events[-1] == {'type': 'sources', 'sources': [{'title': 'Conceptos › Variables',
 	                                                     'url': 'https://w/Conceptos#variables'}]}
 	assert 'NDVI: ...' in a.messages[-1]['content'] and 'https://w/Conceptos#variables' in a.messages[-1]['content']
-	asyncio.run(run('otra cosa'))
-	assert 'El manual no tiene nada' in a.messages[-1]['content']
-	assert 'App-de-Earth-Engine' in assistant.instructions() and 'manual' in assistant.instructions()
+	assert asked[-1] == ('¿Qué es el NDVI?', 'es')
+	asyncio.run(run('something else'))
+	assert 'The manual has nothing' in a.messages[-1]['content'] and asked[-1] == ('something else', 'en')
+	# the model asks in English what the user asked in Spanish: the pages in Spanish, with the words of the user
+	a.messages.append({'role': 'user', 'content': '¿Cómo se calcula la severidad de un incendio?'})
+	asyncio.run(run('How is the burn severity computed?'))
+	assert asked[-1] == ('How is the burn severity computed? ¿Cómo se calcula la severidad de un incendio?', 'es')
+	assert 'Earth-Engine-app' in assistant.instructions() and 'manual' in assistant.instructions()
+
+
+def test_fix_links(monkeypatch):
+	# the links to pages that are not in the wiki are replaced; those to the English pages stay, also before they are
+	# downloaded
+	from monitoreo import manual
+	secs = [{'name': 'Conceptos', 'url': assistant.WIKI + 'Conceptos#variables'}]
+	monkeypatch.setattr(manual, 'sections', lambda folder=None: secs)
+	monkeypatch.setattr(manual, 'search', lambda q, k=3, lang=None: [{'url': assistant.WIKI + 'Conceptos#variables'}])
+	text = (f'See {assistant.WIKI}QGIS-plugin, {assistant.WIKI}Python and {assistant.WIKI}Made-up-page. And '
+	        f'{assistant.WIKI}Conceptos#nothing.')
+	assert assistant.fix_links(text, '¿Qué es el NDVI?') == (
+		f'See {assistant.WIKI}QGIS-plugin, {assistant.WIKI}Python and {assistant.WIKI}Conceptos#variables. And '
+		f'{assistant.WIKI}Conceptos.')
 
 
 def test_other_tool():
-	assert assistant.other_tool('Quiero el NDVI de 30 parques cada mes de forma automática')[0].startswith('el paquete de Python')
-	assert assistant.other_tool('¿Lo puedo hacer en R?')[0] == 'el paquete de R'
-	assert assistant.other_tool('quiero editar mi capa')[0] == 'el plugin de QGIS'
+	python = ('the Python package or the command line', 'automating computations that repeat or of many regions at '
+	          'once', assistant.WIKI + 'Python-package')
+	assert assistant.other_tool('Quiero el NDVI de 30 parques cada mes de forma automática') == python
+	assert assistant.other_tool('¿Lo puedo hacer en R?')[0] == 'the R package'
+	assert assistant.other_tool('quiero editar mi capa')[0] == 'the QGIS plugin'
+	assert assistant.other_tool('¿Se puede usar desde el móvil sin instalar nada?')[2] == assistant.WIKI + 'Earth-Engine-app'
+	assert assistant.other_tool('Quiero publicarlo en una página web pública')[2] == assistant.WIKI + 'Results-viewer'
 	assert assistant.other_tool('Serie del NDVI de cada mes de 2024 en Doñana') is None
 	assert assistant.other_tool('¿Qué es el NDVI?') is None
+	# in English
+	assert assistant.other_tool('I want the NDVI of 30 parks every month automatically') == python
+	assert assistant.other_tool('Can I do it in R?')[2] == assistant.WIKI + 'R-package'
+	assert assistant.other_tool('Is there an R package?')[0] == 'the R package'
+	assert assistant.other_tool('I want to edit my layer')[2] == assistant.WIKI + 'QGIS-plugin'
+	assert assistant.other_tool('Can I make a map to print?')[0] == 'the QGIS plugin'
+	assert assistant.other_tool('Can I use it on my phone without installing anything?')[0] == 'the Earth Engine app'
+	assert assistant.other_tool('How do I publish a report for anyone to see?')[0] == 'the results viewer'
+	assert assistant.other_tool('Monthly NDVI series of 2024 in Doñana') is None
+	assert assistant.other_tool('What is the NDVI?') is None
+
+
+def test_note_of_the_application(monkeypatch):
+	# a request for another tool: the page says it, and the model gets a note that the user does not see, which
+	# does not count as the words of the user
+	seen = []
+	monkeypatch.setattr(assistant, 'chat_model', lambda settings, system, messages, tools: seen.append(
+		messages[-1]['content']) or {'content': 'Eso se hace con el paquete de R.'})
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'ollama': 'http://127.0.0.1:1'})
+		a.tools = assistant.model_tools(TOOLS)
+		return a, [e async for e in a.chat('¿Lo puedo hacer en R?')]
+
+	a, events = asyncio.run(run())
+	assert events[0] == {'type': 'other_tool', 'name': 'the R package', 'what': 'doing the computations in R',
+	                     'url': assistant.WIKI + 'R-package'}
+	assert seen[0].startswith('¿Lo puedo hacer en R?' + assistant.NOTE) and "language of the user's words" in seen[0]
+	assert a.said() == ['¿Lo puedo hacer en R?'] and a.question == '¿Lo puedo hacer en R?'
 
 
 def test_map_steps():
@@ -506,24 +645,26 @@ def test_map_steps():
 	assert [s['label'] for s in steps] == [str(y) for y in range(2018, 2025)]
 	assert steps[0]['start'] == '2018-06-01' and steps[0]['end'] == '2018-08-31'  # the summer of each year
 	steps = map_steps('time_series', {'start': '2024-01-01', 'end': '2024-02-29', 'step': '16-day'})
-	assert [s['label'] for s in steps][:2] == ['1 ene 2024 - 16 ene 2024', '17 ene 2024 - 1 feb 2024']
+	assert [s['label'] for s in steps][:2] == ['1 Jan 2024 - 16 Jan 2024', '17 Jan 2024 - 1 Feb 2024']
 	assert map_steps('map_layer', {'start': '2024-06-01', 'end': '2024-08-31'}) == []  # one year: one map
 	assert map_steps('compare_map', {'start': '2018-01-01', 'end': '2024-12-31'}) == []
 	assert len(map_steps('time_series', {'start': '1984-01-01', 'end': '2024-12-31', 'step': 'daily'})) == \
 	       MAX_MAP_STEPS  # the last ones
 	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'temporal': 'annual',
 	                                   'interannual': 'median'}}
-	assert assistant.main_label(m, m['args']) == 'Valor interanual: mediana de los años (2018-2024)'
+	assert assistant.main_label(m, m['args']) == \
+	       f"Interannual value: {report.STATS['median']} of the {UNITS['annual']} (2018-2024)"
 	m = {'tool': 'map_layer', 'args': {'start': '2018-01-01', 'end': '2024-12-31'}}
-	assert assistant.main_label(m, m['args']) == 'Todo el periodo (2018-2024)'
+	assert assistant.main_label(m, m['args']) == 'Whole period (2018-2024)'
+	assert assistant.main_label(m, {'start': '2010-01-01'}) == 'Last year of the period (2018-2024)'
 	# a trend: the annual one, and that of each month
 	steps = map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})
-	assert len(steps) == 12 and steps[6] == {'key': 'part:7', 'label': 'Tendencia de julio', 'part': 7}
+	assert len(steps) == 12 and steps[6] == {'key': 'part:7', 'label': 'Trend of July', 'part': 7}
 	assert map_steps('trend_table', {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}) == []
 	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual'}}
-	assert assistant.main_label(m, m['args']).startswith('Tendencia anual: pendiente de Sen')
+	assert assistant.main_label(m, m['args']) == "Annual trend: Sen's slope of the values of each year (2018-2024)"
 	m = {'tool': 'trend_map', 'args': {'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'part': 7}}
-	assert assistant.main_label(m, m['args']) == 'Tendencia de julio'
+	assert assistant.main_label(m, m['args']) == steps[6]['label']
 
 
 def test_interannual():
@@ -533,8 +674,8 @@ def test_interannual():
 	assert assistant.fix_args('map_layer', {'temporal': 'interannual', 'metric': 'median'}, tools) == \
 	       {'temporal': 'annual', 'metric': 'median'}
 	facts = dict(report.item_facts('map_layer', {**ARGS, 'metric': 'median', 'temporal': 'annual'}))
-	assert facts['Agregación temporal'] == 'mediana de cada año y, entre los años, media (valor interanual)'
-	assert 'Agregación temporal' not in dict(report.item_facts('map_layer', ARGS))
+	assert facts['Temporal aggregation'] == 'median of each year and, between the years, mean (interannual value)'
+	assert 'Temporal aggregation' not in dict(report.item_facts('map_layer', ARGS))
 
 
 def test_open_end():
@@ -548,6 +689,15 @@ def test_open_end():
 	             ['NDVI desde 2018', 'y ahora solo 2025']):  # an end, or a later message with its years
 		assert assistant.open_end(args, said, today) == args, said
 	assert assistant.open_end({**args, 'end': '2026-11-03'}, ['desde 2025'], today)['end'] == '2026-11-03'
+	# in English
+	for said in (['Monthly evolution of the NDVI in the Sierra Nevada National Park since 2025'],
+	             ['NDVI since the year 2025 in Doñana', 'Compute what I asked for with the protected area Doñana, WDPA 1'],
+	             ['NDVI since January 2025'], ['NDVI since 1 January 2025'], ['NDVI since January 1, 2025'],
+	             ['NDVI from 2025 onwards']):
+		assert assistant.open_end(args, said, today)['end'] == '2026-11-03', said
+	for said in (['NDVI since 2025 until June'], ['NDVI of 2025'], ['NDVI from 2018 to 2025'], ['NDVI from 2025'],
+	             ['NDVI since 2018', 'and now only 2025']):
+		assert assistant.open_end(args, said, today) == args, said
 
 
 def test_check_update(monkeypatch):
@@ -587,11 +737,11 @@ def test_update_in_window(monkeypatch):
 		return 'updated'
 	monkeypatch.setattr(update, 'ensure_latest', new_version)
 	assert cli._update_in_window() == 'shown'  # the assistant starts in another process
-	assert 'Actualizando MonitorEO' in windows[0]['html'] and windows[1] == 'closed'
+	assert 'Updating MonitorEO' in windows[0]['html'] and windows[1] == 'closed'
 
 
 def test_window_asks_while_computing(monkeypatch):
-	# the cross of the window (or Cmd+Q) asks before closing only while something is computed, as Cerrar
+	# the cross of the window (or Cmd+Q) asks before closing only while something is computed, as Close
 	import sys
 	import types
 
@@ -606,14 +756,14 @@ def test_window_asks_while_computing(monkeypatch):
 	monkeypatch.setitem(sys.modules, 'webview', fake)
 	assert assistant._show_window('http://127.0.0.1:1/', busy=lambda: busy[0])
 	win.events.closing[0]()
-	assert win.confirm_close is True and 'cálculo en marcha' in texts['global.quitConfirmation']
+	assert win.confirm_close is True and 'computation is running' in texts['global.quitConfirmation']
 	busy[0] = False
 	win.events.closing[0]()
-	assert win.confirm_close is False and texts['global.quit'] == 'Cerrar'
+	assert win.confirm_close is False and texts['global.quit'] == 'Close'
 
 
 def test_events_of_the_conversation(monkeypatch):
-	answers = iter([{'content': 'Primera respuesta.'}, {'content': 'Segunda.'}])
+	answers = iter([{'content': 'First answer.'}, {'content': 'Second.'}])
 	monkeypatch.setattr(assistant, 'chat_model', lambda *a: next(answers))
 
 	async def run():
@@ -627,9 +777,9 @@ def test_events_of_the_conversation(monkeypatch):
 				if e['type'] == 'done':
 					return got
 
-		a.start('Hola')
-		with pytest.raises(ValueError, match='espera'):
-			a.start('Otra')  # one message at a time
+		a.start('Hello')
+		with pytest.raises(ValueError, match='wait'):
+			a.start('Another one')  # one message at a time
 		first = await until_done()
 		later = await until_done()  # a page opened afterwards gets the whole conversation again
 		a.start('Otra pregunta')
@@ -657,7 +807,7 @@ def test_report_without_tables(tmp_path):
 	items = [{'tool': 'time_series', 'args': ARGS, 'result': SERIES, 'table': False},
 	         {'tool': 'region_stats', 'args': ARGS, 'result': {'rows': [{'region': 'r', 'mean': 0.4, 'n_pixels': 1234}]}}]
 	text = open(report.write(items, str(tmp_path / 'i.html'), title='t'), encoding='utf-8').read()
-	assert '<td>0,501</td>' not in text and '1.234' in text  # the table of the series out, that of the stats in
+	assert '<td>0.501</td>' not in text and '1,234' in text  # the table of the series out, that of the stats in
 
 
 def test_map_and_pixel():
@@ -678,7 +828,7 @@ def test_map_and_pixel():
 	async def run():
 		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
 		args = {**ARGS, 'start': '2024-06-01', 'end': '2024-08-31', 'season': ['06-01', '08-31']}
-		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Mapa',
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Map',
 		                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0],
 		                             'min': 0.1, 'max': 0.6, 'palette': ['ffffff', '00aa00'], 'unit': '[unitless]'}})
 		card = a.card(a.results[0])
@@ -696,10 +846,11 @@ def test_map_and_pixel():
 	                                     'end': '2024-08-31', 'metric': 'median', 'temporal': 'period'})
 	assert calls[1][0] == 'time_series' and calls[1][1]['step'] == '16-day'  # a period of months: by 16 days
 	assert rid == 2 and a.results[1]['tool'] == 'time_series' and a.events[-1]['type'] == 'result'
-	assert report.region_text(a.results[1]['args']['region']) == 'Píxel en 36,95000, -3,55000 (lat., lon.)'
+	assert px['title'] == '16-day time series of NDVI at the pixel 36.95000, -3.55000' and px['label'] == 'value'
+	assert report.region_text(a.results[1]['args']['region']) == 'Pixel at 36.95000, -3.55000 (lat., lon.)'
 	assert url == 'https://ee/new/{z}/{x}/{y}' and a.results[0]['result']['url'] == url
 	assert calls[-1] == ('map_layer', {**a.results[0]['args'], 'vmin': 0.1, 'vmax': 0.6, 'quick': True})  # same colours
-	with pytest.raises(ValueError, match='no tiene mapa'):
+	with pytest.raises(ValueError, match='has no map'):
 		asyncio.run(a.pixel(2, 0, 0))
 
 	# a series: the map of its period, and on a pixel the series with the step of that of the result
@@ -707,15 +858,16 @@ def test_map_and_pixel():
 		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
 		args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'mean'}
 		a.results.append({'id': 1, 'tool': 'time_series', 'args': args, 'result': SERIES, 'image': None,
-		                  'title': 'Serie'})
+		                  'title': 'Series'})
 		shown = await a.period_map(a.results[0])
 		calls.clear()
 		return a, shown, await a.pixel(1, -3.55, 36.95)
 
 	a, shown, px = asyncio.run(series())
 	assert shown['type'] == 'map' and shown['map']['url'] == 'https://ee/new/{z}/{x}/{y}'
-	assert shown['main'] == 'Último año del periodo (2024)' and len(shown['steps']) == 84  # the months of 7 years
-	assert shown['steps'][0] == {'key': '2018-01-01/2018-01-31', 'label': 'ene 2018'}
+	assert shown['main'] == 'Last year of the period (2024)' and len(shown['steps']) == 84  # the months of 7 years
+	assert shown['steps_label'] == 'Date'
+	assert shown['steps'][0] == {'key': '2018-01-01/2018-01-31', 'label': 'Jan 2018'}
 	assert a.results[0]['map']['args']['start'] == '2024-01-01'  # the last year of the period, which is longer
 	assert px['value'] == 0.42 and calls[0][1]['metric'] == 'median' and calls[0][1]['start'] == '2024-01-01'
 	assert calls[1][1]['start'] == '2018-01-01'  # the series of the pixel, over the whole period
@@ -730,12 +882,13 @@ def test_map_and_pixel():
 
 	shown, px = asyncio.run(step())
 	assert shown['key'] == '2019-03-01/2019-03-31'
-	assert shown['title'] == 'Mapa de NDVI (Sentinel-2), 1 mar 2019 - 31 mar 2019 · WDPA 389011'
+	assert shown['title'] == report.item_title('map_layer', {**ARGS, 'start': '2019-03-01', 'end': '2019-03-31'}) + \
+	       ' · WDPA 389011'
 	assert calls[0] == ('map_layer', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'vmin': None,
 	                                  'vmax': None, 'quick': True})
 	assert calls[1][0] == 'region_stats' and calls[1][1]['start'] == '2019-03-01' and calls[2][0] == 'time_series'
-	with pytest.raises(ValueError, match='no existe'):
+	with pytest.raises(ValueError, match='does not exist'):
 		asyncio.run(a.step_map(1, '1990-01-01/1990-01-31'))
 
 	# a trend: the map of the annual one, and of a month; their tiles again, with the same colours
@@ -750,20 +903,23 @@ def test_map_and_pixel():
 		return shown, month, await a.pixel(1, -3.55, 36.95, 'part:7')
 
 	shown, month, px = asyncio.run(trend())
-	assert month['title'].startswith('Mapa de la tendencia de NDVI (Sentinel-2), 2018-2024 (julio)')
-	assert month['legend'] is None or month['legend']['unit'] == 'por año'
+	trend_args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'median', 'part': 7}
+	assert month['title'].startswith(report.item_title('trend_map', trend_args) + ' (July)')
+	per_year = report.unit_text('[unitless] / year', per_year=True)
+	assert month['legend'] is None or month['legend']['unit'] == per_year
 	assert px['value'] == 0.007 and px['p_value'] == 0.2  # the slope of July at the pixel
-	assert px['label'] == 'pendiente de Sen' and px['unit'] == 'por año'
+	assert px['label'] == "Sen's slope" and px['unit'] == per_year
 	assert calls[3][0] == 'trend_table' and calls[3][1]['step'] == 'monthly' and calls[3][1]['region'] == {
 		'point': [-3.55, 36.95]}
 	assert calls[0] == ('trend_map', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	                                  'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual',
 	                                  'metric': 'median', 'quick': True})
-	assert shown['steps_label'] == 'Parte del año' and shown['steps'][6]['label'] == 'Tendencia de julio'
+	assert shown['steps_label'] == 'Part of the year' and shown['steps'][6]['label'] == map_steps('trend_table', {
+		'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})[6]['label']
 	assert calls[1][0] == 'trend_map' and calls[1][1]['step'] == 'monthly' and calls[1][1]['part'] == 7
 	assert calls[2][0] == 'trend_map' and calls[2][1]['quick'] and calls[2][1]['part'] == 7
 
-	# «Solo píxeles significativos»: the same maps with only the pixels of p < 0.05, and their pixels
+	# «Significant pixels only»: the same maps with only the pixels of p < 0.05, and their pixels
 	async def significant():
 		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
 		args = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly', 'metric': 'median'}
@@ -777,12 +933,13 @@ def test_map_and_pixel():
 	assert main['key'] == '|p<0.05' and month['key'] == 'part:7|p<0.05' and plain['key'] == ''
 	assert calls[0][0] == 'trend_map' and calls[0][1]['alpha'] == 0.05 and calls[0][1]['step'] == 'annual'
 	assert calls[1][1]['alpha'] == 0.05 and calls[1][1]['part'] == 7 and calls[1][1]['quick']
-	assert main['title'].endswith('(p < 0,05) · WDPA 389011') and main['map']['trend'] and px['value'] == 0.007
+	assert main['title'].endswith(', significant pixels only (p < 0.05) · WDPA 389011') and main['map']['trend']
+	assert px['value'] == 0.007
 	facts = dict(report.item_facts('trend_map', {**ARGS, 'step': 'annual', 'alpha': 0.05}))
-	assert facts['Píxeles'] == 'solo los de tendencia significativa (Mann-Kendall, p < 0,05)'
+	assert facts['Pixels'] == 'only those with a significant trend (Mann-Kendall, p < 0.05)'
 
 	# a map of interannual values (of each year): the series of a pixel, by years
-	a.results.append({'id': 2, 'tool': 'map_layer', 'image': None, 'title': 'Mapa',
+	a.results.append({'id': 2, 'tool': 'map_layer', 'image': None, 'title': 'Map',
 	                  'args': {**ARGS, 'start': '2021-06-01', 'end': '2024-08-31', 'temporal': 'annual'},
 	                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0]}})
 	calls.clear()
@@ -812,7 +969,7 @@ def test_map_view(monkeypatch):
 	r, g, b = img.getpixel((5, 5))
 	assert 220 <= r <= 235 and 95 <= g <= 105  # the red of the overlay at half opacity over the grey base
 	assert any('openstreetmap' in u for u in seen) and any(u.startswith('https://ee/13/') for u in seen)
-	with pytest.raises(ValueError, match='demasiado grande'):
+	with pytest.raises(ValueError, match='too big'):
 		report.map_view([-10, 35, 5, 44], 14, 'https://ee/{z}/{x}/{y}')
 
 
@@ -821,7 +978,7 @@ def test_eecu_bar_and_warning(monkeypatch):
 	# the shared account: switch to your own); the answers of the tools reach the page without eecu_warning
 	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
 	usage = {'account': 'shared', 'name': 'research EECUs', 'project': 'shared-project', 'month': '2026-11-01',
-	         'used_percent': 95.0, 'left_percent': 5.0, 'low': True, 'warning': 'Quedan menos del 10 %.'}
+	         'used_percent': 95.0, 'left_percent': 5.0, 'low': True, 'warning': 'Less than 10% are left.'}
 
 	class Eecu(FakeAssistant):
 		async def call(self, name, args):
@@ -842,8 +999,30 @@ def test_eecu_bar_and_warning(monkeypatch):
 	types = [e['type'] for e in first]
 	assert types.index('result') + 1 == types.index('eecu') == types.index('eecu_warning') - 1
 	assert first[types.index('eecu')]['usage'] == usage and a.eecu == usage
-	assert a.eecu_args == {'lang': 'es', 'refresh': False}
+	assert a.eecu_args == {'lang': 'en', 'refresh': False}
 	warning = first[types.index('eecu_warning')]['text']
-	assert warning.startswith('Quedan menos del 10 %.') and 'Usar mi cuenta de Google' in warning
+	assert warning.startswith('Less than 10% are left.') and 'Use my Google account' in warning
 	assert [e['type'] for e in second] == ['eecu']  # the warning, once
 	assert assistant._without_eecu_warning(json.dumps({'a': 1, 'eecu_warning': 'x'})) == '{\n "a": 1\n}'
+
+
+def test_sign_out(monkeypatch, tmp_path):
+	# «Log out»: the refresh token is revoked at Google and the credentials of `earthengine authenticate` deleted
+	import ee
+	import requests
+	path = tmp_path / 'credentials'
+	path.write_text(json.dumps({'refresh_token': 'refresh-123', 'scopes': []}))
+	monkeypatch.setattr(ee.oauth, 'get_credentials_path', lambda: str(path))
+	posted = []
+	monkeypatch.setattr(requests, 'post', lambda url, data=None, timeout=None: posted.append((url, data)))
+	assert assistant.signed_in() and assistant.sign_out()
+	assert not path.exists() and not assistant.signed_in()
+	assert posted == [(assistant.REVOKE, {'token': 'refresh-123'})]
+	assert assistant.sign_out() is False and len(posted) == 1  # nothing to sign out
+
+	path.write_text('{"refresh_token": "r"}')  # without a connection to Google, the credentials are deleted anyway
+
+	def offline(*a, **k):
+		raise requests.ConnectionError('offline')
+	monkeypatch.setattr(requests, 'post', offline)
+	assert assistant.sign_out() and not path.exists()

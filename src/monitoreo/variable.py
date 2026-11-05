@@ -64,10 +64,11 @@ def _default_name(spec):
 	return base
 
 
-def specs(var, defaults=None):
+def specs(var, defaults=None, two_periods=False):
 	"""Specs of a variable of a recipe: one per metric of 'metric' (a metric or a list of them), with the keys
 	missing in VAR taken from DEFAULTS and DEFAULTS of this module, and 'name' (a name for files: letters,
-	digits, '-' and '_')."""
+	digits, '-' and '_'). The variables of the catalog that compare two periods (RBR) only with TWO_PERIODS (the
+	periods of burn_severity)."""
 	unknown = set(var) - KEYS
 	if unknown:
 		raise ValueError(f"variable {var.get('name', var)}: unknown keys {', '.join(sorted(unknown))}")
@@ -78,6 +79,11 @@ def specs(var, defaults=None):
 	if unknown:
 		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use {', '.join(sensors.QUALITY)}")
 	k = kind(base)
+	if k == 'catalog' and not two_periods:
+		e = entry_of(base)
+		if e.get('two_periods'):
+			raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
+			                 f"it with burn_severity and index '{e['index']}'")
 	if k == 'image':
 		metrics = [None]
 	else:

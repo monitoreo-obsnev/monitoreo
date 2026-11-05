@@ -77,7 +77,8 @@ def init(project=None, shared=False, warn=True):
 
 class BrokerError(RuntimeError):
 	"""An answer of the broker of the shared account that is not a success: its CODE ('spent': the user has spent their
-	research EECUs of the month; 'user': a version without the ID of its user) and its DETAILS."""
+	research EECUs of the month; 'project': the users of the shared account have spent all those of the project but its
+	reserve; 'user': a version without the ID of its user) and its DETAILS."""
 
 	def __init__(self, message, code=None, details=None):
 		super().__init__(message)
@@ -154,7 +155,7 @@ def _init_shared():
 		ee.Initialize(credentials=credentials, project=project)
 		ee.data.setDefaultWorkloadTag(user_id())  # what this user computes: their research EECUs
 	except BrokerError as e:
-		if e.code == 'spent':  # the user has spent their research EECUs of this month
+		if e.code in ('spent', 'project'):  # the user, or all the users, have spent the research EECUs of the month
 			raise RuntimeError(f'{e}. Meanwhile, {OWN_ACCOUNT}') from e
 		raise RuntimeError(f'cannot connect to Earth Engine with the shared account of MonitorEO: {e}. Try again later '
 		                   f'or {OWN_ACCOUNT}') from e
@@ -204,6 +205,10 @@ _EECU_TEXT = {
 		              'gastados).',
 		'out_shared': 'Has gastado tus research EECUs de este mes ({used} de {limit} EECU-h): la cuenta compartida de '
 		              'MonitorEO no calcula para ti hasta el {resets}.',
+		'project_shared': ' La cuenta compartida solo tiene {project_left} EECU-h para todos sus usuarios hasta el '
+		                  '{resets}, así que te quedan {left}.',
+		'out_project': 'La cuenta compartida de MonitorEO ha gastado los EECU de este mes para sus usuarios: no calcula '
+		               'hasta el {resets}.',
 		'shared': ' Son solo para investigación y cada usuario tiene los suyos: cambia a tu propia cuenta de Earth '
 		          'Engine (inicia sesión con tu cuenta de Google y usa tu proyecto de Google Cloud) para seguir '
 		          'calculando.',
@@ -230,6 +235,10 @@ _EECU_TEXT = {
 		              'used).',
 		'out_shared': 'You have spent your research EECUs of this month ({used} of {limit} EECU-hours): the shared '
 		              'account of MonitorEO does not compute for you until {resets}.',
+		'project_shared': ' The shared account has only {project_left} EECU-hours left for all its users until '
+		                  '{resets}, so you have {left} left.',
+		'out_project': 'The shared account of MonitorEO has spent the EECUs of this month for its users: it does not '
+		               'compute until {resets}.',
 		'shared': ' They are only for research and each user has their own: switch to your own Earth Engine account '
 		          '(sign in with your Google account, `earthengine authenticate`, and use your Google Cloud project) to '
 		          'keep computing.',
@@ -355,15 +364,17 @@ def _day(day, lang):
 def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	"""The EECUs (compute units of Earth Engine) spent this month, against their limit. With the shared account of
 	MonitorEO they are the research EECUs of this user (see user_id), only for research: each user has the same
-	EECU-hours a month (those of the broker, 10), so that no one spends the quota of the project of everyone, and who
-	has spent theirs gets no more tokens until the next month. With the user's own account, those of their project,
+	EECU-hours a month (those of the broker, 25), so that no one spends the quota of the project of everyone, and who
+	has spent theirs gets no more tokens until the next month; what is left (left_hours) is also at most what is left
+	of the quota of the project (1,000 EECU-hours, Contributor tier) for all the users of the shared account, the
+	project keeping a reserve for the app of Earth Engine. With the user's own account, those of their project,
 	from Cloud Monitoring (whose API must be enabled in the project; the user needs the role Monitoring Viewer),
 	against the monthly quota of its tier, LIMIT (see eecu_limit); when it is spent, Earth Engine computes more slowly.
 	SHARED chooses the account; by default that connected or, before connecting, the shared one if there is no project
 	in EE_PROJECT (the research EECUs are asked to the broker without connecting, also when they are spent). Both restart
 	on the first day of each month. Answers are kept EECU_TTL seconds (REFRESH asks again). Returns {account ('shared'
-	or 'own'), name, project, used_hours, limit_hours, tier, used_percent, left_percent, month, resets, low, warning
-	(None or why to worry), text, bar}, with the texts in LANG ('en' or 'es')."""
+	or 'own'), name, project, used_hours, limit_hours, left_hours, tier, used_percent, left_percent, month, resets, low,
+	warning (None or why to worry), text, bar}, with the texts in LANG ('en' or 'es')."""
 	lang = 'es' if lang == 'es' else 'en'
 	t = _EECU_TEXT[lang]
 	if shared is None:
@@ -380,7 +391,8 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 		try:
 			if shared:
 				d = _broker('/usage', user=user_id())
-				hit = {'used': float(d['used_hours']), 'limit': float(d['limit_hours']), 'project': d.get('project')}
+				hit = {'used': float(d['used_hours']), 'limit': float(d['limit_hours']), 'project': d.get('project'),
+				       'left': d.get('left_hours'), 'project_left': d.get('project_left_hours')}
 			else:
 				hit = {'used': _own_eecu_hours(_project, start), 'limit': None, 'project': _project}
 		except _MonitoringError as e:
@@ -394,26 +406,34 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	used, limit, project = hit['used'], hit['limit'] or own_limit, hit['project']
 	tier = None if shared else next((k for k, v in EECU_TIERS.items() if v == limit), None)
 	used_pct = round(100 * used / limit, 1)
-	left_pct = round(max(0.0, 100 - used_pct), 1)
+	# with the shared account, the broker says what is left: at most what is left of the project for all its users
+	left = max(0.0, limit - used) if hit.get('left') is None else max(0.0, float(hit['left']))
+	by_project = shared and left < limit - used - 0.005
+	left_pct = round(max(0.0, 100 * left / limit), 1)
 	kind = 'shared' if shared else 'own'
 	values = {'project': project, 'low': EECU_LOW, 'used': _number(used, lang, 2 if used < 10 else 1),
 	          'limit': _number(limit, lang, 1 if limit % 1 else 0), 'used_pct': _number(used_pct, lang),
 	          'left_pct': _number(left_pct, lang), 'tier': t['tier'].format(tier=tier) if tier else '',
-	          'resets': _day(resets, lang)}
+	          'resets': _day(resets, lang), 'left': _number(left, lang, 2 if left < 10 else 1),
+	          'project_left': _number(float(hit.get('project_left') or 0), lang, 0)}
 	warning = None
 	if left_pct < EECU_LOW:
-		warning = (t[('out_' if left_pct <= 0 else 'low_') + kind] + t[kind]).format(**values)
+		out_key = 'out_project' if by_project and left <= 0 else ('out_' if left_pct <= 0 else 'low_') + kind
+		warning = (t[out_key] + t[kind]).format(**values)
+	text = t['text_' + kind].format(**values) + (t['project_shared'].format(**values) if by_project else '')
 	out = {'account': kind, 'name': t['name_' + kind], 'project': project, 'used_hours': round(used, 2),
-	       'limit_hours': limit, 'tier': tier, 'used_percent': used_pct, 'left_percent': left_pct,
-	       'month': start.isoformat(), 'resets': resets.isoformat(), 'low': left_pct < EECU_LOW, 'warning': warning,
-	       'text': t['text_' + kind].format(**values)}
+	       'limit_hours': limit, 'left_hours': round(left, 2), 'tier': tier, 'used_percent': used_pct,
+	       'left_percent': left_pct, 'month': start.isoformat(), 'resets': resets.isoformat(), 'low': left_pct < EECU_LOW,
+	       'warning': warning, 'text': text}
 	out['bar'] = eecu_bar(out)
 	return out
 
 
 def eecu_bar(usage, width=30):
-	"""A bar of text of the percent spent of eecu_usage: [##########--------------------] 33.3%."""
-	filled = min(width, round(width * usage['used_percent'] / 100))
+	"""A bar of text of the percent spent of eecu_usage: [##########--------------------] 33.3%. The bar is what can
+	no longer be used (100 % minus what is left: with the shared account, also what the project has no more)."""
+	gone = 100 - usage.get('left_percent', 100 - usage['used_percent'])
+	filled = min(width, max(0, round(width * gone / 100)))
 	return f"[{'#' * filled}{'-' * (width - filled)}] {usage['used_percent']:g}%"
 
 
@@ -451,9 +471,10 @@ def _name(e, lang, field):
 	return e.get(f'{field}_{lang}') or e[field] if lang != 'es' else e[field]
 
 
-def list_variables(sensor=None, text=None, lang='es'):
+def list_variables(sensor=None, text=None, lang='en'):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, group, resolution_m,
-	dates, unit}], optionally of one SENSOR or with TEXT in their name or variable."""
+	dates, unit}], optionally of one SENSOR or with TEXT in their variable or their name (in English or in Spanish,
+	whatever LANG is)."""
 	out = []
 	for e in catalog.variables():
 		if sensor and e['sensor'].lower() != str(sensor).lower():
@@ -461,13 +482,15 @@ def list_variables(sensor=None, text=None, lang='es'):
 		row = {'ref': e['ref'], 'variable': e['index'], 'sensor': e['sensor'], 'collection': e['col'],
 		       'name': _name(e, lang, 'vname'), 'group': _name(e, lang, 'type'), 'resolution_m': e['m'],
 		       'dates': e['dr'], 'unit': e['unit']}
-		if text and str(text).lower() not in f"{row['variable']} {row['name']}".lower():
+		if e.get('two_periods'):
+			row['two_periods'] = True  # RBR: only burn_severity computes it
+		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
 	return out
 
 
-def describe_variable(variable_name, sensor=None, collection=None, ref=None, lang='es'):
+def describe_variable(variable_name, sensor=None, collection=None, ref=None, lang='en'):
 	"""Everything about a variable of the catalog: formula, collection, scale, unit, pixel filters, notes, ..."""
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
@@ -491,8 +514,9 @@ def find_protected_areas(text, limit=20):
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',
               season=None, quality=None, collection=None, band=None, image=None, ref=None, band_scale=None,
-              band_offset=None, terrain=None, exclude_landcover=None):
-	"""Spec of a variable (see monitoreo.variable) from the arguments of the services."""
+              band_offset=None, terrain=None, exclude_landcover=None, two_periods=False):
+	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
+	variables that compare two periods, RBR, for burn_severity)."""
 	var = {'metric': metric, 'temporal': temporal, 'interannual': interannual, 'season': season,
 	       'quality': quality or {}, 'exclude_landcover': exclude_landcover}
 	if start or end:
@@ -511,11 +535,11 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	if band_offset is not None:
 		var['offset'] = band_offset
 	var = {k: v for k, v in var.items() if v is not None}
-	return variable_specs(var)[0]
+	return variable_specs(var, two_periods)[0]
 
 
-def variable_specs(var):
-	return variables.specs(var)
+def variable_specs(var, two_periods=False):
+	return variables.specs(var, two_periods=two_periods)
 
 
 def _title(spec, step=None, metric=None, stat=None):
@@ -951,7 +975,8 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		out['csv'] = timeseries.write_csv(profile, csv, meta, COMPARISON_COLUMNS)
 	if chart and any(r['reference'] is not None or r['other'] is not None for r in profile):
 		try:
-			labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in profile}
+			labels = {r['part']: r['key'] if step == '16-day' else r['label'][:3] if step == 'monthly' else r['label']
+			          for r in profile}
 			charts.comparison_png(profile, labels, chart, title=title, ylabel=unit or None, names=names)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
@@ -960,13 +985,13 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 
 
 def _comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal, interannual, season,
-                quality, res, source):
+                quality, res, source, two_periods=False):
 	if not other_start or not other_end:
 		raise ValueError('give the other period: other_start and other_end')
 	ref = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
-	                season=season, quality=quality, **source)
+	                season=season, quality=quality, two_periods=two_periods, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal=temporal,
-	                interannual=interannual, season=season, quality=quality, **source)
+	                interannual=interannual, season=season, quality=quality, two_periods=two_periods, **source)
 	regions = areas.region(region)
 	native = float(variables.native_scale(ref))
 	geom = regions.geometry()
@@ -1031,18 +1056,32 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 
 
 BURN_COLUMNS = ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha']
+RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
+BURN_INDICES = ('dNBR', 'RBR')
 
 
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
-                  max_pixels=None, tile=512, workers=8, progress=None):
+                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR'):
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
 	each class are computed by Earth Engine on pixels of RESOLUTION metres (default: those of the data). Writes the
 	table to CSV and, with PATH, a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
-	Returns {'classes': [{region, class, label, dnbr_min, dnbr_max, ha}], 'burned_ha': {region: hectares with
-	dNBR >= 0.1}, 'scale', 'title', 'csv', 'file', 'bands', 'grid', 'resolution', 'native_resolution'}."""
+	Returns {'index': 'dNBR', 'classes': [{region, class, label, dnbr_min, dnbr_max, ha}], 'burned_ha': {region:
+	hectares with dNBR >= 0.1}, 'scale', 'title', 'csv', 'file', 'bands', 'grid', 'resolution', 'native_resolution'}.
+
+	With INDEX 'RBR', the Relativized Burn Ratio instead: RBR = dNBR / (NBR before + 1.001), with the NBR of the
+	catalog entry RBR (bands B8A and B12 in Sentinel-2, as Silva-Cardoza et al. 2022; NIR and SWIR2 in Landsat),
+	without phenological correction and on the scale of the dNBR (the articles multiply it by 1000). A continuous
+	map, without classes: {'index': 'RBR', 'stats': [{region, mean, median, p10, p90, min, max, ha (of the pixels with
+	values)}], ...} and the GeoTIFF bands rbr, dnbr, nbr_before and nbr_after."""
+	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
+	if index is None:
+		raise ValueError(f"unknown burn index: use {' or '.join(BURN_INDICES)}")
+	if index == 'RBR':
+		return _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path,
+		            csv, max_pixels, tile, workers, progress)
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
@@ -1061,8 +1100,8 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		burned[r['region']] = burned.get(r['region'], 0.0) + (r['ha'] if r['class'] >= 1 else 0.0)
 	title = (f"Burn severity (dNBR, USGS) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
 	         f"after {other_start} / {other_end}")
-	out = {'classes': classes, 'burned_ha': burned, 'scale': res, 'title': title, 'csv': None, 'file': None,
-	       'bands': None, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
+	out = {'index': 'dNBR', 'classes': classes, 'burned_ha': burned, 'scale': res, 'title': title, 'csv': None,
+	       'file': None, 'bands': None, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
 	if csv:
 		meta = {'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}', 'metric': metric,
 		        'scale_m': res}
@@ -1074,6 +1113,47 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
 		             severity='USGS, Key & Benson 2006'), default=str)})
+		out.update(file=path, bands=bands)
+	return out
+
+
+def _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
+         max_pixels, tile, workers, progress):
+	"""burn_severity with the index RBR."""
+	regions_ = areas.region(region)
+	spec0 = make_spec('RBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True)
+	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	spec, regions, img, native, name = _comparison(regions_, 'RBR', sensor, start, end, other_start, other_end,
+	                                               metric, 'period', 'mean', season, quality, res, {}, two_periods=True)
+	before, after = img.select('reference'), img.select('other')
+	dnbr = before.subtract(after).rename('dnbr')
+	rbr = fire.rbr(dnbr, before)
+	reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', True) \
+		.combine(ee.Reducer.percentile([10, 90]), '', True).combine(ee.Reducer.minMax(), '', True)
+	stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions(
+		collection=regions, reducer=reducer.combine(ee.Reducer.sum(), '', True), scale=res, crs=grid.crs,
+		tileScale=4).getInfo()['features']
+	rows = []
+	for f in stats:
+		p = f['properties']
+		rows.append({'region': str(p.get('name')), 'mean': p.get('rbr_mean'), 'median': p.get('rbr_median'),
+		             'p10': p.get('rbr_p10'), 'p90': p.get('rbr_p90'), 'min': p.get('rbr_min'), 'max': p.get('rbr_max'),
+		             'ha': p.get('ha_sum') or 0.0})
+	title = (f"Relativized Burn Ratio (RBR) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
+	         f"after {other_start} / {other_end}")
+	out = {'index': 'RBR', 'stats': rows, 'scale': res, 'title': title, 'csv': None, 'file': None, 'bands': None,
+	       'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
+	if csv:
+		meta = {'index': 'RBR', 'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}',
+		        'metric': metric, 'scale_m': res}
+		out['csv'] = timeseries.write_csv(rows, csv, meta, RBR_COLUMNS)
+	if path:
+		bands = ['rbr', 'dnbr', 'nbr_before', 'nbr_after']
+		image = ee.Image.cat([rbr, dnbr, before, after]).rename(bands)
+		download(image, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
+		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
+		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
+		             index='RBR = dNBR / (NBR before + 1.001)'), default=str)})
 		out.update(file=path, bands=bands)
 	return out
 

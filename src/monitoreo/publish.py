@@ -16,21 +16,23 @@ Serve it with any web server that answers HTTP range requests (GitHub Pages, ngi
 with serve(). The viewer only reads files: it has no accounts and no forms, so whoever can write in the site (push to
 its GitHub repository, rsync to its server) is who publishes. Publishing needs GDAL (osgeo).
 
-A report is described in Spanish, the language of the viewer, by a dictionary or a YAML file (read_specs):
+A report is described by a dictionary or a YAML file (read_specs). The viewer and the texts made by this module
+(default titles, labels of the bands, names of the files) are in English; the texts of a report are shown as they are
+written, in their language:
 
     id: 2026-10-sierra-nevada            # lowercase letters, digits and hyphens (default: from the title)
-    title: ¿En qué época del año ha cambiado el verdor desde 2001, y dónde?
-    summary: Solo septiembre tiene una tendencia significativa del EVI ...       (the answer in short)
-    answer: El EVI medio del parque sube en 9 de los 12 meses ...    (paragraphs separated by a blank line)
+    title: In which part of the year has the greenness changed since 2001, and where?
+    summary: Only September has a significant trend of the EVI ...       (the answer in short)
+    answer: The mean EVI of the park goes up in 9 of the 12 months ...    (paragraphs separated by a blank line)
     method: ...
-    sections: [{title: Frente a REMOTE, text: ...}]
-    region: {name: Sierra Nevada, designation: Parque Nacional, wdpa_id: 389011, area_km2: 859}
-    authors: [OBSNEV - Universidad de Granada]
+    sections: [{title: Compared with REMOTE, text: ...}]
+    region: {name: Sierra Nevada, designation: National Park, wdpa_id: 389011, area_km2: 859}
+    authors: [OBSNEV - University of Granada]
     published: 2026-10-29                # default: today
-    collection: Red de Parques Nacionales, octubre de 2026
+    collection: Network of National Parks, October 2026
     results:                             # the outputs of the analysis, in the order of the page
       - answer: data/sn_trend.json        # an answer of the MCP server saved with its call: {call: {tool, args}, text}
-        title: Tendencia de cada mes      # default: made from the call
+        title: Trend of each month        # default: made from the call
         caption: ...
       - tool: download_trend              # or the call and the result of a function of monitoreo.services
         args: {region: {wdpa_id: 389011}, variable: EVI, sensor: Modis, start: 2001-01-01, end: 2024-12-31}
@@ -38,7 +40,7 @@ A report is described in Spanish, the language of the viewer, by a dictionary or
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
       - file: ~/MonitorEO/trend_EVI_Modis_annual_None_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
-    downloads: [{path: informe.pdf, title: Informe completo (PDF)}]
+    downloads: [{path: report.pdf, title: Full report (PDF)}]
     thumbnail: fig/sierra_nevada.png     # default: the first map, or the first chart of a tool
     files: mcp_out                       # folders where to look for the files of the results by their name
     license: CC-BY-4.0                   # of its data and maps: id in LICENSES (default: LICENSE) or {name, url, text}
@@ -66,57 +68,64 @@ SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
 DEFAULT_SITE = os.path.expanduser(os.environ.get('MONITOREO_SITE') or '~/MonitorEO/visor')
 CALLS_LOG = 'calls.jsonl'  # log of the MCP server in its folder of files: a line {time, tool, args, result} per call
-SITE_TITLE = 'Resultados de MonitorEO-OBSNEV'
+SITE_TITLE = 'Results of MonitorEO-OBSNEV'
 NODATA = -9999
 THUMBNAIL_WIDTH = 480
 
 # licences of the data and maps of a report, by their SPDX id (text: after a colon); LICENSE is that of a report that
 # does not give one
 LICENSES = {
-	'CC-BY-4.0': {'name': 'CC BY 4.0', 'url': 'https://creativecommons.org/licenses/by/4.0/deed.es',
-	              'text': 'se pueden copiar, redistribuir y adaptar para cualquier fin, también comercial, citando la '
-	                      'fuente.'},
-	'CC-BY-SA-4.0': {'name': 'CC BY-SA 4.0', 'url': 'https://creativecommons.org/licenses/by-sa/4.0/deed.es',
-	                 'text': 'se pueden copiar, redistribuir y adaptar para cualquier fin, también comercial, citando '
-	                         'la fuente y con la misma licencia.'},
-	'CC0-1.0': {'name': 'CC0 1.0', 'url': 'https://creativecommons.org/publicdomain/zero/1.0/deed.es',
-	            'text': 'dominio público: se pueden usar para cualquier fin sin condiciones.'},
+	'CC-BY-4.0': {'name': 'CC BY 4.0', 'url': 'https://creativecommons.org/licenses/by/4.0/deed.en',
+	              'text': 'they can be copied, redistributed and adapted for any purpose, also commercially, citing the '
+	                      'source.'},
+	'CC-BY-SA-4.0': {'name': 'CC BY-SA 4.0', 'url': 'https://creativecommons.org/licenses/by-sa/4.0/deed.en',
+	                 'text': 'they can be copied, redistributed and adapted for any purpose, also commercially, citing '
+	                         'the source and with the same license.'},
+	'CC0-1.0': {'name': 'CC0 1.0', 'url': 'https://creativecommons.org/publicdomain/zero/1.0/deed.en',
+	            'text': 'public domain: they can be used for any purpose without conditions.'},
 }
 LICENSE = 'CC-BY-4.0'
 
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map'}
-ANALYSIS_NAMES = {'series': 'Serie temporal', 'trend': 'Tendencia', 'comparison': 'Comparación de periodos',
-                  'burn_severity': 'Severidad de incendio', 'map': 'Mapa'}
+ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
+                  'burn_severity': 'Burn severity', 'map': 'Map'}
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison',
           'burn_severity': 'burn_severity'}
 CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'table')
 
-MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
-          'noviembre', 'diciembre']
-STEPS = {'daily': 'diaria', '16-day': 'de 16 días', 'monthly': 'mensual', 'annual': 'anual'}
-PARTS = {'monthly': 'de cada mes', '16-day': 'de cada periodo de 16 días', 'annual': 'anual'}
+MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+          'November', 'December']
+STEPS = {'daily': 'daily', '16-day': '16-day', 'monthly': 'monthly', 'annual': 'annual'}
+PARTS = {'monthly': 'of each month', '16-day': 'of each 16-day period', 'annual': 'of the year'}
+BY_STEP = {'monthly': 'by month', '16-day': 'by 16-day period', 'annual': 'by year'}
 SENSORS = {'Modis': 'MODIS'}
 
 # bands of the GeoTIFFs of the tools: label and unit ({u}: the unit of the variable)
 BANDS = {
-	'slope': ('Pendiente de Sen', '{u}/año'),
-	'tau': ('τ de Kendall', ''),
-	'z': ('Z de Mann-Kendall', ''),
-	'p_value': ('p-valor de Mann-Kendall', ''),
-	'intercept': ('Valor de la recta de Sen el primer año', '{u}'),
-	'n': ('Años con datos', 'años'),
-	'difference': ('Diferencia', '{u}'),
-	'reference': ('Periodo de referencia', '{u}'),
-	'other': ('Otro periodo', '{u}'),
-	'dnbr': ('dNBR (NBR antes − NBR después)', ''),
-	'severity': ('Severidad (escala del USGS)', ''),
-	'nbr_before': ('NBR antes del incendio', ''),
-	'nbr_after': ('NBR después del incendio', ''),
+	'slope': ("Sen's slope", '{u}/year'),
+	'tau': ("Kendall's τ", ''),
+	'z': ('Mann-Kendall Z', ''),
+	'p_value': ('Mann-Kendall p-value', ''),
+	'intercept': ('Value of the Sen line in the first year', '{u}'),
+	'n': ('Years with data', 'years'),
+	'difference': ('Difference', '{u}'),
+	'reference': ('Reference period', '{u}'),
+	'other': ('Other period', '{u}'),
+	'dnbr': ('dNBR (NBR before − NBR after)', ''),
+	'severity': ('Severity (USGS scale)', ''),
+	'nbr_before': ('NBR before the fire', ''),
+	'nbr_after': ('NBR after the fire', ''),
+	'rbr': ('RBR (dNBR / (NBR before + 1.001))', ''),
 }
-DIVERGING_BANDS = ('slope', 'tau', 'z', 'difference', 'dnbr')
-MAIN_BANDS = ('slope', 'difference', 'severity')  # shown first when a GeoTIFF has them
+DIVERGING_BANDS = ('slope', 'tau', 'z', 'difference', 'dnbr', 'rbr')
+MAIN_BANDS = ('slope', 'difference', 'severity', 'rbr')  # shown first when a GeoTIFF has them
+
+
+def fire_variable(args):
+	"""The variable of the catalog of a call of burn_severity: RBR with index RBR, else NBR."""
+	return 'RBR' if str((args or {}).get('index') or '').upper() == 'RBR' else 'NBR'
 
 
 # Reading the reports ------------------------------------------------------------------------------------------------
@@ -234,7 +243,7 @@ def _date(d):
 
 
 def period_text(start, end):
-	"""'2001-2024', '2023' or '15 may 2023 - 14 ago 2023'."""
+	"""'2001-2024', '2023' or '15 May 2023 - 14 Aug 2023'."""
 	start, end = str(start)[:10], str(end)[:10]
 	if start[5:] == '01-01' and end[5:] == '12-31':
 		return start[:4] if start[:4] == end[:4] else f'{start[:4]}-{end[:4]}'
@@ -242,14 +251,14 @@ def period_text(start, end):
 
 
 def season_text(season):
-	"""' (de junio a agosto)' or ' (del 15 de mayo al 14 de agosto)' of a season ['MM-DD', 'MM-DD']."""
+	"""' (June to August)' or ' (15 May to 14 August)' of a season ['MM-DD', 'MM-DD']."""
 	if not season:
 		return ''
 	(m1, d1), (m2, d2) = [map(int, str(s).split('-')) for s in season]
 	last = (dt.date(2001 + (m2 == 12), m2 % 12 + 1, 1) - dt.timedelta(days=1)).day
 	if d1 == 1 and (d2 == last or (m2 == 2 and d2 >= 28)):
-		return f' (de {MONTHS[m1 - 1]} a {MONTHS[m2 - 1]})'
-	return f' (del {d1} de {MONTHS[m1 - 1]} al {d2} de {MONTHS[m2 - 1]})'
+		return f' ({MONTHS[m1 - 1]} to {MONTHS[m2 - 1]})'
+	return f' ({d1} {MONTHS[m1 - 1]} to {d2} {MONTHS[m2 - 1]})'
 
 
 def _var(args):
@@ -259,41 +268,43 @@ def _var(args):
 
 
 def default_title(tool, args):
-	"""A title in Spanish of the result of a call."""
+	"""A title in English of the result of a call."""
 	var, season = _var(args), season_text(args.get('season'))
 	period = period_text(args['start'], args['end']) if args.get('start') and args.get('end') else ''
 	other = period_text(args['other_start'], args['other_end']) \
 		if args.get('other_start') and args.get('other_end') else ''
 	step = args.get('step') or ('annual' if tool in ('trend_table', 'download_trend') else 'monthly')
 	if tool == 'time_series':
-		return f'Serie {STEPS.get(step, step)} de {var}, {period}{season}'
+		return f'{STEPS.get(step, step).capitalize()} time series of {var}, {period}{season}'
 	if tool == 'trend_table':
-		return f'Tendencia {PARTS.get(step, step)} de {var}, {period}{season}'
+		what = 'Annual trend' if step == 'annual' else f'Trend {PARTS.get(step, step)}'
+		return f'{what} of {var}, {period}{season}'
 	if tool == 'download_trend':
 		part = args.get('part')
 		if step == 'annual' or not part:
-			what = 'anual'
+			what = 'annual trend'
 		else:
-			what = f'de {MONTHS[int(part) - 1]}' if step == 'monthly' else f'del periodo {part} de 16 días'
-		return f'Mapa de la tendencia {what} de {var}, {period}{season}'
+			what = f'trend of {MONTHS[int(part) - 1]}' if step == 'monthly' else f'trend of 16-day period {part}'
+		return f'Map of the {what} of {var}, {period}{season}'
 	if tool == 'compare_series':
-		return f'{var} {"por meses" if step == "monthly" else STEPS.get(step, step)}: {other} frente a {period}{season}'
+		return f'{var} {BY_STEP.get(step, step)}: {other} compared with {period}{season}'
 	if tool == 'download_comparison':
-		return f'Mapa de la diferencia de {var}: {other} menos {period}{season}'
+		return f'Map of the difference of {var}: {other} minus {period}{season}'
 	if tool == 'burn_severity':
 		sensor = args.get('sensor') or 'Sentinel-2'
-		return f'Severidad del incendio (dNBR de {SENSORS.get(sensor, sensor)}): antes, {period}; después, {other}'
+		index = 'RBR' if fire_variable(args) == 'RBR' else 'dNBR'
+		return f'Burn severity ({index} of {SENSORS.get(sensor, sensor)}): before, {period}; after, {other}'
 	if tool == 'download_image':
-		return f'Mapa de {var}, {period}{season}'
-	return var or 'Resultado'
+		return f'Map of {var}, {period}{season}'
+	return var or 'Result'
 
 
 def unit_text(unit, per_year=False):
-	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/año', 'por año' with PER_YEAR)."""
+	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/year', 'per year' with PER_YEAR)."""
 	u = str(unit or '').replace('/ year', '').strip().strip('[]').replace('º', '°').strip()
 	u = '' if u.lower() in ('unitless', 'none') else u
 	if per_year:
-		return f'{u}/año' if u else 'por año'
+		return f'{u}/year' if u else 'per year'
 	return u
 
 
@@ -405,9 +416,14 @@ def _entry(variable, sensor):
 		return None
 
 
+def _vname(entry):
+	"""The name in English of a variable of the catalog (its name in Spanish if it has none)."""
+	return (entry or {}).get('vname_en') or (entry or {}).get('vname')
+
+
 def _bands(tool, args, result, arrays, palette, unit):
 	"""Label, unit, legend and statistics of each band of a map of TOOL."""
-	entry = _entry(args.get('variable') or ('NBR' if tool == 'burn_severity' else None),
+	entry = _entry(args.get('variable') or (fire_variable(args) if tool == 'burn_severity' else None),
 	               args.get('sensor') or ('Sentinel-2' if tool == 'burn_severity' else None))
 	ramp = maps.ramp(entry)
 	diverging = palette or result.get('palette') or trends.DIVERGING
@@ -420,11 +436,11 @@ def _bands(tool, args, result, arrays, palette, unit):
 	for name, st in stats.items():
 		label, u = BANDS.get(name, (None, '{u}'))
 		if label is None:  # a single band map (download_image): the variable
-			label = (entry or {}).get('vname') or _var(args) or name
+			label = _vname(entry) or _var(args) or name
 		if tool == 'download_comparison' and name in ('reference', 'other', 'difference'):
-			label = {'reference': f'Referencia ({ref})', 'other': f'Otro periodo ({oth})',
-			         'difference': f'Diferencia ({oth} − {ref})'}[name]
-		u = u.replace('{u}/año', unit_text(unit, per_year=True)).replace('{u}', unit_text(unit))
+			label = {'reference': f'Reference period ({ref})', 'other': f'Other period ({oth})',
+			         'difference': f'Difference ({oth} − {ref})'}[name]
+		u = u.replace('{u}/year', unit_text(unit, per_year=True)).replace('{u}', unit_text(unit))
 		lo, hi = (st['p2'], st['p98']) if st else (None, None)
 		main = name in MAIN_BANDS or len(arrays) == 1
 		if name == 'severity':
@@ -436,7 +452,8 @@ def _bands(tool, args, result, arrays, palette, unit):
 		elif name in DIVERGING_BANDS:
 			if main and result.get('min') is not None and result.get('max') is not None:
 				lo, hi = result['min'], result['max']
-			legend = _continuous(-1.0, 1.0, diverging) if name == 'tau' else _continuous(lo, hi, diverging, True)
+			legend = _continuous(-1.0, 1.0, diverging) if name == 'tau' else \
+				_continuous(lo, hi, list(reversed(trends.DIVERGING)) if name == 'rbr' and not palette else diverging, True)
 		elif name in ('reference', 'other', 'nbr_before', 'nbr_after'):
 			legend = _continuous(*pair_range, ramp)
 		elif main and result.get('min') is not None and result.get('max') is not None:
@@ -585,7 +602,7 @@ def _results(item, files, n):
 		unit = unit[:-len('/ year')].strip()
 	out = []
 	if res.get('file') and str(res['file']).lower().endswith(('.tif', '.tiff')):
-		cog = files.add(res['file'], 'maps', f'Mapa (GeoTIFF): {title}', 'GeoTIFF', convert=to_cog)
+		cog = files.add(res['file'], 'maps', f'Map (GeoTIFF): {title}', 'GeoTIFF', convert=to_cog)
 		ds, arrays = _read_map(os.path.join(files.folder, cog))
 		bands = _bands(tool, args, res, arrays, item.get('palette'), unit)
 		names = [b['name'] for b in bands]
@@ -598,7 +615,7 @@ def _results(item, files, n):
 		              'significance': sig, 'images': res.get('images'), 'call': call}, **_georef(ds))
 		out.append(entry)
 	if res.get('csv'):
-		path = files.add(res['csv'], 'data', f'Tabla (CSV): {title}', 'CSV')
+		path = files.add(res['csv'], 'data', f'Table (CSV): {title}', 'CSV')
 		chart = item.get('chart') or _chart_type(tool, res['csv'])
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
@@ -610,17 +627,17 @@ def _results(item, files, n):
 		if chart == 'comparison':
 			entry['names'] = [period_text(args.get('start'), args.get('end')),
 			                  period_text(args.get('other_start'), args.get('other_end'))] \
-				if args.get('start') and args.get('other_start') else ['Referencia', 'Otro periodo']
+				if args.get('start') and args.get('other_start') else ['Reference period', 'Other period']
 		if chart == 'burn_severity':
 			entry['classes'] = _severity_legend()['classes']
 			entry['burned_ha'] = res.get('burned_ha')
 			if out:
-				entry['title'] = item.get('chart_title') or 'Superficie de cada clase de severidad'
+				entry['title'] = item.get('chart_title') or 'Area of each severity class'
 		if res.get('chart'):
-			entry['png'] = files.add(res['chart'], 'files', f'Gráfico (PNG): {title}', 'PNG')
+			entry['png'] = files.add(res['chart'], 'files', f'Chart (PNG): {title}', 'PNG')
 		out.append(entry)
 	elif res.get('chart'):
-		files.add(res['chart'], 'files', f'Gráfico (PNG): {title}', 'PNG')
+		files.add(res['chart'], 'files', f'Chart (PNG): {title}', 'PNG')
 	if not out:
 		raise ValueError(f'the result of {tool or "a file"} has no GeoTIFF nor CSV to publish: {sorted(res)}')
 	return out
@@ -667,7 +684,7 @@ def _region(spec, items):
 				break
 	if not region.get('name'):
 		names = [r for it in items for r in it['result'].get('regions') or []]
-		region['name'] = ', '.join(dict.fromkeys(names)) or 'Región'
+		region['name'] = ', '.join(dict.fromkeys(names)) or 'Region'
 	return region
 
 
@@ -675,12 +692,12 @@ def _variables(items):
 	out = {}
 	for it in items:
 		a = it['args']
-		var = a.get('variable') or ('NBR' if it.get('tool') == 'burn_severity' else None)
+		var = a.get('variable') or (fire_variable(a) if it.get('tool') == 'burn_severity' else None)
 		if not var:
 			continue
 		sensor = a.get('sensor') or ('Sentinel-2' if it.get('tool') == 'burn_severity' else None)
 		e = _entry(var, sensor) or {}
-		name, unit = e.get('vname'), unit_text(e.get('unit'))
+		name, unit = _vname(e), unit_text(e.get('unit'))
 		out.setdefault((var, sensor), {'variable': var, 'sensor': SENSORS.get(sensor, sensor), 'name': name,
 		                               'unit': unit})
 	return list(out.values())
@@ -755,7 +772,7 @@ def build(spec, rid, base, folders, log, folder):
 		'periods': periods, 'years': [int(min(p[0] for p in periods)[:4]), int(max(p[1] for p in periods)[:4])]
 		if periods else None,
 		'published': published,
-		'authors': [str(a) for a in _list(spec.get('authors'))] or ['OBSNEV - Universidad de Granada'],
+		'authors': [str(a) for a in _list(spec.get('authors'))] or ['OBSNEV - University of Granada'],
 		'collection': spec.get('collection'), 'keywords': [str(k) for k in _list(spec.get('keywords'))],
 		'license': license_of(spec.get('license')), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
 		'software': {'monitoreo': __version__},
@@ -851,13 +868,15 @@ def update_catalog(site=None):
 			r = json.load(f)
 		folder = f"reports/{r['id']}"
 		e = {k: r.get(k) for k in CATALOG_KEYS}
+		# the names of the analyses of this version (those of a report published before may be in Spanish)
+		e['analyses'] = [dict(a, name=ANALYSIS_NAMES.get(a.get('id'), a.get('name'))) for a in r.get('analyses') or []]
 		e.update(path=f'{folder}/report.json', thumbnail=f"{folder}/{r['thumbnail']}" if r.get('thumbnail') else None,
 		         maps=sum(x['kind'] == 'map' for x in r['results']),
 		         charts=sum(x['kind'] == 'chart' for x in r['results']))
 		entries.append(e)
 	entries.sort(key=lambda e: (slug(e['region'].get('name') or ''), e['title']))
 	entries.sort(key=lambda e: e['published'], reverse=True)
-	a = about_.about('es')
+	a = about_.about('en')
 	a['logos'] = [f'assets/logos/{os.path.basename(p)}' for p in a['logos']]
 	cat = {'schema': SCHEMA, 'title': SITE_TITLE, 'updated': dt.datetime.now().isoformat(timespec='seconds'),
 	       'software': {'monitoreo': __version__}, 'about': a, 'license': license_of(), 'analyses': ANALYSIS_NAMES,

@@ -53,9 +53,9 @@ PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'auto', 'model': 'qwen3:8b',
             'context': 16384, 'think': False, 'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
-	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recomendado'},
-	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'más rápido y ligero; se equivoca más'},
-	{'name': 'gpt-oss:20b', 'gb': 14, 'note': 'para ordenadores con 16 GB o más de memoria'},
+	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended'},
+	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'faster and lighter; makes more mistakes'},
+	{'name': 'gpt-oss:20b', 'gb': 14, 'note': 'for computers with 16 GB of memory or more'},
 ]
 MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
 MAX_STEPS = 8  # answers of the model to a message of the user
@@ -63,8 +63,7 @@ MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model g
 MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and the others with a button)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
               'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS', 'MONITOREO_BROKER')
-SWITCH_ACCOUNT = (' En el asistente: pulsa «Usar mi cuenta de Google» y escribe tu proyecto de Google Cloud en '
-                  'Configuración.')
+SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map', 'compare_series', 'compare_map',
@@ -72,132 +71,144 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map
            'download_variables')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick')  # arguments the model does not see
-ALPHA = 0.05  # the trends whose pixels are kept by «Solo píxeles significativos» (Mann-Kendall p < ALPHA)
+ALPHA = 0.05  # the trends whose pixels are kept by «Significant pixels only» (Mann-Kendall p < ALPHA)
 SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
-AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas, for the model
-DESIGNATIONS = (r'^(el |la )?(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|'
-                r'de la biosfera)|monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial '
-                r'conservaci[oó]n|zec|zepa|lic)\b( (de la|de los|de las|del|de)\b)?\s*')  # removed from the searches
+AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas
+_DESIG = (r'(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|de la biosfera)|'
+          r'monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial conservaci[oó]n|zec|zepa|'
+          r'lic|national park|natural park|nature park|(natural|nature|biosphere) reserve|natural monument|'
+          r'protected landscape|special area of conservation|special protection area|site of community importance|sac|'
+          r'spa|sci)')
+DESIGNATIONS = (rf'^(el |la |the )?{_DESIG}\b( (de la|de los|de las|del|de|of the|of)\b)?\s*|'
+                rf'\s+{_DESIG}$')  # removed from the searches: before the name (Spanish) or after it (English)
 
-TASK_STATES = {'PENDING': 'en cola', 'READY': 'en cola', 'RUNNING': 'en marcha', 'SUCCEEDED': 'terminada',
-               'COMPLETED': 'terminada', 'FAILED': 'fallida', 'CANCELLED': 'cancelada', 'CANCELLING': 'cancelándose',
-               'UNKNOWN': 'desconocido'}
+TASK_STATES = {'PENDING': 'queued', 'READY': 'queued', 'RUNNING': 'running', 'SUCCEEDED': 'finished',
+               'COMPLETED': 'finished', 'FAILED': 'failed', 'CANCELLED': 'cancelled', 'CANCELLING': 'cancelling',
+               'UNKNOWN': 'unknown'}
 WIKI = 'https://github.com/monitoreo-obsnev/monitoreo/wiki/'
 MANUAL_TOOL = {'type': 'function', 'function': {  # answered by the assistant (monitoreo.manual), not by the MCP server
 	'name': 'manual',
-	'description': 'Busca en el manual de MonitorEO (su wiki) los apartados que responden a una pregunta sobre la '
-	               'herramienta: qué mide una variable, sensores, fechas y resolución, conceptos (métricas, filtros, '
-	               'tendencias, comparaciones, incendios), cómo se instala o se usa, problemas frecuentes y las otras '
-	               'herramientas de MonitorEO. Devuelve los apartados con su enlace.',
-	'parameters': {'type': 'object', 'properties': {'pregunta': {'type': 'string', 'description': 'La pregunta'}},
-	               'required': ['pregunta']}}}
+	'description': 'Searches the manual of MonitorEO (its wiki) for the sections that answer a question about the '
+	               'tool: what a variable measures, sensors, dates and resolution, concepts (metrics, filters, trends, '
+	               'comparisons, fires), how it is installed or used, frequent problems and the other tools of '
+	               'MonitorEO. Returns the sections with their link.',
+	'parameters': {'type': 'object', 'properties': {'question': {
+		'type': 'string', 'description': 'The question, in the words and the language of the user'}},
+		'required': ['question']}}}
 OTHER_TOOLS = [  # what the assistant does not do, by the words of the request (without accents), and who does it
-	(r'automatic|periodic|se repit|repetir|script|program(ar|acion)|cuaderno|notebook|en lote|'
-	 r'\b[2-9]\d (parques|espacios|zonas|sitios|regiones)',
-	 'el paquete de Python o la línea de comandos', 'automatizar cálculos que se repiten o de muchas regiones a la vez',
-	 WIKI + 'Python'),
-	(r'\ben r\b|\bdesde r\b|paquete de r\b|rstudio|\bterra\b|ggplot', 'el paquete de R', 'hacer los cálculos en R',
-	 WIKI + 'R'),
-	(r'qgis|edit(ar|o) (la |una |mi |mis |las |esta )?capa|digitaliz|mapa para imprimir|maquet|composicion|leyenda del mapa',
-	 'el plugin de QGIS', 'trabajar junto a tus capas en QGIS, editarlas y hacer mapas para imprimir', WIKI + 'QGIS'),
-	(r'sin instalar|en el navegador sin|desde (el|mi) movil|tablet', 'la app de Earth Engine',
-	 'usar MonitorEO en el navegador sin instalar nada', WIKI + 'App-de-Earth-Engine'),
-	(r'publicar|pagina web publica|que lo vea (cualquiera|todo el mundo)', 'el visor de resultados',
-	 'publicar informes para que los vea cualquiera (lo hacen sus administradores)', WIKI + 'Visor-de-resultados'),
+	(r'automat|periodic|se repit|repetir|repeat|script|program(ar|acion)|cuaderno|notebook|en lote|\bbatch|schedul|'
+	 r'\bcron\b|\b[2-9]\d (parques|espacios|zonas|sitios|regiones|parks|protected areas|areas|sites|regions|zones)',
+	 'the Python package or the command line', 'automating computations that repeat or of many regions at once',
+	 WIKI + 'Python-package'),
+	(r'\ben r\b|\bdesde r\b|paquete de r\b|\bin r\b|\bfrom r\b|\bwith r\b|\br package|rstudio|\bterra\b|ggplot',
+	 'the R package', 'doing the computations in R', WIKI + 'R-package'),
+	(r'qgis|edit(ar|o) (la |una |mi |mis |las |esta )?capa|digitaliz|mapa para imprimir|maquet|composicion|'
+	 r'leyenda del mapa|edit(ing)? (the |a |my |this |these |those )?layers?\b|digiti[sz]|maps? to print|'
+	 r'printable map|print(ed)? map|(map|print) layout|map legend',
+	 'the QGIS plugin', 'working next to your layers in QGIS, editing them and making maps to print',
+	 WIKI + 'QGIS-plugin'),
+	(r'sin instalar|en el navegador sin|desde (el|mi) movil|tablet|without install|in the browser without|'
+	 r'(from|on) (my|the|a) (mobile|phone|cell)', 'the Earth Engine app',
+	 'using MonitorEO in the browser without installing anything', WIKI + 'Earth-Engine-app'),
+	(r'publicar|pagina web publica|que lo vea (cualquiera|todo el mundo)|publish|public (web ?page|website|site)|'
+	 r'(for|so that) (anyone|everyone|everybody) (can )?(to )?see', 'the results viewer',
+	 'publishing reports for anyone to see (its administrators do it)', WIKI + 'Results-viewer'),
 ]
-LABELS = {'manual': 'Consultando el manual de MonitorEO',
-          'list_variables': 'Consultando las variables del catálogo',
-          'describe_variable': 'Consultando la ficha de {variable}',
-          'find_protected_areas': 'Buscando espacios protegidos con «{text}»'}
+LABELS = {'manual': 'Looking in the manual of MonitorEO',
+          'list_variables': 'Looking at the variables of the catalog',
+          'describe_variable': 'Looking at the description of {variable}',
+          'find_protected_areas': 'Searching for protected areas named «{text}»'}
 
-RECEIPT_NOTE = ('El resultado se muestra al usuario y va a su informe; tú solo recibes un acuse de recibo, sin los '
-                'valores.')
+RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
+NOTE = '\n\n(Note of the application, not of the user: '  # added to a message of the user (see Assistant.said)
 
-PROMPT = """Eres el asistente de MonitorEO-OBSNEV (Observatorio de Cambio Global de Sierra Nevada, Universidad de \
-Granada) para gestores de espacios naturales. Hoy es {today}.
+PROMPT = """You are the assistant of MonitorEO-OBSNEV (Global Change Observatory of Sierra Nevada, University of \
+Granada) for managers of natural areas. Today is {today}.
 
-Qué haces:
-- Ayudas a elegir la variable, el sensor, la región y el periodo de un análisis, y lo lanzas con las herramientas de \
-cálculo de MonitorEO, que calculan en Google Earth Engine con la cuenta compartida de MonitorEO o, si el usuario \
-ha puesto su proyecto en Configuración, con su cuenta de Google.
-- Aconsejas sobre sensores y variables con la guía de abajo y con list_variables y describe_variable.
-- Respondes preguntas sobre MonitorEO (qué mide una variable, sensores, fechas, resolución, conceptos, cómo se \
-instala o se usa cada herramienta) con la herramienta manual, que busca en su manual.
+What you do:
+- You help to choose the variable, the sensor, the region and the period of an analysis, and you run it with the \
+compute tools of MonitorEO, which compute in Google Earth Engine with the shared account of MonitorEO or, if the user \
+has put their project in Settings, with their Google account.
+- You advise on sensors and variables with the guide below and with list_variables and describe_variable.
+- You answer questions about MonitorEO (what a variable measures, sensors, dates, resolution, concepts, how each tool \
+is installed or used) with the tool manual, which searches its manual.
 
-Reglas:
-1. Nunca ves los resultados de los cálculos: van a la pantalla del usuario y a su informe, con su gráfica, su tabla \
-y su mapa. Cuando una herramienta de cálculo responda «Hecho», di en una frase qué se ha calculado y nada sobre sus \
-valores (ni si suben, bajan, son altos o bajos, ni qué significan). El asistente sí muestra gráficas, tablas y mapas: \
-si piden uno que ya está calculado, di en qué resultado está (p. ej. «La gráfica está en el resultado 1, en \
-Resultados, a la derecha.»); si no, haz el cálculo que lo da. Nunca digas que el asistente no muestra gráficas.
-2. No interpretes resultados aunque te lo pidan: di que el asistente no interpreta resultados y que su interpretación \
-corresponde a personal técnico, por ejemplo del OBSNEV.
-3. Para un espacio protegido, busca siempre su identificador con find_protected_areas, directamente y sin pedir \
-permiso, y nunca te lo inventes. Si hay varios candidatos, pregunta cuál: el usuario ve la lista de la búsqueda y \
-puede elegir uno en ella. Cuando elige uno («Calcula lo que he pedido con el espacio..., WDPA N»), haz el cálculo que \
-pidió con ese SITE_ID, sin preguntar, aunque ya lo hayas hecho con otro.
-4. Si falta algo imprescindible (variable, lugar o fechas), propón una opción razonable según la guía y pregunta en \
-una sola frase antes de calcular.
-5. Responde en español, breve y claro.
-6. Para preguntas sobre MonitorEO, consulta manual y responde con lo que dice, en cinco frases como mucho y con el \
-enlace de la página. Puedes añadir una explicación general breve (por ejemplo, qué mide un índice de vegetación), \
-pero no te inventes datos de MonitorEO: si el manual no lo dice, dilo. Usa solo los enlaces que te dé manual o los de \
-la lista de herramientas de abajo.
-7. Si te piden algo que el asistente no puede hacer, dilo y aconseja en una o dos frases la herramienta de MonitorEO \
-que lo hace, de la lista de abajo, con su enlace: cálculos que se repiten solos (cada mes) o de muchas regiones a la \
-vez, el paquete de Python o la línea de comandos; editar capas o hacer mapas para imprimir, el plugin de QGIS; \
-trabajar en R, el paquete de R; probar sin instalar nada, la app de Earth Engine. No escribas código ni órdenes de \
-instalación: su página de la wiki lo explica.
-8. No nombres al usuario tus herramientas internas (time_series, find_protected_areas...): di lo que haces.
+Rules:
+1. You never see the results of the computations: they go to the user's screen and to their report, with their \
+chart, their table and their map. When a compute tool answers «Done», say in one sentence what has been computed and \
+nothing about its values (not whether they rise or fall, are high or low, nor what they mean). The assistant does show \
+charts, tables and maps: if the user asks for one that is computed already, say which result it is in (e.g. «The \
+chart is in result 1, in Results, on the right.», said in the user's language); if not, do the computation that gives \
+it. Never say that the assistant does not show charts.
+2. Do not interpret results, even if asked: say that the assistant does not interpret results and that their \
+interpretation is for technical staff, for example of the OBSNEV.
+3. For a protected area, always search its ID with find_protected_areas, directly and without asking permission, and \
+never make it up. If there are several candidates, ask which one: the user sees the list of the search and can choose \
+one in it. When they choose one (their message ends with «WDPA N»), do the computation they asked for with that \
+SITE_ID, without asking, even if you did it already with another one.
+4. If something essential is missing (variable, place or dates), propose a reasonable option from the guide and ask \
+in a single sentence before computing.
+5. Answer in the language of the user's last message (a question in Spanish gets the answer in Spanish, one in \
+English in English), brief and clear.
+6. For questions about MonitorEO, consult manual and answer with what it says, in five sentences at most and with the \
+link of the page. You may add a brief general explanation (for example, what a vegetation index measures), but do not \
+make up facts about MonitorEO: if the manual does not say it, say so. Use only the links that manual gives you or \
+those of the list of tools below.
+7. If the user asks for something the assistant cannot do, say so and recommend in one or two sentences the tool of \
+MonitorEO that does it, from the list below, with its link: computations that repeat by themselves (each month) or of \
+many regions at once, the Python package or the command line; editing layers or making maps to print, the QGIS \
+plugin; working in R, the R package; trying it without installing anything, the Earth Engine app. Do not write code or \
+installation commands: its page of the wiki explains them.
+8. Do not name your internal tools to the user (time_series, find_protected_areas...): say what you do.
 
-Cómo llamar a las herramientas:
-- Región: un objeto JSON con una de estas formas: {{"wdpa_id": SITE_ID}} (un espacio protegido, con el SITE_ID que \
-devuelve find_protected_areas), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [oeste, sur, este, norte]}} o \
-{{"point": [lon, lat], "buffer": metros}}.
-- Fechas: "AAAA-MM-DD"; «desde 2018», sin final, es hasta hoy. Temporada de cada año: season ["MM-DD", "MM-DD"], \
-p. ej. ["06-01", "08-31"] para el verano.
-- Sensor: "Sentinel-2", "Landsat" o "Modis". La variable, como en el catálogo (NDVI, EVI, NDWI, LST...).
-- Evolución en el tiempo: time_series (step "monthly" o "annual"; las series largas en regiones grandes tardan \
-minutos). Mapa de un periodo: map_layer; sus estadísticas: region_stats. Valor interanual (p. ej. la media de las \
-medianas anuales): temporal "annual" (o "monthly"), metric la de cada año ("median") e interannual la de entre años \
-("mean"); temporal no admite otros valores. Tendencia a lo largo de los años (Mann-Kendall y pendiente de Sen, 8 \
-años o más): trend_table, con step "monthly" para la de cada mes; da la tabla y la gráfica del área y el mapa de la \
-tendencia en cada píxel (de cada mes, en la página), así que no hace falta trend_map. Comparar un periodo con otro de referencia: compare_series y \
-compare_map. Incendio: burn_severity.
-- Descargar en GeoTIFF (para un SIG): un mapa con download_image, una tendencia con download_trend y una \
-comparación con download_comparison; para regiones pequeñas o, en las grandes, con resolution (metros de píxel) mayor \
-que la de los datos. Varias variables en rejillas alineadas (para un modelo): download_variables, primero con \
-dry_run. Regiones grandes a resolución completa: export_image_to_drive (o export_time_series_to_drive para una serie \
-larga), que exportan a Google Drive; después, task_status con la operation que devuelven dice si han terminado. Los \
-exports a Google Drive necesitan la cuenta del usuario: con la cuenta compartida, dile que inicie sesión con su cuenta \
-de Google y ponga su proyecto en Configuración.
+How to call the tools:
+- Region: a JSON object with one of these forms: {{"wdpa_id": SITE_ID}} (a protected area, with the SITE_ID that \
+find_protected_areas returns), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [west, south, east, north]}} or \
+{{"point": [lon, lat], "buffer": metres}}.
+- Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
+e.g. ["06-01", "08-31"] for the summer.
+- Sensor: "Sentinel-2", "Landsat" or "Modis". The variable, as in the catalog (NDVI, EVI, NDWI, LST...).
+- Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
+period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
+"annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
+temporal takes no other values. Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
+with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
+each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
+compare_series and compare_map. Fire: burn_severity.
+- Download as GeoTIFF (for a GIS): a map with download_image, a trend with download_trend and a comparison with \
+download_comparison; for small regions or, in big ones, with resolution (metres of pixel) coarser than that of the \
+data. Several variables on aligned grids (for a model): download_variables, first with dry_run. Big regions at full \
+resolution: export_image_to_drive (or export_time_series_to_drive for a long series), which export to Google Drive; \
+then task_status with the operation they return tells whether they have finished. The exports to Google Drive need \
+the user's account: with the shared account, tell them to sign in with their Google account and put their project in \
+Settings.
 
-Otras herramientas de MonitorEO (las mismas funciones y los mismos resultados):
-- App de Earth Engine: en el navegador, sin instalar nada ni cuenta de Earth Engine; mapas, series, tendencias, \
-comparaciones e incendios, también sobre un polígono dibujado. {wiki}App-de-Earth-Engine
-- Plugin de QGIS: lo mismo sin programar, junto a las capas del usuario, con valores consultables en el mapa y mapas \
-para imprimir en QGIS. {wiki}QGIS
-- Paquete de Python y línea de comandos: automatizar cálculos (scripts, cuadernos, muchas regiones o fechas). \
-{wiki}Python y {wiki}Línea-de-comandos
-- Paquete de R: análisis en R con sf, terra o ggplot2. {wiki}R
-- Servidor MCP: los mismos cálculos con Claude u otro asistente de IA. {wiki}MCP
-- Visor de resultados: publicar informes en una web para que los vea cualquiera (solo sus administradores). \
-{wiki}Visor-de-resultados
+Other tools of MonitorEO (the same functions and the same results):
+- Earth Engine app: in the browser, without installing anything nor an Earth Engine account; maps, series, trends, \
+comparisons and fires, also over a drawn polygon. {wiki}Earth-Engine-app
+- QGIS plugin: the same without programming, next to the user's layers, with values to query on the map and maps to \
+print in QGIS. {wiki}QGIS-plugin
+- Python package and command line: automate computations (scripts, notebooks, many regions or dates). \
+{wiki}Python-package and {wiki}Command-line
+- R package: analysis in R with sf, terra or ggplot2. {wiki}R-package
+- MCP server: the same computations with Claude or another AI assistant. {wiki}MCP-server
+- Results viewer: publish reports on a website for anyone to see (only its administrators). {wiki}Results-viewer
 
-Guía de sensores:
-- Sentinel-2: píxel de 10-20 m, una imagen cada 5 días aproximadamente, desde 2017. Para zonas pequeñas o con \
-detalle (parcelas, bordes, lagunas) y periodos recientes. No tiene datos antes de 2017: para un periodo que empieza \
-antes, propón Landsat, o Sentinel-2 solo desde 2017.
-- Landsat: píxel de 30 m, una imagen cada 8-16 días, desde 1984. Para series largas y tendencias de décadas. Entre \
-mayo de 2012 y marzo de 2013 no hay imágenes de Landsat en el catálogo.
-- MODIS: píxel de 250-1000 m, imágenes diarias o compuestas de 8-16 días, desde 2000. Para regiones grandes, la \
-estacionalidad y las variables que solo da MODIS (evapotranspiración, LAI, aerosoles).
-- MonitorEO descarta los píxeles con nubes, agua, nieve o aerosoles según la variable. En alta montaña la nieve deja \
-pocos píxeles válidos en invierno para los índices de vegetación.
-- Severidad de un incendio: burn_severity con Sentinel-2 o Landsat; periodo anterior, los 3 meses antes del incendio; \
-periodo posterior, los 2-3 meses después de que termine.
+Guide of sensors:
+- Sentinel-2: pixel of 10-20 m, an image every 5 days or so, since 2017. For small areas or areas with detail \
+(plots, edges, ponds) and recent periods. It has no data before 2017: for a period that starts before, propose \
+Landsat, or Sentinel-2 only since 2017.
+- Landsat: pixel of 30 m, an image every 8-16 days, since 1984. For long series and trends of decades. Between May \
+2012 and March 2013 there are no Landsat images in the catalog.
+- MODIS: pixel of 250-1000 m, daily images or composites of 8-16 days, since 2000. For big regions, seasonality and \
+the variables that only MODIS gives (evapotranspiration, LAI, aerosols).
+- MonitorEO discards the pixels with clouds, water, snow or aerosols, depending on the variable. In high mountains \
+snow leaves few valid pixels in winter for the vegetation indices.
+- Burn severity of a fire: burn_severity with Sentinel-2 or Landsat; period before, the 3 months before the fire; \
+period after, the 2-3 months after it ends. It gives the dNBR and its classes; only if the user asks for the RBR \
+(Relativized Burn Ratio), index "RBR": a continuous index, without classes.
 
-Variables del catálogo (sensores, píxel y primer año):
+Variables of the catalog (sensors, pixel and first year):
 {variables}"""
 
 
@@ -215,9 +226,10 @@ def instructions(today=None):
 def variables_text():
 	"""The variables of the catalog, a line each: name, group and, for each sensor, pixel size and first year."""
 	variables = {}
-	for v in services.list_variables():
+	for v in services.list_variables(lang='en'):
 		years = re.findall(r'(?<!\d)(?:19|20)\d\d(?!\d)', v['dates'])
-		var = variables.setdefault(v['variable'], {'name': v['name'], 'group': v['group'], 'sensors': {}})
+		var = variables.setdefault(v['variable'], {'name': v['name'], 'group': v['group'], 'sensors': {},
+		                                           'two_periods': v.get('two_periods', False)})
 		s = var['sensors'].setdefault(v['sensor'], {'m': v['resolution_m'], 'first': None, 'last': None, 'now': False})
 		s['m'] = min(s['m'], v['resolution_m'])
 		if years:
@@ -226,10 +238,11 @@ def variables_text():
 		s['now'] = s['now'] or bool(re.search(r'now|hoy', v['dates'], re.I))
 	lines = []
 	for code, var in variables.items():
-		sensors = '; '.join(f"{'MODIS' if name == 'Modis' else name} {s['m']:g} m desde {s['first'] or '?'}"
-		                    + ('' if s['now'] or not s['last'] else f" hasta {s['last']}")
+		sensors = '; '.join(f"{'MODIS' if name == 'Modis' else name} {s['m']:g} m since {s['first'] or '?'}"
+		                    + ('' if s['now'] or not s['last'] else f" until {s['last']}")
 		                    for name, s in var['sensors'].items())
-		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; grupo {var['group']}. {sensors}.")
+		only = ' Only burn_severity with index "RBR" (two periods).' if var.get('two_periods') else ''
+		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; group {var['group']}. {sensors}.{only}")
 	return '\n'.join(lines)
 
 
@@ -253,21 +266,24 @@ def model_tools(tools):
 	return out
 
 
-SINCE = re.compile(r'\bdesde\s+(?:el\s+)?(?:año\s+)?(?:(?:\d{1,2}\s+de\s+)?[a-záéíóú]+\s+(?:de|del)\s+)?'
-                   r'((?:19|20)\d{2})\b', re.I)
+SINCE = re.compile(r'\b(?:desde\s+(?:el\s+)?(?:año\s+)?(?:(?:\d{1,2}\s+de\s+)?[a-záéíóú]+\s+(?:de|del)\s+)?|'
+                   r'since\s+(?:the\s+)?(?:year\s+)?(?:(?:\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?)?[a-z]+\s+'
+                   r'(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?)?)((?:19|20)\d{2})\b'
+                   r'|\bfrom\s+(?:[a-z]+\s+)?((?:19|20)\d{2})\s+on(?:wards?)?\b', re.I)  # «desde 2018», «since 2018»
 YEAR = re.compile(r'\b(?:19|20)\d{2}\b')
+UNTIL = re.compile(r'\b(?:hasta|until|till|through)\b', re.I)
 
 
 def open_end(args, said, today=None):
 	"""ARGS up to today when the last message of the user that gives a year (SAID, all of them) asks «desde 2018»
-	with no end, and the model ends before: small models end it at the end of a year, or at today's day of the year
-	asked for."""
+	(«since 2018») with no end, and the model ends before: small models end it at the end of a year, or at today's
+	day of the year asked for."""
 	today = (today or dt.date.today()).isoformat()
 	if not isinstance(args.get('end'), str) or args['end'] >= today:
 		return args
 	text = next((t for t in reversed(said) if YEAR.search(t)), '')
 	since = SINCE.search(text)
-	if since and len(YEAR.findall(text)) == 1 and not re.search(r'\bhasta\b', text, re.I):
+	if since and len(YEAR.findall(text)) == 1 and not UNTIL.search(text):
 		return {**args, 'end': today}
 	return args
 
@@ -279,12 +295,12 @@ def main_label(m, args):
 	period = report.period_text(a['start'], a['end'])
 	if m['tool'] == 'trend_map':
 		if a.get('part'):
-			return next((s['label'] for s in map_steps('trend_map', a) if s['part'] == a['part']), f"Parte {a['part']}")
-		return f'Tendencia anual: pendiente de Sen de los valores de cada año ({period})'
+			return next((s['label'] for s in map_steps('trend_map', a) if s['part'] == a['part']), f"Part {a['part']}")
+		return f"Annual trend: Sen's slope of the values of each year ({period})"
 	if a.get('temporal') in UNITS:
 		stat = report.STATS.get(a.get('interannual') or 'mean', a.get('interannual'))
-		return f"Valor interanual: {stat} de los {UNITS[a['temporal']]} ({period})"
-	return f'Último año del periodo ({period})' if a['start'] > args['start'] else f'Todo el periodo ({period})'
+		return f"Interannual value: {stat} of the {UNITS[a['temporal']]} ({period})"
+	return f'Last year of the period ({period})' if a['start'] > args['start'] else f'Whole period ({period})'
 
 
 def fix_args(name, args, tools):
@@ -319,24 +335,35 @@ def _wants(schema, types):
 
 
 def search_name(text):
-	"""The name of a protected area without its designation ('Parque Nacional de Doñana' -> 'Doñana'): WDPA has it
-	in another field, and the name with it is often that of another area (here, the Ramsar site)."""
-	name = re.sub(DESIGNATIONS, '', str(text).strip(), flags=re.I).strip()
-	return name or str(text).strip()
+	"""The name of a protected area without its designation ('Parque Nacional de Doñana', 'Doñana National Park' ->
+	'Doñana'): WDPA has it in another field, and the name with it is often that of another area (here, the Ramsar
+	site)."""
+	text = str(text).strip()
+	name = re.sub(DESIGNATIONS, '', text, flags=re.I).strip()
+	if name != text:  # 'the Doñana National Park'
+		name = re.sub(r'^the\s+', '', name, flags=re.I)
+	return name or text
+
+
+def designated(area, said):
+	"""Whether the designation of the protected AREA (in WDPA: DESIG, and in English DESIG_ENG, without what goes
+	in brackets) is in SAID, the messages of the user in lower case."""
+	return any(d and d in said for d in (re.sub(r'\s*\(.*?\)', '', str(area.get(k) or '')).strip().lower()
+	                                     for k in ('DESIG', 'DESIG_ENG')))
 
 
 def areas_text(areas, question=''):
 	"""The protected areas found, for the model: a line each, with the SITE_ID next to its designation (small models
 	misread lists in JSON), first those whose designation is in the question of the user."""
 	q = question.lower()
-	matches = [bool(a.get('DESIG') and a['DESIG'].lower() in q) for a in areas]
+	matches = [designated(a, q) for a in areas]
 	ranked = [a for a, m in zip(areas, matches) if m] + [a for a, m in zip(areas, matches) if not m]
-	lines = [f"- SITE_ID {a['SITE_ID']}: {a.get('NAME', '')}, {a.get('DESIG') or 'sin designación'}"
+	lines = [f"- SITE_ID {a['SITE_ID']}: {a.get('NAME', '')}, {a.get('DESIG') or 'no designation'}"
 	         + (f", {report._num(a['REP_AREA'])} km²" if a.get('REP_AREA') is not None else '')
-	         + (' (su designación coincide con la consulta)' if i < sum(matches) else '')
+	         + (' (its designation matches the request)' if i < sum(matches) else '')
 	         for i, a in enumerate(ranked)]
-	return (f'{len(areas)} espacios protegidos; el usuario ve esta lista y puede elegir uno en ella:\n' + '\n'.join(lines)
-	        if areas else 'Ningún espacio protegido con ese nombre: pide al usuario otro nombre o una capa.')
+	return (f'{len(areas)} protected areas; the user sees this list and can choose one in it:\n' + '\n'.join(lines)
+	        if areas else 'No protected area with that name: ask the user for another name or a layer.')
 
 
 def task_text(tool, text):
@@ -347,20 +374,21 @@ def task_text(tool, text):
 		return text
 	if tool == 'task_status':
 		state = TASK_STATES.get(r.get('state'), r.get('state'))
-		progress = f" ({round(100 * r['progress'])} %)" if isinstance(r.get('progress'), (int, float)) else ''
-		return f'Exportación a Google Drive: {state}{progress}.' + (f" {r['error']}" if r.get('error') else '')
-	return (f"Exportación a Google Drive en marcha: {r.get('file', '')} en la carpeta {r.get('folder', '')} de tu "
-	        'Google Drive. Tarda de minutos a horas; pregunta «¿ha terminado la exportación?» para saberlo.')
+		progress = f" ({round(100 * r['progress'])}%)" if isinstance(r.get('progress'), (int, float)) else ''
+		return f'Export to Google Drive: {state}{progress}.' + (f" {r['error']}" if r.get('error') else '')
+	return (f"Export to Google Drive running: {r.get('file', '')} in the folder {r.get('folder', '')} of your Google "
+	        'Drive. It takes from minutes to hours; ask «has the export finished?» to know.')
 
 
 def fix_links(text, question=''):
 	"""TEXT of the model with its links to the wiki that do not exist (small models make them up) replaced by their
-	page, if it exists, or else by the section of the manual that answers QUESTION best."""
+	page, if it exists, or else by the section of the manual that answers QUESTION best (in its language)."""
 	links = set(re.findall(re.escape(WIKI) + r'[^\s)\]>"\'«»]*[^\s)\]>"\'«».,;:]', text))
 	if not links:
 		return text
 	secs = manual.sections()
-	pages, urls = {s['name'] for s in secs} or set(manual.PAGES), {s['url'] for s in secs}
+	pages = {s['name'] for s in secs} | set(manual.PAGES) | set(manual.ENGLISH.values())  # also those to download
+	urls = {s['url'] for s in secs}
 	best = None
 	for link in sorted(links, key=len, reverse=True):
 		page = urllib.parse.unquote(link[len(WIKI):].split('#')[0])
@@ -377,18 +405,26 @@ NOT_PLACES = {'ndvi', 'evi', 'ndwi', 'lswi', 'ndsi', 'ndci', 'nbr', 'lai', 'lst'
               'sentinel', 'landsat', 'modis', 'google', 'earth', 'engine', 'drive', 'monitoreo', 'monitoreo-obsnev',
               'geotiff', 'csv', 'pdf', 'qgis', 'wdpa', 'obsnev', 'quiero', 'dame', 'haz', 'calcula', 'compara', 'serie',
               'mapa', 'evolucion', 'tendencia', 'como', 'que', 'cual', 'cuales', 'donde', 'cuando', 'descarga',
-              'exporta', 'muestra', 'necesito', 'puedes', 'hola', 'gracias', 'si', 'no', 'vale', 'usa', 'busca'}
-PLACE = re.compile(r"[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*(?:(?:,?\s+(?:(?:de|del|y)(?:\s+(?:la|las|los|el))?|la|las|los|el)"
-                   r"\s+|,\s+|\s+)[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*)*")
+              'exporta', 'muestra', 'necesito', 'puedes', 'hola', 'gracias', 'si', 'no', 'vale', 'usa', 'busca',
+              'i', 'want', 'give', 'show', 'compute', 'calculate', 'compare', 'series', 'map', 'trend', 'how', 'what',
+              'which', 'where', 'when', 'download', 'export', 'need', 'can', 'could', 'please', 'hello', 'hi',
+              'thanks', 'thank', 'yes', 'ok', 'okay', 'use', 'search', 'find', 'get', 'make', 'tell', 'list', 'is',
+              'are', 'do', 'does', 'annual', 'monthly', 'yearly', 'daily', 'evolution', 'english', 'spanish',
+              'espanol', 'ingles', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+              'september', 'october', 'november', 'december'}
+PLACE = re.compile(r"[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*(?:(?:,?\s+(?:(?:de|del|y|of|and)(?:\s+(?:la|las|los|el|the))?|"
+                   r"la|las|los|el|the)\s+|,\s+|\s+)[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñü'-]*)*")
 NOT_PLACE = re.compile(r"\b(?:" + '|'.join(sorted(NOT_PLACES, key=len, reverse=True)) + r")\b[\w-]*|\S*\d\S*", re.I)
-EDGES = re.compile(r"^(?:(?:de|del|la|las|los|el|y)\s+|[\s,])+|(?:\s+(?:de|del|la|las|los|el|y)|[\s,])+$", re.I)
+EDGES = re.compile(r"^(?:(?:de|del|la|las|los|el|y|of|the|and)\s+|[\s,])+|"
+                   r"(?:\s+(?:de|del|la|las|los|el|y|of|the|and)|[\s,])+$", re.I)
 
 
 def place_in(text):
 	"""The name of a place in a message of the user ('NDVI mensual en el Parque Nacional de Sierra Nevada' ->
-	'Parque Nacional de Sierra Nevada'): the longest run of words in capitals (with de, del, la, commas... inside),
-	cut at the names of variables, sensors and programs and at the words that start requests; one that only starts a
-	sentence, if there is no other."""
+	'Parque Nacional de Sierra Nevada', 'Monthly NDVI in the Sierra Nevada National Park' -> 'Sierra Nevada National
+	Park'): the longest run of words in capitals (with de, del, la, of, the, commas... inside), cut at the names of
+	variables, sensors and programs and at the words that start requests; one that only starts a sentence, if there is
+	no other."""
 	text = str(text)
 	plain = manual._ascii(text)  # the same length, without accents
 	runs = []
@@ -413,9 +449,9 @@ def other_tool(text):
 
 def receipt(n, title):
 	"""What the model gets of a result: that it was computed and shown, without its values."""
-	return (f'Hecho: «{title}» se ha calculado en Google Earth Engine y el asistente lo muestra al usuario, con su '
-	        f'gráfica, su tabla o su mapa, como resultado {n} (en Resultados, a la derecha). Tú no ves sus valores: no los '
-	        'describas ni los interpretes.')
+	return (f'Done: «{title}» has been computed in Google Earth Engine and the assistant shows it to the user, with its '
+	        f'chart, its table or its map, as result {n} (in Results, on the right). You do not see its values: do not '
+	        'describe or interpret them.')
 
 
 def ollama(base, path, payload=None, timeout=600):
@@ -434,7 +470,7 @@ def ollama(base, path, payload=None, timeout=600):
 			pass
 		raise ModelError(body) from e
 	except (urllib.error.URLError, OSError) as e:
-		raise ModelError(f'no hay conexión con Ollama en {base}: ábrelo o instálalo desde https://ollama.com '
+		raise ModelError(f'no connection with Ollama at {base}: open it or install it from https://ollama.com '
 		                 f'({e})') from e
 
 
@@ -453,7 +489,7 @@ def chat_model(settings, system, messages, tools):
 			del payload['think']
 			answer = ollama(settings['ollama'], '/api/chat', payload)
 		elif 'not found' in text:
-			raise ModelError(f"el modelo {settings['model']} no está instalado: descárgalo") from e
+			raise ModelError(f"the model {settings['model']} is not installed: download it") from e
 		else:
 			raise
 	message = answer.get('message') or {}
@@ -524,10 +560,10 @@ def save_layers(layers):
 
 
 def layer_text(layer):
-	"""'3 polígonos, 125,3 ha' (and the field of their names)."""
+	"""'3 polygons, 125.3 ha' (and the field of their names)."""
 	n = layer['features']
-	return f"{n} polígono{'s' if n != 1 else ''}, {report._num(layer['area_ha'])} ha" + \
-		(f", nombres del campo {layer['name_field']}" if layer.get('name_field') else '')
+	return f"{n} polygon{'s' if n != 1 else ''}, {report._num(layer['area_ha'])} ha" + \
+		(f", names in the field {layer['name_field']}" if layer.get('name_field') else '')
 
 
 def _in_zip(path):
@@ -538,13 +574,36 @@ def _in_zip(path):
 		inside = next((n for n in names if n.lower().endswith(ext)), None)
 		if inside:
 			return f'/vsizip/{path}/{inside}'
-	raise ValueError('el .zip no tiene ningún shapefile, GeoPackage, GeoJSON ni KML')
+	raise ValueError('the .zip has no shapefile, GeoPackage, GeoJSON or KML')
 
 
 def signed_in():
 	"""Whether this computer has the credentials of Earth Engine of `earthengine authenticate`."""
 	import ee
 	return os.path.exists(ee.oauth.get_credentials_path())
+
+
+REVOKE = 'https://oauth2.googleapis.com/revoke'  # where Google revokes a token of the user (OAuth 2.0)
+
+
+def sign_out():
+	"""Log out of the Google account of Earth Engine on this computer: revoke its refresh token at Google (if Google
+	can be reached) and delete the credentials of `earthengine authenticate`, which the other tools of this computer
+	(QGIS plugin, Python, R, command line, `earthengine`) use too. Returns whether there were credentials."""
+	import ee
+	path = ee.oauth.get_credentials_path()
+	if not os.path.exists(path):
+		return False
+	try:
+		with open(path, encoding='utf-8') as f:
+			token = json.load(f).get('refresh_token')
+		if token:
+			import requests
+			requests.post(REVOKE, data={'token': token}, timeout=15)
+	except Exception:  # without the file, this computer is signed out anyway
+		pass
+	os.remove(path)
+	return True
 
 
 class Assistant:
@@ -617,7 +676,7 @@ class Assistant:
 	def start(self, text):
 		"""Answer a message of the user in a task of its own."""
 		if self.running():
-			raise ValueError('espera a que termine la consulta anterior')
+			raise ValueError('wait until the previous request ends')
 
 		async def answer():
 			self.emit({'type': 'user', 'text': text})
@@ -625,7 +684,7 @@ class Assistant:
 				async for e in self.chat(text):
 					self.emit(e)
 			except Exception as e:  # the conversation goes on
-				self.emit({'type': 'error', 'text': f'El asistente ha fallado: {type(e).__name__}: {e}'})
+				self.emit({'type': 'error', 'text': f'The assistant has failed: {type(e).__name__}: {e}'})
 			finally:
 				self.emit({'type': 'done'})
 		self.task = asyncio.create_task(answer())
@@ -633,7 +692,7 @@ class Assistant:
 	def new_conversation(self):
 		"""Forget the conversation and its results (their files stay); the pages get a reset."""
 		if self.running():
-			raise ValueError('espera a que termine la consulta anterior')
+			raise ValueError('wait until the previous request ends')
 		self.reset()
 		self.offset += len(self.events)
 		self.events = []
@@ -663,7 +722,7 @@ class Assistant:
 	async def call(self, name, args):
 		"""Call a tool of the MCP server: (error or None, texts, images as data: URLs)."""
 		if not self.session:
-			raise RuntimeError('el servidor MCP de MonitorEO no está en marcha: cierra el asistente y ábrelo otra vez')
+			raise RuntimeError('the MCP server of MonitorEO is not running: close the assistant and open it again')
 		res = _json(await self.session.call_tool(name, args))
 		content = res.get('content') or []
 		texts = [_without_eecu_warning(c['text']) for c in content if c.get('type') == 'text']
@@ -679,7 +738,7 @@ class Assistant:
 		save_settings(self.settings)
 		self.eecu = None
 		if self.settings['project'] and not signed_in():
-			return 'Proyecto guardado: inicia sesión con tu cuenta de Google para usarlo'
+			return 'Project saved: sign in with your Google account to use it'
 		error, texts, _ = await self.call('connect', {'project': self.settings['project']})
 		if error:
 			raise RuntimeError(re.sub(r'^\w+Error: ', '', error))
@@ -690,7 +749,7 @@ class Assistant:
 		that less than 10 % are left in a month, the warning (with the shared account: switch to your own)."""
 		if self.not_ready() or not self.session:
 			return []
-		args = {'lang': 'es', 'refresh': refresh}
+		args = {'lang': 'en', 'refresh': refresh}
 		if self.settings.get('project'):
 			args['limit'] = str(self.settings.get('eecu_tier') or 'Community')
 		try:
@@ -713,32 +772,34 @@ class Assistant:
 	def not_ready(self):
 		"""Why the tools cannot compute yet, or None."""
 		if self.settings.get('project') and not signed_in():
-			return ('antes de calcular con tu proyecto, inicia sesión con tu cuenta de Google (botón «Usar mi cuenta de '
-			        'Google») o deja vacío el proyecto para calcular con la cuenta compartida de MonitorEO')
+			return ('before computing with your project, sign in with your Google account (button «Use my Google '
+			        'account») or leave the project empty to compute with the shared account of MonitorEO')
 		return None
 
 	async def chat(self, text):
 		"""Answer a message of the user: yields the events for the page (see the module)."""
+		said = text
 		hint = other_tool(text)
 		if hint:  # small models often miss it: the page says it, and the model gets a note
 			name, what, url = hint
 			yield {'type': 'other_tool', 'name': name, 'what': what, 'url': url}
-			text += (f'\n\n(Nota de la aplicación: el asistente no hace esto; se hace con {name} de MonitorEO, para '
-			         f'{what}: {url}. Dilo en una o dos frases con el enlace, sin código ni nombres de herramientas.)')
+			text += (f'{NOTE}the assistant does not do this; it is done with {name} of MonitorEO, for {what}: {url}. '
+			         "Say it in one or two sentences with the link, in the language of the user's words above, without "
+			         'code or names of tools.)')
 		self.messages.append({'role': 'user', 'content': text})
-		self.question = self.question or text
+		self.question = self.question or said
 		for _ in range(MAX_STEPS):
-			yield {'type': 'status', 'text': f"El modelo ({self.settings['model']}) está pensando…"}
+			yield {'type': 'status', 'text': f"The model ({self.settings['model']}) is thinking…"}
 			try:
 				if not self.base():
-					raise ModelError('falta el motor de los modelos: instálalo en Configuración')
+					raise ModelError('the engine of the models is missing: install it in Settings')
 				message = await asyncio.to_thread(chat_model, self.model_settings(), self.system_prompt(),
 				                                  self.messages, self.tools)
 			except ModelError as e:
-				yield {'type': 'error', 'text': f'Modelo de lenguaje: {e}'}
+				yield {'type': 'error', 'text': f'Language model: {e}'}
 				return
 			calls = message.get('tool_calls') or []
-			message['content'] = await asyncio.to_thread(fix_links, message['content'], text)
+			message['content'] = await asyncio.to_thread(fix_links, message['content'], said)
 			self.messages.append({'role': 'assistant', 'content': message['content'],
 			                      **({'tool_calls': calls} if calls else {})})
 			if message['content']:
@@ -748,8 +809,8 @@ class Assistant:
 			for call in calls:
 				async for event in self.run_tool(call.get('function') or {}):
 					yield event
-		yield {'type': 'error', 'text': 'He parado: demasiados pasos para un solo mensaje. Pídelo de forma más '
-		                                'concreta, por partes.'}
+		yield {'type': 'error', 'text': 'I have stopped: too many steps for a single message. Ask for it in a more '
+		                                'concrete way, in parts.'}
 
 	async def run_tool(self, call):
 		"""Run a call of the model: the answers of the advice tools go to the model, those of the others only to the
@@ -760,7 +821,7 @@ class Assistant:
 				yield event
 			return
 		if name not in ADVICE + RESULTS + TASKS:
-			self._tool_message(name, f'Error: no hay ninguna herramienta {name}.')
+			self._tool_message(name, f'Error: there is no tool {name}.')
 			return
 		try:
 			args = fix_args(name, call.get('arguments'), self.tools)
@@ -768,10 +829,12 @@ class Assistant:
 				args['text'] = search_name(args['text'])
 			args = self.with_layer(args)
 			if name in RESULTS + TASKS:
-				args = open_end(args, [m['content'] for m in self.messages if m['role'] == 'user'])
+				args = open_end(args, self.said())
 		except ValueError as e:
 			self._tool_message(name, f'Error: {e}.')
 			return
+		if name == 'list_variables':
+			args['lang'] = 'en'  # hidden from the model
 		if name in RESULTS + TASKS and self.unknown_areas(args) and not self.not_ready():
 			async for event in self.known_areas(name, args):
 				if 'args' in event:
@@ -789,14 +852,14 @@ class Assistant:
 			problem = self.not_ready()
 			if problem:
 				yield {'type': 'error', 'text': problem[0].upper() + problem[1:] + '.'}
-				self._tool_message(name, f'Error: no se ha calculado; {problem}.')
+				self._tool_message(name, f'Error: not computed; {problem}.')
 				return
 		if name in RESULTS:
-			yield {'type': 'running', 'text': f'Calculando en Google Earth Engine: {title}…',
+			yield {'type': 'running', 'text': f'Computing in Google Earth Engine: {title}…',
 			       'facts': _facts(tool, args, None, self.all_names())}
 		elif name in TASKS:
-			yield {'type': 'status', 'text': ('Consultando la exportación' if name == 'task_status' else
-			                                  'Lanzando la exportación a Google Drive') + '…'}
+			yield {'type': 'status', 'text': ('Checking the export' if name == 'task_status' else
+			                                  'Starting the export to Google Drive') + '…'}
 		else:
 			yield {'type': 'status', 'text': LABELS[name].format(**{k: args.get(k, '') for k in ('variable', 'text')})
 			                                 + '…'}
@@ -805,8 +868,8 @@ class Assistant:
 		except Exception as e:  # the MCP server stopped
 			error, texts, images = f'{type(e).__name__}: {e}', [], []
 		if error:
-			what = f'El cálculo «{title}»' if name in RESULTS else f'La consulta {name}'
-			yield {'type': 'error', 'text': f"{what} ha fallado: {re.sub(r'^[A-Za-z]+Error: ', '', error)}"}
+			what = f'The computation «{title}»' if name in RESULTS else f'The request {name}'
+			yield {'type': 'error', 'text': f"{what} has failed: {re.sub(r'^[A-Za-z]+Error: ', '', error)}"}
 			self._tool_message(name, f'Error: {error}')
 			return
 		if name in ADVICE:
@@ -815,7 +878,7 @@ class Assistant:
 				found = self._remember_names(text)
 				if found is not None:
 					said = self.user_text().lower()
-					shown = [{**a, 'match': bool(a.get('DESIG') and a['DESIG'].lower() in said)} for a in found]
+					shown = [{**a, 'match': designated(a, said)} for a in found]
 					yield {'type': 'areas', 'query': args.get('text', ''),
 					       'areas': sorted(shown, key=lambda a: not a['match'])}
 					text = areas_text(found, said)
@@ -842,7 +905,7 @@ class Assistant:
 		for event in await self.eecu_events():
 			yield event
 		if tool in PERIOD_MAP:
-			yield {'type': 'status', 'text': 'Preparando el mapa del periodo en Google Earth Engine…'}
+			yield {'type': 'status', 'text': 'Preparing the map of the period in Google Earth Engine…'}
 			event = await self.period_map(item)
 			if event:
 				yield event
@@ -873,7 +936,7 @@ class Assistant:
 		except Exception as e:
 			error, result = str(e), {}
 		if not isinstance(result, dict) or not result.get('url'):
-			_log({'tool': tool, 'call': args, 'answer': f'(mapa del resultado {item["id"]}) {error}'})
+			_log({'tool': tool, 'call': args, 'answer': f'(map of the result {item["id"]}) {error}'})
 			return None
 		item['map'] = {'tool': tool, 'args': args, 'result': result, 'title': self.titled(tool, args)}
 		return {'type': 'map', 'id': item['id'], **self.map_card(item['map']), **self.steps_card(item),
@@ -884,7 +947,7 @@ class Assistant:
 		_, m = self.map_of(item['id'])
 		item.setdefault('steps', map_steps(item['tool'], item['args']))
 		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']],
-		        'steps_label': 'Parte del año' if m['tool'] == 'trend_map' else 'Fecha'}
+		        'steps_label': 'Part of the year' if m['tool'] == 'trend_map' else 'Date'}
 
 	async def step_map(self, rid, key, significant=False):
 		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time
@@ -899,7 +962,7 @@ class Assistant:
 		if name not in maps:
 			step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
 			if key and not step:
-				raise ValueError('ese mapa no existe')
+				raise ValueError('that map does not exist')
 			a = item['args']
 			if not key:  # the map of the result
 				tool, args = main['tool'], dict(main['args'])
@@ -925,16 +988,19 @@ class Assistant:
 			args = json.loads(args) if isinstance(args, str) else (args or {})
 		except ValueError:
 			args = {}
-		question = str(args.get('pregunta') or args.get('question') or '').strip()
+		question = str(args.get('question') or args.get('pregunta') or '').strip()
+		said = (self.said() or [question])[-1]  # its language is that of the pages: small models translate questions
+		lang = manual.language(said)
+		query = question if manual.language(question) == lang else f'{question} {said}'
 		yield {'type': 'status', 'text': LABELS['manual'] + '…'}
-		found = await asyncio.to_thread(_search_manual, question)
+		found = await asyncio.to_thread(_search_manual, query, lang)
 		if found:
 			yield {'type': 'sources', 'sources': [{'title': f"{s['page']} › {s['title']}" if s['title'] != s['page']
 			                                       else s['page'], 'url': s['url']} for s in found]}
-			text = 'Apartados del manual de MonitorEO (responde con ellos y da el enlace):\n\n' + '\n\n'.join(
+			text = 'Sections of the manual of MonitorEO (answer with them and give the link):\n\n' + '\n\n'.join(
 				f"## {s['page']} › {s['title']} ({s['url']})\n{s['text']}" for s in found)
 		else:
-			text = 'El manual no tiene nada sobre eso (o no se ha podido descargar): dilo al usuario.'
+			text = 'The manual has nothing about that (or it could not be downloaded): tell the user.'
 		self._tool_message('manual', text[:MAX_ADVICE])
 
 	def card(self, item):
@@ -967,7 +1033,7 @@ class Assistant:
 		out = {'title': m['title'], 'legend': None,
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
 		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
-		               'trend': m['tool'] == 'trend_map'}}  # with «Solo píxeles significativos»
+		               'trend': m['tool'] == 'trend_map'}}  # with «Significant pixels only»
 		if result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
 			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
@@ -979,12 +1045,12 @@ class Assistant:
 		item = next((r for r in self.results if r['id'] == rid), None)
 		if item and key:
 			if key not in item.get('maps', {}):
-				raise ValueError('ese mapa no existe')
+				raise ValueError('that map does not exist')
 			return item, item['maps'][key]
 		if item and item.get('map'):
 			return item, item['map']
 		if not item or not isinstance(item['result'], dict) or not item['result'].get('url'):
-			raise ValueError('ese resultado no tiene mapa')
+			raise ValueError('that result has no map')
 		return item, item
 
 	async def pixel(self, rid, lon, lat, key=None):
@@ -997,7 +1063,7 @@ class Assistant:
 		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
 		unit = str(m['result'].get('unit'))
 		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
-		       'label': 'valor'}
+		       'label': 'value'}
 		if m['tool'] == 'trend_map':  # the trend at the pixel: Mann-Kendall and Sen of its part of the year
 			ma = m['args']
 			error, texts, _ = await self.call('trend_table', {
@@ -1005,7 +1071,7 @@ class Assistant:
 				'metric': ma.get('metric') or 'mean'})
 			trend = json.loads(texts[0]) if not error and texts else {}
 			row = next((r for r in trend.get('trends') or [] if not ma.get('part') or r.get('part') == ma['part']), {})
-			out.update(value=row.get('slope'), p_value=row.get('p_value'), label='pendiente de Sen')
+			out.update(value=row.get('slope'), p_value=row.get('p_value'), label="Sen's slope")
 		elif m['tool'] == 'map_layer':
 			ma = m['args']
 			error, texts, _ = await self.call('region_stats', {
@@ -1022,8 +1088,7 @@ class Assistant:
 		if error:
 			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 		result = json.loads(texts[0])
-		where = f'{lat:.5f}, {lon:.5f}'.replace('.', ',')
-		title = f"Serie {report.STEPS.get(step, step)} de {a.get('variable', '')} en el píxel {where}"
+		title = f"{step[0].upper() + step[1:]} time series of {a.get('variable', '')} at the pixel {lat:.5f}, {lon:.5f}"
 		self.pixels.append({'tool': 'time_series', 'args': args, 'result': result,
 		                    'image': images[0] if images else None, 'title': title})
 		return {**out, 'key': len(self.pixels) - 1, 'title': title, 'image': images[0] if images else None,
@@ -1045,7 +1110,7 @@ class Assistant:
 		                                float(view.get('opacity', 0.85)), view.get('marker'))
 		new = {'id': len(self.results) + 1, 'tool': m['tool'], 'args': m['args'], 'image': image,
 		       'result': {k: v for k, v in m['result'].items() if k != 'thumbnail'},
-		       'title': f"{m['title']} (vista del mapa)",
+		       'title': f"{m['title']} (map view)",
 		       'view': {'bounds': view['bounds'], 'base': view.get('base') or 'osm'}}
 		self.results.append(new)
 		self.emit({'type': 'result', **self.card(new)})
@@ -1069,7 +1134,7 @@ class Assistant:
 		return its path."""
 		items = [{**r, 'table': r['id'] in tables} for r in self.results if ids is None or r['id'] in ids]
 		if not items:
-			raise ValueError('no hay resultados para el informe')
+			raise ValueError('there are no results for the report')
 		return report.write(items, title=title or self.question, question=self.question,
 		                    project=self.settings.get('project'), shared=not self.settings.get('project'),
 		                    names=self.all_names())
@@ -1078,13 +1143,13 @@ class Assistant:
 		"""The instructions of the model, with the layers of the user."""
 		if not self.layers:
 			return self.system
-		return self.system + '\n\nÁreas de estudio del usuario (capas de polígonos de su ordenador), con la región que ' \
-		                     'las usa; cada polígono da su propia serie o fila:\n' + \
-		       '\n'.join(f'- {k} ({layer_text(v)}): región {{"capa": "{k}"}}' for k, v in self.layers.items())
+		return self.system + '\n\nStudy areas of the user (layers of polygons on their computer), with the region that ' \
+		                     'uses them; each polygon gives its own series or row:\n' + \
+		       '\n'.join(f'- {k} ({layer_text(v)}): region {{"layer": "{k}"}}' for k, v in self.layers.items())
 
 	def all_names(self):
 		"""The names of the regions for the user: protected areas (by WDPA ID) and layers (by file)."""
-		return {**{v['file']: f'Área de estudio «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
+		return {**{v['file']: f'Study area «{k}» ({layer_text(v)})' for k, v in self.layers.items()}, **self.names}
 
 	def titled(self, tool, args):
 		"""The title of a result, with the name of its region (results of the same thing in other areas differ) and
@@ -1092,13 +1157,13 @@ class Assistant:
 		region, title = self.region_name(args), _title(tool, args)
 		if tool == 'trend_map' and args.get('part'):
 			label = next((s['label'] for s in map_steps(tool, args) if s['part'] == args['part']), '')
-			title += f" ({label.replace('Tendencia de', '').replace('Tendencia del', '').strip()})" if label else ''
+			title += f" ({re.sub(r'^(Tendencia del?|Trend of( the)?)\s+', '', label, flags=re.I).strip()})" if label else ''
 		if tool == 'trend_map' and args.get('alpha'):
-			title += f", solo píxeles significativos (p < {report._num(args['alpha'])})"
+			title += f", significant pixels only (p < {args['alpha']:g})"
 		return title + (f' · {region}' if region else '')
 
 	def region_name(self, args):
-		"""A short name of the region of ARGS: the protected area, the area of study, the pixel..."""
+		"""A short name of the region of ARGS: the protected area, the study area, the pixel..."""
 		region = args.get('region') if isinstance(args.get('region'), dict) else args.get('area')
 		if not isinstance(region, dict):
 			return ''
@@ -1106,10 +1171,14 @@ class Assistant:
 			ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
 			return '; '.join(self.names.get(str(i), f'WDPA {i}') for i in ids)
 		key = next((k for k, v in self.layers.items() if v['file'] == region.get('file')), None)
-		return f'área de estudio «{key}»' if key else report.region_text(region, self.all_names())
+		return f'study area «{key}»' if key else report.region_text(region, self.all_names())
+
+	def said(self):
+		"""The messages of the user, without the notes of the application (see chat)."""
+		return [m['content'].split(NOTE)[0] for m in self.messages if m['role'] == 'user']
 
 	def user_text(self):
-		return ' '.join(m['content'] for m in self.messages if m['role'] == 'user')
+		return ' '.join(self.said())
 
 	def unknown_areas(self, args):
 		"""The WDPA IDs of ARGS that come neither from find_protected_areas nor from the user: small models copy them
@@ -1132,7 +1201,7 @@ class Assistant:
 		if found is None:
 			return None, [], '\n'.join(texts)
 		said = self.user_text().lower()
-		shown = sorted(({**a, 'match': bool(a.get('DESIG') and a['DESIG'].lower() in said)} for a in found),
+		shown = sorted(({**a, 'match': designated(a, said)} for a in found),
 		               key=lambda a: not a['match'])
 		return {'type': 'areas', 'query': query, 'areas': shown}, shown, areas_text(found, said)
 
@@ -1148,7 +1217,7 @@ class Assistant:
 		place = place_in(self.user_text())
 		found, text = [], ''
 		if place:
-			yield {'type': 'status', 'text': f'Buscando espacios protegidos con «{search_name(place)}»…'}
+			yield {'type': 'status', 'text': LABELS['find_protected_areas'].format(text=search_name(place)) + '…'}
 			event, found, text = await self.find_areas(place)
 			if event:
 				yield event
@@ -1160,16 +1229,16 @@ class Assistant:
 			yield {'args': {**args, key: {**args[key], 'wdpa_id': (matches or found)[0]['SITE_ID']}}}
 		else:
 			self._tool_message(name, (
-				f'Error: el wdpa_id {", ".join(map(str, unknown))} no existe. La aplicación ha buscado '
-				f'«{search_name(place)}»: {text}\nUsa el SITE_ID del espacio que pide el usuario y vuelve a llamar a '
-				f'{name}; si hay varios posibles, pregúntale cuál (ve la lista).') if found else (
-				'Error: ese wdpa_id no existe. Busca tú el espacio por su nombre con find_protected_areas y vuelve a '
-				f'llamar a {name} con su SITE_ID; no se lo pidas al usuario.'))
+				f'Error: the wdpa_id {", ".join(map(str, unknown))} does not exist. The application has searched '
+				f'«{search_name(place)}»: {text}\nUse the SITE_ID of the area that the user asks for and call {name} '
+				'again; if several are possible, ask the user which one (they see the list).') if found else (
+				'Error: that wdpa_id does not exist. Search the area yourself by its name with find_protected_areas '
+				f'and call {name} again with its SITE_ID; do not ask the user for it.'))
 			yield {'args': None}
 
 	def with_layer(self, args):
-		"""ARGS with a region {"capa": name} as the file of that area of study; also the ways small models give it:
-		the name alone, {"area_de_estudio": name}, "capa parcelas"..."""
+		"""ARGS with a region {"layer": name} (or {"capa": name}) as the file of that study area; also the ways small
+		models give it: the name alone, {"study_area": name}, "layer parcelas", "capa parcelas"..."""
 		arg = 'area' if 'area' in args and 'region' not in args else 'region'  # area: download_variables
 		region = args.get(arg)
 		if isinstance(region, dict) and (region.get('capa') or region.get('layer')):
@@ -1181,16 +1250,17 @@ class Assistant:
 			key = region if isinstance(region, str) else None
 		if key is None:
 			return args
-		key = re.sub(r'^(la |el )?(capa|area de estudio|área de estudio)\s+', '', key.strip(), flags=re.I).strip('«»"\' ')
+		key = re.sub(r'^(la |el |the )?(capa|[aá]rea de estudio|layer|study area)\s+', '', key.strip(),
+		             flags=re.I).strip('«»"\' ')
 		layer = self.layers.get(key) or next((v for k, v in self.layers.items() if key.lower() in (
 			k.lower(), v['original'].lower(), os.path.splitext(v['original'])[0].lower())), None)
-		if not layer:  # small models copy the examples ({"capa": "nombre"}): the one the user named, if only one
-			said = ' '.join(m['content'] for m in self.messages if m['role'] == 'user').lower()
+		if not layer:  # small models copy the examples ({"layer": "name"}): the one the user named, if only one
+			said = self.user_text().lower()
 			named = [v for k, v in self.layers.items() if re.search(r'\b' + re.escape(k.lower()) + r'\b', said)]
 			layer = named[0] if len(named) == 1 else None
 		if not layer:
-			raise ValueError(f'no hay ningún área de estudio «{key}»; las áreas de estudio son: '
-			                 f'{", ".join(self.layers) or "ninguna"} (región: {{"capa": "nombre"}})')
+			raise ValueError(f'there is no study area «{key}»; the study areas are: '
+			                 f'{", ".join(self.layers) or "none"} (region: {{"layer": "name"}})')
 		return {**args, arg: {'file': layer['file'],
 		                      **({'name_field': layer['name_field']} if layer.get('name_field') else {})}}
 
@@ -1198,11 +1268,11 @@ class Assistant:
 		"""Keep a vector file (its name and content) in LAYERS as a layer that the model can use as a region."""
 		stem, ext = os.path.splitext(os.path.basename(filename))
 		if ext.lower() not in LAYER_TYPES:
-			raise ValueError('formato no admitido: usa un GeoPackage (.gpkg), un GeoJSON, un KML o un shapefile '
-			                 'comprimido en .zip')
+			raise ValueError('format not supported: use a GeoPackage (.gpkg), a GeoJSON, a KML or a shapefile '
+			                 'compressed in a .zip')
 		if len(data) > MAX_LAYER:
-			raise ValueError(f'la capa ocupa más de {MAX_LAYER // 2 ** 20} MB')
-		name = base = re.sub(r'[^a-z0-9_-]+', '_', stem.lower()).strip('_') or 'capa'
+			raise ValueError(f'the layer takes more than {MAX_LAYER // 2 ** 20} MB')
+		name = base = re.sub(r'[^a-z0-9_-]+', '_', stem.lower()).strip('_') or 'layer'
 		k = 1
 		while name in self.layers:
 			k += 1
@@ -1216,10 +1286,11 @@ class Assistant:
 			info = areas.describe_file(src)
 		except ImportError as e:
 			os.remove(path)
-			raise ValueError('para leer capas hace falta GDAL, que trae la instalación de MonitorEO con conda') from e
+			raise ValueError('reading layers needs GDAL, which comes with the installation of MonitorEO with conda') \
+				from e
 		except Exception as e:
 			os.remove(path)
-			raise ValueError(f'no se puede leer {filename} como capa de polígonos: {e}') from e
+			raise ValueError(f'{filename} cannot be read as a layer of polygons: {e}') from e
 		self.layers[name] = {'file': src, 'path': path, 'original': os.path.basename(filename),
 		                     **{k: info[k] for k in ('features', 'area_ha', 'crs', 'name_field', 'bounds')}}
 		save_layers(self.layers)
@@ -1250,11 +1321,12 @@ class Assistant:
 			return None
 
 
-def _search_manual(question):
-	"""The sections of the wiki for QUESTION; the wiki is downloaded first if it is not on this computer yet."""
+def _search_manual(question, lang=None):
+	"""The sections of the wiki for QUESTION, in its language or LANG ('es' or 'en'); the wiki is downloaded first if
+	it is not on this computer yet."""
 	if not manual.sections():
 		manual.update()
-	return manual.search(question)
+	return manual.search(question, lang=lang)
 
 
 def _log(entry):
@@ -1384,6 +1456,14 @@ def make_app(assistant, token, port):
 		await asyncio.to_thread(lambda: ee.Authenticate(auth_mode='localhost', force=True))
 		return JSONResponse({'signed_in': signed_in()})
 
+	async def signout(request):
+		"""Log out of the Google account (sign_out) and compute again with the shared account of MonitorEO."""
+		was = await asyncio.to_thread(sign_out)
+		message = await assistant.connect('')
+		for event in await assistant.eecu_events():
+			assistant.emit(event)
+		return JSONResponse({'signed_in': signed_in(), 'was_signed_in': was, 'message': message})
+
 	async def settings(request):
 		body = await request.json()
 		answer = {}
@@ -1408,7 +1488,7 @@ def make_app(assistant, token, port):
 	async def chat(request):
 		text = str((await request.json()).get('text') or '').strip()
 		if not text:
-			raise ValueError('mensaje vacío')
+			raise ValueError('empty message')
 		assistant.start(text)
 		return JSONResponse({})
 
@@ -1425,11 +1505,11 @@ def make_app(assistant, token, port):
 		"""Install the last version of GitHub and start the assistant again with it (the same port and token)."""
 		from . import update
 		if assistant.running():
-			raise ValueError('espera a que termine la consulta anterior')
+			raise ValueError('wait until the previous request ends')
 		log = []
 		result = await asyncio.to_thread(update.ensure_latest, 'assistant', log.append)
 		if result != 'updated':
-			raise RuntimeError(f"no se ha actualizado ({log[-1] if log else result})")
+			raise RuntimeError(f"it has not been updated ({log[-1] if log else result})")
 		assistant.restart = True
 		asyncio.get_running_loop().call_later(0.5, assistant.quit)
 		return JSONResponse({'updated': True})
@@ -1447,7 +1527,7 @@ def make_app(assistant, token, port):
 
 	async def add_layer(request):
 		if int(request.headers.get('content-length') or 0) > MAX_LAYER:
-			raise ValueError(f'la capa ocupa más de {MAX_LAYER // 2 ** 20} MB')
+			raise ValueError(f'the layer takes more than {MAX_LAYER // 2 ** 20} MB')
 		data = await request.body()
 		return JSONResponse(await asyncio.to_thread(assistant.add_layer, request.query_params.get('name') or '', data))
 
@@ -1458,12 +1538,12 @@ def make_app(assistant, token, port):
 	async def pull(request):
 		model = str((await request.json()).get('model') or assistant.settings['model']).strip()
 		if not assistant.base():
-			raise ValueError('falta el motor de los modelos: instálalo primero')
+			raise ValueError('the engine of the models is missing: install it first')
 		return ndjson(_threaded(lambda: pull_model(assistant.base(), model)))
 
 	async def install_engine(request):
 		if assistant.engine.installing:
-			raise ValueError('ya se está instalando')
+			raise ValueError('it is being installed already')
 		return ndjson(_threaded(assistant.engine.install))
 
 	@contextlib.asynccontextmanager
@@ -1500,6 +1580,7 @@ def make_app(assistant, token, port):
 		Route('/api/map/snapshot', guarded(snapshot), methods=['POST']),
 		Route('/api/state', guarded(state)),
 		Route('/api/signin', guarded(signin), methods=['POST']),
+		Route('/api/signout', guarded(signout), methods=['POST']),
 		Route('/api/settings', guarded(settings), methods=['POST']),
 		Route('/api/eecu', guarded(eecu), methods=['POST']),
 		Route('/api/chat', guarded(chat), methods=['POST']),
@@ -1526,7 +1607,7 @@ def pull_model(base, model):
 			for line in r:
 				yield json.loads(line)
 	except (urllib.error.URLError, OSError, ValueError) as e:
-		raise RuntimeError(f'no se ha podido descargar {model}: {e}') from e
+		raise RuntimeError(f'{model} could not be downloaded: {e}') from e
 
 
 def _without_eecu_warning(text):
@@ -1582,8 +1663,8 @@ def run(port=PORT, browser=True, window=True):
 	assistant = Assistant()
 	server = uvicorn.Server(uvicorn.Config(make_app(assistant, token, port), host='127.0.0.1', port=port,
 	                                       log_level='warning', timeout_graceful_shutdown=3))
-	assistant.quit = lambda: (assistant.end_streams(), setattr(server, 'should_exit', True))  # the button Cerrar
-	if hasattr(signal, 'SIGHUP'):  # the window of the terminal closed: stop as with Cerrar (and the engine with it)
+	assistant.quit = lambda: (assistant.end_streams(), setattr(server, 'should_exit', True))  # the button Close
+	if hasattr(signal, 'SIGHUP'):  # the window of the terminal closed: stop as with Close (and the engine with it)
 		signal.signal(signal.SIGHUP, lambda *_: assistant.quit())
 	os.makedirs(OUTPUT, exist_ok=True)
 	with open(RUNNING, 'w', encoding='utf-8') as f:
@@ -1600,9 +1681,9 @@ def run(port=PORT, browser=True, window=True):
 					break
 				time.sleep(0.1)
 
-			asked = threading.Event()  # closed by Cerrar (which asked already), an update or the terminal
+			asked = threading.Event()  # closed by Close (which asked already), an update or the terminal
 
-			def ready(win):  # Cerrar, an update or the window of the terminal closed: the window too
+			def ready(win):  # Close, an update or the window of the terminal closed: the window too
 				assistant.quit = lambda: (asked.set(), assistant.end_streams(), setattr(server, 'should_exit', True),
 				                          win.destroy())
 			in_window = _show_window(url, ready, lambda: assistant.running() and not asked.is_set())
@@ -1634,7 +1715,7 @@ def run(port=PORT, browser=True, window=True):
 
 
 def _watch_updates(assistant, every=6 * 3600):
-	"""Check for a new version on GitHub now and every EVERY seconds (the page shows then the button Actualizar)."""
+	"""Check for a new version on GitHub now and every EVERY seconds (the page shows then the button Update)."""
 	while True:
 		with contextlib.suppress(Exception):
 			assistant.update_info = check_update()
@@ -1651,17 +1732,17 @@ def _webview():
 
 
 WINDOW_TEXTS = {  # of pywebview: the question when the window closes while computing, and the menu of macOS
-	'global.quitConfirmation': 'Hay un cálculo en marcha y se perderá. ¿Cerrar el asistente? Se cierra también el '
-	                           'motor de los modelos; los resultados, las áreas de estudio y los informes se quedan en '
-	                           'la carpeta MonitorEO.',
-	'global.ok': 'Aceptar', 'global.quit': 'Cerrar', 'global.cancel': 'Cancelar', 'global.saveFile': 'Guardar archivo',
-	'cocoa.menu.about': 'Acerca de', 'cocoa.menu.services': 'Servicios', 'cocoa.menu.view': 'Visualización',
-	'cocoa.menu.edit': 'Edición', 'cocoa.menu.hide': 'Ocultar', 'cocoa.menu.hideOthers': 'Ocultar otros',
-	'cocoa.menu.showAll': 'Mostrar todo', 'cocoa.menu.quit': 'Salir de', 'cocoa.menu.fullscreen': 'Pantalla completa',
-	'cocoa.menu.cut': 'Cortar', 'cocoa.menu.copy': 'Copiar', 'cocoa.menu.paste': 'Pegar',
-	'cocoa.menu.selectAll': 'Seleccionar todo', 'windows.fileFilter.allFiles': 'Todos los archivos',
-	'windows.fileFilter.otherFiles': 'Otros tipos de archivo', 'linux.openFile': 'Abrir archivo',
-	'linux.openFiles': 'Abrir archivos', 'linux.openFolder': 'Abrir carpeta'}
+	'global.quitConfirmation': 'A computation is running and will be lost. Close the assistant? The engine of the '
+	                           'models closes too; the results, the study areas and the reports stay in the folder '
+	                           'MonitorEO.',
+	'global.ok': 'OK', 'global.quit': 'Close', 'global.cancel': 'Cancel', 'global.saveFile': 'Save file',
+	'cocoa.menu.about': 'About', 'cocoa.menu.services': 'Services', 'cocoa.menu.view': 'View',
+	'cocoa.menu.edit': 'Edit', 'cocoa.menu.hide': 'Hide', 'cocoa.menu.hideOthers': 'Hide Others',
+	'cocoa.menu.showAll': 'Show All', 'cocoa.menu.quit': 'Quit', 'cocoa.menu.fullscreen': 'Enter Full Screen',
+	'cocoa.menu.cut': 'Cut', 'cocoa.menu.copy': 'Copy', 'cocoa.menu.paste': 'Paste',
+	'cocoa.menu.selectAll': 'Select All', 'windows.fileFilter.allFiles': 'All files',
+	'windows.fileFilter.otherFiles': 'Other file types', 'linux.openFile': 'Open file',
+	'linux.openFiles': 'Open files', 'linux.openFolder': 'Open folder'}
 
 
 def _show_window(url, ready=None, busy=None):
@@ -1673,7 +1754,7 @@ def _show_window(url, ready=None, busy=None):
 	try:
 		webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = True  # the wiki and other pages, in the browser
 		webview.settings['ALLOW_DOWNLOADS'] = True  # CSV and GeoTIFF
-		win = webview.create_window('Asistente de MonitorEO', url, width=1400, height=900, min_size=(720, 520),
+		win = webview.create_window('MonitorEO Assistant', url, width=1400, height=900, min_size=(720, 520),
 		                            text_select=True)
 		if busy:  # pywebview asks (confirm_close) after this event, in the thread of the window
 			win.events.closing += lambda: setattr(win, 'confirm_close', bool(busy()))

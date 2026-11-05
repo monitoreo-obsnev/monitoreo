@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Asistente de MonitorEO</title>
+<title>MonitorEO Assistant</title>
 <link rel="icon" href="/logo.png">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <script src="/vendor/leaflet/leaflet.js"></script>
@@ -145,40 +145,41 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
 <header>
   <div class="brand">
     <img src="/logo.png" alt="MonitorEO-OBSNEV">
-    <div><b>Asistente de MonitorEO</b> <span id="version" class="muted"></span></div>
+    <div><b>MonitorEO Assistant</b> <span id="version" class="muted"></span></div>
     <div class="top">
-      <button id="update" type="button" class="primary" hidden>Actualizar MonitorEO</button>
-      <button id="quit" type="button" title="Cierra el asistente y el motor de los modelos">Cerrar el asistente</button>
+      <button id="update" type="button" class="primary" hidden>Update MonitorEO</button>
+      <button id="quit" type="button" title="Closes the assistant and the engine of the models">Close the assistant</button>
     </div>
   </div>
   <details id="setup" open>
-    <summary>Configuración <span id="summary" class="muted"></span></summary>
+    <summary>Settings <span id="summary" class="muted"></span></summary>
     <div class="setup">
       <div class="row">
-        <span class="label">Cuenta de Earth Engine</span>
+        <span class="label">Earth Engine account</span>
         <span id="account" class="muted">…</span>
-        <button id="signin" type="button">Usar mi cuenta de Google</button>
+        <button id="signin" type="button">Use my Google account</button>
+        <button id="signout" type="button" hidden title="Signs out the Google account of Earth Engine on this computer; the assistant goes back to the shared account of MonitorEO">Log out</button>
       </div>
       <div class="row">
-        <label class="label" for="project">Tu proyecto (opcional)</label>
-        <input id="project" placeholder="vacío: la cuenta compartida de MonitorEO · o tu proyecto de Google Cloud registrado en Earth Engine">
-        <button id="saveProject" type="button">Guardar</button>
+        <label class="label" for="project">Your project (optional)</label>
+        <input id="project" placeholder="empty: the shared account of MonitorEO · or your Google Cloud project registered in Earth Engine">
+        <button id="saveProject" type="button">Save</button>
         <span id="projectMsg" class="muted"></span>
       </div>
       <div class="row" id="tierRow" hidden>
-        <label class="label" for="tier">Nivel de tu proyecto</label>
+        <label class="label" for="tier">Tier of your project</label>
         <select id="tier">
-          <option value="Community">Community: 150 EECU-h al mes</option>
-          <option value="Contributor">Contributor: 1000 EECU-h al mes</option>
-          <option value="Partner">Partner: 100 000 EECU-h al mes</option>
+          <option value="Community">Community: 150 EECU-h a month</option>
+          <option value="Contributor">Contributor: 1,000 EECU-h a month</option>
+          <option value="Partner">Partner: 100,000 EECU-h a month</option>
         </select>
-        <span class="muted">la cuota mensual de cálculo de Earth Engine de tu proyecto, para la barra de EECU</span>
+        <span class="muted">the monthly quota of compute of Earth Engine of your project, for the bar of EECUs</span>
       </div>
       <div class="row">
-        <label class="label" for="model">Modelo de lenguaje</label>
+        <label class="label" for="model">Language model</label>
         <select id="model"></select>
-        <input id="modelName" placeholder="u otro: p. ej. qwen3:4b, gpt-oss:20b">
-        <button id="pull" type="button">Descargar</button>
+        <input id="modelName" placeholder="or another one: e.g. qwen3:4b, gpt-oss:20b">
+        <button id="pull" type="button">Download</button>
         <span id="modelMsg" class="muted"></span>
       </div>
     </div>
@@ -189,29 +190,29 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <div id="eecuMeter" class="meter" role="progressbar" aria-labelledby="eecuName" aria-valuemin="0"
          aria-valuemax="100"><div id="eecuFill"></div></div>
     <span id="eecuText"></span>
-    <button id="eecuCheck" type="button" title="Consulta otra vez los EECU (unidades de cálculo de Earth Engine) gastados este mes">Consultar</button>
+    <button id="eecuCheck" type="button" title="Checks again the EECUs (compute units of Earth Engine) spent this month">Check</button>
   </div>
   <div id="layers" class="layers" hidden></div>
 </header>
 
 <nav id="tabs">
-  <button type="button" data-pane="talk" class="on">Conversación</button>
-  <button type="button" data-pane="work">Resultados (<span id="nres2">0</span>)</button>
+  <button type="button" data-pane="talk" class="on">Conversation</button>
+  <button type="button" data-pane="work">Results (<span id="nres2">0</span>)</button>
 </nav>
 
 <div id="panes">
 <section id="talk">
 <main id="chat" aria-live="polite">
   <div id="intro" class="intro">
-    <p>Pregunta qué variable o sensor te conviene, o pide un cálculo sobre un espacio protegido o una zona. Los
-      resultados aparecen aquí y puedes reunirlos en un informe para imprimir o guardar en PDF. Para calcular sobre
-      tus propios polígonos, sube tu área de estudio (GeoPackage, GeoJSON, KML o shapefile en .zip) con el botón o
-      arrastrándola aquí. <b>El asistente no interpreta los resultados.</b></p>
+    <p>Ask which variable or sensor suits you, or ask for a computation over a protected area or a zone. The results
+      appear here and you can gather them in a report to print or save as PDF. To compute over your own polygons,
+      upload your study area (GeoPackage, GeoJSON, KML or shapefile in a .zip) with the button or by dragging it here.
+      You can write in English or in Spanish. <b>The assistant does not interpret the results.</b></p>
     <div class="examples">
-      <button type="button">¿Qué sensor me conviene para seguir la vegetación de una finca pequeña desde 2015?</button>
-      <button type="button">Evolución mensual del NDVI en el Parque Nacional de Sierra Nevada desde 2018</button>
-      <button type="button">Compara los veranos de 2023 a 2025 con los de 2018 a 2022 en Doñana con el NDVI</button>
-      <button type="button">¿Cómo calculo la severidad de un incendio?</button>
+      <button type="button">Which sensor suits me to follow the vegetation of a small farm since 2015?</button>
+      <button type="button">Monthly evolution of the NDVI in the Sierra Nevada National Park since 2018</button>
+      <button type="button">Compare the summers of 2023 to 2025 with those of 2018 to 2022 in Doñana with the NDVI</button>
+      <button type="button">How do I compute the burn severity of a fire?</button>
     </div>
   </div>
 </main>
@@ -219,57 +220,57 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
 <footer>
   <div id="status" class="status" hidden></div>
   <form id="ask">
-    <textarea id="text" rows="2" placeholder="Escribe tu consulta (Intro para enviar, Mayús+Intro para otra línea)"
-              aria-label="Consulta"></textarea>
-    <button id="send" class="primary">Enviar</button>
+    <textarea id="text" rows="2" placeholder="Write your request (Enter to send, Shift+Enter for another line)"
+              aria-label="Request"></textarea>
+    <button id="send" class="primary">Send</button>
   </form>
   <div class="actions">
-    <button id="addLayer" type="button">Subir área de estudio</button>
+    <button id="addLayer" type="button">Upload study area</button>
     <input id="layerFile" type="file" accept=".gpkg,.geojson,.json,.kml,.zip" multiple hidden>
-    <button id="report" type="button">Crear informe (<span id="nres">0</span>)</button>
-    <button id="reset" type="button">Nueva consulta</button>
+    <button id="report" type="button">Create report (<span id="nres">0</span>)</button>
+    <button id="reset" type="button">New request</button>
   </div>
 </footer>
 </section>
 
-<aside id="work" aria-label="Resultados">
+<aside id="work" aria-label="Results">
   <div id="mapbox" hidden>
     <div class="maphead">
-      <label>Mapa <select id="mapsel"></select></label>
-      <label id="steplabel" hidden title="El mapa de cada año, mes o periodo del resultado (se prepara en Google Earth Engine al elegirlo)"><span id="steptitle">Fecha</span> <select id="mapstep"></select></label>
-      <label id="siglabel" hidden title="Muestra solo los píxeles cuya tendencia es significativa (prueba de Mann-Kendall, p &lt; 0,05)"><input type="checkbox" id="significant"> Solo píxeles significativos (p &lt; 0,05)</label>
-      <label>Fondo <select id="basemap">
+      <label>Map <select id="mapsel"></select></label>
+      <label id="steplabel" hidden title="The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)"><span id="steptitle">Date</span> <select id="mapstep"></select></label>
+      <label id="siglabel" hidden title="Shows only the pixels whose trend is significant (Mann-Kendall test, p &lt; 0.05)"><input type="checkbox" id="significant"> Significant pixels only (p &lt; 0.05)</label>
+      <label>Base map <select id="basemap">
         <option value="osm">Mapa (OpenStreetMap)</option>
-        <option value="eox">Sentinel-2 sin nubes (EOX, todo el mundo)</option>
-        <option value="pnoa">Ortofoto PNOA (solo España)</option>
+        <option value="eox">Sentinel-2 cloudless (EOX, whole world)</option>
+        <option value="pnoa">PNOA orthophoto (Spain only)</option>
       </select></label>
-      <label>Opacidad <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
-      <button id="query" type="button" aria-pressed="false" title="Con la consulta activada, pincha en el mapa para ver el valor de un píxel y su serie temporal">Consultar píxel</button>
-      <button id="snapshot" type="button" title="Guarda lo que se ve en el mapa (fondo, encuadre y píxel marcado) como un resultado">Añadir esta vista al informe</button>
+      <label>Opacity <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
+      <button id="query" type="button" aria-pressed="false" title="With the query on, click on the map to see the value of a pixel and its time series">Query pixel</button>
+      <button id="snapshot" type="button" title="Keeps what the map shows (base map, extent and marked pixel) as a result">Add this view to the report</button>
     </div>
     <div id="map"></div>
     <div id="maplegend" class="legend"></div>
     <p id="maphint" class="muted" style="margin: 6px 0 0"></p>
     <div id="pixel"></div>
   </div>
-  <div id="results"><p id="noresults" class="muted">Aquí aparecen los resultados y sus mapas.</p></div>
+  <div id="results"><p id="noresults" class="muted">The results and their maps appear here.</p></div>
 </aside>
 </div>
 
 <dialog id="reportDialog">
   <form method="dialog">
-    <label>Título del informe<input id="reportTitle" required></label>
-    <p class="muted">Se incluyen los resultados marcados con «En el informe» (y su tabla de valores, los que tienen
-      marcada «Tabla en el informe»). Se guarda en la carpeta MonitorEO/informes y se abre en el navegador, desde donde
-      se puede imprimir o guardar en PDF.</p>
-    <menu><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></menu>
+    <label>Title of the report<input id="reportTitle" required></label>
+    <p class="muted">It has the results marked «In the report» (and their table of values, those with «Table in the
+      report» marked). It is saved in the folder MonitorEO/informes and opened in the browser, where it can be printed
+      or saved as PDF.</p>
+    <menu><button value="cancel" formnovalidate>Cancel</button><button value="ok" class="primary">Create</button></menu>
   </form>
 </dialog>
 
 <script>
 const token = new URLSearchParams(location.search).get('t') || '';
 const $ = id => document.getElementById(id);
-let state = {}, busy = false, question = null;
+let state = {}, busy = false, question = null, userLang = null;  // that of the last message of the user that tells
 
 function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag);
@@ -316,29 +317,30 @@ function fileUrl(url) { return url + (url.includes('?') ? '&' : '?') + 't=' + en
 async function refresh() {
   try { state = await api('/api/state'); } catch (e) {
     refresh.stale = /token/.test(e.message);  // a page of a session before: its token is not valid
-    if (!refresh.failed) notice(refresh.stale ? 'Esta página es de una sesión anterior del asistente: ' +
-      'ciérrala y abre el asistente otra vez.' : 'No hay conexión con el asistente: ' + e.message, true);
+    if (!refresh.failed) notice(refresh.stale ? 'This page is of an earlier session of the assistant: ' +
+      'close it and open the assistant again.' : 'No connection with the assistant: ' + e.message, true);
     refresh.failed = true;
     return;
   }
   refresh.failed = false;
   $('version').textContent = 'MonitorEO ' + state.version;
   const own = !!state.project, accountOk = !own || state.signed_in;
-  $('account').textContent = !own ? 'la cuenta compartida de MonitorEO: no hace falta iniciar sesión' +
-      (state.signed_in ? ' (para usar la tuya, escribe tu proyecto)' : '') :
-    state.signed_in ? 'tu cuenta de Google (sesión iniciada en este ordenador)' :
-    'para calcular con tu proyecto, inicia sesión con tu cuenta de Google';
+  $('account').textContent = !own ? 'the shared account of MonitorEO: no need to sign in' +
+      (state.signed_in ? ' (to use yours, write your project)' : '') :
+    state.signed_in ? 'your Google account (signed in on this computer)' :
+    'to compute with your project, sign in with your Google account';
   $('account').className = accountOk ? 'ok' : 'muted';
-  $('signin').textContent = state.signed_in ? 'Cambiar de cuenta' : 'Usar mi cuenta de Google';
+  $('signin').textContent = state.signed_in ? 'Change account' : 'Use my Google account';
+  $('signout').hidden = !state.signed_in;
   if (document.activeElement !== $('project')) $('project').value = state.project || '';
   const select = $('model'), names = state.models || [], rec = state.recommended || [];
   if (document.activeElement !== select) {  // not while the user chooses
-    const label = (name, m) => [name + (m && m.note === 'recomendado' ? ' (recomendado)' : ''),
-      m ? fmt(m.gb) + ' GB' : null, m && m.note !== 'recomendado' ? m.note : null,
-      names.includes(name) ? '✓ descargado' : null].filter(Boolean).join(' · ');
+    const label = (name, m) => [name + (m && m.note === 'recommended' ? ' (recommended)' : ''),
+      m ? fmt(m.gb) + ' GB' : null, m && m.note !== 'recommended' ? m.note : null,
+      names.includes(name) ? '✓ downloaded' : null].filter(Boolean).join(' · ');
     select.replaceChildren(...rec.map(m => el('option', {value: m.name, text: label(m.name, m)})));
     const others = names.filter(n => !rec.some(m => m.name === n));
-    if (others.length) select.append(el('optgroup', {label: 'Otros modelos descargados'},
+    if (others.length) select.append(el('optgroup', {label: 'Other models downloaded'},
                                         ...others.map(n => el('option', {value: n, text: label(n)}))));
     if (![...select.options].some(o => o.value === state.model)) select.append(el('option', {value: state.model, text: state.model}));
     select.value = state.model;
@@ -346,46 +348,46 @@ async function refresh() {
   const eng = state.engine || {}, msg = $('modelMsg'), have = names.includes(state.model);
   $('pull').hidden = have && !$('modelName').value.trim();
   const install = state.models === null && eng.auto && eng.mb;  // no Ollama: the assistant installs its own
-  $('pull').textContent = install ? 'Instalar' : 'Descargar';
-  const once = ' Solo la primera vez: después funciona sin descargar nada.';
+  $('pull').textContent = install ? 'Install' : 'Download';
+  const once = ' Only the first time: afterwards it works without downloading anything.';
   if (!msg.dataset.busy) msg.className = 'muted';
   if (msg.dataset.busy) {
     // the progress of a download
   } else if (eng.installing) {
-    msg.textContent = 'Instalando el motor de los modelos…';
+    msg.textContent = 'Installing the engine of the models…';
   } else if (install) {
     const gb = (state.model_gb || 5) + eng.mb / 1024;
-    msg.textContent = `Hay que descargar el modelo de lenguaje y su motor (Ollama): unos ${fmt(Math.round(gb * 10) / 10)} GB.` + once +
-      ' Pulsa Instalar.';
+    msg.textContent = `The language model and its engine (Ollama) have to be downloaded: about ${fmt(Math.round(gb * 10) / 10)} GB.` + once +
+      ' Press Install.';
   } else if (state.models === null) {
-    msg.replaceChildren(eng.auto ? 'Hace falta Ollama: instálalo desde ' : 'Ollama no responde en ' + state.ollama + ': ábrelo o instálalo desde ',
-      el('a', {href: 'https://ollama.com/download', target: '_blank', rel: 'noopener', text: 'ollama.com'}), ' y ábrelo.');
+    msg.replaceChildren(eng.auto ? 'Ollama is needed: install it from ' : 'Ollama does not answer at ' + state.ollama + ': open it or install it from ',
+      el('a', {href: 'https://ollama.com/download', target: '_blank', rel: 'noopener', text: 'ollama.com'}), ' and open it.');
   } else if (!have) {
-    msg.textContent = `Hay que descargar el modelo ${state.model}` + (state.model_gb ? `: unos ${fmt(state.model_gb)} GB.` : '.') +
-      once + ' Pulsa Descargar.';
+    msg.textContent = `The model ${state.model} has to be downloaded` + (state.model_gb ? `: about ${fmt(state.model_gb)} GB.` : '.') +
+      once + ' Press Download.';
   } else {
     msg.className = 'ok';
-    msg.textContent = `✓ ${state.model} ya está descargado en este ordenador: no hay que descargar nada.`;
+    msg.textContent = `✓ ${state.model} is downloaded on this computer already: nothing to download.`;
   }
   const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return 'localhost'; } })();
   const local = ['localhost', '127.0.0.1', '::1'].includes(host);
   $('where').replaceChildren(
-    ...(own ? ['Los cálculos se hacen en Google Earth Engine con tu cuenta de Google y el proyecto ',
+    ...(own ? ['The computations are done in Google Earth Engine with your Google account and the project ',
                el('b', {text: state.project}), '.']
-            : ['Los cálculos se hacen en Google Earth Engine con la ', el('b', {text: 'cuenta compartida de MonitorEO'}),
-               ': para exportar a Google Drive, usa tu cuenta y tu proyecto.']),
-    ' El modelo de lenguaje (', el('b', {text: state.model}),
-    local ? ', en este ordenador' : ', en ' + host,
-    ') solo recibe el texto de la conversación: no ve los resultados ni los interpreta.');
+            : ['The computations are done in Google Earth Engine with the ', el('b', {text: 'shared account of MonitorEO'}),
+               ': to export to Google Drive, use your account and your project.']),
+    ' The language model (', el('b', {text: state.model}),
+    local ? ', on this computer' : ', at ' + host,
+    ') only gets the text of the conversation: it does not see the results nor interpret them.');
   const ready = accountOk && state.models && state.models.includes(state.model);
-  $('summary').textContent = ready ? '· todo listo' : '· falta completar';
+  $('summary').textContent = ready ? '· all ready' : '· to be completed';
   if (ready && !refresh.done) $('setup').open = false;
   refresh.done = true;
   $('nres').textContent = state.results;
   $('quit').hidden = !!state.window;  // in a window of its own, its cross closes it (and asks while computing)
   const up = state.update;
   $('update').hidden = !(up && up.available);
-  if (up) $('update').title = `Hay una versión nueva de MonitorEO (${up.latest}); tienes la ${up.current || 'de antes'}`;
+  if (up) $('update').title = `There is a new version of MonitorEO (${up.latest}); you have ${up.current || 'an older one'}`;
   renderLayers(state.layers || []);
   $('tierRow').hidden = !own;
   if (document.activeElement !== $('tier')) $('tier').value = state.eecu_tier || 'Community';
@@ -401,22 +403,22 @@ function renderEecu(u) {  // the bar of the research EECUs (shared account) or o
   const meter = $('eecuMeter');
   if (u.error) {
     box.classList.remove('low');
-    $('eecuName').textContent = 'EECU de este mes';
+    $('eecuName').textContent = 'EECUs of this month';
     $('eecuFill').style.width = '0';
     meter.removeAttribute('aria-valuenow');
-    $('eecuText').textContent = 'no se pueden consultar: ' + u.error;
+    $('eecuText').textContent = 'they cannot be checked: ' + u.error;
     return;
   }
-  const used = Math.min(100, u.used_percent);
+  const used = Math.min(100, Math.max(0, 100 - u.left_percent));  // what can no longer be used (also by the project)
   box.classList.toggle('low', u.low);
   meter.className = 'meter' + (u.low ? ' low' : used >= 75 ? ' mid' : '');
   $('eecuFill').style.width = used + '%';
   meter.setAttribute('aria-valuenow', String(used));
-  $('eecuName').textContent = u.name + ' de este mes';
+  $('eecuName').textContent = u.name + ' of this month';
   const shared = u.account === 'shared';
-  $('eecuText').textContent = `${fmt(u.used_percent)} % gastado (${fmt(u.used_hours)} de ${shared ? 'tus ' : ''}` +
-    `${fmt(u.limit_hours)} EECU-h` + (u.tier ? ', nivel ' + u.tier : '') + `); ${shared ? 'te ' : ''}queda el ` +
-    `${fmt(u.left_percent)} %`;
+  $('eecuText').textContent = `${fmt(u.used_percent)}% spent (${fmt(u.used_hours)} of ${shared ? 'your ' : ''}` +
+    `${fmt(u.limit_hours)} EECU-h` + (u.tier ? ', tier ' + u.tier : '') + `); ${fmt(u.left_percent)}% left` +
+    (shared && u.left_hours < u.limit_hours - u.used_hours - 0.005 ? ' (the shared account has little left)' : '');
   box.title = u.text;
 }
 
@@ -437,11 +439,11 @@ $('tier').onchange = async () => {
 function renderLayers(layers) {
   const box = $('layers');
   box.hidden = !layers.length;
-  box.replaceChildren(el('span', {class: 'muted', text: 'Áreas de estudio:'}));
+  box.replaceChildren(el('span', {class: 'muted', text: 'Study areas:'}));
   for (const l of layers) {
-    const remove = el('button', {type: 'button', title: 'Quitar el área de estudio ' + l.name, 'aria-label': 'Quitar el área de estudio ' + l.name, text: '×'});
+    const remove = el('button', {type: 'button', title: 'Remove the study area ' + l.name, 'aria-label': 'Remove the study area ' + l.name, text: '×'});
     remove.onclick = async () => {
-      if (!confirm(`¿Quitar el área de estudio «${l.name}»? Se borra su copia en la carpeta MonitorEO/capas.`)) return;
+      if (!confirm(`Remove the study area «${l.name}»? Its copy in the folder MonitorEO/capas is deleted.`)) return;
       await api('/api/layer/remove', {name: l.name}).catch(e => notice(e.message, true));
       refresh();
     };
@@ -451,18 +453,18 @@ function renderLayers(layers) {
 
 async function upload(files) {
   for (const file of files) {
-    status('Leyendo el área de estudio ' + file.name + '…');
+    status('Reading the study area ' + file.name + '…');
     try {
       const r = await fetch('/api/layer?name=' + encodeURIComponent(file.name), {
         method: 'POST', headers: {'X-Token': token, 'Content-Type': 'application/octet-stream'}, body: file});
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || r.statusText);
       $('intro').hidden = true;
-      $('chat').append(el('div', {class: 'notice'}, 'Área de estudio ', el('b', {text: data.name}), ` subida: ${data.text} ` +
-        `(${data.crs}). Ya puedes pedir cálculos sobre ella, por ejemplo: «Serie anual del NDVI en el área de estudio ` +
-        `${data.name} desde 2018».`));
+      $('chat').append(el('div', {class: 'notice'}, 'Study area ', el('b', {text: data.name}), ` uploaded: ${data.text} ` +
+        `(${data.crs}). You can ask for computations over it now, for example: «Annual series of NDVI in the study ` +
+        `area ${data.name} since 2018».`));
       scroll();
-    } catch (e) { notice(`Área de estudio ${file.name}: ${e.message}`, true); }
+    } catch (e) { notice(`Study area ${file.name}: ${e.message}`, true); }
   }
   status(null);
   refresh();
@@ -483,28 +485,43 @@ document.addEventListener('drop', e => {
 
 $('signin').onclick = async () => {
   $('signin').disabled = true;
-  $('account').textContent = 'completa el inicio de sesión en la pestaña del navegador que se ha abierto…';
-  try { await api('/api/signin', {}); } catch (e) { notice('Inicio de sesión: ' + e.message, true); }
+  $('account').textContent = 'complete the sign-in in the tab of the browser that has opened…';
+  try { await api('/api/signin', {}); } catch (e) { notice('Sign-in: ' + e.message, true); }
   $('signin').disabled = false;
   refresh();
 };
 
+$('signout').onclick = async () => {
+  if (!confirm('Log out of your Google account in Earth Engine on this computer? The other tools of MonitorEO of ' +
+      'this computer (QGIS, Python, R, the command line) and earthengine are signed out too, and the assistant ' +
+      'computes again with the shared account of MonitorEO. To use your project again, sign in again.')) return;
+  $('signout').disabled = true;
+  $('account').textContent = 'logging out…';
+  try {
+    const r = await api('/api/signout', {});
+    $('projectMsg').textContent = r.message || '';
+    notice('Logged out of your Google account: the assistant computes with the shared account of MonitorEO.');
+  } catch (e) { notice('Log out: ' + e.message, true); }
+  $('signout').disabled = false;
+  refresh();
+};
+
 $('saveProject').onclick = async () => {
-  $('projectMsg').textContent = 'comprobando…';
+  $('projectMsg').textContent = 'checking…';
   try {
     const r = await api('/api/settings', {project: $('project').value});
-    $('projectMsg').textContent = r.message || 'guardado';
+    $('projectMsg').textContent = r.message || 'saved';
   } catch (e) { $('projectMsg').textContent = e.message; }
   refresh();
 };
 
-const PULL = {'pulling manifest': 'Preparando la descarga', 'verifying sha256 digest': 'Comprobando la descarga',
-              'writing manifest': 'Instalando', 'success': 'Descargado'};
+const PULL = {'pulling manifest': 'Preparing the download', 'verifying sha256 digest': 'Checking the download',
+              'writing manifest': 'Installing', 'success': 'Downloaded'};
 
 function progress(what, e) {
   if (!e.total) return what + '…';
   const mb = n => n / 2 ** 20 >= 1024 ? fmt(Math.round(n / 2 ** 30 * 10) / 10) + ' GB' : Math.round(n / 2 ** 20) + ' MB';
-  return `${what}: ${Math.round(100 * (e.completed || 0) / e.total)} % de ${mb(e.total)}`;
+  return `${what}: ${Math.round(100 * (e.completed || 0) / e.total)}% of ${mb(e.total)}`;
 }
 
 $('model').onchange = async () => { await api('/api/settings', {model: $('model').value}); $('model').blur(); refresh(); };
@@ -520,16 +537,16 @@ $('pull').onclick = async () => {
     if (state.models === null && eng.auto && eng.mb) {  // first the engine (Ollama), in the folder MonitorEO
       await stream('/api/engine/install', {}, e => {
         if (e.error) throw new Error(e.error);
-        msg.textContent = e.status === 'success' ? 'Motor instalado.' : progress(e.status, e);
+        msg.textContent = e.status === 'success' ? 'Engine installed.' : progress(e.status, e);
       });
     }
     await stream('/api/pull', {model}, e => {
       if (e.error) throw new Error(e.error);
-      const what = /^pulling [0-9a-f]/.test(e.status) ? 'Descargando ' + model : PULL[e.status] || e.status;
+      const what = /^pulling [0-9a-f]/.test(e.status) ? 'Downloading ' + model : PULL[e.status] || e.status;
       msg.textContent = progress(what, e);
     });
     await api('/api/settings', {model});
-    msg.textContent = model + ' descargado.';
+    msg.textContent = model + ' downloaded.';
     $('modelName').value = '';
   } catch (e) { msg.textContent = e.message; }
   delete msg.dataset.busy;
@@ -578,7 +595,7 @@ function message(role, text) {
 function facts(list, open) {
   const dl = el('dl');
   for (const [k, v] of list || []) dl.append(el('dt', {text: k}), el('dd', {text: v}));
-  return el('details', open ? {open: ''} : {}, el('summary', {class: 'muted', text: 'Cómo se calcula'}), dl);
+  return el('details', open ? {open: ''} : {}, el('summary', {class: 'muted', text: 'How it is computed'}), dl);
 }
 
 const SHORT_ROWS = 6;  // the rows of a table shown at first; the others with the button
@@ -595,20 +612,20 @@ function table(t) {
   const tab = el('table', {class: 'short'}, el('thead', {}, head), body);
   const div = el('div', {class: 'scroll'}, tab);
   if (t.rows.length > SHORT_ROWS) {
-    const all = `Ver las ${t.rows.length + (t.more || 0)} filas`;
+    const all = `See the ${fmt(t.rows.length + (t.more || 0))} rows`;
     const button = el('button', {type: 'button', class: 'more', text: all});
     button.onclick = () => {
       const short = tab.classList.toggle('short');
-      button.textContent = short ? all : `Ver solo las ${SHORT_ROWS} primeras`;
+      button.textContent = short ? all : `See only the first ${SHORT_ROWS}`;
     };
     div.append(button);
   }
-  if (t.more) div.append(el('p', {class: 'muted', text: `… y ${t.more} filas más en el informe y en el CSV.`}));
+  if (t.more) div.append(el('p', {class: 'muted', text: `… and ${fmt(t.more)} rows more in the report and in the CSV.`}));
   return div;
 }
 
 function mapButton(id) {  // shows the map of the result ID
-  const b = el('button', {type: 'button', class: 'tomap', text: 'Ver en el mapa'});
+  const b = el('button', {type: 'button', class: 'tomap', text: 'See on the map'});
   b.onclick = () => {
     if (!maps[id]) return;
     showPane('work');
@@ -626,8 +643,8 @@ function resultCard(e) {
   check.checked = true;
   const card = el('article', {class: 'card', 'data-result': e.id},
     el('div', {class: 'head'}, el('h3', {text: `${e.id}. ${e.title}`}),
-       el('span', {class: 'muted'}, el('label', {}, check, ' En el informe'), e.table ? ' · ' : '',
-          e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Tabla en el informe') : '')));
+       el('span', {class: 'muted'}, el('label', {}, check, ' In the report'), e.table ? ' · ' : '',
+          e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Table in the report') : '')));
   if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
   if (e.legend) {
     const colours = e.legend.palette.map(c => '#' + c.replace('#', '')).join(', ');
@@ -641,7 +658,7 @@ function resultCard(e) {
   const links = e.files.filter(f => f.url);
   if (links.length) {
     card.append(el('div', {class: 'files'}, ...links.map(f =>
-      el('a', {href: fileUrl(f.url), download: f.name, text: 'Descargar ' + f.name.split('.').pop().toUpperCase()}))));
+      el('a', {href: fileUrl(f.url), download: f.name, text: 'Download ' + f.name.split('.').pop().toUpperCase()}))));
   }
   return card;
 }
@@ -652,26 +669,49 @@ function areasCard(e) {
     const name = a.NAME + (a.DESIG ? ' (' + a.DESIG + ')' : '');
     const b = el('button', {type: 'button', class: a.match ? 'match' : '',
       text: [a.NAME, a.DESIG, a.ISO3, a.REP_AREA != null ? fmt(a.REP_AREA) + ' km²' : null].filter(Boolean).join(' · ')
-            + ` (WDPA ${a.SITE_ID})` + (a.match ? ' · coincide con tu consulta' : '')});
+            + ` (WDPA ${a.SITE_ID})` + (a.match ? ' · matches your request' : '')});
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');
-      const text = `Calcula lo que he pedido con el espacio ${name}, WDPA ${a.SITE_ID}`;
+      const text = (userLang === 'es' ? `Calcula lo que he pedido con el espacio ${name}` :  // in the language of the
+                    `Compute what I asked for with the protected area ${name}`) + `, WDPA ${a.SITE_ID}`;  // user, as the answer
       if (!busy) return send(text);
       pending = text;
-      notice(`Cuando termine lo que está en marcha, se calculará con ${name}.`);
+      notice(`When what is running ends, it will be computed with ${name}.`);
     };
     list.append(b);
   }
-  const help = e.areas.some(a => a.match) ? 'El resaltado coincide con tu consulta y es el que se usa; pulsa otro para ' +
-    'calcular con él (también mientras calcula: se hace después).' : 'Pulsa uno para calcular con él.';
-  return el('article', {class: 'card'}, el('h3', {text: `Espacios protegidos con «${e.query}»`}),
-            e.areas.length ? el('p', {class: 'muted', text: help}) : el('p', {text: 'Ninguno.'}), list);
+  const help = e.areas.some(a => a.match) ? 'The highlighted one matches your request and is the one used; press ' +
+    'another one to compute with it (also while computing: it is done afterwards).' : 'Press one to compute with it.';
+  return el('article', {class: 'card'}, el('h3', {text: `Protected areas named «${e.query}»`}),
+            e.areas.length ? el('p', {class: 'muted', text: help}) : el('p', {text: 'None.'}), list);
+}
+
+const COMMON = {  // the words of each language that tell it, without accents (those of monitoreo.manual.COMMON)
+  es: new Set(('al algo como con cual cuales cuando de del desde donde el ella en entre era es esa ese eso esta este esto ' +
+    'estos hay hace la las le lo los mas mi muy para pero por puede puedo que quien se segun ser si sin sobre son su sus ' +
+    'tambien tiene tu un una uno unos y ya yo cada mes ano anos hola gracias vale quiero dame calcula serie mapa ' +
+    'tendencia mensual anual').split(' ')),
+  en: new Set(('about also an and any are as at be been but by can could do does each for from get has have how i if in ' +
+    'into is it its my not of on or our so some than that the their them then there these they this to us was we what ' +
+    'when where which who why will with would you your since until year years month yes hello thanks please want show ' +
+    'give series map trend monthly annual').split(' ')),
+};
+
+function language(text) {  // 'es', 'en' or null (nothing tells) of TEXT, as monitoreo.manual.language
+  let es = /[¿¡]/.test(text) ? 2 : 0, en = 0;
+  for (const w of String(text || '').match(/\p{L}+/gu) || []) {
+    const lower = w.toLowerCase(), plain = lower.normalize('NFD').replace(/\p{M}/gu, '');
+    if (COMMON.es.has(plain)) es++;
+    else if (COMMON.en.has(plain)) en++;
+    else if (w[0] === lower[0] && plain !== lower) es++;  // with accents and not a name (Doñana is in English too)
+  }
+  return es > en ? 'es' : en > es ? 'en' : null;
 }
 
 function fmt(v) {
   if (v == null) return '–';
-  return Number(v).toLocaleString('es-ES', {maximumSignificantDigits: 4});
+  return Number(v).toLocaleString('en-US', {maximumSignificantDigits: 4});
 }
 
 function status(text) {
@@ -692,11 +732,11 @@ let leaflet = null, base = null, overlay = null, marker = null, current = null, 
 const maps = {};
 const BASES = {
   osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                         {maxZoom: 19, attribution: '© colaboradores de OpenStreetMap'}),
+                         {maxZoom: 19, attribution: '© OpenStreetMap contributors'}),
   eox: () => L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg',
                          {maxNativeZoom: 15, maxZoom: 20,
-                          attribution: 'Sentinel-2 cloudless 2023 de <a href="https://s2maps.eu">EOX</a> ' +
-                                       '(datos modificados de Copernicus Sentinel)'}),
+                          attribution: 'Sentinel-2 cloudless 2023 by <a href="https://s2maps.eu">EOX</a> ' +
+                                       '(modified Copernicus Sentinel data)'}),
   pnoa: () => L.tileLayer.wms('https://www.ign.es/wms-inspire/pnoa-ma',
                               {layers: 'OI.OrthoimageCoverage', format: 'image/jpeg', maxZoom: 20,
                                attribution: 'PNOA © Instituto Geográfico Nacional'}),
@@ -731,9 +771,9 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
     leaflet.on('click', ev => { if (querying) pixelAt(ev.latlng); });
   }
   const steps = e.steps || [];
-  $('mapstep').replaceChildren(el('option', {value: '', text: e.main || 'Todo el periodo'}),
+  $('mapstep').replaceChildren(el('option', {value: '', text: e.main || 'Whole period'}),
                                ...steps.map(s => el('option', {value: s.key, text: s.label})));
-  $('steptitle').textContent = e.steps_label || 'Fecha';
+  $('steptitle').textContent = e.steps_label || 'Date';
   $('steplabel').hidden = !steps.length;
   display(id, '', e, true);
   if (e.map.trend && $('significant').checked) showStep('');  // the box stays as it was
@@ -763,14 +803,14 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
 
 let querying = false;  // whether a click on the map queries its pixel
 function mapHint() {
-  const what = current && current.map.pixel ? 'el valor de un píxel y su serie temporal' : 'la serie temporal de un píxel';
-  $('maphint').textContent = querying ? `Pincha en el mapa para ver ${what} (se calculan en Google Earth Engine).`
-                                      : `Pulsa «Consultar píxel» para ver ${what}.`;
+  const what = current && current.map.pixel ? 'the value of a pixel and its time series' : 'the time series of a pixel';
+  $('maphint').textContent = querying ? `Click on the map to see ${what} (computed in Google Earth Engine).`
+                                      : `Press «Query pixel» to see ${what}.`;
 }
 $('query').onclick = () => {
   querying = !querying;
   $('query').setAttribute('aria-pressed', String(querying));
-  $('query').textContent = querying ? 'Consultando píxeles (pulsa para terminar)' : 'Consultar píxel';
+  $('query').textContent = querying ? 'Querying pixels (press to stop)' : 'Query pixel';
   $('map').classList.toggle('querying', querying);
   mapHint();
 };
@@ -785,10 +825,10 @@ async function showStep(key) {  // the map of a year, month or period of the res
   if (!name) return display(id, '', e, false);
   e.cache = e.cache || {};
   if (!e.cache[name]) {
-    const label = ($('mapstep').selectedOptions[0]?.textContent || e.main || key) + (sig ? ', solo píxeles significativos' : '');
-    $('maphint').replaceChildren(el('span', {class: 'spinner'}), `Preparando el mapa de ${label} en Google Earth Engine…`);
+    const label = ($('mapstep').selectedOptions[0]?.textContent || e.main || key) + (sig ? ', significant pixels only' : '');
+    $('maphint').replaceChildren(el('span', {class: 'spinner'}), `Preparing the map of ${label} in Google Earth Engine…`);
     try { e.cache[name] = await api('/api/map/step', {id, key, significant: sig}); } catch (err) {
-      notice('No se ha podido preparar ese mapa: ' + err.message, true);
+      notice('That map could not be prepared: ' + err.message, true);
       if (current.id === id) {
         $('mapstep').value = current.key.replace(SIGNIFICANT, '');
         $('significant').checked = current.key.endsWith(SIGNIFICANT);
@@ -810,7 +850,7 @@ async function refreshTiles(id, key) {  // the tiles of Earth Engine expire afte
     const m = key ? maps[id].cache[key] : maps[id];
     m.map.url = r.url;
     if (current && current.id === id && current.key === key && overlay) overlay.setUrl(r.url);
-  } catch (e) { notice('El mapa ha caducado y no se ha podido renovar: ' + e.message, true); }
+  } catch (e) { notice('The map has expired and could not be renewed: ' + e.message, true); }
 }
 
 async function pixelAt(latlng) {
@@ -818,23 +858,23 @@ async function pixelAt(latlng) {
   const e = current, box = $('pixel');
   if (marker) marker.remove();
   marker = L.circleMarker(latlng, {radius: 6, color: '#ff8a00', weight: 3, fillOpacity: 0}).addTo(leaflet);
-  box.replaceChildren(el('span', {class: 'spinner'}), 'Calculando el píxel en Google Earth Engine…');
+  box.replaceChildren(el('span', {class: 'spinner'}), 'Computing the pixel in Google Earth Engine…');
   try {
     const r = await api('/api/pixel', {id: e.id, key: e.key, lon: latlng.lng, lat: latlng.lat});
-    const coord = v => v.toLocaleString('es-ES', {minimumFractionDigits: 5, maximumFractionDigits: 5});
-    const head = el('div', {}, el('b', {text: `Píxel ${coord(r.lat)}, ${coord(r.lon)}`}));
-    if (r.value != null) head.append(` · ${r.label || 'valor'} en este mapa: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
-                                     (r.p_value != null ? ` (p-valor ${fmt(r.p_value)})` : ''));
-    else if (e.map.pixel) head.append(' · sin valor en este mapa (píxel sin datos)');
-    const keep = el('button', {type: 'button', text: 'Guardar la serie como resultado'});
+    const coord = v => v.toLocaleString('en-US', {minimumFractionDigits: 5, maximumFractionDigits: 5});
+    const head = el('div', {}, el('b', {text: `Pixel ${coord(r.lat)}, ${coord(r.lon)}`}));
+    if (r.value != null) head.append(` · ${r.label || 'value'} on this map: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
+                                     (r.p_value != null ? ` (p-value ${fmt(r.p_value)})` : ''));
+    else if (e.map.pixel) head.append(' · no value on this map (pixel without data)');
+    const keep = el('button', {type: 'button', text: 'Keep the series as a result'});
     keep.onclick = async () => {
       keep.disabled = true;
-      try { await api('/api/pixel/keep', {key: r.key}); keep.textContent = 'Guardada en los resultados'; }
+      try { await api('/api/pixel/keep', {key: r.key}); keep.textContent = 'Kept in the results'; }
       catch (err) { keep.disabled = false; notice(err.message, true); }
     };
-    box.replaceChildren(head, r.image ? el('img', {src: r.image, alt: r.title}) : el('p', {text: 'Sin serie: no hay imágenes válidas.'}),
+    box.replaceChildren(head, r.image ? el('img', {src: r.image, alt: r.title}) : el('p', {text: 'No series: there are no valid images.'}),
                         el('div', {style: 'margin-top: 6px'}, keep));
-  } catch (err) { box.replaceChildren('No se ha podido calcular el píxel: ' + err.message); }
+  } catch (err) { box.replaceChildren('The pixel could not be computed: ' + err.message); }
 }
 
 $('mapsel').onchange = () => { $('pixel').replaceChildren(); if (marker) { marker.remove(); marker = null; } showMap(Number($('mapsel').value)); };
@@ -845,14 +885,14 @@ $('snapshot').onclick = async () => {
   if (!current || !leaflet) return;
   const b = leaflet.getBounds(), button = $('snapshot');
   button.disabled = true;
-  button.textContent = 'Preparando la vista…';
+  button.textContent = 'Preparing the view…';
   try {
     await api('/api/map/snapshot', {id: current.id, key: current.key, bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
                                     zoom: leaflet.getZoom(), base: $('basemap').value, opacity: Number($('opacity').value),
                                     marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null});
-  } catch (e) { notice('No se ha podido guardar la vista: ' + e.message, true); }
+  } catch (e) { notice('The view could not be kept: ' + e.message, true); }
   button.disabled = false;
-  button.textContent = 'Añadir esta vista al informe';
+  button.textContent = 'Add this view to the report';
 };
 
 // --- the conversation: the events of the assistant, all of them from the first one when the page opens -------------
@@ -864,6 +904,7 @@ function show(e) {
     $('send').disabled = true;
     $('intro').hidden = true;
     question = question || e.text;
+    userLang = language(e.text) || userLang;
     message('user', e.text);
   } else if (e.type === 'done') {
     busy = false;
@@ -874,7 +915,7 @@ function show(e) {
   } else if (e.type === 'reset') {
     $('chat').replaceChildren($('intro'));
     $('intro').hidden = false;
-    question = running = null;
+    question = running = userLang = null;
     $('nres').textContent = $('nres2').textContent = 0;
     $('results').replaceChildren($('noresults'));
     $('noresults').hidden = false;
@@ -885,9 +926,9 @@ function show(e) {
   else if (e.type === 'notice') notice(e.text);
   else if (e.type === 'eecu') renderEecu(e.usage);
   else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);
-  else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'Para ' + e.what + ', MonitorEO tiene ',
-    el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'su manual'}), '.'));
-  else if (e.type === 'sources') $('chat').append(el('div', {class: 'notice'}, 'Del manual: ',
+  else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'For ' + e.what + ', MonitorEO has ',
+    el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'its manual'}), '.'));
+  else if (e.type === 'sources') $('chat').append(el('div', {class: 'notice'}, 'From the manual: ',
     ...e.sources.flatMap((s, i) => [i ? ' · ' : '', el('a', {href: s.url, target: '_blank', rel: 'noopener', text: s.title})])));
   else if (e.type === 'running') {
     status(e.text);
@@ -898,7 +939,7 @@ function show(e) {
     $('results').append(card);
     $('noresults').hidden = true;
     link.onclick = ev => { ev.preventDefault(); showPane('work'); card.scrollIntoView({behavior: 'smooth'}); };
-    const line = el('div', {class: 'notice'}, `Resultado ${e.id}: `, link, e.map ? ' (con su mapa)' : '');
+    const line = el('div', {class: 'notice'}, `Result ${e.id}: `, link, e.map ? ' (with its map)' : '');
     if (running) running.replaceWith(line); else $('chat').append(line);
     running = null;
     $('nres').textContent = $('nres2').textContent = e.id;
@@ -931,7 +972,7 @@ async function follow() {  // the events from nextEvent on, again after a cut (t
 async function send(text) {
   text = text.trim();
   if (!text) return;
-  if (busy) return notice('Espera a que termine lo que está en marcha.', true);
+  if (busy) return notice('Wait until what is running ends.', true);
   try {
     await api('/api/chat', {text});  // the events of the answer come by follow
     $('text').value = '';
@@ -948,13 +989,13 @@ document.querySelectorAll('.examples button').forEach(b => b.onclick = () => sen
 $('reset').onclick = async () => {
   if (busy) return;
   if ($('chat').querySelector('.card') &&
-      !confirm('Se borran la conversación y sus resultados de esta página (sus archivos se quedan en la carpeta MonitorEO). ¿Seguir?')) return;
+      !confirm('The conversation and its results are cleared from this page (their files stay in the folder MonitorEO). Go on?')) return;
   try { await api('/api/reset', {}); } catch (e) { return notice(e.message, true); }  // the page clears with its event
 };
 
 $('report').onclick = () => {
   const ids = [...document.querySelectorAll('input[data-id]:checked')].map(c => Number(c.dataset.id));
-  if (!ids.length) return notice('No hay resultados marcados para el informe.', true);
+  if (!ids.length) return notice('There are no results marked for the report.', true);
   $('reportTitle').value = $('reportTitle').value || question || '';
   $('reportDialog').showModal();
 };
@@ -965,47 +1006,47 @@ $('reportDialog').onclose = async () => {
   const tables = [...document.querySelectorAll('input[data-table]:checked')].map(c => Number(c.dataset.table));
   try {
     const r = await api('/api/report', {title: $('reportTitle').value, ids, tables});
-    const div = el('div', {class: 'notice'}, 'Informe guardado en ', el('code', {text: r.path}),
-                   ' y abierto en el navegador. ');
-    if (r.url) div.append(el('a', {href: fileUrl(r.url), target: '_blank', rel: 'noopener', text: 'Abrirlo otra vez'}));
+    const div = el('div', {class: 'notice'}, 'Report saved in ', el('code', {text: r.path}),
+                   ' and opened in the browser. ');
+    if (r.url) div.append(el('a', {href: fileUrl(r.url), target: '_blank', rel: 'noopener', text: 'Open it again'}));
     $('chat').append(div);
     scroll();
-  } catch (e) { notice('Informe: ' + e.message, true); }
+  } catch (e) { notice('Report: ' + e.message, true); }
 };
 
 $('update').onclick = async () => {
-  if (busy) return notice('Espera a que termine la consulta para actualizar.', true);
-  if (!confirm('Hay una versión nueva de MonitorEO. ¿Actualizar ahora? El asistente se reinicia (tarda un minuto) y ' +
-               'se pierde la conversación de esta página; los resultados y los informes se quedan en la carpeta MonitorEO.')) return;
+  if (busy) return notice('Wait until the request ends to update.', true);
+  if (!confirm('There is a new version of MonitorEO. Update now? The assistant restarts (it takes a minute) and ' +
+               'the conversation of this page is lost; the results and the reports stay in the folder MonitorEO.')) return;
   clearInterval(refresher);
   const box = el('div', {class: 'closed'}, el('img', {src: '/logo.png', alt: 'MonitorEO-OBSNEV', style: 'height: 40px'}),
-    el('h2', {text: 'Actualizando MonitorEO…'}),
-    el('p', {text: 'Descarga e instala la versión nueva; después el asistente se reinicia y esta página se recarga. ' +
-                   'No cierres la pestaña ni la ventana del asistente.'}));
+    el('h2', {text: 'Updating MonitorEO…'}),
+    el('p', {text: 'It downloads and installs the new version; then the assistant restarts and this page reloads. ' +
+                   'Do not close the tab nor the window of the assistant.'}));
   document.body.replaceChildren(box);
   try { await api('/api/update', {}); } catch (e) {
-    box.querySelector('h2').textContent = 'No se ha podido actualizar';
-    box.querySelector('p').textContent = e.message + '. Recarga la página para seguir con la versión que tienes.';
+    box.querySelector('h2').textContent = 'It could not be updated';
+    box.querySelector('p').textContent = e.message + '. Reload the page to go on with the version you have.';
     return;
   }
-  box.querySelector('h2').textContent = 'Reiniciando el asistente…';
+  box.querySelector('h2').textContent = 'Restarting the assistant…';
   await new Promise(r => setTimeout(r, 2000));
   for (let i = 0; i < 90; i++) {  // until the new version answers
     try { await api('/api/state'); location.reload(); return; } catch (e) { await new Promise(r => setTimeout(r, 2000)); }
   }
-  box.querySelector('p').textContent = 'El asistente no ha vuelto a arrancar: ábrelo otra vez desde el Escritorio.';
+  box.querySelector('p').textContent = 'The assistant has not started again: open it again from the Desktop.';
 };
 
 $('quit').onclick = async () => {
-  if (!confirm((busy ? 'Hay una consulta en marcha y se perderá. ' : '') + '¿Cerrar el asistente? Se cierra también el ' +
-               'motor de los modelos. Los resultados, las áreas de estudio y los informes se quedan en la carpeta MonitorEO.')) return;
-  try { await api('/api/quit', {}); } catch (e) { return notice('No se ha podido cerrar: ' + e.message, true); }
+  if (!confirm((busy ? 'A request is running and will be lost. ' : '') + 'Close the assistant? The engine of the models ' +
+               'closes too. The results, the study areas and the reports stay in the folder MonitorEO.')) return;
+  try { await api('/api/quit', {}); } catch (e) { return notice('It could not be closed: ' + e.message, true); }
   clearInterval(refresher);
   document.body.replaceChildren(el('div', {class: 'closed'},
     el('img', {src: '/logo.png', alt: 'MonitorEO-OBSNEV', style: 'height: 40px'}),
-    el('h2', {text: 'El asistente se ha cerrado'}),
-    el('p', {text: 'Ya puedes cerrar esta pestaña. Para abrirlo otra vez: doble clic en «Asistente de MonitorEO» ' +
-                   'del Escritorio.'})));
+    el('h2', {text: 'The assistant is closed'}),
+    el('p', {text: 'You can close this tab now. To open it again: double-click «MonitorEO Assistant» on the ' +
+                   'Desktop.'})));
   setTimeout(() => window.close(), 1500);  // only if the browser lets the page close itself
 };
 

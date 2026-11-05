@@ -3,6 +3,7 @@
 import csv
 import datetime as dt
 import json
+import os
 import re
 
 import pytest
@@ -13,7 +14,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 34  # the 32 of catalog.json and NBR of Landsat and Sentinel-2
+	assert len(entries) == 36  # the 32 of catalog.json and NBR and RBR of Landsat and Sentinel-2
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -22,6 +23,42 @@ def test_catalog():
 	assert catalog.find(None, ref=32)['scale'] == 0.1  # FIXES: scale of LAI
 	with pytest.raises(KeyError):
 		catalog.find('NDVI', 'Planet')
+
+
+def test_rbr_in_the_catalog():
+	# RBR (Silva-Cardoza et al. 2022): the NBR of B8A and B12 in Sentinel-2, NIR and SWIR2 in Landsat; it compares two
+	# periods, so only burn_severity computes it
+	s2, landsat = catalog.find('RBR', 'Sentinel-2'), catalog.find('rbr', 'landsat')
+	assert (s2['ref'], s2['ft'], s2['m'], s2['col']) == (103, 'N(B8A,B12)', 20, 'COPERNICUS/S2_SR_HARMONIZED')
+	assert (landsat['ref'], landsat['ft'], landsat['m']) == (104, 'N(nir,swir2)', 30)
+	assert s2['two_periods'] and s2['vname_en'] == 'Relativized Burn Ratio' and '1.001' in s2['notes']['f']
+	assert catalog.find('NBR', 'Sentinel-2')['ref'] == 102 and not catalog.find('NBR', 'Sentinel-2').get('two_periods')
+	assert catalog.RBR_OFFSET == 1.001
+	with pytest.raises(ValueError, match="burn_severity and index 'RBR'"):
+		services.make_spec('RBR', 'Sentinel-2', '2021-07-15', '2021-08-31')
+	assert services.make_spec('RBR', 'Sentinel-2', '2021-07-15', '2021-08-31', two_periods=True)['index'] == 'RBR'
+	rows = services.list_variables(text='RBR')
+	assert [r['ref'] for r in rows] == [103, 104] and all(r['two_periods'] for r in rows)
+	assert 'two_periods' not in services.list_variables(text='NDVI')[0]
+	with pytest.raises(ValueError, match='dNBR or RBR'):
+		services.burn_severity({'bbox': [0, 0, 1, 1]}, index='NDVI')
+
+
+def test_rbr_report():
+	from monitoreo import publish, report
+	args = {'sensor': 'Sentinel-2', 'start': '2021-07-15', 'end': '2021-08-31', 'other_start': '2021-09-20',
+	        'other_end': '2021-10-31', 'index': 'RBR'}
+	assert publish.fire_variable(args) == 'RBR' and publish.fire_variable(dict(args, index='dNBR')) == 'NBR'
+	assert publish.default_title('burn_severity', args).startswith('Burn severity (RBR of Sentinel-2): before, 15 Jul')
+	res = {'index': 'RBR', 'stats': [{'region': 'a', 'mean': 0.31, 'median': 0.29, 'p10': 0.02, 'p90': 0.6,
+	                                  'min': -0.2, 'max': 0.9, 'ha': 812.4}]}
+	cols, rows = report.item_table('burn_severity', res, args)
+	assert cols[0] == 'RBR mean' and cols[-1] == 'Hectares' and rows == [['0.31', '0.29', '0.02', '0.6', '-0.2', '0.9',
+	                                                                     '812.4']]
+	facts = dict(report.item_facts('burn_severity', args, res))
+	assert facts['Variable'].startswith('Relativized Burn Ratio') and '1.001' in facts['Method']
+	assert 'USGS' in dict(report.item_facts('burn_severity', dict(args, index='dNBR'), {}))['Method']
+	assert publish.BANDS['rbr'][0].startswith('RBR') and 'rbr' in publish.MAIN_BANDS
 
 
 def test_list_and_describe():
@@ -203,6 +240,8 @@ def test_steps_without_value(monkeypatch):
 		r.update(region='zona', part=0, year=int(r['date'][:4]))
 	t = trends.trend_rows(rows, 'annual')[0]
 	assert t['n'] == 2 and t['slope'] == pytest.approx(0.1 / 3) and (t['first_year'], t['last_year']) == (2011, 2014)
+	assert t['label'] == 'year' and trends.part_label('monthly', 7) == 'July'
+	assert trends.part_label('16-day', 12) == 'days 177-192' and trends.part_label('16-day', 23) == 'days 353-366'
 
 
 def test_about():
@@ -222,6 +261,12 @@ def test_burn_severity_classes():
 	assert fire.limits(1) == (0.1, 0.27) and fire.limits(-2) == (None, -0.25) and fire.limits(4) == (0.66, None)
 	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 2.0}], 'Teide')
 	assert len(rows) == 7 and {r['class']: r['ha'] for r in rows}[1] == 12.5 and rows[0]['ha'] == 0.0
+	# the colours of UN-SPIDER, the same in the app of Earth Engine (gee/core.js), and the names in English
+	assert fire.COLOURS == {-2: '7a8737', -1: 'acbe4d', 0: '0ae042', 1: 'fff70b', 2: 'ffaf38', 3: 'ff641b', 4: 'a41fd6'}
+	core = open(os.path.join(os.path.dirname(__file__), '..', 'gee', 'core.js'), encoding='utf-8').read()
+	js = re.search(r"var SEVERITY_COLOURS = \[([^\]]+)\]", core).group(1)
+	assert re.findall(r"'(\w+)'", js) == [fire.COLOURS[c] for c, _, _ in fire.SEVERITY]
+	assert [n for _, _, n in fire.SEVERITY][0] == 'Enhanced regrowth, high' and fire.SEVERITY[-1][2] == 'High severity'
 
 
 def test_shared_account(monkeypatch, tmp_path):
@@ -380,6 +425,18 @@ def test_eecu(monkeypatch, tmp_path):
 	assert services.eecu_usage(refresh=True, lang='es')['warning'].startswith(
 		'Has gastado tus research EECUs de este mes (10,2 de 10 EECU-h): la cuenta compartida de MonitorEO no calcula')
 
+	# the broker says what is left: at most what the project has left for all the users of the shared account
+	monkeypatch.setattr(services, '_broker', lambda path, **params: {
+		'project': 'shared-project', 'used_hours': 2.0, 'limit_hours': 25, 'left_hours': 1.5, 'project_left_hours': 1.5})
+	u = services.eecu_usage(refresh=True)
+	assert u['used_percent'] == 8 and u['left_percent'] == 6 and u['left_hours'] == 1.5 and u['low']
+	assert u['bar'] == '[############################--] 8%'
+	assert 'only 2 EECU-hours left for all its users' in u['text'] and 'you have 1.50 left' in u['text']
+	monkeypatch.setattr(services, '_broker', lambda path, **params: {
+		'project': 'shared-project', 'used_hours': 2.0, 'limit_hours': 25, 'left_hours': 0, 'project_left_hours': 0})
+	u = services.eecu_usage(refresh=True, lang='es')
+	assert u['warning'].startswith('La cuenta compartida de MonitorEO ha gastado los EECU de este mes para sus usuarios')
+
 	def fails(path, **params):
 		raise RuntimeError('503')
 	monkeypatch.setattr(services, '_broker', fails)
@@ -414,11 +471,19 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 	from http.server import ThreadingHTTPServer
 	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
 	monkeypatch.setenv('EE_PROJECT', 'shared-project')
-	spec = importlib.util.spec_from_file_location('broker_main', os.path.join(
-		os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'broker', 'main.py'))
-	broker = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(broker)
-	assert broker.USER_LIMIT == 10 and broker.REQUIRE_USER
+	path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'broker', 'main.py')
+
+	def load():
+		spec = importlib.util.spec_from_file_location('broker_main', path)
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+		return module
+	broker = load()  # the Contributor tier: 25 EECU-hours a month for each user, 100 of the 1,000 kept for the app
+	assert (broker.USER_LIMIT, broker.EECU_LIMIT, broker.PROJECT_RESERVE, broker.REQUIRE_USER) == (25, 1000, 100, True)
+	monkeypatch.setenv('USER_LIMIT', '10')
+	monkeypatch.setenv('EECU_LIMIT', '30')  # a reserve of 3: 12.5 EECU-hours left for the users of the shared account
+	broker = load()
+	assert broker.USER_LIMIT == 10 and broker.PROJECT_RESERVE == 3
 	alice, bob = 'mo-' + 'a' * 16, 'mo-' + 'b' * 16
 	monitoring = []
 
@@ -445,6 +510,16 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 		assert e.value.code == 'spent' and 'spent your research EECUs' in str(e.value)
 		u = services._broker('/usage', user=alice)
 		assert u['used_hours'] == 3 and u['limit_hours'] == 10 and u['project_used_hours'] == 14.5
+		assert u['left_hours'] == 7 and u['project_left_hours'] == 12.5 and u['project_reserve_hours'] == 3
+		monkeypatch.setattr(broker, 'EECU_LIMIT', 20.0)  # 2.5 left for all the users: what alice has left
+		u = services._broker('/usage', user=alice)
+		assert u['left_hours'] == 2.5 and u['project_left_hours'] == 2.5
+		monkeypatch.setattr(broker, 'EECU_LIMIT', 17.0)  # nothing left for them but the reserve of the app
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/token', user=alice)
+		assert e.value.code == 'project' and 'kept for the app of Earth Engine' in str(e.value)
+		assert services._broker('/usage', user=alice)['left_hours'] == 0
+		monkeypatch.setattr(broker, 'EECU_LIMIT', 30.0)
 		assert len(monitoring) == 1 and 'workload_tag' in monitoring[0]  # one query for every user, kept 5 minutes
 
 		# the package: the research EECUs of the user of this installation, and no connection once they are spent

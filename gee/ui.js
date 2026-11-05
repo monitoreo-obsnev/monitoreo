@@ -45,7 +45,10 @@
 			o_tau: 'τ de Kendall', o_z: 'Z de Mann-Kendall', o_p_value: 'p-valor', o_intercept: 'Valor inicial',
 			o_n: 'Años con datos', significant: 'Solo píxeles con tendencia significativa (p < 0,05)',
 			trendMap: 'Mapa de tendencia', seeChart: 'Valores de cada año de',
-			fire: 'Severidad de un incendio (dNBR)', sensor: 'Sensor', before: 'Antes del incendio',
+			fire: 'Severidad de un incendio (dNBR o RBR)', sensor: 'Sensor', before: 'Antes del incendio',
+			index: 'Índice', idx_dNBR: 'dNBR (clases del USGS)', idx_RBR: 'RBR (continuo, sin clases)',
+			rbrNote: 'RBR = dNBR / (NBR antes + 1,001), con el NBR de B8A y B12 de Sentinel-2 (NIR y SWIR2 de ' +
+				'Landsat), sin corrección fenológica y sin multiplicar por 1000.',
 			after: 'Después del incendio', burn: 'Calcular la severidad',
 			burned: 'Superficie quemada (dNBR ≥ 0,1): %s ha',
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'Código', cite: 'Cómo citar',
@@ -92,7 +95,10 @@
 			o_tau: 'Kendall\'s τ', o_z: 'Mann-Kendall Z', o_p_value: 'p-value', o_intercept: 'Initial value',
 			o_n: 'Years with data', significant: 'Only pixels with a significant trend (p < 0.05)',
 			trendMap: 'Trend map', seeChart: 'Values of each year of',
-			fire: 'Burn severity of a fire (dNBR)', sensor: 'Sensor', before: 'Before the fire', after: 'After the fire',
+			fire: 'Burn severity of a fire (dNBR or RBR)', sensor: 'Sensor', before: 'Before the fire', after: 'After the fire',
+			index: 'Index', idx_dNBR: 'dNBR (USGS classes)', idx_RBR: 'RBR (continuous, no classes)',
+			rbrNote: 'RBR = dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (NIR and SWIR2 of ' +
+				'Landsat), without phenological correction and without the factor 1000.',
 			burn: 'Compute the severity', burned: 'Burned area (dNBR ≥ 0.1): %s ha',
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing…', progress: 'Computing… %s of %s steps', close: 'Close', csv: 'Download CSV',
@@ -121,7 +127,7 @@
 	};
 
 	var state = {
-		lang: 'es', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null,
+		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null,
 		region: null, regionName: null, info: null,
 		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
@@ -129,7 +135,8 @@
 		mapMetric: 'median', temporal: 'period', interannual: 'mean',
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
-		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31']
+		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
+		fireIndex: 'dNBR'
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -369,8 +376,8 @@
 		return mo.byRef(state.ref);
 	}
 
-	function variableItems() {
-		return mo.variables().slice().sort(function (a, b) {
+	function variableItems() {  // without RBR, which compares two periods (Burn severity)
+		return mo.variables().filter(function (e) { return !e.two_periods; }).sort(function (a, b) {
 			return a.index < b.index ? -1 : a.index > b.index ? 1 : a.sensor < b.sensor ? -1 : a.sensor > b.sensor ? 1 :
 				a.ref - b.ref;
 		}).map(function (e) {
@@ -887,7 +894,37 @@
 
 	// Burn severity -------------------------------------------------------------------------------------------------
 
+	// RBR: a continuous map of red (burned) to green (regrowth), its statistics over each region and its GeoTIFF
+	function burnRatio() {
+		var ref = state.fireSensor === 'Landsat' ? 104 : 103;
+		var e = mo.byRef(ref);
+		if (!ready(e)) return;
+		checkPeriod(state.fireBefore);
+		checkPeriod(state.fireAfter);
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var scale = Number(e.m);
+		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
+		var name = title(e, ['RBR', before.period.join('/') + ' → ' + after.period.join('/')]);
+		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
+		map.addLayer(out.image.select('rbr'), vis, name);
+		colourBar(vis, name);
+		var id = start();
+		out.stats.evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.rbrTable(fc.features);
+			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var table = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(rows.map(function (r) {
+				return [r.region].concat(stats.map(function (k) { return r[k] === null ? '' : num(r[k], 3); }),
+					[num(r.ha, 4)]);
+			}));
+			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(t('rbrNote'), SMALL), ui.Chart(table, 'Table'),
+				ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RBR_COLUMNS, name),
+				downloadWidget(out.image, e, ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], name)]);
+		}));
+	}
+
 	function burn() {
+		if (state.fireIndex === 'RBR') return burnRatio();
 		var ref = state.fireSensor === 'Landsat' ? 101 : 102;
 		var e = mo.byRef(ref);
 		if (!ready(e)) return;
@@ -925,6 +962,9 @@
 		var w = [header(t('fire'))];
 		w.push(row(ui.Label(t('sensor')), select([{value: 'Sentinel-2', label: 'Sentinel-2 (10 m)'},
 			{value: 'Landsat', label: 'Landsat (30 m)'}], state.fireSensor, function (v) { state.fireSensor = v; })));
+		w.push(row(ui.Label(t('index')), select(['dNBR', 'RBR'].map(function (i) {
+			return {value: i, label: t('idx_' + i)};
+		}), state.fireIndex, function (v) { state.fireIndex = v; }, '190px')));
 		w.push(ui.Label(t('before'), {margin: '4px 8px 0 8px'}));
 		w.push(row(box(state.fireBefore[0], function (v) { state.fireBefore[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.fireBefore[1], function (v) { state.fireBefore[1] = v.trim(); })));
@@ -943,7 +983,8 @@
 		w.push(ui.Label(a.description[state.lang], SMALL));
 		w.push(ui.Label(a.acknowledgements[state.lang], SMALL));
 		w.push(ui.Label(t('cite') + ': ' + a.citation, SMALL, 'https://doi.org/' + a.doi));
-		w.push(row(ui.Label(t('manual'), {fontSize: '12px'}, a.manual),
+		w.push(row(ui.Label(t('manual'), {fontSize: '12px'}, a.manual + (state.lang === 'en' ? '/Earth-Engine-app' :
+			'/App-de-Earth-Engine')),
 			ui.Label(t('repository'), {fontSize: '12px'}, a.repository)));
 		a.logos.forEach(function (url) {
 			w.push(ui.Label({value: 'MonitorEO', imageUrl: url, style: {margin: '8px'}}));

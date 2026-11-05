@@ -3,7 +3,11 @@
 'use strict';
 
 const MO = (() => {
-	const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+	const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	// the names of the analyses of monitoreo.publish by their id (a report published by an older version has them in
+	// Spanish)
+	const ANALYSES = {series: 'Time series', trend: 'Trend', comparison: 'Comparison of periods',
+		burn_severity: 'Burn severity', map: 'Map'};
 
 	async function json(url) {
 		const r = await fetch(url, {cache: 'no-cache'});
@@ -43,14 +47,14 @@ const MO = (() => {
 		return typeof p === 'string' && /^[A-Za-z0-9._\-/]+$/.test(p) && !p.split('/').includes('..') && !p.startsWith('/');
 	}
 
-	const nf = new Intl.NumberFormat('es-ES', {maximumSignificantDigits: 4});
+	const nf = new Intl.NumberFormat('en-US', {maximumSignificantDigits: 4});
 
-	// A number in Spanish with SIG significant digits (default 4), without -0.
+	// A number in English with SIG significant digits (default 4), without -0.
 	function num(v, sig) {
 		if (v === null || v === undefined || v === '' || Number.isNaN(Number(v))) return '–';
 		const x = Number(v);
 		if (x === 0) return '0';
-		const f = sig ? new Intl.NumberFormat('es-ES', {maximumSignificantDigits: sig}) : nf;
+		const f = sig ? new Intl.NumberFormat('en-US', {maximumSignificantDigits: sig}) : nf;
 		return f.format(x).replace(/^-/, '−');
 	}
 
@@ -58,7 +62,7 @@ const MO = (() => {
 	function round(v) {
 		if (v === null || v === undefined || Number.isNaN(Number(v))) return '–';
 		const x = Number(v);
-		return new Intl.NumberFormat('es-ES', {maximumFractionDigits: Math.abs(x) < 10 ? 1 : 0}).format(x).replace(/^-/, '−');
+		return new Intl.NumberFormat('en-US', {maximumFractionDigits: Math.abs(x) < 10 ? 1 : 0}).format(x).replace(/^-/, '−');
 	}
 
 	function signed(v, sig) {
@@ -68,7 +72,7 @@ const MO = (() => {
 
 	function pValue(p) {
 		if (p === null || p === undefined || p === '') return '–';
-		return Number(p) < 0.001 ? '< 0,001' : num(p, 2);
+		return Number(p) < 0.001 ? '< 0.001' : num(p, 2);
 	}
 
 	function bytes(n) {
@@ -82,7 +86,7 @@ const MO = (() => {
 		return `${Number(day)} ${MONTHS[Number(m) - 1]} ${y}`;
 	}
 
-	// '2001-2024', '2023' or '15 may 2023 – 14 ago 2023', as monitoreo.publish.period_text.
+	// '2001-2024', '2023' or '15 May 2023 – 14 Aug 2023', as monitoreo.publish.period_text.
 	function period(p) {
 		const [a, b] = p;
 		if (a.slice(5) === '01-01' && b.slice(5) === '12-31') return a.slice(0, 4) === b.slice(0, 4) ? a.slice(0, 4) : `${a.slice(0, 4)}-${b.slice(0, 4)}`;
@@ -91,6 +95,11 @@ const MO = (() => {
 
 	function css(name) {
 		return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	}
+
+	// The name of an analysis {id, name} of catalog.json or report.json.
+	function analysis(a) {
+		return ANALYSES[a.id] || a.name;
 	}
 
 	function variables(vs) {
@@ -104,8 +113,8 @@ const MO = (() => {
 
 	// The alternative text of each logo of monitoreo.about, by its file name.
 	const LOGO_ALT = {
-		'monitoreo_obsnev.png': 'Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía',
-		'nevadeo_feder.jpg': 'Cofinanciado por la Unión Europea, Gobierno de España (Fondos Europeos), Junta de Andalucía y Universidad de Granada',
+		'monitoreo_obsnev.png': 'Sierra Nevada Global Change Observatory, University of Granada, Ministry of Science, Innovation and Universities, co-funded by the European Union, State Research Agency and Regional Government of Andalusia',
+		'nevadeo_feder.jpg': 'Co-funded by the European Union, Government of Spain (European Funds), Regional Government of Andalusia and University of Granada',
 		'biodiversa.png': 'Biodiversa+, European Biodiversity Partnership'};
 
 	// The footer: description, acknowledgements, citation and logos of monitoreo.about, and the licence of the site
@@ -118,20 +127,20 @@ const MO = (() => {
 			el('h2', {}, about.name || 'MonitorEO-OBSNEV'),
 			el('p', {}, about.description),
 			el('p', {}, about.acknowledgements),
-			about.citation && el('p', {}, el('strong', {}, 'Cómo citar MonitorEO: '),
+			about.citation && el('p', {}, el('strong', {}, 'How to cite MonitorEO: '),
 				doi ? [about.citation.replace(doi, ''), el('a', {href: doi}, doi)] : about.citation),
-			lic && el('p', {}, 'Los datos y mapas de este sitio se publican con licencia ', license(lic),
-				', salvo que un informe diga otra', lic.text ? `: ${lic.text}` : '.', ' Cada informe dice cómo citarlo.'),
+			lic && el('p', {}, 'The data and maps of this site are published under the license ', license(lic),
+				', unless a report says another one', lic.text ? `: ${lic.text}` : '.', ' Each report says how to cite it.'),
 			el('div', {class: 'logos'}, (about.logos || []).filter(safePath).map(src =>
 				el('img', {src, alt: LOGO_ALT[src.split('/').pop()] || '', loading: 'lazy'}))),
 			el('div', {class: 'footer-links'},
 				about.manual && el('a', {href: about.manual}, 'Manual'),
-				about.repository && el('a', {href: about.repository}, 'Código (GPL-3.0)')));
+				about.repository && el('a', {href: about.repository}, 'Code (GPL-3.0)')));
 	}
 
 	function fail(container, message) {
 		container.replaceChildren(el('div', {class: 'error', role: 'alert'}, message));
 	}
 
-	return {json, text, el, paragraphs, safePath, num, round, signed, pValue, bytes, date, period, css, variables, license, footer, fail, MONTHS};
+	return {json, text, el, paragraphs, safePath, num, round, signed, pValue, bytes, date, period, css, analysis, variables, license, footer, fail, MONTHS};
 })();

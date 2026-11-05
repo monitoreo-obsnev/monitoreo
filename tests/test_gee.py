@@ -64,6 +64,8 @@ CASES = {
 	                   'spec': {'ref': 25, 'period': ['2005-01-01', '2020-12-31']}},
 	'burn_severity': {'kind': 'burn', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
 	                  'spec': {'ref': 102, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	'burn_rbr': {'kind': 'burn_rbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	             'spec': {'ref': 103, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
 }
 
 
@@ -90,6 +92,9 @@ def python(c):
 	if c['kind'] == 'burn':
 		out = services.burn_severity(region, 'Sentinel-2', start, end, c['after'][0], c['after'][1])
 		return {'classes': out['classes']}
+	if c['kind'] == 'burn_rbr':
+		out = services.burn_severity(region, 'Sentinel-2', start, end, c['after'][0], c['after'][1], index='RBR')
+		return {'stats': out['stats']}
 	args = _spec_args(s)
 	spec = services.make_spec(None, None, start, end, temporal=s.get('temporal', 'period'),
 	                          interannual=s.get('interannual', 'mean'), **args)

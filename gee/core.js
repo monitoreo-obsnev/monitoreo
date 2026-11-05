@@ -884,7 +884,9 @@ var MonitorEO = (function () {
 		[4, 0.66, 'Severidad alta', 'High severity']
 	];
 	var BURNED = 0.1;
-	var SEVERITY_COLOURS = ['1a9850', '91cf60', 'f2efe6', 'fee08b', 'fdae61', 'f46d43', '7a0177'];
+	// colours of the classes of UN-SPIDER (Recommended Practice: Burn Severity Mapping in Google Earth Engine), as
+	// fire.COLOURS of the Python package
+	var SEVERITY_COLOURS = ['7a8737', 'acbe4d', '0ae042', 'fff70b', 'ffaf38', 'ff641b', 'a41fd6'];
 
 	function severityLimits(i) {
 		return [SEVERITY[i][1], i + 1 < SEVERITY.length ? SEVERITY[i + 1][1] : null];
@@ -909,6 +911,35 @@ var MonitorEO = (function () {
 		var bands = ['dnbr', 'severity', 'nbr_before', 'nbr_after'];
 		return {image: ee.Image.cat([dnbr, severity.toFloat(), img.select('reference'), img.select('other')]).rename(bands),
 			hectares: stats};
+	}
+
+	// services.burn_severity with index RBR (services._rbr): {image (bands rbr, dnbr, nbr_before, nbr_after), stats
+	// (ee.FeatureCollection of the regions with the statistics of the RBR and the hectares with values)}. BEFORE and
+	// AFTER are specs of the entry RBR of the catalog (103 Sentinel-2, 104 Landsat)
+	var RBR_OFFSET = 1.001;  // catalog.RBR_OFFSET: RBR = dNBR / (NBR before + 1.001)
+	var RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
+
+	function burnRatio(before, after, regions, scale, crs) {
+		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
+		var pre = img.select('reference'), post = img.select('other');
+		var dnbr = pre.subtract(post).rename('dnbr');
+		var rbr = dnbr.divide(pre.add(RBR_OFFSET)).rename('rbr');  // fire.rbr
+		var reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', true)
+			.combine(ee.Reducer.percentile([10, 90]), '', true).combine(ee.Reducer.minMax(), '', true)
+			.combine(ee.Reducer.sum(), '', true);
+		var stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions({
+			collection: regions, reducer: reducer, scale: scale, crs: crs, tileScale: 4});
+		return {image: ee.Image.cat([rbr, dnbr, pre, post]).rename(['rbr', 'dnbr', 'nbr_before', 'nbr_after']),
+			stats: stats};
+	}
+
+	// the rows of services._rbr from the features of the statistics of burnRatio
+	function rbrTable(features) {
+		return features.map(function (f) {
+			var p = f.properties;
+			return {region: String(p.name), mean: p.rbr_mean, median: p.rbr_median, p10: p.rbr_p10, p90: p.rbr_p90,
+				min: p.rbr_min, max: p.rbr_max, ha: p.ha_sum || 0};
+		});
 	}
 
 	// fire.table: rows of every class of a region from the GROUPS of the grouped sum of hectares
@@ -961,7 +992,8 @@ var MonitorEO = (function () {
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
 		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
-		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable,
+		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
+		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
 		ramp: ramp, percentiles: percentiles, visParams: visParams
 	};
 })();
