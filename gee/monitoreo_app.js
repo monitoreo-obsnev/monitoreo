@@ -507,7 +507,7 @@ var CATALOG = {
     "swir2": "swir2"
    },
    "fk": "expr",
-   "ft": "((0.356 * blue) + (0.130 * red) + (0.373 * nir) + (0.085 * swir1) + (0.072 * swir2) - 0.018)/ 1.016",
+   "ft": "((0.356 * blue) + (0.130 * red) + (0.373 * nir) + (0.085 * swir1) + (0.072 * swir2) - 0.0018)/ 1.016",
    "index": "ALBEDO",
    "large_areas": true,
    "m": 30,
