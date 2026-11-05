@@ -92,10 +92,23 @@ def scan(out):
 		sys.exit('Critical findings of the security scan of plugins.qgis.org:\n' + '\n'.join(critical))
 
 
+def check_metadata():
+	"""Read metadata.txt as plugins.qgis.org does (ConfigParser, with its interpolation of %), or stop: it refuses a
+	zip whose metadata.txt it cannot read (a % that is not %% or %(name)s, e.g. "10 %")."""
+	meta = configparser.ConfigParser()
+	meta.optionxform = str
+	try:
+		meta.read(os.path.join(PLUGIN, 'metadata.txt'), encoding='utf-8')
+		meta.items('general')
+	except configparser.Error as e:
+		sys.exit(f'metadata.txt cannot be read as plugins.qgis.org reads it (write "percent" instead of %): {e}')
+
+
 def main():
 	parser = argparse.ArgumentParser(description='Build the zip of the QGIS plugin MonitorEO.')
 	parser.add_argument('--no-ee', action='store_true', help='without earthengine-api (when QGIS already has it)')
 	args = parser.parse_args()
+	check_metadata()
 
 	shutil.rmtree(EXT, ignore_errors=True)
 	os.makedirs(EXT)
