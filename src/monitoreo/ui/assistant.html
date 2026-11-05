@@ -71,6 +71,7 @@ button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink
 #map.querying, #map.querying .leaflet-interactive { cursor: default; }  /* querying pixels: an arrow, not a hand */
 button:disabled { opacity: .55; cursor: default; }
 .ok { color: var(--accent); font-weight: 600; }
+.warn { color: var(--err); font-size: .9em; }
 .where { font-size: .85em; color: var(--muted); margin: 8px 2px 4px; }
 .eecu { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .85em; color: var(--muted);
         margin: 0 2px 6px; }
@@ -176,7 +177,15 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
         <span class="muted">the monthly quota of compute of Earth Engine of your project, for the bar of EECUs</span>
       </div>
       <div class="row">
-        <label class="label" for="model">Language model</label>
+        <label class="label" for="provider">Language model</label>
+        <select id="provider">
+          <option value="monitoreo">The model of MonitorEO, in the cloud: nothing to install</option>
+          <option value="ollama">A model on this computer (Ollama): answers worse</option>
+        </select>
+        <span id="providerMsg" class="muted"></span>
+      </div>
+      <div class="row" id="modelRow">
+        <label class="label" for="model">Model on this computer</label>
         <select id="model"></select>
         <input id="modelName" placeholder="or another one: e.g. qwen3:4b, gpt-oss:20b">
         <button id="pull" type="button">Download</button>
@@ -369,6 +378,14 @@ async function refresh() {
     msg.className = 'ok';
     msg.textContent = `✓ ${state.model} is downloaded on this computer already: nothing to download.`;
   }
+  const cloud = state.provider === 'monitoreo';
+  if (document.activeElement !== $('provider')) $('provider').value = state.provider;
+  $('modelRow').hidden = cloud;
+  $('providerMsg').className = cloud ? 'ok' : 'warn';
+  $('providerMsg').textContent = cloud ? '✓ ready: the conversation goes to the company of the model (Google or Anthropic), ' +
+    'which does not use it to train its models' :
+    '⚠ the conversation stays on this computer, but the models of a computer answer worse than that of MonitorEO: ' +
+    'they make more mistakes (the variable, the place, the dates), so check what they compute in How it is computed';
   const host = (() => { try { return new URL(state.ollama).hostname; } catch (e) { return 'localhost'; } })();
   const local = ['localhost', '127.0.0.1', '::1'].includes(host);
   $('where').replaceChildren(
@@ -376,10 +393,11 @@ async function refresh() {
                el('b', {text: state.project}), '.']
             : ['The computations are done in Google Earth Engine with the ', el('b', {text: 'shared account of MonitorEO'}),
                ': to export to Google Drive, use your account and your project.']),
-    ' The language model (', el('b', {text: state.model}),
-    local ? ', on this computer' : ', at ' + host,
+    ' The language model (', el('b', {text: !cloud ? state.model_name : state.model_name === 'MonitorEO' ?
+                                           'that of MonitorEO' : state.model_name + ' of MonitorEO'}),
+    cloud ? ', in the cloud' : local ? ', on this computer' : ', at ' + host,
     ') only gets the text of the conversation: it does not see the results nor interpret them.');
-  const ready = accountOk && state.models && state.models.includes(state.model);
+  const ready = accountOk && (cloud || (state.models && state.models.includes(state.model)));
   $('summary').textContent = ready ? '· all ready' : '· to be completed';
   if (ready && !refresh.done) $('setup').open = false;
   refresh.done = true;
@@ -524,6 +542,10 @@ function progress(what, e) {
   return `${what}: ${Math.round(100 * (e.completed || 0) / e.total)}% of ${mb(e.total)}`;
 }
 
+$('provider').onchange = async () => {
+  try { await api('/api/settings', {provider: $('provider').value}); } catch (e) { notice(e.message, true); }
+  $('provider').blur(); refresh();
+};
 $('model').onchange = async () => { await api('/api/settings', {model: $('model').value}); $('model').blur(); refresh(); };
 $('modelName').oninput = () => { $('pull').hidden = false; };
 

@@ -559,11 +559,14 @@ def test_manual_tool(monkeypatch):
 	found = [{'page': 'Conceptos', 'title': 'Variables', 'url': 'https://w/Conceptos#variables', 'text': 'NDVI: ...'}]
 	asked = []
 
-	def search(q, lang=None):
+	sizes = []
+
+	def search(q, lang=None, **size):
 		asked.append((q, lang))
+		sizes.append(size)
 		return found if 'NDVI' in q else []
 	monkeypatch.setattr(assistant, '_search_manual', search)
-	a = FakeAssistant({**assistant.DEFAULTS})
+	a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'ollama'})
 	a.tools = assistant.model_tools(TOOLS) + [assistant.MANUAL_TOOL]
 
 	async def run(question, key='question'):
@@ -581,6 +584,30 @@ def test_manual_tool(monkeypatch):
 	asyncio.run(run('How is the burn severity computed?'))
 	assert asked[-1] == ('How is the burn severity computed? ¿Cómo se calcula la severidad de un incendio?', 'es')
 	assert 'Earth-Engine-app' in assistant.instructions() and 'manual' in assistant.instructions()
+	assert set(map(len, sizes)) == {0}  # the small models: 3 sections of 1800 characters (those of _search_manual)
+	a.settings['provider'] = 'monitoreo'  # the big models: more and longer sections
+	asyncio.run(run('¿Qué es el NDVI?'))
+	assert sizes[-1] == assistant.BIG_MANUAL == {'k': 5, 'max_chars': 3000}
+
+
+def test_instructions_of_the_big_models():
+	# the big models of the cloud get their own rules and the guide of the page of the assistant; the small models,
+	# the short ones
+	small, big = assistant.instructions(), assistant.instructions(big=True)
+	assert 'in five sentences at most' in small and 'How to help the user' not in small and '{' not in small[-40:]
+	assert 'in five sentences at most' not in big and 'managers who are not specialists in remote sensing' in big
+	for words in ('Do not interpret results, even if asked', 'You never see the results', 'Query pixel',
+	              'Upload study area', 'Create report (N)', 'do not mix sensors in a series'):
+		assert words in big, words
+	assert big.index('Variables of the catalog') < big.index('How to help the user')
+	assert 'no LaTeX' in big and 'Never tell the user to write options' in big and 'no LaTeX' not in small
+	for text in (small, big):  # both: the filter of what the variable measures, off
+		assert 'with the NDWI, the NDCI or the Chl-a pass quality {"water": "auto"}' in text
+		assert 'with the NDSI quality {"snow": "auto"}' in text
+	a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'monitoreo'})
+	assert 'How to help the user' in a.system_prompt() and a.advice_limit() == assistant.BIG_ADVICE
+	a.settings['provider'] = 'ollama'
+	assert a.system_prompt() == a.system == small and a.advice_limit() == assistant.MAX_ADVICE
 
 
 def test_fix_links(monkeypatch):
@@ -1026,3 +1053,137 @@ def test_sign_out(monkeypatch, tmp_path):
 		raise requests.ConnectionError('offline')
 	monkeypatch.setattr(requests, 'post', offline)
 	assert assistant.sign_out() and not path.exists()
+
+
+CLOUD_USER = 'mo-' + 'c' * 16
+
+
+def test_settings_of_the_model(monkeypatch, tmp_path):
+	# the model of MonitorEO by default; the settings saved before it existed keep their model of Ollama
+	monkeypatch.setattr(assistant, 'SETTINGS', str(tmp_path / 'assistant.json'))
+	assert assistant.load_settings()['provider'] == 'monitoreo'
+	(tmp_path / 'assistant.json').write_text(json.dumps({'model': 'qwen3:4b'}))
+	assert assistant.load_settings()['provider'] == 'ollama'
+	(tmp_path / 'assistant.json').write_text(json.dumps({'model': 'qwen3:4b', 'provider': 'monitoreo'}))
+	s = assistant.load_settings()
+	assert s['provider'] == 'monitoreo' and s['model'] == 'qwen3:4b'
+
+
+def test_model_title():
+	assert assistant.model_title('gemini-3.8-flash') == 'Gemini 3.8 Flash'
+	assert assistant.model_title('claude-sonnet-5-5') == 'Claude Sonnet 5.5'
+	assert assistant.model_title('claude-haiku-5-5') == 'Claude Haiku 5.5'
+	assert assistant.model_title(None) == assistant.CLOUD == 'MonitorEO'
+	a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'monitoreo'})
+	assert a.model_name() == 'MonitorEO'
+	a.cloud_model = 'claude-opus-5-5'
+	assert a.model_name() == 'Claude Opus 5.5'
+	a.settings['provider'] = 'ollama'
+	assert a.model_name() == 'qwen3:8b'
+
+
+def test_openai_messages():
+	# the conversation as the API of OpenAI takes it (the broker passes it to Gemini or Claude), also with calls of a model
+	# of Ollama (without ids) and a call without answer; the fields that the model gave go back as they came
+	call = {'id': 'g1', 'type': 'function', 'function': {'name': 'time_series', 'arguments': {'variable': 'NDVI'}},
+	        'extra_content': {'google': {'thought_signature': 'sig'}}}
+	messages = [
+		{'role': 'user', 'content': 'NDVI de Sierra Nevada'},
+		{'role': 'assistant', 'content': '', 'tool_calls': [
+			{'function': {'name': 'find_protected_areas', 'arguments': {'text': 'Sierra Nevada'}}}]},
+		{'role': 'tool', 'tool_name': 'find_protected_areas', 'content': 'SITE_ID 389011'},
+		{'role': 'assistant', 'content': '', 'tool_calls': [call]},
+		{'role': 'tool', 'tool_name': 'time_series', 'content': 'Done', 'tool_call_id': 'g1'},
+		{'role': 'assistant', 'content': 'Hecho.', 'extra_content': {'google': {'x': 1}}},
+		{'role': 'user', 'content': 'Y el EVI'},
+		{'role': 'assistant', 'content': '', 'tool_calls': [{'function': {'name': 'list_variables', 'arguments': {}}}]},
+		{'role': 'user', 'content': 'Para'},
+		{'role': 'tool', 'tool_name': 'manual', 'content': 'late'},
+	]
+	out = assistant.openai_messages('System', messages)
+	assert out[0] == {'role': 'system', 'content': 'System'} and out[1] == messages[0]
+	assert out[2]['tool_calls'] == [{'id': 'call_1', 'type': 'function', 'function': {
+		'name': 'find_protected_areas', 'arguments': '{"text": "Sierra Nevada"}'}}]
+	assert out[3] == {'role': 'tool', 'tool_call_id': 'call_1', 'content': 'SITE_ID 389011'}
+	assert out[4]['tool_calls'] == [{**call, 'function': {'name': 'time_series', 'arguments': '{"variable": "NDVI"}'}}]
+	assert out[5] == {'role': 'tool', 'tool_call_id': 'g1', 'content': 'Done'}
+	assert out[6] == messages[5] and out[7] == messages[6]
+	assert out[8]['tool_calls'][0]['id'] == 'call_3'
+	assert out[9] == {'role': 'tool', 'tool_call_id': 'call_3', 'content': 'No answer.'}  # before the next message
+	assert out[10] == messages[8]
+	assert out[11]['role'] == 'user' and out[11]['content'].endswith('the tool manual answered: late)')
+	assert len(out) == 12 and messages[1]['tool_calls'][0]['function']['arguments'] == {'text': 'Sierra Nevada'}
+
+
+def test_chat_cloud(monkeypatch):
+	# the model of MonitorEO through the broker: the request with the anonymous ID of this installation and the tools as
+	# they are (the broker adapts them to each model), and its answer as chat_ollama gives it, with the calls and their
+	# fields as they came and the model that answered
+	from monitoreo import services
+	monkeypatch.setattr(services, '_user', CLOUD_USER)
+	asked = []
+
+	def broker(path, body=None, timeout=30, **params):
+		asked.append((path, body, params))
+		return {'model': 'claude-sonnet-5-5',
+		        'choices': [{'message': {'role': 'assistant', 'content': None, 'extra_content': {'anthropic': {'a': 1}},
+		                                 'tool_calls': [{'id': 'g1', 'type': 'function', 'extra_content': {'s': 2},
+		                                                 'function': {'name': 'time_series',
+		                                                              'arguments': '{"variable": "NDVI"}'}}]}}]}
+	monkeypatch.setattr(services, '_broker', broker)
+	tools = assistant.model_tools(TOOLS)
+	message = assistant.chat_model({'provider': 'monitoreo', 'model': 'qwen3:8b'}, 'System',
+	                               [{'role': 'user', 'content': 'NDVI'}], tools)
+	assert message == {'role': 'assistant', 'content': '', 'extra_content': {'anthropic': {'a': 1}},
+	                   'model': 'claude-sonnet-5-5',
+	                   'tool_calls': [{'id': 'g1', 'type': 'function', 'extra_content': {'s': 2},
+	                                   'function': {'name': 'time_series', 'arguments': {'variable': 'NDVI'}}}]}
+	path, body, params = asked[0]
+	assert path == '/chat' and params == {'user': CLOUD_USER}
+	assert body['messages'] == [{'role': 'system', 'content': 'System'}, {'role': 'user', 'content': 'NDVI'}]
+	assert body['tools'] == tools and 'model' not in body  # the broker chooses it
+	assistant.chat_model({'provider': 'monitoreo', 'cloud_model': 'claude-haiku-5-5'}, 'System', [], tools)
+	assert asked[1][1]['model'] == 'claude-haiku-5-5'  # unless the settings ask for one (to compare them)
+
+	def busy(path, body=None, timeout=30, **params):
+		raise services.BrokerError('the language model of MonitorEO is busy: try again in a minute', 'busy')
+	monkeypatch.setattr(services, '_broker', busy)
+	with pytest.raises(assistant.ModelError, match='busy: try again in a minute .in Settings you can use a model on'):
+		assistant.chat_cloud('System', [], tools)
+
+
+def test_the_assistant_with_the_model_of_monitoreo(monkeypatch):
+	# a conversation with the model of MonitorEO: the answer of each tool goes with the id of its call, the model still
+	# gets only a receipt of the results, and Ollama is not needed
+	from monitoreo import services
+	monkeypatch.setattr(services, '_user', CLOUD_USER)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	answers = iter([
+		{'tool_calls': [{'id': 'g1', 'type': 'function', 'extra_content': {'google': {'thought_signature': 's1'}},
+		                 'function': {'name': 'find_protected_areas', 'arguments': '{"text": "Sierra"}'}}]},
+		{'tool_calls': [{'id': 'g2', 'type': 'function',
+		                 'function': {'name': 'time_series', 'arguments': json.dumps(ARGS)}}]},
+		{'content': 'La serie está en el resultado 1.'},
+	])
+	bodies = []
+
+	def broker(path, body=None, timeout=30, **params):
+		bodies.append(body)
+		return {'choices': [{'message': {'role': 'assistant', 'content': None, **next(answers)}}]}
+	monkeypatch.setattr(services, '_broker', broker)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p', 'provider': 'monitoreo', 'ollama': 'http://127.0.0.1:1'})
+		a.engine.url = None  # no Ollama
+		a.tools = assistant.model_tools(TOOLS)
+		return a, [e async for e in a.chat('NDVI de Sierra Nevada en 2021')]
+
+	a, events = asyncio.run(run())
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['areas', 'running', 'result', 'map', 'assistant']
+	assert events[0]['text'] == 'The model (MonitorEO) is thinking…'
+	second, third = bodies[1]['messages'], bodies[2]['messages']
+	assert second[2]['tool_calls'][0]['extra_content'] == {'google': {'thought_signature': 's1'}}
+	assert second[3]['role'] == 'tool' and second[3]['tool_call_id'] == 'g1' and 'Sierra Nevada' in second[3]['content']
+	assert third[5]['tool_call_id'] == 'g2' and third[5]['content'].startswith('Done:')
+	assert '0.501' not in json.dumps(third) and '0,501' not in json.dumps(third)
+	assert [m.get('tool_call_id') for m in a.messages if m['role'] == 'tool'] == ['g1', 'g2'] and a.call_id is None
