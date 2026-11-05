@@ -1,6 +1,8 @@
 """MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer
 and the exports to Google Drive. The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every
-computation is a function of monitoreo.services, the same as in the MCP server and the R package."""
+computation is a function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the
+EECUs of Earth Engine spent this month (the research EECUs of this user with the shared account, or the monthly quota
+of the user's project) and the message bar warns when less than 10 % are left."""
 
 import json
 import os
@@ -13,8 +15,8 @@ from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QToolButton,
-                                 QVBoxLayout, QWhatsThis, QWidget)
+                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea,
+                                 QToolButton, QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
@@ -156,7 +158,9 @@ class MonitorEODock(QDockWidget):
 		self.exports = []        # export tasks of Earth Engine being followed
 		self.timer = QTimer(self)
 		self.timer.timeout.connect(self.poll_exports)
+		self.eecu_warned = set()  # (project, account, month) whose warning of few EECUs left was shown
 		self.build()
+		QTimer.singleShot(0, self.check_eecu)
 
 	# Interface --------------------------------------------------------------------------------------------------
 
@@ -180,6 +184,26 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(self.authenticate)
 		row.addWidget(b)
 		f.addRow('Proyecto', info(row, HELP['project']))
+		row = QHBoxLayout()
+		self.eecu_bar = QProgressBar()
+		self.eecu_bar.setRange(0, 100)
+		self.eecu_bar.setValue(0)
+		self.eecu_bar.setFormat('sin consultar')
+		self.eecu_bar.setToolTip('EECU (unidades de cálculo de Earth Engine) gastados este mes')
+		row.addWidget(self.eecu_bar, 1)
+		tier = s.value(SETTINGS + 'eecu_tier', 'Community')
+		self.eecu_tier = combo([(k, k) for k in services.EECU_TIERS],
+		                       tier if tier in services.EECU_TIERS else 'Community')
+		self.eecu_tier.setToolTip('Nivel de Earth Engine de tu proyecto, con su cuota mensual: Community 150 EECU-h, '
+		                          'Contributor 1000, Partner 100 000 (con la cuenta compartida no se usa)')
+		self.eecu_tier.currentIndexChanged.connect(lambda i: self.check_eecu())
+		row.addWidget(self.eecu_tier)
+		b = QPushButton('Consultar')
+		b.setToolTip('Consulta otra vez los EECU gastados este mes')
+		b.clicked.connect(lambda: self.check_eecu(refresh=True, asked=True))
+		row.addWidget(b)
+		self.eecu_label = QLabel('EECU del mes')
+		f.addRow(self.eecu_label, info(row, HELP['eecu']))
 		main.addWidget(box)
 
 		box = QGroupBox('Región')
@@ -434,6 +458,7 @@ class MonitorEODock(QDockWidget):
 	def save_settings(self):
 		s = QgsSettings()
 		s.setValue(SETTINGS + 'project', self.project.text().strip())
+		s.setValue(SETTINGS + 'eecu_tier', self.eecu_tier.currentData())
 		s.setValue(SETTINGS + 'start', self.start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'end', self.end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'other_start', self.other_start.date().toString('yyyy-MM-dd'))
@@ -500,7 +525,7 @@ class MonitorEODock(QDockWidget):
 		project = self.project.text().strip() or None
 
 		def run(task):
-			services.init(project, shared=not project)  # an empty field: the shared account of MonitorEO
+			services.init(project, shared=not project, warn=False)  # an empty field: the shared account of MonitorEO
 			return work()
 
 		def finished(exception, result=None):
@@ -512,6 +537,7 @@ class MonitorEODock(QDockWidget):
 				done(result)
 			except Exception as e:
 				self.message(f'{description}: {e}', 'Critical', 15)
+			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
 		self.tasks.append(task)
@@ -532,6 +558,50 @@ class MonitorEODock(QDockWidget):
 		              lambda r: self.message(f'Conectado con Earth Engine con la cuenta compartida de MonitorEO '
 		                                     f'(proyecto {r[0]})' if r[1] else
 		                                     f'Conectado con Earth Engine con tu cuenta (proyecto {r[0]})', 'Success'))
+
+	def check_eecu(self, refresh=False, asked=False):
+		"""Show in its bar the EECUs of Earth Engine spent this month, in a task of QGIS; warn when less than 10 % are
+		left (once a month, or ASKED by the button Consultar, which also asks again: REFRESH)."""
+		project = self.project.text().strip() or None
+		tier = self.eecu_tier.currentData()
+
+		def run(task):
+			if project:  # the research EECUs of the shared account are asked without connecting (also when spent)
+				services.init(project, warn=False)
+			return services.eecu_usage(tier, refresh=refresh, lang='es', shared=not project)
+
+		def finished(exception, result=None):
+			self.tasks = [t for t in self.tasks if t is not task]
+			if exception is not None:
+				self.eecu_bar.setValue(0)
+				self.eecu_bar.setFormat('no se pueden consultar')
+				self.eecu_bar.setToolTip(str(exception))
+				if asked:
+					self.message(f'EECU del mes: {exception}', 'Warning', 15)
+				return
+			self.show_eecu(result, asked)
+
+		task = QgsTask.fromFunction('Consultar los EECU de Earth Engine del mes', run, on_finished=finished)
+		self.tasks.append(task)
+		QgsApplication.taskManager().addTask(task)
+
+	def show_eecu(self, u, asked=False):
+		used = u['used_percent']
+		self.eecu_bar.setValue(int(min(100, round(used))))
+		self.eecu_bar.setFormat(f'{used:.1f} % gastado'.replace('.', ','))
+		self.eecu_label.setText('research EECUs' if u['account'] == 'shared' else 'EECU del mes')
+		self.eecu_bar.setToolTip(u['text'])
+		color = '#c0392b' if u['low'] else '#d68910' if used >= 75 else '#2e7d32'
+		self.eecu_bar.setStyleSheet(f'QProgressBar {{ text-align: center; }} '
+		                            f'QProgressBar::chunk {{ background-color: {color}; }}')
+		key = (u['project'], u['account'], u['month'])
+		if u['warning'] and (asked or key not in self.eecu_warned):
+			self.eecu_warned.add(key)
+			hint = ' En este panel: escribe tu proyecto en «Proyecto» y pulsa «Autenticar…».' \
+				if u['account'] == 'shared' else ''
+			self.message(u['warning'] + hint, 'Warning', 60)
+		elif asked:
+			self.message(u['text'], 'Info', 10)
 
 	def authenticate(self):
 		def work():

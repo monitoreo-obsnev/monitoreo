@@ -814,3 +814,36 @@ def test_map_view(monkeypatch):
 	assert any('openstreetmap' in u for u in seen) and any(u.startswith('https://ee/13/') for u in seen)
 	with pytest.raises(ValueError, match='demasiado grande'):
 		report.map_view([-10, 35, 5, 44], 14, 'https://ee/{z}/{x}/{y}')
+
+
+def test_eecu_bar_and_warning(monkeypatch):
+	# after each result, the page gets the EECUs spent this month for its bar and, once, the warning of few left (with
+	# the shared account: switch to your own); the answers of the tools reach the page without eecu_warning
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	usage = {'account': 'shared', 'name': 'research EECUs', 'project': 'shared-project', 'month': '2026-11-01',
+	         'used_percent': 95.0, 'left_percent': 5.0, 'low': True, 'warning': 'Quedan menos del 10 %.'}
+
+	class Eecu(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'eecu_usage':
+				self.eecu_args = args
+				return None, [json.dumps(usage)], []
+			return await super().call(name, args)
+
+	async def run():
+		a = Eecu({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
+		a.session, a.tools = object(), assistant.model_tools(TOOLS)
+		args = {**ARGS, 'region': {'bbox': [-3.5, 37, -3, 37.2]}}
+		first = [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
+		second = await a.eecu_events()
+		return a, first, second
+
+	a, first, second = asyncio.run(run())
+	types = [e['type'] for e in first]
+	assert types.index('result') + 1 == types.index('eecu') == types.index('eecu_warning') - 1
+	assert first[types.index('eecu')]['usage'] == usage and a.eecu == usage
+	assert a.eecu_args == {'lang': 'es', 'refresh': False}
+	warning = first[types.index('eecu_warning')]['text']
+	assert warning.startswith('Quedan menos del 10 %.') and 'Usar mi cuenta de Google' in warning
+	assert [e['type'] for e in second] == ['eecu']  # the warning, once
+	assert assistant._without_eecu_warning(json.dumps({'a': 1, 'eecu_warning': 'x'})) == '{\n "a": 1\n}'

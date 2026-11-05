@@ -9,8 +9,10 @@ MonitorEO, but it never gets their results: they go to the screen and to the rep
 only gets a receipt. So it can advise but cannot interpret the results. The tools compute in Google Earth Engine with
 the shared account of MonitorEO or, when the user gives their Google Cloud project, with their Google account (who
 signs in from the browser, as with `earthengine authenticate`) and that project, which can also export to Google
-Drive; the model gets only the text of the conversation. The settings (project, address of Ollama, model) are
-kept in ~/MonitorEO/assistant.json.
+Drive; the model gets only the text of the conversation. The page shows the EECUs of Earth Engine spent this month
+(with the shared account, the research EECUs of this user, only for research; with the user's own, those of their
+project, against the quota of its tier) and warns when less than 10 % are left. The settings (project, tier of the project, address of Ollama, model)
+are kept in ~/MonitorEO/assistant.json.
 
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
 the address that the assistant opens (other pages of the browser cannot use it).
@@ -49,7 +51,7 @@ MAX_LAYER = 100 * 2 ** 20  # bytes
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'auto', 'model': 'qwen3:8b',
-            'context': 16384, 'think': False}
+            'context': 16384, 'think': False, 'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
 	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recomendado'},
 	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'más rápido y ligero; se equivoca más'},
@@ -60,7 +62,9 @@ MAX_STEPS = 8  # answers of the model to a message of the user
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
 MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and the others with a button)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
-              'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS')
+              'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS', 'MONITOREO_BROKER')
+SWITCH_ACCOUNT = (' En el asistente: pulsa «Usar mi cuenta de Google» y escribe tu proyecto de Google Cloud en '
+                  'Configuración.')
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map', 'compare_series', 'compare_map',
@@ -557,6 +561,8 @@ class Assistant:
 		self.layers = load_layers()
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
+		self.eecu = None  # the last answer of eecu_usage (the EECUs of Earth Engine spent this month), or {'error'}
+		self.eecu_warned = set()  # (project, account, month) whose warning of few EECUs left was shown
 		self.quit = None  # stops the web server (see run)
 		self.restart = False  # whether run starts it again (after an update)
 		self.update_info = None  # see check_update
@@ -660,7 +666,7 @@ class Assistant:
 			raise RuntimeError('el servidor MCP de MonitorEO no está en marcha: cierra el asistente y ábrelo otra vez')
 		res = _json(await self.session.call_tool(name, args))
 		content = res.get('content') or []
-		texts = [c['text'] for c in content if c.get('type') == 'text']
+		texts = [_without_eecu_warning(c['text']) for c in content if c.get('type') == 'text']
 		images = [f"data:{c.get('mimeType') or 'image/png'};base64,{c['data']}" for c in content
 		          if c.get('type') == 'image']
 		error = (texts[0] if texts else 'error') if res.get('isError') else None
@@ -671,12 +677,38 @@ class Assistant:
 		server."""
 		self.settings['project'] = project.strip()
 		save_settings(self.settings)
+		self.eecu = None
 		if self.settings['project'] and not signed_in():
 			return 'Proyecto guardado: inicia sesión con tu cuenta de Google para usarlo'
 		error, texts, _ = await self.call('connect', {'project': self.settings['project']})
 		if error:
 			raise RuntimeError(re.sub(r'^\w+Error: ', '', error))
 		return texts[0] if texts else ''
+
+	async def eecu_events(self, refresh=False):
+		"""The events of the EECUs of Earth Engine spent this month: one for the bar of the page and, the first time
+		that less than 10 % are left in a month, the warning (with the shared account: switch to your own)."""
+		if self.not_ready() or not self.session:
+			return []
+		args = {'lang': 'es', 'refresh': refresh}
+		if self.settings.get('project'):
+			args['limit'] = str(self.settings.get('eecu_tier') or 'Community')
+		try:
+			error, texts, _ = await self.call('eecu_usage', args)
+			usage = None if error else json.loads(texts[0])
+		except Exception as e:  # the MCP server stopped
+			error = f'{type(e).__name__}: {e}'
+		if error:
+			self.eecu = {'error': re.sub(r'^[A-Za-z]+Error: ', '', error)}
+			return [{'type': 'eecu', 'usage': self.eecu}]
+		self.eecu = usage
+		events = [{'type': 'eecu', 'usage': usage}]
+		key = (usage['project'], usage['account'], usage['month'])
+		if usage.get('warning') and key not in self.eecu_warned:
+			self.eecu_warned.add(key)
+			events.append({'type': 'eecu_warning', 'text': usage['warning'] +
+			               (SWITCH_ACCOUNT if usage['account'] == 'shared' else '')})
+		return events
 
 	def not_ready(self):
 		"""Why the tools cannot compute yet, or None."""
@@ -807,6 +839,8 @@ class Assistant:
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
 		self._tool_message(name, receipt(item['id'], item['title']))
+		for event in await self.eecu_events():
+			yield event
 		if tool in PERIOD_MAP:
 			yield {'type': 'status', 'text': 'Preparando el mapa del periodo en Google Earth Engine…'}
 			event = await self.period_map(item)
@@ -1341,7 +1375,8 @@ def make_app(assistant, token, port):
 		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
 		                     'update': assistant.update_info, 'busy': assistant.running(),
-		                     'window': assistant.in_window,
+		                     'window': assistant.in_window, 'eecu': assistant.eecu,
+		                     'eecu_tier': s.get('eecu_tier') or 'Community',
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
 
 	async def signin(request):
@@ -1352,13 +1387,23 @@ def make_app(assistant, token, port):
 	async def settings(request):
 		body = await request.json()
 		answer = {}
-		for k in ('model', 'ollama'):
+		for k in ('model', 'ollama', 'eecu_tier'):
 			if body.get(k):
 				assistant.settings[k] = str(body[k]).strip()
 		save_settings(assistant.settings)
 		if 'project' in body:
 			answer['message'] = await assistant.connect(str(body['project']))
+		if 'project' in body or 'eecu_tier' in body:
+			for event in await assistant.eecu_events():
+				assistant.emit(event)
 		return JSONResponse(answer)
+
+	async def eecu(request):
+		body = await request.json()
+		events = await assistant.eecu_events(refresh=bool(body.get('refresh')))
+		for event in events:
+			assistant.emit(event)
+		return JSONResponse({'usage': assistant.eecu})
 
 	async def chat(request):
 		text = str((await request.json()).get('text') or '').strip()
@@ -1456,6 +1501,7 @@ def make_app(assistant, token, port):
 		Route('/api/state', guarded(state)),
 		Route('/api/signin', guarded(signin), methods=['POST']),
 		Route('/api/settings', guarded(settings), methods=['POST']),
+		Route('/api/eecu', guarded(eecu), methods=['POST']),
 		Route('/api/chat', guarded(chat), methods=['POST']),
 		Route('/api/events', guarded(events)),
 		Route('/api/reset', guarded(reset), methods=['POST']),
@@ -1481,6 +1527,20 @@ def pull_model(base, model):
 				yield json.loads(line)
 	except (urllib.error.URLError, OSError, ValueError) as e:
 		raise RuntimeError(f'no se ha podido descargar {model}: {e}') from e
+
+
+def _without_eecu_warning(text):
+	"""The answer of a tool of the MCP server without its eecu_warning (the page shows it, see eecu_events)."""
+	if '"eecu_warning"' not in text:
+		return text
+	try:
+		res = json.loads(text)
+	except ValueError:
+		return text
+	if isinstance(res, dict):
+		res.pop('eecu_warning', None)
+		return json.dumps(res, ensure_ascii=False, indent=1, default=str)
+	return text
 
 
 async def _threaded(produce):

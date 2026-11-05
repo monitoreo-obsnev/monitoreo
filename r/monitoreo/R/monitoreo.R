@@ -50,7 +50,16 @@ services <- function() {
     }
     .mo$services <- reticulate::import("monitoreo.services", convert = TRUE)
   }
+  eecu_check(.mo$services)
   .mo$services
+}
+
+# An R warning, once a month and project, when less than 10 % of the EECUs of Earth Engine of the month are left (with
+# the shared account, its research EECUs: then switch to your own account). Nothing before mo_init().
+eecu_check <- function(s) {
+  w <- tryCatch(s$eecu_warning(once = TRUE), error = function(e) NULL)
+  if (!is.null(w)) warning(w, if (isTRUE(s$shared())) " In R: mo_init(\"<your project>\")." else "", call. = FALSE)
+  invisible(w)
 }
 
 #' Install the Python package monitoreo in the Python of reticulate (that of rgee, if rgee is used).
@@ -63,7 +72,9 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
 
 #' Connect to Earth Engine. With a Google Cloud project registered in Earth Engine, with the credentials of
 #' `earthengine authenticate` (or rgee::ee_Initialize()) and the quota of that project; with "" (or no EE_PROJECT),
-#' with the shared account of MonitorEO, which needs no account of Earth Engine but cannot export to Google Drive.
+#' with the shared account of MonitorEO, which needs no account of Earth Engine but cannot export to Google Drive, and
+#' where each user has research EECUs for each month, only for research (who spends them cannot compute with it until
+#' the next month). It warns when less than 10 % of the EECUs of the month are left (see mo_eecu()).
 #' @param project project (default: the variable EE_PROJECT; "": the shared account of MonitorEO).
 #' @param python optional path of the Python with monitoreo (see reticulate::use_python()).
 #' @return the project whose quota is used, invisibly.
@@ -71,7 +82,29 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
 mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   if (!is.null(python)) reticulate::use_python(python, required = TRUE)
   own <- !is.null(project) && nzchar(project)
-  invisible(services()$init(if (own) project else NULL, shared = !own))
+  s <- services()
+  p <- s$init(if (own) project else NULL, shared = !own, warn = FALSE)
+  eecu_check(s)
+  invisible(p)
+}
+
+#' EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
+#' each month. With the shared account of MonitorEO they are your research EECUs (10 EECU-hours a month, only for
+#' research): when they are spent it does not compute for you until the next month, so switch to your own account
+#' (mo_init("<your project>")). With your own project (the Cloud Monitoring API must be enabled in it), the monthly
+#' quota of that project, against `limit`.
+#' @param limit monthly quota of your project: EECU-hours or tier ("Community", 150; "Contributor", 1000; "Partner",
+#'   100000; default: the variable MONITOREO_EECU_LIMIT or "Community").
+#' @param refresh ask again (the answers are kept 5 minutes).
+#' @param lang language of the texts: "en" or "es".
+#' @return a list (account, name, project, used_hours, limit_hours, tier, used_percent, left_percent, month, resets,
+#'   low, warning, text, bar), invisibly; prints a bar and the text, and warns when less than 10 % are left.
+#' @export
+mo_eecu <- function(limit = NULL, refresh = TRUE, lang = "en") {
+  u <- services()$eecu_usage(limit, refresh, lang)
+  cat(u$name, " ", u$bar, "\n", u$text, "\n", sep = "")
+  if (!is.null(u$warning)) warning(u$warning, call. = FALSE)
+  invisible(u)
 }
 
 # A list of Python dictionaries (rows) as a data.frame, with dates as Date and None as NA.

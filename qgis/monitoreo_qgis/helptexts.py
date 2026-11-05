@@ -27,6 +27,20 @@ HELP = {
 		'ordenador (como <code>earthengine authenticate</code>); solo hace falta para usar tu proyecto. '
 		'<b>Conectar</b> comprueba que la conexión funciona; no es obligatorio, porque cada cálculo se conecta '
 		'solo.</p>' + manual('Primeros-pasos'),
+	'eecu':
+		'<p>La barra muestra qué parte de tus EECU (las unidades de cálculo de Earth Engine) de este mes has gastado. '
+		'Se renuevan el día 1 de cada mes.</p>'
+		'<p>Con la <b>cuenta compartida</b> (proyecto vacío) son tus <b>research EECUs</b>: cada usuario tiene los '
+		'suyos (10 EECU-h al mes), para que nadie gaste los de todos, y son <b>solo para investigación</b>. Cuando los '
+		'gastas, la cuenta compartida no calcula para ti hasta el mes siguiente: cambia a tu propia cuenta escribiendo '
+		'tu proyecto en <b>Proyecto</b> y pulsando <b>Autenticar…</b>.</p>'
+		'<p>Con <b>tu proyecto</b>, son los de ese proyecto, frente a la cuota mensual de su <b>nivel</b> de Earth '
+		'Engine, que se elige en la lista (Community: 150 EECU-h al mes; Contributor: 1000; Partner: 100 000). Para '
+		'leerlos, el proyecto debe tener activada la API de Cloud Monitoring (gratuita). Cuando se agota, Earth Engine '
+		'no se para, pero calcula mucho más despacio hasta el mes siguiente.</p>'
+		'<p>Avisa cuando queda menos del 10 %. La barra se actualiza después de cada cálculo; <b>Consultar</b> pregunta '
+		'otra vez.</p>'
+		+ manual('Conceptos#eecu-gastados-este-mes'),
 	'region':
 		'<p>Sobre qué se calcula:</p><ul>'
 		'<li><b>Capa</b>: los polígonos de una capa del proyecto, los seleccionados o, si no hay selección, todos. '

@@ -72,6 +72,18 @@ button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink
 button:disabled { opacity: .55; cursor: default; }
 .ok { color: var(--accent); font-weight: 600; }
 .where { font-size: .85em; color: var(--muted); margin: 8px 2px 4px; }
+.eecu { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .85em; color: var(--muted);
+        margin: 0 2px 6px; }
+.row[hidden], .eecu[hidden] { display: none; }
+.eecu b { color: var(--ink); font-weight: 600; }
+.eecu .meter { width: 180px; max-width: 40vw; height: 10px; border-radius: 999px; background: var(--soft);
+               border: 1px solid var(--line); overflow: hidden; }
+.eecu .meter div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.eecu .meter.mid div { background: #c77c12; }
+.eecu .meter.low div { background: var(--err); }
+.eecu.low b, .eecu.low #eecuText { color: var(--err); }
+.eecu button { padding: 1px 8px; font-size: .95em; }
+@media (prefers-reduced-motion: reduce) { .eecu .meter div { transition: none; } }
 main { overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
 .intro { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .intro p { margin: 0 0 8px; }
@@ -153,6 +165,15 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
         <button id="saveProject" type="button">Guardar</button>
         <span id="projectMsg" class="muted"></span>
       </div>
+      <div class="row" id="tierRow" hidden>
+        <label class="label" for="tier">Nivel de tu proyecto</label>
+        <select id="tier">
+          <option value="Community">Community: 150 EECU-h al mes</option>
+          <option value="Contributor">Contributor: 1000 EECU-h al mes</option>
+          <option value="Partner">Partner: 100 000 EECU-h al mes</option>
+        </select>
+        <span class="muted">la cuota mensual de cálculo de Earth Engine de tu proyecto, para la barra de EECU</span>
+      </div>
       <div class="row">
         <label class="label" for="model">Modelo de lenguaje</label>
         <select id="model"></select>
@@ -163,6 +184,13 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     </div>
   </details>
   <p id="where" class="where"></p>
+  <div id="eecu" class="eecu" hidden>
+    <b id="eecuName">EECU</b>
+    <div id="eecuMeter" class="meter" role="progressbar" aria-labelledby="eecuName" aria-valuemin="0"
+         aria-valuemax="100"><div id="eecuFill"></div></div>
+    <span id="eecuText"></span>
+    <button id="eecuCheck" type="button" title="Consulta otra vez los EECU (unidades de cálculo de Earth Engine) gastados este mes">Consultar</button>
+  </div>
   <div id="layers" class="layers" hidden></div>
 </header>
 
@@ -359,7 +387,51 @@ async function refresh() {
   $('update').hidden = !(up && up.available);
   if (up) $('update').title = `Hay una versión nueva de MonitorEO (${up.latest}); tienes la ${up.current || 'de antes'}`;
   renderLayers(state.layers || []);
+  $('tierRow').hidden = !own;
+  if (document.activeElement !== $('tier')) $('tier').value = state.eecu_tier || 'Community';
+  renderEecu(state.eecu);
+  if (!state.eecu && accountOk && state.server && !refresh.eecu) { refresh.eecu = true; checkEecu(false); }
 }
+
+// --- EECU: the compute of Earth Engine spent this month ---------------------------------------------------------
+function renderEecu(u) {  // the bar of the research EECUs (shared account) or of the EECU of the user's project
+  const box = $('eecu');
+  box.hidden = !u;
+  if (!u) return;
+  const meter = $('eecuMeter');
+  if (u.error) {
+    box.classList.remove('low');
+    $('eecuName').textContent = 'EECU de este mes';
+    $('eecuFill').style.width = '0';
+    meter.removeAttribute('aria-valuenow');
+    $('eecuText').textContent = 'no se pueden consultar: ' + u.error;
+    return;
+  }
+  const used = Math.min(100, u.used_percent);
+  box.classList.toggle('low', u.low);
+  meter.className = 'meter' + (u.low ? ' low' : used >= 75 ? ' mid' : '');
+  $('eecuFill').style.width = used + '%';
+  meter.setAttribute('aria-valuenow', String(used));
+  $('eecuName').textContent = u.name + ' de este mes';
+  const shared = u.account === 'shared';
+  $('eecuText').textContent = `${fmt(u.used_percent)} % gastado (${fmt(u.used_hours)} de ${shared ? 'tus ' : ''}` +
+    `${fmt(u.limit_hours)} EECU-h` + (u.tier ? ', nivel ' + u.tier : '') + `); ${shared ? 'te ' : ''}queda el ` +
+    `${fmt(u.left_percent)} %`;
+  box.title = u.text;
+}
+
+async function checkEecu(again) {
+  $('eecuCheck').disabled = true;
+  try { renderEecu((await api('/api/eecu', {refresh: again})).usage); }
+  catch (e) { renderEecu({error: e.message}); }
+  $('eecuCheck').disabled = false;
+}
+
+$('eecuCheck').onclick = () => checkEecu(true);
+$('tier').onchange = async () => {
+  try { await api('/api/settings', {eecu_tier: $('tier').value}); } catch (e) { notice(e.message, true); }
+  refresh();
+};
 
 // --- layers -------------------------------------------------------------------------------------------------------
 function renderLayers(layers) {
@@ -811,6 +883,8 @@ function show(e) {
   else if (e.type === 'assistant') message('assistant', e.text);
   else if (e.type === 'areas') $('chat').append(areasCard(e));
   else if (e.type === 'notice') notice(e.text);
+  else if (e.type === 'eecu') renderEecu(e.usage);
+  else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);
   else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'Para ' + e.what + ', MonitorEO tiene ',
     el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'su manual'}), '.'));
   else if (e.type === 'sources') $('chat').append(el('div', {class: 'notice'}, 'Del manual: ',

@@ -7,7 +7,10 @@ monitoreo.update), so the server always runs that version; --no-update skips it.
 
 With a project (the variable EE_PROJECT or the tool connect) it computes with the Earth Engine credentials of
 `earthengine authenticate` and that project; without one, with the shared account of MonitorEO (no exports to
-Google Drive). Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
+Google Drive): each user has its research EECUs for each month, only for research. The tool eecu_usage tells the EECUs
+of Earth Engine spent this month (with the shared account, the research EECUs of this user; with the user's own, the
+monthly quota of their project), and the answers of the tools carry eecu_warning when less than 10 % are left. Files
+(CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
 ~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
 that produced each file it publishes. Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
 """
@@ -59,7 +62,12 @@ A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {
 features give one series per feature. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
 Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
 Without a project of the user (EE_PROJECT or connect) the tools compute with the shared account of MonitorEO, which
-cannot export to Google Drive: the exports need the user's own Earth Engine account and project."""
+cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
+account each user has research EECUs for each month (compute of Earth Engine, 10 EECU-hours), only for research; who
+has spent them cannot compute with it until the next month. eecu_usage tells the percent of them spent (with the
+user's own account, of the monthly EECU quota of their project). When an answer has eecu_warning (less than 10 % of
+the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
+Engine account and Google Cloud project (connect)."""
 
 server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
@@ -78,8 +86,28 @@ def tool(fn):
 		except Exception as e:
 			raise ToolError(f'{type(e).__name__}: {e}') from e
 		_log(fn.__name__, sig, args, kwargs, out)
-		return out
+		return out if fn.__name__ in NO_EECU_WARNING else _eecu_warning(out)
 	return server.tool()(wrapped)
+
+
+NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage')
+
+
+def _eecu_warning(out):
+	"""The answer OUT of a tool with the warning of services.eecu_warning (eecu_warning in its JSON object) when less
+	than 10 % of the EECUs of the month are left."""
+	warning = services.eecu_warning()
+	text = out[0] if isinstance(out, list) and out else out
+	if not warning or not isinstance(text, str):
+		return out
+	try:
+		res = json.loads(text)
+	except ValueError:
+		return out
+	if not isinstance(res, dict):
+		return out
+	text = _text({**res, 'eecu_warning': warning})
+	return [text] + out[1:] if isinstance(out, list) else text
 
 
 def _log(name, sig, args, kwargs, out):
@@ -96,7 +124,7 @@ def _log(name, sig, args, kwargs, out):
 
 def _ready():
 	if not services.project():
-		services.init()
+		services.init(warn=False)
 
 
 def _out(stem, ext):
@@ -125,10 +153,24 @@ def connect(project: str = '') -> str:
 	`earthengine authenticate`, instead of EE_PROJECT; with no project, with the shared account of MonitorEO (which
 	cannot export to Google Drive)."""
 	project = project.strip()
-	p = services.init(project or None, shared=not project)
-	if services.shared():
-		return f'Connected to Earth Engine with the shared account of MonitorEO (project {p})'
-	return f'Connected to Earth Engine with the project {p}'
+	p = services.init(project or None, shared=not project, warn=False)
+	text = f'Connected to Earth Engine with the shared account of MonitorEO (project {p}): the research EECUs of each ' \
+	       'user are only for research' if services.shared() else f'Connected to Earth Engine with the project {p}'
+	warning = services.eecu_warning()
+	return f'{text}. {warning}' if warning else text
+
+
+@tool
+def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = 'en') -> str:
+	"""EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
+	each month: used and left percent, EECU-hours, a bar of text and a warning when less than 10 % are left. With the
+	shared account of MonitorEO they are the research EECUs of this user (10 EECU-hours a month, only for research;
+	when they are spent, the shared account does not compute for them until the next month and they must switch to
+	their own account: connect). With the user's own project, the monthly quota of that project (the Cloud Monitoring
+	API must be enabled in it), against limit: its EECU-hours a month or tier (Community 150, Contributor 1000, Partner
+	100000; default MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: es or
+	en."""
+	return _text(services.eecu_usage(limit, refresh, lang))
 
 
 @tool

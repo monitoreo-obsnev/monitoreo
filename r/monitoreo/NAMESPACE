@@ -1,6 +1,7 @@
 export(mo_about)
 export(mo_install)
 export(mo_init)
+export(mo_eecu)
 export(mo_variables)
 export(mo_describe)
 export(mo_protected_areas)

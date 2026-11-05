@@ -15,6 +15,8 @@
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
                                                      update its viewer (after updating monitoreo) and its catalogue
     monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
+    monitoreo eecu [--limit H|TIER] [--lang es]      EECUs of Earth Engine spent this month: your research EECUs with
+                                                     the shared account of MonitorEO, or the quota of your project
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
@@ -24,7 +26,9 @@
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
-`earthengine authenticate`; without one, it computes with the shared account of MonitorEO. The recipe of download is a YAML
+`earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
+EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
+are left. The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
 monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
 monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/MonitorEO/visor.
@@ -126,6 +130,11 @@ def main(argv=None):
 	p = sub.add_parser('serve', help='the viewer of results on this computer (with range requests, as the web servers)')
 	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
 	p.add_argument('--port', type=int, default=8000)
+	p = sub.add_parser('eecu', help='EECUs of Earth Engine spent this month: your research EECUs with the shared account '
+	                                'of MonitorEO, or the monthly quota of your project')
+	p.add_argument('--limit', help='monthly quota of your project: EECU-hours or tier (Community, Contributor, Partner; '
+	                               'default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
+	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is, who funds it and how to cite it')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
@@ -161,8 +170,39 @@ def main(argv=None):
 		_mcp(args)
 		return
 	if args.cmd == 'download':
-		return _download(args, services)
-	services.init(args.project)
+		try:
+			return _download(args, services)
+		finally:
+			_eecu_notice(services)
+	if args.cmd == 'eecu':  # the research EECUs of the shared account, without connecting (also when they are spent)
+		if args.project:
+			services.init(args.project, warn=False)
+		return _eecu(args, services)
+	services.init(args.project, warn=False)
+	try:
+		_compute(args, services)
+	finally:
+		_eecu_notice(services)
+
+
+def _eecu(args, services):
+	try:
+		u = services.eecu_usage(args.limit, refresh=True, lang=args.lang)
+	except (ValueError, RuntimeError) as e:
+		sys.exit(f'ERROR: {e}')
+	print(f"{u['name']} {u['bar']}\n{u['text']}")
+	if u['warning']:
+		print(f"\nWARNING: {u['warning']}", file=sys.stderr)
+
+
+def _eecu_notice(services):
+	"""After a command that computes, warn when less than 10 % of the EECUs of the month are left."""
+	warning = services.eecu_warning()
+	if warning:
+		print(f'\nWARNING: {warning}', file=sys.stderr)
+
+
+def _compute(args, services):
 	if args.cmd == 'parks':
 		_table(_fmt(services.find_protected_areas(args.text, args.limit)), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
@@ -313,7 +353,7 @@ def _download(args, services):
 	from . import recipe
 	try:
 		rec = recipe.read(args.recipe)
-		services.init(args.project or rec.get('project') or None)
+		services.init(args.project or rec.get('project') or None, warn=False)
 		area = json.loads(args.area) if args.area.lstrip().startswith('{') else args.area
 
 		def progress(file, done, total):
