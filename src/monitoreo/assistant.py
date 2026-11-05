@@ -1,6 +1,10 @@
-"""Assistant of MonitorEO for managers: a chat in the browser, on this computer, with a language model of open weights
-served by Ollama (https://ollama.com; monitoreo.engine installs it if needed) and connected to the MCP server of
-MonitorEO (monitoreo.mcp_server).
+"""Assistant of MonitorEO for managers: a chat in the browser, on this computer, with a language model connected to the
+MCP server of MonitorEO (monitoreo.mcp_server). The model is, by default, the model of MonitorEO in the cloud, through
+its broker (its route /chat, which chooses Gemini or Claude: nothing to install nor any key; the conversation goes to
+Google or Anthropic, which do not use it to train their models) or, chosen in Settings, a model of open weights served
+by Ollama on this computer (https://ollama.com; monitoreo.engine installs it if needed). The settings saved before the
+model of MonitorEO existed keep their model of Ollama. The big models of the cloud get longer instructions (BIG_RULES)
+and more of the manual than the small ones of Ollama (SMALL).
 
     monitoreo assistant [--no-update] [--port 8765] [--no-browser]
 
@@ -11,8 +15,9 @@ the shared account of MonitorEO or, when the user gives their Google Cloud proje
 signs in from the browser, as with `earthengine authenticate`) and that project, which can also export to Google
 Drive; the model gets only the text of the conversation. The page shows the EECUs of Earth Engine spent this month
 (with the shared account, the research EECUs of this user, only for research; with the user's own, those of their
-project, against the quota of its tier) and warns when less than 10 % are left. The settings (project, tier of the project, address of Ollama, model)
-are kept in ~/MonitorEO/assistant.json.
+project, against the quota of its tier) and warns when less than 10 % are left. The settings (project, tier of the
+project, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
+cloud_model, if there, asks the broker for one of its models (to compare them).
 
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
 the address that the assistant opens (other pages of the browser cannot use it).
@@ -50,8 +55,11 @@ LAYER_TYPES = ('.gpkg', '.geojson', '.json', '.kml', '.zip')  # .zip: a shapefil
 MAX_LAYER = 100 * 2 ** 20  # bytes
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
-DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'ollama': 'auto', 'model': 'qwen3:8b',
-            'context': 16384, 'think': False, 'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
+DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'monitoreo', 'ollama': 'auto',
+            'model': 'qwen3:8b', 'context': 16384, 'think': False,
+            'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
+PROVIDERS = ('monitoreo', 'ollama')  # the model of MonitorEO (its broker), or a model of Ollama (on this computer)
+CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
 	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended'},
 	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'faster and lighter; makes more mistakes'},
@@ -149,11 +157,8 @@ SITE_ID, without asking, even if you did it already with another one.
 4. If something essential is missing (variable, place or dates), propose a reasonable option from the guide and ask \
 in a single sentence before computing.
 5. Answer in the language of the user's last message (a question in Spanish gets the answer in Spanish, one in \
-English in English), brief and clear.
-6. For questions about MonitorEO, consult manual and answer with what it says, in five sentences at most and with the \
-link of the page. You may add a brief general explanation (for example, what a vegetation index measures), but do not \
-make up facts about MonitorEO: if the manual does not say it, say so. Use only the links that manual gives you or \
-those of the list of tools below.
+English in English), {style}
+6. {manual_rule}
 7. If the user asks for something the assistant cannot do, say so and recommend in one or two sentences the tool of \
 MonitorEO that does it, from the list below, with its link: computations that repeat by themselves (each month) or of \
 many regions at once, the Python package or the command line; editing layers or making maps to print, the QGIS \
@@ -168,6 +173,8 @@ find_protected_areas returns), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [west, 
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis". The variable, as in the catalog (NDVI, EVI, NDWI, LST...).
+- Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
+{{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
@@ -209,7 +216,66 @@ period after, the 2-3 months after it ends. It gives the dNBR and its classes; o
 (Relativized Burn Ratio), index "RBR": a continuous index, without classes.
 
 Variables of the catalog (sensors, pixel and first year):
-{variables}"""
+{variables}{guide}"""
+SMALL = {  # rules 5 and 6 for the small models of Ollama: short answers, which they keep right
+	'style': 'brief and clear.',
+	'manual_rule': 'For questions about MonitorEO, consult manual and answer with what it says, in five sentences at most '
+	               'and with the link of the page. You may add a brief general explanation (for example, what a '
+	               'vegetation index measures), but do not make up facts about MonitorEO: if the manual does not say '
+	               'it, say so. Use only the links that manual gives you or those of the list of tools below.',
+	'guide': ''}
+BIG_RULES = {  # for the big models of the cloud, which can explain more: how to use the assistant and the concepts
+	'style': 'clear and to the point: a computation in one or two sentences; an explanation as long as it needs, in short '
+	         'paragraphs or a list of steps. Plain text with lists and bold only: no tables, no LaTeX nor math notation '
+	         '(write a formula as (NIR - red) / (NIR + red)).',
+	'manual_rule': 'For questions about MonitorEO (its variables, sensors, concepts, the assistant or its other tools), '
+	               'consult manual first and answer with what it says, with the link of the page. Explain in plain words '
+	               'for managers who are not specialists in remote sensing: what it is, why it matters for their '
+	               'question and its limits; a short example of a protected area helps. You may add general knowledge of '
+	               'remote sensing and ecology (how an index works, what clouds or the size of the pixel change), saying '
+	               'that it is general, but do not make up facts about MonitorEO (its options, dates, sensors or '
+	               'buttons): if the manual does not say it, say so. Use only the links that manual gives you or those of '
+	               'the list of tools below.',
+	'guide': """
+
+How to help the user:
+- When a request is vague, propose the variable, sensor, period and step with a reason in one sentence (Sentinel-2 \
+for a plot of a few hectares, Landsat for thirty years, MODIS for a whole mountain range) and ask before computing.
+- When the user asks how to do something in the assistant, give the steps on its page (below) in order, with the \
+names of its buttons in bold. Do not add details of the page that are neither below nor in the manual.
+- Never tell the user to write options, code or JSON: you set the options of a computation yourself (for example the \
+filters) and say in words what you did.
+- The page is in English: write the names of its buttons, boxes and tabs as they are on it (**Upload study area**, \
+**Query pixel**, **Create report**...), with a translation in brackets if the user writes in another language.
+- When a computation is done, say where the result is and, if it helps, in one sentence how to look at it (Query \
+pixel on the map, How it is computed in its card, Create report), never its values.
+- Warn about the usual pitfalls when they apply: in high mountains snow and clouds leave few valid pixels in winter; \
+an index of one sensor is not equal to that of another (do not mix sensors in a series or a trend); a MODIS pixel \
+mixes land covers; a trend needs 8 years or more; the NDSI and the NDWI measure what the snow and water filters remove.
+
+The page of the assistant (to explain how to use it):
+- On the left, the conversation; on the right, the results, with the map at the top (in a narrow window, the tabs \
+Conversation and Results). The user types in the box at the bottom of the conversation (Enter sends) or clicks an \
+example; below the box are the buttons Upload study area, Create report (N) and New request.
+- Settings: the Earth Engine account (the shared account of MonitorEO; or «Use my Google account» and their Google \
+Cloud project, needed to export to Google Drive) and the language model (the model of MonitorEO in the cloud, or a \
+model on the computer with Ollama).
+- The bar of research EECUs: what the user has spent this month of the compute of Earth Engine (with the shared \
+account, 25 EECU-hours a month, only for research); Check asks again.
+- Protected areas: the search shows the designations with that name; the highlighted one is used and clicking another \
+repeats the computation with it.
+- Upload study area (or dragging a GeoPackage, GeoJSON, KML or zipped shapefile onto the page): then its polygons are \
+used by the name of the layer, each one with its own series or row.
+- Each result is a card: the chart or the map, the first rows of the table (See the N rows), See on the map, How it \
+is computed (what was really computed), Download CSV or Download TIF, and In the report.
+- The map: Map chooses the map of a result; Date, the map of each year, month or 16 days of it; Base map and Opacity; \
+Query pixel gives the value of a pixel and its time series (Keep the series as a result); in trend maps, Significant \
+pixels only (p < 0.05); Add this view to the report saves what is seen.
+- Create report (N): a single HTML file, saved in the folder MonitorEO/informes, with the results marked In the \
+report (their sheet, chart or map), to print or save as PDF. New request starts another conversation; the files stay \
+in the folder MonitorEO."""}
+BIG_MANUAL = {'k': 5, 'max_chars': 3000}  # sections of the manual for the big models (3 of 1800 for the small ones)
+BIG_ADVICE = 16000  # characters of the answer of an advice tool for the big models (MAX_ADVICE for the small ones)
 
 
 # The model -----------------------------------------------------------------------------------------------------------
@@ -218,9 +284,11 @@ class ModelError(RuntimeError):
 	pass
 
 
-def instructions(today=None):
-	"""The instructions of the model, with the variables of the catalog."""
-	return PROMPT.format(today=(today or dt.date.today()).isoformat(), variables=variables_text(), wiki=WIKI)
+def instructions(today=None, big=False):
+	"""The instructions of the model, with the variables of the catalog: those of the big models of the cloud
+	(BIG_RULES) or those of the small models of Ollama (SMALL)."""
+	return PROMPT.format(today=(today or dt.date.today()).isoformat(), variables=variables_text(), wiki=WIKI,
+	                     **(BIG_RULES if big else SMALL))
 
 
 def variables_text():
@@ -475,7 +543,108 @@ def ollama(base, path, payload=None, timeout=600):
 
 
 def chat_model(settings, system, messages, tools):
-	"""The next message of the model (Ollama /api/chat): {'role', 'content', 'tool_calls'}."""
+	"""The next message of the model of the settings: {'role', 'content', 'tool_calls'} (and 'model', the one of
+	MonitorEO that answered)."""
+	if settings.get('provider') != 'ollama':
+		return chat_cloud(system, messages, tools, settings.get('cloud_model'))
+	return chat_ollama(settings, system, messages, tools)
+
+
+def chat_cloud(system, messages, tools, model=None):
+	"""The next message of the model of MonitorEO (or MODEL, one of those of the broker), through its broker (its route
+	/chat, with the anonymous ID of this installation), as chat_ollama gives it: the arguments of the calls as objects
+	and, as they came, the other fields of the calls and of the message (the model wants them back: the thought
+	signatures of Gemini, the thinking of Claude), with the model that answered."""
+	body = {'messages': openai_messages(system, messages), 'tools': tools, 'temperature': 0.2}
+	if model:
+		body['model'] = model
+	try:
+		answer = services._broker('/chat', body=body, timeout=240, user=services.user_id())
+	except services.BrokerError as e:
+		text = str(e) if e.code else f'the language model of MonitorEO does not answer now ({e})'
+		raise ModelError(text + ('' if e.code in ('day', 'user') else
+		                         ' (in Settings you can use a model on this computer instead)')) from e
+	except Exception as e:  # no connection
+		raise ModelError(f'no connection with the language model of MonitorEO ({type(e).__name__}: {e}); in '
+		                 'Settings you can use a model on this computer instead') from e
+	choices = answer.get('choices') or [{}]
+	message = dict(choices[0].get('message') or {})
+	calls = []
+	for call in message.get('tool_calls') or []:
+		function = dict(call.get('function') or {})
+		args = function.get('arguments')
+		if isinstance(args, str):
+			try:
+				args = json.loads(args or '{}')
+			except ValueError:
+				args = {}
+		calls.append({**call, 'function': {**function, 'arguments': args if isinstance(args, dict) else {}}})
+	out = {k: v for k, v in message.items() if k not in ('tool_calls', 'content', 'role', 'refusal')}
+	out.update(role='assistant', content=re.sub(r'<think>.*?</think>', '', message.get('content') or '',
+	                                            flags=re.S).strip())
+	if calls:
+		out['tool_calls'] = calls
+	if answer.get('model'):
+		out['model'] = answer['model']
+	return out
+
+
+def model_title(model):
+	"""The name of a model of MonitorEO for the page: gemini-3.8-flash, Gemini 3.8 Flash; claude-sonnet-5-5, Claude
+	Sonnet 5.5."""
+	words = []
+	for part in str(model or '').split('-'):
+		if words and re.fullmatch(r'\d+(\.\d+)?', part) and re.fullmatch(r'\d+(\.\d+)?', words[-1]):
+			words[-1] += '.' + part
+		elif part:
+			words.append(part if re.fullmatch(r'\d+(\.\d+)?', part) else part.capitalize())
+	return ' '.join(words) or CLOUD
+
+
+def openai_messages(system, messages):
+	"""SYSTEM and the MESSAGES of the conversation (as Ollama takes them) as the API of OpenAI takes them: each call of
+	the model with its id and its arguments as JSON text, and each answer of a tool with the id of its call (that of the
+	same name, else the next one); a call without answer gets one, and an answer without call goes as a note."""
+	out, pending, n = [{'role': 'system', 'content': system}], [], 0
+
+	def unanswered():
+		out.extend({'role': 'tool', 'tool_call_id': i, 'content': 'No answer.'} for i, _ in pending)
+		pending.clear()
+
+	for m in messages:
+		role = m.get('role')
+		if role == 'tool':
+			name, wanted = m.get('tool_name'), m.get('tool_call_id')
+			match = (next((p for p in pending if p[0] == wanted), None) or
+			         next((p for p in pending if p[1] == name), None) or (pending[0] if pending else None))
+			if match:
+				pending.remove(match)
+				out.append({'role': 'tool', 'tool_call_id': match[0], 'content': m.get('content') or ''})
+			else:
+				out.append({'role': 'user',
+				            'content': f"{NOTE.strip()}the tool {name} answered: {m.get('content') or ''})"})
+			continue
+		unanswered()
+		if role == 'assistant' and m.get('tool_calls'):
+			calls = []
+			for call in m['tool_calls']:
+				n += 1
+				function = dict(call.get('function') or {})
+				args = function.get('arguments')
+				function['arguments'] = args if isinstance(args, str) else json.dumps(args or {}, ensure_ascii=False)
+				c = {**call, 'id': call.get('id') or f'call_{n}', 'type': 'function', 'function': function}
+				calls.append(c)
+				pending.append((c['id'], function.get('name')))
+			out.append({**{k: v for k, v in m.items() if k not in ('tool_calls', 'content')},
+			            'content': m.get('content') or '', 'tool_calls': calls})
+		else:
+			out.append({k: v for k, v in m.items() if k in ('role', 'content', 'extra_content')})
+	unanswered()
+	return out
+
+
+def chat_ollama(settings, system, messages, tools):
+	"""The next message of the model of Ollama (/api/chat): {'role', 'content', 'tool_calls'}."""
 	payload = {'model': settings['model'], 'messages': [{'role': 'system', 'content': system}] + messages,
 	           'tools': tools, 'stream': False,
 	           'options': {'num_ctx': int(settings.get('context') or 16384), 'temperature': 0.2}}
@@ -531,11 +700,14 @@ def models(settings):
 # The assistant -------------------------------------------------------------------------------------------------------
 
 def load_settings():
+	"""The settings of the assistant; those saved before the model of MonitorEO (without provider) keep their model of
+	Ollama."""
 	try:
 		with open(SETTINGS, encoding='utf-8') as f:
-			return {**DEFAULTS, **json.load(f)}
+			saved = json.load(f)
 	except (OSError, ValueError):
 		return dict(DEFAULTS)
+	return {**DEFAULTS, 'provider': 'ollama', **saved}
 
 
 def save_settings(settings):
@@ -618,6 +790,7 @@ class Assistant:
 		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
 		self.loop, self.closing = None, False  # that of the web server; closing: the pages stop following
 		self.layers = load_layers()
+		self.cloud_model = None  # the model of MonitorEO that answered last
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
 		self.eecu = None  # the last answer of eecu_usage (the EECUs of Earth Engine spent this month), or {'error'}
@@ -634,11 +807,28 @@ class Assistant:
 		s = self.settings.get('ollama') or 'auto'
 		return self.engine.url if s == 'auto' else s
 
+	def cloud(self):
+		"""Whether the model is that of MonitorEO, through its broker (else, one of Ollama)."""
+		return self.settings.get('provider') != 'ollama'
+
+	def model_name(self):
+		"""The name of the model for the page: that of MonitorEO that answered last (or the one asked for), or that of
+		Ollama."""
+		if self.cloud():
+			return model_title(self.cloud_model or self.settings.get('cloud_model')) if (
+				self.cloud_model or self.settings.get('cloud_model')) else CLOUD
+		return self.settings['model']
+
+	def advice_limit(self):
+		"""Characters of the answer of an advice tool (or of the manual) that the model gets."""
+		return BIG_ADVICE if self.cloud() else MAX_ADVICE
+
 	def model_settings(self):
 		return {**self.settings, 'ollama': self.base()}
 
 	def reset(self):
 		self.messages, self.results, self.names, self.question, self.pixels = [], [], {}, None, []
+		self.call_id = None  # the id of the call of the model being run (cloud), for the answer of its tool
 
 	def running(self):
 		"""Whether a message is being answered."""
@@ -789,26 +979,32 @@ class Assistant:
 		self.messages.append({'role': 'user', 'content': text})
 		self.question = self.question or said
 		for _ in range(MAX_STEPS):
-			yield {'type': 'status', 'text': f"The model ({self.settings['model']}) is thinking…"}
+			yield {'type': 'status', 'text': f'The model ({self.model_name()}) is thinking…'}
 			try:
-				if not self.base():
+				if not self.cloud() and not self.base():
 					raise ModelError('the engine of the models is missing: install it in Settings')
 				message = await asyncio.to_thread(chat_model, self.model_settings(), self.system_prompt(),
 				                                  self.messages, self.tools)
+				self.cloud_model = message.get('model') or self.cloud_model
 			except ModelError as e:
 				yield {'type': 'error', 'text': f'Language model: {e}'}
 				return
 			calls = message.get('tool_calls') or []
-			message['content'] = await asyncio.to_thread(fix_links, message['content'], said)
+			message['content'] = await asyncio.to_thread(fix_links, message.get('content') or '', said)
 			self.messages.append({'role': 'assistant', 'content': message['content'],
-			                      **({'tool_calls': calls} if calls else {})})
+			                      **({'tool_calls': calls} if calls else {}),
+			                      **({'extra_content': message['extra_content']} if message.get('extra_content') else {})})
 			if message['content']:
 				yield {'type': 'assistant', 'text': message['content']}
 			if not calls:
 				return
 			for call in calls:
-				async for event in self.run_tool(call.get('function') or {}):
-					yield event
+				self.call_id = call.get('id')
+				try:
+					async for event in self.run_tool(call.get('function') or {}):
+						yield event
+				finally:
+					self.call_id = None
 		yield {'type': 'error', 'text': 'I have stopped: too many steps for a single message. Ask for it in a more '
 		                                'concrete way, in parts.'}
 
@@ -882,12 +1078,12 @@ class Assistant:
 					yield {'type': 'areas', 'query': args.get('text', ''),
 					       'areas': sorted(shown, key=lambda a: not a['match'])}
 					text = areas_text(found, said)
-			self._tool_message(name, text[:MAX_ADVICE])
+			self._tool_message(name, text[:self.advice_limit()])
 			return
 		if name in TASKS:
 			text = '\n'.join(texts)
 			yield {'type': 'notice', 'text': task_text(name, text)}
-			self._tool_message(name, text[:MAX_ADVICE])
+			self._tool_message(name, text[:self.advice_limit()])
 			return
 		try:
 			result = json.loads(texts[0]) if texts else {}
@@ -993,7 +1189,7 @@ class Assistant:
 		lang = manual.language(said)
 		query = question if manual.language(question) == lang else f'{question} {said}'
 		yield {'type': 'status', 'text': LABELS['manual'] + '…'}
-		found = await asyncio.to_thread(_search_manual, query, lang)
+		found = await asyncio.to_thread(_search_manual, query, lang, **(BIG_MANUAL if self.cloud() else {}))
 		if found:
 			yield {'type': 'sources', 'sources': [{'title': f"{s['page']} › {s['title']}" if s['title'] != s['page']
 			                                       else s['page'], 'url': s['url']} for s in found]}
@@ -1001,7 +1197,7 @@ class Assistant:
 				f"## {s['page']} › {s['title']} ({s['url']})\n{s['text']}" for s in found)
 		else:
 			text = 'The manual has nothing about that (or it could not be downloaded): tell the user.'
-		self._tool_message('manual', text[:MAX_ADVICE])
+		self._tool_message('manual', text[:self.advice_limit()])
 
 	def card(self, item):
 		"""What the page shows of a result."""
@@ -1140,10 +1336,16 @@ class Assistant:
 		                    names=self.all_names())
 
 	def system_prompt(self):
-		"""The instructions of the model, with the layers of the user."""
+		"""The instructions of the model (those of the big models of the cloud or those of the small ones of Ollama),
+		with the layers of the user."""
+		system = self.system
+		if self.cloud():
+			if not getattr(self, 'system_big', None):
+				self.system_big = instructions(big=True)
+			system = self.system_big
 		if not self.layers:
-			return self.system
-		return self.system + '\n\nStudy areas of the user (layers of polygons on their computer), with the region that ' \
+			return system
+		return system + '\n\nStudy areas of the user (layers of polygons on their computer), with the region that ' \
 		                     'uses them; each polygon gives its own series or row:\n' + \
 		       '\n'.join(f'- {k} ({layer_text(v)}): region {{"layer": "{k}"}}' for k, v in self.layers.items())
 
@@ -1304,7 +1506,8 @@ class Assistant:
 			save_layers(self.layers)
 
 	def _tool_message(self, name, text):
-		self.messages.append({'role': 'tool', 'tool_name': name, 'content': text})
+		self.messages.append({'role': 'tool', 'tool_name': name, 'content': text,
+		                      **({'tool_call_id': self.call_id} if self.call_id else {})})
 		_log({'tool': name, 'call': next((c.get('function') for m in reversed(self.messages[:-1])
 		                                   for c in m.get('tool_calls') or [] if (c.get('function') or {}).get('name') == name),
 		                                  None), 'answer': text[:300]})
@@ -1321,12 +1524,12 @@ class Assistant:
 			return None
 
 
-def _search_manual(question, lang=None):
-	"""The sections of the wiki for QUESTION, in its language or LANG ('es' or 'en'); the wiki is downloaded first if
-	it is not on this computer yet."""
+def _search_manual(question, lang=None, k=3, max_chars=1800):
+	"""The K sections of the wiki for QUESTION (at most MAX_CHARS of each), in its language or LANG ('es' or 'en'); the
+	wiki is downloaded first if it is not on this computer yet."""
 	if not manual.sections():
 		manual.update()
-	return manual.search(question, lang=lang)
+	return manual.search(question, k=k, lang=lang, max_chars=max_chars)
 
 
 def _log(entry):
@@ -1428,11 +1631,12 @@ def make_app(assistant, token, port):
 
 	async def state(request):
 		s, e = assistant.settings, assistant.engine
-		if s.get('ollama', 'auto') == 'auto' and not e.url and not e.installing:  # Ollama opened or installed now
+		cloud = assistant.cloud()  # then Ollama is neither looked for nor started
+		if not cloud and s.get('ollama', 'auto') == 'auto' and not e.url and not e.installing:  # opened or installed now
 			with contextlib.suppress(RuntimeError):
 				await asyncio.to_thread(e.find)
 		base, a = assistant.base(), engine.asset()
-		installed = await asyncio.to_thread(models, {'ollama': base}) if base else None
+		installed = await asyncio.to_thread(models, {'ollama': base}) if base and not cloud else None
 		if installed is not None and not assistant.model_checked:  # once: a model installed already, by default
 			assistant.model_checked = True
 			chosen = default_model(s['model'], installed)
@@ -1440,6 +1644,7 @@ def make_app(assistant, token, port):
 				s['model'] = chosen
 				save_settings(s)
 		return JSONResponse({'version': __version__, 'signed_in': signed_in(), 'project': s.get('project'),
+		                     'provider': 'monitoreo' if cloud else 'ollama', 'model_name': assistant.model_name(),
 		                     'model': s['model'], 'ollama': base or s.get('ollama'), 'models': installed,
 		                     'recommended': RECOMMENDED,
 		                     'engine': {'auto': s.get('ollama', 'auto') == 'auto', 'how': e.how,
@@ -1470,6 +1675,8 @@ def make_app(assistant, token, port):
 		for k in ('model', 'ollama', 'eecu_tier'):
 			if body.get(k):
 				assistant.settings[k] = str(body[k]).strip()
+		if body.get('provider') in PROVIDERS:
+			assistant.settings['provider'] = body['provider']
 		save_settings(assistant.settings)
 		if 'project' in body:
 			answer['message'] = await assistant.connect(str(body['project']))
@@ -1549,7 +1756,7 @@ def make_app(assistant, token, port):
 	@contextlib.asynccontextmanager
 	async def lifespan(app):
 		assistant.loop = asyncio.get_running_loop()
-		if assistant.settings.get('ollama', 'auto') == 'auto':
+		if not assistant.cloud() and assistant.settings.get('ollama', 'auto') == 'auto':
 			try:
 				await asyncio.to_thread(assistant.engine.find)
 			except RuntimeError as e:

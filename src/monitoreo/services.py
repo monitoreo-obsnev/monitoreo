@@ -85,14 +85,19 @@ class BrokerError(RuntimeError):
 		self.code, self.details = code, details or {}
 
 
-def _broker(path, **params):
-	"""The answer (JSON) of PATH of the broker of the shared account of MonitorEO, with PARAMS in its query."""
+def _broker(path, body=None, timeout=30, **params):
+	"""The answer (JSON) of PATH of the broker of the shared account of MonitorEO, with PARAMS in its query (and BODY,
+	posted as JSON)."""
 	import requests  # a dependency of earthengine-api, with the certificates of certifi (also in QGIS)
 	url = os.environ.get('MONITOREO_BROKER', BROKER).rstrip('/') + path
 	if params:
 		import urllib.parse
 		url += '?' + urllib.parse.urlencode(params)
-	r = requests.get(url, timeout=30, headers={'User-Agent': 'monitoreo'})
+	headers = {'User-Agent': 'monitoreo'}
+	if body is None:
+		r = requests.get(url, timeout=timeout, headers=headers)
+	else:
+		r = requests.post(url, json=body, timeout=timeout, headers=headers)
 	if r.status_code != 200:
 		if 'json' not in r.headers.get('Content-Type', ''):
 			raise BrokerError(str(r.status_code))

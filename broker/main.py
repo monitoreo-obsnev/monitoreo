@@ -12,6 +12,7 @@ read Google Drive, Cloud Storage or anything else of the project). See deploy.sh
                              "left_hours": <EECU-hours>, "resets": "YYYY-MM-DD", "project": "...",
                              "project_used_hours": ..., "project_limit_hours": ..., "project_reserve_hours": ...,
                              "updated": ...}
+    POST /chat?user=ID  ->  the next message of the language model of the assistant of MonitorEO (see below)
     GET /               ->  what this service is
 
 Each user of the shared account has research EECUs (the compute of Earth Engine) for each month: USER_LIMIT
@@ -27,11 +28,32 @@ user): what a user has left (left_hours) is the least of what is left of their o
 reserve. Without an ID (versions of the tools before 0.3.21) there is no token, unless REQUIRE_USER is 0. If Cloud
 Monitoring does not answer, tokens are given.
 
+/chat is the language model of the assistant of MonitorEO (monitoreo assistant), so that its users need neither a key
+nor a model on their computer: the first one of CHAT_MODELS (Claude Sonnet 5.5) and, only while it has no credit (the
+API says so; asked again every CREDIT_RETRY seconds), the next one (Gemini 3.8 Flash). The users do not choose the
+model: a request may ask for one of CHAT_MODELS only when CHAT_CHOOSE is 1 (to compare them). Gemini is that of the
+Gemini API (Google AI Studio, with the paid tier of the project) and Claude that of the API of Anthropic, neither of
+which uses the prompts and answers to train its models. Their keys, the only keys of this service, are the secrets
+GEMINI_API_KEY and ANTHROPIC_API_KEY (Secret Manager; see deploy.sh) and never leave it. The body is a request of the
+OpenAI chat completions API (model, messages, tools, tool_choice, temperature; the rest is dropped) and the answer is in
+the same form, with the blocks that the model gave in extra_content, which the assistant sends back as they came (Gemini
+its thought signatures, Claude its thinking); an instruction that it only serves MonitorEO goes before the system
+message, the effort of reasoning is CHAT_REASONING and the answer has at most CHAT_MAX_TOKENS tokens. Gemini gets the
+schemas of the tools in the subset of JSON Schema that it takes (gemini_tools); Claude gets the tools and the
+instructions cached (they are the same in every request), the cached conversation, the fallbacks of Anthropic when a
+model declines (those that have them) and drop_block for thinking whose conversation changed (claude_params). Each
+address may ask CHAT_LIMIT times an hour and each user (the same ID) CHAT_USER_DAY times a day (a message of the
+assistant asks from 1 to 8 times): what stops abuse; the spend caps of the projects (AI Studio, the Console of
+Anthropic) are what limit the cost. The log has the tokens of each request, never its text.
+
 Environment: PUBLIC_SA (e-mail of monitoreo-public), EE_PROJECT (project of the quota), LIMIT (tokens per address and
 hour, default 60), USER_LIMIT (research EECU-hours a month of each user, default 25), EECU_LIMIT (EECU-hours a month of
 the tier of EE_PROJECT, default 1000: the Contributor tier), PROJECT_RESERVE (EECU-hours of EECU_LIMIT not given to the
-users of the shared account, default 10 % of EECU_LIMIT), REQUIRE_USER (default 1) and PORT (given by Cloud Run). It
-only needs the standard library of Python.
+users of the shared account, default 10 % of EECU_LIMIT), REQUIRE_USER (default 1), GEMINI_API_KEY and
+ANTHROPIC_API_KEY (a model without its key is skipped), CHAT_MODELS (comma-separated, in order; default CHAT_MODEL or
+claude-sonnet-5-5,gemini-3.8-flash), CHAT_CHOOSE (default 0), CHAT_REASONING (default low), CHAT_MAX_TOKENS (default
+8192), CHAT_LIMIT (default 120), CHAT_USER_DAY (default 400) and PORT (given by Cloud Run). It needs the
+standard library of Python and, for Claude, the package anthropic (see Dockerfile).
 """
 
 import calendar
@@ -41,6 +63,7 @@ import os
 import re
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -52,6 +75,25 @@ EECU_LIMIT = float(os.environ.get('EECU_LIMIT', '1000'))
 USER_LIMIT = float(os.environ.get('USER_LIMIT', '25'))
 PROJECT_RESERVE = float(os.environ.get('PROJECT_RESERVE') or 0.1 * EECU_LIMIT)
 REQUIRE_USER = os.environ.get('REQUIRE_USER', '1') != '0'
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+GEMINI = os.environ.get('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+CHAT_MODELS = [m.strip() for m in (os.environ.get('CHAT_MODELS') or os.environ.get('CHAT_MODEL') or
+                                   'claude-sonnet-5-5,gemini-3.8-flash').split(',') if m.strip()]
+CLAUDE_FALLBACKS = ('claude-opus-5-5', 'claude-sonnet-5-5')  # with fallbacks "default" (Claude Haiku 5.5 has none)
+CLAUDE_BETAS = ['thinking-binding-controls-2026-08-01']  # drop_block (see claude_params)
+GEMINI_DROP = ('title', 'default', 'additionalProperties', '$schema')  # of the schemas of the tools, for Gemini
+CHAT_REASONING = os.environ.get('CHAT_REASONING', 'low')
+CHAT_MAX_TOKENS = int(os.environ.get('CHAT_MAX_TOKENS', '8192'))
+CHAT_LIMIT = int(os.environ.get('CHAT_LIMIT', '120'))
+CHAT_USER_DAY = int(os.environ.get('CHAT_USER_DAY', '400'))
+CHAT_CHOOSE = os.environ.get('CHAT_CHOOSE', '0') == '1'  # whether a request may choose its model (to compare them)
+CREDIT_RETRY = 3600  # seconds that a model without credit is not asked (the next ones of CHAT_MODELS answer)
+CHAT_MAX_BYTES = 2 * 2 ** 20  # of a request: the instructions, the tools and the conversation
+CHAT_KEYS = ('model', 'messages', 'tools', 'tool_choice', 'temperature')  # what is taken of a request
+SCOPE = ('This service only serves the assistant of MonitorEO (satellite monitoring of ecosystems and protected '
+         'areas). Decline any request unrelated to MonitorEO, remote sensing, ecology or the management of natural '
+         'areas.\n\n')
 USER = re.compile(r'mo-[0-9a-f]{16}')
 SCOPES = ['https://www.googleapis.com/auth/earthengine']
 LIFETIME = 3600
@@ -62,7 +104,8 @@ MONITORING = 'https://monitoring.googleapis.com/v3/projects/{}/timeSeries?{}'
 EECU_METRIC = 'earthengine.googleapis.com/project/cpu/usage_time'  # "Completed EECU-seconds"
 USAGE_TTL = 300  # seconds that the EECU spent are given again before asking Cloud Monitoring
 ABOUT = {'service': 'Token broker of MonitorEO (Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada)',
-         'token': '/token', 'usage': '/usage', 'docs': 'https://github.com/monitoreo-obsnev/monitoreo/wiki'}
+         'token': '/token', 'usage': '/usage', 'chat': '/chat',
+         'docs': 'https://github.com/monitoreo-obsnev/monitoreo/wiki'}
 
 _token = {'access_token': None, 'expires_at': 0}
 _token_lock = threading.Lock()
@@ -70,6 +113,8 @@ _hits = {}  # address -> [hour, requests]
 _hits_lock = threading.Lock()
 _usage = {'month_start': None, 'time': 0, 'users': {}, 'project_hours': 0.0, 'updated': 0}
 _usage_lock = threading.Lock()
+_no_credit = {}  # model -> time until which it is not asked (it said it had no credit)
+_credit_lock = threading.Lock()
 
 
 def _json(url, data=None, headers=None):
@@ -177,17 +222,304 @@ def spent(user):
 	return None
 
 
-def allowed(address, limit=LIMIT):
-	"""Whether ADDRESS has asked at most LIMIT times this hour."""
-	hour = int(time.time() // 3600)
+def allowed(address, limit=LIMIT, period=3600):
+	"""Whether ADDRESS (or another key) has asked at most LIMIT times in this PERIOD of seconds (an hour)."""
+	now = int(time.time() // period)
 	with _hits_lock:
 		if len(_hits) > 100000:
 			_hits.clear()
 		h = _hits.get(address)
-		if not h or h[0] != hour:
-			h = _hits[address] = [hour, 0]
+		if not h or h[0] != now:
+			h = _hits[address] = [now, 0]
 		h[1] += 1
 		return h[1] <= limit
+
+
+class ChatError(Exception):
+	"""A request of /chat that is not answered: its STATUS and its answer."""
+
+	def __init__(self, status, code, error):
+		super().__init__(error)
+		self.status, self.answer = status, {'code': code, 'error': error}
+
+
+def chat_request(body):
+	"""The request of BODY (JSON of the assistant, as the OpenAI chat completions API takes it) that goes on: only what
+	it needs, with the length of answer of this service, its scope before the system message and the models that may
+	answer it, in order: CHAT_MODELS (the first one, and the next ones only while it has no credit), or, only with
+	CHAT_CHOOSE (to compare the models), the one of CHAT_MODELS that the request asks for."""
+	try:
+		req = json.loads(body)
+	except ValueError:
+		req = None
+	if not isinstance(req, dict) or not isinstance(req.get('messages'), list) or not req['messages']:
+		raise ChatError(400, 'request', 'the request has no messages')
+	out = {k: req[k] for k in CHAT_KEYS if k in req}
+	messages = [dict(m) for m in out['messages'] if isinstance(m, dict)]
+	if messages and messages[0].get('role') == 'system' and isinstance(messages[0].get('content'), str):
+		messages[0]['content'] = SCOPE + messages[0]['content']
+	else:
+		messages.insert(0, {'role': 'system', 'content': SCOPE.strip()})
+	models = [out['model']] if CHAT_CHOOSE and out.get('model') in CHAT_MODELS else list(CHAT_MODELS)
+	out.update(messages=messages, model=models[0], models=models, max_tokens=CHAT_MAX_TOKENS)
+	return out
+
+
+def has_credit(model):
+	"""Whether MODEL may have credit: not if it said it had none less than CREDIT_RETRY seconds ago."""
+	with _credit_lock:
+		return _no_credit.get(model, 0) <= time.time()
+
+
+def no_credit(model):
+	"""MODEL has no credit: the next models of CHAT_MODELS answer for CREDIT_RETRY seconds; then it is tried again."""
+	with _credit_lock:
+		_no_credit[model] = time.time() + CREDIT_RETRY
+	print(f'chat {model} has no credit: the next model answers for {CREDIT_RETRY} s', flush=True)
+
+
+def gemini_tools(tools):
+	"""TOOLS (in the form of OpenAI) with schemas that Gemini takes (see _gemini_schema); a tool without arguments,
+	without parameters."""
+	out = []
+	for t in tools:
+		function = dict(t.get('function') or {})
+		params = _gemini_schema(function.get('parameters') or {})
+		if params.get('properties'):
+			function['parameters'] = params
+		else:
+			function.pop('parameters', None)
+		out.append({**t, 'function': function})
+	return out
+
+
+def _gemini_schema(schema):
+	"""SCHEMA (JSON Schema of the arguments of a tool) without what Gemini may not take (GEMINI_DROP), «X or null» as X
+	and an object without properties (a region) as its JSON text, which the assistant decodes."""
+	if isinstance(schema, list):
+		return [_gemini_schema(s) for s in schema]
+	if not isinstance(schema, dict):
+		return schema
+	s = {k: v for k, v in schema.items() if k not in GEMINI_DROP}
+	options = s.pop('anyOf', None)
+	if options:
+		kept = [o for o in options if not (isinstance(o, dict) and o.get('type') == 'null')] or options
+		s = {**_gemini_schema(kept[0]), **s}  # the first one, with the description of the argument
+	if 'properties' in s:
+		s['properties'] = {k: _gemini_schema(v) for k, v in s['properties'].items()}
+		if 'required' in s:
+			s['required'] = [k for k in s['required'] if k in s['properties']]
+	if 'items' in s:
+		s['items'] = _gemini_schema(s['items'])
+	if s.get('type') == 'object' and not s.get('properties'):
+		s = {'type': 'string', 'description': ((s.get('description') or '') + ' A JSON object, written as text.').strip()}
+	return s
+
+
+def _google_only(obj):
+	"""OBJ (a message or a call) with only what Gemini gave of its extra_content (another model's blocks dropped)."""
+	extra = obj.get('extra_content')
+	if isinstance(extra, dict) and 'google' in extra:
+		obj['extra_content'] = {'google': extra['google']}
+	else:
+		obj.pop('extra_content', None)
+	return obj
+
+
+def gemini_request(request):
+	"""REQUEST as the API of Gemini compatible with OpenAI takes it."""
+	out = {**request, 'stream': False}
+	if request.get('tools'):
+		out['tools'] = gemini_tools(request['tools'])
+	messages = []
+	for m in request['messages']:
+		m = _google_only(dict(m))
+		if m.get('tool_calls'):
+			m['tool_calls'] = [_google_only(dict(c)) for c in m['tool_calls']]
+		messages.append(m)
+	out['messages'] = messages
+	if CHAT_REASONING:
+		out['reasoning_effort'] = CHAT_REASONING
+	return out
+
+
+def claude_params(request):
+	"""REQUEST (in the form of OpenAI) as the Messages API of Anthropic takes it: the system messages in system, each
+	call of the model as a tool_use block and each answer of a tool as a tool_result block (those of a turn in one
+	message), and the blocks that Claude gave in a turn (its thinking too) back as they came. The tools and the
+	instructions are cached with a breakpoint at the end of system, the conversation with the automatic one; with the
+	effort of reasoning, the fallbacks of Anthropic when a model declines (CLAUDE_FALLBACKS) and drop_block, so that a
+	change of the instructions in a conversation (a layer added) drops its earlier thinking instead of failing.
+	Without temperature (the API does not take it)."""
+	system, messages = [], []
+	for m in request['messages']:
+		role, content = m.get('role'), m.get('content')
+		text = content if isinstance(content, str) else ''
+		if role == 'system':
+			system.append(text)
+		elif role == 'assistant':
+			blocks = ((m.get('extra_content') or {}).get('anthropic') or {}).get('content')
+			if not blocks:
+				blocks = [{'type': 'text', 'text': text}] if text.strip() else []
+				for i, call in enumerate(m.get('tool_calls') or []):
+					function = call.get('function') or {}
+					args = function.get('arguments')
+					if isinstance(args, str):
+						try:
+							args = json.loads(args or '{}')
+						except ValueError:
+							args = {}
+					blocks.append({'type': 'tool_use', 'id': call.get('id') or f'call_{i}', 'name': function.get('name') or '',
+					               'input': args if isinstance(args, dict) else {}})
+			if blocks:
+				messages.append({'role': 'assistant', 'content': blocks})
+		elif role == 'tool':
+			result = {'type': 'tool_result', 'tool_use_id': m.get('tool_call_id') or '', 'content': text}
+			last = messages[-1] if messages else None
+			if last and last['role'] == 'user' and isinstance(last['content'], list) and \
+					all(b.get('type') == 'tool_result' for b in last['content']):
+				last['content'].append(result)
+			else:
+				messages.append({'role': 'user', 'content': [result]})
+		else:
+			messages.append({'role': 'user', 'content': text})
+	tools = [{'name': f['name'], 'description': f.get('description') or '',
+	          'input_schema': f.get('parameters') or {'type': 'object', 'properties': {}}}
+	         for f in ((t.get('function') or {}) for t in request.get('tools') or []) if f.get('name')]
+	params = {'model': request['model'], 'max_tokens': request['max_tokens'], 'messages': messages,
+	          'system': [{'type': 'text', 'text': '\n\n'.join(system), 'cache_control': {'type': 'ephemeral'}}],
+	          'cache_control': {'type': 'ephemeral'},
+	          'thinking': {'type': 'adaptive', 'block_binding': {'prefix_mismatch_behavior': 'drop_block'}},
+	          'betas': list(CLAUDE_BETAS)}
+	if tools:
+		params['tools'] = tools
+	if CHAT_REASONING:
+		params['output_config'] = {'effort': CHAT_REASONING}
+	if request['model'] in CLAUDE_FALLBACKS:
+		params['betas'].append('server-side-fallback-2026-07-01')
+		params['fallbacks'] = 'default'
+	return params
+
+
+def claude_answer(response):
+	"""RESPONSE of Claude (a dict, as the API gives it) as an answer of the API of OpenAI: its text, its calls of tools,
+	its blocks as they came (in extra_content, to be sent back) and its tokens, also those of the cache."""
+	blocks = response.get('content') or []
+	if response.get('stop_reason') == 'refusal':  # Claude and its fallbacks declined: nothing to send back
+		message = {'role': 'assistant', 'content': 'The language model of MonitorEO declined this request.'}
+	else:
+		message = {'role': 'assistant',
+		           'content': '\n\n'.join(b.get('text') or '' for b in blocks if b.get('type') == 'text').strip()}
+		calls = [{'id': b.get('id'), 'type': 'function',
+		          'function': {'name': b.get('name'), 'arguments': json.dumps(b.get('input') or {}, ensure_ascii=False)}}
+		         for b in blocks if b.get('type') == 'tool_use']
+		if calls:
+			message['tool_calls'] = calls
+		if blocks:
+			message['extra_content'] = {'anthropic': {'content': blocks}}
+	use = response.get('usage') or {}
+	read, write = use.get('cache_read_input_tokens') or 0, use.get('cache_creation_input_tokens') or 0
+	return {'model': response.get('model'),
+	        'choices': [{'index': 0, 'message': message, 'finish_reason': response.get('stop_reason')}],
+	        'usage': {'prompt_tokens': (use.get('input_tokens') or 0) + read + write,
+	                  'completion_tokens': use.get('output_tokens') or 0, 'cache_read_tokens': read,
+	                  'cache_write_tokens': write},
+	        'dropped_thinking': sum(1 for t in response.get('input_transformations') or []
+	                                if t.get('type') == 'thinking_dropped')}
+
+
+_anthropic = None
+
+
+def _claude_call(params):
+	"""The response (a dict) of the Messages API of Anthropic to PARAMS, or ChatError."""
+	global _anthropic
+	import anthropic
+	if _anthropic is None:
+		_anthropic = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=180, max_retries=2)
+	try:
+		return _anthropic.beta.messages.create(**params).to_dict()
+	except anthropic.APIStatusError as e:
+		if e.status_code == 402 or getattr(e, 'type', None) == 'billing_error' or \
+				'credit balance' in str(e.message).lower():  # 402 billing_error (earlier, a 400 about the balance)
+			raise ChatError(503, 'credit', 'the language model of MonitorEO has no credit left') from e
+		if isinstance(e, anthropic.RateLimitError):
+			raise ChatError(503, 'busy', 'the language model of MonitorEO is busy: try again in a minute') from e
+		if isinstance(e, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+			raise ChatError(503, 'off', 'the language model of MonitorEO is not available') from e
+		if isinstance(e, anthropic.BadRequestError):  # a request that Claude does not take (never the key in it)
+			raise ChatError(502, 'model', f'the language model of MonitorEO did not take the request: {e.message}') from e
+		raise ChatError(502, 'model', f'the language model of MonitorEO failed ({e.status_code})') from e
+	except anthropic.APIConnectionError as e:
+		raise ChatError(502, 'model', 'the language model of MonitorEO does not answer now') from e
+
+
+def claude(request):
+	"""The answer (in the form of OpenAI) of Claude to REQUEST, or ChatError."""
+	return claude_answer(_claude_call(claude_params(request)))
+
+
+def gemini(request):
+	"""The answer (JSON) of Gemini to REQUEST, or ChatError."""
+	req = urllib.request.Request(GEMINI, data=json.dumps(gemini_request(request)).encode(),
+	                             headers={'Authorization': 'Bearer ' + GEMINI_API_KEY,
+	                                      'Content-Type': 'application/json'})
+	try:
+		with urllib.request.urlopen(req, timeout=180) as r:
+			return json.load(r)
+	except urllib.error.HTTPError as e:
+		try:
+			detail = json.load(e)
+			detail = detail[0] if isinstance(detail, list) and detail else detail
+			detail = (detail.get('error') or {}).get('message') or ''
+		except Exception:  # noqa: BLE001
+			detail = ''
+		if e.code == 429:
+			raise ChatError(503, 'busy', 'the language model of MonitorEO is busy: try again in a minute') from e
+		if e.code == 400:  # a request that Gemini does not take (never the key in it)
+			raise ChatError(502, 'model', f'the language model of MonitorEO did not take the request: {detail}') from e
+		raise ChatError(502, 'model', f'the language model of MonitorEO failed ({e.code})') from e
+	except (urllib.error.URLError, OSError, ValueError) as e:
+		raise ChatError(502, 'model', 'the language model of MonitorEO does not answer now') from e
+
+
+def model_key(model):
+	"""The key of the API of MODEL ('' if this service has none)."""
+	return ANTHROPIC_API_KEY if model.startswith('claude-') else GEMINI_API_KEY
+
+
+def chat(body, address, user):
+	"""The answer of /chat to the request BODY of USER from ADDRESS, or ChatError: from the first of its models with a
+	key and credit (a model that says it has no credit passes the request to the next one)."""
+	if not any(model_key(m) for m in CHAT_MODELS):
+		raise ChatError(503, 'off', 'the language model of MonitorEO is not available')
+	if not user:
+		raise ChatError(400, 'user', 'this version of MonitorEO is too old for its language model: update it')
+	if not allowed('chat ' + address, CHAT_LIMIT):
+		raise ChatError(429, 'address', 'too many requests to the language model from this address: try again in an '
+		                                'hour')
+	if not allowed('chat ' + user, CHAT_USER_DAY, 86400):
+		raise ChatError(429, 'day', 'you have asked the language model of MonitorEO too much today: go on tomorrow '
+		                            'or use a model on your computer (Settings of the assistant)')
+	request = chat_request(body)
+	models = [m for m in request.pop('models') if model_key(m)]
+	ready = [m for m in models if has_credit(m)] or models[-1:]  # without credit in any, the last one is tried
+	if not ready:
+		raise ChatError(503, 'off', 'the language model of MonitorEO is not available')
+	for i, model in enumerate(ready):
+		request['model'] = model
+		try:
+			answer = claude(request) if model.startswith('claude-') else gemini(request)
+			break
+		except ChatError as e:
+			if e.answer['code'] != 'credit' or i == len(ready) - 1:
+				raise
+			no_credit(model)
+	use = answer.get('usage') or {}
+	print(f"chat {user} model={model} prompt={use.get('prompt_tokens')} answer={use.get('completion_tokens')}"
+	      f" cache_read={use.get('cache_read_tokens', '-')} cache_write={use.get('cache_write_tokens', '-')}"
+	      f" dropped_thinking={answer.pop('dropped_thinking', '-')}", flush=True)
+	return answer
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -242,6 +574,27 @@ class Handler(BaseHTTPRequestHandler):
 		if path == '/':
 			return self.reply(200, ABOUT)
 		self.reply(404, {'error': 'not found'})
+
+	def do_POST(self):
+		if self.path.split('?')[0] != '/chat':
+			return self.reply(404, {'error': 'not found'})
+		try:
+			size = int(self.headers.get('Content-Length') or 0)
+		except ValueError:
+			size = -1
+		if not 0 < size <= CHAT_MAX_BYTES:
+			self.close_connection = True
+			return self.reply(413, {'code': 'request', 'error': 'the request is empty or too big'})
+		body = self.rfile.read(size)
+		try:
+			return self.reply(200, chat(body, self.address(), self.user()))
+		except ChatError as e:
+			if e.status >= 500:
+				self.log_error('chat: %s', e)
+			return self.reply(e.status, e.answer)
+		except Exception as e:  # noqa: BLE001  (never the key nor the text in the log)
+			self.log_error('chat: %s', type(e).__name__)
+			return self.reply(502, {'code': 'model', 'error': 'the language model of MonitorEO failed'})
 
 
 if __name__ == '__main__':

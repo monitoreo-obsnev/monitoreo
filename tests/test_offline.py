@@ -539,6 +539,279 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 		server.shutdown()
 
 
+def test_broker_chat(monkeypatch):
+	# /chat of the broker (on this computer, with Gemini faked): the model, the effort and the length of answer of the
+	# broker whatever the request asks, its scope before the instructions, the key only towards Gemini, and the limits
+	# of each address and of each user
+	import importlib.util
+	import io
+	import threading
+	import urllib.error
+	import urllib.request
+	from http.server import ThreadingHTTPServer
+	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
+	monkeypatch.setenv('EE_PROJECT', 'shared-project')
+	monkeypatch.setenv('CHAT_LIMIT', '3')
+	monkeypatch.setenv('CHAT_USER_DAY', '2')
+	monkeypatch.setenv('CHAT_MODELS', 'gemini-3.8-flash')
+	monkeypatch.delenv('CHAT_CHOOSE', raising=False)
+	monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+	path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'broker', 'main.py')
+	spec = importlib.util.spec_from_file_location('broker_main', path)
+	broker = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(broker)
+	assert (broker.CHAT_MODELS, broker.CHAT_REASONING, broker.CHAT_LIMIT, broker.CHAT_USER_DAY) == (
+		['gemini-3.8-flash'], 'low', 3, 2)
+	sent = []
+
+	class Answer(io.BytesIO):
+		def __enter__(self):
+			return self
+
+		def __exit__(self, *a):
+			return False
+
+	def gemini(req, timeout=None):
+		sent.append((req.full_url, dict(req.header_items()), json.loads(req.data)))
+		return Answer(json.dumps({'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}],
+		                          'usage': {'prompt_tokens': 10, 'completion_tokens': 2}}).encode())
+	monkeypatch.setattr(urllib.request, 'urlopen', gemini)
+	server = ThreadingHTTPServer(('127.0.0.1', 0), broker.Handler)
+	threading.Thread(target=server.serve_forever, daemon=True).start()
+	monkeypatch.setenv('MONITOREO_BROKER', f'http://127.0.0.1:{server.server_port}')
+	alice, bob = 'mo-' + 'a' * 16, 'mo-' + 'b' * 16
+	body = {'model': 'gemini-4-argon', 'max_tokens': 10 ** 6, 'stream': True, 'n': 4, 'temperature': 0.2,
+	        'messages': [{'role': 'system', 'content': 'You are the assistant of MonitorEO.'},
+	                     {'role': 'user', 'content': 'NDVI'}],
+	        'tools': [{'type': 'function', 'function': {'name': 'time_series'}}]}
+	try:
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=alice)
+		assert e.value.code == 'off'  # without the key of Gemini
+		monkeypatch.setattr(broker, 'GEMINI_API_KEY', 'the-key')
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body)
+		assert e.value.code == 'user'  # a version without the ID of its user
+		answer = services._broker('/chat', body=body, user=alice)
+		assert answer['choices'][0]['message']['content'] == 'Hola' and 'the-key' not in json.dumps(answer)
+		url, headers, request = sent[0]
+		assert url == broker.GEMINI and headers['Authorization'] == 'Bearer the-key'
+		assert request['model'] == 'gemini-3.8-flash' and request['max_tokens'] == 8192 and request['stream'] is False
+		assert request['reasoning_effort'] == 'low' and 'n' not in request and request['tools'] == body['tools']
+		assert request['messages'][0]['content'] == broker.SCOPE + 'You are the assistant of MonitorEO.'
+		assert request['messages'][1:] == body['messages'][1:]
+		services._broker('/chat', body={'messages': [{'role': 'user', 'content': 'x'}]}, user=alice)
+		assert sent[1][2]['messages'][0] == {'role': 'system', 'content': broker.SCOPE.strip()}  # its own one
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=alice)
+		assert e.value.code == 'day' and len(sent) == 2  # 2 requests a day for each user
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=bob)
+		assert e.value.code == 'address'  # and 3 an hour for each address
+		monkeypatch.setattr(broker, 'CHAT_LIMIT', 100)
+		monkeypatch.setattr(broker, 'CHAT_USER_DAY', 100)
+		monkeypatch.setattr(broker, 'CHAT_MAX_BYTES', 100)
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=bob)
+		assert e.value.code == 'request' and len(sent) == 2  # too big: not sent to Gemini
+		monkeypatch.setattr(broker, 'CHAT_MAX_BYTES', 2 ** 20)
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body={'messages': []}, user=bob)
+		assert e.value.code == 'request'
+
+		def refused(status, detail):
+			def urlopen(req, timeout=None):
+				raise urllib.error.HTTPError(req.full_url, status, 'error', {}, io.BytesIO(json.dumps(detail).encode()))
+			return urlopen
+		monkeypatch.setattr(urllib.request, 'urlopen', refused(429, {'error': {'message': 'quota'}}))
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=bob)
+		assert e.value.code == 'busy' and 'try again in a minute' in str(e.value)
+		monkeypatch.setattr(urllib.request, 'urlopen', refused(400, [{'error': {'message': 'Invalid schema'}}]))
+		with pytest.raises(services.BrokerError) as e:
+			services._broker('/chat', body=body, user=bob)
+		assert e.value.code == 'model' and str(e.value).endswith('did not take the request: Invalid schema')
+	finally:
+		server.shutdown()
+
+
+def _broker_module(monkeypatch, **env):
+	"""broker/main.py loaded with ENV (and the variables it needs)."""
+	import importlib.util
+	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
+	monkeypatch.setenv('EE_PROJECT', 'shared-project')
+	for k in ('GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'CHAT_MODELS', 'CHAT_MODEL', 'CHAT_CHOOSE'):
+		monkeypatch.delenv(k, raising=False)
+	for k, v in env.items():
+		monkeypatch.setenv(k, v)
+	path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'broker', 'main.py')
+	spec = importlib.util.spec_from_file_location('broker_main', path)
+	broker = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(broker)
+	return broker
+
+
+def test_broker_gemini_schemas(monkeypatch):
+	# the schemas of the tools as Gemini takes them: «X or null» as X, a region (an object without properties) as JSON
+	# text, which the assistant decodes, and without titles, defaults nor additionalProperties; and only what Gemini gave
+	# of the blocks of the messages
+	broker = _broker_module(monkeypatch)
+	tools = [{'type': 'function', 'function': {'name': 'time_series', 'description': 'Series.', 'parameters': {
+		'type': 'object', 'title': 'Args', 'required': ['region', 'variable', 'collection'], 'properties': {
+			'region': {'type': 'object', 'additionalProperties': True, 'title': 'Region'},
+			'variable': {'type': 'string'},
+			'season': {'anyOf': [{'type': 'array', 'items': {'type': 'string'}}, {'type': 'null'}], 'default': None},
+			'metric': {'anyOf': [{'type': 'string', 'enum': ['mean', 'median']}, {'type': 'null'}], 'default': None,
+			           'title': 'Metric', 'description': 'The statistic.'}}}}},
+		{'type': 'function', 'function': {'name': 'list_variables', 'description': 'Variables.',
+		                                  'parameters': {'type': 'object', 'properties': {}}}}]
+	out = broker.gemini_tools(tools)
+	params = out[0]['function']['parameters']
+	assert params['properties']['region'] == {'type': 'string', 'description': 'A JSON object, written as text.'}
+	assert params['properties']['season'] == {'type': 'array', 'items': {'type': 'string'}}
+	assert params['properties']['metric'] == {'type': 'string', 'enum': ['mean', 'median'],
+	                                          'description': 'The statistic.'}
+	assert params['required'] == ['region', 'variable']
+	assert 'parameters' not in out[1]['function']  # a tool without arguments
+	text = json.dumps(out)
+	assert '"title"' not in text and '"default"' not in text and 'additionalProperties' not in text and 'anyOf' not in text
+	request = broker.gemini_request({'model': 'gemini-3.8-flash', 'max_tokens': 10, 'tools': tools, 'messages': [
+		{'role': 'assistant', 'content': '', 'extra_content': {'anthropic': {'content': []}, 'google': {'s': 1}},
+		 'tool_calls': [{'id': 'c', 'extra_content': {'anthropic': 1}, 'function': {'name': 'x', 'arguments': '{}'}}]},
+		{'role': 'assistant', 'content': 'a', 'extra_content': {'anthropic': {'content': []}}}]})
+	assert request['messages'][0]['extra_content'] == {'google': {'s': 1}}
+	assert 'extra_content' not in request['messages'][0]['tool_calls'][0] and 'extra_content' not in request['messages'][1]
+	assert request['stream'] is False and request['reasoning_effort'] == 'low' and request['tools'] == out
+
+
+def test_broker_claude(monkeypatch):
+	# Claude through /chat: the request of the assistant (in the form of OpenAI) as the Messages API takes it, with the
+	# instructions and the conversation cached, the blocks that Claude gave back as they came, the answers of the tools
+	# of a turn together, drop_block, the fallbacks where they exist and no temperature; and its answer in the form of
+	# OpenAI, with its blocks to be sent back
+	import threading
+	from http.server import ThreadingHTTPServer
+	broker = _broker_module(monkeypatch, CHAT_MODELS='gemini-3.8-flash,claude-sonnet-5-5,claude-haiku-5-5',
+	                        CHAT_CHOOSE='1',
+	                        GEMINI_API_KEY='g', ANTHROPIC_API_KEY='a')
+	assert broker.CHAT_MODELS == ['gemini-3.8-flash', 'claude-sonnet-5-5', 'claude-haiku-5-5']
+	called = []
+	thinking = {'type': 'thinking', 'thinking': '', 'signature': 'sig1'}
+
+	def claude_call(params):
+		called.append(params)
+		return {'model': params['model'], 'stop_reason': 'tool_use', 'content': [
+			{'type': 'thinking', 'thinking': '', 'signature': 'sig2'}, {'type': 'text', 'text': 'Busco el área.'},
+			{'type': 'tool_use', 'id': 'toolu_2', 'name': 'find_protected_areas', 'input': {'text': 'Doñana'}}],
+			'usage': {'input_tokens': 50, 'cache_read_input_tokens': 7000, 'cache_creation_input_tokens': 300,
+			          'output_tokens': 120},
+			'input_transformations': [{'type': 'thinking_dropped', 'reason': 'prefix_binding_mismatch'}]}
+	monkeypatch.setattr(broker, '_claude_call', claude_call)
+	asked_gemini = []
+	monkeypatch.setattr(broker, 'gemini', lambda request: asked_gemini.append(request['model']) or {
+		'model': request['model'], 'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]})
+	server = ThreadingHTTPServer(('127.0.0.1', 0), broker.Handler)
+	threading.Thread(target=server.serve_forever, daemon=True).start()
+	monkeypatch.setenv('MONITOREO_BROKER', f'http://127.0.0.1:{server.server_port}')
+	user = 'mo-' + 'd' * 16
+	tools = [{'type': 'function', 'function': {'name': 'time_series', 'description': 'Series.', 'parameters': {
+		'type': 'object', 'properties': {'region': {'type': 'object', 'additionalProperties': True}}}}},
+		{'type': 'function', 'function': {'name': 'list_variables', 'description': 'Variables.'}}]
+	earlier = [thinking, {'type': 'tool_use', 'id': 'toolu_1', 'name': 'time_series', 'input': {'variable': 'NDVI'}},
+	           {'type': 'tool_use', 'id': 'toolu_9', 'name': 'list_variables', 'input': {}}]
+	body = {'model': 'claude-sonnet-5-5', 'temperature': 0.2, 'tools': tools, 'messages': [
+		{'role': 'system', 'content': 'You are the assistant of MonitorEO.'},
+		{'role': 'user', 'content': 'NDVI'},
+		{'role': 'assistant', 'content': 'shown text, fixed by the assistant',
+		 'extra_content': {'anthropic': {'content': earlier}},
+		 'tool_calls': [{'id': 'toolu_1', 'type': 'function', 'function': {'name': 'time_series', 'arguments': '{}'}}]},
+		{'role': 'tool', 'tool_call_id': 'toolu_1', 'content': 'Done'},
+		{'role': 'tool', 'tool_call_id': 'toolu_9', 'content': 'No answer.'},
+		{'role': 'assistant', 'content': 'Hecho.'},
+		{'role': 'user', 'content': 'Y en Doñana'}]}
+	from monitoreo import services
+	try:
+		answer = services._broker('/chat', body=body, user=user)
+		params = called[0]
+		assert params['model'] == 'claude-sonnet-5-5' and params['max_tokens'] == 8192 and 'temperature' not in params
+		assert params['system'] == [{'type': 'text', 'text': broker.SCOPE + 'You are the assistant of MonitorEO.',
+		                             'cache_control': {'type': 'ephemeral'}}]
+		assert params['cache_control'] == {'type': 'ephemeral'}  # and the conversation, with the automatic breakpoint
+		assert params['thinking'] == {'type': 'adaptive', 'block_binding': {'prefix_mismatch_behavior': 'drop_block'}}
+		assert params['betas'] == ['thinking-binding-controls-2026-08-01', 'server-side-fallback-2026-07-01']
+		assert params['fallbacks'] == 'default' and params['output_config'] == {'effort': 'low'}
+		assert params['tools'] == [{'name': 'time_series', 'description': 'Series.', 'input_schema': {
+			'type': 'object', 'properties': {'region': {'type': 'object', 'additionalProperties': True}}}},
+			{'name': 'list_variables', 'description': 'Variables.', 'input_schema': {'type': 'object', 'properties': {}}}]
+		assert params['messages'] == [
+			{'role': 'user', 'content': 'NDVI'},
+			{'role': 'assistant', 'content': earlier},  # as Claude gave it, not the text shown
+			{'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'toolu_1', 'content': 'Done'},
+			                             {'type': 'tool_result', 'tool_use_id': 'toolu_9', 'content': 'No answer.'}]},
+			{'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hecho.'}]},  # a turn of another model
+			{'role': 'user', 'content': 'Y en Doñana'}]
+		message = answer['choices'][0]['message']
+		assert answer['model'] == 'claude-sonnet-5-5' and message['content'] == 'Busco el área.'
+		assert message['tool_calls'] == [{'id': 'toolu_2', 'type': 'function', 'function': {
+			'name': 'find_protected_areas', 'arguments': '{"text": "Doñana"}'}}]
+		assert message['extra_content']['anthropic']['content'][0]['signature'] == 'sig2'
+		assert answer['usage'] == {'prompt_tokens': 7350, 'completion_tokens': 120, 'cache_read_tokens': 7000,
+		                           'cache_write_tokens': 300} and 'dropped_thinking' not in answer
+		services._broker('/chat', body={**body, 'model': 'claude-haiku-5-5'}, user=user)
+		assert 'fallbacks' not in called[1] and called[1]['betas'] == ['thinking-binding-controls-2026-08-01']
+		services._broker('/chat', body={**body, 'model': 'claude-opus-9'}, user=user)  # not one of CHAT_MODELS
+		assert asked_gemini == ['gemini-3.8-flash'] and len(called) == 2  # the first one
+	finally:
+		server.shutdown()
+	refused = broker.claude_answer({'model': 'claude-sonnet-5-5', 'stop_reason': 'refusal', 'content': []})
+	assert refused['choices'][0]['message'] == {'role': 'assistant',
+	                                           'content': 'The language model of MonitorEO declined this request.'}
+	monkeypatch.setattr(broker, 'ANTHROPIC_API_KEY', '')
+	with pytest.raises(broker.ChatError) as e:
+		broker.chat(json.dumps({**body, 'model': 'claude-sonnet-5-5'}).encode(), '1.2.3.4', user)
+	assert e.value.answer['code'] == 'off'  # without its key
+
+
+def test_broker_without_credit(monkeypatch):
+	# Claude Sonnet 5.5 answers, whatever model the request asks for (the users do not choose); only when the API of
+	# Anthropic says that there is no credit does Gemini answer, for an hour, and then Claude is asked again
+	broker = _broker_module(monkeypatch, GEMINI_API_KEY='g', ANTHROPIC_API_KEY='a')
+	assert broker.CHAT_MODELS == ['claude-sonnet-5-5', 'gemini-3.8-flash'] and not broker.CHAT_CHOOSE
+	asked, credit = [], {'left': True}
+
+	def claude_call(params):
+		asked.append(params['model'])
+		if not credit['left']:
+			raise broker.ChatError(503, 'credit', 'the language model of MonitorEO has no credit left')
+		return {'model': params['model'], 'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': 'Hola'}]}
+
+	def gemini(request):
+		asked.append(request['model'])
+		return {'model': request['model'], 'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]}
+	monkeypatch.setattr(broker, '_claude_call', claude_call)
+	monkeypatch.setattr(broker, 'gemini', gemini)
+	user = 'mo-' + 'f' * 16
+	body = json.dumps({'model': 'gemini-3.8-flash', 'messages': [{'role': 'user', 'content': 'Hola'}]}).encode()
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'claude-sonnet-5-5' and asked == ['claude-sonnet-5-5']
+	credit['left'] = False
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'gemini-3.8-flash'
+	assert asked[1:] == ['claude-sonnet-5-5', 'gemini-3.8-flash']
+	broker.chat(body, '1.1.1.1', user)
+	assert asked[3:] == ['gemini-3.8-flash']  # Claude is not asked meanwhile
+	broker._no_credit['claude-sonnet-5-5'] = 0  # an hour later
+	credit['left'] = True
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'claude-sonnet-5-5'
+
+	def busy(params):
+		raise broker.ChatError(503, 'busy', 'the language model of MonitorEO is busy: try again in a minute')
+	monkeypatch.setattr(broker, '_claude_call', busy)
+	with pytest.raises(broker.ChatError) as e:
+		broker.chat(body, '1.1.1.1', user)
+	assert e.value.answer['code'] == 'busy' and asked[-1] == 'claude-sonnet-5-5'  # only without credit, Gemini
+	monkeypatch.setattr(broker, 'ANTHROPIC_API_KEY', '')
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'gemini-3.8-flash'  # without the key of Claude
+
+
 def test_eecu_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
 	from monitoreo import cli
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
