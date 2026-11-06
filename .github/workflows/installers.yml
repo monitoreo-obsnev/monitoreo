@@ -7,6 +7,9 @@
 # - by hand (Actions > Assistant installers > Run workflow) with the tag of a release that already exists; without a
 #   tag, it leaves the zips as an artifact of the run.
 # The installers download the environment.yml of main, so they work for any release.
+# The installer of Ubuntu (installer/linux/instalar.sh) is not zipped (the file manager of Ubuntu does not run
+# scripts): the wiki gives its one-line command. The job linux runs it on the LTS versions of GitHub, also on each
+# push that changes it, environment.yml or this workflow, and opens the assistant in a virtual screen.
 name: Assistant installers
 
 on:
@@ -14,6 +17,8 @@ on:
     types: [published]
   push:
     tags: ['v*']
+    branches: ['**']
+    paths: ['installer/**', 'environment.yml', '.github/workflows/installers.yml']  # not for the tags
   workflow_dispatch:
     inputs:
       tag:
@@ -38,6 +43,7 @@ jobs:
       - name: Check the installers
         run: |
           bash -n installer/macos/instalar.sh
+          bash -n installer/linux/instalar.sh
           file installer/windows/instalar.bat | grep -q CRLF
       - name: Make the zips
         run: |
@@ -61,3 +67,68 @@ jobs:
           for i in $(seq 18); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 10; done
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes "" || true
           gh release upload "$TAG" dist/asistente-monitoreo-macos.zip dist/asistente-monitoreo-windows.zip --clobber
+
+  linux:
+    # the installer of Ubuntu on each LTS of GitHub, then the assistant in its window, in a virtual screen
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tools of the test (virtual screen, screenshots, check of the launchers)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb x11-utils imagemagick desktop-file-utils xdg-user-dirs >/dev/null
+          xdg-user-dirs-update  # the folder Desktop of a session of Ubuntu
+          mkdir -p "$(xdg-user-dir DESKTOP)"
+      - name: Run the installer (without a screen, so it does not open the assistant)
+        run: bash installer/linux/instalar.sh
+      - name: Check what it installed
+        run: |
+          ~/MonitorEO/entorno/bin/monitoreo about | head -3
+          desktop-file-validate ~/.local/share/applications/monitoreo-assistant.desktop
+          test -x "$(xdg-user-dir DESKTOP)/monitoreo-assistant.desktop"
+          cat ~/MonitorEO/entorno/bin/monitoreo-assistant
+          du -sh ~/MonitorEO/entorno ~/MonitorEO/micromamba
+          bash installer/linux/instalar.sh | tail -3  # again: it finds the environment and only writes the launchers
+      - name: Open the assistant in its window in a virtual screen, the first time (it updates itself)
+        run: |
+          # as on the desktop of Ubuntu 24.04 and later, the user namespaces only for the programs with a profile of AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=1 2>/dev/null || true
+          cat > "$RUNNER_TEMP/window.sh" <<'EOF'
+          # window.sh SCREENSHOT COMMAND...: opens the assistant with COMMAND, takes a screenshot of its window (1400x900,
+          # not the small one "Updating MonitorEO…") when the page is drawn and closes it with its API; fails if the
+          # screenshot is blank (few colours)
+          set -u
+          shot=$1; shift
+          rm -f ~/MonitorEO/.assistant
+          "$@" &
+          pid=$!
+          for i in $(seq 300); do xwininfo -root -tree | grep -q '"MonitorEO Assistant".*1400x900' && break; sleep 1; done
+          sleep 30  # the page, its map and its fonts
+          xwininfo -root -tree | grep '"MonitorEO Assistant"' || echo 'No window "MonitorEO Assistant"'
+          xprop -name 'MonitorEO Assistant' WM_CLASS || true
+          import -window root "$shot"
+          colours=$(identify -format %k "$shot")
+          echo "Colours of the screenshot: $colours"
+          port=0 token=
+          read -r port token < <(python3 -c 'import json, os
+          r = json.load(open(os.path.expanduser("~/MonitorEO/.assistant")))
+          print(r["port"], r["token"])')
+          curl -fsS -X POST -H "X-Token: $token" "http://127.0.0.1:$port/api/quit" || kill "$pid"
+          for i in $(seq 30); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+          kill "$pid" 2>/dev/null && echo 'It did not close'
+          [ "$colours" -gt 50 ]
+          EOF
+          ok=0
+          xvfb-run -a -s '-screen 0 1440x960x24' bash "$RUNNER_TEMP/window.sh" assistant.png \
+            ~/MonitorEO/entorno/bin/monitoreo-assistant || ok=1
+          echo '--- assistant-output.log'; grep -v 'Requirement already' ~/MonitorEO/assistant-output.log
+          exit $ok
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assistant-${{ matrix.os }}
+          path: '*.png'
