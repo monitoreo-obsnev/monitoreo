@@ -45,6 +45,10 @@ jobs:
           bash -n installer/macos/instalar.sh
           bash -n installer/linux/instalar.sh
           file installer/windows/instalar.bat | grep -q CRLF
+          # the icons of the app, which the installers download from main
+          file installer/icons/monitoreo-assistant.icns | grep -q 'Mac OS X icon'
+          file installer/icons/monitoreo-assistant.ico | grep -q 'MS Windows icon'
+          file installer/icons/monitoreo-assistant.png | grep -q 'PNG image data, 512 x 512'
       - name: Make the zips
         run: |
           mkdir -p dist build/macos build/windows

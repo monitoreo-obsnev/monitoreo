@@ -131,7 +131,8 @@ main() {
 
 	# "MonitorEO Assistant" in the applications and on the Desktop (Exec: the path between quotes, for the spaces)
 	mkdir -p "$APPS" "$(dirname "$ICON")"
-	download "$REPO/qgis/monitoreo_qgis/icon.png" "$ICON" || rm -f "$ICON"  # without icon, the generic one
+	# its icon, the logo of MonitorEO (without it, a generic one)
+	download "$REPO/installer/icons/monitoreo-assistant.png" "$ICON" || rm -f "$ICON"
 	cat > "$APPS/$ENTRY" <<-EOF
 	[Desktop Entry]
 	Type=Application
