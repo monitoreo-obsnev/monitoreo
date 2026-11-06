@@ -69,9 +69,13 @@ def requirement(commit, extras=''):
 
 
 def _pip(*args):
-	# pip writes to stderr only: the MCP server talks to its client through stdout
-	subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', '--quiet', *args],
-	               check=True, stdout=sys.stderr)
+	# pip writes to stderr only: the MCP server talks to its client through stdout. Its stderr too, as without a
+	# console (pythonw.exe, the assistant on Windows) a stream that is not given here is a pipe closed at its other
+	# end: then what pip writes there makes it end with the status 120, even when it has installed the package (as
+	# its warning that the folder of monitoreo.exe is not in the PATH, which nothing needs: not written)
+	out = sys.stderr if sys.stderr is not None else subprocess.DEVNULL
+	subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', '--no-warn-script-location',
+	                '--quiet', *args], check=True, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
 
 
 def ensure_latest(extras='', log=_stderr, installing=None):

@@ -14,7 +14,7 @@ dependencies:
   - numpy
   - pyyaml             # recipes of variables (monitoreo download)
   - gdal>=3.6          # reading of vector files and writing of GeoTIFFs (optional for time series)
-  - matplotlib         # charts of the time series
+  - matplotlib-base    # charts of the time series (without Qt, which they do not use: 0.1 GB less on Windows)
   - mcp>=1.10          # MCP server
   - starlette          # assistant for managers (monitoreo assistant)
   - uvicorn
