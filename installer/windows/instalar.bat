@@ -6,15 +6,16 @@ rem the Internet, so SmartScreen does not stop it):
 rem
 rem   curl -fsSLo "%TEMP%\instalar-monitoreo.bat" https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main/installer/windows/instalar.bat && "%TEMP%\instalar-monitoreo.bat"
 rem
-rem It installs in %USERPROFILE%\MonitorEO\entorno, without administrator rights, the Python environment of
-rem MonitorEO (Python, Earth Engine, GDAL and the package monitoreo, from the environment.yml of the repository) with
-rem micromamba, which it leaves in %USERPROFILE%\MonitorEO\micromamba. It puts on the Desktop the shortcut
-rem "MonitorEO Assistant" (with the logo of MonitorEO, installer/icons/monitoreo-assistant.ico), which opens the
-rem assistant in its window with pythonw.exe, without a console (its messages
-rem go to %USERPROFILE%\MonitorEO\assistant-output.log), and opens it. If the environment already exists, it only
-rem creates the shortcut and opens the assistant; to install it again, delete the folder entorno (it keeps its
-rem Spanish name, "environment", so that existing installations are found). No accents: cmd reads this file with the
-rem code page of the console.
+rem It installs in %USERPROFILE%\MonitorEO\entorno, without administrator rights, the Python environment of MonitorEO
+rem (Python, Earth Engine, GDAL and the package monitoreo, from the environment.yml of the repository) with
+rem micromamba, which it leaves in %USERPROFILE%\MonitorEO\micromamba (with the runtime of Visual C++ that it needs,
+rem if Windows does not have it; while it installs, the packages are in %SystemDrive%\MonitorEO-pkgs, a short path).
+rem It puts on the Desktop the shortcut "MonitorEO Assistant" (with the logo of MonitorEO,
+rem installer/icons/monitoreo-assistant.ico), which opens the assistant in its window with pythonw.exe, without a
+rem console (its messages go to %USERPROFILE%\MonitorEO\assistant-output.log), and opens it. If the environment
+rem already exists, it only creates the shortcut and opens the assistant; to install it again, delete the folder
+rem entorno (it keeps its Spanish name, "environment", so that existing installations are found). No accents: cmd
+rem reads this file with the code page of the console.
 setlocal
 title Installer of the MonitorEO assistant
 set "REPO=https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main"
@@ -28,7 +29,7 @@ echo Installer of the MonitorEO assistant
 echo ====================================
 echo.
 echo It installs in %ENV%, without administrator rights, what the assistant needs:
-echo Python, Google Earth Engine, GDAL and MonitorEO (about 0.2 GB to download and 1 GB on disk). Then, the first
+echo Python, Google Earth Engine, GDAL and MonitorEO (about 0.3 GB to download and 1.7 GB on disk). Then, the first
 echo time it opens, the assistant downloads its language model and its engine (about 7 GB). Both downloads happen
 echo only the first time.
 echo.
@@ -44,6 +45,9 @@ curl -fL --progress-bar -o "%MAMBA%.part" "%URL%" || goto :fail
 curl -fsL -o "%MAMBA%.sha256" "%URL%.sha256" || goto :fail
 powershell -NoProfile -Command "if ((Get-FileHash -Algorithm SHA256 -LiteralPath ($env:MAMBA + '.part')).Hash -ne (Get-Content -Raw -LiteralPath ($env:MAMBA + '.sha256')).Trim()) { exit 1 }" || goto :damaged
 move /y "%MAMBA%.part" "%MAMBA%" >nul || goto :fail
+rem micromamba needs the runtime of Visual C++ (MSVCP140.dll, VCRUNTIME140.dll...), which a new Windows does not
+rem have: then it gets its DLLs from the package vc14_runtime of conda-forge
+"%MAMBA%" --version >nul 2>&1 || call :vcruntime || goto :novcruntime
 
 echo 2/3 Downloading the list of packages of MonitorEO...
 curl -fsL -o "%DIR%\environment.yml" "%REPO%/environment.yml" || goto :fail
@@ -51,8 +55,16 @@ curl -fsL -o "%DIR%\environment.yml" "%REPO%/environment.yml" || goto :fail
 echo 3/3 Installing Python, Earth Engine, GDAL and MonitorEO (a few minutes)...
 if exist "%ENV%" rmdir /s /q "%ENV%"
 set "MAMBA_ROOT_PREFIX=%MAMBA_DIR%"
+rem the packages, while they are installed, in a short folder: micromamba keeps them under the address of their
+rem channel (pkgs\https\conda.anaconda.org\conda-forge\win-64\...), and in the folder of the user some of their
+rem files would pass the 260 characters of a path of Windows (its long paths need an administrator)
+set "CONDA_PKGS_DIRS=%SystemDrive%\MonitorEO-pkgs"
+if not exist "%CONDA_PKGS_DIRS%" mkdir "%CONDA_PKGS_DIRS%" 2>nul || set "CONDA_PKGS_DIRS=%MAMBA_DIR%\pkgs"
 "%MAMBA%" create -y -p "%ENV%" -f "%DIR%\environment.yml" || goto :fail
 "%MAMBA%" clean -y --all >nul 2>&1
+if exist "%SystemDrive%\MonitorEO-pkgs" rmdir /s /q "%SystemDrive%\MonitorEO-pkgs" >nul 2>&1
+rem the cache of earlier versions of this installer (of an installation that failed)
+if exist "%MAMBA_DIR%\pkgs" rmdir /s /q "%MAMBA_DIR%\pkgs" >nul 2>&1
 if not exist "%ENV%\Scripts\monitoreo.exe" goto :fail
 
 :launcher
@@ -68,6 +80,30 @@ echo Done. The assistant opens now in its window; to close it, close that window
 echo To open it again: double click "MonitorEO Assistant" on the Desktop. You can close this window now.
 start "" "%ENV%\pythonw.exe" -s -m monitoreo.cli assistant
 exit /b
+
+:vcruntime
+rem the DLLs of the runtime of Visual C++ next to micromamba.exe, without installing anything in Windows (as an app
+rem may have them): from the package vc14_runtime of conda-forge (a .conda: a zip with a .tar.zst, which the tar of
+rem Windows 11 opens), only if Microsoft signs them
+echo     Adding the runtime of Visual C++ of Microsoft, which micromamba needs...
+set "VC=%MAMBA_DIR%\vc14_runtime"
+if exist "%VC%" rmdir /s /q "%VC%"
+mkdir "%VC%" || exit /b 1
+curl -fsSL -o "%VC%\vc14_runtime.conda" "https://conda.anaconda.org/conda-forge/win-64/vc14_runtime-14.51.36247-habf1de7_42.conda" || exit /b 1
+tar -xf "%VC%\vc14_runtime.conda" -C "%VC%" || exit /b 1
+for %%f in ("%VC%\pkg-*.tar.zst") do tar -xf "%%~f" -C "%VC%" || exit /b 1
+powershell -NoProfile -Command "$n = 0; foreach ($f in Get-ChildItem -LiteralPath $env:VC -Filter *.dll) { $s = Get-AuthenticodeSignature -LiteralPath $f.FullName; if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { exit 1 }; Copy-Item -LiteralPath $f.FullName -Destination $env:MAMBA_DIR -Force; $n++ }; if ($n -eq 0) { exit 1 }" || exit /b 1
+rmdir /s /q "%VC%"
+"%MAMBA%" --version >nul 2>&1 || exit /b 1
+exit /b 0
+
+:novcruntime
+echo.
+echo ERROR: micromamba needs the runtime of Visual C++ of Microsoft, which this computer does not have and the
+echo installer could not add. Install it from https://aka.ms/vs/17/release/vc_redist.x64.exe (it asks for an
+echo administrator) and open the installer again.
+pause
+exit /b 1
 
 :damaged
 echo.
