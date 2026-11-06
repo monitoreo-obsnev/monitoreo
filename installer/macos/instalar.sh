@@ -8,9 +8,10 @@
 #
 # It installs in ~/MonitorEO/entorno, without administrator rights, the Python environment of MonitorEO (Python,
 # Earth Engine, GDAL and the package monitoreo, from the environment.yml of the repository) with micromamba, which it
-# leaves in ~/MonitorEO/micromamba. It puts on the Desktop the app "MonitorEO Assistant", which opens the assistant in
-# its window without the Terminal (its messages go to ~/MonitorEO/assistant-output.log), and opens it. If the
-# environment already exists, it only creates the app and opens it; to install it again, delete ~/MonitorEO/entorno
+# leaves in ~/MonitorEO/micromamba. It puts on the Desktop the app "MonitorEO Assistant" (with the logo of MonitorEO,
+# installer/icons/monitoreo-assistant.icns), which opens the assistant in its window without the Terminal (its
+# messages go to ~/MonitorEO/assistant-output.log), and opens it. If the environment already exists, it only
+# creates the app and opens it; to install it again, delete ~/MonitorEO/entorno
 # (the folder keeps its Spanish name, "environment", so that existing installations are found). The app is not
 # signed, but this computer creates it, so it is not quarantined and macOS opens it.
 # Everything is inside main, which is called at the end: a broken download runs nothing.
@@ -74,7 +75,10 @@ main() {
 	rm -f "$HOME/Desktop/Asistente de MonitorEO.command"  # the shortcut of old versions, in the Terminal
 	rm -rf "$HOME/Desktop/Asistente de MonitorEO.app"  # the app of the versions with Spanish texts
 	rm -rf "$APP"
-	mkdir -p "$APP/Contents/MacOS"
+	mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+	# its icon, the logo of MonitorEO (without it, the generic one of the apps)
+	curl -fsL -o "$APP/Contents/Resources/monitoreo-assistant.icns" "$REPO/installer/icons/monitoreo-assistant.icns" ||
+		rm -f "$APP/Contents/Resources/monitoreo-assistant.icns"
 	cat > "$APP/Contents/Info.plist" <<-EOF
 	<?xml version="1.0" encoding="UTF-8"?>
 	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -84,6 +88,7 @@ main() {
 		<key>CFBundleDisplayName</key><string>MonitorEO Assistant</string>
 		<key>CFBundleIdentifier</key><string>es.ugr.monitoreo.asistente</string>
 		<key>CFBundleExecutable</key><string>asistente</string>
+		<key>CFBundleIconFile</key><string>monitoreo-assistant</string>
 		<key>CFBundlePackageType</key><string>APPL</string>
 		<key>CFBundleVersion</key><string>1</string>
 		<key>NSHighResolutionCapable</key><true/>
