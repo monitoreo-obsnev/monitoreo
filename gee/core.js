@@ -175,8 +175,23 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS = {'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
+	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat
+	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
+		scene_clouds: 80, dem: 'USGS/SRTMGL1_003'};
+	var SCF_TOA = {  // sensors.SCF_TOA: TOA collection of each Landsat collection, with its green and SWIR1 bands
+		'LANDSAT/LT05/C02/T1_L2': ['LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LE07/C02/T1_L2': ['LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LC08/C02/T1_L2': ['LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']],
+		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']]
+	};
+	var SCF_FILTERS = ['clouds', 'water'];
+
+	// sensors.is_scf
+	function isScf(entry) {
+		return entry.fk === 'scf';
+	}
 
 	function bits(band, first, last) {
 		last = last === undefined ? first : last;
@@ -247,6 +262,7 @@ var MonitorEO = (function () {
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
 		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
+		if (isScf(entry)) available = SCF_FILTERS;
 		var out = {};
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
@@ -296,6 +312,17 @@ var MonitorEO = (function () {
 		return mask;
 	}
 
+	// sensors._with_toa: images of COL with the bands toa_green and toa_swir1 of the same scene in the TOA collection
+	function withToa(col, colId, region, start, end) {
+		var toaId = SCF_TOA[colId][0], bands = SCF_TOA[colId][1];
+		var toa = ee.ImageCollection(toaId).filterBounds(region).filterDate(start, end);
+		var same = ee.Filter.equals({leftField: 'system:index', rightField: 'system:index'});
+		return ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same)).map(function (i) {
+			i = ee.Image(i);
+			return i.addBands(ee.Image(i.get('toa')).select(bands, ['toa_green', 'toa_swir1']));
+		});
+	}
+
 	// sensors.raw_collection
 	function rawCollection(entry, region, start, end, quality) {
 		var prop = SCENE_CLOUDS[entry.sensor];
@@ -304,17 +331,20 @@ var MonitorEO = (function () {
 			return prop && scene !== null && scene !== undefined ? col.filter(ee.Filter.lte(prop, scene)) : col;
 		}
 		if (entry.sensor === 'Landsat') {
+			var scf = isScf(entry);
 			var cols = [];
 			LANDSAT.forEach(function (l) {
 				var endL = l[2] && l[2] < end ? l[2] : end;
 				if (endL <= start) return;
 				var c = sceneFilter(ee.ImageCollection(l[0]).filterBounds(region).filterDate(start, endL));
+				if (scf) c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF.scene_clouds));
 				c = c.select(Object.keys(l[1]), Object.keys(l[1]).map(function (k) { return l[1][k]; }));
 				if (!l[1].SR_QA_AEROSOL) {  // Landsat 5 and 7 have no aerosol QA: nothing is removed
 					c = c.map(function (i) {
 						return i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL'));
 					});
 				}
+				if (scf) c = withToa(c, l[0], region, start, endL);
 				cols.push(c);
 			});
 			var col = cols[0];
@@ -332,6 +362,7 @@ var MonitorEO = (function () {
 	// sensors.collection: single band images ('value', float) of the variable of ENTRY between START and END (excluded)
 	function sensorCollection(entry, region, start, end, quality) {
 		quality = withQuality(quality);
+		if (isScf(entry)) return scfCollection(entry, region, start, end, quality);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
@@ -352,6 +383,35 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none
+	function scfCollection(entry, region, start, end, quality) {
+		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
+		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
+		var on = filters(entry, quality);
+		var dem = ee.Image(SCF.dem);
+		var high = dem.gte(SCF.min_elevation);
+		return rawCollection(entry, region, start, end, quality).map(function (img) {
+			img = ee.Image(img);
+			var sr = img.select([green, nir, swir1]).multiply(scale).add(offset);
+			var toa = img.select(['toa_green', 'toa_swir1']);
+			var g = sr.select(green), n = sr.select(nir), s = sr.select(swir1);
+			var snowSun = g.subtract(s).divide(g.add(s)).gte(SCF.ndsi).and(g.gt(SCF.green)).and(n.gt(SCF.nir));
+			var tg = toa.select('toa_green'), ts = toa.select('toa_swir1');
+			var snowShade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF.ndsi).and(tg.gte(SCF.toa_green));
+			var zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')));
+			var lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF.shadow_reach, true);
+			var shade = lit.not();
+			var qa = img.select('QA_PIXEL');
+			var clear = on.clouds ? bits(qa, 3).eq(0).and(bits(qa, 9).eq(0)) : ee.Image(1);
+			var dry = on.water ? bits(qa, 7).eq(0) : ee.Image(1);
+			var validSun = lit.and(clear).and(dry).and(snowSun.mask());
+			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
+			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
+			var valid = validSun.unmask(0).or(validShade.unmask(0));
+			return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start']);
+		});
+	}
+
 	// Variables (variable.py), for the catalog variables: a spec is {ref, metric, temporal, interannual, period,
 	// season, quality} ----------------------------------------------------------------------------------------------
 
@@ -359,6 +419,10 @@ var MonitorEO = (function () {
 		var s = {metric: 'mean', temporal: 'period', interannual: 'mean', season: null, quality: {}};
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
+		var e = s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
+		if (e.metric && String(s.metric).trim().toLowerCase() !== e.metric) {  // its only metric (SCF: the mean)
+			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
+		}
 		return s;
 	}
 

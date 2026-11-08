@@ -98,6 +98,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 3276.7,
+   "metric": null,
    "minp": -3276.7,
    "offset": 0,
    "pm": [
@@ -135,6 +136,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 327000000,
+   "metric": null,
    "minp": -327670000,
    "offset": 0,
    "pm": [
@@ -173,6 +175,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -218,6 +221,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": null,
+   "metric": null,
    "minp": null,
    "offset": 0,
    "pm": [
@@ -263,6 +267,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -302,6 +307,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -341,6 +347,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -381,6 +388,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -421,6 +429,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -465,6 +474,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -1,
    "offset": 0,
    "pm": [
@@ -512,6 +522,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -566,6 +577,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 32.77,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -627,6 +639,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -680,6 +693,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -124.15,
    "pm": [
@@ -718,6 +732,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -756,6 +771,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -794,6 +810,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -837,6 +854,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -882,6 +900,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -927,6 +946,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -970,6 +990,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1013,6 +1034,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1058,6 +1080,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1102,6 +1125,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -1145,6 +1169,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1188,6 +1213,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1232,6 +1258,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1275,6 +1302,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 0.01,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1322,6 +1350,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 463,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": "#",
    "pm": [
@@ -1365,6 +1394,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -1404,6 +1434,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1447,6 +1478,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 500,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1491,6 +1523,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1528,6 +1561,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1565,6 +1599,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 20,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1602,6 +1637,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1625,6 +1661,45 @@ var CATALOG = {
    "unit": "[unitless]",
    "vname": "\u00cdndice Relativizado de Quema",
    "vname_en": "Relativized Burn Ratio"
+  },
+  {
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "green",
+    "nir",
+    "swir1"
+   ],
+   "fk": "scf",
+   "ft": "SCF(green,nir,swir1)",
+   "index": "SCF",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": -0.2,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 105,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
   }
  ]
 };
@@ -1806,8 +1881,23 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS = {'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
+	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat
+	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
+		scene_clouds: 80, dem: 'USGS/SRTMGL1_003'};
+	var SCF_TOA = {  // sensors.SCF_TOA: TOA collection of each Landsat collection, with its green and SWIR1 bands
+		'LANDSAT/LT05/C02/T1_L2': ['LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LE07/C02/T1_L2': ['LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LC08/C02/T1_L2': ['LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']],
+		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']]
+	};
+	var SCF_FILTERS = ['clouds', 'water'];
+
+	// sensors.is_scf
+	function isScf(entry) {
+		return entry.fk === 'scf';
+	}
 
 	function bits(band, first, last) {
 		last = last === undefined ? first : last;
@@ -1878,6 +1968,7 @@ var MonitorEO = (function () {
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
 		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
+		if (isScf(entry)) available = SCF_FILTERS;
 		var out = {};
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
@@ -1927,6 +2018,17 @@ var MonitorEO = (function () {
 		return mask;
 	}
 
+	// sensors._with_toa: images of COL with the bands toa_green and toa_swir1 of the same scene in the TOA collection
+	function withToa(col, colId, region, start, end) {
+		var toaId = SCF_TOA[colId][0], bands = SCF_TOA[colId][1];
+		var toa = ee.ImageCollection(toaId).filterBounds(region).filterDate(start, end);
+		var same = ee.Filter.equals({leftField: 'system:index', rightField: 'system:index'});
+		return ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same)).map(function (i) {
+			i = ee.Image(i);
+			return i.addBands(ee.Image(i.get('toa')).select(bands, ['toa_green', 'toa_swir1']));
+		});
+	}
+
 	// sensors.raw_collection
 	function rawCollection(entry, region, start, end, quality) {
 		var prop = SCENE_CLOUDS[entry.sensor];
@@ -1935,17 +2037,20 @@ var MonitorEO = (function () {
 			return prop && scene !== null && scene !== undefined ? col.filter(ee.Filter.lte(prop, scene)) : col;
 		}
 		if (entry.sensor === 'Landsat') {
+			var scf = isScf(entry);
 			var cols = [];
 			LANDSAT.forEach(function (l) {
 				var endL = l[2] && l[2] < end ? l[2] : end;
 				if (endL <= start) return;
 				var c = sceneFilter(ee.ImageCollection(l[0]).filterBounds(region).filterDate(start, endL));
+				if (scf) c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF.scene_clouds));
 				c = c.select(Object.keys(l[1]), Object.keys(l[1]).map(function (k) { return l[1][k]; }));
 				if (!l[1].SR_QA_AEROSOL) {  // Landsat 5 and 7 have no aerosol QA: nothing is removed
 					c = c.map(function (i) {
 						return i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL'));
 					});
 				}
+				if (scf) c = withToa(c, l[0], region, start, endL);
 				cols.push(c);
 			});
 			var col = cols[0];
@@ -1963,6 +2068,7 @@ var MonitorEO = (function () {
 	// sensors.collection: single band images ('value', float) of the variable of ENTRY between START and END (excluded)
 	function sensorCollection(entry, region, start, end, quality) {
 		quality = withQuality(quality);
+		if (isScf(entry)) return scfCollection(entry, region, start, end, quality);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
@@ -1983,6 +2089,35 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none
+	function scfCollection(entry, region, start, end, quality) {
+		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
+		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
+		var on = filters(entry, quality);
+		var dem = ee.Image(SCF.dem);
+		var high = dem.gte(SCF.min_elevation);
+		return rawCollection(entry, region, start, end, quality).map(function (img) {
+			img = ee.Image(img);
+			var sr = img.select([green, nir, swir1]).multiply(scale).add(offset);
+			var toa = img.select(['toa_green', 'toa_swir1']);
+			var g = sr.select(green), n = sr.select(nir), s = sr.select(swir1);
+			var snowSun = g.subtract(s).divide(g.add(s)).gte(SCF.ndsi).and(g.gt(SCF.green)).and(n.gt(SCF.nir));
+			var tg = toa.select('toa_green'), ts = toa.select('toa_swir1');
+			var snowShade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF.ndsi).and(tg.gte(SCF.toa_green));
+			var zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')));
+			var lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF.shadow_reach, true);
+			var shade = lit.not();
+			var qa = img.select('QA_PIXEL');
+			var clear = on.clouds ? bits(qa, 3).eq(0).and(bits(qa, 9).eq(0)) : ee.Image(1);
+			var dry = on.water ? bits(qa, 7).eq(0) : ee.Image(1);
+			var validSun = lit.and(clear).and(dry).and(snowSun.mask());
+			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
+			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
+			var valid = validSun.unmask(0).or(validShade.unmask(0));
+			return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start']);
+		});
+	}
+
 	// Variables (variable.py), for the catalog variables: a spec is {ref, metric, temporal, interannual, period,
 	// season, quality} ----------------------------------------------------------------------------------------------
 
@@ -1990,6 +2125,10 @@ var MonitorEO = (function () {
 		var s = {metric: 'mean', temporal: 'period', interannual: 'mean', season: null, quality: {}};
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
+		var e = s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
+		if (e.metric && String(s.metric).trim().toLowerCase() !== e.metric) {  // its only metric (SCF: the mean)
+			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
+		}
 		return s;
 	}
 
@@ -2663,6 +2802,9 @@ var MonitorEO = (function () {
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificaci\u00f3n SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
+			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada p\u00edxel con nieve o hielo. Cada imagen ' +
+				'es 100 (nieve) o 0, as\u00ed que su m\u00e9trica es siempre la media. Corrige la sombra del relieve con la ' +
+				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
 			map: 'Mapa', metric: 'M\u00e9trica', temporal: 'Agregaci\u00f3n temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada a\u00f1o y entre a\u00f1os', t_monthly: 'Cada mes y entre a\u00f1os', 't_16-day': 'Cada 16 d\u00edas y entre a\u00f1os',
 			interannual: 'M\u00e9trica entre a\u00f1os', addMap: 'A\u00f1adir al mapa', download: 'Descargar GeoTIFF',
@@ -2713,6 +2855,9 @@ var MonitorEO = (function () {
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
+			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
+				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
+				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
@@ -3020,7 +3165,17 @@ var MonitorEO = (function () {
 		state.ref = ref;
 		var e = entry();
 		mo.FILTERS.forEach(function (f) { state.quality[f] = (mo.MEASURES[f] || []).indexOf(e.index) < 0; });
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
 		render();
+	}
+
+	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean)
+	function metricSelect(value, onChange) {
+		var only = entry().metric;
+		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
+		var s = select(metrics, only || value, onChange);
+		s.setDisabled(Boolean(only));
+		return s;
 	}
 
 	function variableWidgets() {
@@ -3029,6 +3184,7 @@ var MonitorEO = (function () {
 		var name = state.lang === 'en' ? e.vname_en : e.vname;
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'p\u00edxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' \u00b7 '), SMALL));
+		if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
 		w.push(header(t('period')));
 		w.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.period[1], function (v) { state.period[1] = v.trim(); })));
@@ -3217,7 +3373,7 @@ var MonitorEO = (function () {
 	function mapWidgets() {
 		var w = [header(t('map'))];
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('metric')), select(metrics, state.mapMetric, function (v) { state.mapMetric = v; })));
+		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
 		w.push(row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
@@ -3381,8 +3537,7 @@ var MonitorEO = (function () {
 		var w = [header(t('series'))];
 		var steps = mo.STEPS.map(function (x) { return {value: x, label: t('s_' + x)}; });
 		w.push(row(ui.Label(t('step')), select(steps, state.step, function (v) { state.step = v; })));
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('stepMetric')), select(metrics, state.stepMetric, function (v) { state.stepMetric = v; })));
+		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
@@ -3506,8 +3661,7 @@ var MonitorEO = (function () {
 			state.trendStep = v;
 			render();
 		})));
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('yearMetric')), select(metrics, state.trendMetric, function (v) { state.trendMetric = v; })));
+		w.push(row(ui.Label(t('yearMetric')), metricSelect(state.trendMetric, function (v) { state.trendMetric = v; })));
 		w.push(button(t('trendTable'), guarded(trendTable)));
 		if (state.trendStep !== 'annual') {
 			var parts = mo.parts(state.trendStep).map(function (p) {

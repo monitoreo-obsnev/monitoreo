@@ -206,6 +206,8 @@ def variable_help(v):
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
 	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
+	if d.get('metric'):  # the snow cover frequency: how it is computed, and its only metric
+		lines += [d['notes'].get('ft', ''), f"<b>Only with the metric {d['metric']}</b>: {d['notes'].get('metric', '')}."]
 	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#variables')
 
 

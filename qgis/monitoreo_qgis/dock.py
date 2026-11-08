@@ -370,6 +370,8 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Metric', info(self.map_metric, HELP['map_metric']))
 		f.addRow('Temporal aggregation', info(self.temporal, HELP['temporal']))
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
+		self.variable.currentIndexChanged.connect(self.variable_changed)  # the metrics of the SCF: only the mean
+		self.variable_changed()
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
 		             'Identify Features tool), at the resolution of the data or, in big regions, with bigger pixels '
@@ -698,6 +700,16 @@ class MonitorEODock(QDockWidget):
 			self.add_result(res)
 
 		self.run_task(f"Comparison of periods of {var['variable']} ({var['sensor']})", work, done)
+
+	def variable_changed(self):
+		"""The metrics of the images, fixed at the only metric of the variable if it has one (the snow cover frequency:
+		the mean, the % of the clear observations with snow)."""
+		only = (self.variable.currentData() or {}).get('metric')
+		for w in (self.ts_metric, self.trend_metric, self.map_metric):
+			if only:
+				w.setCurrentIndex(max(0, w.findData(only)))
+			w.setEnabled(not only)
+			w.setToolTip(f"{self.variable.currentData()['variable']} only takes the {only}" if only else '')
 
 	def update_trend_parts(self):
 		step = self.trend_step.currentData()

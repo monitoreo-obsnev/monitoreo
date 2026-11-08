@@ -175,6 +175,9 @@ e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis". The variable, as in the catalog (NDVI, EVI, NDWI, LST...).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
+- Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
+"Landsat", always with metric "mean", also in maps (whose default is the median); its filters are its own, so pass no \
+quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
@@ -251,7 +254,8 @@ filters) and say in words what you did.
 pixel on the map, How it is computed in its card, Create report), never its values.
 - Warn about the usual pitfalls when they apply: in high mountains snow and clouds leave few valid pixels in winter; \
 an index of one sensor is not equal to that of another (do not mix sensors in a series or a trend); a MODIS pixel \
-mixes land covers; a trend needs 8 years or more; the NDSI and the NDWI measure what the snow and water filters remove.
+mixes land covers; a trend needs 8 years or more; the NDSI and the NDWI measure what the snow and water filters remove; \
+the thresholds of the snow cover frequency (SCF) were set in Sierra Nevada.
 
 The page of the assistant (to explain how to use it):
 - On the left, the conversation; on the right, the results, with the map at the top (in a narrow window, the tabs \

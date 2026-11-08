@@ -10,7 +10,7 @@
   "tr": "revisit time",
   "dr": "dates",
   "unit": "unit",
-  "ft": "formula: a band, an expression of the bands, or N(b1,b2) for the normalized difference",
+  "ft": "formula: a band, an expression of the bands, N(b1,b2) for the normalized difference, or SCF(green,nir,swir1) for the snow of the snow cover frequency (sensors.SCF)",
   "scale": "scale factor of the bands",
   "offset": "offset of the bands",
   "clouds_bandQA": "QA band for clouds",

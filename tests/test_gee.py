@@ -26,6 +26,7 @@ TWO = {'geojson': {'type': 'FeatureCollection', 'features': [
 	{'type': 'Feature', 'properties': {'name': 'east'}, 'geometry': {'type': 'Polygon', 'coordinates': [[[-3.56, 36.86], [-3.50, 36.86], [-3.50, 36.93], [-3.56, 36.93], [-3.56, 36.86]]]}},
 ]}}
 SIERRA_BERMEJA = {'bbox': [-5.23, 36.47, -5.10, 36.57]}  # fire of September 2021
+LAGUNAS = {'bbox': [-3.40, 37.03, -3.33, 37.07]}  # the glacial lakes of Sierra Nevada, below the Mulhacén
 
 CASES = {
 	'series_s2_monthly': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
@@ -66,6 +67,12 @@ CASES = {
 	                  'spec': {'ref': 102, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
 	'burn_rbr': {'kind': 'burn_rbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
 	             'spec': {'ref': 103, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	# snow cover frequency: Landsat 8 and 9 in winter (shadow of the relief) and Landsat 5 (TOA bands B2 and B5)
+	'series_scf_winter': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                      'spec': {'ref': 105, 'period': ['2021-11-01', '2022-03-31']}},
+	'map_scf_seasons': {'kind': 'percentiles', 'region': LAGUNAS,
+	                    'spec': {'ref': 105, 'period': ['2008-10-01', '2011-05-31'], 'metric': 'mean',
+	                             'temporal': 'annual', 'interannual': 'mean', 'season': ['10-01', '05-31']}},
 }
 
 

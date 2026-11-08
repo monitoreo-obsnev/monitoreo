@@ -42,8 +42,10 @@ when results of MonitorEO go into a report, a paper or a map, or the user asks h
 both with the logos).
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
-Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols).
+LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
+frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
+snow cover frequency (SCF, Landsat) is the % of the clear observations of each pixel with snow: always with metric
+"mean" (also in maps).
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer (map tiles and preview),

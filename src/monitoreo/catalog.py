@@ -20,6 +20,11 @@ EXTRA = {
 	# of each image: B8A and B12 in Sentinel-2 (NBR5n of Silva-Cardoza et al. 2022), NIR and SWIR2 in Landsat
 	103: (4, {'index': 'RBR', 'ft': 'N(B8A,B12)', 'f': '(B8A - B12) / (B8A + B12)', 'm': 20}),  # Sentinel-2
 	104: (3, {'index': 'RBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
+	# SCF: snow cover frequency, from the bands of the NDSI of Landsat (entry 5); each image is 100 (snow) or 0 (no
+	# snow) with the rules of sensors.SCF, and the mean of the images of a pixel is its frequency
+	105: (5, {'index': 'SCF', 'ft': 'SCF(green,nir,swir1)',
+	          'f': 'NDSI = (SR_B3 - SR_B6) / (SR_B3 + SR_B6); snow: NDSI >= 0.35, SR_B3 > 0.1 and SR_B5 > 0.1 (Landsat 8 and '
+	               '9; in the shadow of the relief, the NDSI >= 0.35 and the green >= 0.08 of the TOA reflectance)'}),
 }
 RBR_OFFSET = 1.001  # RBR = dNBR / (NBR before + RBR_OFFSET) (Parks et al. 2014)
 RBR = {
@@ -39,6 +44,23 @@ NBR = {
 	'notes': {'f': 'Burn severity: dNBR = NBR before - NBR after the fire (compare_series or download_comparison give '
 	               'after - before, that is -dNBR); dNBR > 0.1 burned (Key & Benson 2006).'},
 }
+SCF_PALETTE = ['f7fbff', 'deebf7', 'c6dbef', '9ecae1', '6baed6', '4292c6', '2171b5', '08519c', '08306b']
+SCF = {
+	'vname': 'Frecuencia de nieve', 'vname_en': 'Snow cover frequency', 'vname_fr': 'Snow cover frequency',
+	'vname_de': 'Snow cover frequency', 'unit': '[%]', 'minp': 0, 'maxp': 100, 'pm': SCF_PALETTE, 'pg': '#4292c6',
+	'metric': 'mean',  # the only metric: the mean of the images (100 or 0) of a pixel is its frequency
+	'notes': {
+		'ft': 'Snow cover frequency (SCF): % of the clear observations of each pixel with snow or ice. In the sun, snow '
+		      'is NDSI >= 0.35, green > 0.1 and NIR > 0.1 (surface reflectance), without the pixels flagged as water. In '
+		      'the shadow of the relief (hillShadow of the SRTM with the sun of each scene), above 1500 m, snow is NDSI '
+		      '>= 0.35 and green >= 0.08 of the TOA reflectance; below 1500 m, no data. Clouds: QA_PIXEL bits 3 and 9 '
+		      '(cloud shadows are kept); scenes with less than 80 % of clouds. The thresholds were set in Sierra Nevada. '
+		      'Its only metric is the mean.',
+		'metric': 'it is the mean of the images of each pixel (100 = snow, 0 = no snow), that is, the % of the clear '
+		          'observations with snow',
+	},
+}
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF}  # fields of the variables of EXTRA, by index
 
 _catalog = None
 
@@ -56,7 +78,7 @@ def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
-	extra = [dict(by_ref[base], **dict(NBR, **(RBR if changes['index'] == 'RBR' else {}), **changes), ref=ref)
+	extra = [dict(by_ref[base], **dict(TEMPLATES[changes['index']], **changes), ref=ref)
 	         for ref, (base, changes) in EXTRA.items() if base in by_ref]
 	return entries + extra
 

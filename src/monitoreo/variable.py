@@ -79,11 +79,10 @@ def specs(var, defaults=None, two_periods=False):
 	if unknown:
 		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use {', '.join(sensors.QUALITY)}")
 	k = kind(base)
-	if k == 'catalog' and not two_periods:
-		e = entry_of(base)
-		if e.get('two_periods'):
-			raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
-			                 f"it with burn_severity and index '{e['index']}'")
+	e = entry_of(base) if k == 'catalog' else {}
+	if e.get('two_periods') and not two_periods:
+		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
+		                 f"it with burn_severity and index '{e['index']}'")
 	if k == 'image':
 		metrics = [None]
 	else:
@@ -93,6 +92,11 @@ def specs(var, defaults=None, two_periods=False):
 		metrics = metrics if isinstance(metrics, list) else [metrics]
 		for m in metrics + ([base['interannual']] if base['temporal'] != 'period' else []):
 			composite.check_metric(m)
+		only = e.get('metric')  # the only metric of a variable (the SCF, a frequency, is the mean of its images)
+		if only and any(str(m).strip().lower() != only for m in metrics):
+			why = e.get('notes', {}).get('metric')
+			raise ValueError(f"{e['index']} ({e['sensor']}) only takes the metric '{only}'{f': {why}' if why else ''}. "
+			                 f"Use metric '{only}' (the metric between years, interannual, can be any)")
 		if base['temporal'] not in composite.TEMPORAL:
 			raise ValueError(f"unknown temporal {base['temporal']}: use {', '.join(composite.TEMPORAL)}")
 		if not base.get('period'):

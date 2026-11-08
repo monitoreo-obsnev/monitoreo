@@ -95,6 +95,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 3276.7,
+   "metric": null,
    "minp": -3276.7,
    "offset": 0,
    "pm": [
@@ -132,6 +133,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 327000000,
+   "metric": null,
    "minp": -327670000,
    "offset": 0,
    "pm": [
@@ -170,6 +172,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -215,6 +218,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": null,
+   "metric": null,
    "minp": null,
    "offset": 0,
    "pm": [
@@ -260,6 +264,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -299,6 +304,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -338,6 +344,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -378,6 +385,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -418,6 +426,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -462,6 +471,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -1,
    "offset": 0,
    "pm": [
@@ -509,6 +519,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -563,6 +574,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 32.77,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -624,6 +636,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -677,6 +690,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -124.15,
    "pm": [
@@ -715,6 +729,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -753,6 +768,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -791,6 +807,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -834,6 +851,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -879,6 +897,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -924,6 +943,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -967,6 +987,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1010,6 +1031,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1055,6 +1077,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1099,6 +1122,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -1142,6 +1166,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1185,6 +1210,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1229,6 +1255,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1272,6 +1299,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 0.01,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1319,6 +1347,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 463,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": "#",
    "pm": [
@@ -1362,6 +1391,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -1401,6 +1431,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1444,6 +1475,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 500,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1488,6 +1520,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1525,6 +1558,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1562,6 +1596,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 20,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1599,6 +1634,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1622,6 +1658,45 @@ var CATALOG = {
    "unit": "[unitless]",
    "vname": "Índice Relativizado de Quema",
    "vname_en": "Relativized Burn Ratio"
+  },
+  {
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "green",
+    "nir",
+    "swir1"
+   ],
+   "fk": "scf",
+   "ft": "SCF(green,nir,swir1)",
+   "index": "SCF",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": -0.2,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 105,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
   }
  ]
 };
