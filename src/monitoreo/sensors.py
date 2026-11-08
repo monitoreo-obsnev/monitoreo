@@ -82,12 +82,18 @@ SCF_TOA = {  # TOA collection of each Landsat collection, with its green and SWI
 	'LANDSAT/LC08/C02/T1_L2': ('LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']),
 	'LANDSAT/LC09/C02/T1_L2': ('LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']),
 }
-SCF_FILTERS = {'clouds', 'water'}
+SCF_FILTERS = {'clouds', 'water'}  # fixed: the SCF is the % of the clear observations (see fixed_filters)
 
 
 def is_scf(entry):
 	"""Whether ENTRY is the snow cover frequency (formula SCF(green,nir,swir1))."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
+
+
+def fixed_filters(entry):
+	"""Pixel filters always on for ENTRY, whatever the quality, or None if they can be chosen: those of the snow cover
+	frequency, clouds and water (never snow, what it measures, nor aerosols)."""
+	return [f for f in FILTERS if f in SCF_FILTERS] if is_scf(entry) else None
 
 
 def bits(band, first, last=None):
@@ -148,12 +154,14 @@ PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 
 def filters(entry, quality=None):
 	"""Pixel filters (clouds, water, snow, aerosols) that apply to ENTRY with QUALITY: {filter: True/False}, with
-	'auto' resolved and False for the filters its sensor has no QA band for (e.g. aerosols of Sentinel-2)."""
+	'auto' resolved and False for the filters its sensor has no QA band for (e.g. aerosols of Sentinel-2); with fixed
+	filters (the SCF), those, whatever QUALITY says."""
+	fixed = fixed_filters(entry)
+	if fixed is not None:
+		return {f: f in fixed for f in FILTERS}
 	quality = dict(QUALITY, **(quality or {}))
 	sensor, col = entry['sensor'], entry['col']
 	available = {'Sentinel-2': {'clouds', 'water', 'snow'}, 'Landsat': set(FILTERS)}.get(sensor)
-	if is_scf(entry):
-		available = SCF_FILTERS
 	if available is None:
 		available = {f for f in FILTERS if f in PRODUCTS.get(col, {})}
 	out = {}
@@ -334,7 +342,6 @@ def scf_collection(entry, region, start, end, quality, resample=None):
 	_, (green, nir, swir1) = parse_formula(entry)
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
-	on = filters(entry, quality)
 	dem = ee.Image(SCF['dem'])
 	high = dem.gte(SCF['min_elevation'])
 
@@ -352,8 +359,8 @@ def scf_collection(entry, region, start, end, quality, resample=None):
 		lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF['shadow_reach'], True)
 		shade = lit.Not()
 		qa = img.select('QA_PIXEL')
-		clear = bits(qa, 3).eq(0).And(bits(qa, 9).eq(0)) if on['clouds'] else ee.Image(1)
-		dry = bits(qa, 7).eq(0) if on['water'] else ee.Image(1)
+		clear = bits(qa, 3).eq(0).And(bits(qa, 9).eq(0))  # its fixed filters (SCF_FILTERS): clouds and water
+		dry = bits(qa, 7).eq(0)
 		valid_sun = lit.And(clear).And(dry).And(snow_sun.mask())
 		valid_shade = shade.And(high).And(clear.unmask(0)).And(snow_shade.mask())
 		snow = snow_sun.unmask(0).And(lit).Or(snow_shade.unmask(0).And(shade))

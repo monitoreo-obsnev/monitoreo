@@ -176,8 +176,8 @@ e.g. ["06-01", "08-31"] for the summer.
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
-"Landsat", always with metric "mean", also in maps (whose default is the median); its filters are its own, so pass no \
-quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
+"Landsat", always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water \
+are always removed, whatever the quality), so pass no quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \

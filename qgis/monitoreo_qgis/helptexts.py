@@ -192,6 +192,9 @@ def describe(v):
 def filter_lines(v, d):
 	"""The filters that can be applied to V (described by D) and those that remove what it measures."""
 	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f)]
+	if d.get('fixed_filters') is not None:  # the snow cover frequency: always without clouds and water
+		return [f"{v['variable']} of {v['sensor']} has fixed filters, which cannot be changed: it always removes "
+		        f"{' and '.join(names)}."]
 	out = [f"With {v['variable']} of {v['sensor']} you can remove: {', '.join(names) or 'no filter'}."]
 	for f in d['measures']:
 		if d['pixel_filters'].get(f):

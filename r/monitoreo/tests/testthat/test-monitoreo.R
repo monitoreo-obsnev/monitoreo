@@ -12,6 +12,7 @@ test_that("catalog and regions", {
   expect_true("NDVI" %in% v$variable)
   expect_equal(mo_describe("NDSI", "Modis")$measures, "snow")
   expect_equal(mo_describe("SCF", "Landsat")$metric, "mean")  # snow cover frequency: only the mean
+  expect_equal(unlist(mo_describe("SCF", "Landsat")$fixed_filters), c("clouds", "water"))  # always, fixed
   expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
                "only takes the metric 'mean'")
   expect_equal(mo_bbox(-3.6, 36.8, -3.5, 36.9)$bbox[[3]], -3.5)
