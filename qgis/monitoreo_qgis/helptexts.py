@@ -1,16 +1,33 @@
 """Help of the options of the MonitorEO panel, shown by their buttons ⓘ: short texts in English (rich text of Qt),
 each ending with a link to the section of the manual (the English pages of the wiki of the repository) that explains
 it. The help of the variable and of the pixel filters also describes the variable chosen (variable_help,
-filters_help)."""
+filters_help), with the references of its formula and of its data (monitoreo.references), with their DOIs."""
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import about, sensors, services  # noqa: E402
+from monitoreo import about, references, sensors, services  # noqa: E402
 
 MANUAL = f'{about.MANUAL}/QGIS-plugin'  # the English page of the plugin in the wiki
 FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 MEASURED = {'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
+
+
+def cite_html(refs, credits=(), title='References'):
+	"""The references REFS (dictionaries of monitoreo.references) and the credits of the data as rich text, with the
+	links of their DOIs."""
+	if not refs:
+		return ''
+	esc = lambda t: str(t).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+	link = lambda url: f' <a href="{esc(url)}">{esc(url)}</a>' if url else ''
+	items = ''.join(f"<li>{esc(r['citation'])}{link(r.get('url'))}</li>" for r in refs)
+	return f'<p><b>{title}</b></p><ul>{items}</ul>' + (f"<p>{esc(' · '.join(credits))}</p>" if credits else '')
+
+
+def method_references(name):
+	"""The references of a method of the catalog (trends, burn_severity, rbr)."""
+	from monitoreo import catalog
+	return [references.get(i) for i in catalog.load()['methods'].get(name, [])]
 
 
 def manual(page):
@@ -131,7 +148,7 @@ HELP = {
 		'Each year gives a value of each part; with those values, the Mann-Kendall test tells whether there is a trend, '
 		'and Sen\'s slope, how much the variable changes per year.</p>'
 		'<p>At least 2 years are needed, and better 8 or more: for long series, Landsat or MODIS.</p>'
-		+ manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
+		+ cite_html(method_references('trends')) + manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'trend_metric':
 		'<p>How the images of each part of the year are summarized in each year: with <b>Months</b> and <b>Mean</b>, '
 		'the mean of the images of each July. In the table, that value is computed for the region with the '
@@ -206,7 +223,10 @@ def variable_help(v):
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
 	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
-	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#variables')
+	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + \
+		cite_html(d.get('references'), d.get('credits'),
+		          'References of its formula and its data (cite them with its results)') + \
+		manual('Concepts#variables')
 
 
 def filters_help(v):

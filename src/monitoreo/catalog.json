@@ -21,7 +21,8 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
-  "notes": "comments of the fields"
+  "notes": "comments of the fields",
+  "references": "articles of the formula or algorithm of the variable (their IDs in references)"
  },
  "collections": {
   "MODIS/061/MOD10A1": {
@@ -85,6 +86,348 @@
    "end": null
   }
  },
+ "datasets": {
+  "COPERNICUS/S2_SR_HARMONIZED": {
+   "references": [
+    "esa_s2_l2a"
+   ],
+   "credit": "Contains modified Copernicus Sentinel data {data_years}"
+  },
+  "LANDSAT/LT05/C02/T1_L2": {
+   "references": [
+    "usgs_landsat45"
+   ],
+   "credit": "Landsat Collection 2 Level-2 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LE07/C02/T1_L2": {
+   "references": [
+    "usgs_landsat7"
+   ],
+   "credit": "Landsat Collection 2 Level-2 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LC08/C02/T1_L2": {
+   "references": [
+    "usgs_landsat89"
+   ],
+   "credit": "Landsat Collection 2 Level-2 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LC09/C02/T1_L2": {
+   "references": [
+    "usgs_landsat89"
+   ],
+   "credit": "Landsat Collection 2 Level-2 data courtesy of the U.S. Geological Survey"
+  },
+  "MODIS/061/MOD16A2": {
+   "references": [
+    "mod16a2"
+   ]
+  },
+  "MODIS/061/MOD10A1": {
+   "references": [
+    "mod10a1"
+   ]
+  },
+  "MODIS/061/MYD10A1": {
+   "references": [
+    "myd10a1"
+   ]
+  },
+  "MODIS/061/MOD11A1": {
+   "references": [
+    "mod11a1"
+   ]
+  },
+  "MODIS/061/MYD11A1": {
+   "references": [
+    "myd11a1"
+   ]
+  },
+  "MODIS/061/MOD13Q1": {
+   "references": [
+    "mod13q1"
+   ]
+  },
+  "MODIS/061/MYD13Q1": {
+   "references": [
+    "myd13q1"
+   ]
+  },
+  "MODIS/061/MCD43A3": {
+   "references": [
+    "mcd43a3"
+   ]
+  },
+  "MODIS/061/MCD15A3H": {
+   "references": [
+    "mcd15a3h"
+   ]
+  },
+  "MODIS/061/MCD19A2_GRANULES": {
+   "references": [
+    "mcd19a2"
+   ]
+  },
+  "MODIS/MOD09GA_006_NDWI": {
+   "references": [
+    "mod09ga"
+   ]
+  },
+  "NASA/OCEANDATA/MODIS-Aqua/L3SMI": {
+   "references": [
+    "obpg_aqua_chl"
+   ]
+  },
+  "NASA/OCEANDATA/MODIS-Terra/L3SMI": {
+   "references": [
+    "obpg_terra_chl"
+   ]
+  },
+  "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED": {
+   "references": [
+    "pasquarella2023"
+   ]
+  },
+  "ESA/WorldCover/v200": {
+   "references": [
+    "zanaga2022"
+   ]
+  },
+  "RESOLVE/ECOREGIONS/2017": {
+   "references": [
+    "dinerstein2017"
+   ]
+  },
+  "WCMC/WDPA/current/polygons": {
+   "references": [
+    "wdpa"
+   ]
+  }
+ },
+ "methods": {
+  "earth_engine": [
+   "gorelick2017"
+  ],
+  "trends": [
+   "mann1945",
+   "kendall1938",
+   "sen1968"
+  ],
+  "burn_severity": [
+   "key2006"
+  ],
+  "rbr": [
+   "parks2014",
+   "silvacardoza2022"
+  ],
+  "landsat_qa": [
+   "foga2017"
+  ],
+  "sentinel2_scl": [
+   "mainknorn2017"
+  ]
+ },
+ "references": {
+  "gorelick2017": {
+   "citation": "Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18–27.",
+   "doi": "10.1016/j.rse.2017.06.031"
+  },
+  "tucker1979": {
+   "citation": "Tucker, C. J. (1979). Red and photographic infrared linear combinations for monitoring vegetation. Remote Sensing of Environment, 8(2), 127–150.",
+   "doi": "10.1016/0034-4257(79)90013-0"
+  },
+  "huete2002": {
+   "citation": "Huete, A., Didan, K., Miura, T., Rodriguez, E. P., Gao, X., & Ferreira, L. G. (2002). Overview of the radiometric and biophysical performance of the MODIS vegetation indices. Remote Sensing of Environment, 83(1–2), 195–213.",
+   "doi": "10.1016/S0034-4257(02)00096-2"
+  },
+  "myneni2002": {
+   "citation": "Myneni, R. B., Hoffman, S., Knyazikhin, Y., Privette, J. L., Glassy, J., Tian, Y., Wang, Y., Song, X., Zhang, Y., Smith, G. R., Lotsch, A., Friedl, M., Morisette, J. T., Votava, P., Nemani, R. R., & Running, S. W. (2002). Global products of vegetation leaf area and fraction absorbed PAR from year one of MODIS data. Remote Sensing of Environment, 83(1–2), 214–231.",
+   "doi": "10.1016/S0034-4257(02)00074-3"
+  },
+  "oreilly1998": {
+   "citation": "O'Reilly, J. E., Maritorena, S., Mitchell, B. G., Siegel, D. A., Carder, K. L., Garver, S. A., Kahru, M., & McClain, C. (1998). Ocean color chlorophyll algorithms for SeaWiFS. Journal of Geophysical Research: Oceans, 103(C11), 24937–24953.",
+   "doi": "10.1029/98JC02160"
+  },
+  "hu2012": {
+   "citation": "Hu, C., Lee, Z., & Franz, B. (2012). Chlorophyll a algorithms for oligotrophic oceans: A novel approach based on three-band reflectance difference. Journal of Geophysical Research: Oceans, 117(C1).",
+   "doi": "10.1029/2011JC007395"
+  },
+  "mishra2012": {
+   "citation": "Mishra, S., & Mishra, D. R. (2012). Normalized difference chlorophyll index: A novel model for remote estimation of chlorophyll-a concentration in turbid productive waters. Remote Sensing of Environment, 117, 394–406.",
+   "doi": "10.1016/j.rse.2011.10.016"
+  },
+  "llodrallabres2026": {
+   "citation": "Llodrà-Llabrés, J., Pérez-Girón, J. C., Postma, T., Pérez-Martínez, C., Alcaraz-Segura, D., & Martínez-López, J. (2026). Satellite solutions: Facing chlorophyll-a retrieval in small mountain lakes in the Sierra Nevada, Spain. Water Resources Research, 62(3), e2026WR043523.",
+   "doi": "10.1029/2026WR043523"
+  },
+  "mcfeeters1996": {
+   "citation": "McFeeters, S. K. (1996). The use of the Normalized Difference Water Index (NDWI) in the delineation of open water features. International Journal of Remote Sensing, 17(7), 1425–1432.",
+   "doi": "10.1080/01431169608948714"
+  },
+  "gao1996": {
+   "citation": "Gao, B.-C. (1996). NDWI—A normalized difference water index for remote sensing of vegetation liquid water from space. Remote Sensing of Environment, 58(3), 257–266.",
+   "doi": "10.1016/S0034-4257(96)00067-3"
+  },
+  "xiao2004": {
+   "citation": "Xiao, X., Zhang, Q., Braswell, B., Urbanski, S., Boles, S., Wofsy, S., Moore, B., & Ojima, D. (2004). Modeling gross primary production of temperate deciduous broadleaf forest using satellite images and climate data. Remote Sensing of Environment, 91(2), 256–270.",
+   "doi": "10.1016/j.rse.2004.03.010"
+  },
+  "hall1995": {
+   "citation": "Hall, D. K., Riggs, G. A., & Salomonson, V. V. (1995). Development of methods for mapping global snow cover using moderate resolution imaging spectroradiometer data. Remote Sensing of Environment, 54(2), 127–140.",
+   "doi": "10.1016/0034-4257(95)00137-P"
+  },
+  "riggs2017": {
+   "citation": "Riggs, G. A., Hall, D. K., & Román, M. O. (2017). Overview of NASA's MODIS and Visible Infrared Imaging Radiometer Suite (VIIRS) snow-cover Earth System Data Records. Earth System Science Data, 9(2), 765–777.",
+   "doi": "10.5194/essd-9-765-2017"
+  },
+  "mu2011": {
+   "citation": "Mu, Q., Zhao, M., & Running, S. W. (2011). Improvements to a MODIS global terrestrial evapotranspiration algorithm. Remote Sensing of Environment, 115(8), 1781–1800.",
+   "doi": "10.1016/j.rse.2011.02.019"
+  },
+  "wan1996": {
+   "citation": "Wan, Z., & Dozier, J. (1996). A generalized split-window algorithm for retrieving land-surface temperature from space. IEEE Transactions on Geoscience and Remote Sensing, 34(4), 892–905.",
+   "doi": "10.1109/36.508406"
+  },
+  "wan2014": {
+   "citation": "Wan, Z. (2014). New refinements and validation of the collection-6 MODIS land-surface temperature/emissivity product. Remote Sensing of Environment, 140, 36–45.",
+   "doi": "10.1016/j.rse.2013.08.027"
+  },
+  "cook2014": {
+   "citation": "Cook, M., Schott, J., Mandel, J., & Raqueno, N. (2014). Development of an operational calibration methodology for the Landsat thermal data archive and initial testing of the atmospheric compensation component of a Land Surface Temperature (LST) product from the archive. Remote Sensing, 6(11), 11244–11266.",
+   "doi": "10.3390/rs61111244"
+  },
+  "schaaf2002": {
+   "citation": "Schaaf, C. B., Gao, F., Strahler, A. H., Lucht, W., Li, X., Tsang, T., Strugnell, N. C., Zhang, X., Jin, Y., Muller, J.-P., Lewis, P., Barnsley, M., Hobson, P., Disney, M., Roberts, G., Dunderdale, M., Doll, C., d'Entremont, R. P., Hu, B., et al. (2002). First operational BRDF, albedo nadir reflectance products from MODIS. Remote Sensing of Environment, 83(1–2), 135–148.",
+   "doi": "10.1016/S0034-4257(02)00091-3"
+  },
+  "liang2001": {
+   "citation": "Liang, S. (2001). Narrowband to broadband conversions of land surface albedo I: Algorithms. Remote Sensing of Environment, 76(2), 213–238.",
+   "doi": "10.1016/S0034-4257(00)00205-4"
+  },
+  "lyapustin2018": {
+   "citation": "Lyapustin, A., Wang, Y., Korkin, S., & Huang, D. (2018). MODIS Collection 6 MAIAC algorithm. Atmospheric Measurement Techniques, 11(10), 5741–5765.",
+   "doi": "10.5194/amt-11-5741-2018"
+  },
+  "garcia1991": {
+   "citation": "García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper data. Geocarto International, 6(1), 31–37.",
+   "doi": "10.1080/10106049109354290"
+  },
+  "parks2014": {
+   "citation": "Parks, S. A., Dillon, G. K., & Miller, C. (2014). A new metric for quantifying burn severity: The Relativized Burn Ratio. Remote Sensing, 6(3), 1827–1844.",
+   "doi": "10.3390/rs6031827"
+  },
+  "silvacardoza2022": {
+   "citation": "Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C. I., López-Serrano, P. M., Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological correction and the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and burned area. Remote Sensing, 14(13), 3122.",
+   "doi": "10.3390/rs14133122"
+  },
+  "key2006": {
+   "citation": "Key, C. H., & Benson, N. C. (2006). Landscape assessment (LA): Sampling and analysis methods. In D. C. Lutes, R. E. Keane, J. F. Caratti, C. H. Key, N. C. Benson, S. Sutherland, & L. J. Gangi (Eds.), FIREMON: Fire effects monitoring and inventory system (Gen. Tech. Rep. RMRS-GTR-164-CD, pp. LA-1–LA-55). USDA Forest Service, Rocky Mountain Research Station.",
+   "url": "https://www.fs.usda.gov/rm/pubs_series/rmrs/gtr/rmrs_gtr164/rmrs_gtr164_13_land_assess.pdf"
+  },
+  "mann1945": {
+   "citation": "Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245–259.",
+   "doi": "10.2307/1907187"
+  },
+  "kendall1938": {
+   "citation": "Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1–2), 81–93.",
+   "doi": "10.1093/biomet/30.1-2.81"
+  },
+  "sen1968": {
+   "citation": "Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American Statistical Association, 63(324), 1379–1389.",
+   "doi": "10.1080/01621459.1968.10480934"
+  },
+  "foga2017": {
+   "citation": "Foga, S., Scaramuzza, P. L., Guo, S., Zhu, Z., Dilley, R. D., Beckmann, T., Schmidt, G. L., Dwyer, J. L., Hughes, M. J., & Laue, B. (2017). Cloud detection algorithm comparison and validation for operational Landsat data products. Remote Sensing of Environment, 194, 379–390.",
+   "doi": "10.1016/j.rse.2017.03.026"
+  },
+  "mainknorn2017": {
+   "citation": "Main-Knorn, M., Pflug, B., Louis, J., Debaecker, V., Müller-Wilm, U., & Gascon, F. (2017). Sen2Cor for Sentinel-2. In L. Bruzzone, F. Bovolo, & J. A. Benediktsson (Eds.), Image and Signal Processing for Remote Sensing XXIII. SPIE.",
+   "doi": "10.1117/12.2278218"
+  },
+  "pasquarella2023": {
+   "citation": "Pasquarella, V. J., Brown, C. F., Czerwinski, W., & Rucklidge, W. J. (2023). Comprehensive quality assessment of optical satellite imagery using weakly supervised video learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) (pp. 2125–2135).",
+   "doi": "10.1109/CVPRW59228.2023.00206"
+  },
+  "dinerstein2017": {
+   "citation": "Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., Hahn, N., Palminteri, S., Hedao, P., Noss, R., Hansen, M., Locke, H., Ellis, E. C., Jones, B., Barber, C. V., Hayes, R., Kormos, C., Martin, V., Crist, E., et al. (2017). An ecoregion-based approach to protecting half the terrestrial realm. BioScience, 67(6), 534–545.",
+   "doi": "10.1093/biosci/bix014"
+  },
+  "wdpa": {
+   "citation": "UNEP-WCMC & IUCN ({year}). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], {month_year}. Cambridge, UK: UNEP-WCMC and IUCN.",
+   "url": "https://www.protectedplanet.net"
+  },
+  "zanaga2022": {
+   "citation": "Zanaga, D., Van De Kerchove, R., Daems, D., De Keersmaecker, W., Brockmann, C., Kirches, G., Wevers, J., Cartus, O., Santoro, M., Fritz, S., Lesiv, M., Herold, M., Tsendbazar, N.-E., Xu, P., Ramoino, F., & Arino, O. (2022). ESA WorldCover 10 m 2021 v200 [Data set]. Zenodo.",
+   "doi": "10.5281/zenodo.7254221"
+  },
+  "esa_s2_l2a": {
+   "citation": "European Space Agency (2022). Sentinel-2 MSI Level-2A BOA Reflectance [Data set].",
+   "doi": "10.5270/S2_-znk9xsj"
+  },
+  "usgs_landsat45": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (2020). Landsat 4-5 Thematic Mapper Level-2, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P9IAXOVV"
+  },
+  "usgs_landsat7": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (1999). Landsat 7 Enhanced Thematic Mapper Plus Level-2, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P9C7I13B"
+  },
+  "usgs_landsat89": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (2013). Landsat 8-9 Operational Land Imager / Thermal Infrared Sensor Level-2, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P9OGBGM6"
+  },
+  "mod16a2": {
+   "citation": "Running, S., Mu, Q., & Zhao, M. (2021). MODIS/Terra Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD16A2.061"
+  },
+  "mod10a1": {
+   "citation": "Hall, D. K., & Riggs, G. A. (2021). MODIS/Terra Snow Cover Daily L3 Global 500m SIN Grid, Version 61 [Data set]. NASA National Snow and Ice Data Center Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD10A1.061"
+  },
+  "myd10a1": {
+   "citation": "Hall, D. K., & Riggs, G. A. (2021). MODIS/Aqua Snow Cover Daily L3 Global 500m SIN Grid, Version 61 [Data set]. NASA National Snow and Ice Data Center Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MYD10A1.061"
+  },
+  "mod11a1": {
+   "citation": "Wan, Z., Hook, S., & Hulley, G. (2021). MODIS/Terra Land Surface Temperature/Emissivity Daily L3 Global 1km SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD11A1.061"
+  },
+  "myd11a1": {
+   "citation": "Wan, Z., Hook, S., & Hulley, G. (2021). MODIS/Aqua Land Surface Temperature/Emissivity Daily L3 Global 1km SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MYD11A1.061"
+  },
+  "mod13q1": {
+   "citation": "Didan, K. (2021). MODIS/Terra Vegetation Indices 16-Day L3 Global 250m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD13Q1.061"
+  },
+  "myd13q1": {
+   "citation": "Didan, K. (2021). MODIS/Aqua Vegetation Indices 16-Day L3 Global 250m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MYD13Q1.061"
+  },
+  "mcd43a3": {
+   "citation": "Schaaf, C., & Wang, Z. (2021). MODIS/Terra+Aqua BRDF/Albedo Daily L3 Global - 500m V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MCD43A3.061"
+  },
+  "mcd15a3h": {
+   "citation": "Myneni, R., Knyazikhin, Y., & Park, T. (2021). MODIS/Terra+Aqua Leaf Area Index/FPAR 4-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MCD15A3H.061"
+  },
+  "mcd19a2": {
+   "citation": "Lyapustin, A., & Wang, Y. (2022). MODIS/Terra+Aqua Land Aerosol Optical Depth Daily L2G Global 1km SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MCD19A2.061"
+  },
+  "mod09ga": {
+   "citation": "Vermote, E., & Wolfe, R. (2015). MOD09GA MODIS/Terra Surface Reflectance Daily L2G Global 1km and 500m SIN Grid V006 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD09GA.006"
+  },
+  "obpg_aqua_chl": {
+   "citation": "NASA Goddard Space Flight Center, Ocean Ecology Laboratory, Ocean Biology Processing Group (2017). MODIS-Aqua Level 3 Mapped Chlorophyll Data Version R2018.0 [Data set]. NASA Ocean Biology DAAC.",
+   "doi": "10.5067/AQUA/MODIS/L3M/CHL/2018"
+  },
+  "obpg_terra_chl": {
+   "citation": "NASA Goddard Space Flight Center, Ocean Ecology Laboratory, Ocean Biology Processing Group (2018). MODIS-Terra Level 3 Mapped Chlorophyll Data Version R2018.0 [Data set]. NASA Ocean Biology DAAC.",
+   "doi": "10.5067/TERRA/MODIS/L3M/CHL/2018"
+  }
+ },
  "variables": [
   {
    "ref": 1,
@@ -103,6 +446,9 @@
    "fe": 0,
    "QA": "ET_QC",
    "unit": "[kg/m²/8 days]",
+   "references": [
+    "mu2011"
+   ],
    "clouds": 0,
    "clouds_bandQA": "ET_QC",
    "water": 0,
@@ -166,6 +512,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[J/m²/day]",
+   "references": [
+    "mu2011"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -226,6 +575,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "xiao2004"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -297,6 +649,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "xiao2004"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -365,6 +720,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "hall1995"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -431,6 +789,10 @@
    "fe": 0,
    "QA": "NDSI_Snow_Cover_Basic_QA_Bitmask",
    "unit": "[unitless]",
+   "references": [
+    "hall1995",
+    "riggs2017"
+   ],
    "clouds": 0,
    "clouds_bandQA": "NDSI_Snow_Cover_Class",
    "water": 0,
@@ -496,6 +858,10 @@
    "fe": 0,
    "QA": "NDSI_Snow_Cover_Basic_QA_Bitmask",
    "unit": "[unitless]",
+   "references": [
+    "hall1995",
+    "riggs2017"
+   ],
    "clouds": 0,
    "clouds_bandQA": "NDSI_Snow_Cover_Class",
    "water": 0,
@@ -561,6 +927,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "hall1995"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -626,6 +995,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "mcfeeters1996"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -696,6 +1068,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "mcfeeters1996"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -765,6 +1140,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "liang2001"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -845,6 +1223,9 @@
    "fe": 0,
    "QA": "BRDF_Albedo_Band_Mandatory_Quality_shortwave",
    "unit": "[unitless]",
+   "references": [
+    "schaaf2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -924,6 +1305,7 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -983,7 +1365,8 @@
    "type_de": "Radiation balance",
    "large_areas": false,
    "notes": {
-    "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\""
+    "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\"",
+    "references": "source of the coefficients of the Sentinel-2 albedo to be cited (no article found with them)"
    }
   },
   {
@@ -1003,6 +1386,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[ºC]",
+   "references": [
+    "cook2014"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -1068,6 +1454,10 @@
    "fe": 0,
    "QA": "QC_day_Bitmask",
    "unit": "[ºC]",
+   "references": [
+    "wan1996",
+    "wan2014"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -1132,6 +1522,10 @@
    "fe": 0,
    "QA": "QC_day_Bitmask",
    "unit": "[ºC]",
+   "references": [
+    "wan1996",
+    "wan2014"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -1196,6 +1590,10 @@
    "fe": 0,
    "QA": "#",
    "unit": "[mg m⁻³]",
+   "references": [
+    "oreilly1998",
+    "hu2012"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -1262,6 +1660,10 @@
    "fe": 0,
    "QA": "#",
    "unit": "[mg m⁻³]",
+   "references": [
+    "oreilly1998",
+    "hu2012"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -1328,6 +1730,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[mg m⁻³]",
+   "references": [
+    "llodrallabres2026"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -1399,6 +1804,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -1469,6 +1877,9 @@
    "fe": 0,
    "QA": "DetailedQA",
    "unit": "[unitless]",
+   "references": [
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "DetailedQA",
    "water": 0,
@@ -1538,6 +1949,9 @@
    "fe": 0,
    "QA": "DetailedQA",
    "unit": "[unitless]",
+   "references": [
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "DetailedQA",
    "water": 0,
@@ -1607,6 +2021,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -1677,6 +2094,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "tucker1979"
+   ],
    "clouds": 0,
    "clouds_bandQA": "QA_PIXEL",
    "water": 0,
@@ -1748,6 +2168,10 @@
    "fe": 0,
    "QA": "DetailedQA",
    "unit": "[unitless]",
+   "references": [
+    "tucker1979",
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "DetailedQA",
    "water": 0,
@@ -1817,6 +2241,10 @@
    "fe": 0,
    "QA": "DetailedQA",
    "unit": "[unitless]",
+   "references": [
+    "tucker1979",
+    "huete2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "DetailedQA",
    "water": 0,
@@ -1886,6 +2314,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "tucker1979"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -1955,6 +2386,9 @@
    "fe": 0,
    "QA": "AOD_QA Bitmask",
    "unit": "[unitless]",
+   "references": [
+    "lyapustin2018"
+   ],
    "clouds": 0,
    "clouds_bandQA": "AOD_QA Bitmask",
    "water": 0,
@@ -2028,6 +2462,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "gao1996"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -2098,6 +2535,10 @@
    "fe": 0,
    "QA": "#",
    "unit": "[ºC]",
+   "references": [
+    "wan1996",
+    "wan2014"
+   ],
    "clouds": 0,
    "clouds_bandQA": "#",
    "water": 0,
@@ -2163,6 +2604,9 @@
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
+   "references": [
+    "mishra2012"
+   ],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -2232,6 +2676,9 @@
    "fe": 0,
    "QA": "DetailedQA",
    "unit": "[unitless]",
+   "references": [
+    "myneni2002"
+   ],
    "clouds": 0,
    "clouds_bandQA": "DetailedQA",
    "water": 0,

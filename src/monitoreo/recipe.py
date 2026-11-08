@@ -40,7 +40,7 @@ import os
 import re
 import time
 
-from . import __version__, areas, drive, sensors
+from . import __version__, areas, drive, references, sensors
 from . import variable as variables
 from .grid import Grid, download
 
@@ -291,12 +291,15 @@ def run(p, folder, record=RECORD, overwrite=False, drive_all=False, drive_dir=No
 			if name == 'ecoregion':
 				img = img.clipToCollection(p.eco)
 			desc = variables.describe(s)
+			cited = '\n'.join(references.texts(references.cite('download_image', dict(
+				s, start=(s.get('period') or [None])[0], end=(s.get('period') or [None, None])[1]),
+				datasets=[references.ECOREGIONS] if name == 'ecoregion' else [])))
 			n = variables.n_images(s, region)
 			if n == 0:
 				log(f'  WARNING: {f}: no images in the period; the file will be all NoData')
 			if via_drive[name]:
 				drive_name = f'{prefix}{name}_{os.path.splitext(f)[0]}'
-				tasks[f] = {'spec': key, 'grid': rec['grid'], 'source': desc, 'images': n,
+				tasks[f] = {'spec': key, 'grid': rec['grid'], 'source': desc, 'images': n, 'references': cited,
 				            'operation': drive.export(img, g, drive_name, drive_folder, project),
 				            'drive_folder': drive_folder, 'drive_name': drive_name, 'started': _now()}
 				save_record(outdir, rec, record)
@@ -309,7 +312,8 @@ def run(p, folder, record=RECORD, overwrite=False, drive_all=False, drive_dir=No
 			try:
 				download(img, g, path, tile=tile, workers=workers,
 				         progress=(lambda done, total, f=f: progress(f, done, total)) if progress else None,
-				         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
+				         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str),
+				                   'references': cited})
 			except Exception as e:
 				save_record(outdir, rec, record)
 				raise RuntimeError(f'{f}: {e}') from e
@@ -360,7 +364,8 @@ def import_exports(pending, recs, grids, dirs, local, record=RECORD, wait=True, 
 					msg = 'exported, waiting for Google Drive to copy it to this computer'
 				else:
 					drive.mosaic(found, grids[name], os.path.join(outdir, f), metadata={
-						'source': 'Google Earth Engine', 'monitoreo': json.dumps(t['source'], default=str)})
+						'source': 'Google Earth Engine', 'monitoreo': json.dumps(t['source'], default=str),
+						**({'references': t['references']} if t.get('references') else {})})
 					rec['files'][f] = {k: t[k] for k in ('spec', 'grid', 'source', 'images')}
 					rec['files'][f].update({'downloaded': _now(), 'via': f"Google Drive/{t['drive_folder']}"})
 					del rec['tasks'][f]

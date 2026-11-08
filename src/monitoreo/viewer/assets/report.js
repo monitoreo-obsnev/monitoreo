@@ -1,5 +1,5 @@
-// A report (report.html?id=<id>): its texts, a map or a chart for each result with its downloads and the call that
-// produced it, the downloads of the report and how to cite it.
+// A report (report.html?id=<id>): its texts, a map or a chart for each result with its downloads, the call that
+// produced it and the numbers of its references, the downloads of the report, its references and how to cite it.
 'use strict';
 
 (async () => {
@@ -84,6 +84,10 @@
 			tools.append(...[toggle, link(r.csv, 'Download the CSV'), r.png && link(r.png, 'Chart (PNG)')].filter(Boolean));
 		}
 		section.append(tools);
+		if (r.references?.length && report.references?.length) {
+			section.append(el('p', {class: 'result-refs'}, 'References: ', r.references.map((n, i) =>
+				[i ? ', ' : '', el('a', {href: `#ref-${n}`}, `[${n}]`)])));
+		}
 		if (r.call) {
 			const args = JSON.stringify(r.call.args, null, 1);
 			section.append(el('details', {class: 'call'},
@@ -108,6 +112,14 @@
 		el('td', {class: 'type'}, 'JSON'), el('td', {class: 'size'}, ''),
 		el('td', {class: 'get'}, el('a', {class: 'button small', href: `${base}report.json`}, 'Open'))));
 	parts.push(el('section', {class: 'block'}, el('h2', {}, 'Downloads'), el('table', {class: 'downloads'}, el('tbody', {}, rows))));
+
+	// references of the results (their variables, data and methods, Earth Engine and MonitorEO) and credits of the data
+	if (report.references?.length) {
+		parts.push(el('section', {class: 'prose references'}, el('h2', {}, 'References'),
+			el('ol', {}, report.references.map((ref, i) => el('li', {id: `ref-${i + 1}`}, ref.citation,
+				ref.url && /^https?:\/\//.test(ref.url) ? [' ', el('a', {href: ref.url}, ref.url)] : ''))),
+			report.credits?.length && el('p', {class: 'credits'}, report.credits.join(' · '))));
+	}
 
 	const url = location.href.split('#')[0];
 	parts.push(el('section', {class: 'prose'}, el('h2', {}, 'How to cite'),

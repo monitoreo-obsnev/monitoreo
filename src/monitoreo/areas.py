@@ -3,6 +3,14 @@ and points, as Earth Engine feature collections with a 'name' property per featu
 
 GDAL (osgeo) is only needed to read vector files and to reproject local geometries; it is imported when used, so
 the rest works without it.
+
+References (monitoreo.references gives them, with those of the data, with each result):
+    UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month and
+      year of the version used. Cambridge, UK: UNEP-WCMC and IUCN. https://www.protectedplanet.net
+    Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., Hahn, N., Palminteri, S.,
+      Hedao, P., Noss, R., Hansen, M., Locke, H., Ellis, E. C., Jones, B., Barber, C. V., Hayes, R., Kormos, C.,
+      Martin, V., Crist, E., et al. (2017). An ecoregion-based approach to protecting half the terrestrial realm.
+      BioScience, 67(6), 534–545. https://doi.org/10.1093/biosci/bix014
 """
 
 import json

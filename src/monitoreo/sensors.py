@@ -8,6 +8,18 @@
   - band names of the formulas are matched without case (LST_day_1km is the band LST_Day_1km);
   - flag values of the MODIS products (e.g. 250 = cloud in NDSI_Snow_Cover) are masked;
   - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector).
+
+References (monitoreo.references gives them, with those of the data, with each result):
+    Pasquarella, V. J., Brown, C. F., Czerwinski, W., & Rucklidge, W. J. (2023). Comprehensive quality assessment of
+      optical satellite imagery using weakly supervised video learning. In Proceedings of the IEEE/CVF Conference on
+      Computer Vision and Pattern Recognition Workshops (CVPRW) (pp. 2125–2135).
+      https://doi.org/10.1109/CVPRW59228.2023.00206
+    Main-Knorn, M., Pflug, B., Louis, J., Debaecker, V., Müller-Wilm, U., & Gascon, F. (2017). Sen2Cor for
+      Sentinel-2. In L. Bruzzone, F. Bovolo, & J. A. Benediktsson (Eds.), Image and Signal Processing for Remote
+      Sensing XXIII. SPIE. https://doi.org/10.1117/12.2278218
+    Foga, S., Scaramuzza, P. L., Guo, S., Zhu, Z., Dilley, R. D., Beckmann, T., Schmidt, G. L., Dwyer, J. L.,
+      Hughes, M. J., & Laue, B. (2017). Cloud detection algorithm comparison and validation for operational Landsat
+      data products. Remote Sensing of Environment, 194, 379–390. https://doi.org/10.1016/j.rse.2017.03.026
 """
 
 import re

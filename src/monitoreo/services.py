@@ -18,9 +18,16 @@ Call init() first. With a project (init(project) or the variable EE_PROJECT) it 
 research EECUs (the compute of Earth Engine of each month: the same for each user, who is the anonymous ID of each
 installation) are only for research. eecu_usage tells how much of them (or, with the user's own account, of the monthly
 EECU quota of their project) has been spent, and the tools warn when less than 10 % is left (see eecu_warning).
+
+Every result says what to cite with it (see monitoreo.references): 'references', the articles of the formula or
+algorithm of the variable and of the method, the Earth Engine datasets (cited as their pages of the Earth Engine catalog
+suggest), Google Earth Engine and MonitorEO, each {'id', 'citation', 'doi', 'url', 'text'}; and 'credits', the lines
+that the terms of use of the data ask for. The GeoTIFFs keep them in their metadata (item 'references').
 """
 
 import datetime as dt
+import functools
+import inspect
 import json
 import math
 import os
@@ -30,7 +37,7 @@ import warnings
 
 import ee
 
-from . import areas, catalog, charts, composite, drive, fire, maps, sensors, timeseries, trends
+from . import areas, catalog, charts, composite, drive, fire, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -41,6 +48,36 @@ BROKER = 'https://monitoreo-broker-872770286973.europe-west1.run.app'
 
 _project = None
 _shared = False
+
+
+def _cited(fn):
+	"""FN with the references of what it computed (monitoreo.references.cite) in its answer, 'references' and
+	'credits', and in the metadata of the GeoTIFF it writes."""
+	sig = inspect.signature(fn)
+
+	@functools.wraps(fn)
+	def wrapped(*args, **kwargs):
+		out = fn(*args, **kwargs)
+		if isinstance(out, dict):
+			call = sig.bind(*args, **kwargs)
+			call.apply_defaults()
+			a = dict(call.arguments)
+			a.update(a.pop('source', None) or {})
+			out.update(references.cite(fn.__name__, a))
+			if str(out.get('file') or '').lower().endswith(('.tif', '.tiff')) and os.path.exists(out['file']):
+				tag_references(out['file'], out)
+		return out
+	return wrapped
+
+
+def tag_references(path, cited):
+	"""Write the references and credits of CITED (see monitoreo.references.cite) to the metadata of the GeoTIFF PATH
+	(item 'references', a line each)."""
+	from osgeo import gdal
+	gdal.UseExceptions()
+	ds = gdal.Open(path, gdal.GA_Update)
+	ds.SetMetadataItem('references', '\n'.join(references.texts(cited)))
+	ds = None
 
 
 def init(project=None, shared=False, warn=True):
@@ -465,7 +502,8 @@ def eecu_warning(lang='en', limit=None, once=False, python_warning=False):
 
 def about(lang='en'):
 	"""What MonitorEO-OBSNEV is, who funds it and how to cite it: {'name', 'description', 'acknowledgements',
-	'citation', 'doi', 'logos' (image files), 'manual', 'repository'} in LANG ('en' or 'es')."""
+	'citation', 'doi', 'earth_engine' (the citation of Google Earth Engine, where MonitorEO computes), 'logos' (image
+	files), 'manual', 'repository'} in LANG ('en' or 'es')."""
 	from . import about as about_
 	return about_.about(lang)
 
@@ -496,7 +534,9 @@ def list_variables(sensor=None, text=None, lang='en'):
 
 
 def describe_variable(variable_name, sensor=None, collection=None, ref=None, lang='en'):
-	"""Everything about a variable of the catalog: formula, collection, scale, unit, pixel filters, notes, ..."""
+	"""Everything about a variable of the catalog: formula, collection, scale, unit, pixel filters, notes, ... and what
+	to cite with its data: 'references' (the articles of its formula or algorithm, its Earth Engine datasets as their
+	catalog pages suggest and the pixel filters) and 'credits' (see monitoreo.references)."""
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
 	out['name'] = _name(e, lang, 'vname')
@@ -507,6 +547,7 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]
+	out.update(references.of_entry(e))  # references (formula, Earth Engine datasets, pixel filters) and credits
 	return out
 
 
@@ -571,6 +612,7 @@ def _slug(text):
 
 # Time series -------------------------------------------------------------------------------------------------------
 
+@_cited
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, csv=None, chart=None, progress=None, **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
@@ -597,6 +639,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	return out
 
 
+@_cited
 def time_series_to_drive(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean',
                          stat='mean', season=None, quality=None, scale=None, folder='MonitorEO', name=None, **source):
 	"""Export the time series to a CSV file in FOLDER of Google Drive (for long series or many regions).
@@ -635,6 +678,7 @@ def _build(region, var_name, sensor, start, end, metric, temporal, interannual, 
 	return spec, regions, img, res
 
 
+@_cited
 def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, clip=True,
               thumbnail=None, quick=False, **source):
@@ -675,6 +719,7 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
 
+@_cited
 def region_stats(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                  interannual='mean', season=None, quality=None, stats=('mean', 'std', 'min', 'p5', 'p50', 'p95', 'max'),
                  scale=None, **source):
@@ -702,6 +747,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 
 # Exports -----------------------------------------------------------------------------------------------------------
 
+@_cited
 def export_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                  interannual='mean', season=None, quality=None, resolution=None, crs='auto', folder='MonitorEO',
                  name=None, clip=True, **source):
@@ -731,6 +777,7 @@ def _file_stem(variable, sensor, metric, start, end, source):
 	return f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}"
 
 
+@_cited
 def download_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
                    max_pixels=None, tile=512, workers=8, progress=None, **source):
@@ -783,6 +830,7 @@ def _percentiles(path, lo=5, hi=95, band=1):
 	return float(np.percentile(a, lo)), float(np.percentile(a, hi))
 
 
+@_cited
 def download_variables(recipe, area, folder, layer=None, buffer=None, only=None, dry_run=False, overwrite=False,
                        drive_all=False, drive_dir=None, wait=True, record=recipes.RECORD, tile=512, workers=8, log=None,
                        progress=None):
@@ -836,6 +884,7 @@ TREND_COLUMNS = ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'signific
 COMPARISON_COLUMNS = ['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other']
 
 
+@_cited
 def trend_table(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, alpha=0.05, csv=None, chart=None, progress=None, **source):
 	"""Seasonal trends of a variable over each feature of REGION (see monitoreo.trends): the spatial STAT of the
@@ -879,6 +928,7 @@ def _trend(region, variable, sensor, start, end, step, part, metric, season, qua
 	return spec, regions, img.clipToCollection(regions), part, native, name
 
 
+@_cited
 def trend_map(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, output='slope',
               metric='mean', season=None, quality=None, alpha=None, vmin=None, vmax=None, palette=None,
               thumbnail=None, quick=False, **source):
@@ -917,6 +967,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	return out
 
 
+@_cited
 def download_trend(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, metric='mean',
                    season=None, quality=None, alpha=None, resolution=None, crs='auto', path=None, max_pixels=None,
                    tile=512, workers=8, progress=None, **source):
@@ -942,6 +993,7 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 	            native_resolution=native, name=name, unit=f'{_unit(spec)} / year')
 
 
+@_cited
 def compare_series(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                    step='monthly', metric='mean', stat='mean', season=None, quality=None, scale=None, csv=None,
                    chart=None, progress=None, **source):
@@ -1008,6 +1060,7 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	return ref, regions, img, native, name
 
 
+@_cited
 def compare_map(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                 metric='median', temporal='period', interannual='mean', season=None, quality=None, vmin=None,
                 vmax=None, palette=None, thumbnail=None, **source):
@@ -1033,6 +1086,7 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 	return out
 
 
+@_cited
 def download_comparison(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                         metric='median', temporal='period', interannual='mean', season=None, quality=None,
                         resolution=None, crs='auto', path=None, max_pixels=None, tile=512, workers=8, progress=None,
@@ -1065,6 +1119,7 @@ RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
 BURN_INDICES = ('dNBR', 'RBR')
 
 
+@_cited
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
                   max_pixels=None, tile=512, workers=8, progress=None, index='dNBR'):

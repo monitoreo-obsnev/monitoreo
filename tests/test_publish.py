@@ -146,6 +146,15 @@ def test_report(outputs):
 	                                                f'Table (CSV): {trend["title"]}']
 	assert all(f['bytes'] == os.path.getsize(folder / f['path']) for f in r['files'])
 	assert r['thumbnail'] == 'thumbnail.png' and (folder / 'thumbnail.png').read_bytes()[:4] == b'\x89PNG'
+	# the references of the results, numbered, and the numbers of those of each result
+	cites = [x['citation'] for x in r['references']]
+	assert cites == sorted(cites, key=str.lower) and all(x['url'] for x in r['references'])
+	for x in r['results']:
+		assert x['references'] and all(1 <= n <= len(cites) for n in x['references'])
+	mann = next(i + 1 for i, c in enumerate(cites) if c.startswith('Mann, H. B.'))
+	assert mann in m['references'] and mann in trend['references'] and mann not in series['references']
+	assert any(c.startswith('Didan, K. (2021). MODIS/Terra Vegetation Indices') for c in cites)
+	assert any(c.startswith('UNEP-WCMC & IUCN (2026)') and 'October 2026' in c for c in cites)  # date of publication
 
 
 def test_catalog(outputs):

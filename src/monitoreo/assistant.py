@@ -1205,7 +1205,13 @@ class Assistant:
 		table = report.item_table(tool, result, args)
 		card = {'id': item['id'], 'title': item['title'], 'image': item['image'],
 		        'facts': _facts(tool, args, result, self.all_names()) + report.view_facts(item), 'table': None,
-		        'files': [], 'legend': None}
+		        'files': [], 'legend': None, 'references': [], 'credits': []}
+		try:  # what to cite with it (its references never stop the page)
+			cited = report.item_references(tool, args, result)
+			card['references'] = [{'citation': r['citation'], 'url': r.get('url')} for r in cited['references']]
+			card['credits'] = cited['credits']
+		except Exception:
+			pass
 		if table:
 			labels, rows = table
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
