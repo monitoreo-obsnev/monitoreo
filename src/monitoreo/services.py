@@ -22,7 +22,9 @@ EECU quota of their project) has been spent, and the tools warn when less than 1
 Every result says what to cite with it (see monitoreo.references): 'references', the articles of the formula or
 algorithm of the variable and of the method, the Earth Engine datasets (cited as their pages of the Earth Engine catalog
 suggest), Google Earth Engine and MonitorEO, each {'id', 'citation', 'doi', 'url', 'text'}; and 'credits', the lines
-that the terms of use of the data ask for. The GeoTIFFs keep them in their metadata (item 'references').
+that the terms of use of the data ask for. The files of a result explain themselves (see monitoreo.readme): a README
+next to them ('readme' in the answer) and, in the metadata of the GeoTIFFs, the call, the version of MonitorEO, when
+it was computed, the references and the name and unit of each band.
 """
 
 import datetime as dt
@@ -52,7 +54,8 @@ _shared = False
 
 def _cited(fn):
 	"""FN with the references of what it computed (monitoreo.references.cite) in its answer, 'references' and
-	'credits', and in the metadata of the GeoTIFF it writes."""
+	'credits', and its files documented (monitoreo.readme): the metadata of its GeoTIFF (the call, the version, when
+	and the references) and a README next to them, whose path is in the answer ('readme')."""
 	sig = inspect.signature(fn)
 
 	@functools.wraps(fn)
@@ -60,12 +63,19 @@ def _cited(fn):
 		out = fn(*args, **kwargs)
 		if isinstance(out, dict):
 			call = sig.bind(*args, **kwargs)
+			given = dict(call.arguments)
+			given.update(given.pop('source', None) or {})
 			call.apply_defaults()
 			a = dict(call.arguments)
 			a.update(a.pop('source', None) or {})
 			out.update(references.cite(fn.__name__, a))
-			if str(out.get('file') or '').lower().endswith(('.tif', '.tiff')) and os.path.exists(out['file']):
-				tag_references(out['file'], out)
+			try:  # a file that cannot be documented is still the result
+				from . import readme
+				path = readme.document(fn.__name__, given, out)
+				if path:
+					out['readme'] = path
+			except Exception as e:
+				warnings.warn(f'MonitorEO could not document the files of {fn.__name__}: {e}')
 		return out
 	return wrapped
 
@@ -628,7 +638,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
-		        'step': step, 'metric': metric, 'stat': stat, 'unit': unit, 'scale_m': used_scale}
+		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
 		out['csv'] = timeseries.write_csv(rows, csv, meta)
 	if chart and rows:
 		try:
@@ -904,7 +914,8 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit, 'title': title}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
-		        'step': step, 'metric': metric, 'stat': stat, 'unit': unit, 'slope_unit': f'{unit} / year',
+		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit),
+		        'slope_unit': catalog.udunits(unit, per_year=True),
 		        'scale_m': used}
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
 	if chart and any(r['slope'] is not None for r in rows):
@@ -1028,7 +1039,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'reference_period': '/'.join(ref['period']), 'other_period': '/'.join(oth['period']), 'step': step,
-		        'metric': metric, 'stat': stat, 'unit': unit, 'scale_m': scale}
+		        'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': scale}
 		out['csv'] = timeseries.write_csv(profile, csv, meta, COMPARISON_COLUMNS)
 	if chart and any(r['reference'] is not None or r['other'] is not None for r in profile):
 		try:

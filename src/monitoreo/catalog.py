@@ -46,7 +46,25 @@ NBR = {
 	               'after - before, that is -dNBR); dNBR > 0.1 burned (Key & Benson 2006).'},
 }
 
+# The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
+# for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
+UDUNITS = {
+	'[unitless]': '1',
+	'[°C]': 'degC',
+	'[kg/m²/8 days]': 'kg m-2 (8 day)-1',
+	'[J/m²/day]': 'J m-2 day-1',
+	'[mg m⁻³]': 'mg m-3',
+}
+
 _catalog = None
+
+
+def udunits(unit, per_year=False):
+	"""The unit UNIT of the catalog (e.g. '[°C]') in UDUNITS ('degC'; PER_YEAR: 'degC year-1'), or '' if unknown."""
+	u = UDUNITS.get(str(unit or '').replace('º', '°').strip(), '')
+	if per_year and u:
+		return 'year-1' if u == '1' else f'{u} year-1'
+	return u
 
 
 def load():
