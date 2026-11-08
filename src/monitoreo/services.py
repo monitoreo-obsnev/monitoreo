@@ -491,6 +491,8 @@ def list_variables(sensor=None, text=None, lang='en'):
 			row['two_periods'] = True  # RBR: only burn_severity computes it
 		if e.get('metric'):
 			row['metric'] = e['metric']  # its only metric (SCF: the mean)
+		if sensors.fixed_filters(e) is not None:
+			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -508,6 +510,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	out['notes'] = e.get('notes', {})
 	if e.get('metric'):
 		out['metric'] = e['metric']  # its only metric (SCF: the mean)
+	if sensors.fixed_filters(e) is not None:
+		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]

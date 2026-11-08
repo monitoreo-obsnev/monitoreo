@@ -32,6 +32,7 @@
 			filters: 'Quitar píxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
+			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada píxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, así que su métrica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
@@ -85,6 +86,7 @@
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
+			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
@@ -394,7 +396,10 @@
 	function setVariable(ref) {
 		state.ref = ref;
 		var e = entry();
-		mo.FILTERS.forEach(function (f) { state.quality[f] = (mo.MEASURES[f] || []).indexOf(e.index) < 0; });
+		var fixed = mo.fixedFilters(e);  // the SCF: clouds and water, always
+		mo.FILTERS.forEach(function (f) {
+			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
+		});
 		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
 		render();
 	}
@@ -441,15 +446,18 @@
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
 		w.push(header(t('filters')));
+		// fixed filters (the SCF): all of them greyed out, those always on checked
+		var fixed = mo.fixedFilters(e);
 		var available = mo.filters(e, {clouds: true, water: true, snow: true, aerosols: true});
 		mo.FILTERS.forEach(function (f) {
 			var c = check(t(f), state.quality[f] && available[f], function (v) {
 				state.quality[f] = v;
 				render();
 			});
-			c.setDisabled(!available[f]);
+			c.setDisabled(Boolean(fixed) || !available[f]);
 			w.push(c);
 		});
+		if (fixed) w.push(ui.Label(t('fixedFilters'), SMALL));
 		if (e.sensor === 'Sentinel-2') {
 			w.push(check(t('cloudScore'), state.quality.cloud_score !== null, function (v) {
 				state.quality.cloud_score = v ? 0.6 : null;

@@ -186,11 +186,16 @@ var MonitorEO = (function () {
 		'LANDSAT/LC08/C02/T1_L2': ['LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']],
 		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']]
 	};
-	var SCF_FILTERS = ['clouds', 'water'];
+	var SCF_FILTERS = ['clouds', 'water'];  // fixed: the SCF is the % of the clear observations (see fixedFilters)
 
 	// sensors.is_scf
 	function isScf(entry) {
 		return entry.fk === 'scf';
+	}
+
+	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen
+	function fixedFilters(entry) {
+		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
 	}
 
 	function bits(band, first, last) {
@@ -257,13 +262,17 @@ var MonitorEO = (function () {
 
 	// sensors.filters: {filter: true/false} of the pixel filters that apply to ENTRY with QUALITY
 	function filters(entry, quality) {
+		var out = {};
+		var fixed = fixedFilters(entry);
+		if (fixed) {
+			FILTERS.forEach(function (f) { out[f] = fixed.indexOf(f) >= 0; });
+			return out;
+		}
 		quality = withQuality(quality);
 		var available;
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
 		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
-		if (isScf(entry)) available = SCF_FILTERS;
-		var out = {};
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
 			if (String(on).toLowerCase() === 'auto') on = (MEASURES[f] || []).indexOf(entry.index) < 0;
@@ -387,7 +396,6 @@ var MonitorEO = (function () {
 	function scfCollection(entry, region, start, end, quality) {
 		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
-		var on = filters(entry, quality);
 		var dem = ee.Image(SCF.dem);
 		var high = dem.gte(SCF.min_elevation);
 		return rawCollection(entry, region, start, end, quality).map(function (img) {
@@ -402,8 +410,8 @@ var MonitorEO = (function () {
 			var lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF.shadow_reach, true);
 			var shade = lit.not();
 			var qa = img.select('QA_PIXEL');
-			var clear = on.clouds ? bits(qa, 3).eq(0).and(bits(qa, 9).eq(0)) : ee.Image(1);
-			var dry = on.water ? bits(qa, 7).eq(0) : ee.Image(1);
+			var clear = bits(qa, 3).eq(0).and(bits(qa, 9).eq(0));  // its fixed filters (SCF_FILTERS): clouds and water
+			var dry = bits(qa, 7).eq(0);
 			var validSun = lit.and(clear).and(dry).and(snowSun.mask());
 			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
 			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
@@ -1046,7 +1054,8 @@ var MonitorEO = (function () {
 	return {
 		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
-		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, conflicts: conflicts,
+		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
+		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,

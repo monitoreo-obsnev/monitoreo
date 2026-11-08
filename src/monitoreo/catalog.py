@@ -59,6 +59,7 @@ SCF = {
 		      'Its only metric is the mean.',
 		'metric': 'it is the mean of the images of each pixel (100 = snow, 0 = no snow), that is, the % of the clear '
 		          'observations with snow',
+		'filters': 'fixed: clouds and water are always removed and snow and aerosols never, whatever the quality',
 	},
 }
 TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF}  # fields of the variables of EXTRA, by index

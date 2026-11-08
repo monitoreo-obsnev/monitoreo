@@ -303,6 +303,7 @@ class MonitorEODock(QDockWidget):
 		row.addStretch()
 		f.addRow('Season', info(row, HELP['season']))
 		self.filters = {}
+		self.chosen_filters = None  # the filters checked by the user while a variable with fixed filters is chosen
 		row = QHBoxLayout()
 		for key, label in (('clouds', 'clouds'), ('water', 'water'), ('snow', 'snow'), ('aerosols', 'aerosols')):
 			self.filters[key] = QCheckBox(label)
@@ -702,14 +703,28 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Comparison of periods of {var['variable']} ({var['sensor']})", work, done)
 
 	def variable_changed(self):
-		"""The metrics of the images, fixed at the only metric of the variable if it has one (the snow cover frequency:
-		the mean, the % of the clear observations with snow)."""
-		only = (self.variable.currentData() or {}).get('metric')
+		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
+		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
+		observations with snow, without clouds and water). The filters chosen before come back with another variable."""
+		v = self.variable.currentData() or {}
+		only = v.get('metric')
 		for w in (self.ts_metric, self.trend_metric, self.map_metric):
 			if only:
 				w.setCurrentIndex(max(0, w.findData(only)))
 			w.setEnabled(not only)
-			w.setToolTip(f"{self.variable.currentData()['variable']} only takes the {only}" if only else '')
+			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
+		fixed = v.get('fixed_filters')
+		if fixed is not None and self.chosen_filters is None:
+			self.chosen_filters = {k: w.isChecked() for k, w in self.filters.items()}
+		for k, w in self.filters.items():
+			if fixed is not None:
+				w.setChecked(k in fixed)
+			elif self.chosen_filters is not None:
+				w.setChecked(self.chosen_filters[k])
+			w.setEnabled(fixed is None)
+			w.setToolTip(f"Fixed filters of {v['variable']}: they cannot be changed" if fixed is not None else '')
+		if fixed is None:
+			self.chosen_filters = None
 
 	def update_trend_parts(self):
 		step = self.trend_step.currentData()

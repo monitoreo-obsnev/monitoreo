@@ -55,9 +55,12 @@ def test_scf_in_the_catalog():
 	assert catalog.find('NDSI', 'Landsat')['unit'] == '[unitless]'  # the entry it copies is unchanged
 	with pytest.raises(KeyError):
 		catalog.find('SCF', 'Sentinel-2')
-	# only its own filters: clouds and water; never snow (what it measures) nor aerosols
-	assert sensors.filters(e) == {'clouds': True, 'water': True, 'snow': False, 'aerosols': False}
-	assert sensors.conflicts(e) == [] and sensors.filters(e, {'water': False})['water'] is False
+	# fixed filters: always clouds and water, whatever the quality; never snow (what it measures) nor aerosols
+	fixed = {'clouds': True, 'water': True, 'snow': False, 'aerosols': False}
+	assert sensors.filters(e) == fixed and sensors.fixed_filters(e) == ['clouds', 'water']
+	assert sensors.filters(e, {'clouds': False, 'water': 'auto', 'snow': True, 'aerosols': True}) == fixed
+	assert sensors.conflicts(e) == [] and sensors.fixed_filters(catalog.find('NDSI', 'Landsat')) is None
+	assert sensors.filters(catalog.find('NDSI', 'Landsat'), {'water': False})['water'] is False  # the others: free
 	assert sensors.SCF['ndsi'] == 0.35 and sensors.SCF['toa_green'] == 0.08 and sensors.SCF['min_elevation'] == 1500
 	assert set(sensors.SCF_TOA) == {c for c, _, _ in sensors.LANDSAT}
 	# the mean, also in maps (whose default is the median); between years, any
@@ -73,7 +76,10 @@ def test_scf_in_the_catalog():
 	assert spec['interannual'] == 'median'
 	d = services.describe_variable('SCF', 'Landsat')
 	assert d['metric'] == 'mean' and d['measures'] == ['snow'] and d['unit'] == '[%]' and 'hillShadow' in d['notes']['ft']
+	assert d['fixed_filters'] == ['clouds', 'water'] and d['pixel_filters'] == fixed
 	assert [r['ref'] for r in services.list_variables(text='snow cover')] == [105]
+	assert services.list_variables(text='snow cover')[0]['fixed_filters'] == ['clouds', 'water']
+	assert 'fixed_filters' not in services.describe_variable('NDSI', 'Landsat')
 	# the title of the y axis of its charts; the other variables keep their unit
 	assert e['axis'] == 'Snow Cover Frequency (SCF)'
 	assert services._ylabel(spec) == 'Snow Cover Frequency (SCF) [%]'
