@@ -478,8 +478,8 @@ def _name(e, lang, field):
 
 def list_variables(sensor=None, text=None, lang='en'):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, group, resolution_m,
-	dates, unit}], optionally of one SENSOR or with TEXT in their variable or their name (in English or in Spanish,
-	whatever LANG is)."""
+	dates, unit}] (and two_periods, RBR, or metric, the only metric of the SCF), optionally of one SENSOR or with
+	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
 	for e in catalog.variables():
 		if sensor and e['sensor'].lower() != str(sensor).lower():
@@ -489,6 +489,8 @@ def list_variables(sensor=None, text=None, lang='en'):
 		       'dates': e['dr'], 'unit': e['unit']}
 		if e.get('two_periods'):
 			row['two_periods'] = True  # RBR: only burn_severity computes it
+		if e.get('metric'):
+			row['metric'] = e['metric']  # its only metric (SCF: the mean)
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -504,6 +506,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	out['pixel_filters'] = sensors.filters(e)
 	out['measures'] = [f for f, idx in sensors.MEASURES.items() if e['index'] in idx]
 	out['notes'] = e.get('notes', {})
+	if e.get('metric'):
+		out['metric'] = e['metric']  # its only metric (SCF: the mean)
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]

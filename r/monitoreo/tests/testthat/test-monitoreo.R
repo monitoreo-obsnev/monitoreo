@@ -11,6 +11,9 @@ test_that("catalog and regions", {
   expect_true(all(v$sensor == "Sentinel-2"))
   expect_true("NDVI" %in% v$variable)
   expect_equal(mo_describe("NDSI", "Modis")$measures, "snow")
+  expect_equal(mo_describe("SCF", "Landsat")$metric, "mean")  # snow cover frequency: only the mean
+  expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
+               "only takes the metric 'mean'")
   expect_equal(mo_bbox(-3.6, 36.8, -3.5, 36.9)$bbox[[3]], -3.5)
   expect_equal(mo_wdpa(c(1, 2))$wdpa_id, list(1L, 2L))
 })

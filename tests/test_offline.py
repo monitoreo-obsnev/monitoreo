@@ -14,7 +14,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 36  # the 32 of catalog.json and NBR and RBR of Landsat and Sentinel-2
+	assert len(entries) == 37  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2 and SCF of Landsat
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -42,6 +42,38 @@ def test_rbr_in_the_catalog():
 	assert 'two_periods' not in services.list_variables(text='NDVI')[0]
 	with pytest.raises(ValueError, match='dNBR or RBR'):
 		services.burn_severity({'bbox': [0, 0, 1, 1]}, index='NDVI')
+
+
+def test_scf_in_the_catalog():
+	# SCF: snow cover frequency of Landsat, from the bands of its NDSI; each image is 100 (snow) or 0, and its only
+	# metric is the mean (the % of the clear observations with snow)
+	e = catalog.find('scf', 'landsat')
+	assert (e['ref'], e['col'], e['m'], e['unit'], e['minp'], e['maxp']) == (105, 'LANDSAT', 30, '[%]', 0, 100)
+	assert e['vname_en'] == 'Snow cover frequency' and e['metric'] == 'mean' and e['scale'] == 2.75e-05
+	assert sensors.is_scf(e) and not sensors.is_scf(catalog.find('NDSI', 'Landsat'))
+	assert sensors.parse_formula(e) == ('scf', ['green', 'nir', 'swir1'])
+	assert catalog.find('NDSI', 'Landsat')['unit'] == '[unitless]'  # the entry it copies is unchanged
+	with pytest.raises(KeyError):
+		catalog.find('SCF', 'Sentinel-2')
+	# only its own filters: clouds and water; never snow (what it measures) nor aerosols
+	assert sensors.filters(e) == {'clouds': True, 'water': True, 'snow': False, 'aerosols': False}
+	assert sensors.conflicts(e) == [] and sensors.filters(e, {'water': False})['water'] is False
+	assert sensors.SCF['ndsi'] == 0.35 and sensors.SCF['toa_green'] == 0.08 and sensors.SCF['min_elevation'] == 1500
+	assert set(sensors.SCF_TOA) == {c for c, _, _ in sensors.LANDSAT}
+	# the mean, also in maps (whose default is the median); between years, any
+	spec = services.make_spec('SCF', 'Landsat', '2020-10-01', '2021-05-31', metric='mean')
+	assert spec['metric'] == 'mean' and spec['name'] == 'SCF_L_mean'
+	for metric in ('median', 'max', ['mean', 'p95']):
+		with pytest.raises(ValueError, match="only takes the metric 'mean'"):
+			variable.specs({'index': 'SCF', 'sensor': 'Landsat', 'metric': metric, 'period': ['2020-10-01', '2021-05-31']})
+	with pytest.raises(ValueError, match="only takes the metric 'mean'"):
+		services.map_layer({'bbox': [-3.4, 37.0, -3.3, 37.1]}, 'SCF', 'Landsat', '2020-10-01', '2021-05-31')
+	spec = services.make_spec('SCF', 'Landsat', '2000-01-01', '2020-12-31', temporal='annual', interannual='median',
+	                          season=['10-01', '05-31'])
+	assert spec['interannual'] == 'median'
+	d = services.describe_variable('SCF', 'Landsat')
+	assert d['metric'] == 'mean' and d['measures'] == ['snow'] and d['unit'] == '[%]' and 'hillShadow' in d['notes']['ft']
+	assert [r['ref'] for r in services.list_variables(text='snow cover')] == [105]
 
 
 def test_rbr_report():

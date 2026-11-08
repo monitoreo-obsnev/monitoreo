@@ -32,6 +32,9 @@
 			filters: 'Quitar píxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
+			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada píxel con nieve o hielo. Cada imagen ' +
+				'es 100 (nieve) o 0, así que su métrica es siempre la media. Corrige la sombra del relieve con la ' +
+				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
 			map: 'Mapa', metric: 'Métrica', temporal: 'Agregación temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada año y entre años', t_monthly: 'Cada mes y entre años', 't_16-day': 'Cada 16 días y entre años',
 			interannual: 'Métrica entre años', addMap: 'Añadir al mapa', download: 'Descargar GeoTIFF',
@@ -82,6 +85,9 @@
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
+			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
+				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
+				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
@@ -389,7 +395,17 @@
 		state.ref = ref;
 		var e = entry();
 		mo.FILTERS.forEach(function (f) { state.quality[f] = (mo.MEASURES[f] || []).indexOf(e.index) < 0; });
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
 		render();
+	}
+
+	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean)
+	function metricSelect(value, onChange) {
+		var only = entry().metric;
+		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
+		var s = select(metrics, only || value, onChange);
+		s.setDisabled(Boolean(only));
+		return s;
 	}
 
 	function variableWidgets() {
@@ -398,6 +414,7 @@
 		var name = state.lang === 'en' ? e.vname_en : e.vname;
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' · '), SMALL));
+		if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
 		w.push(header(t('period')));
 		w.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.period[1], function (v) { state.period[1] = v.trim(); })));
@@ -586,7 +603,7 @@
 	function mapWidgets() {
 		var w = [header(t('map'))];
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('metric')), select(metrics, state.mapMetric, function (v) { state.mapMetric = v; })));
+		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
 		w.push(row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
@@ -750,8 +767,7 @@
 		var w = [header(t('series'))];
 		var steps = mo.STEPS.map(function (x) { return {value: x, label: t('s_' + x)}; });
 		w.push(row(ui.Label(t('step')), select(steps, state.step, function (v) { state.step = v; })));
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('stepMetric')), select(metrics, state.stepMetric, function (v) { state.stepMetric = v; })));
+		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
@@ -875,8 +891,7 @@
 			state.trendStep = v;
 			render();
 		})));
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('yearMetric')), select(metrics, state.trendMetric, function (v) { state.trendMetric = v; })));
+		w.push(row(ui.Label(t('yearMetric')), metricSelect(state.trendMetric, function (v) { state.trendMetric = v; })));
 		w.push(button(t('trendTable'), guarded(trendTable)));
 		if (state.trendStep !== 'annual') {
 			var parts = mo.parts(state.trendStep).map(function (p) {
