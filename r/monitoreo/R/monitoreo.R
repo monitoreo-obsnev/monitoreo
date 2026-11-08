@@ -13,32 +13,123 @@
                        es = "MonitorEO es un resultado del Proyecto EVEREST (PID2023-151939OB-I00), financiado por MICIU/AEI 10.13039/501100011033 y cofinanciado por FEDER \u2013 Uni\u00f3n Europea, y del Proyecto NevadEO (C-EXP-074-UGR23), cofinanciado por el Programa FEDER 2014-2020 y la Consejer\u00eda de Econom\u00eda, Conocimiento, Empresa y Universidades de la Junta de Andaluc\u00eda. Es tambi\u00e9n un resultado del Proyecto PRESINMED (Preserving the singularity of Mediterranean high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) de la convocatoria Biodiversa+ NBS 2023."),
   citation = "Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo. https://doi.org/10.5281/zenodo.23814894",
   doi = "10.5281/zenodo.23814894",
+  # MonitorEO computes in Google Earth Engine: cite it too (monitoreo.about.EARTH_ENGINE of Python)
+  earth_engine = "Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18\u201327. https://doi.org/10.1016/j.rse.2017.06.031",
+  cite_also = c(en = "MonitorEO computes with Google Earth Engine; cite it too, and the references of each result (of its variables, data and methods)",
+                es = "MonitorEO calcula con Google Earth Engine; c\u00edtalo tambi\u00e9n, y las referencias de cada resultado (de sus variables, datos y m\u00e9todos)"),
   how_to_cite = c(en = "How to cite", es = "C\u00f3mo citar"),
   manual = "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   repository = "https://github.com/monitoreo-obsnev/monitoreo")
 
 .onAttach <- function(libname, pkgname) {
   packageStartupMessage(paste(.about$description[["en"]], .about$acknowledgements[["en"]],
-                              paste0(.about$how_to_cite[["en"]], ": ", .about$citation), sep = "\n\n"))
+                              paste0(.about$how_to_cite[["en"]], ": ", .about$citation, "\n",
+                                     .about$cite_also[["en"]], ": ", .about$earth_engine), sep = "\n\n"))
 }
 
-#' What MonitorEO-OBSNEV is, who funds it and how to cite it: description, acknowledgements, citation (with its DOI)
-#' and links, in English ("en") or Spanish ("es"). Prints them and returns them invisibly (with the paths of the
-#' logos when the Python package monitoreo is available). The citation is also that of citation("monitoreo").
+#' What MonitorEO-OBSNEV is, who funds it and how to cite it
+#'
+#' Prints the description, the acknowledgements, the citation of MonitorEO (with its DOI) and that of Google Earth
+#' Engine, where it computes, and returns them invisibly. The citation is also that of \code{citation("monitoreo")}.
+#' @param lang language of the texts: \code{"en"} or \code{"es"}.
+#' @return A list (description, acknowledgements, citation, doi, earth_engine, manual, repository and logos: the paths
+#'   of the logos when the Python package monitoreo is available), invisibly.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_references()}, \code{citation("monitoreo")}
+#' @examples
+#' mo_about()
+#' mo_about("es")
 #' @export
 mo_about <- function(lang = "en") {
   lang <- if (lang %in% c("en", "es")) lang else "en"
   out <- list(description = .about$description[[lang]], acknowledgements = .about$acknowledgements[[lang]],
-              citation = .about$citation, doi = .about$doi, manual = .about$manual, repository = .about$repository,
-              logos = character())
+              citation = .about$citation, doi = .about$doi, earth_engine = .about$earth_engine,
+              manual = .about$manual, repository = .about$repository, logos = character())
   if (reticulate::py_module_available("monitoreo")) {
     out$logos <- unlist(reticulate::import("monitoreo.about", convert = TRUE)$about(lang)$logos)
   }
   cat("MonitorEO-OBSNEV\n\n", out$description, "\n\n", out$acknowledgements, "\n\n", .about$how_to_cite[[lang]],
-      ": ", out$citation, "\n\n", out$manual, "\n",
+      ": ", out$citation, "\n", .about$cite_also[[lang]], ": ", out$earth_engine, "\n\n", out$manual, "\n",
       sep = "")
   invisible(out)
 }
+
+#' References of a result, or how to cite MonitorEO
+#'
+#' Every result of MonitorEO carries its references: those of the formula or algorithm of the variable (e.g. Tucker
+#' 1979 for the NDVI), of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest, e.g. the
+#' DOI of the MODIS product), of the pixel filters, of the method (Mann-Kendall and Sen for the trends, Key and Benson
+#' for the burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of MonitorEO, and the
+#' credits that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). Cite them when the results go
+#' into a report, a paper or a map.
+#' @param x a result of MonitorEO: a data.frame (\code{mo_time_series()}, \code{mo_trend_table()}, ...) or a
+#'   list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, ...). \code{NULL}: the
+#'   citations of MonitorEO and of Google Earth Engine.
+#' @return The references (and then the credits) as a character vector, invisibly; it prints them, one per line.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_about()}, \code{citation("monitoreo")}
+#' @examples
+#' mo_references()
+#' \dontrun{
+#' mo_init()
+#' ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2020-01-01", "2020-12-31")
+#' mo_references(ts)
+#' }
+#' @export
+mo_references <- function(x = NULL) {
+  refs <- if (is.null(x)) {
+    c(.about$citation, .about$earth_engine)
+  } else if (!is.null(attr(x, "references"))) {
+    c(attr(x, "references"), attr(x, "credits"))
+  } else if (is.list(x) && !is.null(x$references)) {
+    c(vapply(x$references, function(r) r$text, ""), unlist(x$credits))
+  } else {
+    stop("x is not a result of MonitorEO (it has no references)", call. = FALSE)
+  }
+  cat(refs, sep = "\n")
+  invisible(refs)
+}
+
+# The references and credits of the answer RES of Python as attributes of the data.frame DF (see mo_references()).
+cited <- function(df, res) {
+  attr(df, "references") <- vapply(res$references, function(r) r$text, "")
+  attr(df, "credits") <- as.character(unlist(res$credits))
+  df
+}
+#' Arguments shared by the functions of MonitorEO
+#'
+#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_bbox()}, \code{mo_point()},
+#'   \code{mo_geojson()} or \code{mo_sf()} (see \link{regions}). Several features give a result per feature.
+#' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).
+#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param collection the Earth Engine collection when the variable of the sensor is in several, e.g.
+#'   \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).
+#' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}.
+#' @param other_start,other_end first and last day of the other period.
+#' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
+#'   \code{"pN"} (percentile N).
+#' @param stat spatial statistic over each feature of the region: \code{"mean"}, \code{"median"}, \code{"min"},
+#'   \code{"max"}, \code{"std"} or \code{"pN"}.
+#' @param temporal \code{"period"} (the metric over all the images of the period), \code{"annual"},
+#'   \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).
+#' @param interannual statistic between the years when \code{temporal} is not \code{"period"}.
+#' @param season optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).
+#' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).
+#' @param scale pixel size of the statistics in metres (default: automatic).
+#' @param resolution pixel size in metres (default: that of the data).
+#' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
+#' @param vmin,vmax range of the colour ramp (default: percentiles 5 and 95 of the map).
+#' @param thumbnail optional path of a PNG preview.
+#' @param csv optional path of a CSV file with the table.
+#' @param chart optional path of a PNG chart.
+#' @name mo_params
+#' @keywords internal
+NULL
+
 utils::globalVariables(c("date", "value", "region"))
 
 services <- function() {
@@ -62,22 +153,42 @@ eecu_check <- function(s) {
   invisible(w)
 }
 
-#' Install the Python package monitoreo in the Python of reticulate (that of rgee, if rgee is used).
+#' Install the Python package monitoreo
+#'
+#' Installs it with pip in the Python of reticulate (that of rgee, if rgee is used).
 #' @param source pip source: the last version of GitHub (an archive: no git needed) or a local folder.
+#' @param ... other arguments of \code{reticulate::py_install()}.
+#' @return \code{TRUE}, invisibly.
+#' @examples
+#' \dontrun{
+#' mo_install()
+#' }
 #' @export
 mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip", ...) {
   reticulate::py_install(source, pip = TRUE, ...)
   invisible(TRUE)
 }
 
-#' Connect to Earth Engine. With a Google Cloud project registered in Earth Engine, with the credentials of
-#' `earthengine authenticate` (or rgee::ee_Initialize()) and the quota of that project; with "" (or no EE_PROJECT),
-#' with the shared account of MonitorEO, which needs no account of Earth Engine but cannot export to Google Drive, and
-#' where each user has research EECUs for each month, only for research (who spends them cannot compute with it until
-#' the next month). It warns when less than 10 % of the EECUs of the month are left (see mo_eecu()).
-#' @param project project (default: the variable EE_PROJECT; "": the shared account of MonitorEO).
-#' @param python optional path of the Python with monitoreo (see reticulate::use_python()).
-#' @return the project whose quota is used, invisibly.
+#' Connect to Earth Engine
+#'
+#' With a Google Cloud project registered in Earth Engine, it computes with the credentials of
+#' \code{earthengine authenticate} (or \code{rgee::ee_Initialize()}) and the quota of that project; with
+#' \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
+#' Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
+#' (who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
+#' month are left (see \code{mo_eecu()}).
+#' @param project Google Cloud project (default: the variable \code{EE_PROJECT}; \code{""}: the shared account of
+#'   MonitorEO).
+#' @param python optional path of the Python with monitoreo (see \code{reticulate::use_python()}).
+#' @return The project whose quota is used, invisibly.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()                # the shared account of MonitorEO
+#' mo_init("my-project")    # your own Earth Engine project
+#' }
 #' @export
 mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   if (!is.null(python)) reticulate::use_python(python, required = TRUE)
@@ -88,17 +199,24 @@ mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   invisible(p)
 }
 
-#' EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
-#' each month. With the shared account of MonitorEO they are your research EECUs (25 EECU-hours a month, only for
-#' research): when they are spent it does not compute for you until the next month, so switch to your own account
-#' (mo_init("<your project>")). With your own project (the Cloud Monitoring API must be enabled in it), the monthly
-#' quota of that project, against `limit`.
-#' @param limit monthly quota of your project: EECU-hours or tier ("Community", 150; "Contributor", 1000; "Partner",
-#'   100000; default: the variable MONITOREO_EECU_LIMIT or "Community").
+#' EECUs of Earth Engine spent this month
+#'
+#' EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of each
+#' month. With the shared account of MonitorEO they are your research EECUs (25 EECU-hours a month, only for research):
+#' when they are spent it does not compute for you until the next month, so switch to your own account
+#' (\code{mo_init("<your project>")}). With your own project (the Cloud Monitoring API must be enabled in it), the
+#' monthly quota of that project, against \code{limit}.
+#' @param limit monthly quota of your project: EECU-hours or tier (\code{"Community"}, 150; \code{"Contributor"},
+#'   1000; \code{"Partner"}, 100000; default: the variable \code{MONITOREO_EECU_LIMIT} or \code{"Community"}).
 #' @param refresh ask again (the answers are kept 5 minutes).
-#' @param lang language of the texts: "en" or "es".
-#' @return a list (account, name, project, used_hours, limit_hours, tier, used_percent, left_percent, month, resets,
-#'   low, warning, text, bar), invisibly; prints a bar and the text, and warns when less than 10 % are left.
+#' @param lang language of the texts: \code{"en"} or \code{"es"}.
+#' @return A list (account, name, project, used_hours, limit_hours, tier, used_percent, left_percent, month, resets,
+#'   low, warning, text, bar), invisibly; prints a bar and the text, and warns when less than 10 \% are left.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_eecu()
+#' }
 #' @export
 mo_eecu <- function(limit = NULL, refresh = TRUE, lang = "en") {
   u <- services()$eecu_usage(limit, refresh, lang)
@@ -119,42 +237,113 @@ rows_df <- function(rows) {
   df
 }
 
-#' Variables of the catalog of MonitorEO.
+#' Variables of the catalog of MonitorEO
+#'
+#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
+#' @param lang language of the names: \code{"en"} or \code{"es"}.
+#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit). The references of
+#'   each variable: \code{mo_describe()}.
+#' @seealso \code{mo_describe()}
+#' @examples
+#' \dontrun{
+#' mo_variables("Sentinel-2")
+#' mo_variables(text = "water")
+#' }
 #' @export
 mo_variables <- function(sensor = NULL, text = NULL, lang = "en") {
   rows_df(services()$list_variables(sensor, text, lang))
 }
 
-#' Everything about a variable of the catalog (formula, collection, unit, pixel filters, notes...).
+#' Everything about a variable of the catalog, and what to cite with it
+#'
+#' @inheritParams mo_params
+#' @return A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, alternatives (other
+#'   collections), references (the articles of its formula or algorithm, its Earth Engine datasets as their pages of the
+#'   Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and text) and credits.
+#' @seealso \code{mo_references()}
+#' @examples
+#' \dontrun{
+#' d <- mo_describe("NDVI", "Sentinel-2")
+#' d$ft
+#' mo_references(d)
+#' }
 #' @export
 mo_describe <- function(variable, sensor = NULL, collection = NULL) {
   services()$describe_variable(variable, sensor, collection)
 }
 
-#' Protected areas of WDPA whose name contains `text` (SITE_ID is the WDPA ID).
+#' Protected areas of the World Database on Protected Areas (WDPA)
+#'
+#' @param text text of their name.
+#' @param limit maximum number of areas.
+#' @return A data.frame of the protected areas whose name contains \code{text} (SITE_ID is the WDPA ID, for
+#'   \code{mo_wdpa()}), with their designation, IUCN category, country and area (km2).
+#' @references UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month
+#'   and year of the version used. Cambridge, UK: UNEP-WCMC and IUCN. \url{https://www.protectedplanet.net}
+#' @examples
+#' \dontrun{
+#' mo_protected_areas("Sierra Nevada")
+#' }
 #' @export
 mo_protected_areas <- function(text, limit = 20) {
   rows_df(services()$find_protected_areas(text, as.integer(limit)))
 }
 
-#' Regions: protected areas by WDPA ID, ecoregions of RESOLVE 2017, a box, a point or GeoJSON / sf objects.
+#' Regions of MonitorEO
+#'
+#' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
+#' by ID or by a point (\code{mo_ecoregion()}), a box (\code{mo_bbox()}), a point or a circle around it
+#' (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object (\code{mo_sf()}). Several features give a
+#' result per feature.
+#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}) or ecoregion IDs (ECO_ID).
+#' @param lon,lat longitude and latitude (degrees).
+#' @param west,south,east,north limits of the box (degrees).
+#' @param buffer radius of the circle around the point, in metres (0: the pixel at the point).
+#' @param geojson a GeoJSON geometry, Feature or FeatureCollection (text or a list).
+#' @param name_field property of the GeoJSON features with their names.
+#' @return A region (a list) for the other functions.
+#' @references UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month
+#'   and year of the version used. Cambridge, UK: UNEP-WCMC and IUCN. \url{https://www.protectedplanet.net}
+#'
+#' Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., et al. (2017). An ecoregion-based
+#'   approach to protecting half the terrestrial realm. BioScience, 67(6), 534--545. \doi{10.1093/biosci/bix014}
+#' @examples
+#' mo_wdpa(389011)            # Sierra Nevada National Park
+#' mo_ecoregion(lon = -3.3, lat = 37.1)
+#' mo_bbox(-3.6, 36.9, -3.0, 37.2)
+#' mo_point(-3.4, 37.05, buffer = 1000)
+#' @name regions
 #' @export
 mo_wdpa <- function(id) list(wdpa_id = as.list(as.integer(id)))
+#' @rdname regions
 #' @export
 mo_ecoregion <- function(id = NULL, lon = NULL, lat = NULL) {
   if (!is.null(id)) list(ecoregion_id = as.list(as.integer(id))) else list(ecoregion_at = list(lon, lat))
 }
+#' @rdname regions
 #' @export
 mo_bbox <- function(west, south, east, north) list(bbox = list(west, south, east, north))
+#' @rdname regions
 #' @export
 mo_point <- function(lon, lat, buffer = 0) list(point = list(lon, lat), buffer = buffer)
+#' @rdname regions
 #' @export
 mo_geojson <- function(geojson, name_field = NULL) {
   if (!is.character(geojson)) geojson <- jsonlite::toJSON(geojson, auto_unbox = TRUE, digits = NA)
   list(geojson = as.character(geojson), name_field = name_field)
 }
 
-#' A region from an sf object (polygons, any CRS); `name` is the column with the names of its features.
+#' A region from an sf object
+#'
+#' @param x an sf object of polygons, in any CRS.
+#' @param name the column with the names of its features (default: their numbers).
+#' @return A region (see \link{regions}).
+#' @examples
+#' \dontrun{
+#' parcels <- sf::st_read("parcels.gpkg")
+#' ts <- mo_time_series(mo_sf(parcels, "name"), "NDVI", "Sentinel-2", "2022-01-01", "2022-12-31")
+#' }
 #' @export
 mo_sf <- function(x, name = NULL) {
   x <- sf::st_transform(sf::st_zm(x), 4326)
@@ -165,10 +354,27 @@ mo_sf <- function(x, name = NULL) {
   mo_geojson(paste(readLines(path, warn = FALSE), collapse = "\n"))
 }
 
-#' Time series of a variable over a region: a value per step ("daily", "16-day", "monthly", "annual") and feature
-#' of the region, reduced in time with `metric` and over the region with `stat`, with the number of images and of
-#' valid pixels of each value. Returns a data.frame (region, date, value, n_pixels, n_images) with the attributes
-#' title, unit and scale.
+#' Time series of a variable over a region
+#'
+#' A value per step and feature of the region, reduced in time with \code{metric} and over the region with
+#' \code{stat}, with the number of images and of valid pixels of each value.
+#' @inheritParams mo_params
+#' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
+#' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, scale, csv,
+#'   references and credits (see \code{mo_references()}).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_plot()}, \code{mo_export_time_series()}, \code{mo_references()}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31")
+#' }
 #' @export
 mo_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean", stat = "mean",
                            season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL) {
@@ -179,10 +385,19 @@ mo_time_series <- function(region, variable, sensor, start, end, step = "monthly
   attr(df, "unit") <- res$unit
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
-  df
+  cited(df, res)
 }
 
-#' Chart of a time series of mo_time_series() (ggplot2 if installed, else base graphics).
+#' Chart of a time series
+#'
+#' With ggplot2 if it is installed, else with base graphics.
+#' @param ts a time series of \code{mo_time_series()}.
+#' @return A ggplot object, or \code{ts} invisibly.
+#' @importFrom graphics legend lines
+#' @examples
+#' \dontrun{
+#' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
+#' }
 #' @export
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
@@ -202,8 +417,25 @@ mo_plot <- function(ts) {
   invisible(ts)
 }
 
-#' Map of a variable over a region aggregated in time: URL of its Earth Engine map tiles (XYZ, valid for some
-#' hours) and colour ramp. `thumbnail`: path of a PNG preview.
+#' Map of a variable over a region, as Earth Engine tiles
+#'
+#' The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and
+#' its colour ramp.
+#' @inheritParams mo_params
+#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_leaflet()}, \code{mo_image()}, \code{mo_download_image()}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' layer <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' }
 #' @export
 mo_map_layer <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
@@ -212,15 +444,39 @@ mo_map_layer <- function(region, variable, sensor, start, end, metric = "median"
                        vmax, thumbnail = thumbnail, collection = collection)
 }
 
-#' A leaflet map with the tiles of mo_map_layer().
+#' A leaflet map with the tiles of a map
+#'
+#' @param layer a map of \code{mo_map_layer()}, \code{mo_trend_map()} or \code{mo_compare_map()}.
+#' @return A leaflet map.
+#' @examples
+#' \dontrun{
+#' mo_leaflet(mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"))
+#' }
 #' @export
 mo_leaflet <- function(layer) {
   leaflet::addTiles(leaflet::addProviderTiles(leaflet::leaflet(), "Esri.WorldImagery"), urlTemplate = layer$url,
                     attribution = "Google Earth Engine, MonitorEO", group = layer$name)
 }
 
-#' Earth Engine image (band "value") of a variable over a region aggregated in time, with its colour ramp: for
-#' rgee, e.g. rgee::Map$addLayer(x$image, x$vis, x$name).
+#' Earth Engine image of a variable over a region, for rgee
+#'
+#' The variable aggregated in time (band \code{"value"}), with its colour ramp: e.g.
+#' \code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
+#' @inheritParams mo_params
+#' @param clip clip the image to the region.
+#' @return A list (image, region, vis, name, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' }
 #' @export
 mo_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                      interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL) {
@@ -233,10 +489,30 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
                       season = season, quality = quality, collection = collection)
   res <- reticulate::import("monitoreo.variable", convert = TRUE)$native_scale(spec)
   vis <- maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
-  list(image = out[[1]], region = out[[2]], vis = vis, name = paste(variable, sensor, metric, start, end))
+  cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
+    "composite_image", list(region = region, variable = variable, sensor = sensor, start = start, end = end,
+                            quality = quality, collection = collection))
+  list(image = out[[1]], region = out[[2]], vis = vis, name = paste(variable, sensor, metric, start, end),
+       references = cite$references, credits = cite$credits)
 }
 
-#' Statistics over each feature of a region of the map of a variable aggregated in time.
+#' Statistics of the map of a variable over each feature of a region
+#'
+#' @inheritParams mo_params
+#' @return A data.frame (region, mean, std, min, p5, p50, p95, max, n_pixels) with the attributes title, unit, scale,
+#'   csv, references and credits (see \code{mo_references()}).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_region_stats(mo_wdpa(389011), "LST", "Modis", "2023-07-01", "2023-08-31")
+#' }
 #' @export
 mo_region_stats <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, scale = NULL, collection = NULL) {
@@ -246,10 +522,29 @@ mo_region_stats <- function(region, variable, sensor, start, end, metric = "medi
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
   attr(df, "scale") <- res$scale
-  df
+  cited(df, res)
 }
 
-#' Export the map of a variable over a region to a GeoTIFF in a folder of Google Drive (see mo_task_status()).
+#' Export the map of a variable to a GeoTIFF in Google Drive
+#'
+#' A batch task of Earth Engine, without limits of size (it needs your own Earth Engine account, not the shared one).
+#' @inheritParams mo_params
+#' @param folder folder of Google Drive.
+#' @param name name of the file (default: from the variable and the period).
+#' @return A list (operation, file, folder, grid, references, credits); \code{mo_task_status()} follows the task.
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_init("my-project")
+#' mo_export_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-01-01", "2023-12-31")
+#' }
 #' @export
 mo_export_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
@@ -259,7 +554,27 @@ mo_export_image <- function(region, variable, sensor, start, end, metric = "medi
                           collection = collection)
 }
 
-#' Export a time series to a CSV file in a folder of Google Drive (see mo_task_status()).
+#' Export a time series to a CSV file in Google Drive
+#'
+#' For long series or many regions (it needs your own Earth Engine account, not the shared one).
+#' @inheritParams mo_params
+#' @inheritParams mo_time_series
+#' @param folder folder of Google Drive.
+#' @param name name of the file (default: from the variable and the period).
+#' @return A list (operation, file, folder, references, credits); \code{mo_task_status()} follows the task.
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_init("my-project")
+#' mo_export_time_series(mo_wdpa(389011), "NDVI", "Landsat", "1985-01-01", "2024-12-31")
+#' }
 #' @export
 mo_export_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean",
                                   stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
@@ -268,11 +583,28 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
                                   folder, name, collection = collection)
 }
 
-#' Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed by
-#' Earth Engine in tiles: for small regions (big ones: mo_export_image()). Returns the path, the grid and the number
-#' of images.
-#' @param resolution pixel size in metres (default: that of the data).
-#' @param crs "auto" (UTM zone of the region) or a code such as "EPSG:25830".
+#' Download the map of a variable to a GeoTIFF on this computer
+#'
+#' Computed by Earth Engine in tiles (float32, NoData -9999): for small regions (big ones: \code{mo_export_image()}).
+#' The GeoTIFF keeps the references in its metadata (item \code{references}).
+#' @inheritParams mo_params
+#' @param path path of the GeoTIFF.
+#' @param clip clip the map to the region.
+#' @return A list (file, grid, resolution, native_resolution, images, name, unit, min, max, palette, references,
+#'   credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' x <- mo_download_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "ndvi.tif")
+#' terra::rast(x$file)
+#' }
 #' @export
 mo_download_image <- function(region, variable, sensor, start, end, path, metric = "median", temporal = "period",
                               interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
@@ -281,13 +613,41 @@ mo_download_image <- function(region, variable, sensor, start, end, path, metric
                             resolution, crs, path.expand(path), clip, collection = collection)
 }
 
-#' Download a recipe of variables (several variables and metrics, see the Python module monitoreo.recipe) as
-#' GeoTIFFs on aligned grids over a study area, in `folder`, and, if the recipe has `ecoregion`, over the ecoregions
-#' of RESOLVE 2017 that it touches, in `folder`/ecoregion. Running it again downloads only what changed.
-#' @param recipe a list (e.g. from yaml::read_yaml()) or the path of a YAML file.
-#' @param area the path of a vector file of the study area, or a region (mo_wdpa(), mo_bbox(), mo_sf(), ...).
+#' Download a recipe of variables as GeoTIFFs on aligned grids
+#'
+#' Several variables and metrics (see the Python module monitoreo.recipe) as GeoTIFFs on aligned grids over a study
+#'   area,
+#' in \code{folder}, and, if the recipe has \code{ecoregion}, over the ecoregions of RESOLVE 2017 that it touches,
+#' in \code{folder}/ecoregion: the input variables of a model. Running it again downloads only what changed. Each
+#' GeoTIFF keeps its references in its metadata (item \code{references}).
+#' @param recipe a list (e.g. from \code{yaml::read_yaml()}) or the path of a YAML file.
+#' @param area the path of a vector file of the study area, or a region (\code{mo_wdpa()}, \code{mo_bbox()},
+#'   \code{mo_sf()}, ...).
+#' @param folder folder of the GeoTIFFs.
+#' @param layer layer of the vector file.
+#' @param only names of the variables of the recipe to download (default: all).
 #' @param dry_run only the grids, their size and the number of images.
-#' @param wait wait for the export tasks to Google Drive (FALSE: run again to import them).
+#' @param overwrite download everything again.
+#' @param wait wait for the export tasks to Google Drive (\code{FALSE}: run again to import them).
+#' @param drive_dir local folder of Google Drive (default: that of Google Drive for desktop).
+#' @return A list (area, grids, ecoregions, files, done, folders, pending, in_drive, failed, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#'
+#' Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., et al. (2017). An ecoregion-based
+#'   approach to protecting half the terrestrial realm. BioScience, 67(6), 534--545. \doi{10.1093/biosci/bix014}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' recipe <- list(study = list(resolution = 10), period = c("2018-01-01", "2021-12-31"),
+#'                variables = list(list(index = "NDVI", sensor = "Sentinel-2", metric = c("p95", "p5"))))
+#' mo_download_variables(recipe, mo_wdpa(389011), "variables", dry_run = TRUE)
+#' }
 #' @export
 mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NULL, dry_run = FALSE,
                                   overwrite = FALSE, wait = TRUE, drive_dir = NULL) {
@@ -298,11 +658,39 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
                                 log = function(msg) message(msg))
 }
 
-#' Seasonal trends of a variable over each feature of a region (Mann-Kendall test and Sen's slope): for each part
-#' of the year (step "monthly": the months; "16-day": 23 parts of 16 days from 1 January; "annual": the year), the
-#' spatial `stat` of the `metric` of its images in each year and the trend of those yearly values. Returns a data.frame (region, key, label, n, tau, z, p_value, significant,
-#' slope (per year), intercept, first_year, last_year) with the attributes yearly (the yearly values), title, unit,
-#' scale, csv and chart.
+#' Seasonal trends of a variable over each feature of a region (Mann-Kendall and Sen)
+#'
+#' For each part of the year (step \code{"monthly"}: the months; \code{"16-day"}: 23 parts of 16 days from 1
+#' January; \code{"annual"}: the year), the spatial \code{stat} of the \code{metric} of its images in each year,
+#' and the trend of those yearly values: Kendall's tau and the Mann-Kendall Z and p-value, and Sen's slope (change per
+#' year). Use 8 or more years.
+#' @inheritParams mo_params
+#' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
+#' @param alpha significance level of the Mann-Kendall test.
+#' @return A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
+#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, scale, csv,
+#'   references and credits (see \code{mo_references()}).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
+#'   \doi{10.2307/1907187}
+#'
+#' Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1--2), 81--93.
+#'   \doi{10.1093/biomet/30.1-2.81}
+#'
+#' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
+#'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_trend_table(mo_wdpa(389011), "EVI", "Modis", "2001-01-01", "2024-12-31", step = "monthly")
+#' }
 #' @export
 mo_trend_table <- function(region, variable, sensor, start, end, step = "annual", metric = "mean", stat = "mean",
                            season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL, chart = NULL,
@@ -313,12 +701,41 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
-  df
+  cited(df, res)
 }
 
-#' Map of the trend of a part of the year computed on each pixel (see mo_trend_table): `part` is the month (1-12)
-#' with step "monthly", 1-23 with "16-day", NULL with "annual"; `output` "slope", "tau", "z", "p_value",
-#' "intercept" or "n"; `alpha` (e.g. 0.05) keeps only the significant pixels. Earth Engine tiles (see mo_leaflet()).
+#' Map of the trend of a part of the year on each pixel (Mann-Kendall and Sen)
+#'
+#' The trend (see \code{mo_trend_table()}) computed on each pixel, as Earth Engine tiles (see \code{mo_leaflet()}).
+#' @inheritParams mo_params
+#' @inheritParams mo_trend_table
+#' @param part the month (1-12) with step \code{"monthly"}, 1-23 with \code{"16-day"}, \code{NULL} with
+#'   \code{"annual"}.
+#' @param output \code{"slope"} (Sen, per year), \code{"tau"}, \code{"z"}, \code{"p_value"},
+#'   \code{"intercept"} or \code{"n"} (years with data).
+#' @param alpha optional significance level: only the pixels with a significant trend.
+#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
+#'   \doi{10.2307/1907187}
+#'
+#' Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1--2), 81--93.
+#'   \doi{10.1093/biomet/30.1-2.81}
+#'
+#' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
+#'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_trend_map(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", alpha = 0.05)
+#' }
 #' @export
 mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", part = NULL, output = "slope",
                          metric = "mean", season = NULL, quality = NULL, alpha = NULL, thumbnail = NULL,
@@ -328,8 +745,36 @@ mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", 
                        quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection)
 }
 
-#' Download the trend of a part of the year on each pixel to a GeoTIFF with the bands slope, tau, z, p_value,
-#' intercept and n (see mo_trend_map), e.g. for terra::rast(). For small regions.
+#' Download the trend of a part of the year on each pixel to a GeoTIFF
+#'
+#' A GeoTIFF with the bands slope, tau, z, p_value, intercept and n (see \code{mo_trend_map()}), e.g. for
+#' \code{terra::rast()}, with its references in its metadata. For small regions.
+#' @inheritParams mo_params
+#' @inheritParams mo_trend_map
+#' @param path path of the GeoTIFF.
+#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
+#'   credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
+#'   \doi{10.2307/1907187}
+#'
+#' Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1--2), 81--93.
+#'   \doi{10.1093/biomet/30.1-2.81}
+#'
+#' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
+#'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_download_trend(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", "trend.tif")
+#' }
 #' @export
 mo_download_trend <- function(region, variable, sensor, start, end, path, step = "annual", part = NULL,
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
@@ -339,10 +784,28 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
                             resolution, crs, path.expand(path), collection = collection)
 }
 
-#' Compare a reference period (start to end) with another (other_start to other_end) over each feature of a region:
-#' the mean of each part of the year over the years of each period and their difference (other - reference). Returns
-#' a data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes rows (the
-#' yearly values of both periods), title, unit, scale, csv and chart.
+#' Compare two periods over each feature of a region
+#'
+#' The mean of each part of the year over the years of a reference period (\code{start} to \code{end}) and of
+#' another (\code{other_start} to \code{other_end}), and their difference (other - reference).
+#' @inheritParams mo_params
+#' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
+#' @return A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
+#'   rows (the yearly values of both periods), chart and the attributes title, unit, scale, csv, references and credits
+#'   (see \code{mo_references()}).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_compare_series(mo_wdpa(389011), "NDSI", "Modis", "2001-01-01", "2010-12-31",
+#'                   "2015-01-01", "2024-12-31", quality = list(snow = FALSE))
+#' }
 #' @export
 mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
                               metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
@@ -353,11 +816,27 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
   for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
-  df
+  cited(df, res)
 }
 
-#' Map of the difference between the variable aggregated over another period and over the reference period (Earth
-#' Engine tiles, see mo_leaflet()).
+#' Map of the difference between two periods
+#'
+#' The variable aggregated over another period minus over the reference period, as Earth Engine tiles (see
+#' \code{mo_leaflet()}).
+#' @inheritParams mo_params
+#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_compare_map(mo_wdpa(389011), "NDVI", "Sentinel-2", "2018-01-01", "2021-12-31", "2023-01-01", "2023-12-31")
+#' }
 #' @export
 mo_compare_map <- function(region, variable, sensor, start, end, other_start, other_end, metric = "median",
                            temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL) {
@@ -365,8 +844,27 @@ mo_compare_map <- function(region, variable, sensor, start, end, other_start, ot
                          season = season, quality = quality, thumbnail = thumbnail, collection = collection)
 }
 
-#' Download the comparison of two periods to a GeoTIFF with the bands difference (other - reference), reference
-#' and other. For small regions.
+#' Download the comparison of two periods to a GeoTIFF
+#'
+#' A GeoTIFF with the bands difference (other - reference), reference and other, with its references in its metadata.
+#' For small regions.
+#' @inheritParams mo_params
+#' @param path path of the GeoTIFF.
+#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
+#'   credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_download_comparison(mo_wdpa(389011), "NDVI", "Sentinel-2", "2018-01-01", "2021-12-31",
+#'                        "2023-01-01", "2023-12-31", "difference.tif")
+#' }
 #' @export
 mo_download_comparison <- function(region, variable, sensor, start, end, other_start, other_end, path,
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
@@ -376,14 +874,50 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
                                  path = path.expand(path), collection = collection)
 }
 
-#' Burn severity of a fire with the dNBR (NBR of a period before the fire minus NBR of a period after it) and the
-#' classes of the USGS (Key & Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). Returns a data.frame (region,
-#' class, label, dnbr_min, dnbr_max, ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title
-#' and, with `path`, file: a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
-#' With `index = "RBR"`, the Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of
-#' Sentinel-2 (Silva-Cardoza et al. 2022), without phenological correction and on the scale of the dNBR: a
-#' data.frame (region, mean, median, p10, p90, min, max, ha) and a GeoTIFF with the bands rbr, dnbr, nbr_before and
-#' nbr_after.
+#' Burn severity of a fire (dNBR and RBR)
+#'
+#' The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
+#' Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). With \code{index = "RBR"}, the Relativized Burn Ratio,
+#' dNBR / (NBR before + 1.001) (Parks et al. 2014), with the NBR of B8A and B12 of Sentinel-2 (Silva-Cardoza et al.
+#' 2022), without phenological correction and on the scale of the dNBR: a continuous index, without classes.
+#' @inheritParams mo_params
+#' @param start,end the period before the fire.
+#' @param other_start,other_end the period after the fire.
+#' @param sensor \code{"Sentinel-2"} or \code{"Landsat"}.
+#' @param path optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
+#'   rbr, dnbr, nbr_before and nbr_after).
+#' @param index \code{"dNBR"} or \code{"RBR"}.
+#' @return A data.frame (region, class, label, dnbr_min, dnbr_max, ha; RBR: region, mean, median, p10, p90, min, max,
+#'   ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title, file, references and credits.
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @references García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper
+#'   data. Geocarto International, 6(1), 31--37. \doi{10.1080/10106049109354290}
+#'
+#' Key, C. H., & Benson, N. C. (2006). Landscape assessment (LA): Sampling and analysis methods. In D. C. Lutes et al.
+#'   (Eds.), FIREMON: Fire effects monitoring and inventory system (Gen. Tech. Rep. RMRS-GTR-164-CD). USDA Forest
+#'   Service, Rocky Mountain Research Station.
+#'   \url{https://www.fs.usda.gov/rm/pubs_series/rmrs/gtr/rmrs_gtr164/rmrs_gtr164_13_land_assess.pdf}
+#'
+#' Parks, S. A., Dillon, G. K., & Miller, C. (2014). A new metric for quantifying burn severity: The Relativized Burn
+#'   Ratio. Remote Sensing, 6(3), 1827--1844. \doi{10.3390/rs6031827}
+#'
+#' Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C. I., López-Serrano, P. M.,
+#'   Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological correction and
+#'   the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and burned area. Remote
+#'   Sensing, 14(13), 3122. \doi{10.3390/rs14133122}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
+#'                  "2022-10-01", "2022-11-30", path = "fire.tif")
+#' }
 #' @export
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
@@ -395,9 +929,16 @@ mo_burn_severity <- function(region, start, end, other_start, other_end, sensor 
   attr(df, "burned_ha") <- unlist(res$burned_ha)
   attr(df, "title") <- res$title
   attr(df, "file") <- res$file
-  df
+  cited(df, res)
 }
 
-#' State of an export task: PENDING, RUNNING, SUCCEEDED, FAILED or CANCELLED.
+#' State of an export task
+#'
+#' @param operation the operation returned by \code{mo_export_image()} or \code{mo_export_time_series()}.
+#' @return The state: PENDING, RUNNING, SUCCEEDED, FAILED or CANCELLED, with its progress.
+#' @examples
+#' \dontrun{
+#' mo_task_status(x$operation)
+#' }
 #' @export
 mo_task_status <- function(operation) services()$task_status(operation)

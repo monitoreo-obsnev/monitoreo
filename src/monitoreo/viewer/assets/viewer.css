@@ -201,6 +201,10 @@ img { max-width: 100%; }
 .result-body { padding: 8px 18px 4px; }
 .result-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px 16px; align-items: center; }
 .result-tools .spacer { flex: 1; }
+.result-refs { margin: 0; padding: 0 18px 12px; font-size: 14px; color: var(--muted, #5b6770); }
+.references ol { padding-left: 1.8em; font-size: 14px; }
+.references li { margin: 4px 0; overflow-wrap: anywhere; }
+.references .credits { font-size: 14px; color: var(--muted, #5b6770); }
 details.call { padding: 0 18px 16px; font-size: 14px; }
 details.call summary { cursor: pointer; color: var(--ink-2); }
 details.call pre {
@@ -304,7 +308,7 @@ table.data th { position: sticky; top: 0; background: var(--surface-2); font-wei
 	.filters { grid-template-columns: 1fr; }
 	.site-header nav { margin-left: 0; }
 	.lead { font-size: 17px; }
-	.result-head, .result-body, .result-tools, details.call { padding-left: 12px; padding-right: 12px; }
+	.result-head, .result-body, .result-tools, .result-refs, details.call { padding-left: 12px; padding-right: 12px; }
 	.map { height: 58vh; }
 	.downloads td.type { display: none; }
 }

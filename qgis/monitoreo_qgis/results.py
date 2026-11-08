@@ -1,7 +1,8 @@
 """Windows of the results: chart, table and buttons to save the CSV and the chart. The chart of a time series is the
 PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt; those of
 the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
-Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year."""
+Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year.
+Each window ends with the references of its result (monitoreo.references), with the links of their DOIs."""
 
 import datetime as dt
 import math
@@ -10,7 +11,7 @@ import shutil
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
 from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
-                                 QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+                                 QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -91,6 +92,19 @@ def _cell(v):
 	return f'{v:.6g}' if isinstance(v, float) else str(v)
 
 
+def references_box(res):
+	"""A box with the references and credits of the result RES (with the links of their DOIs), or None."""
+	from .helptexts import cite_html
+	text = cite_html(res.get('references'), res.get('credits') or (), 'References (cite them with this result)')
+	if not text:
+		return None
+	box = QTextBrowser()
+	box.setOpenExternalLinks(True)
+	box.setHtml(text)
+	box.setMaximumHeight(120)
+	return box
+
+
 class ResultDialog(QDialog):
 	"""Window of the trends or of the comparison of periods: chart (PNG), table and buttons to save them."""
 
@@ -122,6 +136,9 @@ class ResultDialog(QDialog):
 		maps = map_row(res, add_map)
 		if maps:
 			lay.addLayout(maps)
+		refs = references_box(res)
+		if refs:
+			lay.addWidget(refs)
 		row = QHBoxLayout()
 		row.addStretch()
 		for text, path, filt in (('Save CSV…', res.get('csv'), 'CSV (*.csv)'),
@@ -260,6 +277,9 @@ class SeriesDialog(QDialog):
 		maps = map_row(res, add_map)
 		if maps:
 			lay.addLayout(maps)
+		refs = references_box(res)
+		if refs:
+			lay.addWidget(refs)
 		row = QHBoxLayout()
 		row.addStretch()
 		if res.get('csv'):
