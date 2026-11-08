@@ -205,7 +205,7 @@ mo_plot <- function(ts) {
 
 #' Map of a variable over a region aggregated in time: URL of its Earth Engine map tiles (XYZ, valid for some
 #' hours) and colour ramp. `thumbnail`: path of a PNG preview. The fixed layers without dates (variables "ELEVATION"
-#' and "SLOPE" of sensor "DEM") need no `start` and `end`.
+#' and "SLOPE" of sensor "Copernicus") need no `start` and `end`.
 #' @export
 mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,

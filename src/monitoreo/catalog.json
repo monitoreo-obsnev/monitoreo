@@ -4,7 +4,7 @@
   "type": "group of variables",
   "index": "variable",
   "vname": "name",
-  "sensor": "Sentinel-2, Landsat or Modis (DEM: the elevation models of catalog.EXTRA)",
+  "sensor": "Sentinel-2, Landsat or Modis (Copernicus: the elevation model of catalog.EXTRA)",
   "col": "Earth Engine collection (LANDSAT = Landsat 5, 7, 8 and 9)",
   "m": "native pixel size (m)",
   "tr": "revisit time",

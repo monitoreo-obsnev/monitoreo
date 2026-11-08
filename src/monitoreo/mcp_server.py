@@ -46,7 +46,7 @@ LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI
 frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
 snow cover frequency (SCF, Landsat) is the % of the clear observations of each pixel with snow: always with metric
 "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality). The elevation and the slope
-(variables ELEVATION and SLOPE, sensor "DEM": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
+(variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
 series, trends or comparisons.
 

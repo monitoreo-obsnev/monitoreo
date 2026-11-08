@@ -73,7 +73,7 @@ SCF = {
 }
 DEM = {
 	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',
-	'sensor': 'DEM', 'col': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'm': 30, 'tr': 'fixed',
+	'sensor': 'Copernicus', 'col': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'm': 30, 'tr': 'fixed',
 	'dr': 'fixed layer, without dates (TanDEM-X, 2011-2015)', 'scale': 1, 'offset': 0, 'pg': '#8c510a',
 	'large_areas': True,
 	'static': True,  # without dates: maps and their statistics, no time series, trends or comparisons
