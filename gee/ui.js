@@ -33,6 +33,8 @@
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
+			staticNote: 'Capa fija, sin fechas: solo el mapa y su GeoTIFF. El periodo, las métricas, las series ' +
+				'temporales, las tendencias y la comparación de periodos no se aplican.',
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada píxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, así que su métrica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
@@ -87,6 +89,8 @@
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
+			staticNote: 'Fixed layer, without dates: only the map and its GeoTIFF. The period, metrics, time series, ' +
+				'trends and comparison of periods do not apply.',
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
@@ -410,13 +414,23 @@
 		return e.axis ? (e.axis + ' ' + (e.unit || '')).trim() : e.unit;
 	}
 
-	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean)
+	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
+	// greyed out also for the fixed layers without dates (elevation, slope)
 	function metricSelect(value, onChange) {
 		var only = entry().metric;
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
 		var s = select(metrics, only || value, onChange);
-		s.setDisabled(Boolean(only));
+		s.setDisabled(Boolean(only) || Boolean(entry().static));
 		return s;
+	}
+
+	// Greys out the widgets W and those of their panels (the options of the dates, for a fixed layer); returns W
+	function disable(w) {
+		w.forEach(function (x) {
+			if (typeof x.widgets === 'function') x.widgets().forEach(function (y) { disable([y]); });
+			else if (typeof x.setDisabled === 'function') x.setDisabled(true);
+		});
+		return w;
 	}
 
 	function variableWidgets() {
@@ -426,25 +440,27 @@
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' · '), SMALL));
 		if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
-		w.push(header(t('period')));
-		w.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
+		if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
+		var dates = [header(t('period'))];  // greyed out for a fixed layer without dates (elevation, slope)
+		dates.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.period[1], function (v) { state.period[1] = v.trim(); })));
-		w.push(check(t('season'), state.seasonOn, function (v) {
+		dates.push(check(t('season'), state.seasonOn, function (v) {
 			state.seasonOn = v;
 			render();
 		}));
 		if (state.seasonOn) {
-			w.push(row(box(state.season[0], function (v) { state.season[0] = v.trim(); }, '70px'), ui.Label(t('to')),
+			dates.push(row(box(state.season[0], function (v) { state.season[0] = v.trim(); }, '70px'), ui.Label(t('to')),
 				box(state.season[1], function (v) { state.season[1] = v.trim(); }, '70px')));
 		}
-		w.push(check(t('compare'), state.compareOn, function (v) {
+		dates.push(check(t('compare'), state.compareOn, function (v) {
 			state.compareOn = v;
 			render();
 		}));
 		if (state.compareOn) {
-			w.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
+			dates.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
+		w = w.concat(e.static ? disable(dates) : dates);
 		w.push(header(t('filters')));
 		// fixed filters (the SCF): all of them greyed out, those always on checked
 		var fixed = mo.fixedFilters(e);
@@ -527,7 +543,8 @@
 		return [e.index + ' ' + e.sensor, state.regionName].concat(extra || []).join(' · ');
 	}
 
-	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow
+	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
+	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image)
 	function downloadWidget(img, e, bands, name) {
 		var panel = ui.Panel();
 		panel.add(button(t('download'), function () {
@@ -537,7 +554,7 @@
 			var scale = native * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
-			ee.Image(img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
+			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
 				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90), region: state.region.geometry().bounds(1000),
 				scale: scale, crs: state.info.crs, format: 'GEO_TIFF', filePerBand: false
 			}, function (url, error) {
@@ -584,7 +601,11 @@
 		s.interannual = state.interannual;
 		var geom = state.region.geometry();
 		var img, name;
-		if (state.compareOn) {
+		if (e.static) {  // a fixed layer without dates (elevation, slope): no metric, period nor comparison
+			var region = state.region;
+			img = function (scale) { return mo.image(s, geom, scale).clipToCollection(region); };
+			name = title(e);
+		} else if (state.compareOn) {
 			var o = specOf(state.other, state.mapMetric);
 			o.temporal = s.temporal;
 			o.interannual = s.interannual;
@@ -595,21 +616,22 @@
 			name = title(e, [metricName(state.mapMetric), s.period.join('/')]);
 		}
 		var id = start();
-		var band = state.compareOn ? img.select('difference') : img;
+		var compare = state.compareOn && !e.static;
+		var band = e.static ? img() : compare ? img.select('difference') : img;
 		mo.percentiles(band, geom, rangeScale(e)).evaluate(function (stats, error) {
 			if (id !== run) return;
 			var vis;
 			if (error) {  // the range of the catalog
 				var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-				vis = state.compareOn ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+				vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
 			} else {
-				vis = state.compareOn ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
 			}
 			map.addLayer(band, vis, name);
 			colourBar(vis, name + (e.unit ? ' ' + e.unit : ''));
 			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
 			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
-			widgets.push(downloadWidget(img, e, state.compareOn ? ['difference', 'reference', 'other'] : ['value'], name));
+			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			show(widgets);
 		});
 	}
@@ -619,15 +641,16 @@
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
-		w.push(row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
+		var time = [row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
 			render();
-		}, '190px')));
+		}, '190px'))];
 		if (state.temporal !== 'period') {
-			w.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
+			time.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
 				state.interannual = v;
 			})));
 		}
+		w = w.concat(entry().static ? disable(time) : time);  // a fixed layer: no aggregation in time
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
 	}
@@ -785,7 +808,7 @@
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
-		return w;
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
 	}
 
 	// Trends --------------------------------------------------------------------------------------------------------
@@ -918,7 +941,7 @@
 		w.push(row(ui.Label(t('output')), select(outputs, state.output, function (v) { state.output = v; }, '190px')));
 		w.push(check(t('significant'), state.significant, function (v) { state.significant = v; }));
 		w.push(button(t('trendMap'), guarded(trendMap)));
-		return w;
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no trends
 	}
 
 	// Burn severity -------------------------------------------------------------------------------------------------

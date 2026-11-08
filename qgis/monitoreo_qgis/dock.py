@@ -316,6 +316,7 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		box = QGroupBox('Time series')
+		self.series_box = box  # greyed out for the fixed layers without dates (elevation, slope)
 		f = QFormLayout(box)
 		self.step = combo(STEPS, 'monthly')
 		self.ts_metric = combo(METRICS, 'mean')
@@ -339,6 +340,7 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		box = QGroupBox('Trends (Mann-Kendall and Sen)')
+		self.trends_box = box
 		box.setToolTip("Trend of each part of the year over the years of the period: Kendall's τ, Mann-Kendall Z and "
 		               "p-value, and Sen's slope (change per year). Better with 8 years or more")
 		f = QFormLayout(box)
@@ -371,8 +373,6 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Metric', info(self.map_metric, HELP['map_metric']))
 		f.addRow('Temporal aggregation', info(self.temporal, HELP['temporal']))
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
-		self.variable.currentIndexChanged.connect(self.variable_changed)  # the metrics of the SCF: only the mean
-		self.variable_changed()
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
 		             'Identify Features tool), at the resolution of the data or, in big regions, with bigger pixels '
@@ -396,12 +396,17 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(b)
 		b = QPushButton('Series (CSV)')
 		b.clicked.connect(self.run_export_series)
+		self.export_series_button = b
 		row.addWidget(b)
 		f.addRow(row)
 		self.export_status = QLabel('')
 		self.export_status.setWordWrap(True)
 		f.addRow(self.export_status)
 		main.addWidget(box)
+		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
+		# fixed layers (elevation, slope)
+		self.variable.currentIndexChanged.connect(self.variable_changed)
+		self.variable_changed()
 		main.addWidget(self.about_box())
 		main.addStretch()
 
@@ -639,7 +644,7 @@ class MonitorEODock(QDockWidget):
 
 	def other_period(self):
 		"""(first day, last day) of the period to compare with the reference one, or None."""
-		if not self.compare_on.isChecked():
+		if not self.compare_on.isChecked() or (self.variable.currentData() or {}).get('static'):
 			return None
 		return self.other_start.date().toString('yyyy-MM-dd'), self.other_end.date().toString('yyyy-MM-dd')
 
@@ -705,15 +710,24 @@ class MonitorEODock(QDockWidget):
 	def variable_changed(self):
 		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
 		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
-		observations with snow, without clouds and water). The filters chosen before come back with another variable."""
+		observations with snow, without clouds and water). The filters chosen before come back with another variable.
+		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
+		series and the trends greyed out."""
 		v = self.variable.currentData() or {}
 		only = v.get('metric')
+		static = bool(v.get('static'))
 		for w in (self.ts_metric, self.trend_metric, self.map_metric):
 			if only:
 				w.setCurrentIndex(max(0, w.findData(only)))
-			w.setEnabled(not only)
+			w.setEnabled(not only and not static)
 			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
+		for w in (self.start, self.end, self.compare_on, self.season_on, self.season_start, self.season_end,
+		          self.temporal, self.interannual, self.series_box, self.trends_box, self.export_series_button):
+			w.setEnabled(not static)
+		for w in (self.other_start, self.other_end):
+			w.setEnabled(not static and self.compare_on.isChecked())
 		fixed = v.get('fixed_filters')
+		self.cloud_score.setEnabled(fixed is None)
 		if fixed is not None and self.chosen_filters is None:
 			self.chosen_filters = {k: w.isChecked() for k, w in self.filters.items()}
 		for k, w in self.filters.items():

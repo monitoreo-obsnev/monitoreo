@@ -193,8 +193,10 @@ var MonitorEO = (function () {
 		return entry.fk === 'scf';
 	}
 
-	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen
+	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
+	// none for the fixed layers without dates (elevation, slope)
 	function fixedFilters(entry) {
+		if (entry.static) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
 	}
 
@@ -443,14 +445,40 @@ var MonitorEO = (function () {
 		return [iso(wins[0][1]), iso(wins[wins.length - 1][2])];
 	}
 
+	// variable.is_static: a variable of the catalog without dates (elevation, slope)
+	function isStatic(s) {
+		return Boolean(entryOf(s).static);
+	}
+
+	// variable.check_dates: error if S is a fixed layer without dates, for WHAT needs them
+	function checkDates(s, what) {
+		if (!isStatic(s)) return;
+		var e = entryOf(s);
+		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
+			'statistics of the region, but no ' + (what || 'time series, trends or comparisons'));
+	}
+
+	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
+	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
+	function staticImage(e, res) {
+		var col = ee.ImageCollection(e.col).select(e.band);
+		var img = col.mosaic().setDefaultProjection(col.first().projection());
+		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
+		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
+		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
+		return img.toFloat().rename('value');
+	}
+
 	// variable.collection
 	function collection(s, region) {
+		checkDates(s);
 		var sp = span(s);
 		return sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
 	}
 
-	// variable.image
-	function image(s, region) {
+	// variable.image, for output pixels of RES metres (by default those of the data)
+	function image(s, region, res) {
+		if (isStatic(s)) return staticImage(entryOf(s), res);
 		return composite(collection(s, region), s.metric, s.temporal, s.interannual, s.period, s.season);
 	}
 
@@ -939,6 +967,7 @@ var MonitorEO = (function () {
 
 	// The comparison image of services._comparison: bands difference (other - reference), reference and other
 	function comparisonImage(ref, other, region) {
+		checkDates(ref, 'comparisons of periods');
 		var a = image(ref, region);
 		var b = image(other, region);
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
@@ -1056,7 +1085,8 @@ var MonitorEO = (function () {
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
-		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, collection: collection, image: image,
+		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
+		collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,

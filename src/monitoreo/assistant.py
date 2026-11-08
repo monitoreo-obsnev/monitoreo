@@ -178,6 +178,9 @@ e.g. ["06-01", "08-31"] for the summer.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat", always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water \
 are always removed, whatever the quality), so pass no quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
+- Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
+"DEM". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
+have no time series, trends or comparisons.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \

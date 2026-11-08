@@ -25,6 +25,15 @@ EXTRA = {
 	105: (5, {'index': 'SCF', 'ft': 'SCF(green,nir,swir1)',
 	          'f': 'NDSI = (SR_B3 - SR_B6) / (SR_B3 + SR_B6); snow: NDSI >= 0.35, SR_B3 > 0.1 and SR_B5 > 0.1 (Landsat 8 and '
 	               '9; in the shadow of the relief, the NDSI >= 0.35 and the green >= 0.08 of the TOA reflectance)'}),
+	# Elevation and slope of the Copernicus DEM GLO-30: fixed layers, without dates (maps and their statistics, no
+	# time series, trends or comparisons: see variable.is_static); they copy no entry of catalog.json (None)
+	106: (None, {'index': 'ELEVATION', 'ft': 'DEM', 'f': 'DEM', 'vname': 'Elevación', 'vname_en': 'Elevation',
+	             'vname_fr': 'Elevation', 'vname_de': 'Elevation', 'unit': '[m]', 'minp': 0, 'maxp': 3500,
+	             'pm': ['1a9850', '91cf60', 'd9ef8b', 'fee08b', 'fdae61', 'b2734a', '8c510a', 'bdbdbd', 'ffffff']}),
+	107: (None, {'index': 'SLOPE', 'ft': 'slope(DEM)', 'f': 'ee.Terrain.slope(DEM)', 'terrain': 'slope',
+	             'vname': 'Pendiente', 'vname_en': 'Slope', 'vname_fr': 'Slope', 'vname_de': 'Slope', 'unit': '[º]',
+	             'minp': 0, 'maxp': 45,
+	             'pm': ['ffffcc', 'ffeda0', 'fed976', 'feb24c', 'fd8d3c', 'fc4e2a', 'e31a1c', 'bd0026', '800026']}),
 }
 RBR_OFFSET = 1.001  # RBR = dNBR / (NBR before + RBR_OFFSET) (Parks et al. 2014)
 RBR = {
@@ -62,7 +71,22 @@ SCF = {
 		'filters': 'fixed: clouds and water are always removed and snow and aerosols never, whatever the quality',
 	},
 }
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF}  # fields of the variables of EXTRA, by index
+DEM = {
+	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',
+	'sensor': 'DEM', 'col': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'm': 30, 'tr': 'fixed',
+	'dr': 'fixed layer, without dates (TanDEM-X, 2011-2015)', 'scale': 1, 'offset': 0, 'pg': '#8c510a',
+	'large_areas': True,
+	'static': True,  # without dates: maps and their statistics, no time series, trends or comparisons
+	'notes': {
+		'ft': 'Copernicus DEM GLO-30 (release 2024_1), from the radar of TanDEM-X (2011-2015), 30 m: a surface model, '
+		      'so it gives the height of the canopy and of the buildings, not that of the ground. The slope is that of '
+		      'ee.Terrain.slope, in degrees (0 = flat, 90 = vertical); on pixels more than twice as big as those of '
+		      'the data, the mean of the slopes of their 30 m pixels. A fixed layer, without dates: maps, GeoTIFFs and '
+		      'statistics of the region, but no time series, trends or comparisons; the period, metrics and pixel '
+		      'filters do not apply.',
+	},
+}
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM}  # fields of EXTRA
 
 _catalog = None
 
@@ -80,8 +104,8 @@ def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
-	extra = [dict(by_ref[base], **dict(TEMPLATES[changes['index']], **changes), ref=ref)
-	         for ref, (base, changes) in EXTRA.items() if base in by_ref]
+	extra = [dict(by_ref[base] if base is not None else {}, **dict(TEMPLATES[changes['index']], **changes), ref=ref)
+	         for ref, (base, changes) in EXTRA.items() if base is None or base in by_ref]
 	return entries + extra
 
 

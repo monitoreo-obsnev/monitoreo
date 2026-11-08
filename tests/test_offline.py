@@ -14,7 +14,8 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 37  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2 and SCF of Landsat
+	assert len(entries) == 39  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat and
+	# the elevation and slope of the Copernicus DEM
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -84,6 +85,39 @@ def test_scf_in_the_catalog():
 	assert e['axis'] == 'Snow Cover Frequency (SCF)'
 	assert services._ylabel(spec) == 'Snow Cover Frequency (SCF) [%]'
 	assert services._ylabel(services.make_spec('NDSI', 'Landsat', '2020-10-01', '2021-05-31')) == '[unitless]'
+
+
+def test_elevation_and_slope_in_the_catalog():
+	# elevation and slope of the Copernicus DEM GLO-30: fixed layers, without dates (maps and their statistics only)
+	for index, unit, terrain in (('ELEVATION', '[m]', None), ('SLOPE', '[º]', 'slope')):
+		e = catalog.find(index, 'dem')
+		assert (e['col'], e['band'], e['m'], e['unit'], e.get('terrain'), e['static']) == (
+			'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 30, unit, terrain, True)
+		assert sensors.fixed_filters(e) == [] and not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
+		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
+	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107]
+	# no metric, period nor season: one spec, named without them
+	spec = services.make_spec('SLOPE', 'DEM')
+	assert spec['metric'] is None and spec['name'] == 'SLOPE_DEM' and variable.is_static(spec)
+	assert services.make_spec('SLOPE', 'DEM', '2020-01-01', '2020-12-31', metric='p95')['name'] == 'SLOPE_DEM'
+	assert services._title(services.make_spec('ELEVATION', 'DEM', '2020-01-01', '2020-12-31')) == 'ELEVATION DEM'
+	assert services._named(spec, 'median') == 'SLOPE DEM' and services._ylabel(spec) == '[º]'
+	assert services._file_stem('SLOPE', 'DEM', 'median', None, None, {}) == 'SLOPE_DEM'
+	ndvi = services.make_spec('NDVI', 'Sentinel-2', '2020-01-01', '2020-12-31')
+	assert not variable.is_static(ndvi) and services._named(ndvi, 'median').endswith('(median)')
+	# no time series, trends or comparisons, with an error before any call to Earth Engine
+	region = {'bbox': [-3.4, 37.0, -3.3, 37.1]}
+	with pytest.raises(ValueError, match='ELEVATION .DEM. is a fixed layer, without dates'):
+		services.time_series(region, 'ELEVATION', 'DEM', '2020-01-01', '2020-12-31')
+	with pytest.raises(ValueError, match='fixed layer, without dates.* no comparisons'):
+		services.compare_series(region, 'SLOPE', 'DEM', '2020-01-01', '2020-12-31', '2021-01-01', '2021-12-31')
+	with pytest.raises(ValueError, match='fixed layer, without dates'):
+		variable.collection(spec, None, 30)
+	d = services.describe_variable('SLOPE', 'DEM')
+	assert d['static'] and d['fixed_filters'] == [] and d['group'] == 'Topography' and 'degrees' in d['notes']['ft']
+	assert [(r['variable'], r['static']) for r in services.list_variables(sensor='DEM')] == [
+		('ELEVATION', True), ('SLOPE', True)]
+	assert 'static' not in services.describe_variable('NDVI', 'Sentinel-2')
 
 
 def test_rbr_report():

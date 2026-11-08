@@ -204,9 +204,10 @@ mo_plot <- function(ts) {
 }
 
 #' Map of a variable over a region aggregated in time: URL of its Earth Engine map tiles (XYZ, valid for some
-#' hours) and colour ramp. `thumbnail`: path of a PNG preview.
+#' hours) and colour ramp. `thumbnail`: path of a PNG preview. The fixed layers without dates (variables "ELEVATION"
+#' and "SLOPE" of sensor "DEM") need no `start` and `end`.
 #' @export
-mo_map_layer <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
                          thumbnail = NULL, collection = NULL) {
   services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
@@ -239,7 +240,7 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
 
 #' Statistics over each feature of a region of the map of a variable aggregated in time.
 #' @export
-mo_region_stats <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, scale = NULL, collection = NULL) {
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
                                  quality = quality, scale = scale, collection = collection)
@@ -252,7 +253,7 @@ mo_region_stats <- function(region, variable, sensor, start, end, metric = "medi
 
 #' Export the map of a variable over a region to a GeoTIFF in a folder of Google Drive (see mo_task_status()).
 #' @export
-mo_export_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
                             name = NULL, collection = NULL) {
   services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
@@ -275,7 +276,7 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs "auto" (UTM zone of the region) or a code such as "EPSG:25830".
 #' @export
-mo_download_image <- function(region, variable, sensor, start, end, path, metric = "median", temporal = "period",
+mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median", temporal = "period",
                               interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
                               clip = TRUE, collection = NULL) {
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,

@@ -83,7 +83,7 @@ def specs(var, defaults=None, two_periods=False):
 	if e.get('two_periods') and not two_periods:
 		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
 		                 f"it with burn_severity and index '{e['index']}'")
-	if k == 'image':
+	if k == 'image' or e.get('static'):  # a fixed image (elevation, slope): no metric, period or season
 		metrics = [None]
 	else:
 		metrics = base.pop('metrics', None) or base.get('metric')
@@ -116,6 +116,26 @@ def specs(var, defaults=None, two_periods=False):
 
 def entry_of(spec):
 	return catalog.find(spec['index'], spec.get('sensor'), spec.get('collection'), spec.get('ref'))
+
+
+def is_static(spec):
+	"""Whether SPEC is a variable of the catalog without dates (elevation, slope): an image, with maps and their
+	statistics but no time series, trends or comparisons."""
+	return kind(spec) == 'catalog' and bool(entry_of(spec).get('static'))
+
+
+def check_dates(spec, what='time series, trends or comparisons'):
+	"""Error if SPEC is a fixed layer without dates, for WHAT needs them."""
+	if is_static(spec):
+		e = entry_of(spec)
+		raise ValueError(f"{e['index']} ({e['sensor']}) is a fixed layer, without dates: it has maps, GeoTIFFs and "
+		                 f"statistics of the region (map_layer, download_image, region_stats), but no {what}")
+
+
+def _static_spec(spec):
+	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band and terrain)."""
+	e = entry_of(spec)
+	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'))
 
 
 def _span(spec):
@@ -193,6 +213,7 @@ def collection(spec, region, res):
 	aggregation."""
 	if kind(spec) == 'collection':
 		return _from_collection(spec, region, res)
+	check_dates(spec)
 	entry = entry_of(spec)
 	start, end = _span(spec)
 	return sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])))
@@ -202,6 +223,8 @@ def image(spec, region, res):
 	"""Image ('value') of the variable SPEC over REGION (ee.Geometry) for output pixels of RES metres."""
 	if kind(spec) == 'image':
 		img = _fixed(spec, res)
+	elif is_static(spec):
+		img = _fixed(_static_spec(spec), res)
 	else:
 		img = composite.composite(collection(spec, region, res), spec['metric'], spec['temporal'],
 		                          spec['interannual'], spec['period'], spec['season'])
@@ -214,7 +237,7 @@ def image(spec, region, res):
 
 def n_images(spec, region):
 	"""Number of images of the period (and season) of SPEC over REGION (None for a fixed image)."""
-	if kind(spec) == 'image':
+	if kind(spec) == 'image' or is_static(spec):
 		return None
 	wins = composite.windows(spec['period'], spec['season'])
 	col = collection(dict(spec, resample='nearest'), region, 1e9)

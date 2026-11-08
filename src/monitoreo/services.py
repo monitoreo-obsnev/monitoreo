@@ -493,6 +493,8 @@ def list_variables(sensor=None, text=None, lang='en'):
 			row['metric'] = e['metric']  # its only metric (SCF: the mean)
 		if sensors.fixed_filters(e) is not None:
 			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
+		if e.get('static'):
+			row['static'] = True  # elevation, slope: without dates, only maps and their statistics
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -512,6 +514,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 		out['metric'] = e['metric']  # its only metric (SCF: the mean)
 	if sensors.fixed_filters(e) is not None:
 		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
+	if e.get('static'):
+		out['static'] = True  # elevation, slope: without dates, only maps and their statistics
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]
@@ -562,11 +566,16 @@ def _title(spec, step=None, metric=None, stat=None):
 		name = f"{e['index']} {e['sensor']}"
 	else:
 		name = f"{spec.get(k)} {spec.get('band') or ''}".strip()
-	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') else ''
+	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') and not variables.is_static(spec) else ''
 	parts = [name, period]
 	if step:
 		parts.append(f'{step} {metric}, spatial {stat}')
 	return ' | '.join(p for p in parts if p)
+
+
+def _named(spec, metric):
+	"""Name of a map of SPEC: its title and METRIC (not for the fixed layers, elevation and slope)."""
+	return _title(spec) + ('' if variables.is_static(spec) else f' ({metric})')
 
 
 def _unit(spec):
@@ -594,6 +603,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given.
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
 	unit = _unit(spec)
@@ -619,6 +629,7 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 	Returns {'operation', 'file', 'folder'}."""
 	need_own_account()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	table = timeseries.table(spec, regions, step, metric, stat, scale)
 	name = _slug(name or f"{variable or source.get('collection')}_{sensor or ''}_{step}_{metric}_{start}_{end}")
@@ -663,7 +674,7 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	                                 quality, clip, None, source)
 	entry = variable_entry(spec)
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick)
-	out = dict(vis, url=maps.tile_url(img, vis), name=_title(spec) + f' ({metric})', unit=_unit(spec),
+	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:
 		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
@@ -713,7 +724,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 		row.update({s: p.get(n) for s, n in names.items()})
 		row['n_pixels'] = p.get('count')
 		rows.append(row)
-	return {'rows': rows, 'scale': scale, 'unit': _unit(spec), 'title': _title(spec) + f' ({metric})'}
+	return {'rows': rows, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
 
 
 # Exports -----------------------------------------------------------------------------------------------------------
@@ -744,6 +755,13 @@ def _grid(regions, res, crs):
 
 
 def _file_stem(variable, sensor, metric, start, end, source):
+	try:
+		static = bool(variable) and bool(catalog.find(variable, sensor, source.get('collection'), source.get('ref'))
+		                                 .get('static'))
+	except KeyError:
+		static = False
+	if static:  # a fixed layer (elevation, slope): no metric nor period
+		return f'{variable}_{sensor}'
 	return f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}"
 
 
@@ -771,7 +789,7 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
 	vmin, vmax = _percentiles(path)
 	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
-	        'images': variables.n_images(spec, regions.geometry()), 'name': _title(spec) + f' ({metric})',
+	        'images': variables.n_images(spec, regions.geometry()), 'name': _named(spec, metric),
 	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
 
 
@@ -862,6 +880,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	first_year, last_year}], 'yearly': [{region, part, year, value, n_pixels, n_images}], 'csv', 'chart', 'scale',
 	'unit', 'title'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
 	first = composite.windows(spec['period'], spec['season'])[0][0]
@@ -886,6 +905,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 
 def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source):
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	part = _part(step, part)
 	native = float(variables.native_scale(spec))
@@ -945,6 +965,7 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 	(symmetric range of the slope), 'palette'}."""
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec0, 'trends')
 	native = float(variables.native_scale(spec0))
 	grid, res = _fit_grid(regions_, float(resolution or native), crs, max_pixels)
 	spec, regions, img, part, native, name = _trend(regions_, variable, sensor, start, end, step, part, metric, season,
@@ -974,6 +995,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		raise ValueError('give the other period: other_start and other_end')
 	ref = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	scale = scale or timeseries.auto_scale(ref, regions)
 	ref_rows, _ = _seasonal_rows(ref, regions, step, metric, stat, scale, progress)
@@ -1015,6 +1037,7 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	                season=season, quality=quality, two_periods=two_periods, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal=temporal,
 	                interannual=interannual, season=season, quality=quality, two_periods=two_periods, **source)
+	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	native = float(variables.native_scale(ref))
 	geom = regions.geometry()
@@ -1063,6 +1086,7 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                  season=season, quality=quality, **source)
+	variables.check_dates(spec0, 'comparisons of periods')
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
 	spec, regions, img, native, name = _comparison(regions_, variable, sensor, start, end, other_start, other_end,
 	                                               metric, temporal, interannual, season, quality, res, source)

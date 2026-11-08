@@ -88,6 +88,7 @@ var CATALOG = {
  "variables": [
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -117,6 +118,8 @@ var CATALOG = {
    "ref": 1,
    "scale": 0.1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -127,6 +130,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -156,6 +160,8 @@ var CATALOG = {
    "ref": 2,
    "scale": 10000,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -166,6 +172,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -203,6 +210,8 @@ var CATALOG = {
    "ref": 3,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -213,6 +222,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -250,6 +260,8 @@ var CATALOG = {
    "ref": 4,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -260,6 +272,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -292,6 +305,8 @@ var CATALOG = {
    "ref": 5,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -302,6 +317,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -333,6 +349,8 @@ var CATALOG = {
    "ref": 6,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -343,6 +361,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -374,6 +393,8 @@ var CATALOG = {
    "ref": 7,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -384,6 +405,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -416,6 +438,8 @@ var CATALOG = {
    "ref": 8,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -426,6 +450,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -462,6 +487,8 @@ var CATALOG = {
    "ref": 9,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -472,6 +499,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -508,6 +536,8 @@ var CATALOG = {
    "ref": 10,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -518,6 +548,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -567,6 +598,8 @@ var CATALOG = {
    "ref": 11,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -577,6 +610,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD43A3",
    "dr": "2000/02/24-now",
    "fb": {
@@ -623,6 +657,8 @@ var CATALOG = {
    "ref": 12,
    "scale": 0.001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -633,6 +669,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -686,6 +723,8 @@ var CATALOG = {
    "ref": 13,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -696,6 +735,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -726,6 +766,8 @@ var CATALOG = {
    "ref": 14,
    "scale": 0.00341802,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -736,6 +778,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -766,6 +809,8 @@ var CATALOG = {
    "ref": 15,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -776,6 +821,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD11A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -806,6 +852,8 @@ var CATALOG = {
    "ref": 16,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -816,6 +864,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
    "dr": "2002/07/03-now",
    "fb": {
@@ -851,6 +900,8 @@ var CATALOG = {
    "ref": 17,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -861,6 +912,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "NASA/OCEANDATA/MODIS-Terra/L3SMI",
    "dr": "2000/02/24-now",
    "fb": {
@@ -896,6 +948,8 @@ var CATALOG = {
    "ref": 18,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -906,6 +960,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -943,6 +998,8 @@ var CATALOG = {
    "ref": 19,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -953,6 +1010,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -990,6 +1048,8 @@ var CATALOG = {
    "ref": 20,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1000,6 +1060,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -1035,6 +1096,8 @@ var CATALOG = {
    "ref": 21,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1045,6 +1108,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1080,6 +1144,8 @@ var CATALOG = {
    "ref": 22,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1090,6 +1156,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -1127,6 +1194,8 @@ var CATALOG = {
    "ref": 23,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1137,6 +1206,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1173,6 +1243,8 @@ var CATALOG = {
    "ref": 24,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1183,6 +1255,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -1218,6 +1291,8 @@ var CATALOG = {
    "ref": 25,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1228,6 +1303,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1263,6 +1339,8 @@ var CATALOG = {
    "ref": 26,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1273,6 +1351,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1309,6 +1388,8 @@ var CATALOG = {
    "ref": 27,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1319,6 +1400,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD19A2_GRANULES",
    "dr": "2000/02/24-now",
    "fb": {
@@ -1358,6 +1440,8 @@ var CATALOG = {
    "ref": 28,
    "scale": 0.001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Nutrientes / Aerosoles",
@@ -1368,6 +1452,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/MOD09GA_006_NDWI",
    "dr": "24/02/2000-17/02/2023",
    "fb": {
@@ -1403,6 +1488,8 @@ var CATALOG = {
    "ref": 29,
    "scale": "#",
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -1413,6 +1500,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "24/02/2000-now",
    "fb": {
@@ -1443,6 +1531,8 @@ var CATALOG = {
    "ref": 30,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -1453,6 +1543,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1489,6 +1580,8 @@ var CATALOG = {
    "ref": 31,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1499,6 +1592,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD15A3H",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1534,6 +1628,8 @@ var CATALOG = {
    "ref": 32,
    "scale": 0.1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "4-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1544,6 +1640,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1573,6 +1670,8 @@ var CATALOG = {
    "ref": 101,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1583,6 +1682,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1612,6 +1712,8 @@ var CATALOG = {
    "ref": 102,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1622,6 +1724,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1651,6 +1754,8 @@ var CATALOG = {
    "ref": 103,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1661,6 +1766,7 @@ var CATALOG = {
   },
   {
    "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1690,6 +1796,8 @@ var CATALOG = {
    "ref": 104,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1700,6 +1808,7 @@ var CATALOG = {
   },
   {
    "axis": "Snow Cover Frequency (SCF)",
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1730,6 +1839,8 @@ var CATALOG = {
    "ref": 105,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -1737,6 +1848,88 @@ var CATALOG = {
    "unit": "[%]",
    "vname": "Frecuencia de nieve",
    "vname_en": "Snow cover frequency"
+  },
+  {
+   "axis": null,
+   "band": "DEM",
+   "col": "COPERNICUS/DEM/GLO30_2024_1",
+   "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
+   "fb": [
+    "DEM"
+   ],
+   "fk": "static",
+   "ft": "DEM",
+   "index": "ELEVATION",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 3500,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "1a9850",
+    "91cf60",
+    "d9ef8b",
+    "fee08b",
+    "fdae61",
+    "b2734a",
+    "8c510a",
+    "bdbdbd",
+    "ffffff"
+   ],
+   "ref": 106,
+   "scale": 1,
+   "sensor": "DEM",
+   "static": true,
+   "terrain": null,
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Topograf\u00eda",
+   "type_en": "Topography",
+   "unit": "[m]",
+   "vname": "Elevaci\u00f3n",
+   "vname_en": "Elevation"
+  },
+  {
+   "axis": null,
+   "band": "DEM",
+   "col": "COPERNICUS/DEM/GLO30_2024_1",
+   "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
+   "fb": [
+    "DEM"
+   ],
+   "fk": "static",
+   "ft": "slope(DEM)",
+   "index": "SLOPE",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 45,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffcc",
+    "ffeda0",
+    "fed976",
+    "feb24c",
+    "fd8d3c",
+    "fc4e2a",
+    "e31a1c",
+    "bd0026",
+    "800026"
+   ],
+   "ref": 107,
+   "scale": 1,
+   "sensor": "DEM",
+   "static": true,
+   "terrain": "slope",
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Topograf\u00eda",
+   "type_en": "Topography",
+   "unit": "[\u00ba]",
+   "vname": "Pendiente",
+   "vname_en": "Slope"
   }
  ]
 };
@@ -1936,8 +2129,10 @@ var MonitorEO = (function () {
 		return entry.fk === 'scf';
 	}
 
-	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen
+	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
+	// none for the fixed layers without dates (elevation, slope)
 	function fixedFilters(entry) {
+		if (entry.static) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
 	}
 
@@ -2186,14 +2381,40 @@ var MonitorEO = (function () {
 		return [iso(wins[0][1]), iso(wins[wins.length - 1][2])];
 	}
 
+	// variable.is_static: a variable of the catalog without dates (elevation, slope)
+	function isStatic(s) {
+		return Boolean(entryOf(s).static);
+	}
+
+	// variable.check_dates: error if S is a fixed layer without dates, for WHAT needs them
+	function checkDates(s, what) {
+		if (!isStatic(s)) return;
+		var e = entryOf(s);
+		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
+			'statistics of the region, but no ' + (what || 'time series, trends or comparisons'));
+	}
+
+	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
+	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
+	function staticImage(e, res) {
+		var col = ee.ImageCollection(e.col).select(e.band);
+		var img = col.mosaic().setDefaultProjection(col.first().projection());
+		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
+		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
+		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
+		return img.toFloat().rename('value');
+	}
+
 	// variable.collection
 	function collection(s, region) {
+		checkDates(s);
 		var sp = span(s);
 		return sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
 	}
 
-	// variable.image
-	function image(s, region) {
+	// variable.image, for output pixels of RES metres (by default those of the data)
+	function image(s, region, res) {
+		if (isStatic(s)) return staticImage(entryOf(s), res);
 		return composite(collection(s, region), s.metric, s.temporal, s.interannual, s.period, s.season);
 	}
 
@@ -2682,6 +2903,7 @@ var MonitorEO = (function () {
 
 	// The comparison image of services._comparison: bands difference (other - reference), reference and other
 	function comparisonImage(ref, other, region) {
+		checkDates(ref, 'comparisons of periods');
 		var a = image(ref, region);
 		var b = image(other, region);
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
@@ -2799,7 +3021,8 @@ var MonitorEO = (function () {
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
-		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, collection: collection, image: image,
+		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
+		collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
@@ -2849,6 +3072,8 @@ var MonitorEO = (function () {
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificaci\u00f3n SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
+			staticNote: 'Capa fija, sin fechas: solo el mapa y su GeoTIFF. El periodo, las m\u00e9tricas, las series ' +
+				'temporales, las tendencias y la comparaci\u00f3n de periodos no se aplican.',
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada p\u00edxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, as\u00ed que su m\u00e9trica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
@@ -2903,6 +3128,8 @@ var MonitorEO = (function () {
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
+			staticNote: 'Fixed layer, without dates: only the map and its GeoTIFF. The period, metrics, time series, ' +
+				'trends and comparison of periods do not apply.',
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
@@ -3226,13 +3453,23 @@ var MonitorEO = (function () {
 		return e.axis ? (e.axis + ' ' + (e.unit || '')).trim() : e.unit;
 	}
 
-	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean)
+	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
+	// greyed out also for the fixed layers without dates (elevation, slope)
 	function metricSelect(value, onChange) {
 		var only = entry().metric;
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
 		var s = select(metrics, only || value, onChange);
-		s.setDisabled(Boolean(only));
+		s.setDisabled(Boolean(only) || Boolean(entry().static));
 		return s;
+	}
+
+	// Greys out the widgets W and those of their panels (the options of the dates, for a fixed layer); returns W
+	function disable(w) {
+		w.forEach(function (x) {
+			if (typeof x.widgets === 'function') x.widgets().forEach(function (y) { disable([y]); });
+			else if (typeof x.setDisabled === 'function') x.setDisabled(true);
+		});
+		return w;
 	}
 
 	function variableWidgets() {
@@ -3242,25 +3479,27 @@ var MonitorEO = (function () {
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'p\u00edxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' \u00b7 '), SMALL));
 		if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
-		w.push(header(t('period')));
-		w.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
+		if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
+		var dates = [header(t('period'))];  // greyed out for a fixed layer without dates (elevation, slope)
+		dates.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.period[1], function (v) { state.period[1] = v.trim(); })));
-		w.push(check(t('season'), state.seasonOn, function (v) {
+		dates.push(check(t('season'), state.seasonOn, function (v) {
 			state.seasonOn = v;
 			render();
 		}));
 		if (state.seasonOn) {
-			w.push(row(box(state.season[0], function (v) { state.season[0] = v.trim(); }, '70px'), ui.Label(t('to')),
+			dates.push(row(box(state.season[0], function (v) { state.season[0] = v.trim(); }, '70px'), ui.Label(t('to')),
 				box(state.season[1], function (v) { state.season[1] = v.trim(); }, '70px')));
 		}
-		w.push(check(t('compare'), state.compareOn, function (v) {
+		dates.push(check(t('compare'), state.compareOn, function (v) {
 			state.compareOn = v;
 			render();
 		}));
 		if (state.compareOn) {
-			w.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
+			dates.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
+		w = w.concat(e.static ? disable(dates) : dates);
 		w.push(header(t('filters')));
 		// fixed filters (the SCF): all of them greyed out, those always on checked
 		var fixed = mo.fixedFilters(e);
@@ -3343,7 +3582,8 @@ var MonitorEO = (function () {
 		return [e.index + ' ' + e.sensor, state.regionName].concat(extra || []).join(' \u00b7 ');
 	}
 
-	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow
+	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
+	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image)
 	function downloadWidget(img, e, bands, name) {
 		var panel = ui.Panel();
 		panel.add(button(t('download'), function () {
@@ -3353,7 +3593,7 @@ var MonitorEO = (function () {
 			var scale = native * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
-			ee.Image(img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
+			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
 				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90), region: state.region.geometry().bounds(1000),
 				scale: scale, crs: state.info.crs, format: 'GEO_TIFF', filePerBand: false
 			}, function (url, error) {
@@ -3400,7 +3640,11 @@ var MonitorEO = (function () {
 		s.interannual = state.interannual;
 		var geom = state.region.geometry();
 		var img, name;
-		if (state.compareOn) {
+		if (e.static) {  // a fixed layer without dates (elevation, slope): no metric, period nor comparison
+			var region = state.region;
+			img = function (scale) { return mo.image(s, geom, scale).clipToCollection(region); };
+			name = title(e);
+		} else if (state.compareOn) {
 			var o = specOf(state.other, state.mapMetric);
 			o.temporal = s.temporal;
 			o.interannual = s.interannual;
@@ -3411,21 +3655,22 @@ var MonitorEO = (function () {
 			name = title(e, [metricName(state.mapMetric), s.period.join('/')]);
 		}
 		var id = start();
-		var band = state.compareOn ? img.select('difference') : img;
+		var compare = state.compareOn && !e.static;
+		var band = e.static ? img() : compare ? img.select('difference') : img;
 		mo.percentiles(band, geom, rangeScale(e)).evaluate(function (stats, error) {
 			if (id !== run) return;
 			var vis;
 			if (error) {  // the range of the catalog
 				var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-				vis = state.compareOn ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+				vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
 			} else {
-				vis = state.compareOn ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
 			}
 			map.addLayer(band, vis, name);
 			colourBar(vis, name + (e.unit ? ' ' + e.unit : ''));
 			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
 			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
-			widgets.push(downloadWidget(img, e, state.compareOn ? ['difference', 'reference', 'other'] : ['value'], name));
+			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			show(widgets);
 		});
 	}
@@ -3435,15 +3680,16 @@ var MonitorEO = (function () {
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
-		w.push(row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
+		var time = [row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
 			render();
-		}, '190px')));
+		}, '190px'))];
 		if (state.temporal !== 'period') {
-			w.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
+			time.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
 				state.interannual = v;
 			})));
 		}
+		w = w.concat(entry().static ? disable(time) : time);  // a fixed layer: no aggregation in time
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
 	}
@@ -3601,7 +3847,7 @@ var MonitorEO = (function () {
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
-		return w;
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
 	}
 
 	// Trends --------------------------------------------------------------------------------------------------------
@@ -3734,7 +3980,7 @@ var MonitorEO = (function () {
 		w.push(row(ui.Label(t('output')), select(outputs, state.output, function (v) { state.output = v; }, '190px')));
 		w.push(check(t('significant'), state.significant, function (v) { state.significant = v; }));
 		w.push(button(t('trendMap'), guarded(trendMap)));
-		return w;
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no trends
 	}
 
 	// Burn severity -------------------------------------------------------------------------------------------------

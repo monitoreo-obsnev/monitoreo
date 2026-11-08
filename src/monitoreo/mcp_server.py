@@ -45,7 +45,10 @@ MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth 
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
 frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
 snow cover frequency (SCF, Landsat) is the % of the clear observations of each pixel with snow: always with metric
-"mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality).
+"mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality). The elevation and the slope
+(variables ELEVATION and SLOPE, sensor "DEM": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
+without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
+series, trends or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer (map tiles and preview),
@@ -231,7 +234,8 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 
 
 @tool
-def map_layer(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def map_layer(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+              end: Optional[str] = None, metric: str = 'median',
               temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
               collection: Optional[str] = None, quick: bool = False):
@@ -252,7 +256,8 @@ def map_layer(region: dict, variable: str, sensor: str, start: str, end: str, me
 
 
 @tool
-def region_stats(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def region_stats(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                 end: Optional[str] = None, metric: str = 'median',
                  temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                  scale: Optional[float] = None, collection: Optional[str] = None) -> str:
 	"""Statistics (mean, std, min, p5, p50, p95, max, number of pixels) over each feature of a region of the map of
@@ -263,7 +268,8 @@ def region_stats(region: dict, variable: str, sensor: str, start: str, end: str,
 
 
 @tool
-def export_image_to_drive(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def export_image_to_drive(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                          end: Optional[str] = None, metric: str = 'median',
                           temporal: str = 'period', season: Optional[List[str]] = None,
                           quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
                           folder: str = 'MonitorEO', name: Optional[str] = None,
@@ -291,7 +297,8 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
 
 
 @tool
-def download_image(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def download_image(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                   end: Optional[str] = None, metric: str = 'median',
                    temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                    resolution: Optional[float] = None, crs: str = 'auto', clip: bool = True,
                    collection: Optional[str] = None) -> str:

@@ -92,7 +92,10 @@ def is_scf(entry):
 
 def fixed_filters(entry):
 	"""Pixel filters always on for ENTRY, whatever the quality, or None if they can be chosen: those of the snow cover
-	frequency, clouds and water (never snow, what it measures, nor aerosols)."""
+	frequency, clouds and water (never snow, what it measures, nor aerosols); none for the fixed layers without dates
+	(elevation and slope)."""
+	if entry.get('static'):
+		return []
 	return [f for f in FILTERS if f in SCF_FILTERS] if is_scf(entry) else None
 
 
@@ -201,8 +204,11 @@ def band_names(entry):
 
 def parse_formula(entry):
 	"""(kind, bands) of the formula of ENTRY: ('nd', [b1, b2]) for N(b1,b2), ('scf', [green, nir, swir1]) for
-	SCF(green,nir,swir1), else ('expr', {name: band}) with the band of every name of the expression (matched without
+	SCF(green,nir,swir1), ('static', [band]) for the fixed layers (elevation and slope: an image, see
+	variable.is_static), else ('expr', {name: band}) with the band of every name of the expression (matched without
 	case)."""
+	if entry.get('static'):
+		return 'static', [entry['band']]
 	ft = entry['ft'].strip()
 	names = band_names(entry)
 	lower = {b.lower(): b for b in names}

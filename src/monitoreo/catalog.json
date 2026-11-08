@@ -4,7 +4,7 @@
   "type": "group of variables",
   "index": "variable",
   "vname": "name",
-  "sensor": "Sentinel-2, Landsat or Modis",
+  "sensor": "Sentinel-2, Landsat or Modis (DEM: the elevation models of catalog.EXTRA)",
   "col": "Earth Engine collection (LANDSAT = Landsat 5, 7, 8 and 9)",
   "m": "native pixel size (m)",
   "tr": "revisit time",
@@ -21,6 +21,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
+  "static": "fixed layer, without dates (catalog.EXTRA: elevation and slope): an image (col and band, with terrain slope), with maps and their statistics but no time series, trends or comparisons",
   "notes": "comments of the fields"
  },
  "collections": {

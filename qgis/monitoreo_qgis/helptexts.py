@@ -192,6 +192,8 @@ def describe(v):
 def filter_lines(v, d):
 	"""The filters that can be applied to V (described by D) and those that remove what it measures."""
 	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f)]
+	if d.get('static'):  # elevation, slope: an image, without filters
+		return [f"{v['variable']} of {v['sensor']} has no pixel filters: it is a fixed layer, without dates."]
 	if d.get('fixed_filters') is not None:  # the snow cover frequency: always without clouds and water
 		return [f"{v['variable']} of {v['sensor']} has fixed filters, which cannot be changed: it always removes "
 		        f"{' and '.join(names)}."]
@@ -211,6 +213,9 @@ def variable_help(v):
 	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
 	if d.get('metric'):  # the snow cover frequency: how it is computed, and its only metric
 		lines += [d['notes'].get('ft', ''), f"<b>Only with the metric {d['metric']}</b>: {d['notes'].get('metric', '')}."]
+	if d.get('static'):  # elevation, slope: only maps
+		lines += [d['notes'].get('ft', ''), '<b>A fixed layer, without dates</b>: only its map (Map and Export to Google '
+		          'Drive); the period, the metrics, the time series and the trends do not apply.']
 	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#variables')
 
 
