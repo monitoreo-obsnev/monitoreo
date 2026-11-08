@@ -58,7 +58,8 @@ The variable aggregated over another period minus over the reference period, as 
  The result carries its references (with DOI): those of the formula or algorithm of the variable,
   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-  data ask for. \code{mo_references()} prints them.
+  data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+  element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 }
 
 \examples{

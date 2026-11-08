@@ -94,10 +94,12 @@ mo_references <- function(x = NULL) {
   invisible(refs)
 }
 
-# The references and credits of the answer RES of Python as attributes of the data.frame DF (see mo_references()).
+# The references and credits of the answer RES of Python as attributes of the data.frame DF (see mo_references()),
+# and the README of its files (readme).
 cited <- function(df, res) {
   attr(df, "references") <- vapply(res$references, function(r) r$text, "")
   attr(df, "credits") <- as.character(unlist(res$credits))
+  attr(df, "readme") <- if (is.null(res$readme)) NULL else unlist(res$readme)
   df
 }
 #' Arguments shared by the functions of MonitorEO
@@ -365,7 +367,8 @@ mo_sf <- function(x, name = NULL) {
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -426,7 +429,8 @@ mo_plot <- function(ts) {
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -468,7 +472,8 @@ mo_leaflet <- function(layer) {
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -504,7 +509,8 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -535,7 +541,8 @@ mo_region_stats <- function(region, variable, sensor, start, end, metric = "medi
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -565,7 +572,8 @@ mo_export_image <- function(region, variable, sensor, start, end, metric = "medi
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -595,7 +603,8 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -634,7 +643,8 @@ mo_download_image <- function(region, variable, sensor, start, end, path, metric
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -673,7 +683,8 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
 #'   \doi{10.2307/1907187}
 #'
@@ -718,7 +729,8 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
 #'   \doi{10.2307/1907187}
 #'
@@ -757,7 +769,8 @@ mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", 
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245--259.
 #'   \doi{10.2307/1907187}
 #'
@@ -796,7 +809,8 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -828,7 +842,8 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -855,7 +870,8 @@ mo_compare_map <- function(region, variable, sensor, start, end, other_start, ot
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -892,7 +908,8 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
-#'   data ask for. \code{mo_references()} prints them.
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
 #' @references García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper
 #'   data. Geocarto International, 6(1), 31--37. \doi{10.1080/10106049109354290}
 #'

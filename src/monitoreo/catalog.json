@@ -1385,7 +1385,7 @@
    "f": "ST_B10",
    "fe": 0,
    "QA": "#",
-   "unit": "[ºC]",
+   "unit": "[°C]",
    "references": [
     "cook2014"
    ],
@@ -1453,7 +1453,7 @@
    "f": "LST_day_1km",
    "fe": 0,
    "QA": "QC_day_Bitmask",
-   "unit": "[ºC]",
+   "unit": "[°C]",
    "references": [
     "wan1996",
     "wan2014"
@@ -1521,7 +1521,7 @@
    "f": "LST_day_1km",
    "fe": 0,
    "QA": "QC_day_Bitmask",
-   "unit": "[ºC]",
+   "unit": "[°C]",
    "references": [
     "wan1996",
     "wan2014"
@@ -2534,7 +2534,7 @@
    "f": "LST_Day_1km",
    "fe": 0,
    "QA": "#",
-   "unit": "[ºC]",
+   "unit": "[°C]",
    "references": [
     "wan1996",
     "wan2014"

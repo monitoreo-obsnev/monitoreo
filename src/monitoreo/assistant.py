@@ -1219,8 +1219,8 @@ class Assistant:
 			if result.get('palette'):
 				card['legend'] = {k: result.get(k) for k in ('min', 'max', 'palette')}
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
-			for k in ('csv', 'file'):
-				if result.get(k):
+			for k in ('csv', 'file', 'readme'):
+				if isinstance(result.get(k), str):
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map

@@ -6,6 +6,7 @@ Each window ends with the references of its result (monitoreo.references), with 
 
 import datetime as dt
 import math
+import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
@@ -92,6 +93,15 @@ def _cell(v):
 	return f'{v:.6g}' if isinstance(v, float) else str(v)
 
 
+def save_file(src, path, res):
+	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its README next to it
+	(<name>.README.txt), which explains its columns and how to cite it."""
+	shutil.copyfile(src, path)
+	readme = res.get('readme')
+	if src == res.get('csv') and isinstance(readme, str) and os.path.exists(readme):
+		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
+
+
 def references_box(res):
 	"""A box with the references and credits of the result RES (with the links of their DOIs), or None."""
 	from .helptexts import cite_html
@@ -155,7 +165,7 @@ class ResultDialog(QDialog):
 	def save(self, src, filt):
 		path, _ = QFileDialog.getSaveFileName(self, 'Save', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
 		if path:
-			shutil.copyfile(src, path)
+			save_file(src, path, self.res)
 
 
 def nice_ticks(lo, hi, n=5):
@@ -297,7 +307,7 @@ class SeriesDialog(QDialog):
 	def save(self, src, filt):
 		path, _ = QFileDialog.getSaveFileName(self, 'Save', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
 		if path:
-			shutil.copyfile(src, path)
+			save_file(src, path, self.res)
 
 	def save_chart(self):
 		if self.res.get('chart'):

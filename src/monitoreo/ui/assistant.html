@@ -695,7 +695,8 @@ function resultCard(e) {
   const links = e.files.filter(f => f.url);
   if (links.length) {
     card.append(el('div', {class: 'files'}, ...links.map(f =>
-      el('a', {href: fileUrl(f.url), download: f.name, text: 'Download ' + f.name.split('.').pop().toUpperCase()}))));
+      el('a', {href: fileUrl(f.url), download: f.name,
+               text: f.name.endsWith('.README.txt') ? 'README' : 'Download ' + f.name.split('.').pop().toUpperCase()}))));
   }
   return card;
 }

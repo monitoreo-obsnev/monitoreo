@@ -40,7 +40,7 @@ import os
 import re
 import time
 
-from . import __version__, areas, drive, references, sensors
+from . import __version__, areas, drive, readme, references, sensors
 from . import variable as variables
 from .grid import Grid, download
 
@@ -313,7 +313,8 @@ def run(p, folder, record=RECORD, overwrite=False, drive_all=False, drive_dir=No
 				download(img, g, path, tile=tile, workers=workers,
 				         progress=(lambda done, total, f=f: progress(f, done, total)) if progress else None,
 				         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str),
-				                   'references': cited})
+				                   'references': cited, 'monitoreo_version': __version__, 'computed': _now()})
+				readme.name_bands(path, desc.get('udunits', ''))
 			except Exception as e:
 				save_record(outdir, rec, record)
 				raise RuntimeError(f'{f}: {e}') from e
@@ -365,7 +366,9 @@ def import_exports(pending, recs, grids, dirs, local, record=RECORD, wait=True, 
 				else:
 					drive.mosaic(found, grids[name], os.path.join(outdir, f), metadata={
 						'source': 'Google Earth Engine', 'monitoreo': json.dumps(t['source'], default=str),
-						**({'references': t['references']} if t.get('references') else {})})
+						**({'references': t['references']} if t.get('references') else {}),
+						'monitoreo_version': __version__, 'computed': t.get('started') or _now()})
+					readme.name_bands(os.path.join(outdir, f), t['source'].get('udunits', ''))
 					rec['files'][f] = {k: t[k] for k in ('spec', 'grid', 'source', 'images')}
 					rec['files'][f].update({'downloaded': _now(), 'via': f"Google Drive/{t['drive_folder']}"})
 					del rec['tasks'][f]
