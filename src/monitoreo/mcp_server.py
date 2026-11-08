@@ -219,7 +219,7 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
 	                           collection=collection)
 	rows = res['rows']
-	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'n_steps', 'regions', 'csv', 'chart')}
+	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart')}
 	summary['rows'] = rows[:MAX_ROWS_SHOWN]
 	if len(rows) > MAX_ROWS_SHOWN:
 		summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
@@ -345,7 +345,7 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
 	                           chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year"
 	summary['trends'] = res['rows']
 	out = [_text(summary)]
@@ -401,7 +401,7 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
 	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
 	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
 	                              chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	out = [_text(summary)]
 	if res['chart']:

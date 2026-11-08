@@ -399,6 +399,12 @@
 		render();
 	}
 
+	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
+	// (e.g. 'Snow Cover Frequency (SCF) [%]')
+	function axisTitle(e) {
+		return e.axis ? (e.axis + ' ' + (e.unit || '')).trim() : e.unit;
+	}
+
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean)
 	function metricSelect(value, onChange) {
 		var only = entry().metric;
@@ -649,7 +655,7 @@
 				return {v: v === undefined ? null : v};
 			}))};
 		});
-		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: e.unit}, lineWidth: 1.5,
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)}, lineWidth: 1.5,
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -755,7 +761,7 @@
 					series[2 * i + 1] = {color: regions.length > 1 ? undefined : '#d62728', lineDashStyle: [6, 3],
 						pointShape: 'square'};
 				});
-				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: e.unit},
+				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
 					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name)]);
@@ -807,7 +813,7 @@
 			return {c: c};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: t('seeChart') + ' ' +
-			mo.partLabel(step, part, state.lang), vAxis: {title: e.unit}, hAxis: {format: '####'}, series: series,
+			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e)}, hAxis: {format: '####'}, series: series,
 			legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 

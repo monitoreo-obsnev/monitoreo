@@ -49,6 +49,7 @@ SCF = {
 	'vname': 'Frecuencia de nieve', 'vname_en': 'Snow cover frequency', 'vname_fr': 'Snow cover frequency',
 	'vname_de': 'Snow cover frequency', 'unit': '[%]', 'minp': 0, 'maxp': 100, 'pm': SCF_PALETTE, 'pg': '#4292c6',
 	'metric': 'mean',  # the only metric: the mean of the images (100 or 0) of a pixel is its frequency
+	'axis': 'Snow Cover Frequency (SCF)',  # title of the y axis of the charts, before the unit
 	'notes': {
 		'ft': 'Snow cover frequency (SCF): % of the clear observations of each pixel with snow or ice. In the sun, snow '
 		      'is NDSI >= 0.35, green > 0.1 and NIR > 0.1 (surface reflectance), without the pixels flagged as water. In '

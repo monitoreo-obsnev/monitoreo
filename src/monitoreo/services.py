@@ -569,6 +569,14 @@ def _unit(spec):
 	return variables.entry_of(spec)['unit'] if variables.kind(spec) == 'catalog' else ''
 
 
+def _ylabel(spec):
+	"""Title of the y axis of the charts of SPEC: the unit, after the axis title of the catalog if it has one (e.g.
+	'Snow Cover Frequency (SCF) [%]')."""
+	unit = _unit(spec)
+	axis = variables.entry_of(spec).get('axis') if variables.kind(spec) == 'catalog' else None
+	return f'{axis} {unit}'.strip() if axis else unit
+
+
 def _slug(text):
 	return re.sub(r'[^A-Za-z0-9_-]+', '_', str(text)).strip('_')[:80]
 
@@ -586,15 +594,15 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
 	unit = _unit(spec)
 	title = _title(spec, step, metric, stat)
-	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title,
-	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
+	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec),
+	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': unit, 'scale_m': used_scale}
 		out['csv'] = timeseries.write_csv(rows, csv, meta)
 	if chart and rows:
 		try:
-			charts.time_series_png(rows, chart, title=title, ylabel=unit or None)
+			charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass
@@ -856,7 +864,8 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	rows = trends.trend_rows(yearly, step, first, alpha=alpha)
 	unit = _unit(spec)
 	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}'
-	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit, 'title': title}
+	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
+	       'ylabel': _ylabel(spec), 'title': title}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': unit, 'slope_unit': f'{unit} / year',
@@ -864,7 +873,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
 	if chart and any(r['slope'] is not None for r in rows):
 		try:
-			charts.trends_png(yearly, rows, chart, title=title, ylabel=unit or None)
+			charts.trends_png(yearly, rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass
@@ -976,7 +985,8 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	         f"{oth['period'][0]} / {oth['period'][1]} | {step} {metric}, spatial {stat}")
 	names = tuple(a[:4] if a[:4] == b[:4] else f'{a[:4]}-{b[:4]}' for a, b in (ref['period'], oth['period']))
 	out = {'profile': profile, 'rows': ref_rows + oth_rows, 'csv': None, 'chart': None, 'scale': scale, 'unit': unit,
-	       'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']}, 'names': names}
+	       'ylabel': _ylabel(ref), 'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']},
+	       'names': names}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'reference_period': '/'.join(ref['period']), 'other_period': '/'.join(oth['period']), 'step': step,
@@ -986,7 +996,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		try:
 			labels = {r['part']: r['key'] if step == '16-day' else r['label'][:3] if step == 'monthly' else r['label']
 			          for r in profile}
-			charts.comparison_png(profile, labels, chart, title=title, ylabel=unit or None, names=names)
+			charts.comparison_png(profile, labels, chart, title=title, ylabel=out['ylabel'] or None, names=names)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass
