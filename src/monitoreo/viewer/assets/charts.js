@@ -103,7 +103,7 @@ MO.chart = (() => {
 		const domain = [...new Set(data.map((d) => d.serie).concat(sen.map((d) => d.serie)))];
 		const color = {field: 'serie', type: 'nominal', scale: {domain, range: palette()},
 			legend: domain.length > 1 ? {columns: narrow ? 1 : Math.min(domain.length, 2)} : null};
-		const yTitle = result.unit || result.call?.args?.variable || null;
+		const yTitle = result.ylabel || result.unit || result.call?.args?.variable || null;
 		const x = (brush) => ({field: 't', type: 'temporal', title: null, scale: Object.assign({type: 'utc'},
 			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, annual ? {format: '%Y'} : {})});
 		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
@@ -202,7 +202,7 @@ MO.chart = (() => {
 		return {
 			vconcat: [
 				{data: {values: long}, height: 240, width: 'container', layer: [
-					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: result.unit || result.call?.args?.variable || null}, color}},
+					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || result.call?.args?.variable || null}, color}},
 					{mark: {type: 'point', filled: true, size: 55, opacity: 1}, encoding: {x, y: {field: 'value', type: 'quantitative'}, color, tooltip}},
 				]},
 				{data: {values: rows}, height: 120, width: 'container',

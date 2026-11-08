@@ -84,6 +84,7 @@ var CATALOG = {
  },
  "variables": [
   {
+   "axis": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -122,6 +123,7 @@ var CATALOG = {
    "vname_en": "Evapotranspiration"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -160,6 +162,7 @@ var CATALOG = {
    "vname_en": "Latent Heat"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -206,6 +209,7 @@ var CATALOG = {
    "vname_en": "Land Surface Water Index"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -252,6 +256,7 @@ var CATALOG = {
    "vname_en": "Land Surface Water Index"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -293,6 +298,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -333,6 +339,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -373,6 +380,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -414,6 +422,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -459,6 +468,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -504,6 +514,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -562,6 +573,7 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MCD43A3",
    "dr": "2000/02/24-now",
    "fb": {
@@ -617,6 +629,7 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -679,6 +692,7 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -718,6 +732,7 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -757,6 +772,7 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MYD11A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -796,6 +812,7 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
    "col": "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
    "dr": "2002/07/03-now",
    "fb": {
@@ -840,6 +857,7 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
    "col": "NASA/OCEANDATA/MODIS-Terra/L3SMI",
    "dr": "2000/02/24-now",
    "fb": {
@@ -884,6 +902,7 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -930,6 +949,7 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -976,6 +996,7 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -1020,6 +1041,7 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1064,6 +1086,7 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -1110,6 +1133,7 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1155,6 +1179,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -1199,6 +1224,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1243,6 +1269,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1288,6 +1315,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MCD19A2_GRANULES",
    "dr": "2000/02/24-now",
    "fb": {
@@ -1336,6 +1364,7 @@ var CATALOG = {
    "vname_en": "Aerosol Atmospheric Optical Depth"
   },
   {
+   "axis": null,
    "col": "MODIS/MOD09GA_006_NDWI",
    "dr": "24/02/2000-17/02/2023",
    "fb": {
@@ -1380,6 +1409,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "24/02/2000-now",
    "fb": {
@@ -1419,6 +1449,7 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1464,6 +1495,7 @@ var CATALOG = {
    "vname_en": "Normalized Difference Chlorophyll Index"
   },
   {
+   "axis": null,
    "col": "MODIS/061/MCD15A3H",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1508,6 +1540,7 @@ var CATALOG = {
    "vname_en": "Leaf Area Index"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1546,6 +1579,7 @@ var CATALOG = {
    "vname_en": "Normalized Burn Ratio"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1584,6 +1618,7 @@ var CATALOG = {
    "vname_en": "Normalized Burn Ratio"
   },
   {
+   "axis": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1622,6 +1657,7 @@ var CATALOG = {
    "vname_en": "Relativized Burn Ratio"
   },
   {
+   "axis": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1660,6 +1696,7 @@ var CATALOG = {
    "vname_en": "Relativized Burn Ratio"
   },
   {
+   "axis": "Snow Cover Frequency (SCF)",
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [

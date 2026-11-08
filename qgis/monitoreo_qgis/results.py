@@ -23,12 +23,18 @@ COMPARISON_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('ref
                       ('n_reference', 'Years of the reference'), ('n_other', 'Years of the other')]
 
 
+def ylabel(res):
+	"""Title of the y axis of the charts of RES: the axis title of the catalog with the unit (e.g. 'Snow Cover
+	Frequency (SCF) [%]'), or the unit."""
+	return res.get('ylabel') or res['unit'] or None
+
+
 def chart_png(res, path):
 	"""PNG of the chart of the time series RES made by monitoreo with matplotlib, or None without matplotlib (or if it
 	fails): then the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		charts.time_series_png(res['rows'], path, title=res['title'], ylabel=res['unit'] or None)
+		charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res))
 		return path
 	except Exception:
 		return None
@@ -38,7 +44,7 @@ def trends_png(res, path):
 	"""PNG of the yearly values and Sen lines of the trends RES (or None). Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=res['unit'] or None)
+		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=ylabel(res))
 		return path
 	except Exception:
 		return None
@@ -49,8 +55,7 @@ def comparison_png(res, step, path):
 	try:
 		from monitoreo import charts
 		labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in res['profile']}
-		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=res['unit'] or None,
-		                      names=res['names'])
+		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=ylabel(res), names=res['names'])
 		return path
 	except Exception:
 		return None
@@ -247,7 +252,7 @@ class SeriesDialog(QDialog):
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(860, Qt.TransformationMode.SmoothTransformation))
 			lay.addWidget(label)
 		else:
-			self.chart = ChartWidget(res['rows'], res['title'], res['unit'])
+			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '')
 			lay.addWidget(self.chart, 1)
 		table = QTableWidget(len(res['rows']), len(COLUMNS))
 		table.setHorizontalHeaderLabels([c[1] for c in COLUMNS])

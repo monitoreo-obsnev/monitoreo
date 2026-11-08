@@ -168,7 +168,7 @@ mo_sf <- function(x, name = NULL) {
 #' Time series of a variable over a region: a value per step ("daily", "16-day", "monthly", "annual") and feature
 #' of the region, reduced in time with `metric` and over the region with `stat`, with the number of images and of
 #' valid pixels of each value. Returns a data.frame (region, date, value, n_pixels, n_images) with the attributes
-#' title, unit and scale.
+#' title, unit, ylabel (title of the y axis of mo_plot, e.g. "Snow Cover Frequency (SCF) [%]") and scale.
 #' @export
 mo_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean", stat = "mean",
                            season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL) {
@@ -177,6 +177,7 @@ mo_time_series <- function(region, variable, sensor, start, end, step = "monthly
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
+  attr(df, "ylabel") <- res$ylabel
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
   df
@@ -186,7 +187,7 @@ mo_time_series <- function(region, variable, sensor, start, end, step = "monthly
 #' @export
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
-  unit <- attr(ts, "unit")
+  unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
   if (requireNamespace("ggplot2", quietly = TRUE)) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
@@ -312,7 +313,7 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
                                 collection = collection)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
-  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   df
 }
 
@@ -352,7 +353,7 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
                                    collection = collection)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
-  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   df
 }
 

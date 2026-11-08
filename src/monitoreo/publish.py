@@ -621,6 +621,8 @@ def _results(item, files, n):
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
 		         (item.get('caption') if not out else None), 'tool': tool, 'csv': path, 'png': None,
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
+		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
+			entry['ylabel'] = res['ylabel']
 		if chart == 'trends':
 			entry['slope_unit'] = unit_text(unit, per_year=True)
 			entry['alpha'] = float(args.get('alpha') or 0.05)

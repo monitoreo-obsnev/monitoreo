@@ -74,6 +74,10 @@ def test_scf_in_the_catalog():
 	d = services.describe_variable('SCF', 'Landsat')
 	assert d['metric'] == 'mean' and d['measures'] == ['snow'] and d['unit'] == '[%]' and 'hillShadow' in d['notes']['ft']
 	assert [r['ref'] for r in services.list_variables(text='snow cover')] == [105]
+	# the title of the y axis of its charts; the other variables keep their unit
+	assert e['axis'] == 'Snow Cover Frequency (SCF)'
+	assert services._ylabel(spec) == 'Snow Cover Frequency (SCF) [%]'
+	assert services._ylabel(services.make_spec('NDSI', 'Landsat', '2020-10-01', '2021-05-31')) == '[unitless]'
 
 
 def test_rbr_report():
