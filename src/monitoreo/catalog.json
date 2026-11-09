@@ -242,6 +242,30 @@
    "references": [
     "wdpa"
    ]
+  },
+  "FAO/GAUL/2025/level1": {
+   "references": [
+    "fao_gaul2025"
+   ],
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries."
+  },
+  "FAO/GAUL/2025/level2": {
+   "references": [
+    "fao_gaul2025"
+   ],
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries."
+  },
+  "FAO/GAUL_SIMPLIFIED_500m/2025/level1": {
+   "references": [
+    "fao_gaul2025"
+   ],
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries."
+  },
+  "projects/sat-io/open-datasets/shoreline/big_islands": {
+   "references": [
+    "sayre2019"
+   ],
+   "credit": "Global Islands (Sayre et al. 2019, USGS and Esri), licence CC BY-SA 4.0"
   }
  },
  "methods": {
@@ -403,6 +427,14 @@
   "wdpa": {
    "citation": "UNEP-WCMC & IUCN ({year}). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], {month_year}. Cambridge, UK: UNEP-WCMC and IUCN.",
    "url": "https://www.protectedplanet.net"
+  },
+  "fao_gaul2025": {
+   "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
+   "url": "https://data.apps.fao.org"
+  },
+  "sayre2019": {
+   "citation": "Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., Butler, K., Van Graafeiland, K., Frye, C., Karagulle, D., Hopkins, D., Stephens, D., Kelly, K., Basher, Z., Burton, D., Cress, J., Atkins, K., Van Sistine, D. P., Friesen, B., et al. (2019). A new 30 meter resolution global shoreline vector and associated global islands database for the development of standardized ecological coastal units. Journal of Operational Oceanography, 12(sup2), S47–S56.",
+   "doi": "10.1080/1755876X.2018.1529714"
   },
   "zanaga2022": {
    "citation": "Zanaga, D., Van De Kerchove, R., Daems, D., De Keersmaecker, W., Brockmann, C., Kirches, G., Wevers, J., Cartus, O., Santoro, M., Fritz, S., Lesiv, M., Herold, M., Tsendbazar, N.-E., Xu, P., Ramoino, F., & Arino, O. (2022). ESA WorldCover 10 m 2021 v200 [Data set]. Zenodo.",

@@ -77,7 +77,8 @@ PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_prox
               'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS', 'MONITOREO_BROKER')
 SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
 
-ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas')  # their answers go to the model
+ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
+          'find_admin_units')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map', 'compare_series', 'compare_map',
            'burn_severity', 'download_image', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
@@ -90,7 +91,7 @@ _DESIG = (r'(parque (nacional|natural|periurbano)|paraje natural|reserva (natura
           r'monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial conservaci[oó]n|zec|zepa|'
           r'lic|national park|natural park|nature park|(natural|nature|biosphere) reserve|natural monument|'
           r'protected landscape|special area of conservation|special protection area|site of community importance|sac|'
-          r'spa|sci)')
+          r'spa|sci|sitio ramsar|humedal ramsar|ramsar site|ramsar wetland)')
 DESIGNATIONS = (rf'^(el |la |the )?{_DESIG}\b( (de la|de los|de las|del|de|of the|of)\b)?\s*|'
                 rf'\s+{_DESIG}$')  # removed from the searches: before the name (Spanish) or after it (English)
 
@@ -129,7 +130,8 @@ OTHER_TOOLS = [  # what the assistant does not do, by the words of the request (
 LABELS = {'manual': 'Looking in the manual of MonitorEO',
           'list_variables': 'Looking at the variables of the catalog',
           'describe_variable': 'Looking at the description of {variable}',
-          'find_protected_areas': 'Searching for protected areas named «{text}»'}
+          'find_protected_areas': 'Searching for protected areas named «{text}»',
+          'find_admin_units': 'Searching for administrative units named «{text}»'}
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
 NOTE = '\n\n(Note of the application, not of the user: '  # added to a message of the user (see Assistant.said)
@@ -175,8 +177,12 @@ installation commands: its page of the wiki explains them.
 
 How to call the tools:
 - Region: a JSON object with one of these forms: {{"wdpa_id": SITE_ID}} (a protected area, with the SITE_ID that \
-find_protected_areas returns), {{"ecoregion_at": [lon, lat]}}, {{"bbox": [west, south, east, north]}} or \
-{{"point": [lon, lat], "buffer": metres}}.
+find_protected_areas returns; for a Ramsar site, search with designation "ramsar"), {{"admin1": GAUL1_CODE}} or \
+{{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
+municipality of level 2, with the code that find_admin_units returns, never made up), {{"country": "ISO3"}} (a \
+whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
+{{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Countries and big \
+regions: MODIS, or a monthly or annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis". The variable, as in the catalog (NDVI, EVI, NDWI, LST...).
@@ -279,6 +285,8 @@ account, 25 EECU-hours a month, only for research); Check asks again.
 - Protected areas: the search shows the designations with that name; when several fit, the assistant asks which one \
 and waits, and clicking one in the list computes with it (clicking another later repeats the computation with that \
 one).
+- Administrative units (regions, provinces, municipalities... of FAO GAUL 2025) and whole countries: the search \
+shows the units with that name, and clicking one computes with it; Ramsar sites are protected areas of the WDPA.
 - Upload study area (or dragging a GeoPackage, GeoJSON, KML or zipped shapefile onto the page): then its polygons are \
 used by the name of the layer, each one with its own series or row.
 - Each result is a card: the chart or the map, the first rows of the table (See the N rows), See on the map, How it \
@@ -437,7 +445,9 @@ def search_name(text):
 
 def designated(area, said):
 	"""Whether the designation of the protected AREA (in WDPA: DESIG, and in English DESIG_ENG, without what goes
-	in brackets) is in SAID, the messages of the user in lower case."""
+	in brackets) is in SAID, the messages of the user in lower case; a Ramsar site, when they say «Ramsar»."""
+	if 'ramsar' in said and 'ramsar' in str(area.get('DESIG_ENG') or area.get('DESIG') or '').lower():
+		return True
 	return any(d and d in said for d in (re.sub(r'\s*\(.*?\)', '', str(area.get(k) or '')).strip().lower()
 	                                     for k in ('DESIG', 'DESIG_ENG')))
 
@@ -550,6 +560,32 @@ def must_choose(areas, said, last=''):
 	if len(areas) < 2 or any(re.search(rf'\b{a.get("SITE_ID")}\b', last) for a in areas):
 		return False
 	return sum(1 for a in areas if a.get('match', designated(a, said))) != 1
+
+
+def unit_code(unit):
+	"""(level, code) of an administrative UNIT found by find_admin_units."""
+	level = int(unit.get('level') or (2 if 'GAUL2_CODE' in unit else 1))
+	return level, unit.get(f'GAUL{level}_CODE')
+
+
+def units_text(units):
+	"""The administrative units found, for the model: a line each with the region to use."""
+	lines = [f'- {{"admin{lv}": {code}}}: {u.get("DISP_EN") or u.get(f"GAUL{lv}_NAME")}'
+	         for u in units for lv, code in [unit_code(u)]]
+	if not units:
+		return ('No administrative unit with that name: try the other level, the name in its own language, or the '
+		        'whole country (ISO3).')
+	return (f'{len(units)} administrative units (FAO GAUL 2025); the user sees this list and can choose one in it:\n'
+	        + '\n'.join(lines))
+
+
+def units_must_choose(units, text, last=''):
+	"""Whether the user has to choose among the administrative UNITS found for TEXT: several, not exactly one with
+	that very name, and none of their codes in the LAST message of the user."""
+	if len(units) < 2 or any(re.search(rf'\b{unit_code(u)[1]}\b', last) for u in units):
+		return False
+	name = str(text).strip().lower()
+	return sum(1 for u in units if str(u.get(f'GAUL{unit_code(u)[0]}_NAME', '')).strip().lower() == name) != 1
 
 
 def receipt(n, title):
@@ -1080,6 +1116,10 @@ class Assistant:
 			return
 		if name == 'list_variables':
 			args['lang'] = 'en'  # hidden from the model
+		if name in RESULTS + TASKS and self.unknown_units(args):
+			self._tool_message(name, f'Error: the administrative unit {self.unknown_units(args)[0]} is not known: search '
+			                         'it by its name with find_admin_units and use the code it gives.')
+			return
 		if name in RESULTS + TASKS and self.unknown_areas(args) and not self.not_ready():
 			async for event in self.known_areas(name, args):
 				if 'args' in event:
@@ -1128,6 +1168,14 @@ class Assistant:
 					       'areas': sorted(shown, key=lambda a: not a['match'])}
 					text = areas_text(found, said)
 					if must_choose(shown, said, self.said()[-1] if self.said() else ''):
+						self.waiting = True
+						text += ASK_AND_WAIT
+			if name == 'find_admin_units':
+				found = self._remember_units(text)
+				if found is not None:
+					yield {'type': 'units', 'query': args.get('text', ''), 'units': found}
+					text = units_text(found)
+					if units_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
 						self.waiting = True
 						text += ASK_AND_WAIT
 			self._tool_message(name, text[:self.advice_limit()])
@@ -1470,6 +1518,19 @@ class Assistant:
 		said = set(re.findall(r'\d+', self.user_text()))
 		return [i for i in (ids if isinstance(ids, list) else [ids]) if str(i) not in self.names and str(i) not in said]
 
+	def unknown_units(self, args):
+		"""The codes of administrative units of ARGS ({"admin1": ...} or {"admin2": ...}) that come neither from
+		find_admin_units nor from the user."""
+		region = args.get('region') or args.get('area')
+		said = set(re.findall(r'\d+', self.user_text()))
+		out = []
+		for level in (1, 2):
+			codes = region.get(f'admin{level}') if isinstance(region, dict) else None
+			for c in ([] if codes is None else codes if isinstance(codes, list) else [codes]):
+				if f'admin{level}:{c}' not in self.names and str(c) not in said:
+					out.append(f'admin{level} {c}')
+		return out
+
 	async def find_areas(self, text):
 		"""Search the protected areas of TEXT (without its designation): (event for the page or None, the areas found
 		with 'match' when their designation is in the messages of the user, text for the model)."""
@@ -1591,6 +1652,20 @@ class Assistant:
 		_log({'tool': name, 'call': next((c.get('function') for m in reversed(self.messages[:-1])
 		                                   for c in m.get('tool_calls') or [] if (c.get('function') or {}).get('name') == name),
 		                                  None), 'answer': text[:300]})
+
+	def _remember_units(self, text):
+		"""Keep the names of the administrative units of an answer of find_admin_units (and of their countries), and
+		return them (or None if the answer is not a list of units)."""
+		try:
+			units = json.loads(text)
+			for u in units:
+				level, code = unit_code(u)
+				self.names[f'admin{level}:{code}'] = u.get('DISP_EN') or u[f'GAUL{level}_NAME']
+				if u.get('ISO3_CODE') and u.get('GAUL0_NAME'):
+					self.names[f"country:{u['ISO3_CODE']}"] = u['GAUL0_NAME']
+			return units
+		except (ValueError, KeyError, TypeError, AttributeError):
+			return None
 
 	def _remember_names(self, text):
 		"""Keep the names of the protected areas of an answer of find_protected_areas, and return them with only

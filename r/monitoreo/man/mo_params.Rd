@@ -4,8 +4,9 @@
 \alias{mo_params}
 \title{Arguments shared by the functions of MonitorEO}
 \arguments{
-\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_bbox()}, \code{mo_point()},
-\code{mo_geojson()} or \code{mo_sf()} (see \link{regions}). Several features give a result per feature.}
+\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
+\code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
+\link{regions}). Several features give a result per feature.}
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 

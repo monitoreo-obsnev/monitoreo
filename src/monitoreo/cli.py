@@ -2,7 +2,8 @@
 
     monitoreo list [--sensor S] [--text T]           variables of the catalog
     monitoreo info VARIABLE [--sensor S]             everything about a variable
-    monitoreo parks TEXT                             protected areas of WDPA with TEXT in their name
+    monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
+    monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
     monitoreo image VARIABLE --sensor S --region JSON --start D --end D --out F.tif [--metric median]
                     [--resolution M]                 GeoTIFF of the map of a variable aggregated in time
@@ -24,7 +25,8 @@
                                                      the browser), with a language model of Ollama and the MCP server,
                                                      at the last version of GitHub
 
-The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
+The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}', '{"country": "ESP"}',
+'{"island_at": [2.9, 39.6]}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
@@ -68,6 +70,13 @@ def main(argv=None):
 	p.add_argument('--sensor')
 	p = sub.add_parser('parks', help='protected areas of WDPA by name')
 	p.add_argument('text')
+	p.add_argument('--limit', type=int, default=20)
+	p.add_argument('--ramsar', action='store_true', help='only the Ramsar sites')
+	p = sub.add_parser('units', help='administrative units of FAO GAUL 2025 by name')
+	p.add_argument('text')
+	p.add_argument('--level', type=int, default=1, choices=(1, 2),
+	               help='1: regions, states...; 2: provinces, districts...')
+	p.add_argument('--country', help='ISO3 code, e.g. ESP')
 	p.add_argument('--limit', type=int, default=20)
 	p = sub.add_parser('series', help='time series of a variable over a region')
 	p.add_argument('variable')
@@ -204,7 +213,14 @@ def _eecu_notice(services):
 
 def _compute(args, services):
 	if args.cmd == 'parks':
-		_table(_fmt(services.find_protected_areas(args.text, args.limit)), ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
+		more = {'designation': 'ramsar'} if args.ramsar else {}
+		_table(_fmt(services.find_protected_areas(args.text, args.limit, **more)),
+		       ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
+		return
+	if args.cmd == 'units':
+		code = f'GAUL{args.level}_CODE'
+		_table(_fmt(services.find_admin_units(args.text, args.level, args.country, args.limit)),
+		       [code, 'DISP_EN', 'ISO3_CODE'])
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)

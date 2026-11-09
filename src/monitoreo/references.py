@@ -22,7 +22,7 @@ References:
 import datetime as dt
 import unicodedata
 
-from . import about, catalog, sensors
+from . import about, areas, catalog, sensors
 
 MONITOREO = 'monitoreo'  # the ID of the citation of MonitorEO (monitoreo.about)
 LANDSAT = 'LANDSAT'  # the collection of the catalog with Landsat 5, 7, 8 and 9 (monitoreo.sensors.LANDSAT)
@@ -170,6 +170,13 @@ def _region(region):
 			cols.append(WDPA)
 		if 'ecoregion_id' in region or 'ecoregion_at' in region:
 			cols.append(ECOREGIONS)
+		if 'country' in region:
+			cols.append(areas.GAUL_COUNTRIES)
+		for level in (1, 2):
+			if f'admin{level}' in region:
+				cols.append(areas.GAUL[level])
+		if 'island_at' in region:
+			cols.append(areas.ISLANDS)
 	return cols
 
 

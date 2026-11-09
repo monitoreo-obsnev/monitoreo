@@ -22,7 +22,8 @@ def test_bibliography():
 		assert r.get('doi') or r.get('url'), f'{rid} has no DOI nor URL'
 		if r.get('doi'):
 			assert DOI.match(r['doi']) and 'doi.org' not in r['citation'], rid
-	assert sum(1 for r in refs.values() if not r.get('doi')) <= 2  # only Key & Benson 2006 and the WDPA have no DOI
+	# only Key & Benson 2006, the WDPA and FAO GAUL 2025 have no DOI (cited with their URL, as their pages say)
+	assert sum(1 for r in refs.values() if not r.get('doi')) <= 3
 	for name, ids in cat['methods'].items():
 		assert ids and set(ids) <= set(refs), name
 	for col, d in cat['datasets'].items():
@@ -97,6 +98,19 @@ def test_cite():
 	assert 'monitoreo' not in _ids(references.of_entry(catalog.find('LAI', 'Modis')))
 	assert '[years of the data]' in references.of_entry(catalog.find('NDVI', 'Sentinel-2'))['credits'][0]
 	assert 'wdpa' in _ids(references.cite('find_protected_areas', {'text': 'Doñana'}))
+	# administrative units (FAO GAUL 2025, with its disclaimer as credit) and islands (Sayre et al. 2019)
+	gaul = references.cite('time_series', {'region': {'admin2': 141938}, 'variable': 'NDVI', 'sensor': 'Modis'})
+	assert 'fao_gaul2025' in _ids(gaul) and any(c.startswith('Source: FAO GAUL 2025') for c in gaul['credits'])
+	assert 'fao_gaul2025' in _ids(references.cite('map_layer', {'region': {'country': 'ESP'}, 'variable': 'NDVI',
+	                                                            'sensor': 'Modis'}))
+	island = references.cite('region_stats', {'region': {'island_at': [2.9, 39.6]}, 'variable': 'ELEVATION',
+	                                          'sensor': 'Copernicus'})
+	assert 'sayre2019' in _ids(island) and any('CC BY-SA' in c for c in island['credits'])
+	assert report.region_text({'admin2': 141938}) == 'Administrative unit 141938 of level 2 (FAO GAUL 2025)'
+	assert report.region_text({'admin1': [1], 'x': 0}, {'admin1:1': 'Andalucía, Spain'}) == (
+		'Andalucía, Spain (administrative unit, FAO GAUL 2025)')
+	assert report.region_text({'country': 'esp'}, {'country:ESP': 'Spain'}) == 'Spain (country, FAO GAUL 2025)'
+	assert report.region_text({'island_at': [2.9, 39.6]}) == 'Island at the point 39.6, 2.9 (lat., lon.)'
 	# the elevation and the slope of the Copernicus DEM: the DEM, its credit line and, for the slope, its gradient
 	dem = 'produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018'
 	for index, more in (('ELEVATION', set()), ('SLOPE', {'zevenbergen1987'})):

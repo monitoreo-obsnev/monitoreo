@@ -358,6 +358,19 @@ def region_text(region, names=None):
 	if 'ecoregion_at' in region:
 		lon, lat = region['ecoregion_at']
 		return f'Ecoregion of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
+	if 'country' in region:
+		codes = region['country'] if isinstance(region['country'], list) else [region['country']]
+		return '; '.join(f"{names.get(f'country:{str(c).upper()}', str(c).upper())} (country, FAO GAUL 2025)"
+		                 for c in codes)
+	for level in (1, 2):
+		if f'admin{level}' in region:
+			codes = region[f'admin{level}'] if isinstance(region[f'admin{level}'], list) else [region[f'admin{level}']]
+			return '; '.join(f"{names[f'admin{level}:{c}']} (administrative unit, FAO GAUL 2025)"
+			                 if f'admin{level}:{c}' in names else
+			                 f'Administrative unit {c} of level {level} (FAO GAUL 2025)' for c in codes)
+	if 'island_at' in region:
+		lon, lat = region['island_at']
+		return f'Island at the point {_num(lat)}, {_num(lon)} (lat., lon.)'
 	if 'bbox' in region:
 		w, s, e, n = region['bbox']
 		return f'Rectangle of longitude {_num(w)} to {_num(e)} and latitude {_num(s)} to {_num(n)}'

@@ -703,6 +703,27 @@ function resultCard(e) {
   return card;
 }
 
+function unitsCard(e) {  // the administrative units found (FAO GAUL 2025): pressing one computes with it
+  const list = el('div', {class: 'examples'});
+  for (const u of e.units) {
+    const level = u.level || (u.GAUL2_CODE != null ? 2 : 1), code = u[`GAUL${level}_CODE`];
+    const name = u.DISP_EN || u[`GAUL${level}_NAME`];
+    const b = el('button', {type: 'button', text: `${name} (level ${level}, GAUL ${code})`});
+    b.onclick = () => {  // also while something is computed: then it is sent when that ends
+      list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
+      b.classList.add('chosen');
+      const text = (userLang === 'es' ? `Calcula lo que he pedido con la unidad administrativa ${name}` :
+                    `Compute what I asked for with the administrative unit ${name}`) + `, admin${level} ${code}`;
+      if (!busy) return send(text);
+      pending = text;
+      notice(`When what is running ends, it will be computed with ${name}.`);
+    };
+    list.append(b);
+  }
+  return el('article', {class: 'card'}, el('h3', {text: `Administrative units named «${e.query}»`}),
+            e.units.length ? el('p', {class: 'muted', text: 'Press one to compute with it.'}) : el('p', {text: 'None.'}), list);
+}
+
 function areasCard(e) {
   const list = el('div', {class: 'examples'});
   for (const a of e.areas) {
@@ -973,6 +994,7 @@ function show(e) {
   } else if (e.type === 'status') status(e.text);
   else if (e.type === 'assistant') message('assistant', e.text);
   else if (e.type === 'areas') $('chat').append(areasCard(e));
+  else if (e.type === 'units') $('chat').append(unitsCard(e));
   else if (e.type === 'notice') notice(e.text);
   else if (e.type === 'eecu') renderEecu(e.usage);
   else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);

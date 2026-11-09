@@ -20,6 +20,10 @@ test_that("catalog and regions", {
                "only takes the metric 'mean'")
   expect_equal(mo_bbox(-3.6, 36.8, -3.5, 36.9)$bbox[[3]], -3.5)
   expect_equal(mo_wdpa(c(1, 2))$wdpa_id, list(1L, 2L))
+  expect_equal(mo_country("esp"), list(country = list("ESP")))
+  expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
+  expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
+  expect_error(mo_admin(1, level = 3))
 })
 
 test_that("references", {

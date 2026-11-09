@@ -486,7 +486,13 @@ var MonitorEO = (function () {
 
 	var ECOREGIONS = 'RESOLVE/ECOREGIONS/2017';
 	var WDPA = 'WCMC/WDPA/current/polygons';
-	var WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA', 'STATUS_YR'];
+	var WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'DESIG_TYPE', 'IUCN_CAT', 'ISO3', 'REP_AREA',
+		'STATUS_YR'];
+	var RAMSAR = 'Ramsar Site';  // in DESIG_ENG: «Wetland of International Importance (Ramsar Site)»
+	var GAUL = {1: 'FAO/GAUL/2025/level1', 2: 'FAO/GAUL/2025/level2'};  // areas.GAUL
+	var GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_EN'],
+		2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']};
+	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
 	var WDPA_MAX_ERROR = 10;
 
 	// areas.utm_of
@@ -499,9 +505,44 @@ var MonitorEO = (function () {
 		return fc.map(function (f) { return f.set('name', ee.String(f.get(field))); });
 	}
 
+	// The case variants of a text searched (areas._variants)
+	function variantsOf(text) {
+		var t = String(text).trim();
+		var title = t.toLowerCase().replace(/(^|[^A-Za-zÀ-ÿ])([a-zà-ÿ])/g, function (m, a, b) {
+			return a + b.toUpperCase();
+		});
+		return [t, title, t.toUpperCase(), t.toLowerCase(), t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()]
+			.filter(function (v, i, a) { return a.indexOf(v) === i; }).sort();
+	}
+
+	// areas.find_admin_units: ee.FeatureCollection (without geometries) of the administrative units of FAO GAUL 2025
+	// of LEVEL (1 or 2) whose name contains TEXT, in COUNTRY (ISO3) if given
+	function findAdminUnits(text, level, country, limit) {
+		var f = ee.Filter.or.apply(null, variantsOf(text).map(function (v) {
+			return ee.Filter.stringContains('GAUL' + level + '_NAME', v);
+		}));
+		if (country) f = ee.Filter.and(f, ee.Filter.eq('ISO3_CODE', String(country).trim().toUpperCase()));
+		return ee.FeatureCollection(GAUL[level]).filter(f).limit(limit || 20).map(function (x) {
+			return ee.Feature(null, x.toDictionary(GAUL_FIELDS[level])).set('level', level);
+		});
+	}
+
+	// areas.region of {admin1: CODE} or {admin2: CODE}: the unit, named by its full name (DISP_EN)
+	function adminRegion(level, code) {
+		return named(ee.FeatureCollection(GAUL[level]).filter(ee.Filter.eq('GAUL' + level + '_CODE', code)), 'DISP_EN');
+	}
+
+	// areas.region of {island_at: [LON, LAT]}: the island of more than 1 km² at that point
+	function islandAt(lon, lat) {
+		var label = 'Island at ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+		return ee.FeatureCollection(ISLANDS).filterBounds(ee.Geometry.Point([lon, lat])).map(function (f) {
+			return f.set('name', ee.Algorithms.If(ee.String(f.get('Name')).length().gt(0), f.get('Name'), label));
+		});
+	}
+
 	// areas.find_protected_areas: ee.FeatureCollection (without geometries) of the protected areas whose name
-	// contains TEXT
-	function findProtectedAreas(text, limit) {
+	// contains TEXT; with RAMSAR, only the Ramsar sites
+	function findProtectedAreas(text, limit, ramsar) {
 		var t = String(text).trim();
 		var title = t.toLowerCase().replace(/(^|[^A-Za-zÀ-ÿ])([a-zà-ÿ])/g, function (m, a, b) {
 			return a + b.toUpperCase();
@@ -511,7 +552,9 @@ var MonitorEO = (function () {
 		var f = [];
 		variants.forEach(function (v) { f.push(ee.Filter.stringContains('NAME', v)); });
 		variants.forEach(function (v) { f.push(ee.Filter.stringContains('NAME_ENG', v)); });
-		return ee.FeatureCollection(WDPA).filter(ee.Filter.or.apply(null, f)).limit(limit || 20).map(function (x) {
+		var filter = ee.Filter.or.apply(null, f);
+		if (ramsar) filter = ee.Filter.and(filter, ee.Filter.stringContains('DESIG_ENG', RAMSAR));
+		return ee.FeatureCollection(WDPA).filter(filter).limit(limit || 20).map(function (x) {
 			return ee.Feature(null, x.toDictionary(WDPA_FIELDS));
 		});
 	}
@@ -1088,7 +1131,8 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
-		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,
+		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
+		islandAt: islandAt,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,

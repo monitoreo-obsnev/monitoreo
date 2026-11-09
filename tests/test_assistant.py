@@ -205,6 +205,45 @@ def test_waits_for_the_user(monkeypatch):
 	assert not assistant.asks('Is it Doñana? I compute it now.')
 
 
+def test_administrative_units(monkeypatch):
+	"""The administrative units found go to the page (a list to choose from) and to the model, with the region to use;
+	with several, the assistant waits for the user; a code the model makes up is not computed."""
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	units = [{'GAUL2_CODE': 141938, 'GAUL2_NAME': 'Granada', 'GAUL1_NAME': 'Andalucía', 'GAUL0_NAME': 'Spain',
+	          'ISO3_CODE': 'ESP', 'DISP_EN': 'Granada, Andalucía, Spain', 'level': 2},
+	         {'GAUL2_CODE': 99, 'GAUL2_NAME': 'Granada', 'GAUL1_NAME': 'Meta', 'GAUL0_NAME': 'Colombia',
+	          'ISO3_CODE': 'COL', 'DISP_EN': 'Granada, Meta, Colombia', 'level': 2}]
+
+	class Units(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'find_admin_units':
+				return None, [json.dumps(units)], []
+			return await super().call(name, args)
+
+	a = Units({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS)
+	a.messages.append({'role': 'user', 'content': 'NDVI de la provincia de Granada'})
+
+	async def run(call):
+		return [e async for e in a.run_tool(call)]
+
+	events = asyncio.run(run({'name': 'find_admin_units', 'arguments': {'text': 'Granada', 'level': 2}}))
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['units'] and a.waiting
+	assert '{"admin2": 141938}: Granada, Andalucía, Spain' in a.messages[-1]['content']
+	assert a.names['admin2:141938'] == 'Granada, Andalucía, Spain' and a.names['country:ESP'] == 'Spain'
+	assert a.titled('time_series', {**ARGS, 'region': {'admin2': 141938}}).endswith(
+		' · Granada, Andalucía, Spain (administrative unit, FAO GAUL 2025)')
+	assert asyncio.run(run({'name': 'time_series', 'arguments': {**ARGS, 'region': {'admin2': 12345}}})) == []
+	assert 'find_admin_units' in a.messages[-1]['content'] and 'admin2 12345' in a.messages[-1]['content']
+	assert not assistant.units_must_choose(units[:1], 'Granada')
+	assert assistant.units_must_choose(units, 'Granada') and not assistant.units_must_choose(units, 'x', 'admin2 99')
+	# Ramsar: the designation of the user's words, in the list of the protected areas
+	ramsar = {'SITE_ID': 68175, 'DESIG': 'Wetland of International Importance (Ramsar Site)',
+	          'DESIG_ENG': 'Wetland of International Importance (Ramsar Site)'}
+	assert assistant.designated(ramsar, 'el sitio ramsar de doñana') and not assistant.designated(ramsar, 'doñana')
+	assert assistant.search_name('sitio Ramsar de Doñana') == 'Doñana'
+
+
 def test_map_heading():
 	"""The map of the page has a title with the full name of its variable, its own period and its region; the list of
 	the maps keeps the title of the result."""

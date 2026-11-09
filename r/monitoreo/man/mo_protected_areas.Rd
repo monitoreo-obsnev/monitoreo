@@ -4,12 +4,15 @@
 \alias{mo_protected_areas}
 \title{Protected areas of the World Database on Protected Areas (WDPA)}
 \usage{
-mo_protected_areas(text, limit = 20)
+mo_protected_areas(text, limit = 20, designation = NULL)
 }
 \arguments{
 \item{text}{text of their name.}
 
 \item{limit}{maximum number of areas.}
+
+\item{designation}{\code{"ramsar"}: only the Ramsar sites (Wetlands of International Importance; those that the
+WDPA has only as points are not there).}
 }
 \value{
 A data.frame of the protected areas whose name contains \code{text} (SITE_ID is the WDPA ID, for
@@ -21,6 +24,7 @@ Protected areas of the World Database on Protected Areas (WDPA)
 \examples{
 \dontrun{
 mo_protected_areas("Sierra Nevada")
+mo_protected_areas("Doñana", designation = "ramsar")
 }
 }
 \references{

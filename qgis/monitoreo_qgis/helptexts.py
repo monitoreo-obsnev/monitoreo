@@ -69,8 +69,13 @@ HELP = {
 		'<li><b>Map extent</b>: the rectangle seen in the map when the button of the computation is pressed.</li>'
 		'<li><b>Protected area (WDPA)</b>: an area of the World Database on Protected Areas, searched by its '
 		'name.</li>'
+		'<li><b>Administrative unit (FAO GAUL)</b>: a region, province or municipality (levels 1 and 2 of FAO GAUL '
+		'2025), searched by its name.</li>'
+		'<li><b>Country</b>: a whole country, by its ISO3 code (FAO GAUL 2025). Big: use MODIS or a coarse pixel.</li>'
 		'<li><b>Ecoregion at the center of the map</b>: the RESOLVE 2017 ecoregion that contains the center of the '
-		'view.</li></ul>' + manual('Concepts#regions'),
+		'view.</li>'
+		'<li><b>Island at the center of the map</b>: the island of more than 1 km² (Global Islands, Sayre et al. '
+		'2019) that contains the center of the view.</li></ul>' + manual('Concepts#regions'),
 	'layer':
 		'<p>Layer of polygons of the project, in any coordinate system. If it has selected features, only those are '
 		'used; if not, all of them. Each polygon gives its own series (a line in the chart).</p>'
@@ -81,8 +86,19 @@ HELP = {
 		'Empty: the number of the feature in QGIS.</p>' + manual('Concepts#regions'),
 	'wdpa':
 		'<p>Write part of the name of a protected area and press <b>Search</b> (or Enter): the list <b>Area</b> brings '
-		'up to 30 areas of the <a href="https://www.protectedplanet.net">WDPA</a> with that text in their name.</p>'
+		'up to 30 areas of the <a href="https://www.protectedplanet.net">WDPA</a> with that text in their name. With '
+		'<b>Ramsar only</b>, only the Ramsar sites (Wetlands of International Importance; those that the WDPA has only '
+		'as points are not there).</p>'
 		+ manual('QGIS-plugin#2-choose-the-region'),
+	'admin':
+		'<p>Write part of the name of an administrative unit, choose its level (1: regions, states, provinces...; 2: '
+		'provinces, districts, municipalities...) and, if you like, its country (ISO3 code, e.g. ESP), and press '
+		'<b>Search</b>: the list <b>Unit</b> brings up to 30 units of '
+		'<a href="https://data.apps.fao.org">FAO GAUL 2025</a> with their full name.</p>'
+		+ manual('QGIS-plugin#2-choose-the-region'),
+	'country':
+		'<p>The ISO3 code of a country (ESP, PRT, FRA...): the whole country, as the union of its regions of FAO GAUL '
+		'2025. A country is big: compute with MODIS or with a coarse pixel.</p>' + manual('Concepts#regions'),
 	'wdpa_area':
 		'<p>The protected area over which it computes. Each entry tells its name, its designation, its country, its '
 		'area and its WDPA ID.</p>'

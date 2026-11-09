@@ -55,6 +55,27 @@ def test_protected_areas():
 	assert any(p['SITE_ID'] == 389011 for p in parks)
 
 
+def test_ramsar_sites():
+	sites = services.find_protected_areas('Doñana', 10, designation='ramsar')
+	assert sites and all('Ramsar' in s['DESIG_ENG'] for s in sites) and any(s['SITE_ID'] == 68175 for s in sites)
+	with pytest.raises(ValueError, match='ramsar'):
+		services.find_protected_areas('Doñana', 10, designation='unesco')
+
+
+def test_administrative_units_and_islands():
+	units = services.find_admin_units('Granada', level=2, country='ESP')
+	granada = next(u for u in units if u['GAUL2_NAME'] == 'Granada')
+	assert granada['level'] == 2 and granada['ISO3_CODE'] == 'ESP' and 'Andaluc' in granada['DISP_EN']
+	res = services.region_stats({'admin2': granada['GAUL2_CODE']}, 'ELEVATION', 'Copernicus', scale=1000)
+	row = res['rows'][0]
+	assert row['region'] == granada['DISP_EN'] and 0 <= row['min'] < 100 and 3000 < row['max'] < 3500  # Mulhacén
+	assert services.find_admin_units('Andalucía', level=1, country='ESP')[0]['GAUL1_NAME'] == 'Andalucía'
+	spain = services.region_stats({'country': 'ESP'}, 'ELEVATION', 'Copernicus', scale=5000)['rows'][0]
+	assert spain['region'] == 'Spain' and spain['max'] > 3000
+	mallorca = services.region_stats({'island_at': [2.9, 39.6]}, 'ELEVATION', 'Copernicus', scale=1000)['rows'][0]
+	assert mallorca['region'] == 'Majorca' and 1000 < mallorca['max'] < 1500
+
+
 def test_wdpa_region_fetched_once():
 	import time
 	from monitoreo import areas
