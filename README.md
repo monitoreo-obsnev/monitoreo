@@ -1,3 +1,5 @@
+<p align="center"><img src="installer/icons/monitoreo-assistant.png" width="120" alt="Logo de MonitorEO / MonitorEO logo"></p>
+
 # MonitorEO
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23814894.svg)](https://doi.org/10.5281/zenodo.23814894)
