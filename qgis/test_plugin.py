@@ -156,6 +156,33 @@ dock.run_series()
 wait(dock)
 res = dock.series[-1]
 print('series (extent):', len(res['rows']), 'rows, first', res['rows'][0], '| matplotlib chart', bool(res['chart']))
+
+# only the pixels where: the elevation above 800 m (a fixed layer) and the NDVI of Sentinel-2 (with the period)
+c = dock.where[0]
+c['on'].setChecked(True)
+c['min'].setText('800')
+assert c['unit'].text() == '[m]', c['unit'].text()
+d = dock.where[1]
+d['variable'].setCurrentIndex(d['variable'].findText('NDVI · Sentinel-2'))
+d['on'].setChecked(True)
+d['min'].setText('0,2')
+where = dock.variable_args()['where']
+assert where[0] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'collection': 'COPERNICUS/DEM/GLO30_2024_1',
+                    'min': 800.0}, where
+assert where[1]['min'] == 0.2 and where[1]['period'] == ['2021-01-01', '2021-12-31'], where
+d['on'].setChecked(False)
+dock.run_series()
+wait(dock)
+part = dock.series[-1]
+assert part['rows'][0]['n_pixels'] < res['rows'][0]['n_pixels'], (part['rows'][0], res['rows'][0])
+print('series (only above 800 m):', part['rows'][0]['n_pixels'], 'of', res['rows'][0]['n_pixels'], 'pixels')
+c['min'].setText('')
+try:
+	dock.variable_args()
+	raise AssertionError('a condition without limits')
+except ValueError as e:
+	assert 'min, a max or both' in str(e)
+c['on'].setChecked(False)
 chart = dock.series_dialogs[len(dock.series) - 1].chart
 if chart is not None and os.environ.get('TEST_OUT'):  # chart drawn with Qt (no matplotlib)
 	chart.resize(860, 360)

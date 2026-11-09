@@ -591,11 +591,13 @@ def find_admin_units(text, level=1, country=None, limit=20):
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',
               season=None, quality=None, collection=None, band=None, image=None, ref=None, band_scale=None,
-              band_offset=None, terrain=None, exclude_landcover=None, two_periods=False):
+              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False):
 	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
-	variables that compare two periods, RBR, for burn_severity)."""
+	variables that compare two periods, RBR, for burn_severity). WHERE: the pixels of the study area to keep, a list of
+	conditions on variables (see variable.where_specs), e.g. [{'variable': 'ELEVATION', 'sensor': 'Copernicus',
+	'min': 1500}]; every tool that takes a region takes it."""
 	var = {'metric': metric, 'temporal': temporal, 'interannual': interannual, 'season': season,
-	       'quality': quality or {}, 'exclude_landcover': exclude_landcover}
+	       'quality': quality or {}, 'exclude_landcover': exclude_landcover, 'where': where}
 	if start or end:
 		var['period'] = [str(start), str(end or dt.date.today().isoformat())]
 	if variable or ref is not None:
@@ -1068,7 +1070,8 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	if not other_start or not other_end:
 		raise ValueError('give the other period: other_start and other_end')
 	ref = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
-	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, season=season, quality=quality, **source)
+	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, season=season, quality=quality,
+	                **same_area(source, start, end))
 	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	scale = scale or timeseries.auto_scale(ref, regions)
@@ -1103,6 +1106,13 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	return out
 
 
+def same_area(source, start, end):
+	"""SOURCE (the arguments of the variable) for the other period of a comparison: its conditions on variables with
+	dates (where) computed over the reference period, START to END, so both periods keep the same pixels."""
+	where = source.get('where')
+	return dict(source, where=variables.pin_where(where, start, end)) if where else source
+
+
 def _comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal, interannual, season,
                 quality, res, source, two_periods=False):
 	if not other_start or not other_end:
@@ -1110,7 +1120,8 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	ref = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                season=season, quality=quality, two_periods=two_periods, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal=temporal,
-	                interannual=interannual, season=season, quality=quality, two_periods=two_periods, **source)
+	                interannual=interannual, season=season, quality=quality, two_periods=two_periods,
+	                **same_area(source, start, end))
 	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	native = float(variables.native_scale(ref))
@@ -1186,7 +1197,7 @@ BURN_INDICES = ('dNBR', 'RBR')
 @_cited
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
-                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR'):
+                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None):
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
@@ -1199,18 +1210,22 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	catalog entry RBR (bands B8A and B12 in Sentinel-2, as Silva-Cardoza et al. 2022; NIR and SWIR2 in Landsat),
 	without phenological correction and on the scale of the dNBR (the articles multiply it by 1000). A continuous
 	map, without classes: {'index': 'RBR', 'stats': [{region, mean, median, p10, p90, min, max, ha (of the pixels with
-	values)}], ...} and the GeoTIFF bands rbr, dnbr, nbr_before and nbr_after."""
+	values)}], ...} and the GeoTIFF bands rbr, dnbr, nbr_before and nbr_after.
+
+	WHERE: only the pixels that pass these conditions on variables (as in the other tools), computed over the period
+	before the fire."""
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
 	if index is None:
 		raise ValueError(f"unknown burn index: use {' or '.join(BURN_INDICES)}")
 	if index == 'RBR':
 		return _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path,
-		            csv, max_pixels, tile, workers, progress)
+		            csv, max_pixels, tile, workers, progress, where)
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
 	spec, regions, img, native, name = _comparison(regions_, 'NBR', sensor, start, end, other_start, other_end,
-	                                               metric, 'period', 'mean', season, quality, res, {})
+	                                               metric, 'period', 'mean', season, quality, res,
+	                                               {'where': where} if where else {})
 	dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr')
 	severity = fire.classify(dnbr)
 	hectares = ee.Image.pixelArea().divide(1e4).addBands(severity).updateMask(dnbr.mask())
@@ -1242,13 +1257,14 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 
 
 def _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
-         max_pixels, tile, workers, progress):
+         max_pixels, tile, workers, progress, where=None):
 	"""burn_severity with the index RBR."""
 	regions_ = areas.region(region)
 	spec0 = make_spec('RBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True)
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
 	spec, regions, img, native, name = _comparison(regions_, 'RBR', sensor, start, end, other_start, other_end,
-	                                               metric, 'period', 'mean', season, quality, res, {}, two_periods=True)
+	                                               metric, 'period', 'mean', season, quality, res,
+	                                               {'where': where} if where else {}, two_periods=True)
 	before, after = img.select('reference'), img.select('other')
 	dnbr = before.subtract(after).rename('dnbr')
 	rbr = fire.rbr(dnbr, before)

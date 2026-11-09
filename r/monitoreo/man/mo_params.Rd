@@ -37,6 +37,14 @@ statistics.}
 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).}
 
+\item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
+each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
+own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
+WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+\code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
+sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+
 \item{scale}{pixel size of the statistics in metres (default: automatic).}
 
 \item{resolution}{pixel size in metres (default: that of the data).}

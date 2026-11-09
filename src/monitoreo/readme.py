@@ -259,6 +259,11 @@ def document(tool, args, result, computed=None):
 	return path
 
 
+def _where(where):
+	from . import report  # imported here: report needs the package loaded first
+	return report.where_text(where)
+
+
 def recipe_folder(folder, result=None, record='monitoreo.json'):
 	"""Write README.txt in a FOLDER of a recipe from its record: its grid and each file with its variable, metric,
 	period, pixel filters, images and download, and the references of RESULT (the answer of download_variables).
@@ -291,6 +296,7 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 		         f"unit {src['unit']}" if src.get('unit') else '',
 		         'pixels without ' + ', '.join(k for k, v in (src.get('pixel_filters') or {}).items() if v)
 		         if any((src.get('pixel_filters') or {}).values()) else '',
+		         'only the pixels where ' + _where(src['where']) if src.get('where') else '',
 		         f"{f['images']} images" if f.get('images') is not None else '',
 		         f"downloaded {f['downloaded']}" if f.get('downloaded') else '', f"via {f['via']}" if f.get('via') else '']
 		out.append(_wrap(f"{name}: " + '; '.join(p for p in parts if p) + '.'))

@@ -655,7 +655,7 @@ def _results(item, files, n):
 	return out
 
 
-SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step')
+SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where')
 
 
 def _link_trends(results, folder):

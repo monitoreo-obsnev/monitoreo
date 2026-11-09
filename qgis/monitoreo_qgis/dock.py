@@ -356,6 +356,32 @@ class MonitorEODock(QDockWidget):
 		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
+		# where: up to two conditions on variables, the only pixels of the region that pass them all
+		self.where = []
+		for i, default in enumerate(('ELEVATION · Copernicus', 'SLOPE · Copernicus')):
+			on, var, lo, hi, unit = QCheckBox(), QComboBox(), QLineEdit(), QLineEdit(), QLabel('')
+			for v in services.list_variables(lang='en'):
+				if not v.get('two_periods'):
+					var.addItem(f"{v['variable']} · {v['sensor']}", v)
+					var.setItemData(var.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}",
+					                Qt.ItemDataRole.ToolTipRole)
+			var.setCurrentIndex(max(0, var.findText(default, Qt.MatchFlag.MatchStartsWith)))
+			for w, text in ((lo, 'min'), (hi, 'max')):
+				w.setPlaceholderText(text)
+				w.setMaximumWidth(70)
+			row = QHBoxLayout()
+			row.addWidget(on)
+			row.addWidget(var, 1)
+			f.addRow('Only the pixels where' if i == 0 else 'and where', info(row, HELP['where']) if i == 0 else row)
+			row = QHBoxLayout()
+			for w in (QLabel('between'), lo, QLabel('and'), hi, unit):
+				row.addWidget(w)
+			row.addStretch()
+			f.addRow('', row)
+			condition = {'on': on, 'variable': var, 'min': lo, 'max': hi, 'unit': unit}
+			self.where.append(condition)
+			on.toggled.connect(self.where_changed)
+			var.currentIndexChanged.connect(self.where_changed)
 		main.addWidget(box)
 
 		box = QGroupBox('Time series')
@@ -449,7 +475,7 @@ class MonitorEODock(QDockWidget):
 		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
 		# fixed layers (elevation, slope)
 		self.variable.currentIndexChanged.connect(self.variable_changed)
-		self.variable_changed()
+		self.where_changed()  # also variable_changed
 		main.addWidget(self.about_box())
 		main.addStretch()
 
@@ -582,8 +608,10 @@ class MonitorEODock(QDockWidget):
 
 	def variable_args(self):
 		v = self.variable.currentData()
+		where = self.where_args()
 		if v.get('static'):  # elevation, slope: without dates, pixel filters or season (greyed out), nor in the README
-			return {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']}
+			return dict({'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']},
+			            **({'where': where} if where else {}))
 		quality = {k: w.isChecked() for k, w in self.filters.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		args = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'],
@@ -591,7 +619,44 @@ class MonitorEODock(QDockWidget):
 		        'quality': quality}
 		if self.season_on.isChecked():
 			args['season'] = [self.season_start.text().strip(), self.season_end.text().strip()]
+		if where:
+			args['where'] = where
 		return args
+
+	def where_args(self):
+		"""The checked conditions of «Only the pixels where» (see monitoreo.variable.where_specs), or None. Those of
+		variables with dates are the mean over the period of the panel, fixed in each condition, so that the maps of
+		each step of a series, and the other period of a comparison, keep the same pixels."""
+		out = []
+		for c in self.where:
+			if not c['on'].isChecked():
+				continue
+			v = c['variable'].currentData()
+			limits = {}
+			for key in ('min', 'max'):
+				text = c[key].text().strip().replace(',', '.')
+				if text:
+					try:
+						limits[key] = float(text)
+					except ValueError:
+						raise ValueError(f"Only the pixels where: the {key} of {v['variable']} is not a number: {text}")
+			if not limits:
+				raise ValueError(f"Only the pixels where: give a min, a max or both for {v['variable']}")
+			cond = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'], **limits}
+			if not v.get('static'):
+				cond['period'] = [self.start.date().toString('yyyy-MM-dd'), self.end.date().toString('yyyy-MM-dd')]
+			out.append(cond)
+		return out or None
+
+	def where_changed(self):
+		"""The unit of each condition of «Only the pixels where», and the period on when a condition needs it (a
+		variable with dates filtering a fixed layer)."""
+		for c in self.where:
+			v = c['variable'].currentData() or {}
+			c['unit'].setText(v.get('unit') or '')
+			for key in ('variable', 'min', 'max'):
+				c[key].setEnabled(c['on'].isChecked())
+		self.variable_changed()
 
 	# Tasks ------------------------------------------------------------------------------------------------------
 
@@ -802,9 +867,13 @@ class MonitorEODock(QDockWidget):
 				w.setCurrentIndex(max(0, w.findData(only)))
 			w.setEnabled(not only and not static)
 			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
-		for w in (self.start, self.end, self.compare_on, self.season_on, self.season_start, self.season_end,
+		for w in (self.compare_on, self.season_on, self.season_start, self.season_end,
 		          self.temporal, self.interannual, self.series_box, self.trends_box, self.export_series_button):
 			w.setEnabled(not static)
+		dated = any(c['on'].isChecked() and not (c['variable'].currentData() or {}).get('static')
+		            for c in getattr(self, 'where', []))  # the period of a condition with dates
+		for w in (self.start, self.end):
+			w.setEnabled(not static or dated)
 		for w in (self.other_start, self.other_end):
 			w.setEnabled(not static and self.compare_on.isChecked())
 		fixed = v.get('fixed_filters')

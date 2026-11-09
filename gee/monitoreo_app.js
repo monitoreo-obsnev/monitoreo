@@ -4025,7 +4025,8 @@ var MonitorEO = (function () {
 	}
 
 	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
-	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
+	// slope, in degrees), bilinear on pixels RES finer than those of the data and, on pixels RES more than twice as
+	// big, the mean of its pixels
 	function staticImage(e, res) {
 		var img;
 		if (e.image_asset) {  // an image (WorldClim), not a collection
@@ -4035,23 +4036,81 @@ var MonitorEO = (function () {
 			img = col.mosaic().setDefaultProjection(col.first().projection());
 		}
 		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
+		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
 		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
 		return img.toFloat().rename('value');
 	}
 
-	// variable.collection
-	function collection(s, region) {
+	// variable.pin_where: the conditions WHERE with the period START to END for those without a period of their own
+	function pinWhere(where, start, end) {
+		return (where || []).map(function (c) {
+			var out = {};
+			for (var k in c) out[k] = c[k];
+			if (!out.period && start) out.period = [start, end];
+			return out;
+		});
+	}
+
+	// variable.where_specs: [[spec of its variable, min, max]] of each condition of S.where ({ref, min, max, and
+	// optionally metric, temporal, interannual, quality, season, period}): the variable aggregated over the period of
+	// S, or its own; the fixed layers have no period
+	function whereSpecs(s) {
+		return (s.where || []).map(function (c) {
+			var e = byRef(c.ref);
+			if ((c.min === null || c.min === undefined) && (c.max === null || c.max === undefined)) {
+				throw new Error('the condition on ' + e.index + ' of where needs min, max or both');
+			}
+			var cs = {ref: c.ref, quality: c.quality || {}, temporal: c.temporal || 'period',
+				interannual: c.interannual || 'mean', season: c.season !== undefined ? c.season : s.season};
+			if (!e.static) {
+				var period = c.period || s.period;
+				if (!period) {
+					throw new Error('the condition on ' + e.index + ' (' + e.sensor + ') needs a period: give it its own, ' +
+						'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)');
+				}
+				cs.period = period.slice();
+				cs.metric = c.metric || e.metric || 'mean';
+			}
+			return [spec(cs), c.min, c.max];
+		});
+	}
+
+	// variable.mask: the image (1) of the pixels of S that pass its conditions (where), masked elsewhere; null without
+	// conditions. A pixel where a condition has no data is left out
+	function whereMask(s, region, res) {
+		var masks = whereSpecs(s).map(function (w) {
+			var value = image(w[0], region, res);
+			var m = ee.Image(1).updateMask(value.mask());
+			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
+			if (w[2] !== null && w[2] !== undefined) m = m.and(value.lte(Number(w[2])));
+			return m;
+		});
+		if (!masks.length) return null;
+		var out = masks[0];
+		masks.slice(1).forEach(function (m) { out = out.and(m); });
+		return out.selfMask();
+	}
+
+	// variable.collection: with the mask of the conditions of S (where) in every image, so the number of pixels and
+	// of images of each value count only the pixels kept
+	function collection(s, region, res) {
 		checkDates(s);
 		var sp = span(s);
-		return sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
+		var col = sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
+		var m = whereMask(s, region, res);
+		return m ? col.map(function (i) { return ee.Image(i).updateMask(m); }) : col;
 	}
 
 	// variable.image, for output pixels of RES metres (by default those of the data)
 	function image(s, region, res) {
-		if (isStatic(s)) return staticImage(entryOf(s), res);
-		return composite(collection(s, region), s.metric, s.temporal, s.interannual, s.period, s.season);
+		if (isStatic(s)) {
+			var img = staticImage(entryOf(s), res);
+			var m = whereMask(s, region, res);
+			return m ? img.updateMask(m) : img;
+		}
+		return composite(collection(s, region, res), s.metric, s.temporal, s.interannual, s.period, s.season);
 	}
 
 	// Regions (areas.py) --------------------------------------------------------------------------------------------
@@ -4234,7 +4293,7 @@ var MonitorEO = (function () {
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
 	// and region of REGIONS, computed on pixels of SCALE metres in CRS
 	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale) {
-		var col = collection(s, regions.geometry());
+		var col = collection(s, regions.geometry(), scale);
 		var red = reducer(metric);
 		var sred = reducer(stat).combine(ee.Reducer.count(), '', true);
 		var out = ee.String(reducer(stat).getOutputs().get(0));
@@ -4701,7 +4760,7 @@ var MonitorEO = (function () {
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
-		collection: collection, image: image,
+		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
@@ -4753,6 +4812,10 @@ var MonitorEO = (function () {
 			variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
+			whereHeader: 'Solo los p\u00edxeles donde', whereOn: 'una variable est\u00e1 entre dos valores', between: 'entre',
+			and: 'y', whereNote: 'M\u00edn. o m\u00e1x. vac\u00edo: sin l\u00edmite. Una variable con fechas es su media en el periodo, la ' +
+			'misma para cada paso y para los dos periodos de una comparaci\u00f3n.',
+			badLimit: 'El l\u00edmite %s no es un n\u00famero.', noLimit: 'Da un m\u00ednimo, un m\u00e1ximo o los dos.',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificaci\u00f3n SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
@@ -4813,6 +4876,10 @@ var MonitorEO = (function () {
 			variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
+			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
+			and: 'and', whereNote: 'An empty min or max: no limit. A variable with dates is its mean over the period, the ' +
+			'same for every step and for both periods of a comparison.',
+			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
@@ -4872,6 +4939,7 @@ var MonitorEO = (function () {
 		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
+		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
 		mapMetric: 'median', temporal: 'period', interannual: 'mean',
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
@@ -5236,7 +5304,8 @@ var MonitorEO = (function () {
 			dates.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
-		w = w.concat(e.static ? disable(dates) : dates);
+		var datedWhere = state.whereOn && !mo.byRef(whereRef()).static;  // its period is that of the panel
+		w = w.concat(e.static && !datedWhere ? disable(dates) : dates);
 		w.push(header(t('filters')));
 		// fixed filters (the SCF): all of them greyed out, those always on checked
 		var fixed = mo.fixedFilters(e);
@@ -5258,7 +5327,63 @@ var MonitorEO = (function () {
 		mo.conflicts(e, state.quality).forEach(function (f) {
 			w.push(ui.Label(fmt(t('conflict'), t(f)), {fontSize: '12px', color: '#b06000'}));
 		});
+		w.push(header(t('whereHeader')));
+		w.push(check(t('whereOn'), state.whereOn, function (v) {
+			state.whereOn = v;
+			render();
+		}));
+		if (state.whereOn) {
+			w.push(select(variableItems(), whereRef(), function (ref) {
+				state.whereRef = ref;
+				render();
+			}, '340px'));
+			w.push(row(ui.Label(t('between')), box(state.whereMin, function (v) { state.whereMin = v.trim(); }, '70px'),
+				ui.Label(t('and')), box(state.whereMax, function (v) { state.whereMax = v.trim(); }, '70px'),
+				ui.Label(mo.byRef(whereRef()).unit || '')));
+			w.push(ui.Label(t('whereNote'), SMALL));
+		}
 		return w;
+	}
+
+	// The variable of the condition of \u00abOnly the pixels where\u00bb: by default the elevation of the Copernicus DEM
+	function whereRef() {
+		if (state.whereRef === null) {
+			state.whereRef = mo.variables().filter(function (e) {
+				return e.index === 'ELEVATION';
+			}).map(function (e) { return e.ref; })[0];
+		}
+		return state.whereRef;
+	}
+
+	// services.make_spec(where=...): the condition of \u00abOnly the pixels where\u00bb, with PERIOD (default: that of the
+	// panel) when its variable has dates (the same pixels for every step and for the other period of a comparison;
+	// for a fire, the period before it); null if off
+	function whereArgs(period) {
+		period = period || state.period;
+		if (!state.whereOn) return null;
+		var c = {ref: whereRef()};
+		[['min', state.whereMin], ['max', state.whereMax]].forEach(function (x) {
+			var text = String(x[1] || '').replace(',', '.');
+			if (!text) return;
+			if (isNaN(Number(text))) throw new Error(fmt(t('badLimit'), x[1]));
+			c[x[0]] = Number(text);
+		});
+		if (c.min === undefined && c.max === undefined) throw new Error(t('noLimit'));
+		if (!mo.byRef(c.ref).static) {
+			checkPeriod(period);
+			c.period = period.slice();
+		}
+		return [c];
+	}
+
+	// The text of the condition for the titles, e.g. \u00abELEVATION \u2265 1500\u00bb
+	function whereText() {
+		if (!state.whereOn) return null;
+		var e = mo.byRef(whereRef());
+		var parts = [];
+		if (state.whereMin) parts.push('\u2265 ' + state.whereMin);
+		if (state.whereMax) parts.push('\u2264 ' + state.whereMax);
+		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '');
 	}
 
 	// Checks and specs ----------------------------------------------------------------------------------------------
@@ -5282,7 +5407,7 @@ var MonitorEO = (function () {
 			season = state.season.slice();
 		}
 		var s = mo.spec({ref: ref || state.ref, period: period.slice(), season: season, quality: state.quality,
-			metric: metric || 'mean'});
+			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
 		return s;
 	}
@@ -5316,7 +5441,9 @@ var MonitorEO = (function () {
 	}
 
 	function title(e, extra) {
-		return [e.index + ' ' + e.sensor, state.regionName].concat(extra || []).join(' \u00b7 ');
+		var where = whereText();
+		return [e.index + ' ' + e.sensor, state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || [])
+			.join(' \u00b7 ');
 	}
 
 	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
@@ -5732,8 +5859,10 @@ var MonitorEO = (function () {
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
 		var name = title(e, ['RBR', before.period.join('/') + ' \u2192 ' + after.period.join('/')]);
@@ -5761,8 +5890,10 @@ var MonitorEO = (function () {
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });

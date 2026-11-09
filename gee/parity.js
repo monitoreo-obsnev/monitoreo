@@ -73,6 +73,7 @@ var CASES = {
 	compare: function (c, regions, done) {
 		var ref = mo.spec(c.spec), other = mo.spec(c.spec);
 		other.period = c.other;
+		other.where = mo.pinWhere(ref.where, ref.period[0], ref.period[1]);  // services.same_area
 		setup(mo.entryOf(ref), regions, function (error, g) {
 			if (error) return done(error);
 			seasonalRows(ref, regions, c.step, c.metric, c.stat, g.scale, g.crs, g.n, function (e1, a) {
@@ -88,6 +89,7 @@ var CASES = {
 		var img = c.difference ? (function () {
 			var other = mo.spec(c.spec);
 			other.period = c.difference;
+			other.where = mo.pinWhere(s.where, s.period[0], s.period[1]);  // services.same_area
 			return mo.comparisonImage(s, other, geom).select('difference');
 		})() : mo.image(s, geom);
 		mo.percentiles(img.clipToCollection(regions), geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {

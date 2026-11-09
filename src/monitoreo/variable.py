@@ -16,8 +16,14 @@ interannual over period and season (see composite). Other keys:
   aggregate          fixed images on pixels more than twice as big as theirs: 'auto' or 'mean' (mean of the
                      pixels of the data inside each output pixel) or 'none' (Earth Engine pyramids)
   exclude_landcover  classes of ESA WorldCover 2021 (10 m) set to NoData, e.g. [40, 50, 80]: crops, built-up, water
+  where              the pixels of the study area to keep: a list of conditions, all of them true, each a variable of
+                     the catalog aggregated over the period and season of the spec (none for the fixed layers) with
+                     min and/or max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
+                     {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual",
+                     "max": 600}]; also metric, temporal, interannual, season and quality (see where_specs)
 """
 
+import datetime as dt
 import re
 
 import ee
@@ -28,9 +34,12 @@ WORLDCOVER = 'ESA/WorldCover/v200'
 SENSOR_ABBR = {'Sentinel-2': 'S2', 'Landsat': 'L', 'Modis': 'MODIS'}
 KEYS = {'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'terrain', 'metric',
         'metrics', 'temporal', 'interannual', 'period', 'season', 'quality', 'resample', 'aggregate',
-        'exclude_landcover'}
+        'exclude_landcover', 'where'}
 DEFAULTS = {'temporal': 'period', 'interannual': 'mean', 'resample': 'auto', 'aggregate': 'auto', 'quality': {},
-            'season': None, 'exclude_landcover': None}
+            'season': None, 'exclude_landcover': None, 'where': None}
+WHERE_KEYS = {'variable', 'sensor', 'collection', 'ref', 'metric', 'temporal', 'interannual', 'season', 'quality',
+              'period',
+              'min', 'max'}  # of a condition of where
 
 _native = {}
 _types = {}
@@ -102,6 +111,8 @@ def specs(var, defaults=None, two_periods=False):
 		if not base.get('period'):
 			raise ValueError(f'variable {base.get("name") or _default_name(base)}: give period [first day, last day]')
 		composite.windows(base['period'], base['season'])
+	if base.get('where'):
+		where_specs(base)  # check its conditions now, without Earth Engine
 	out = []
 	for m in metrics:
 		s = dict(base, metric=m)
@@ -112,6 +123,79 @@ def specs(var, defaults=None, two_periods=False):
 		s['name'] = re.sub(r'[^A-Za-z0-9_-]', '_', str(name))
 		out.append(s)
 	return out
+
+
+def pin_where(where, start, end):
+	"""The conditions WHERE (see where_specs) with the period START to END for those that have no period of their own:
+	the same pixels for a result of another period (the other period of a comparison, a map of a step of a series).
+	Those of the fixed layers do not use it."""
+	if not where or not start:
+		return where
+	conditions = [where] if isinstance(where, dict) else where
+	return [dict(c, period=c.get('period') or [str(start), str(end or dt.date.today().isoformat())])
+	        if isinstance(c, dict) else c for c in conditions]
+
+
+def where_specs(spec):
+	"""[(spec of its variable, min, max)] of each condition of SPEC['where']: the variable of the catalog aggregated
+	over the period and season of SPEC (or over the period of the condition, [start, end], if it has one), with the
+	metric, temporal, interannual and quality of the condition (by default the mean, or the only metric of the
+	variable, of the whole period). The fixed layers (elevation, slope, WorldClim) have no period, so they can filter
+	any result; a variable with dates needs a period, of the result or of the condition."""
+	conditions = spec.get('where') or []
+	if isinstance(conditions, dict):
+		conditions = [conditions]
+	out = []
+	for c in conditions:
+		if not isinstance(c, dict) or not c.get('variable'):
+			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max')
+		unknown = set(c) - WHERE_KEYS
+		if unknown:
+			raise ValueError(f"a condition of where has unknown keys {', '.join(sorted(unknown))}: use "
+			                 f"{', '.join(sorted(WHERE_KEYS))}")
+		if c.get('min') is None and c.get('max') is None:
+			raise ValueError(f"the condition on {c['variable']} of where needs min, max or both")
+		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
+		var = {'index': e['index'], 'sensor': e['sensor'], 'collection': c.get('collection'), 'ref': c.get('ref'),
+		       'quality': c.get('quality') or {}, 'temporal': c.get('temporal') or 'period',
+		       'interannual': c.get('interannual') or 'mean', 'season': c.get('season', spec.get('season'))}
+		if not e.get('static'):
+			period = c.get('period') or spec.get('period')
+			if not period:
+				raise ValueError(f"the condition on {e['index']} ({e['sensor']}) needs a period: this result has none "
+				                 '(a fixed layer without dates), so give the condition its own, "period": [start, end], '
+				                 'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)')
+			if not isinstance(period, (list, tuple)) or len(period) != 2:
+				raise ValueError(f'the period of the condition on {e["index"]} is [start, end]')
+			var.update(period=[str(d) for d in period], metric=c.get('metric') or e.get('metric') or 'mean')
+		cs = specs({k: v for k, v in var.items() if v is not None})[0]
+		out.append((cs, c.get('min'), c.get('max')))
+	return out
+
+
+def mask(spec, region, res):
+	"""The image (1) of the pixels of SPEC that pass its conditions (where) and are not of the land covers it
+	excludes (exclude_landcover), masked elsewhere; None without conditions. A pixel where a condition has no data is
+	left out."""
+	masks = []
+	for cs, lo, hi in where_specs(spec):
+		value = image(cs, region, res)
+		m = ee.Image(1).updateMask(value.mask())
+		if lo is not None:
+			m = m.And(value.gte(float(lo)))
+		if hi is not None:
+			m = m.And(value.lte(float(hi)))
+		masks.append(m)
+	classes = spec.get('exclude_landcover')
+	if classes:
+		wc = ee.ImageCollection(WORLDCOVER).first()
+		masks.append(wc.remap(list(classes), [0] * len(classes), 1))
+	if not masks:
+		return None
+	out = masks[0]
+	for m in masks[1:]:
+		out = out.And(m)
+	return out.selfMask()
 
 
 def entry_of(spec):
@@ -216,11 +300,14 @@ def collection(spec, region, res):
 	"""Collection of single band images ('value') of a spec of kind 'catalog' or 'collection', before the temporal
 	aggregation."""
 	if kind(spec) == 'collection':
-		return _from_collection(spec, region, res)
-	check_dates(spec)
-	entry = entry_of(spec)
-	start, end = _span(spec)
-	return sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])))
+		col = _from_collection(spec, region, res)
+	else:
+		check_dates(spec)
+		entry = entry_of(spec)
+		start, end = _span(spec)
+		col = sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])))
+	m = mask(spec, region, res)  # the pixels of the study area to keep, in every image (n_pixels and count too)
+	return col if m is None else col.map(lambda i: ee.Image(i).updateMask(m))
 
 
 def image(spec, region, res):
@@ -229,14 +316,11 @@ def image(spec, region, res):
 		img = _fixed(spec, res)
 	elif is_static(spec):
 		img = _fixed(_static_spec(spec), res)
-	else:
-		img = composite.composite(collection(spec, region, res), spec['metric'], spec['temporal'],
-		                          spec['interannual'], spec['period'], spec['season'])
-	classes = spec.get('exclude_landcover')
-	if classes:
-		wc = ee.ImageCollection(WORLDCOVER).first()
-		img = img.updateMask(wc.remap(list(classes), [0] * len(classes), 1))
-	return img
+	else:  # its collection is masked already (see collection)
+		return composite.composite(collection(spec, region, res), spec['metric'], spec['temporal'],
+		                           spec['interannual'], spec['period'], spec['season'])
+	m = mask(spec, region, res)
+	return img if m is None else img.updateMask(m)
 
 
 def n_images(spec, region):
@@ -244,7 +328,7 @@ def n_images(spec, region):
 	if kind(spec) == 'image' or is_static(spec):
 		return None
 	wins = composite.windows(spec['period'], spec['season'])
-	col = collection(dict(spec, resample='nearest'), region, 1e9)
+	col = collection(dict(spec, resample='nearest', where=None, exclude_landcover=None), region, 1e9)  # no mask
 	return col.filter(composite.date_filter(wins)).size().getInfo()
 
 
@@ -268,4 +352,6 @@ def describe(spec):
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):
 			d['note'] = e['notes']['ft']
+	if spec.get('where'):
+		d['where'] = spec['where']  # the pixels of the study area kept
 	return d
