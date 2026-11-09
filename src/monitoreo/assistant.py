@@ -260,7 +260,9 @@ SMALL = {  # rules 6 and 7 for the small models of Ollama: short answers, which 
 	'manual_rule': 'For questions about MonitorEO, consult manual and answer with what it says, in five sentences at most '
 	               'and with the link of the page. You may add a brief general explanation (for example, what a '
 	               'vegetation index measures), but do not make up facts about MonitorEO: if the manual does not say '
-	               'it, say so. Use only the links that manual gives you or those of the list of tools below.',
+	               'it, say so. Use only the links that manual gives you or those of the list of tools below. When the '
+	               'user asks for examples, consult manual with their topic and «article»: it has articles of the team '
+	               'with their questions; cite only those it gives you.',
 	'guide': ''}
 BIG_RULES = {  # for the big models of the cloud, which can explain more: how to use the assistant and the concepts
 	'style': 'clear and to the point: a computation in one or two sentences; an explanation as long as it needs, in short '
@@ -277,6 +279,11 @@ BIG_RULES = {  # for the big models of the cloud, which can explain more: how to
 	'guide': """
 
 How to help the user:
+- When the user does not know what or how to ask, or asks for examples or articles, call manual with their topic and \
+the word «article» or «artículo»: the page Publications (Publicaciones) has articles of the team of MonitorEO, each with \
+the question it answered and the request that does it with MonitorEO. Cite one or two of them that asked something \
+like the user's question (authors, year and the DOI link, as manual gives them), say in a sentence what they did, and \
+propose that request, fitted to the user's area and dates. Never cite an article that manual did not give you.
 - When a request is vague, propose the variable, sensor, period and step with a reason in one sentence (Sentinel-2 \
 for a plot of a few hectares, Landsat for thirty years, MODIS for a whole mountain range) and ask before computing.
 - When the user asks how to do something in the assistant, give the steps on its page (below) in order, with the \

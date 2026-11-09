@@ -24,17 +24,22 @@ RAW = 'https://raw.githubusercontent.com/wiki/monitoreo-obsnev/monitoreo/'
 WEB = 'https://github.com/monitoreo-obsnev/monitoreo/wiki/'
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'wiki')
 PAGES = ('Home', 'Primeros-pasos', 'Instalación-paso-a-paso', 'Conceptos', 'Asistente', 'App-de-Earth-Engine', 'QGIS',
-         'MCP', 'Python', 'Línea-de-comandos', 'R', 'Visor-de-resultados', 'Problemas-frecuentes', 'Desarrollo')
+         'MCP', 'Python', 'Línea-de-comandos', 'R', 'Visor-de-resultados', 'Problemas-frecuentes', 'Publicaciones',
+         'Desarrollo')
 ENGLISH = {'Home': 'English', 'Primeros-pasos': 'Getting-started', 'Instalación-paso-a-paso': 'Step-by-step-installation',
            'Conceptos': 'Concepts', 'App-de-Earth-Engine': 'Earth-Engine-app', 'QGIS': 'QGIS-plugin', 'MCP': 'MCP-server',
            'Asistente': 'Assistant', 'Python': 'Python-package', 'Línea-de-comandos': 'Command-line', 'R': 'R-package',
            'Visor-de-resultados': 'Results-viewer', 'Problemas-frecuentes': 'Troubleshooting',
-           'Desarrollo': 'Development'}  # the English page of each Spanish one
+           'Publicaciones': 'Publications', 'Desarrollo': 'Development'}  # the English page of each Spanish one
 SPANISH = {en: es for es, en in ENGLISH.items()}
+LISTS = {'Publicaciones', 'Publications'}  # pages that are lists (of articles): only their items are sections
+EXAMPLES = {'es': 'articulo articulos ejemplo ejemplos publicacion publicaciones estudio estudios',
+            'en': 'article articles example examples paper papers publication publications study studies'}
+EXAMPLES_WEIGHT = 2.5  # the articles of the team, for a question that asks for articles or examples
 MAX_AGE = 24 * 3600  # seconds
 TITLE_WEIGHT = 3
 PAGE_WEIGHT = {'Conceptos': 1.3, 'Asistente': 1.2, 'Home': 1.2, 'Python': 0.8, 'Línea-de-comandos': 0.8, 'R': 0.8,
-               'Desarrollo': 0.6}
+               'Desarrollo': 0.6, 'Publicaciones': 0.9}  # the articles of the team: examples, after the concepts
 PAGE_WEIGHT.update({ENGLISH[k]: w for k, w in PAGE_WEIGHT.items()})
 SYNONYMS = {  # words of the questions and the wiki
 	'es': {'resolucion': 'pixel', 'pixel': 'resolucion', 'frecuencia': 'fechas dias', 'cuanto': 'fechas dias',
@@ -110,7 +115,7 @@ def sections(folder=None):
 				body.append(line)
 				continue
 			text = _plain('\n'.join(body))
-			if text:
+			if text and not (name in LISTS and title == page):  # not the introduction of a list
 				out.append({'page': page, 'name': name, 'title': title, 'text': text, 'lang': lang,
 				            'url': WEB + name + ('' if title == page else '#' + _anchor(title))})
 			title, body = (m.group(2).strip() or page), []
@@ -134,6 +139,7 @@ def search(question, k=3, folder=None, max_chars=1800, lang=None):
 			query |= set(words(name, lang))
 	if not secs or not query:
 		return []
+	examples = bool(query & set(words(EXAMPLES[lang], lang)))
 	docs = [words(s['title'] + ' ' + s['page'], s['lang']) * TITLE_WEIGHT +
 	        words(re.sub(r'```.*?```', ' ', s['text'], flags=re.S), s['lang']) for s in secs]
 	avg = sum(map(len, docs)) / len(docs)
@@ -147,7 +153,8 @@ def search(question, k=3, folder=None, max_chars=1800, lang=None):
 				idf = math.log(1 + (len(docs) - df[w] + 0.5) / (df[w] + 0.5))
 				score += idf * tf * 2.5 / (tf + 1.5 * (0.25 + 0.75 * len(d) / avg))
 		if score > 0:
-			scored.append((score * PAGE_WEIGHT.get(s['name'], 1), s))
+			weight = PAGE_WEIGHT.get(s['name'], 1) * (EXAMPLES_WEIGHT if examples and s['name'] in LISTS else 1)
+			scored.append((score * weight, s))
 	scored.sort(key=lambda x: -x[0])
 	return [{**s, 'text': s['text'][:max_chars], 'score': round(score, 2)} for score, s in scored[:k]]
 

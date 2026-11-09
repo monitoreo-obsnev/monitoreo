@@ -102,7 +102,9 @@ Engine account and Google Cloud project (connect).
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
 Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables) when the user writes in
 Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + about_.MANUAL + \
-	"""/English (English) and """ + about_.MANUAL + """ (Spanish)."""
+	"""/English (English) and """ + about_.MANUAL + """ (Spanish). Its page Publications (""" + about_.MANUAL + \
+	"""/Publications) has articles of the team of MonitorEO with the questions they answered and how to ask MonitorEO for
+them: examples for a user who does not know what or how to ask."""
 
 server = Server('MonitorEO', instructions=INSTRUCTIONS)
 
