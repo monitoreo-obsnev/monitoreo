@@ -8,9 +8,11 @@ team's methodology in the skill `monitoreo-change` (`.claude/skills/monitoreo-ch
 - references with DOI and units in UDUNITS;
 - tests;
 - the wiki, in Spanish and English;
-- a pull request to `main`, which the developer merges when it is ready (no pushes to `main`).
+- a pull request to `main`, which the developer merges when it is ready (no pushes to `main`);
+- after each merge that changes the package, the QGIS plugin or the app, a release (new versions and a tag), without
+  asking again.
 
-Ask before pushing, opening or merging a pull request, or publishing anything. Say that it computes in Google Earth Engine, and
-with which project, before running anything that does.
+Ask before pushing, opening or merging a pull request, or publishing anything, except the release after a merge. Say
+that it computes in Google Earth Engine, and with which project, before running anything that does.
 
 The texts of the tools are in English. Answer the developer in their own language.

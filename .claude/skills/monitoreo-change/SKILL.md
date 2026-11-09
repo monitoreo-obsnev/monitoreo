@@ -23,8 +23,14 @@ in order, and tell the developer what you are doing at each step, in their langu
 - **Never commit on `main`.** Use one branch per piece of work. Changes reach `main` only through a pull request on
   GitHub (team decision, 2026-11-09), because other people are working on `main` at the same time.
 - **Ask before anything that leaves this computer**: pushing a branch, opening or merging a PR, pushing the wiki,
-  tagging a release, updating the Earth Engine app in the Code Editor or deploying the broker. Show what will be published, then
-  wait for a clear yes. An approval covers only the step it was given for.
+  updating the Earth Engine app in the Code Editor or deploying the broker. Show what will be published, then wait for
+  a clear yes. An approval covers only the step it was given for. The one exception is the release that follows a
+  merge (next rule): the team approved it once for all.
+- **A release after every merge** (team decision, 2026-11-09). As soon as a PR that changes what users get is merged
+  (anything under `src/`, `qgis/`, `r/` or `gee/`, or the catalog), make a release with `references/release.md`: new
+  versions, their PR, its merge and the tag, without asking again; then tell the developer. The QGIS plugin reaches its
+  users only through releases. A PR that only changes the docs, the tests, the workflows or this skill waits for the
+  next release, and a stack of PRs merged together gets one release after the last of them.
 - **Say where it computes.** Everything computes in Google Earth Engine. Before you run anything that computes (`pytest -m ee`,
   `qgis/test_plugin.py`, `gee/build.py`, the CLI, MCP tools), say so and name the account and project it will use (the
   developer's `EE_PROJECT`, or the shared MonitorEO account `ee-ugr-default-project` when there is no project). The
@@ -163,8 +169,9 @@ Then, as the change requires:
   in and the tests pass; for stacked PRs, merge them in order. Use a merge commit, as the history does:
   `gh pr merge <n> --merge --delete-branch`. **Never push to `main`**: everything reaches it through a PR.
 - **After the merge**, when `git fetch origin` shows it in `main`:
+  - make the release, if the PR changed what users get (`references/release.md`);
   - push the wiki branch to `master`, after asking;
-  - if the catalog changed, offer to update the Earth Engine app in the Code Editor.
+  - if the catalog, `about.py` or `gee/` changed, offer to update the Earth Engine app in the Code Editor.
 - **Merged branches are always deleted** (team decision, 2026-11-09):
   - **The code branch on GitHub.** The workflow `.github/workflows/delete-merged-branch.yml` deletes it when its PR is
     merged. If it is still there, delete it: `git push origin --delete <branch>`.
@@ -188,6 +195,6 @@ End with a short report for the developer:
 - the branch, its commits and the PR link (or the compare link);
 - the tests you ran and their result;
 - what was not verified (Earth Engine, QGIS, the rebuild of the Earth Engine app) and why;
-- what is still pending: the wiki push, the Earth Engine app, the release.
+- what is still pending: the wiki push, the Earth Engine app, and the release if it is not made yet.
 
 Saying plainly what was not checked is part of the method. A reviewer needs to know where to look.
