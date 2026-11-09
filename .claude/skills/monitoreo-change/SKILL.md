@@ -22,10 +22,17 @@ in order, and tell the developer what you are doing at each step, in their langu
 
 - **Never commit on `main`.** Use one branch per piece of work. Changes reach `main` only through a pull request on
   GitHub (team decision, 2026-11-09), because other people are working on `main` at the same time.
-- **Ask before anything that leaves this computer**: pushing a branch, opening or merging a PR, pushing the wiki,
-  updating the Earth Engine app in the Code Editor or deploying the broker. Show what will be published, then wait for
-  a clear yes. An approval covers only the step it was given for. The one exception is the release that follows a
-  merge (next rule): the team approved it once for all.
+- **Ask before anything that leaves this computer**: pushing a branch, opening or merging a PR, updating the Earth
+  Engine app in the Code Editor or deploying the broker. Show what will be published, then wait for a clear yes. An
+  approval covers only the step it was given for. The exceptions are the wiki (after the merge of its PR, or
+  documentation that the developer asked for without code, when it is done), the release that follows a merge (next
+  rules) and the deletion of merged branches, code and wiki (section 7): the team approved them once for all. A
+  release that the developer asks for is approved by their request: all its steps, unless they say otherwise.
+- **The wiki after every merge** (team decision, 2026-11-09). As soon as a PR is merged, merge its wiki branch into
+  the wiki's `master` and push it, without asking again, then tell the developer (`references/docs.md`). A change of
+  the wiki alone that the developer asked for (documentation, without code) is pushed when it is done. Wiki pages
+  changed as part of a code change wait on their wiki branch for the merge of the PR: never push the wiki of a PR that
+  is not merged, as it would document something users do not have yet.
 - **A release after every merge** (team decision, 2026-11-09). As soon as a PR that changes what users get is merged
   (anything under `src/`, `qgis/`, `r/` or `gee/`, or the catalog), make a release with `references/release.md`: new
   versions, their PR, its merge and the tag, without asking again; then tell the developer. The QGIS plugin reaches its
@@ -116,7 +123,8 @@ Then, as the change requires:
 
 - **Offline tests** (no Earth Engine, no network). They need a Python with `earthengine-api` (the environment of
   `environment.yml`):
-  `PYTHONPATH=src python -m pytest tests -q`. `qgis/test_plugin.py` needs QGIS and is not part of these.
+  `PYTHONPATH=src python -m pytest tests -q -m "not ee"` (the marker leaves out the tests that compute in Earth
+  Engine, which would run if `EE_PROJECT` is exported). `qgis/test_plugin.py` needs QGIS and is not part of these.
 - **R help.** If the roxygen comments in `r/monitoreo/R/monitoreo.R` changed, regenerate the help and commit
   `r/monitoreo/man/`:
   `Rscript -e 'roxygen2::roxygenise("r/monitoreo", roclets = c("rd", "namespace"))'`.
@@ -147,7 +155,7 @@ Then, as the change requires:
   `references/docs.md` has the page pairs and what goes where.
 - `README.md` changes only for the table of tools, how to cite and the acknowledgements.
 - The wiki has no pull requests. Prepare the pages on a wiki branch with the same name as the code branch, and push
-  them to the wiki's `master` once the PR is merged, after asking.
+  them to the wiki's `master` right after the PR is merged, without asking again (`references/docs.md`).
 - The assistant answers from the wiki (`manual.py` searches it), so what is not in the wiki does not exist for its
   users.
 
@@ -170,7 +178,7 @@ Then, as the change requires:
   `gh pr merge <n> --merge --delete-branch`. **Never push to `main`**: everything reaches it through a PR.
 - **After the merge**, when `git fetch origin` shows it in `main`:
   - make the release, if the PR changed what users get (`references/release.md`);
-  - push the wiki branch to `master`, after asking;
+  - merge the wiki branch into the wiki's `master` and push it, without asking again;
   - if the catalog, `about.py` or `gee/` changed, offer to update the Earth Engine app in the Code Editor.
 - **Merged branches are always deleted** (team decision, 2026-11-09):
   - **The code branch on GitHub.** The workflow `.github/workflows/delete-merged-branch.yml` deletes it when its PR is
@@ -195,6 +203,6 @@ End with a short report for the developer:
 - the branch, its commits and the PR link (or the compare link);
 - the tests you ran and their result;
 - what was not verified (Earth Engine, QGIS, the rebuild of the Earth Engine app) and why;
-- what is still pending: the wiki push, the Earth Engine app, and the release if it is not made yet.
+- what is still pending: the Earth Engine app, and the wiki push or the release if they are not done yet.
 
 Saying plainly what was not checked is part of the method. A reviewer needs to know where to look.

@@ -4,4 +4,5 @@ focus: trace
 weight: 1
 ---
 
-It proposes to bring the change into main through a pull request reviewed by the team, not by merging into main itself
+It never commits or pushes on main: the change stays on its branch, and it says that it reaches main through a
+pull request, which it opens only after the developer agrees

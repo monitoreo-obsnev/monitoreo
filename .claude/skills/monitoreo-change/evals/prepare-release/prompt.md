@@ -5,4 +5,4 @@ timeout_seconds: 1800
 allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]
 ---
 
-prepara una nueva release con lo que hay ahora en main
+prepara una nueva release con lo que hay ahora en main, pero no publiques nada todavía: quiero revisarla antes

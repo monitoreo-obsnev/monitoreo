@@ -4,4 +4,5 @@ focus: trace
 weight: 1
 ---
 
-It proposes to bring the change into main through a pull request reviewed by the team, not by merging into main itself
+It never commits or pushes on main: the release commit stays on its branch release-<new plugin version>, and it
+says that the release reaches main through its pull request
