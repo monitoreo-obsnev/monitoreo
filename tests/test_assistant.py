@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 
 import pytest
 
@@ -1341,3 +1342,25 @@ def test_the_assistant_with_the_model_of_monitoreo(monkeypatch):
 	assert third[5]['tool_call_id'] == 'g2' and third[5]['content'].startswith('Done:')
 	assert '0.501' not in json.dumps(third) and '0,501' not in json.dumps(third)
 	assert [m.get('tool_call_id') for m in a.messages if m['role'] == 'tool'] == ['g1', 'g2'] and a.call_id is None
+
+
+def test_manual_with_the_articles_of_the_team(tmp_path):
+	"""The real pages Publicaciones and Publications of the wiki (with a page of concepts): an example question finds
+	an article of the team; a question about a concept still finds the concept."""
+	from monitoreo import manual
+	wiki = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'monitoreo.wiki')
+	if not os.path.exists(os.path.join(wiki, 'Publicaciones.md')):
+		pytest.skip('no clone of the wiki with the page Publicaciones next to this repository')
+	for name in ('Publicaciones', 'Publications'):
+		with open(os.path.join(wiki, name + '.md'), encoding='utf-8') as f:
+			(tmp_path / f'{name}.md').write_text(f.read(), encoding='utf-8')
+	for name, text in WIKI_PAGES.items():
+		(tmp_path / f'{name}.md').write_text(text, encoding='utf-8')
+	(tmp_path / '_Sidebar.md').write_text('[Inicio](Home) [Publicaciones](Publicaciones)', encoding='utf-8')
+	assert 'Publicaciones' in manual.PAGES and manual.ENGLISH['Publicaciones'] == 'Publications'
+	found = manual.search('¿Algún artículo de ejemplo sobre tipos funcionales de ecosistemas con el EVI?',
+	                      folder=str(tmp_path))[0]
+	assert found['name'] == 'Publicaciones' and 'doi.org' in found['text'], found
+	found = manual.search('An example article on ecosystem functional types with EVI?', folder=str(tmp_path))[0]
+	assert found['name'] == 'Publications' and found['lang'] == 'en'
+	assert manual.search('¿Qué es el NDVI?', folder=str(tmp_path))[0]['title'] == 'Variables'
