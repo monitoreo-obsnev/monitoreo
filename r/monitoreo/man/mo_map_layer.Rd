@@ -18,7 +18,8 @@ mo_map_layer(
   vmin = NULL,
   vmax = NULL,
   thumbnail = NULL,
-  collection = NULL
+  collection = NULL,
+  where = NULL
 )
 }
 \arguments{
@@ -53,6 +54,14 @@ statistics.}
 
 \item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
 \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
+
+\item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
+each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
+own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
+WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+\code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
+sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
 }
 \value{
 A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
@@ -74,6 +83,9 @@ its colour ramp. The fixed layers without dates (variables \code{"ELEVATION"} an
 \dontrun{
 mo_init()
 layer <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+# only the pixels above 1,500 m
+high <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31",
+                     where = list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500)))
 }
 }
 \references{

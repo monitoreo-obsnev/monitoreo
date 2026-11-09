@@ -125,6 +125,13 @@ cited <- function(df, res) {
 #' @param interannual statistic between the years when \code{temporal} is not \code{"period"}.
 #' @param season optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).
 #' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).
+#' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
+#'   each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
+#'   own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+#'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
+#'   WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+#'   \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
+#'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.
 #' @param scale pixel size of the statistics in metres (default: automatic).
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
@@ -441,9 +448,9 @@ mo_sf <- function(x, name = NULL) {
 #' }
 #' @export
 mo_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean", stat = "mean",
-                           season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL) {
+                           season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL, where = NULL) {
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
-                                quality = quality, scale = scale, csv = csv, collection = collection)
+                                quality = quality, scale = scale, csv = csv, collection = collection, where = where)
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -502,13 +509,16 @@ mo_plot <- function(ts) {
 #' \dontrun{
 #' mo_init()
 #' layer <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' # only the pixels above 1,500 m
+#' high <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31",
+#'                      where = list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500)))
 #' }
 #' @export
 mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
-                         thumbnail = NULL, collection = NULL) {
+                         thumbnail = NULL, collection = NULL, where = NULL) {
   services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
-                       vmax, thumbnail = thumbnail, collection = collection)
+                       vmax, thumbnail = thumbnail, collection = collection, where = where)
 }
 
 #' A leaflet map with the tiles of a map
@@ -547,19 +557,20 @@ mo_leaflet <- function(layer) {
 #' }
 #' @export
 mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                     interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL) {
+                     interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL,
+                     where = NULL) {
   s <- services()
   out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                           clip, collection = collection)
+                           clip, collection = collection, where = where)
   maps <- reticulate::import("monitoreo.maps", convert = TRUE)
   # percentiles 5 and 95 on the pixels of the data (without a scale, Earth Engine would take pixels of 1 degree)
   spec <- s$make_spec(variable, sensor, start, end, metric = metric, temporal = temporal, interannual = interannual,
-                      season = season, quality = quality, collection = collection)
+                      season = season, quality = quality, collection = collection, where = where)
   res <- reticulate::import("monitoreo.variable", convert = TRUE)$native_scale(spec)
   vis <- maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     "composite_image", list(region = region, variable = variable, sensor = sensor, start = start, end = end,
-                            quality = quality, collection = collection))
+                            quality = quality, collection = collection, where = where))
   name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
   list(image = out[[1]], region = out[[2]], vis = vis, name = name,
        references = cite$references, credits = cite$credits)
@@ -585,9 +596,9 @@ mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric 
 #' }
 #' @export
 mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                            season = NULL, quality = NULL, scale = NULL, collection = NULL) {
+                            season = NULL, quality = NULL, scale = NULL, collection = NULL, where = NULL) {
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
-                                 quality = quality, scale = scale, collection = collection)
+                                 quality = quality, scale = scale, collection = collection, where = where)
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -619,10 +630,10 @@ mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, 
 #' @export
 mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
-                            name = NULL, collection = NULL) {
+                            name = NULL, collection = NULL, where = NULL) {
   services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
                           quality = quality, resolution = resolution, crs = crs, folder = folder, name = name,
-                          collection = collection)
+                          collection = collection, where = where)
 }
 
 #' Export a time series to a CSV file in Google Drive
@@ -650,9 +661,9 @@ mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, 
 #' @export
 mo_export_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean",
                                   stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
-                                  name = NULL, collection = NULL) {
+                                  name = NULL, collection = NULL, where = NULL) {
   services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality, scale,
-                                  folder, name, collection = collection)
+                                  folder, name, collection = collection, where = where)
 }
 
 #' Download the map of a variable to a GeoTIFF on this computer
@@ -681,9 +692,9 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' @export
 mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median", temporal = "period",
                               interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                              clip = TRUE, collection = NULL) {
+                              clip = TRUE, collection = NULL, where = NULL) {
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                            resolution, crs, path.expand(path), clip, collection = collection)
+                            resolution, crs, path.expand(path), clip, collection = collection, where = where)
 }
 
 #' Download a recipe of variables as GeoTIFFs on aligned grids
@@ -769,10 +780,10 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' @export
 mo_trend_table <- function(region, variable, sensor, start, end, step = "annual", metric = "mean", stat = "mean",
                            season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL, chart = NULL,
-                           collection = NULL) {
+                           collection = NULL, where = NULL) {
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
-                                collection = collection)
+                                collection = collection, where = where)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -815,10 +826,10 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
 #' @export
 mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", part = NULL, output = "slope",
                          metric = "mean", season = NULL, quality = NULL, alpha = NULL, thumbnail = NULL,
-                         collection = NULL) {
+                         collection = NULL, where = NULL) {
   if (!is.null(part)) part <- as.integer(part)
   services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
-                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection)
+                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection, where = where)
 }
 
 #' Download the trend of a part of the year on each pixel to a GeoTIFF
@@ -855,10 +866,10 @@ mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", 
 #' @export
 mo_download_trend <- function(region, variable, sensor, start, end, path, step = "annual", part = NULL,
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
-                              crs = "auto", collection = NULL) {
+                              crs = "auto", collection = NULL, where = NULL) {
   if (!is.null(part)) part <- as.integer(part)
   services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
-                            resolution, crs, path.expand(path), collection = collection)
+                            resolution, crs, path.expand(path), collection = collection, where = where)
 }
 
 #' Compare two periods over each feature of a region
@@ -887,10 +898,10 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 #' @export
 mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
                               metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
-                              csv = NULL, chart = NULL, collection = NULL) {
+                              csv = NULL, chart = NULL, collection = NULL, where = NULL) {
   res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
                                    season = season, quality = quality, scale = scale, csv = csv, chart = chart,
-                                   collection = collection)
+                                   collection = collection, where = where)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -918,9 +929,11 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
 #' }
 #' @export
 mo_compare_map <- function(region, variable, sensor, start, end, other_start, other_end, metric = "median",
-                           temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL) {
+                           temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL,
+                           where = NULL) {
   services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
-                         season = season, quality = quality, thumbnail = thumbnail, collection = collection)
+                         season = season, quality = quality, thumbnail = thumbnail, collection = collection,
+                         where = where)
 }
 
 #' Download the comparison of two periods to a GeoTIFF
@@ -948,10 +961,10 @@ mo_compare_map <- function(region, variable, sensor, start, end, other_start, ot
 #' @export
 mo_download_comparison <- function(region, variable, sensor, start, end, other_start, other_end, path,
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
-                                   resolution = NULL, crs = "auto", collection = NULL) {
+                                   resolution = NULL, crs = "auto", collection = NULL, where = NULL) {
   services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                  season = season, quality = quality, resolution = resolution, crs = crs,
-                                 path = path.expand(path), collection = collection)
+                                 path = path.expand(path), collection = collection, where = where)
 }
 
 #' Burn severity of a fire (dNBR and RBR)
@@ -1002,10 +1015,11 @@ mo_download_comparison <- function(region, variable, sensor, start, end, other_s
 #' @export
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                             csv = NULL, index = "dNBR") {
+                             csv = NULL, index = "dNBR", where = NULL) {
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
-                                  path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index)
+                                  path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index,
+                                  where = where)
   df <- rows_df(if (identical(res$index, "RBR")) res$stats else res$classes)
   attr(df, "burned_ha") <- unlist(res$burned_ha)
   attr(df, "title") <- res$title

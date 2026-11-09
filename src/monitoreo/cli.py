@@ -46,6 +46,15 @@ import threading
 from . import __version__
 
 
+WHERE_HELP = ('only the pixels of the region whose variables pass these conditions, a JSON list, e.g. '
+              '\'[{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500}]\' (each its variable aggregated '
+              'over the period, between min and max; see the wiki, Concepts)')
+
+
+def _where(args):
+	return json.loads(args.where) if getattr(args, 'where', None) else None
+
+
 def _table(rows, cols):
 	widths = {c: max(len(c), *(len(str(r.get(c, ''))) for r in rows)) if rows else len(c) for c in cols}
 	print('  '.join(c.ljust(widths[c]) for c in cols))
@@ -82,6 +91,7 @@ def main(argv=None):
 	p.add_argument('variable')
 	p.add_argument('--sensor', required=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', required=True)
 	p.add_argument('--end', required=True)
 	p.add_argument('--step', default='monthly', choices=('daily', '16-day', 'monthly', 'annual'))
@@ -94,6 +104,7 @@ def main(argv=None):
 	p.add_argument('variable')
 	p.add_argument('--sensor', required=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
+	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median')
@@ -107,6 +118,7 @@ def main(argv=None):
 		p.add_argument('variable')
 		p.add_argument('--sensor', required=True)
 		p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+		p.add_argument('--where', help=WHERE_HELP)
 		p.add_argument('--start', required=True, help='first day (of the reference period, for compare)')
 		p.add_argument('--end', required=True)
 		if name == 'compare':
@@ -229,14 +241,14 @@ def _compute(args, services):
 	if args.cmd == 'image':
 		res = services.download_image(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
 		                              args.metric, args.temporal, args.interannual, resolution=args.resolution,
-		                              path=args.out, progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
+		                              where=_where(args), path=args.out, progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
 		print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
 		      f"{res['resolution']:g} m | {res['images']} images | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
 		      f"{res['unit']}" if res['min'] is not None else f"{res['file']}: no valid pixel")
 		return
 	res = services.time_series(json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.step,
 	                           args.metric, args.stat, scale=args.scale, csv=args.csv, chart=args.png,
-	                           progress=progress)
+	                           progress=progress, where=_where(args))
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
@@ -251,14 +263,15 @@ def _trend_or_compare(args, services):
 	region = json.loads(args.region)
 	if args.cmd == 'trend':
 		res = services.trend_table(region, args.variable, args.sensor, args.start, args.end, args.step, args.metric,
-		                           args.stat, scale=args.scale, csv=args.csv, chart=args.png, progress=progress)
+		                           args.stat, scale=args.scale, csv=args.csv, chart=args.png, progress=progress,
+		                           where=_where(args))
 		_table(_fmt(res['rows']), ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope',
 		                           'intercept'])
 		extra = f" | slope in {res['unit']} / year"
 	else:
 		res = services.compare_series(region, args.variable, args.sensor, args.start, args.end, args.other_start,
 		                              args.other_end, args.step, args.metric, args.stat, scale=args.scale, csv=args.csv,
-		                              chart=args.png, progress=progress)
+		                              chart=args.png, progress=progress, where=_where(args))
 		_table(_fmt(res['profile']), ['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference',
 		                              'n_other'])
 		extra = ''

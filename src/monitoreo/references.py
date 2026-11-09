@@ -148,8 +148,9 @@ def _entry(variable, sensor=None, collection=None):
 
 def of_spec(var, period=None):
 	"""(reference IDs, credit lines) of a variable as given to the tools or in a recipe: {'index', 'sensor',
-	'collection', 'quality', 'exclude_landcover'} of the catalog, or {'collection' or 'image', ...} of other data of
-	Earth Engine (cited when they are in the datasets of the catalog)."""
+	'collection', 'quality', 'exclude_landcover', 'where'} of the catalog, or {'collection' or 'image', ...} of other
+	data of Earth Engine (cited when they are in the datasets of the catalog); with the variables of the conditions of
+	where (the pixels of the study area kept)."""
 	ids, credits = [], []
 	entry = _entry(var.get('index') or var.get('variable'), var.get('sensor'), var.get('collection')) \
 		if (var.get('index') or var.get('variable')) else None
@@ -162,6 +163,13 @@ def of_spec(var, period=None):
 	if var.get('exclude_landcover'):
 		more, _ = of_datasets([WORLDCOVER])
 		ids += more
+	conditions = var.get('where') or []
+	for c in [conditions] if isinstance(conditions, dict) else conditions:
+		if isinstance(c, dict) and c.get('variable'):
+			more, cred = of_spec({'index': c['variable'], 'sensor': c.get('sensor'), 'collection': c.get('collection'),
+			                      'quality': c.get('quality')}, period)
+			ids += more
+			credits += [x for x in cred if x not in credits]
 	return ids, credits
 
 
@@ -199,7 +207,7 @@ def cite(tool, args=None, date=None, datasets=()):
 				recipe = recipes.read(recipe)
 			except (ValueError, OSError):
 				recipe = {}
-		defaults = {k: recipe.get(k) for k in ('quality', 'exclude_landcover', 'period') if recipe.get(k)}
+		defaults = {k: recipe.get(k) for k in ('quality', 'exclude_landcover', 'where', 'period') if recipe.get(k)}
 		for v in recipe.get('variables') or []:
 			v = dict(defaults, **v)
 			more, cred = of_spec(v, _period({'start': v['period'][0], 'end': v['period'][1]})

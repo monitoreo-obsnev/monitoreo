@@ -79,6 +79,35 @@ def test_climate():
 	assert 5 < bio['mean'] < 20  # °C: the annual mean temperature, scaled from tenths of a degree
 
 
+def test_only_the_pixels_where():
+	"""Conditions on variables (where): fewer pixels, all of them within the limits, in series, statistics, trends
+	and comparisons; the fixed layers filter each other; a burn severity keeps only its pixels."""
+	high = [{'variable': 'ELEVATION', 'sensor': 'Copernicus', 'min': 800}]
+	elev = services.region_stats(GUAJARES, 'ELEVATION', 'Copernicus', scale=90)['rows'][0]
+	only = services.region_stats(GUAJARES, 'ELEVATION', 'Copernicus', scale=90, where=high)['rows'][0]
+	assert elev['min'] < 800 <= only['min'] and only['n_pixels'] < elev['n_pixels']
+	flat = services.region_stats(GUAJARES, 'SLOPE', 'Copernicus', scale=90,
+	                             where=[{'variable': 'SLOPE', 'sensor': 'Copernicus', 'max': 10}])['rows'][0]
+	assert flat['max'] <= 10
+	full = services.time_series(GUAJARES, 'NDVI', 'Modis', '2021-01-01', '2021-12-31', step='annual')['rows'][0]
+	part = services.time_series(GUAJARES, 'NDVI', 'Modis', '2021-01-01', '2021-12-31', step='annual',
+	                            where=high)['rows'][0]
+	assert 0 < part['n_pixels'] < full['n_pixels']
+	green = services.region_stats(GUAJARES, 'NDVI', 'Modis', '2021-01-01', '2021-12-31', metric='mean',
+	                              where=[{'variable': 'NDVI', 'sensor': 'Modis', 'min': 0.4}])['rows'][0]
+	assert green['min'] >= 0.4 - 1e-6  # the condition is the mean of the period, as this map
+	rain = services.region_stats(GUAJARES, 'PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31', metric='sum',
+	                             where=[{'variable': 'PRECIP', 'sensor': 'TerraClimate', 'metric': 'sum',
+	                                     'min': 0}])['rows'][0]
+	assert rain['n_pixels'] > 0
+	cmp = services.compare_series(GUAJARES, 'NDVI', 'Modis', '2018-01-01', '2018-12-31', '2020-01-01', '2020-12-31',
+	                              step='annual', where=high)
+	assert cmp['profile'] and cmp['profile'][0]['reference'] is not None
+	with pytest.raises(Exception, match='needs a period'):
+		services.region_stats(GUAJARES, 'ELEVATION', 'Copernicus', where=[{'variable': 'NDVI', 'sensor': 'Modis',
+		                                                                   'min': 0.3}])
+
+
 def test_ramsar_sites():
 	sites = services.find_protected_areas('Doñana', 10, designation='ramsar')
 	assert sites and all('Ramsar' in s['DESIG_ENG'] for s in sites) and any(s['SITE_ID'] == 68175 for s in sites)

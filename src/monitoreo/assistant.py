@@ -44,6 +44,7 @@ import webbrowser
 import zipfile
 
 from . import __version__, areas, engine, manual, report, services
+from .variable import pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
@@ -205,6 +206,11 @@ and TMAX, 4.6 km, 1958-2024) and water balance of "TerraClimate" ("PET", "AET", 
 "annual" for each year, or in maps temporal "annual" with interannual "mean" for the mean annual total. \
 Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-1990, 1 km): fixed layers, \
 without dates, like the elevation.
+- Only part of an area («NDVI above 1,500 m», «where it rains less than 600 mm a year», «on slopes under 20°»): \
+where, a list of conditions that the pixels must all pass, each a variable between min and max, e.g. [{{"variable": \
+"ELEVATION", "sensor": "Copernicus", "min": 1500}}, {{"variable": "PRECIP", "sensor": "TerraClimate", "metric": \
+"sum", "temporal": "annual", "max": 600}}]. A variable with dates is aggregated over the period of the result \
+(metric "mean" by default); every tool with a region takes it, and the results say which pixels they kept.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
@@ -1229,6 +1235,8 @@ class Assistant:
 		a = item['args']
 		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality', 'collection')
 		        if a.get(k) is not None}
+		if a.get('where'):  # the pixels of the result, whatever the period of the map
+			args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
 		tool = 'map_layer'
 		if item['tool'] == 'trend_table':  # the trend of the values of each year on each pixel
 			tool = 'trend_map'
@@ -1281,6 +1289,8 @@ class Assistant:
 				tool = 'map_layer'
 				args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
 				args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+				if a.get('where'):
+					args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
 			if significant:
 				args['alpha'] = ALPHA
 			r = main['result']
@@ -1388,6 +1398,8 @@ class Assistant:
 		item, m = self.map_of(rid, key)
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
 		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
+		if a.get('where'):  # a pixel out of the area of the result has no values
+			base['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
 		unit = str(m['result'].get('unit'))
 		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
 		       'label': 'value'}

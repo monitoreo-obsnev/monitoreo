@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, references, services
+from . import __version__, catalog, references, services
 from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, is_static, period_text, \
 	python_call, season_text, slug, unit_text
 
@@ -222,6 +222,8 @@ def item_facts(tool, args, result=None, names=None):
 	if tool == 'download_variables':
 		return _recipe_facts(args, result, names)
 	facts = [('Region', region_text(args.get('region'), names or {}))]
+	if args.get('where'):
+		facts.append(('Pixels of the region', 'only where ' + where_text(args['where'])))
 	entry = _entry(args.get('variable') or (fire_variable(args) if tool == 'burn_severity' else None), args.get('sensor') or
 	               ('Sentinel-2' if tool == 'burn_severity' else None))
 	if entry:
@@ -340,6 +342,33 @@ def item_table(tool, result, args=None):
 	         ', '.join(FILTERS.get(x, x) for x in r[k]) if isinstance(r.get(k), list) else _num(r.get(k))
 	         for k, _ in cols] for r in rows]
 	return labels, body
+
+
+def where_text(where):
+	"""The conditions WHERE of the pixels of a study area in English, e.g. «ELEVATION (Copernicus) ≥ 1500 m and PRECIP
+	(TerraClimate, sum of each year, mean between the years) ≤ 600 mm/month»."""
+	parts = []
+	for c in [where] if isinstance(where, dict) else where or []:
+		if not isinstance(c, dict):
+			continue
+		e = _entry(c.get('variable'), c.get('sensor')) or {}
+		unit = unit_text(catalog.unit_of(e.get('unit'), c.get('metric') or e.get('metric') or 'mean'))
+		how = [SENSORS.get(e.get('sensor'), e.get('sensor') or c.get('sensor') or '')]
+		if not e.get('static'):
+			temporal = c.get('temporal') or 'period'
+			metric = _stat(c.get('metric') or e.get('metric') or 'mean')
+			if temporal in PARTS:
+				each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[temporal]
+				how.append(f"{metric} of each {each}, {_stat(c.get('interannual') or 'mean')} between the years")
+			else:
+				how.append(f'{metric} of the period')
+			if c.get('period'):
+				how.append(f"{c['period'][0]} / {c['period'][1]}")
+		name = f"{c.get('variable')} ({', '.join(h for h in how if h)})"
+		limits = [f"≥ {_num(c['min'])}" if c.get('min') is not None else '',
+		          f"≤ {_num(c['max'])}" if c.get('max') is not None else '']
+		parts.append(f"{name} {' and '.join(x for x in limits if x)}" + (f' {unit}' if unit else ''))
+	return '; '.join(parts)
 
 
 def region_text(region, names=None):

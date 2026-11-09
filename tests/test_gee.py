@@ -28,7 +28,23 @@ TWO = {'geojson': {'type': 'FeatureCollection', 'features': [
 SIERRA_BERMEJA = {'bbox': [-5.23, 36.47, -5.10, 36.57]}  # fire of September 2021
 LAGUNAS = {'bbox': [-3.40, 37.03, -3.33, 37.07]}  # the glacial lakes of Sierra Nevada, below the Mulhacén
 
+ABOVE_800 = {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'ref': 106, 'min': 800}  # where: the app takes the ref
+FLAT = {'variable': 'SLOPE', 'sensor': 'Copernicus', 'ref': 107, 'max': 20}
+GREEN = {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'ref': 27, 'min': 0.3}
+
 CASES = {
+	# only the pixels of the region that pass conditions on variables (where): fixed layers and one with dates
+	'series_s2_where_elevation': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                              'stat': 'mean', 'spec': {'ref': 27, 'period': ['2021-05-01', '2021-07-31'],
+	                                                       'where': [ABOVE_800]}},
+	'map_s2_where_ndvi_and_slope': {'kind': 'percentiles', 'region': GUAJARES,
+	                                'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
+	                                         'where': [GREEN, FLAT]}},
+	'compare_modis_where_ndvi': {'kind': 'compare', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                             'stat': 'mean', 'spec': {'ref': 25, 'period': ['2018-01-01', '2018-12-31'],
+	                                                      'where': [dict(GREEN, sensor='Modis', ref=25)]},
+	                             'other': ['2020-01-01', '2020-12-31']},
+	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
 	# cloud frequency (CF) of MODIS Terra, Sentinel-2 and Landsat; precipitation of ERA5-Land; WorldClim (an image)
 	'series_cf_modis': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                    'spec': {'ref': 108, 'period': ['2023-01-01', '2023-03-31']}},
@@ -87,7 +103,8 @@ CASES = {
 
 
 def _spec_args(s):
-	return {'metric': s.get('metric', 'mean'), 'season': s.get('season'), 'quality': s.get('quality'), 'ref': s['ref']}
+	return {'metric': s.get('metric', 'mean'), 'season': s.get('season'), 'quality': s.get('quality'), 'ref': s['ref'],
+	        'where': s.get('where')}
 
 
 def python(c):
@@ -124,7 +141,8 @@ def python(c):
 	if c.get('difference'):
 		img = services._comparison(region, None, None, start, end, c['difference'][0], c['difference'][1],
 		                           args['metric'], s.get('temporal', 'period'), s.get('interannual', 'mean'),
-		                           args['season'], args['quality'], None, {'ref': s['ref']})[2].select('difference')
+		                           args['season'], args['quality'], None,
+		                           {'ref': s['ref'], 'where': s.get('where')})[2].select('difference')
 	else:
 		img = variables.image(spec, geom, native).clipToCollection(regions)
 	return img.rename('value').reduceRegion(ee.Reducer.percentile([5, 95]), geom, native, bestEffort=True,

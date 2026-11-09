@@ -34,6 +34,10 @@
 			variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada año (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar píxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
+			whereHeader: 'Solo los píxeles donde', whereOn: 'una variable está entre dos valores', between: 'entre',
+			and: 'y', whereNote: 'Mín. o máx. vacío: sin límite. Una variable con fechas es su media en el periodo, la ' +
+			'misma para cada paso y para los dos periodos de una comparación.',
+			badLimit: 'El límite %s no es un número.', noLimit: 'Da un mínimo, un máximo o los dos.',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
@@ -94,6 +98,10 @@
 			variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
+			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
+			and: 'and', whereNote: 'An empty min or max: no limit. A variable with dates is its mean over the period, the ' +
+			'same for every step and for both periods of a comparison.',
+			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
@@ -153,6 +161,7 @@
 		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
+		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
 		mapMetric: 'median', temporal: 'period', interannual: 'mean',
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
@@ -517,7 +526,8 @@
 			dates.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
-		w = w.concat(e.static ? disable(dates) : dates);
+		var datedWhere = state.whereOn && !mo.byRef(whereRef()).static;  // its period is that of the panel
+		w = w.concat(e.static && !datedWhere ? disable(dates) : dates);
 		w.push(header(t('filters')));
 		// fixed filters (the SCF): all of them greyed out, those always on checked
 		var fixed = mo.fixedFilters(e);
@@ -539,7 +549,63 @@
 		mo.conflicts(e, state.quality).forEach(function (f) {
 			w.push(ui.Label(fmt(t('conflict'), t(f)), {fontSize: '12px', color: '#b06000'}));
 		});
+		w.push(header(t('whereHeader')));
+		w.push(check(t('whereOn'), state.whereOn, function (v) {
+			state.whereOn = v;
+			render();
+		}));
+		if (state.whereOn) {
+			w.push(select(variableItems(), whereRef(), function (ref) {
+				state.whereRef = ref;
+				render();
+			}, '340px'));
+			w.push(row(ui.Label(t('between')), box(state.whereMin, function (v) { state.whereMin = v.trim(); }, '70px'),
+				ui.Label(t('and')), box(state.whereMax, function (v) { state.whereMax = v.trim(); }, '70px'),
+				ui.Label(mo.byRef(whereRef()).unit || '')));
+			w.push(ui.Label(t('whereNote'), SMALL));
+		}
 		return w;
+	}
+
+	// The variable of the condition of «Only the pixels where»: by default the elevation of the Copernicus DEM
+	function whereRef() {
+		if (state.whereRef === null) {
+			state.whereRef = mo.variables().filter(function (e) {
+				return e.index === 'ELEVATION';
+			}).map(function (e) { return e.ref; })[0];
+		}
+		return state.whereRef;
+	}
+
+	// services.make_spec(where=...): the condition of «Only the pixels where», with PERIOD (default: that of the
+	// panel) when its variable has dates (the same pixels for every step and for the other period of a comparison;
+	// for a fire, the period before it); null if off
+	function whereArgs(period) {
+		period = period || state.period;
+		if (!state.whereOn) return null;
+		var c = {ref: whereRef()};
+		[['min', state.whereMin], ['max', state.whereMax]].forEach(function (x) {
+			var text = String(x[1] || '').replace(',', '.');
+			if (!text) return;
+			if (isNaN(Number(text))) throw new Error(fmt(t('badLimit'), x[1]));
+			c[x[0]] = Number(text);
+		});
+		if (c.min === undefined && c.max === undefined) throw new Error(t('noLimit'));
+		if (!mo.byRef(c.ref).static) {
+			checkPeriod(period);
+			c.period = period.slice();
+		}
+		return [c];
+	}
+
+	// The text of the condition for the titles, e.g. «ELEVATION ≥ 1500»
+	function whereText() {
+		if (!state.whereOn) return null;
+		var e = mo.byRef(whereRef());
+		var parts = [];
+		if (state.whereMin) parts.push('≥ ' + state.whereMin);
+		if (state.whereMax) parts.push('≤ ' + state.whereMax);
+		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '');
 	}
 
 	// Checks and specs ----------------------------------------------------------------------------------------------
@@ -563,7 +629,7 @@
 			season = state.season.slice();
 		}
 		var s = mo.spec({ref: ref || state.ref, period: period.slice(), season: season, quality: state.quality,
-			metric: metric || 'mean'});
+			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
 		return s;
 	}
@@ -597,7 +663,9 @@
 	}
 
 	function title(e, extra) {
-		return [e.index + ' ' + e.sensor, state.regionName].concat(extra || []).join(' · ');
+		var where = whereText();
+		return [e.index + ' ' + e.sensor, state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || [])
+			.join(' · ');
 	}
 
 	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
@@ -1013,8 +1081,10 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
 		var name = title(e, ['RBR', before.period.join('/') + ' → ' + after.period.join('/')]);
@@ -1042,8 +1112,10 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality});
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });

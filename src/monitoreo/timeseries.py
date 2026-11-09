@@ -35,7 +35,8 @@ def bins(spec, step, region_geom=None):
 	elif step in ('monthly', '16-day'):
 		out = [(bs, be) for w in wins for _, bs, be in composite.bins(w, step)]
 	else:
-		col = variable.collection(dict(spec, resample='nearest'), region_geom, 1e9).filter(composite.date_filter(wins))
+		col = variable.collection(dict(spec, resample='nearest', where=None, exclude_landcover=None), region_geom,
+		                          1e9).filter(composite.date_filter(wins))  # the days with images: no mask
 		days = col.aggregate_array('system:time_start').map(lambda t: ee.Date(t).format('YYYY-MM-dd')).distinct().sort()
 		out = []
 		for d in days.getInfo():

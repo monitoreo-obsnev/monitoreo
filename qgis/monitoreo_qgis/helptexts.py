@@ -127,6 +127,14 @@ HELP = {
 		'counts in the year in which it starts.</p><p>It applies to everything: series, maps, trends, comparisons and '
 		'exports.</p>'
 		+ manual('Concepts#period-and-season'),
+	'where':
+		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
+		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, and <b>SLOPE · '
+		'Copernicus</b> with max 20, those with slopes under 20°. Give a min, a max or both, in the unit shown.</p>'
+		'<p>A variable with dates (NDVI, PRECIP...) is its mean over the <b>Period</b> above, the same pixels for '
+		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
+		'and exports keep only those pixels, and their README says which.</p>'
+		+ manual('Concepts#filtering-the-study-area'),
 	'filters':
 		'<p>Removes from each image, before computing, the pixels that its quality bands mark with clouds (and their '
 		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '

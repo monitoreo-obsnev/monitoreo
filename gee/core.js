@@ -501,7 +501,8 @@ var MonitorEO = (function () {
 	}
 
 	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
-	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
+	// slope, in degrees), bilinear on pixels RES finer than those of the data and, on pixels RES more than twice as
+	// big, the mean of its pixels
 	function staticImage(e, res) {
 		var img;
 		if (e.image_asset) {  // an image (WorldClim), not a collection
@@ -511,23 +512,81 @@ var MonitorEO = (function () {
 			img = col.mosaic().setDefaultProjection(col.first().projection());
 		}
 		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
+		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
 		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
 		return img.toFloat().rename('value');
 	}
 
-	// variable.collection
-	function collection(s, region) {
+	// variable.pin_where: the conditions WHERE with the period START to END for those without a period of their own
+	function pinWhere(where, start, end) {
+		return (where || []).map(function (c) {
+			var out = {};
+			for (var k in c) out[k] = c[k];
+			if (!out.period && start) out.period = [start, end];
+			return out;
+		});
+	}
+
+	// variable.where_specs: [[spec of its variable, min, max]] of each condition of S.where ({ref, min, max, and
+	// optionally metric, temporal, interannual, quality, season, period}): the variable aggregated over the period of
+	// S, or its own; the fixed layers have no period
+	function whereSpecs(s) {
+		return (s.where || []).map(function (c) {
+			var e = byRef(c.ref);
+			if ((c.min === null || c.min === undefined) && (c.max === null || c.max === undefined)) {
+				throw new Error('the condition on ' + e.index + ' of where needs min, max or both');
+			}
+			var cs = {ref: c.ref, quality: c.quality || {}, temporal: c.temporal || 'period',
+				interannual: c.interannual || 'mean', season: c.season !== undefined ? c.season : s.season};
+			if (!e.static) {
+				var period = c.period || s.period;
+				if (!period) {
+					throw new Error('the condition on ' + e.index + ' (' + e.sensor + ') needs a period: give it its own, ' +
+						'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)');
+				}
+				cs.period = period.slice();
+				cs.metric = c.metric || e.metric || 'mean';
+			}
+			return [spec(cs), c.min, c.max];
+		});
+	}
+
+	// variable.mask: the image (1) of the pixels of S that pass its conditions (where), masked elsewhere; null without
+	// conditions. A pixel where a condition has no data is left out
+	function whereMask(s, region, res) {
+		var masks = whereSpecs(s).map(function (w) {
+			var value = image(w[0], region, res);
+			var m = ee.Image(1).updateMask(value.mask());
+			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
+			if (w[2] !== null && w[2] !== undefined) m = m.and(value.lte(Number(w[2])));
+			return m;
+		});
+		if (!masks.length) return null;
+		var out = masks[0];
+		masks.slice(1).forEach(function (m) { out = out.and(m); });
+		return out.selfMask();
+	}
+
+	// variable.collection: with the mask of the conditions of S (where) in every image, so the number of pixels and
+	// of images of each value count only the pixels kept
+	function collection(s, region, res) {
 		checkDates(s);
 		var sp = span(s);
-		return sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
+		var col = sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
+		var m = whereMask(s, region, res);
+		return m ? col.map(function (i) { return ee.Image(i).updateMask(m); }) : col;
 	}
 
 	// variable.image, for output pixels of RES metres (by default those of the data)
 	function image(s, region, res) {
-		if (isStatic(s)) return staticImage(entryOf(s), res);
-		return composite(collection(s, region), s.metric, s.temporal, s.interannual, s.period, s.season);
+		if (isStatic(s)) {
+			var img = staticImage(entryOf(s), res);
+			var m = whereMask(s, region, res);
+			return m ? img.updateMask(m) : img;
+		}
+		return composite(collection(s, region, res), s.metric, s.temporal, s.interannual, s.period, s.season);
 	}
 
 	// Regions (areas.py) --------------------------------------------------------------------------------------------
@@ -710,7 +769,7 @@ var MonitorEO = (function () {
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
 	// and region of REGIONS, computed on pixels of SCALE metres in CRS
 	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale) {
-		var col = collection(s, regions.geometry());
+		var col = collection(s, regions.geometry(), scale);
 		var red = reducer(metric);
 		var sred = reducer(stat).combine(ee.Reducer.count(), '', true);
 		var out = ee.String(reducer(stat).getOutputs().get(0));
@@ -1177,7 +1236,7 @@ var MonitorEO = (function () {
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
-		collection: collection, image: image,
+		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
