@@ -40,12 +40,23 @@ BURNED = 0.1  # dNBR from which a pixel is burned (class 1 and above)
 # https://un-spider.org/advisory-support/recommended-practices/recommended-practice-burn-severity/burn-severity-earth-engine),
 # also in gee/core.js
 COLOURS = {-2: '7a8737', -1: 'acbe4d', 0: '0ae042', 1: 'fff70b', 2: 'ffaf38', 3: 'ff641b', 4: 'a41fd6'}
+# range of the colours of the maps of the RBR (the diverging ramp of the trends, reversed: burned in red), as in the
+# Earth Engine app
+RBR_RANGE = (-0.5, 0.5)
 
 
 def limits(cls):
 	"""(lowest, highest) dNBR of a class (None at the ends)."""
 	i = [c for c, _, _ in SEVERITY].index(cls)
 	return SEVERITY[i][1], SEVERITY[i + 1][1] if i + 1 < len(SEVERITY) else None
+
+
+def legend():
+	"""The classes with their colours, for the legends of the maps (those of the assistant, its reports and the
+	viewer): [{'value', 'label', 'color' ('#rrggbb'), 'dnbr_min', 'dnbr_max'}], from enhanced regrowth, high, to high
+	severity."""
+	return [{'value': c, 'label': label, 'color': '#' + COLOURS[c], 'dnbr_min': limits(c)[0],
+	         'dnbr_max': limits(c)[1]} for c, _, label in SEVERITY]
 
 
 def classify(dnbr):

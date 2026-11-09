@@ -11,6 +11,10 @@
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
+    monitoreo burn --sensor S --region JSON --start D --end D --other-start D --other-end D [--index dNBR|RBR]
+                   [--csv F] [--out F.tif]           burn severity of a fire: hectares of the classes of the USGS
+                                                     (dNBR) or statistics of the RBR, before (start to end) and after
+                                                     (other-start to other-end) the fire
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
     monitoreo publish REPORT.yaml [...] [--site S]   publish reports in the static viewer of results (administrators)
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
@@ -132,6 +136,23 @@ def main(argv=None):
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
+	p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, or the RBR')
+	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat'),
+	               help='Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984)')
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-5.23, 36.47, -5.10, 36.57]}\'')
+	p.add_argument('--where', help=WHERE_HELP.replace('over the period,', 'over the period before the fire,'))
+	p.add_argument('--start', required=True, help='first day of the period before the fire')
+	p.add_argument('--end', required=True, help='last day of the period before the fire')
+	p.add_argument('--other-start', required=True, help='first day of the period after the fire')
+	p.add_argument('--other-end', required=True, help='last day of the period after the fire')
+	p.add_argument('--index', default='dNBR', choices=('dNBR', 'RBR'),
+	               help='dNBR, with the classes of the USGS (default), or RBR, the Relativized Burn Ratio (continuous, '
+	                    'without classes)')
+	p.add_argument('--metric', default='median', help='metric of the images of each period (default: median)')
+	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
+	p.add_argument('--csv', help='CSV file of the hectares of each class (dNBR) or of the statistics (RBR)')
+	p.add_argument('--out', help='GeoTIFF file, with the bands dnbr, severity, nbr_before and nbr_after (RBR: rbr, '
+	                             'dnbr, nbr_before and nbr_after)')
 	p = sub.add_parser('download', help='GeoTIFFs of a recipe of variables over a study area and its ecoregions')
 	p.add_argument('recipe', help='YAML file of the recipe (see monitoreo.recipe)')
 	p.add_argument('--area', required=True, help='vector file of the study area, or a region as JSON')
@@ -239,6 +260,9 @@ def _compute(args, services):
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)
 		return
+	if args.cmd == 'burn':
+		_burn(args, services)
+		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
 		res = services.download_image(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
@@ -279,6 +303,33 @@ def _trend_or_compare(args, services):
 		extra = ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m{extra}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+
+
+def _burn(args, services):
+	"""Burn severity of a fire (services.burn_severity): the hectares of each class of the USGS and the burned area of
+	each region (dNBR) or the statistics of the RBR, and the CSV, GeoTIFF and README written."""
+	from . import fire
+	try:
+		res = services.burn_severity(json.loads(args.region), args.sensor, args.start, args.end, args.other_start,
+		                             args.other_end, args.metric, resolution=args.resolution, path=args.out,
+		                             csv=args.csv, index=args.index, where=_where(args),
+		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
+	except ValueError as e:
+		sys.exit(f'ERROR: {e}')
+
+	def cells(rows):  # hectares with a decimal, the rest with 4 digits, and nothing for the open ends of the classes
+		return [{k: '' if v is None else f'{v:.1f}' if k == 'ha' else f'{v:.4g}' if isinstance(v, float) else v
+		         for k, v in r.items()} for r in rows]
+	if res['index'] == 'RBR':
+		_table(cells(res['stats']), ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'])
+	else:
+		_table(cells(res['classes']), ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha'])
+		print()
+		for region, ha in res['burned_ha'].items():
+			print(f'{region}: burned area (dNBR >= {fire.BURNED:g}) {ha:.1f} ha')
+	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
+	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
+	      + (f" | README {res['readme']}" if res.get('readme') else ''))
 
 
 def _publish(args):
