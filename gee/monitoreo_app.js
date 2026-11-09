@@ -772,7 +772,7 @@ var CATALOG = {
    "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
-   "unit": "[\u00baC]",
+   "unit": "[\u00b0C]",
    "vname": "Temperatura Superficial",
    "vname_en": "Land Surface Temperature"
   },
@@ -815,7 +815,7 @@ var CATALOG = {
    "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
-   "unit": "[\u00baC]",
+   "unit": "[\u00b0C]",
    "vname": "Temperatura Superficial",
    "vname_en": "Land Surface Temperature"
   },
@@ -858,7 +858,7 @@ var CATALOG = {
    "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
-   "unit": "[\u00baC]",
+   "unit": "[\u00b0C]",
    "vname": "Temperatura Superficial",
    "vname_en": "Land Surface Temperature"
   },
@@ -1537,7 +1537,7 @@ var CATALOG = {
    "two_periods": null,
    "type": "Calor Sensible",
    "type_en": "Sensible Heat",
-   "unit": "[\u00baC]",
+   "unit": "[\u00b0C]",
    "vname": "Temperatura Superficial",
    "vname_en": "Land Surface Temperature"
   },
