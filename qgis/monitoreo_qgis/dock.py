@@ -76,6 +76,13 @@ def dated(layer, first, last):
 	props.setIsActive(True)
 
 
+def references_text(res):
+	"""The references and credits of a result (monitoreo.references), for the abstract of its layer."""
+	from monitoreo import references
+	lines = references.texts(res) if res.get('references') else []
+	return ('\n\nReferences (cite them with this layer):\n' + '\n'.join(lines)) if lines else ''
+
+
 def add_layer(layer, group=None):
 	"""Add LAYER to the project, on top of the layer tree or of GROUP."""
 	if group is None:
@@ -443,8 +450,10 @@ class MonitorEODock(QDockWidget):
 			logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			lay.addWidget(logo)
 		doi = f'https://doi.org/{about.DOI}'
+		gee = 'https://doi.org/10.1016/j.rse.2017.06.031'
 		for text in (about.DESCRIPTION['en'], about.ACKNOWLEDGEMENTS['en'],
 		             f"<b>{about.HOW_TO_CITE['en']}:</b> " + about.CITATION.replace(doi, f'<a href="{doi}">{doi}</a>'),
+		             f"{about.CITE_ALSO['en']}: " + about.EARTH_ENGINE.replace(gee, f'<a href="{gee}">{gee}</a>'),
 		             f'<a href="{MANUAL}">Manual</a> · <a href="{about.REPOSITORY}">Code</a>'):
 			label = QLabel(text)
 			label.setWordWrap(True)
@@ -858,7 +867,8 @@ class MonitorEODock(QDockWidget):
 		bands = ', '.join(res.get('bands') or [])
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, pixels of {res['resolution']:g} m"
 		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
-		                  + (f", bands {bands}" if bands else '') + f". Temporary GeoTIFF: {res['file']}")
+		                  + (f", bands {bands}" if bands else '') + f". Temporary GeoTIFF: {res['file']}"
+		                  + references_text(res))
 		if period:
 			dated(layer, *period)
 		add_layer(layer, group)
@@ -889,7 +899,8 @@ class MonitorEODock(QDockWidget):
 		if not layer.isValid():
 			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
-		                  f"{', '.join('#' + c for c in res['palette'])}. Earth Engine tiles, valid for a few hours.")
+		                  f"{', '.join('#' + c for c in res['palette'])}. Earth Engine tiles, valid for a few hours."
+		                  + references_text(res))
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))

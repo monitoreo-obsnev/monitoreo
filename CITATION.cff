@@ -1,4 +1,6 @@
-# How to cite MonitorEO: read by GitHub (Cite this repository) and by Zenodo, which archives each release with a DOI
+# How to cite MonitorEO: read by GitHub (Cite this repository). Zenodo, which archives each release with a DOI, reads
+# .zenodo.json instead (the same title, creator, description, license and keywords, and also the core team as
+# contributors and the references of the catalog): keep both in step (tests/test_references.py checks them)
 cff-version: 1.2.0
 message: "Si usas MonitorEO, cítalo así. / If you use MonitorEO, please cite it as below."
 type: software

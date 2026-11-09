@@ -6,6 +6,21 @@ Silva-Cardoza et al. 2022, https://doi.org/10.3390/rs14133122): dNBR / (NBR befo
 
 The NBR before and after are the METRIC (the median by default) of the images of a period before and of a period
 after the fire, with the pixel filters of MonitorEO (clouds, shadows, water, snow).
+
+References (monitoreo.references gives them, with those of the data, with each result):
+    García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper data.
+      Geocarto International, 6(1), 31–37. https://doi.org/10.1080/10106049109354290
+    Key, C. H., & Benson, N. C. (2006). Landscape assessment (LA): Sampling and analysis methods. In D. C. Lutes, R.
+      E. Keane, J. F. Caratti, C. H. Key, N. C. Benson, S. Sutherland, & L. J. Gangi (Eds.), FIREMON: Fire effects
+      monitoring and inventory system (Gen. Tech. Rep. RMRS-GTR-164-CD, pp. LA-1–LA-55). USDA Forest Service, Rocky
+      Mountain Research Station.
+      https://www.fs.usda.gov/rm/pubs_series/rmrs/gtr/rmrs_gtr164/rmrs_gtr164_13_land_assess.pdf
+    Parks, S. A., Dillon, G. K., & Miller, C. (2014). A new metric for quantifying burn severity: The Relativized
+      Burn Ratio. Remote Sensing, 6(3), 1827–1844. https://doi.org/10.3390/rs6031827
+    Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C. I., López-Serrano, P. M.,
+      Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological
+      correction and the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and
+      burned area. Remote Sensing, 14(13), 3122. https://doi.org/10.3390/rs14133122
 """
 
 import ee

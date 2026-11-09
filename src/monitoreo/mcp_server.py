@@ -39,7 +39,16 @@ MAX_ROWS_SHOWN = 300
 INSTRUCTIONS = about_.DESCRIPTION['en'] + ' ' + about_.ACKNOWLEDGEMENTS['en'] + ' Cite MonitorEO as: ' + \
 	about_.CITATION + """ Mention this funding when the user asks about MonitorEO or its sources, and this citation
 when results of MonitorEO go into a report, a paper or a map, or the user asks how to cite it (the tool about gives
-both with the logos).
+both with the logos). MonitorEO computes in Google Earth Engine, so cite it too: """ + about_.EARTH_ENGINE + """.
+
+Every result that writes files has also readme: the path of a README next to them (what each column or band is,
+with its unit in UDUNITS, how it was computed, how to reproduce it and how to cite it); give it with the files. Every
+result has references and credits: the references (with DOI) of the formula or algorithm of the variable, of
+its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
+(Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of
+MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). When
+the results go into a report, a paper or a map, end it with those references (all of them, as they are) and credits,
+and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
@@ -151,10 +160,12 @@ def _text(obj):
 
 @tool
 def about(lang: str = 'en'):
-	"""What MonitorEO-OBSNEV is, who funds it and how to cite it (description, acknowledgements, citation and DOI, in
-	'en' or 'es'), with the logos of the institutions and projects."""
+	"""What MonitorEO-OBSNEV is, who funds it and how to cite it (description, acknowledgements, citation and DOI, and
+	the citation of Google Earth Engine, where it computes, in 'en' or 'es'), with the logos of the institutions and
+	projects."""
 	a = services.about(lang)
-	keys = ('name', 'description', 'acknowledgements', 'citation', 'doi', 'manual', 'repository')
+	keys = ('name', 'description', 'acknowledgements', 'citation', 'doi', 'earth_engine', 'cite_also', 'manual',
+	        'repository')
 	return [_text({k: a[k] for k in keys})] + \
 	       [Image(path=p) for p in a['logos']]
 
@@ -195,7 +206,9 @@ def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lan
 
 @tool
 def describe_variable(variable: str, sensor: Optional[str] = None, collection: Optional[str] = None) -> str:
-	"""Formula, collection, scale, unit, resolution, dates, pixel filters and notes of a variable of the catalog."""
+	"""Formula, collection, scale, unit, resolution, dates, pixel filters and notes of a variable of the catalog, and
+	what to cite with its data: references (the articles of its formula or algorithm and its Earth Engine datasets,
+	as their catalog pages suggest, with DOI) and credits (lines asked by the terms of use of the data)."""
 	return _text(services.describe_variable(variable, sensor, collection))
 
 
@@ -222,7 +235,8 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
 	                           collection=collection)
 	rows = res['rows']
-	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart')}
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
+	                                    'references', 'credits')}
 	summary['rows'] = rows[:MAX_ROWS_SHOWN]
 	if len(rows) > MAX_ROWS_SHOWN:
 		summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
@@ -355,6 +369,7 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year"
 	summary['trends'] = res['rows']
+	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
 	if res['chart']:
 		out.append(Image(path=res['chart']))
@@ -410,6 +425,7 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
 	                              chart=_out(stem, 'png'), collection=collection)
 	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
+	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
 	if res['chart']:
 		out.append(Image(path=res['chart']))

@@ -245,13 +245,18 @@ def n_images(spec, region):
 
 
 def describe(spec):
-	"""What SPEC computes, for the record of the downloaded files."""
+	"""What SPEC computes, for the record of the downloaded files: its source and, if given, its period, season and
+	temporal metric and aggregation."""
 	k = kind(spec)
 	d = {'kind': k}
+	for key in ('period', 'season', 'metric', 'temporal', 'interannual'):
+		if spec.get(key) is not None and not (key == 'interannual' and spec.get('temporal', 'period') == 'period'):
+			d[key] = spec[key]
 	if k == 'catalog':
 		e = entry_of(spec)
 		d.update({'monitoreo_ref': e['ref'], 'variable': e['vname_en'], 'collection': e['col'],
 		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'), 'unit': e['unit'],
+		          'udunits': catalog.udunits(e['unit']),
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]

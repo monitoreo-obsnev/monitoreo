@@ -114,6 +114,8 @@ th, td { border-bottom: 1px solid var(--line); padding: 3px 8px; text-align: rig
 th { background: var(--soft); }
 th:first-child, td:first-child { text-align: left; }
 .legend { display: flex; align-items: center; gap: 8px; font-size: .85em; margin-top: 4px; }
+ol.refs { padding-left: 1.6em; margin: 6px 0; font-size: .85em; }
+ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 .legend .bar { height: 12px; width: 200px; max-width: 50vw; border: 1px solid var(--line); }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .85em; margin: 0 2px 6px; }
@@ -620,6 +622,18 @@ function facts(list, open) {
   return el('details', open ? {open: ''} : {}, el('summary', {class: 'muted', text: 'How it is computed'}), dl);
 }
 
+function citations(refs, credits) {  // the references of a result, with their DOIs, and the credits of its data
+  const list = el('ol', {class: 'refs'});
+  for (const r of refs || []) {
+    const li = el('li', {text: r.citation + (r.url ? ' ' : '')});
+    if (r.url) li.append(el('a', {href: r.url, target: '_blank', rel: 'noopener', text: r.url}));
+    list.append(li);
+  }
+  const box = el('details', {}, el('summary', {class: 'muted', text: 'How to cite it'}), list);
+  if (credits && credits.length) box.append(el('p', {class: 'muted', text: credits.join(' · ')}));
+  return box;
+}
+
 const SHORT_ROWS = 6;  // the rows of a table shown at first; the others with the button
 
 function table(t) {
@@ -677,10 +691,12 @@ function resultCard(e) {
   if (e.table) card.append(table(e.table));
   if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
+  if (e.references && e.references.length) card.append(citations(e.references, e.credits));
   const links = e.files.filter(f => f.url);
   if (links.length) {
     card.append(el('div', {class: 'files'}, ...links.map(f =>
-      el('a', {href: fileUrl(f.url), download: f.name, text: 'Download ' + f.name.split('.').pop().toUpperCase()}))));
+      el('a', {href: fileUrl(f.url), download: f.name,
+               text: f.name.endsWith('.README.txt') ? 'README' : 'Download ' + f.name.split('.').pop().toUpperCase()}))));
   }
   return card;
 }

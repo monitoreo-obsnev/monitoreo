@@ -1,4 +1,9 @@
-"""Catalog of variables of MonitorEO (catalog.json)."""
+"""Catalog of variables of MonitorEO (catalog.json): fields (what each field of a variable is), collections (dates of
+the Earth Engine collections), datasets (how to cite each Earth Engine dataset, as its page of the Earth Engine catalog
+suggests: references and the credit line of its terms of use), methods (references of the methods: trends, burn
+severity, pixel filters, Earth Engine), references (the bibliography: citation and DOI or URL of each reference, by
+its ID) and variables (each with the references of its formula or algorithm). monitoreo.references gathers the
+references of each result."""
 
 import json
 import os
@@ -39,6 +44,7 @@ RBR_OFFSET = 1.001  # RBR = dNBR / (NBR before + RBR_OFFSET) (Parks et al. 2014)
 RBR = {
 	'vname': 'Índice Relativizado de Quema', 'vname_en': 'Relativized Burn Ratio', 'vname_fr': 'Relativized Burn Ratio',
 	'vname_de': 'Relativized Burn Ratio', 'two_periods': True, 'minp': -0.5, 'maxp': 1,
+	'references': ['parks2014', 'silvacardoza2022'],
 	'notes': {'f': 'RBR = dNBR / (NBR before + 1.001), dNBR = NBR before - NBR after the fire, without phenological '
 	               'correction and without the factor 1000 of the articles (0.478 here is 478 there), like the dNBR of '
 	               'MonitorEO; NBR of B8A and B12 in Sentinel-2 (Silva-Cardoza et al. 2022, '
@@ -49,7 +55,7 @@ NBR = {
 	'type': 'Perturbaciones', 'type_en': 'Disturbances', 'type_fr': 'Disturbances', 'type_de': 'Disturbances',
 	'vname': 'Índice Normalizado de Quema', 'vname_en': 'Normalized Burn Ratio',
 	'vname_fr': 'Normalized Burn Ratio', 'vname_de': 'Normalized Burn Ratio', 'minp': -0.5, 'maxp': 1,
-	'pm': NBR_PALETTE, 'pg': '#7a0403',
+	'pm': NBR_PALETTE, 'pg': '#7a0403', 'references': ['garcia1991'],  # the NBR (Key & Benson 2006: burn severity)
 	'notes': {'f': 'Burn severity: dNBR = NBR before - NBR after the fire (compare_series or download_comparison give '
 	               'after - before, that is -dNBR); dNBR > 0.1 burned (Key & Benson 2006).'},
 }
@@ -88,7 +94,25 @@ DEM = {
 }
 TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM}  # fields of EXTRA
 
+# The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
+# for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
+UDUNITS = {
+	'[unitless]': '1',
+	'[°C]': 'degC',
+	'[kg/m²/8 days]': 'kg m-2 (8 day)-1',
+	'[J/m²/day]': 'J m-2 day-1',
+	'[mg m⁻³]': 'mg m-3',
+}
+
 _catalog = None
+
+
+def udunits(unit, per_year=False):
+	"""The unit UNIT of the catalog (e.g. '[°C]') in UDUNITS ('degC'; PER_YEAR: 'degC year-1'), or '' if unknown."""
+	u = UDUNITS.get(str(unit or '').replace('º', '°').strip(), '')
+	if per_year and u:
+		return 'year-1' if u == '1' else f'{u} year-1'
+	return u
 
 
 def load():

@@ -45,6 +45,10 @@ written, in their language:
     files: mcp_out                       # folders where to look for the files of the results by their name
     license: CC-BY-4.0                   # of its data and maps: id in LICENSES (default: LICENSE) or {name, url, text}
 
+Its report.json also has the references of its results (monitoreo.references: those of their variables, Earth Engine
+datasets and methods, of Google Earth Engine and of MonitorEO), each result with the numbers of its own, and the
+credits that the terms of use of the data ask for; the page of the report lists them.
+
 A YAML file may have several reports in `reports:`, with its other keys as the default of each one. Relative paths
 are relative to the folder of the file.
 """
@@ -62,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import catalog, composite, fire, maps, trends
+from . import catalog, composite, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -737,9 +741,13 @@ def build(spec, rid, base, folders, log, folder):
 	"""Write the files of the report SPEC to FOLDER and return its report.json."""
 	files = _Files(folder)
 	items = list(_items(spec, base, folders, log))
+	published = str(spec.get('published') or dt.date.today().isoformat())[:10]
+	refs, credits, numbers = references.of_items(items, dt.date.fromisoformat(published))
 	results = []
-	for it in items:
-		results += _results(it, files, len(results))
+	for it, nums in zip(items, numbers):
+		for r in _results(it, files, len(results)):
+			r['references'] = nums  # numbers (from 1) of its references in those of the report
+			results.append(r)
 	_link_trends(results, folder)
 	for d in _list(spec.get('downloads')):
 		d = {'path': d} if isinstance(d, str) else dict(d)
@@ -763,7 +771,6 @@ def build(spec, rid, base, folders, log, folder):
 		region['bounds'] = [min(b[0] for b in bs), min(b[1] for b in bs), max(b[2] for b in bs), max(b[3] for b in bs)]
 	periods = _periods(items)
 	analyses = list(dict.fromkeys(ANALYSES.get(it.get('tool'), 'map') for it in items))
-	published = str(spec.get('published') or dt.date.today().isoformat())[:10]
 	sections = [{'title': str(s['title']), 'text': _paragraphs(s.get('text'))} for s in _list(spec.get('sections'))]
 	return {
 		'schema': SCHEMA, 'id': rid, 'title': str(spec['title']).strip(),
@@ -778,6 +785,7 @@ def build(spec, rid, base, folders, log, folder):
 		'collection': spec.get('collection'), 'keywords': [str(k) for k in _list(spec.get('keywords'))],
 		'license': license_of(spec.get('license')), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
 		'software': {'monitoreo': __version__},
+		'references': [{k: r.get(k) for k in ('citation', 'doi', 'url')} for r in refs], 'credits': credits,
 	}
 
 

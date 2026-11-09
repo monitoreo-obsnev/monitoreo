@@ -11,6 +11,14 @@ DOI = '10.5281/zenodo.23814894'  # concept DOI of Zenodo: always the last releas
 CITATION = ('Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo. '
             f'https://doi.org/{DOI}')
 HOW_TO_CITE = {'en': 'How to cite', 'es': 'Cómo citar'}
+# MonitorEO computes in Google Earth Engine: cite it too (as each result says, see monitoreo.references)
+EARTH_ENGINE = ('Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth '
+                'Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, '
+                '18–27. https://doi.org/10.1016/j.rse.2017.06.031')
+CITE_ALSO = {'en': 'MonitorEO computes with Google Earth Engine; cite it too, and the references of each result (of '
+                   'its variables, data and methods)',
+             'es': 'MonitorEO calcula con Google Earth Engine; cítalo también, y las referencias de cada resultado '
+                   '(de sus variables, datos y métodos)'}
 
 DESCRIPTION = {
 	'en': 'MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables based on satellite sensors and '
@@ -45,17 +53,18 @@ LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_fede
 
 
 def about(lang='en'):
-	"""{'name', 'description', 'acknowledgements', 'citation', 'doi', 'logos' (paths of PNG/JPEG files), 'manual' (its
-	home page in LANG), 'repository'} in LANG ('en' or 'es')."""
+	"""{'name', 'description', 'acknowledgements', 'citation', 'doi', 'earth_engine' (the citation of Google Earth
+	Engine, where it computes), 'cite_also', 'logos' (paths of PNG/JPEG files), 'manual' (its home page in LANG),
+	'repository'} in LANG ('en' or 'es')."""
 	lang = lang if lang in DESCRIPTION else 'en'
 	return {'name': 'MonitorEO-OBSNEV', 'description': DESCRIPTION[lang], 'acknowledgements': ACKNOWLEDGEMENTS[lang],
-	        'citation': CITATION, 'doi': DOI, 'logos': [p for p in LOGOS if os.path.exists(p)],
-	        'manual': MANUAL + HOME[lang], 'repository': REPOSITORY}
+	        'citation': CITATION, 'doi': DOI, 'earth_engine': EARTH_ENGINE, 'cite_also': CITE_ALSO[lang],
+	        'logos': [p for p in LOGOS if os.path.exists(p)], 'manual': MANUAL + HOME[lang], 'repository': REPOSITORY}
 
 
 def text(lang='en'):
 	"""The description, the acknowledgements and the citation as plain text."""
 	a = about(lang)
 	lang = lang if lang in HOW_TO_CITE else 'en'
-	return (f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{HOW_TO_CITE[lang]}: {a['citation']}\n\n"
-	        f"{a['manual']}\n{a['repository']}")
+	return (f"{a['name']}\n\n{a['description']}\n\n{a['acknowledgements']}\n\n{HOW_TO_CITE[lang]}: {a['citation']}\n"
+	        f"{a['cite_also']}: {a['earth_engine']}\n\n{a['manual']}\n{a['repository']}")

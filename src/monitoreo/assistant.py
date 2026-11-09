@@ -1212,7 +1212,13 @@ class Assistant:
 		table = report.item_table(tool, result, args)
 		card = {'id': item['id'], 'title': item['title'], 'image': item['image'],
 		        'facts': _facts(tool, args, result, self.all_names()) + report.view_facts(item), 'table': None,
-		        'files': [], 'legend': None}
+		        'files': [], 'legend': None, 'references': [], 'credits': []}
+		try:  # what to cite with it (its references never stop the page)
+			cited = report.item_references(tool, args, result)
+			card['references'] = [{'citation': r['citation'], 'url': r.get('url')} for r in cited['references']]
+			card['credits'] = cited['credits']
+		except Exception:
+			pass
 		if table:
 			labels, rows = table
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
@@ -1220,8 +1226,8 @@ class Assistant:
 			if result.get('palette'):
 				card['legend'] = {k: result.get(k) for k in ('min', 'max', 'palette')}
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
-			for k in ('csv', 'file'):
-				if result.get(k):
+			for k in ('csv', 'file', 'readme'):
+				if isinstance(result.get(k), str):
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map

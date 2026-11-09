@@ -8,7 +8,10 @@ or its data as a data: URL) when the answer does not name its chart or preview, 
 table of values. Everything in the report comes from
 them and from the catalog: it has no text written by a language model, nor an interpretation of the results. The
 charts, maps and logos are embedded in the file, so it can be moved, sent and opened without connection; long tables
-go to an annex at the end. The texts are in English, as those of the viewer of results (monitoreo.publish).
+go to an annex at the end. It ends with the references of the results (monitoreo.references: those of their variables,
+data and methods, of Google Earth Engine and of MonitorEO), numbered, each result with the numbers of its own, and the
+credits that the terms of use of the data ask for. The texts are in English, as those of the viewer of results
+(monitoreo.publish).
 """
 
 import base64
@@ -19,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, services
+from . import __version__, references, services
 from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, period_text, python_call, \
 	season_text, slug, unit_text
 
@@ -117,6 +120,9 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8em; w
 footer { border-top: 2px solid var(--accent); margin-top: 32px; padding-top: 12px; font-size: .85em; }
 footer .logos { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-top: 10px; }
 footer .logos img { height: 44px; }
+ol.references { padding-left: 2.2em; font-size: .88em; }
+ol.references li { margin: 3px 0; break-inside: avoid; }
+a { color: var(--accent); word-break: break-word; }
 .print { position: fixed; right: 16px; bottom: 16px; background: var(--accent); color: #fff; border: 0;
          border-radius: 6px; padding: 10px 14px; font: inherit; cursor: pointer; }
 .hint { font-size: .85em; color: var(--muted); background: var(--soft); padding: 8px 12px; border-radius: 6px; }
@@ -152,7 +158,8 @@ def html_report(items, title, question=None, project=None, names=None, date=None
 	a = services.about('en')
 	logos = [_data_url(p) for p in a['logos']]
 	annex = []
-	sections = [_item(item, i + 1, names or {}, annex) for i, item in enumerate(items)]
+	refs, credits, numbers = references.of_items(items, date)
+	sections = [_item(item, i + 1, names or {}, annex, numbers[i]) for i, item in enumerate(items)]
 	out = ['<!doctype html><html lang="en"><head><meta charset="utf-8">',
 	       '<meta name="viewport" content="width=device-width, initial-scale=1">',
 	       f'<title>{_e(title)}</title><style>{CSS}</style></head><body><main>',
@@ -170,6 +177,11 @@ def html_report(items, title, question=None, project=None, names=None, date=None
 	out.append('<p class="note">This report gathers the results of the computations and how they were obtained, '
 	           'without interpreting them. Their interpretation is up to technical staff.</p>')
 	out += sections
+	if refs:
+		out.append('<section class="result"><h2>References</h2><ol class="references">' + ''.join(
+			f'<li>{_e(r["citation"])}' + (f' <a href="{_e(r["url"])}">{_e(r["url"])}</a>' if r.get('url') else '')
+			+ '</li>' for r in refs) + '</ol>'
+			+ (f'<p class="note">{"<br>".join(_e(c) for c in credits)}</p>' if credits else '') + '</section>')
 	if annex:
 		out.append('<section class="annex"><h2>Annex: full tables</h2>' + ''.join(annex) + '</section>')
 	out.append(f'<footer><p><b>How to cite MonitorEO:</b> {_e(a["citation"])}</p>'
@@ -179,6 +191,11 @@ def html_report(items, title, question=None, project=None, names=None, date=None
 	out.append('<button class="print noprint" onclick="window.print()">Print or save as PDF</button>')
 	out.append('</main></body></html>')
 	return '\n'.join(out)
+
+
+def item_references(tool, args, result=None, date=None):
+	"""What to cite with a result: {'references', 'credits'} (see monitoreo.references.of_result)."""
+	return references.of_result(tool, args, result, date)
 
 
 def item_title(tool, args, result=None):
@@ -353,11 +370,14 @@ def region_text(region, names=None):
 	return str(region)
 
 
-def _item(item, n, names, annex):
+def _item(item, n, names, annex, refs=()):
 	tool, args, result = item['tool'], item.get('args') or {}, item.get('result')
 	title = item.get('title') or item_title(tool, args, result if isinstance(result, dict) else None)
 	out = [f'<section class="result"><h2>{n}. {_e(title)}</h2><dl>']
-	out += [f'<dt>{_e(k)}</dt><dd>{_e(v)}</dd>' for k, v in item_facts(tool, args, result, names) + view_facts(item)]
+	facts = item_facts(tool, args, result, names) + view_facts(item)
+	if refs:
+		facts.append(('References', ', '.join(f'[{i}]' for i in refs) + ' (at the end)'))
+	out += [f'<dt>{_e(k)}</dt><dd>{_e(v)}</dd>' for k, v in facts]
 	out.append('</dl>')
 	image = item.get('image') or (result.get('chart') or result.get('thumbnail') if isinstance(result, dict) else None)
 	if image:

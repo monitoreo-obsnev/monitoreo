@@ -1,5 +1,9 @@
 # citation("monitoreo"): the same citation as monitoreo.about of Python, with the concept DOI of Zenodo (always the
-# last release; each release has its own DOI too)
+# last release; each release has its own DOI too), and that of Google Earth Engine, where MonitorEO computes. Each
+# result has also its own references (those of its variables, data and methods): see mo_references().
+citHeader("To cite MonitorEO in publications, cite it and Google Earth Engine, where it computes, and the references",
+          "of each result (mo_references()):")
+
 bibentry(
   bibtype = "Manual",
   key = "monitoreo",
@@ -12,4 +16,20 @@ bibentry(
   url = "https://doi.org/10.5281/zenodo.23814894",
   textVersion = paste("Observatorio de Cambio Global de Sierra Nevada (2026). MonitorEO [Software]. Zenodo.",
                       "https://doi.org/10.5281/zenodo.23814894")
+)
+
+bibentry(
+  bibtype = "Article",
+  key = "gorelick2017",
+  title = "Google Earth Engine: Planetary-scale geospatial analysis for everyone",
+  author = c(person("Noel", "Gorelick"), person("Matt", "Hancher"), person("Mike", "Dixon"),
+             person("Simon", "Ilyushchenko"), person("David", "Thau"), person("Rebecca", "Moore")),
+  journal = "Remote Sensing of Environment",
+  year = "2017",
+  volume = "202",
+  pages = "18--27",
+  doi = "10.1016/j.rse.2017.06.031",
+  textVersion = paste("Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google",
+                      "Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment,",
+                      "202, 18-27. https://doi.org/10.1016/j.rse.2017.06.031")
 )

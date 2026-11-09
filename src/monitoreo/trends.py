@@ -18,6 +18,14 @@ years of the period.
 
 The comparison of periods aligns the values of a reference period and of another one by part (the same month or
 16 days, or the year): the mean of the part over the years of each period and their difference (other - reference).
+
+References (monitoreo.references gives them, with those of the data, with each result):
+    Mann, H. B. (1945). Nonparametric tests against trend. Econometrica, 13(3), 245–259.
+      https://doi.org/10.2307/1907187
+    Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1–2), 81–93.
+      https://doi.org/10.1093/biomet/30.1-2.81
+    Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
+      Statistical Association, 63(324), 1379–1389. https://doi.org/10.1080/01621459.1968.10480934
 """
 
 import calendar

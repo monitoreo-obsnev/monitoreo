@@ -22,6 +22,23 @@ test_that("catalog and regions", {
   expect_equal(mo_wdpa(c(1, 2))$wdpa_id, list(1L, 2L))
 })
 
+test_that("references", {
+  out <- capture.output(refs <- mo_references())
+  expect_length(refs, 2)
+  expect_match(refs[1], "zenodo.23814894")
+  expect_match(refs[2], "^Gorelick, N.*10.1016/j.rse.2017.06.031$")
+  df <- monitoreo:::cited(data.frame(a = 1), list(references = list(list(text = "A. (2020). T. https://doi.org/1")),
+                                                  credits = list("Credit")))
+  expect_equal(capture.output(mo_references(df)), c("A. (2020). T. https://doi.org/1", "Credit"))
+  expect_error(mo_references(data.frame(a = 1)), "no references")
+  expect_match(paste(capture.output(mo_about()), collapse = " "), "Google Earth Engine: Planetary-scale")
+  skip_if_no_python()
+  d <- mo_describe("NDVI", "Sentinel-2")
+  refs <- capture.output(mo_references(d))
+  expect_true(any(grepl("^Tucker, C. J. \\(1979\\).*https://doi.org/10.1016/0034-4257\\(79\\)90013-0$", refs)))
+  expect_true(any(grepl("Copernicus Sentinel data", refs)))
+})
+
 test_that("time series, statistics and map with Earth Engine", {
   skip_if_no_python()
   skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
@@ -32,6 +49,7 @@ test_that("time series, statistics and map with Earth Engine", {
   expect_s3_class(ts$date, "Date")
   expect_true(all(ts$value > 0 & ts$value < 1))
   expect_match(attr(ts, "title"), "NDVI Sentinel-2")
+  expect_true(any(grepl("^Gorelick", attr(ts, "references"))) && any(grepl("Copernicus", attr(ts, "credits"))))
   expect_s3_class(mo_plot(ts), "ggplot")
   st <- mo_region_stats(region, "LST", "Modis", "2021-06-01", "2021-08-31", metric = "mean")
   expect_true(st$min <= st$max)
