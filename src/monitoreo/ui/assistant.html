@@ -37,6 +37,7 @@ header { width: 100%; max-width: 1600px; margin: 0 auto; padding-left: 16px; pad
 .maphead { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: .9em; }
 .maphead select { max-width: 100%; }
 #mapsel { max-width: min(520px, 100%); }
+#maptitle { margin: 8px 0 0; font-size: 1em; font-weight: 600; line-height: 1.35; }
 #pixel:not(:empty) { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: .92em; }
 #pixel img { max-width: 100%; margin-top: 6px; border-radius: 6px; background: #fff; }
 @media (max-width: 999px) {
@@ -259,6 +260,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
       <button id="query" type="button" aria-pressed="false" title="With the query on, click on the map to see the value of a pixel and its time series">Query pixel</button>
       <button id="snapshot" type="button" title="Keeps what the map shows (base map, extent and marked pixel) as a result">Add this view to the report</button>
     </div>
+    <h3 id="maptitle"></h3>
     <div id="map"></div>
     <div id="maplegend" class="legend"></div>
     <p id="maphint" class="muted" style="margin: 6px 0 0"></p>
@@ -780,8 +782,11 @@ const BASES = {
                                attribution: 'PNOA © Instituto Geográfico Nacional'}),
 };
 
-function addMap(e) {
-  if (!maps[e.id]) $('mapsel').append(el('option', {value: e.id, text: `${e.id}. ${e.title}`}));
+function addMap(e) {  // the newest maps first, as the results
+  if (!maps[e.id]) {
+    const older = [...$('mapsel').options].find(o => Number(o.value) < e.id);
+    $('mapsel').insertBefore(el('option', {value: e.id, text: `${e.id}. ${e.title}`}), older || null);
+  }
   maps[e.id] = e;
   $('mapbox').hidden = false;
   $('mapsel').value = e.id;
@@ -793,6 +798,7 @@ function clearMaps() {
   $('mapsel').replaceChildren();
   $('mapstep').replaceChildren();
   $('steplabel').hidden = true;
+  $('maptitle').textContent = '';
   $('mapbox').hidden = true;
   $('pixel').replaceChildren();
   if (overlay) { overlay.remove(); overlay = null; }
@@ -819,6 +825,7 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
 
 function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page
   current = {id, key, map: m.map, legend: m.legend, title: m.title};
+  $('maptitle').textContent = m.heading || m.title || '';  // what the map shows: variable, period and region
   $('siglabel').hidden = !m.map.trend;
   if (overlay) overlay.remove();
   overlay = L.tileLayer(m.map.url, {opacity: Number($('opacity').value), maxZoom: 20,
@@ -979,7 +986,7 @@ function show(e) {
     $('chat').append(running);
   } else if (e.type === 'result') {
     const card = resultCard(e), link = el('a', {href: '#', text: e.title});
-    $('results').append(card);
+    $('noresults').after(card);  // the newest result on top
     $('noresults').hidden = true;
     link.onclick = ev => { ev.preventDefault(); showPane('work'); card.scrollIntoView({behavior: 'smooth'}); };
     const line = el('div', {class: 'notice'}, `Result ${e.id}: `, link, e.map ? ' (with its map)' : '');

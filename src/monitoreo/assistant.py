@@ -67,6 +67,10 @@ RECOMMENDED = [  # the models of Ollama of the list of the page, the first one b
 ]
 MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
 MAX_STEPS = 8  # answers of the model to a message of the user
+WAITING = ('Not done: the user has been asked to choose or answer something; wait for their answer and do it '
+           'then.')  # the answer of a call that the assistant does not run while the user has to answer
+ASK_AND_WAIT = (' Ask the user which one in one sentence and stop there, without calling any tool: the application '
+                'waits for their choice.')  # added to the areas found when the user has to choose one
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
 MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and the others with a button)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
@@ -156,15 +160,18 @@ one in it. When they choose one (their message ends with «WDPA N»), do the com
 SITE_ID, without asking, even if you did it already with another one.
 4. If something essential is missing (variable, place or dates), propose a reasonable option from the guide and ask \
 in a single sentence before computing.
-5. Answer in the language of the user's last message (a question in Spanish gets the answer in Spanish, one in \
+5. When you ask the user something (which area, which variable or index, which dates...), end your answer with the \
+question and call no tool in it: the application waits for their answer and does not run the computations of an \
+answer that asks.
+6. Answer in the language of the user's last message (a question in Spanish gets the answer in Spanish, one in \
 English in English), {style}
-6. {manual_rule}
-7. If the user asks for something the assistant cannot do, say so and recommend in one or two sentences the tool of \
+7. {manual_rule}
+8. If the user asks for something the assistant cannot do, say so and recommend in one or two sentences the tool of \
 MonitorEO that does it, from the list below, with its link: computations that repeat by themselves (each month) or of \
 many regions at once, the Python package or the command line; editing layers or making maps to print, the QGIS \
 plugin; working in R, the R package; trying it without installing anything, the Earth Engine app. Do not write code or \
 installation commands: its page of the wiki explains them.
-8. Do not name your internal tools to the user (time_series, find_protected_areas...): say what you do.
+9. Do not name your internal tools to the user (time_series, find_protected_areas...): say what you do.
 
 How to call the tools:
 - Region: a JSON object with one of these forms: {{"wdpa_id": SITE_ID}} (a protected area, with the SITE_ID that \
@@ -223,7 +230,7 @@ period after, the 2-3 months after it ends. It gives the dNBR and its classes; o
 
 Variables of the catalog (sensors, pixel and first year):
 {variables}{guide}"""
-SMALL = {  # rules 5 and 6 for the small models of Ollama: short answers, which they keep right
+SMALL = {  # rules 6 and 7 for the small models of Ollama: short answers, which they keep right
 	'style': 'brief and clear.',
 	'manual_rule': 'For questions about MonitorEO, consult manual and answer with what it says, in five sentences at most '
 	               'and with the link of the page. You may add a brief general explanation (for example, what a '
@@ -269,8 +276,9 @@ Cloud project, needed to export to Google Drive) and the language model (the mod
 model on the computer with Ollama).
 - The bar of research EECUs: what the user has spent this month of the compute of Earth Engine (with the shared \
 account, 25 EECU-hours a month, only for research); Check asks again.
-- Protected areas: the search shows the designations with that name; the highlighted one is used and clicking another \
-repeats the computation with it.
+- Protected areas: the search shows the designations with that name; when several fit, the assistant asks which one \
+and waits, and clicking one in the list computes with it (clicking another later repeats the computation with that \
+one).
 - Upload study area (or dragging a GeoPackage, GeoJSON, KML or zipped shapefile onto the page): then its polygons are \
 used by the name of the layer, each one with its own series or row.
 - Each result is a card: the chart or the map, the first rows of the table (See the N rows), See on the map, How it \
@@ -527,6 +535,21 @@ def other_tool(text):
 	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None."""
 	t = manual._ascii(str(text).lower())
 	return next(((name, what, url) for pattern, name, what, url in OTHER_TOOLS if re.search(pattern, t)), None)
+
+
+def asks(text):
+	"""Whether the answer TEXT of the model ends by asking the user something (its last sentence is a question): then
+	the assistant does not run the computations of that answer and waits for the user's answer."""
+	return re.sub(r'[\s*_)\]»"\'`]+$', '', str(text or '')).endswith('?')
+
+
+def must_choose(areas, said, last=''):
+	"""Whether the user has to choose among the protected AREAS found (with 'match' when their designation is in
+	SAID): several and none, or more than one, with the designation asked for, and none of their SITE_IDs in the
+	LAST message of the user (they have chosen it already, e.g. «... WDPA 389011»)."""
+	if len(areas) < 2 or any(re.search(rf'\b{a.get("SITE_ID")}\b', last) for a in areas):
+		return False
+	return sum(1 for a in areas if a.get('match', designated(a, said))) != 1
 
 
 def receipt(n, title):
@@ -843,6 +866,7 @@ class Assistant:
 	def reset(self):
 		self.messages, self.results, self.names, self.question, self.pixels = [], [], {}, None, []
 		self.call_id = None  # the id of the call of the model being run (cloud), for the answer of its tool
+		self.waiting = False  # whether the user has to choose or answer before anything is computed (see chat)
 
 	def running(self):
 		"""Whether a message is being answered."""
@@ -992,6 +1016,7 @@ class Assistant:
 			         'code or names of tools.)')
 		self.messages.append({'role': 'user', 'content': text})
 		self.question = self.question or said
+		self.waiting = False
 		for _ in range(MAX_STEPS):
 			yield {'type': 'status', 'text': f'The model ({self.model_name()}) is thinking…'}
 			try:
@@ -1012,13 +1037,23 @@ class Assistant:
 				yield {'type': 'assistant', 'text': message['content']}
 			if not calls:
 				return
+			# the user has to answer first: after a question of the model, its computations do not run; after a search
+			# whose areas the user has to choose from (self.waiting), neither do the computations that follow, and the
+			# model answers once more only to ask (none of the calls of that answer run)
+			held, asking = self.waiting, asks(message['content'])
 			for call in calls:
 				self.call_id = call.get('id')
+				function = call.get('function') or {}
 				try:
-					async for event in self.run_tool(call.get('function') or {}):
+					if held or ((asking or self.waiting) and function.get('name') in RESULTS + TASKS):
+						self._tool_message(function.get('name'), WAITING)
+						continue
+					async for event in self.run_tool(function):
 						yield event
 				finally:
 					self.call_id = None
+			if held or asking:
+				return
 		yield {'type': 'error', 'text': 'I have stopped: too many steps for a single message. Ask for it in a more '
 		                                'concrete way, in parts.'}
 
@@ -1092,6 +1127,9 @@ class Assistant:
 					yield {'type': 'areas', 'query': args.get('text', ''),
 					       'areas': sorted(shown, key=lambda a: not a['match'])}
 					text = areas_text(found, said)
+					if must_choose(shown, said, self.said()[-1] if self.said() else ''):
+						self.waiting = True
+						text += ASK_AND_WAIT
 			self._tool_message(name, text[:self.advice_limit()])
 			return
 		if name in TASKS:
@@ -1238,15 +1276,26 @@ class Assistant:
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
-				card['map'] = self.map_card(item)['map']
+				shown = self.map_card(item)
+				card.update(map=shown['map'], heading=shown['heading'])
 				card.update(self.steps_card(item))
 		return card
 
-	@staticmethod
-	def map_card(m):
+	def heading(self, m):
+		"""The title over the map M on the page: that of the map (its own period, season and region) with the full name
+		of its variable, e.g. «Map of Normalized Difference Vegetation Index (NDVI, Sentinel-2), 2024 · Doñana (Parque
+		Nacional)»; the select of the maps keeps the shorter title of the result."""
+		title, a = self.titled(m['tool'], m['args']), m['args']
+		entry = report._entry(a.get('variable'), a.get('sensor')) if a.get('variable') else None
+		if not entry or not entry.get('name'):
+			return title
+		sensor = report.SENSORS.get(a.get('sensor'), a.get('sensor') or '')
+		return title.replace(f"{a['variable']} ({sensor})", f"{entry['name']} ({a['variable']}, {sensor})", 1)
+
+	def map_card(self, m):
 		"""What the map of the page shows of the map M (a result with tiles, or the map of the period of one)."""
 		result = m['result']
-		out = {'title': m['title'], 'legend': None,
+		out = {'title': m['title'], 'heading': self.heading(m), 'legend': None,
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
 		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
 		               'trend': m['tool'] == 'trend_map'}}  # with «Significant pixels only»
@@ -1459,6 +1508,8 @@ class Assistant:
 		elif len(unknown) == 1 and not isinstance(args[key]['wdpa_id'], list) and (len(matches) == 1 or len(found) == 1):
 			yield {'args': {**args, key: {**args[key], 'wdpa_id': (matches or found)[0]['SITE_ID']}}}
 		else:
+			if found and must_choose(found, self.user_text().lower(), self.said()[-1] if self.said() else ''):
+				self.waiting = True
 			self._tool_message(name, (
 				f'Error: the wdpa_id {", ".join(map(str, unknown))} does not exist. The application has searched '
 				f'«{search_name(place)}»: {text}\nUse the SITE_ID of the area that the user asks for and call {name} '
