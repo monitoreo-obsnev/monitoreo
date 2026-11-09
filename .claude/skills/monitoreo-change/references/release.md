@@ -23,7 +23,7 @@ Raise both by one patch step unless the developer says otherwise. The last relea
    - `python qgis/build_plugin.py`, which needs internet; with `bandit` and `detect-secrets` installed it runs the same
      security scan as plugins.qgis.org;
    - `metadata.txt` must have no `%` (plugins.qgis.org cannot read it).
-4. Open the PR of the release, like any other change, and wait for it to be merged.
+4. Open the PR of the release, like any other change, and merge it when the developer says so.
 5. After the merge, and after asking: push an annotated tag on the merge commit,
    `git tag -a v<plugin version> -m "MonitorEO <plugin version>"` and `git push origin v<plugin version>`. The workflows
    then create the GitHub release (`qgis-plugin.yml` attaches the plugin zip and uploads it to plugins.qgis.org;

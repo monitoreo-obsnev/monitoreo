@@ -8,9 +8,9 @@ team's methodology in the skill `monitoreo-change` (`.claude/skills/monitoreo-ch
 - references with DOI and units in UDUNITS;
 - tests;
 - the wiki, in Spanish and English;
-- a pull request to `main`, which another member of the team merges.
+- a pull request to `main`, which the developer merges when it is ready (no pushes to `main`).
 
-Ask before pushing, opening a pull request or publishing anything. Say that it computes in Google Earth Engine, and
+Ask before pushing, opening or merging a pull request, or publishing anything. Say that it computes in Google Earth Engine, and
 with which project, before running anything that does.
 
 The texts of the tools are in English. Answer the developer in their own language.
