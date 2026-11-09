@@ -199,13 +199,13 @@ def test_zenodo_metadata():
 	plain = lambda n: unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode().lower()
 	assert names == sorted(names, key=plain) and len(names) == 5
 	assert all(c['type'] == 'ProjectMember' and re.fullmatch(r'[^,]+, [^,]+', c['name']) for c in z['contributors'])
-	for c in z['contributors']:
-		if 'orcid' in c:  # ISO 7064 11,2 check digit of the ORCID
-			digits = c['orcid'].replace('-', '')
-			total = 0
-			for d in digits[:-1]:
-				total = (total + int(d)) * 2
-			check = (12 - total % 11) % 11
-			assert digits[-1] == ('X' if check == 10 else str(check)), c
+	for c in z['contributors']:  # every one with their ORCID, with its ISO 7064 11,2 check digit
+		assert re.fullmatch(r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]', c.get('orcid', '')), f"{c['name']} has no ORCID"
+		digits = c['orcid'].replace('-', '')
+		total = 0
+		for d in digits[:-1]:
+			total = (total + int(d)) * 2
+		check = (12 - total % 11) % 11
+		assert digits[-1] == ('X' if check == 10 else str(check)), c
 	assert z['references'] == references.bibliography_texts(), \
 		'update the references of .zenodo.json: monitoreo.references.bibliography_texts()'
