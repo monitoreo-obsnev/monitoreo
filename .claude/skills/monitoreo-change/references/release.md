@@ -1,6 +1,9 @@
 # A release
 
-Only when the developer asks for a release. The team decides when to release; a merged PR alone is not a release.
+After every merged PR that changes what users get (anything under `src/`, `qgis/`, `r/` or `gee/`, or the catalog):
+team decision of 2026-11-09, so make it right after the merge without asking again, and tell the developer. A PR
+that only changes the docs, the tests, the workflows or the skill waits for the next release; a stack of PRs merged
+together gets one release after the last. The developer can also ask for one at any time.
 
 ## Versions
 
@@ -23,8 +26,9 @@ Raise both by one patch step unless the developer says otherwise. The last relea
    - `python qgis/build_plugin.py`, which needs internet; with `bandit` and `detect-secrets` installed it runs the same
      security scan as plugins.qgis.org;
    - `metadata.txt` must have no `%` (plugins.qgis.org cannot read it).
-4. Open the PR of the release, like any other change, and merge it when the developer says so.
-5. After the merge, and after asking: push an annotated tag on the merge commit,
+4. Open the PR of the release, like any other change, and merge it when GitHub can merge it (the release is
+   approved already).
+5. After the merge, push an annotated tag on the merge commit,
    `git tag -a v<plugin version> -m "MonitorEO <plugin version>"` and `git push origin v<plugin version>`. The workflows
    then create the GitHub release (`qgis-plugin.yml` attaches the plugin zip and uploads it to plugins.qgis.org;
    `installers.yml` attaches the assistant installers), and Zenodo archives the release with the metadata of
