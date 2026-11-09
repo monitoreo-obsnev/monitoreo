@@ -147,6 +147,85 @@ def test_trend_map_of_an_area(monkeypatch):
 	assert a.messages[-1]['tool_name'] == 'trend_map' and a.messages[-1]['content'].startswith('Done')
 
 
+def test_waits_for_the_user(monkeypatch):
+	"""The assistant computes nothing while the user has to answer: neither what the model asks for in the same answer
+	as a search whose areas the user has to choose from, nor in an answer that asks the user something; once the user
+	chooses (their message ends with «WDPA N»), it computes."""
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	answers, seen = [], []
+
+	def model(settings, system, messages, tools):
+		seen.append(len(messages))
+		return answers.pop(0)
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	doñana = {**ARGS, 'region': {'wdpa_id': 389012}}
+
+	def call(name, args, i=0):
+		return {'id': f'c{len(seen)}{i}', 'function': {'name': name, 'arguments': args}}
+
+	async def run(a, text):
+		return [e async for e in a.chat(text)]
+
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS)
+	# a search with two areas and the computation in the same answer: the computation does not run, and the model
+	# answers once more, only to ask (its calls do not run either)
+	answers[:] = [{'content': '', 'tool_calls': [call('find_protected_areas', {'text': 'Doñana'}),
+	                                             call('time_series', doñana, 1)]},
+	              {'content': '¿Cuál de las dos áreas de Doñana quieres?',
+	               'tool_calls': [call('time_series', doñana)]}]
+	events = asyncio.run(run(a, 'Serie del NDVI de Doñana en 2021'))
+	types = [e['type'] for e in events if e['type'] != 'status']
+	assert types == ['areas', 'assistant'] and not a.results and len(seen) == 2 and not answers
+	assert a.waiting and sum(m.get('content') == assistant.WAITING for m in a.messages) == 2
+	assert assistant.ASK_AND_WAIT.strip() in next(m['content'] for m in a.messages if m.get('tool_name') ==
+	                                             'find_protected_areas')
+	# the user chooses one in the list: the model searches again and computes, and this time it runs
+	answers[:] = [{'content': '', 'tool_calls': [call('find_protected_areas', {'text': 'Doñana'}),
+	                                             call('time_series', doñana, 1)]},
+	              {'content': 'Hecho: la serie del NDVI de Doñana está en el resultado 1.'}]
+	events = asyncio.run(run(a, 'Calcula lo que he pedido con el espacio Doñana (Parque Nacional), WDPA 389012'))
+	assert [e['type'] for e in events if e['type'] not in ('status', 'areas')][:2] == ['running', 'result']
+	assert len(a.results) == 1 and a.called[1]['region'] == {'wdpa_id': 389012} and not a.waiting
+	# an answer that asks something: its computation does not run, and the turn ends there
+	a.reset()
+	answers[:] = [{'content': 'Puedo calcular el NDVI o el EVI. ¿Cuál prefieres?',
+	               'tool_calls': [call('time_series', ARGS)]}]
+	seen.clear()
+	events = asyncio.run(run(a, 'Quiero ver la vegetación de Sierra Nevada'))
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['assistant'] and not a.results and len(seen) == 1
+	assert a.messages[-1]['content'] == assistant.WAITING
+	# one area, or one with the designation asked for: it computes in the same answer, as before
+	assert not assistant.must_choose([{'SITE_ID': 1}], 'x')
+	areas = [{'SITE_ID': 389012, 'DESIG': 'Parque Nacional'}, {'SITE_ID': 349268, 'DESIG': 'Parque Natural'}]
+	assert not assistant.must_choose(areas, 'el parque nacional de doñana')
+	assert assistant.must_choose(areas, 'doñana') and not assistant.must_choose(areas, 'doñana', '... WDPA 349268')
+	assert assistant.asks('¿Cuál prefieres?') and assistant.asks('Which one? **') and not assistant.asks('Done.')
+	assert not assistant.asks('Is it Doñana? I compute it now.')
+
+
+def test_map_heading():
+	"""The map of the page has a title with the full name of its variable, its own period and its region; the list of
+	the maps keeps the title of the result."""
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
+	a.names['389011'] = 'Sierra Nevada (Parque Nacional)'
+	m = {'tool': 'map_layer', 'args': {**ARGS, 'start': '2024-01-01', 'end': '2024-12-31'}, 'result': MAP,
+	     'title': 'NDVI series'}
+	card = a.map_card(m)
+	assert card['title'] == 'NDVI series'
+	assert card['heading'] == ('Map of Normalized Difference Vegetation Index (NDVI, Sentinel-2), 2024 · Sierra Nevada '
+	                           '(Parque Nacional)')
+	fixed = a.map_card({'tool': 'map_layer', 'args': {'region': {'bbox': [0, 0, 1, 1]}, 'variable': 'SLOPE',
+	                                                  'sensor': 'Copernicus'}, 'result': MAP, 'title': 'Slope'})
+	assert fixed['heading'].startswith('Map of Slope (SLOPE, Copernicus) · ')
+	other = a.map_card({'tool': 'map_layer', 'args': {'region': {'bbox': [0, 0, 1, 1]},
+	                                                  'collection': 'ESA/WorldCover/v200', 'band': 'Map'},
+	                    'result': MAP, 'title': 'WorldCover'})
+	assert other['heading'] == a.titled('map_layer', {'region': {'bbox': [0, 0, 1, 1]},
+	                                                   'collection': 'ESA/WorldCover/v200', 'band': 'Map'})
+
+
 def test_unknown_protected_area(monkeypatch):
 	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
 	a = FakeAssistant({**assistant.DEFAULTS, 'project': 'p'})
