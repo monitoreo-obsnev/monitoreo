@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, catalog, fire, references, services, trends
+from . import __version__, catalog, fire, references, services
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, default_title, fire_variable, is_static, period_text, \
 	python_call, season_text, slug, unit_text
 
@@ -567,24 +567,17 @@ def map_style(tool, args, result):
 	those without them."""
 	if not isinstance(result, dict):
 		return None
-	bands = result.get('bands') or []
-	if tool == 'burn_severity':
-		if 'severity' in bands:
-			return {'band': bands.index('severity') + 1, 'classes': fire.legend()}
-		if 'rbr' in bands:
-			return {'band': bands.index('rbr') + 1, 'min': fire.RBR_RANGE[0], 'max': fire.RBR_RANGE[1],
-			        'palette': list(reversed(trends.DIVERGING))}
-		return None
+	if tool == 'burn_severity':  # as in the QGIS plugin: fire.map_style
+		return fire.map_style(result.get('bands'))
 	if result.get('palette'):
 		return {'band': 1, **{k: result.get(k) for k in ('min', 'max', 'palette')}}
 	return None
 
 
 def class_label(c):
-	"""The label of a class of the burn severity in a legend, with its dNBR: «Low severity (dNBR 0.1 to 0.27)»."""
-	low, high = c.get('dnbr_min'), c.get('dnbr_max')
-	dnbr = f'< {_num(high)}' if low is None else f'≥ {_num(low)}' if high is None else f'{_num(low)} to {_num(high)}'
-	return f"{c['label']} (dNBR {dnbr})"
+	"""The label of a class of the burn severity in a legend, with its dNBR: «Low severity (dNBR 0.1 to 0.27)», as in
+	the QGIS plugin (fire.class_label)."""
+	return fire.class_label(c)
 
 
 def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, classes=None):

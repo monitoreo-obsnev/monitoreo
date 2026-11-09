@@ -2,6 +2,7 @@
 PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt; those of
 the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
 Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year.
+That of a burn severity has the hectares of each class of the USGS, with its colour, or the statistics of the RBR.
 Each window ends with the references of its result (monitoreo.references), with the links of their DOIs."""
 
 import datetime as dt
@@ -10,7 +11,7 @@ import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
-from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from qgis.PyQt.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
                                  QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -23,6 +24,10 @@ TREND_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Yea
 COMPARISON_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('reference', 'Reference period'),
                       ('other', 'Other period'), ('difference', 'Difference'),
                       ('n_reference', 'Years of the reference'), ('n_other', 'Years of the other')]
+BURN_COLUMNS = [('region', 'Region'), ('label', 'Class (USGS)'), ('dnbr_min', 'dNBR from'), ('dnbr_max', 'dNBR to'),
+                ('ha', 'Hectares')]
+RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('p10', 'Percentile 10'),
+               ('p90', 'Percentile 90'), ('min', 'Minimum'), ('max', 'Maximum'), ('ha', 'Hectares with values')]
 
 
 def ylabel(res):
@@ -99,11 +104,11 @@ def _cell(v):
 
 
 def save_file(src, path, res):
-	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its README next to it
-	(<name>.README.txt), which explains its columns and how to cite it."""
+	"""Copy the file SRC of the result RES to PATH and, if it is its CSV or its GeoTIFF, its README next to it
+	(<name>.README.txt), which explains its columns or bands and how to cite it."""
 	shutil.copyfile(src, path)
 	readme = res.get('readme')
-	if src == res.get('csv') and isinstance(readme, str) and os.path.exists(readme):
+	if src in (res.get('csv'), res.get('file')) and isinstance(readme, str) and os.path.exists(readme):
 		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
 
 
@@ -120,32 +125,70 @@ def references_box(res):
 	return box
 
 
+def burn_text(res):
+	"""What the window of the burn severity RES says over its table: the burned area of each region (dNBR), or how the
+	RBR is computed."""
+	from monitoreo import fire
+	if res.get('index') == 'RBR':
+		return (' · RBR = dNBR / (NBR before + 1.001), without phenological correction and without the factor 1000; '
+		        'from red (burned) to green (regrowth)')
+	burned = res.get('burned_ha') or {}
+	areas = ', '.join(f'{region}: {ha:,.1f} ha' for region, ha in burned.items()) if len(burned) > 1 else \
+		f'{next(iter(burned.values())):,.1f} ha' if burned else ''
+	return f' · burned area (dNBR ≥ {fire.BURNED:g}): {areas}' if areas else ''
+
+
+def swatch(color):
+	"""A small square of COLOR (#rrggbb), the icon of a class in a table."""
+	pixmap = QPixmap(12, 12)
+	pixmap.fill(QColor(color))
+	return QIcon(pixmap)
+
+
 class ResultDialog(QDialog):
-	"""Window of the trends or of the comparison of periods: chart (PNG), table and buttons to save them."""
+	"""Window of the trends, of the comparison of periods or of the burn severity: chart (PNG), table and buttons to
+	save them."""
 
 	def __init__(self, res, parent=None, add_map=None):
 		super().__init__(parent)
 		self.res = res
-		trends = res.get('kind') == 'trends'
-		rows = res['rows'] if trends else res['profile']
-		columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
+		kind = res.get('kind')
+		trends = kind == 'trends'
+		if kind == 'burn':
+			rbr = res.get('index') == 'RBR'
+			rows, columns = (res['stats'], RBR_COLUMNS) if rbr else (res['classes'], BURN_COLUMNS)
+		else:
+			rows = res['rows'] if trends else res['profile']
+			columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
 		self.setWindowTitle(f"MonitorEO: {res['label']}")
 		self.resize(980, 760)
 		lay = QVBoxLayout(self)
-		unit = f"{res['unit']} per year" if trends else res['unit']
-		info = QLabel(f"{res['title']} · {unit} · pixels of {res['scale']:g} m"
-		              + (' · significant: p < 0.05 (Mann-Kendall)' if trends else ' · difference = other period - reference'))
+		if kind == 'burn':
+			text = f"{res['title']} · pixels of {res['scale']:g} m" + burn_text(res)
+		else:
+			unit = f"{res['unit']} per year" if trends else res['unit']
+			text = (f"{res['title']} · {unit} · pixels of {res['scale']:g} m"
+			        + (' · significant: p < 0.05 (Mann-Kendall)' if trends else
+			           ' · difference = other period - reference'))
+		info = QLabel(text)
 		info.setWordWrap(True)
 		lay.addWidget(info)
 		if res.get('chart'):
 			label = QLabel()
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
 			lay.addWidget(label)
+		colours = {}
+		if kind == 'burn' and not rbr:  # the colour of each class, as in its layer
+			from monitoreo import fire
+			colours = {c['value']: c['color'] for c in fire.legend()}
 		table = QTableWidget(len(rows), len(columns))
 		table.setHorizontalHeaderLabels([c[1] for c in columns])
 		for i, r in enumerate(rows):
 			for j, (key, _) in enumerate(columns):
-				table.setItem(i, j, QTableWidgetItem(_cell(r.get(key))))
+				item = QTableWidgetItem(_cell(r.get(key)))
+				if key == 'label' and r.get('class') in colours:
+					item.setIcon(swatch(colours[r['class']]))
+				table.setItem(i, j, item)
 		table.resizeColumnsToContents()
 		lay.addWidget(table, 1)
 		maps = map_row(res, add_map)
@@ -157,7 +200,8 @@ class ResultDialog(QDialog):
 		row = QHBoxLayout()
 		row.addStretch()
 		for text, path, filt in (('Save CSV…', res.get('csv'), 'CSV (*.csv)'),
-		                         ('Save chart…', res.get('chart'), 'PNG (*.png)')):
+		                         ('Save chart…', res.get('chart'), 'PNG (*.png)'),
+		                         ('Save GeoTIFF…', res.get('file'), 'GeoTIFF (*.tif)')):
 			if path:
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))

@@ -129,10 +129,13 @@ HELP = {
 		+ manual('Concepts#period-and-season'),
 	'theme':
 		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI), <b>Water</b> (NDWI, LSWI, '
-		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR), <b>Energy and temperature</b> '
+		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR, and the burn severity of a fire), '
+		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
 		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
 		'<b>All the variables</b> lists every one.</p>'
+		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
+		'<b>Burn severity of a fire</b>, in <b>Fire</b>.</p>'
 		+ manual('Concepts#variables'),
 	'where':
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
@@ -169,9 +172,10 @@ HELP = {
 		'<p>It is also the statistic of the <b>Trend table of the region</b> and of the comparison of periods.</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'series_list':
-		'<p>Time series, trend tables and comparisons computed in this QGIS session. Choose one and press <b>Show</b> '
-		'to open its window again, with the chart, the table and the buttons <b>Save CSV…</b> and <b>Save '
-		'chart…</b>.</p><p>The list is lost when QGIS is closed: save what you want to keep.</p>'
+		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '
+		'press <b>Show</b> to open its window again, with its chart (if it has one), its table and the buttons to save '
+		'them: <b>Save CSV…</b>, <b>Save chart…</b> and, for a burn severity, <b>Save GeoTIFF…</b>.</p>'
+		'<p>The list is lost when QGIS is closed: save what you want to keep.</p>'
 		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'trend_step':
 		'<p>Parts of the year whose trend is computed over the years of the period: <b>Year</b> (the whole year, or '
@@ -229,6 +233,37 @@ HELP = {
 		'<p>The map uses the options of the group <b>Map</b>, and the series, those of the group <b>Time '
 		'series</b>.</p>'
 		+ manual('QGIS-plugin#8-export-to-google-drive'),
+	'fire_sensor':
+		'<p>The images of the burn severity: <b>Sentinel-2</b> (10 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
+		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m.</p>'
+		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
+		'while a variable with fixed filters greys them out) and its conditions of '
+		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
+		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
+		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
+	'fire_index':
+		'<ul><li><b>dNBR</b>: NBR before the fire minus NBR after it, in the 7 classes of the USGS (Key &amp; Benson '
+		'2006), from enhanced regrowth to high severity. The window gives the hectares of each class over each '
+		'feature of the region and the burned area (dNBR ≥ 0.1); the layer, the band <i>severity</i> with the colour '
+		'of each class.</li>'
+		'<li><b>RBR</b> (Relativized Burn Ratio, Parks et al. 2014): dNBR / (NBR before + 1.001), a continuous index '
+		'without classes, also for vegetation that was sparse before the fire; without phenological correction and '
+		'without the factor 1000 of the articles. The window gives its mean, median, percentiles 10 and 90, minimum and '
+		'maximum; the layer, from red (burned) to green (regrowth), from -0.5 to 0.5.</li></ul>'
+		'<p>The GeoTIFF also has the bands dnbr, nbr_before and nbr_after (query them with <b>Identify '
+		'Features</b>).</p>'
+		+ cite_html(method_references('burn_severity') + method_references('rbr'))
+		+ manual('Concepts#burn-severity-dnbr'),
+	'fire_before':
+		'<p>A period <b>before the fire</b>, without it: the median of its images on each pixel is the NBR before. A '
+		'few weeks or months of the same season, e.g. the 2 months before the fire, so that clouds leave clear '
+		'images.</p>'
+		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
+	'fire_after':
+		'<p>A period <b>after the fire</b>, once it is out: the median of its images is the NBR after. The 1 or 2 '
+		'months after it ends measure the first effects; a year later (the same season), the effects that last.</p>'
+		'<p>At first, those of the example of the manual: the fire of August 2023 in Teide National Park.</p>'
+		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 }
 
 

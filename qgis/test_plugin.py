@@ -5,7 +5,8 @@
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
 areas, a map layer, two time series (map extent, and a layer with two polygons) with the maps of two of their dates,
-trends with their map and a comparison of periods, waiting for their QGIS tasks.
+trends with their map, a comparison of periods and the burn severity of a fire (dNBR and RBR, only in the theme Fire),
+waiting for their QGIS tasks.
 """
 
 import os
@@ -295,6 +296,49 @@ assert len(new) == 1 and new[0].bandCount() == 3, iface.messages[-2:]
 layer = new[0]
 print('comparison map:', layer.name(), '| bands', [layer.bandName(i) for i in range(1, 4)])
 dock.compare_on.setChecked(False)
+
+# burn severity of a fire, only in the theme Fire (as in the Earth Engine app): the classes of the USGS (dNBR) and the
+# RBR over a part of the fire of Sierra Bermeja (September 2021), their layers coloured as in the other tools
+from monitoreo import fire, trends  # noqa: E402
+assert dock.theme.currentData() is None and dock.fire_box.isVisibleTo(dock)  # all the variables: every analysis
+# it computes the NBR with the filters the user chose, also while a variable with fixed filters greys them out
+dock.variable.setCurrentIndex(dock.variable.findText('ELEVATION · Copernicus', Qt.MatchFlag.MatchStartsWith))
+assert not dock.filters['clouds'].isChecked() and not dock.filters['clouds'].isEnabled()
+assert dock.quality_args()['clouds'] is False and dock.quality_args(own=True)['clouds'] is True
+dock.theme.setCurrentIndex(dock.theme.findData('vegetation'))
+assert not dock.fire_box.isVisibleTo(dock)
+dock.theme.setCurrentIndex(dock.theme.findData('fire'))
+assert dock.fire_box.isVisibleTo(dock) and dock.variable.currentData()['variable'] == 'NBR'
+canvas.setExtent(QgsRectangle(-5.20, 36.50, -5.15, 36.54))
+for key, day in (('before_start', '2021-07-15'), ('before_end', '2021-08-31'), ('after_start', '2021-09-20'),
+                 ('after_end', '2021-10-31')):
+	dock.fire_dates[key].setDate(QDate.fromString(day, 'yyyy-MM-dd'))
+for index in ('dNBR', 'RBR'):
+	dock.fire_index.setCurrentIndex(dock.fire_index.findData(index))
+	before = set(QgsProject.instance().mapLayers())
+	dock.run_burn()
+	wait(dock)
+	new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+	assert len(new) == 1 and new[0].bandCount() == 4, iface.messages[-2:]
+	res = dock.series[-1]
+	assert res['kind'] == 'burn' and res['index'] == index and res['readme'], res
+	r = new[0].renderer()
+	band = r.inputBand() if hasattr(r, 'inputBand') else r.band()
+	if index == 'dNBR':
+		assert r.type() == 'paletted' and band == 2, (r.type(), band)  # the band severity
+		assert [c.color.name() for c in r.classes()] == [c['color'] for c in fire.legend()]
+		assert [c.value for c in r.classes()] == [c['value'] for c in fire.legend()]
+		burned = sum(res['burned_ha'].values())
+		assert burned > 0, res['classes']
+		print('burn severity:', new[0].name(), '| burned', round(burned), 'ha |',
+		      [(c['class'], round(c['ha'])) for c in res['classes']])
+	else:
+		items = r.shader().rasterShaderFunction().colorRampItemList()
+		assert r.type() == 'singlebandpseudocolor' and band == 1, (r.type(), band)  # the band rbr
+		assert (r.classificationMin(), r.classificationMax()) == fire.RBR_RANGE
+		assert items[0].color.name() == '#' + trends.DIVERGING[-1] and items[-1].color.name() == '#' + trends.DIVERGING[0]
+		print('RBR:', new[0].name(), '|', {k: round(v, 3) for k, v in res['stats'][0].items() if k != 'region'})
+dock.show_series_button.click()  # the window of the last one
 
 print('messages:', iface.messages)
 plugin.unload()

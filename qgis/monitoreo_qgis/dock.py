@@ -1,16 +1,17 @@
 """MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer
-and the exports to Google Drive. The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every
-computation is a function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the
-EECUs of Earth Engine spent this month (the research EECUs of this user with the shared account, or the monthly quota
-of the user's project) and the message bar warns when less than 10 % are left."""
+and the exports to Google Drive; in the theme Fire, the burn severity of a fire. The work runs in QGIS tasks
+(QgsTask), so QGIS keeps responding; every computation is a function of monitoreo.services, the same as in the MCP
+server and the R package. A bar shows the EECUs of Earth Engine spent this month (the research EECUs of this user with
+the shared account, or the monthly quota of the user's project) and the message bar warns when less than 10 % are
+left."""
 
 import json
 import os
 import tempfile
 
 from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsDataSourceUri, QgsDateTimeRange, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
-                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
+                       QgsDataSourceUri, QgsDateTimeRange, QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer,
+                       QgsRasterShader, QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
@@ -21,7 +22,7 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import catalog, services, steps, trends  # noqa: E402
+from monitoreo import catalog, fire, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
@@ -37,6 +38,12 @@ TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
+FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
+FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)', 'RBR')]
+# the two periods of the burn severity, at first those of the example of the manual: the fire of August 2023 in Teide
+# National Park (Tenerife)
+FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_start': '2023-09-15',
+              'after_end': '2023-11-30'}
 POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
@@ -49,8 +56,8 @@ def level(name):
 	return getattr(enum, name) if enum is not None and hasattr(enum, name) else getattr(Qgis, name)
 
 
-def pseudocolor(layer, vmin, vmax, palette):
-	"""Colour LAYER (band 1) with the colours PALETTE (hex) spread from VMIN to VMAX."""
+def pseudocolor(layer, vmin, vmax, palette, band=1):
+	"""Colour the band BAND of LAYER (default: the first) with the colours PALETTE (hex) spread from VMIN to VMAX."""
 	if vmax <= vmin:
 		vmax = vmin + 1e-6
 	n = len(palette)
@@ -61,10 +68,17 @@ def pseudocolor(layer, vmin, vmax, palette):
 	ramp.setColorRampItemList(items)
 	shader = QgsRasterShader()
 	shader.setRasterShaderFunction(ramp)
-	renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1, shader)
+	renderer = QgsSingleBandPseudoColorRenderer(layer.dataProvider(), band, shader)
 	renderer.setClassificationMin(vmin)
 	renderer.setClassificationMax(vmax)
 	layer.setRenderer(renderer)
+
+
+def paletted(layer, band, classes):
+	"""Colour the band BAND of LAYER with a colour for each of its values (a paletted renderer: unique values), from
+	CLASSES ([{'value', 'color' ('#rrggbb'), 'label'}]); the legend of the layer shows their labels."""
+	items = [QgsPalettedRasterRenderer.Class(c['value'], QColor(c['color']), c['label']) for c in classes]
+	layer.setRenderer(QgsPalettedRasterRenderer(layer.dataProvider(), band, items))
 
 
 def dated(layer, first, last):
@@ -488,6 +502,36 @@ class MonitorEODock(QDockWidget):
 		self.export_status.setWordWrap(True)
 		f.addRow(self.export_status)
 		main.addWidget(box)
+
+		# the analyses of a theme (catalog.THEMES): only in the themes that have them, and with «All the variables»
+		box = QGroupBox('Burn severity of a fire (dNBR or RBR)')
+		self.fire_box = box
+		f = QFormLayout(box)
+		sensor = s.value(SETTINGS + 'fire_sensor', 'Sentinel-2')
+		self.fire_sensor = combo(FIRE_SENSORS, sensor if sensor in dict(FIRE_SENSORS).values() else 'Sentinel-2')
+		f.addRow('Sensor', info(self.fire_sensor, HELP['fire_sensor']))
+		self.fire_index = combo(FIRE_INDICES, 'dNBR')
+		f.addRow('Index', info(self.fire_index, HELP['fire_index']))
+		self.fire_dates = {}
+		for when, label in (('before', 'Before the fire'), ('after', 'After the fire')):
+			row = QHBoxLayout()
+			for i, key in enumerate((f'{when}_start', f'{when}_end')):
+				d = QDateEdit(QDate.fromString(s.value(SETTINGS + 'fire_' + key, FIRE_DATES[key]), 'yyyy-MM-dd'))
+				d.setCalendarPopup(True)
+				d.setDisplayFormat('yyyy-MM-dd')
+				self.fire_dates[key] = d
+				if i:
+					row.addWidget(QLabel('to'))
+				row.addWidget(d)
+			f.addRow(label, info(row, HELP['fire_' + when]))
+		b = QPushButton('Compute the severity')
+		b.setToolTip('Hectares of each class of the USGS (dNBR) or statistics of the RBR over each feature of the region, '
+		             'in a window, and a temporary GeoTIFF with its colours (queryable with the Identify Features tool)')
+		b.clicked.connect(self.run_burn)
+		f.addRow(b)
+		main.addWidget(box)
+		self.theme.currentIndexChanged.connect(lambda i: self.show_analyses())
+		self.show_analyses()
 		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
 		# fixed layers (elevation, slope)
 		self.variable.currentIndexChanged.connect(self.variable_changed)
@@ -583,6 +627,9 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'other_start', self.other_start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'other_end', self.other_end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'folder', self.folder.text().strip())
+		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
+		for key, d in self.fire_dates.items():
+			s.setValue(SETTINGS + 'fire_' + key, d.date().toString('yyyy-MM-dd'))
 
 	def region(self):
 		"""Region of the services from the widgets (read in the main thread)."""
@@ -646,16 +693,24 @@ class MonitorEODock(QDockWidget):
 		if v.get('static'):  # elevation, slope: without dates, pixel filters or season (greyed out), nor in the README
 			return dict({'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']},
 			            **({'where': where} if where else {}))
-		quality = {k: w.isChecked() for k, w in self.filters.items()}
-		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		args = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'],
 		        'start': self.start.date().toString('yyyy-MM-dd'), 'end': self.end.date().toString('yyyy-MM-dd'),
-		        'quality': quality}
+		        'quality': self.quality_args()}
 		if self.season_on.isChecked():
 			args['season'] = [self.season_start.text().strip(), self.season_end.text().strip()]
 		if where:
 			args['where'] = where
 		return args
+
+	def quality_args(self, own=False):
+		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2). OWN: those the
+		user chose, also while a variable with fixed filters is selected (elevation, slope, cloud or snow cover
+		frequency, which grey them out), for the analyses that compute other variables (the burn severity, the NBR)."""
+		chosen = self.chosen_filters if own and self.chosen_filters is not None else \
+			{k: w.isChecked() for k, w in self.filters.items()}
+		quality = dict(chosen)
+		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
+		return quality
 
 	def fill_variables(self, choose=None):
 		"""The variables of the theme chosen (all of them with «All the variables»), keeping the one chosen if it is
@@ -676,10 +731,11 @@ class MonitorEODock(QDockWidget):
 		if hasattr(self, 'where'):  # built: the options of the variable chosen
 			self.variable_changed()
 
-	def where_args(self):
+	def where_args(self, period=None):
 		"""The checked conditions of «Only the pixels where» (see monitoreo.variable.where_specs), or None. Those of
-		variables with dates are the mean over the period of the panel, fixed in each condition, so that the maps of
-		each step of a series, and the other period of a comparison, keep the same pixels."""
+		variables with dates are the mean over the period of the panel (or PERIOD: the first and the last day), fixed
+		in each condition, so that the maps of each step of a series, and the other period of a comparison, keep the
+		same pixels."""
 		out = []
 		for c in self.where:
 			if not c['on'].isChecked():
@@ -697,7 +753,8 @@ class MonitorEODock(QDockWidget):
 				raise ValueError(f"Only the pixels where: give a min, a max or both for {v['variable']}")
 			cond = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'], **limits}
 			if not v.get('static'):
-				cond['period'] = [self.start.date().toString('yyyy-MM-dd'), self.end.date().toString('yyyy-MM-dd')]
+				cond['period'] = list(period or (self.start.date().toString('yyyy-MM-dd'),
+				                                 self.end.date().toString('yyyy-MM-dd')))
 			out.append(cond)
 		return out or None
 
@@ -848,7 +905,8 @@ class MonitorEODock(QDockWidget):
 		return self.other_start.date().toString('yyyy-MM-dd'), self.other_end.date().toString('yyyy-MM-dd')
 
 	def add_result(self, res):
-		"""Keep a result (series, trends or comparison) in the list of the session and open its window."""
+		"""Keep a result (series, trends, comparison or burn severity) in the list of the session and open its
+		window."""
 		self.series.append(res)
 		self.update_series_list()
 		self.series_list.setCurrentIndex(self.series_list.count() - 1)
@@ -1005,7 +1063,8 @@ class MonitorEODock(QDockWidget):
 		self.show_series_button.setEnabled(bool(self.series))
 
 	def show_series(self):
-		"""Open the window of the chosen series, trends or comparison (or bring it to the front if it is open)."""
+		"""Open the window of the chosen series, trends, comparison or burn severity (or bring it to the front if it
+		is open)."""
 		from .results import ResultDialog, SeriesDialog
 		i = self.series_list.currentData()
 		if i is None:
@@ -1171,6 +1230,84 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Export the series of {var['variable']}",
 		              lambda: services.time_series_to_drive(region, step=step, metric=metric, stat=stat, folder=folder,
 		                                                    **var), self.follow_export)
+
+	# Burn severity ----------------------------------------------------------------------------------------------
+
+	def theme_has(self, name):
+		"""Whether the theme chosen has the analysis NAME of its own (e.g. burn_severity, of the fires), as themeHas of
+		the Earth Engine app: with «All the variables», every analysis."""
+		key = self.theme.currentData()
+		return key is None or any(t['key'] == key and name in t['analyses'] for t in services.themes('en'))
+
+	def show_analyses(self):
+		"""The groups of the analyses of a theme, shown only in that theme (and with «All the variables»)."""
+		self.fire_box.setVisible(self.theme_has('burn_severity'))
+
+	def fire_periods(self):
+		"""The periods before and after the fire ([first day, last day] each), checked."""
+		day = lambda key: self.fire_dates[key].date().toString('yyyy-MM-dd')  # noqa: E731
+		before, after = [day('before_start'), day('before_end')], [day('after_start'), day('after_end')]
+		if before[0] > before[1] or after[0] > after[1]:
+			raise ValueError('Burn severity: each period has to end after it starts')
+		if before[1] >= after[0]:
+			raise ValueError('Burn severity: the period before the fire has to end before the period after it starts')
+		return before, after
+
+	def run_burn(self):
+		"""Burn severity of a fire over the region (services.burn_severity), with the pixel filters and the conditions
+		of «Only the pixels where» of the panel (over the period before the fire): the window of its table (hectares
+		of each class of the USGS and burned area, or statistics of the RBR) and its GeoTIFF, in colours."""
+		try:
+			region = self.region()
+			before, after = self.fire_periods()
+			where = self.where_args(before)
+		except Exception as e:
+			self.message(str(e), 'Warning')
+			return
+		quality = self.quality_args(own=True)  # the NBR, whatever the variable selected
+		sensor, index = self.fire_sensor.currentData(), self.fire_index.currentData()
+		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'burn_severity' + ('_rbr' if index == 'RBR' else ''))
+
+		def work():
+			return services.burn_severity(region, sensor, before[0], before[1], after[0], after[1], quality=quality,
+			                              path=stem + '.tif', csv=stem + '.csv', max_pixels=MAP_PIXELS, index=index,
+			                              where=where)
+
+		def done(res):
+			if not any((r.get('ha') or 0) > 0 for r in res.get('classes') or res.get('stats') or []):
+				self.message(f"{res['title'].split(' | ')[0]}: no values in the region (no images in a period, or all "
+				             'filtered out)', 'Warning', 15)
+				return
+			res['label'] = res['title']
+			res['kind'] = 'burn'
+			res['args'] = {'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],
+			               'other_start': after[0], 'other_end': after[1], 'index': index}
+			self.add_burn_layer(res)
+			self.add_result(res)
+
+		self.run_task(f'Burn severity ({index}, {sensor})', work, done)
+
+	def add_burn_layer(self, res):
+		"""Add the GeoTIFF of the burn severity RES coloured as in the other tools (fire.map_style, as the assistant):
+		the classes of the USGS of its band severity, with their names and dNBR in the legend, or the RBR from red
+		(burned) to green (regrowth)."""
+		name = res['title']
+		layer = QgsRasterLayer(res['file'], name)
+		if not layer.isValid():
+			raise RuntimeError(f"QGIS could not open {res['file']}")
+		style = fire.map_style(res.get('bands'))
+		if style and style.get('classes'):
+			paletted(layer, style['band'], [dict(c, label=fire.class_label(c)) for c in style['classes']])
+		elif style:
+			pseudocolor(layer, style['min'], style['max'], style['palette'], band=style['band'])
+		layer.setAbstract(f"MonitorEO: {name}, pixels of {res['resolution']:g} m, bands {', '.join(res['bands'])}. "
+		                  f"Temporary GeoTIFF: {res['file']}" + references_text(res))
+		add_layer(layer)
+		self.zoom_to(layer.extent(), layer.crs())
+		native = res['resolution'] <= res['native_resolution']
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
+		             + ('' if native else ' (big region: pixels bigger than those of the data)')
+		             + '. Query the values with the Identify Features tool', 'Success', 10)
 
 	# Exports ----------------------------------------------------------------------------------------------------
 
