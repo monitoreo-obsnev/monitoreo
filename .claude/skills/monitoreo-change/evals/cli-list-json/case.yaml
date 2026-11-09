@@ -3,5 +3,5 @@ name: cli-list-json
 expected_outcome: |
   Works on a new branch from origin/main. Adds --json to `monitoreo list` in cli.py with a test, keeps the table as
   the default, considers the other tools (the MCP server and R already return structured data) and says so, documents
-  the option in the wiki pages Command-line and Línea-de-comandos, runs the offline tests and writes a PR description,
-  without pushing.
+  the option in the wiki pages Command-line and Línea-de-comandos (on a wiki branch named like the code branch, made
+  from origin/master, that waits for the merge), runs the offline tests and writes a PR description, without pushing.

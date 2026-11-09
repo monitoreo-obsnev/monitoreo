@@ -3,7 +3,8 @@
 After every merged PR that changes what users get (anything under `src/`, `qgis/`, `r/` or `gee/`, or the catalog):
 team decision of 2026-11-09, so make it right after the merge without asking again, and tell the developer. A PR
 that only changes the docs, the tests, the workflows or the skill waits for the next release; a stack of PRs merged
-together gets one release after the last. The developer can also ask for one at any time.
+together gets one release after the last. The developer can also ask for one at any time: their request approves
+all its steps, unless they say otherwise (e.g. "don't publish anything yet").
 
 ## Versions
 

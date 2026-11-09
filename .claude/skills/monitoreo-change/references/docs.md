@@ -58,9 +58,12 @@ GitHub only shows the wiki's `master`, and the wiki has no pull requests. So:
 1. In `../monitoreo.wiki`, `git fetch && git switch -c <same name as the code branch> origin/master`.
 2. Edit the Spanish and English pages, and commit, with a message in the language of the page edited (the history mixes
    both).
-3. Mention the wiki branch and its pages in the code PR, so the reviewer can read them.
-4. When the code PR is merged: fetch, check the branch merges into `origin/master` without conflicts, merge it, and
-   push `master` after asking the developer. Pushing the wiki before the code is merged documents something users
-   don't have yet.
+3. Mention the wiki branch and its pages in the code PR, with what changes in each: the branch stays on this computer
+   until the merge.
+4. As soon as the code PR is merged, without asking again (team decision, 2026-11-09): fetch, merge the branch into an
+   up-to-date `master`, push it and tell the developer. If two branches changed the same lines, keep both sides, as in
+   the code; if a conflict cannot be resolved that way, ask. Never push the wiki before its code is merged: it would
+   document something users don't have yet. A change of the wiki alone that the developer asked for (documentation,
+   without code) is merged into `master` and pushed when it is done, also without asking again.
 5. Then delete the wiki branch: `git branch -d <branch>`, and `git push origin --delete <branch>` if it was ever
    pushed. Merged branches are always deleted.

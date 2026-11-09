@@ -7,7 +7,7 @@
 <!-- Tick what was done; for what does not apply, write "n/a" and why. -->
 
 - [ ] A branch from an up-to-date `main`, with `main` merged in again before this PR; the tests pass after that merge
-- [ ] Offline tests pass: `PYTHONPATH=src python -m pytest tests -q`
+- [ ] Offline tests pass: `PYTHONPATH=src python -m pytest tests -q -m "not ee"`
 - [ ] Tests added or updated for what changes
 - [ ] Every tool that exposes the function has it (command line, MCP server, assistant, QGIS plugin, R package, Earth
       Engine app, results viewer), or the reason why not is written here

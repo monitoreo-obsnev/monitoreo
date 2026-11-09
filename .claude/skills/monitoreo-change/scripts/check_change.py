@@ -321,7 +321,9 @@ def check_r():
 
 def run_tests():
 	print('\n== Offline tests')
-	p = subprocess.run([sys.executable, '-m', 'pytest', 'tests', '-q', '-p', 'no:cacheprovider'], cwd=ROOT,
+	# -m 'not ee': never the tests that compute in Earth Engine, even with EE_PROJECT exported
+	p = subprocess.run([sys.executable, '-m', 'pytest', 'tests', '-q', '-m', 'not ee', '-p', 'no:cacheprovider'],
+	                   cwd=ROOT,
 	                   capture_output=True, text=True, env=dict(os.environ, PYTHONPATH=SRC, PYTHONNOUSERSITE='1'))
 	last = (p.stdout.strip().splitlines() or ['no output'])[-1]
 	say('OK' if p.returncode == 0 else 'FAIL', f'pytest tests: {last}')
