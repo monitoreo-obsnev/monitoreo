@@ -221,10 +221,13 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 
 
 @tool
-def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en') -> str:
-	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis), collection, resolution,
-	dates and unit. Filter by sensor or by text in the name (English or Spanish). lang: en or es."""
-	return _text(services.list_variables(sensor, text, lang))
+def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
+                   theme: Optional[str] = None) -> str:
+	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, ERA5-Land,
+	TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit. Filter by sensor, by theme
+	(vegetation, water, snow, fire, energy, atmosphere, climate, terrain) or by text in the name (English or
+	Spanish). lang: en or es."""
+	return _text(services.list_variables(sensor, text, lang, theme=theme))
 
 
 @tool

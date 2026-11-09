@@ -334,11 +334,11 @@ def instructions(today=None, big=False):
 
 
 def variables_text():
-	"""The variables of the catalog, a line each: name, group and, for each sensor, pixel size and first year."""
+	"""The variables of the catalog, a line each: name, theme and, for each sensor, pixel size and first year."""
 	variables = {}
 	for v in services.list_variables(lang='en'):
 		years = re.findall(r'(?<!\d)(?:19|20)\d\d(?!\d)', v['dates'])
-		var = variables.setdefault(v['variable'], {'name': v['name'], 'group': v['group'], 'sensors': {},
+		var = variables.setdefault(v['variable'], {'name': v['name'], 'theme': v['theme'], 'sensors': {},
 		                                           'two_periods': v.get('two_periods', False)})
 		s = var['sensors'].setdefault(v['sensor'], {'m': v['resolution_m'], 'first': None, 'last': None, 'now': False})
 		s['m'] = min(s['m'], v['resolution_m'])
@@ -352,7 +352,7 @@ def variables_text():
 		                    + ('' if s['now'] or not s['last'] else f" until {s['last']}")
 		                    for name, s in var['sensors'].items())
 		only = ' Only burn_severity with index "RBR" (two periods).' if var.get('two_periods') else ''
-		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; group {var['group']}. {sensors}.{only}")
+		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; theme {var['theme']}. {sensors}.{only}")
 	return '\n'.join(lines)
 
 

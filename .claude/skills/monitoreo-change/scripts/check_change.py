@@ -151,10 +151,15 @@ def check_catalog(wiki):
 			problems.append(f'{where}: unit {unit} uses the ordinal º, not the degree sign °')
 		elif not catalog.udunits(unit):
 			problems.append(f'{where}: unit {unit} has no UDUNITS name in catalog.UDUNITS')
+		if hasattr(catalog, 'THEMES') and not e.get('theme'):
+			problems.append(f'{where}: no theme: add {e["index"]} to the indices of its theme in catalog.THEMES')
 	for p in problems:
 		say('FAIL', p)
 	if not problems:
-		say('OK', f'{len(catalog.variables())} variables with references, datasets and UDUNITS units')
+		say('OK', f'{len(catalog.variables())} variables with references, datasets, UDUNITS units and themes')
+	for t in getattr(catalog, 'THEMES', []):
+		if not any(e['index'] in t['indices'] for e in catalog.variables()):
+			say('WARN', f"the theme {t['key']} has no variable of the catalog")
 
 	now = [(e['ref'], e['index'], e['sensor'], e.get('unit'), e.get('vname_en')) for e in catalog.variables()]
 	before = main_variables()

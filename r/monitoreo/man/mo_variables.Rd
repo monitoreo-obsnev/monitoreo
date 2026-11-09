@@ -4,7 +4,7 @@
 \alias{mo_variables}
 \title{Variables of the catalog of MonitorEO}
 \usage{
-mo_variables(sensor = NULL, text = NULL, lang = "en")
+mo_variables(sensor = NULL, text = NULL, lang = "en", theme = NULL)
 }
 \arguments{
 \item{sensor}{optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
@@ -13,10 +13,15 @@ mo_variables(sensor = NULL, text = NULL, lang = "en")
 \item{text}{optional: only those with this text in their variable or their name (in English or in Spanish).}
 
 \item{lang}{language of the names: \code{"en"} or \code{"es"}.}
+
+\item{theme}{optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
+\code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
+of the Earth Engine app).}
 }
 \value{
-A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit and, for some, metric:
-  its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without dates). The
+A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
+  some, metric: its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without
+  dates). The
   references of each variable: \code{mo_describe()}.
 }
 \description{
@@ -26,6 +31,7 @@ Variables of the catalog of MonitorEO
 \dontrun{
 mo_variables("Sentinel-2")
 mo_variables(text = "water")
+mo_variables(theme = "climate")
 }
 }
 \seealso{

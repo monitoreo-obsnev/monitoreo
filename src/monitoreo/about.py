@@ -3,6 +3,7 @@ shown by every tool (README, command line, MCP server, R package, QGIS plugin an
 of the funders in the folder logos of this package. The manual of the tools is the wiki of the repository."""
 
 import os
+import urllib.parse
 
 MANUAL = 'https://github.com/monitoreo-obsnev/monitoreo/wiki'  # tutorials of QGIS, MCP, Python and R
 HOME = {'en': '/English', 'es': ''}  # the home page of the manual in each language (every page has both)
@@ -50,6 +51,43 @@ _LOGOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logos')
 # AEI (EVEREST) and Junta de Andalucía; the strip of the projects of the call UGR23 co-funded by ERDF (NevadEO); and
 # Biodiversa+ (PRESINMED), from https://www.biodiversa.eu/wp-content/uploads/2022/03/biodiversa_logo.svg
 LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_feder.jpg', 'biodiversa.png')]
+
+
+# Suggestions and errors: an issue of GitHub (public, needs an account, takes screenshots; templates in
+# .github/ISSUE_TEMPLATE) or the anonymous Google Form of the team (account everest@go.ugr.es: no sign-in, no email
+# and no files, so that it stays anonymous; screenshots as a link). Both are filled with the tool and its version.
+ISSUES = REPOSITORY + '/issues/new/choose'  # the templates: error or suggestion
+FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform'
+FORM_FIELDS = {'tool': 'entry.1706228456', 'version': 'entry.1533130685'}  # their ids in the form
+TOOLS = {  # the tools, as the issue templates and the options of the form name them
+	'gee': ('Earth Engine app', 'App de Earth Engine / Earth Engine app'),
+	'qgis': ('QGIS plugin', 'Complemento de QGIS / QGIS plugin'),
+	'assistant': ('Assistant', 'Asistente / Assistant'),
+	'python': ('Python or command line', 'Python o línea de órdenes / Python or command line'),
+	'mcp': ('MCP server', 'Servidor MCP / MCP server'),
+	'r': ('R package', 'Paquete de R / R package'),
+	'viewer': ('Results viewer', 'Visor de resultados / Results viewer'),
+}
+FEEDBACK = {
+	'en': {'button': 'Suggest a change or report an error',
+	       'issue': 'On GitHub: public, with a GitHub account; you can paste screenshots and follow the answer',
+	       'form': 'Anonymous form: no account, no name and no email; screenshots as a link'},
+	'es': {'button': 'Sugerir un cambio o informar de un error',
+	       'issue': 'En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta',
+	       'form': 'Formulario anónimo: sin cuenta, nombre ni correo; los pantallazos, como enlace'},
+}
+
+
+def feedback(tool, version=None):
+	"""Where to suggest a change or report an error from TOOL (a key of TOOLS) of VERSION: {'issue': a new issue of
+	GitHub (its templates, error or suggestion), 'form': the anonymous form}, both filled with the tool and the
+	version."""
+	name, option = TOOLS[tool]
+	issue = {'tool': name}
+	form = {'usp': 'pp_url', FORM_FIELDS['tool']: option}
+	if version:
+		issue['version'] = form[FORM_FIELDS['version']] = str(version)
+	return {'issue': ISSUES + '?' + urllib.parse.urlencode(issue), 'form': FORM + '?' + urllib.parse.urlencode(form)}
 
 
 def about(lang='en'):

@@ -14,6 +14,7 @@
 - [ ] New variables, methods or datasets: references with DOI in `catalog.json`, the datasets with their credit line,
       and the references of `.zenodo.json` regenerated
 - [ ] Units in UDUNITS (`catalog.UDUNITS`)
+- [ ] Each new variable or analysis in its theme (`catalog.THEMES`), the menus of the QGIS plugin and the Earth Engine app
 - [ ] The README and metadata of the files it writes read right
 - [ ] R help regenerated with roxygen2 (`r/monitoreo/man`), if the roxygen changed
 - [ ] Earth Engine app rebuilt (`gee/build.py`), if the catalog, `about.py` or `gee/` changed

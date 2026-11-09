@@ -20,11 +20,11 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
-from monitoreo import about, catalog, sensors, services  # noqa: E402
+from monitoreo import __version__, about, catalog, sensors, services  # noqa: E402
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
-          'terrain', 'image_asset']
+          'terrain', 'image_asset', 'theme']
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 
 
@@ -51,6 +51,7 @@ def logo(path, width):
 def about_texts():
 	return {'name': 'MonitorEO-OBSNEV', 'description': about.DESCRIPTION, 'acknowledgements': about.ACKNOWLEDGEMENTS,
 	        'citation': about.CITATION, 'doi': about.DOI, 'manual': about.MANUAL, 'repository': about.REPOSITORY,
+	        'feedback': dict(about.FEEDBACK, links=about.feedback('gee', __version__)),
 	        'logos': [logo(p, w) for p, w in zip(about.LOGOS, LOGO_WIDTHS)]}
 
 
@@ -59,7 +60,8 @@ def main():
 	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
 	args = parser.parse_args()
 	services.init(args.project)
-	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts()}
+	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
+	        'themes': catalog.THEMES}
 	text = json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True)
 	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:
 		f.write('// Written by build.py from src/monitoreo (catalog.json, catalog.py, about.py): do not edit.\n')

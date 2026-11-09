@@ -190,6 +190,11 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// catalog.THEMES: the themes of the menu, each with its variables (indices) and its own analyses
+	function themes() {
+		return CATALOG.themes || [];
+	}
+
 	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
 	// ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]')
 	function unitOf(entry, metric) {
@@ -1231,7 +1236,7 @@ var MonitorEO = (function () {
 	}
 
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,

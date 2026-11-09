@@ -1,0 +1,29 @@
+name: Suggest a change / Sugerir un cambio
+description: A new variable, option or tool, or an improvement / Una variable, opción o herramienta nueva, o una mejora
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Prefer not to use your GitHub account? Use the
+        [anonymous form](https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform).
+
+        Gracias. ¿Prefieres no usar tu cuenta de GitHub? Usa el
+        [formulario anónimo](https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform).
+  - type: input
+    id: tool
+    attributes:
+      label: Tool / Herramienta
+      description: Earth Engine app, QGIS plugin, Assistant, Python or command line, MCP server, R package or Results viewer
+  - type: input
+    id: version
+    attributes:
+      label: Version / Versión
+      description: If you know it / Si la sabes
+  - type: textarea
+    id: what
+    attributes:
+      label: What you suggest, and why / Qué propones, y por qué
+      description: For a new variable, its reference (with DOI) if you know it / Para una variable nueva, su referencia (con DOI) si la sabes
+    validations:
+      required: true
