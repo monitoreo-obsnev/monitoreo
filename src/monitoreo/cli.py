@@ -72,6 +72,8 @@ def main(argv=None):
 	sub = parser.add_subparsers(dest='cmd', required=True)
 	p = sub.add_parser('list', help='variables of the catalog')
 	p.add_argument('--sensor')
+	p.add_argument('--theme', help='only those of a theme: vegetation, water, snow, fire, energy, atmosphere, climate '
+	                               'or terrain')
 	p.add_argument('--text')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('info', help='everything about a variable')
@@ -181,7 +183,7 @@ def main(argv=None):
 		return _assistant(args)
 	from . import services
 	if args.cmd == 'list':
-		_table(services.list_variables(args.sensor, args.text, args.lang),
+		_table(services.list_variables(args.sensor, args.text, args.lang, theme=args.theme),
 		       ['ref', 'variable', 'sensor', 'collection', 'resolution_m', 'unit', 'name'])
 		return
 	if args.cmd == 'info':

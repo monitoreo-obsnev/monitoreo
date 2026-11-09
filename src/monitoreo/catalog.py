@@ -284,8 +284,33 @@ def load():
 	return _catalog
 
 
+# Themes: the menus of the tools with one (the QGIS plugin, the Earth Engine app), where the user chooses a theme and
+# then sees its variables and its analyses. Every variable of the catalog is in one theme (tests check it), and so is
+# every analysis of one kind of variable ('analyses': burn_severity for the fires); the general analyses (maps, time
+# series, trends, comparisons, exports) are in every theme with variables with dates. A new kind of variable or
+# analysis (e.g. species distribution models) gets its theme here, with its variables and analyses, in every menu.
+THEMES = [
+	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI']},
+	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
+	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF']},
+	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR'], 'analyses': ['burn_severity']},
+	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
+	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},
+	{'key': 'atmosphere', 'en': 'Atmosphere', 'es': 'Atmósfera', 'indices': ['ARSL', 'CF']},
+	{'key': 'climate', 'en': 'Climate', 'es': 'Clima',
+	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD']
+	            + [f'BIO{i:02d}' for i in range(1, 20)]},
+	{'key': 'terrain', 'en': 'Terrain', 'es': 'Relieve', 'indices': ['ELEVATION', 'SLOPE']},
+]
+
+
+def theme_of(index):
+	"""The theme (see THEMES) of the variable INDEX, or None if it has none."""
+	return next((t for t in THEMES if index in t['indices']), None)
+
+
 def variables():
-	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
+	"""Entries of the catalog, with FIXES applied, and those of EXTRA, each with the key of its theme (see THEMES)."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
 	extra = []
@@ -295,7 +320,7 @@ def variables():
 		changes = dict(changes)
 		template = TEMPLATES[changes.pop('template', changes['index'])]
 		extra.append(dict(by_ref[base] if base is not None else {}, **dict(template, **changes), ref=ref))
-	return entries + extra
+	return [dict(e, theme=(theme_of(e['index']) or {}).get('key')) for e in entries + extra]
 
 
 def find(index, sensor=None, collection=None, ref=None):

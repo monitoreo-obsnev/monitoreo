@@ -524,17 +524,22 @@ def _name(e, lang, field):
 	return e.get(f'{field}_{lang}') or e[field] if lang != 'es' else e[field]
 
 
-def list_variables(sensor=None, text=None, lang='en'):
-	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, group, resolution_m,
-	dates, unit}] (and two_periods, RBR, or metric, the only metric of the SCF), optionally of one SENSOR or with
-	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
+def list_variables(sensor=None, text=None, lang='en', theme=None):
+	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
+	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
+	two_periods, RBR, or metric, the only metric of the SCF), optionally of one SENSOR, of one THEME (its key or its
+	name) or with TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
+	wanted = _theme(theme) if theme else None
 	for e in catalog.variables():
 		if sensor and e['sensor'].lower() != str(sensor).lower():
 			continue
+		if wanted and e.get('theme') != wanted['key']:
+			continue
+		t = catalog.theme_of(e['index']) or {}
 		row = {'ref': e['ref'], 'variable': e['index'], 'sensor': e['sensor'], 'collection': e['col'],
-		       'name': _name(e, lang, 'vname'), 'group': _name(e, lang, 'type'), 'resolution_m': e['m'],
-		       'dates': e['dr'], 'unit': e['unit']}
+		       'name': _name(e, lang, 'vname'), 'theme': t.get(lang) or t.get('en'), 'group': _name(e, lang, 'type'),
+		       'resolution_m': e['m'], 'dates': e['dr'], 'unit': e['unit']}
 		if e.get('two_periods'):
 			row['two_periods'] = True  # RBR: only burn_severity computes it
 		if e.get('metric'):
@@ -549,6 +554,21 @@ def list_variables(sensor=None, text=None, lang='en'):
 	return out
 
 
+def themes(lang='en'):
+	"""The themes of the menus of the tools (see catalog.THEMES): [{key, name, variables (their codes), analyses (those
+	of the theme besides maps, series, trends, comparisons and exports)}], in LANG ('en' or 'es')."""
+	return [{'key': t['key'], 'name': t.get(lang) or t['en'], 'variables': list(t['indices']),
+	         'analyses': list(t.get('analyses') or [])} for t in catalog.THEMES]
+
+
+def _theme(theme):
+	low = str(theme).strip().lower()
+	for t in catalog.THEMES:
+		if low in (t['key'], t['en'].lower(), t['es'].lower()):
+			return t
+	raise ValueError(f"unknown theme {theme}: use {', '.join(t['key'] for t in catalog.THEMES)}")
+
+
 def describe_variable(variable_name, sensor=None, collection=None, ref=None, lang='en'):
 	"""Everything about a variable of the catalog: formula, collection, scale, unit, pixel filters, notes, ... and what
 	to cite with its data: 'references' (the articles of its formula or algorithm, its Earth Engine datasets as their
@@ -556,6 +576,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
 	out['name'] = _name(e, lang, 'vname')
+	t = catalog.theme_of(e['index']) or {}
+	out['theme'] = t.get(lang) or t.get('en')
 	out['group'] = _name(e, lang, 'type')
 	out['pixel_filters'] = sensors.filters(e)
 	out['measures'] = [f for f, idx in sensors.MEASURES.items() if e['index'] in idx]

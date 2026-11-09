@@ -88,6 +88,12 @@ These are the invariants of MonitorEO. Tests check some of them; the rest depend
   (ELEVATION, SLOPE), a single metric and fixed pixel filters (SCF), or two periods (RBR). Grep for every place that
   reads `start`, `end`, `metric` or `quality` and check that it copes. The assistant's `KeyError: 'start'` of
   2026-11-09 was a single path that did not.
+- **Everything has a theme.** The QGIS plugin and the Earth Engine app show the catalog by themes (`catalog.THEMES`):
+  the user chooses a theme (Vegetation, Water, Snow, Fire, Energy and temperature, Atmosphere, Climate, Terrain) and
+  then sees its variables and its own analyses. A new variable goes into the theme it belongs to. An analysis of one
+  kind of variable (like `burn_severity` for the fires) goes in the `analyses` of its theme, so the menus show it only
+  there. A new kind of functionality (e.g. species distribution models) gets a new theme, with its variables and
+  analyses, in both menus. Never leave a variable or an analysis outside the themes: users would not find it.
 - **Tests come with the change.** Add or adjust a test in `tests/` for each behaviour you add or fix. For a bug, write
   the test that reproduces it first.
 

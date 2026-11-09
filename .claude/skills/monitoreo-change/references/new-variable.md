@@ -51,6 +51,9 @@ step 3 of `SKILL.md`).
     - the R functions.
 - **The count of variables** in `tests/test_offline.py::test_catalog` (`assert len(entries) == ...`) goes up by one,
   with a comment saying what was added.
+- **Its theme.** Add its index to the `indices` of its theme in `catalog.THEMES` (the menus of the QGIS plugin and
+  the Earth Engine app, and the `theme` of `list_variables`). If none fits, propose a new theme to the team, with its
+  names in English and Spanish; `check_change.py` fails on a variable without a theme.
 
 ## 2. References and credits
 

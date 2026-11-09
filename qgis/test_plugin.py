@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qgis.core import (QgsApplication, QgsCoordinateReferenceSystem, QgsFeature, QgsField, QgsGeometry,  # noqa: E402
                        QgsProject, QgsRectangle, QgsVectorLayer)
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
-from qgis.PyQt.QtCore import QVariant  # noqa: E402
+from qgis.PyQt.QtCore import Qt, QVariant  # noqa: E402
 from qgis.PyQt.QtWidgets import QCheckBox, QComboBox, QMainWindow, QPushButton  # noqa: E402
 
 app = QgsApplication([], True)
@@ -88,7 +88,21 @@ assert dock is not None, 'the panel did not open'
 _message = dock.message
 dock.message = lambda text, lvl='Info', duration=6: (iface.messages.append(f'{lvl}: {text}'), _message(text, lvl, duration))
 dock.project.setText(os.environ['EE_PROJECT'])
-print('variables:', dock.variable.count(), '| selected:', dock.variable.currentText())
+print('themes:', [dock.theme.itemText(i) for i in range(dock.theme.count())], '| variables of',
+      dock.theme.currentText() + ':', dock.variable.count(), '| selected:', dock.variable.currentText())
+assert dock.theme.currentData() == 'vegetation' and dock.variable.currentText().startswith('NDVI · Sentinel-2')
+links = dock.feedback_links
+assert links['issue'].startswith('https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=QGIS+plugin')
+assert 'entry.1706228456=Complemento+de+QGIS' in links['form'], links
+print('feedback:', links['issue'])
+dock.theme.setCurrentIndex(dock.theme.findData('climate'))
+assert all(dock.variable.itemData(i)['variable'] in ('PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM',
+                                                     'VPD') or dock.variable.itemData(i)['variable'].startswith('BIO')
+           for i in range(dock.variable.count()))
+dock.theme.setCurrentIndex(dock.theme.count() - 1)  # all the variables, for the help of each one
+dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2 · 10 m', Qt.MatchFlag.MatchStartsWith))
+assert dock.variable.currentData()['variable'] == 'NDVI'
+print('all the variables:', dock.variable.count())
 
 # the buttons ⓘ of the options: a help with a link to the manual, also with each variable (help of the variable and
 # of the filters); the ⓘ of the list of protected areas hides with it

@@ -16,12 +16,12 @@ from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea,
-                                 QToolButton, QVBoxLayout, QWhatsThis, QWidget)
+                                 QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import services, steps, trends  # noqa: E402
+from monitoreo import catalog, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
@@ -144,6 +144,14 @@ class InfoButton(QToolButton):
 		return super().event(e)
 
 
+def plugin_version():
+	"""The version of the plugin, from its metadata.txt."""
+	import configparser
+	meta = configparser.ConfigParser()
+	meta.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metadata.txt'), encoding='utf-8')
+	return meta.get('general', 'version', fallback='?')
+
+
 def info(field, text):
 	"""FIELD (a widget, or a row of them) with an InfoButton with TEXT at its right, for a row of a QFormLayout."""
 	if isinstance(field, QHBoxLayout):
@@ -177,6 +185,10 @@ class MonitorEODock(QDockWidget):
 		s = QgsSettings()
 		body = QWidget()
 		main = QVBoxLayout(body)
+		row = QHBoxLayout()
+		row.addStretch()
+		row.addWidget(self.feedback_button())
+		main.addLayout(row)
 
 		box = QGroupBox('Google Earth Engine')
 		f = QFormLayout(box)
@@ -295,14 +307,18 @@ class MonitorEODock(QDockWidget):
 
 		box = QGroupBox('Variable')
 		f = QFormLayout(box)
+		# first the theme (catalog.THEMES), then the variables of that theme
+		self.theme = QComboBox()
+		for t in services.themes('en'):
+			self.theme.addItem(t['name'], t['key'])
+		self.theme.addItem('All the variables', None)
+		f.addRow('Theme', info(self.theme, HELP['theme']))
+		# the English names of the catalog (vname_en, type_en); RBR: only the burn severity of the Python package, the
+		# MCP server and the app
+		self.all_variables = [v for v in services.list_variables(lang='en') if not v.get('two_periods')]
 		self.variable = QComboBox()
-		for v in services.list_variables(lang='en'):  # the English names of the catalog (vname_en, type_en)
-			if v.get('two_periods'):  # RBR: only the burn severity of the Python package, the MCP server and the app
-				continue
-			self.variable.addItem(f"{v['variable']} · {v['sensor']} · {v['resolution_m']} m · {v['collection'].split('/')[-1]}", v)
-			self.variable.setItemData(self.variable.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}",
-			                          Qt.ItemDataRole.ToolTipRole)
-		self.variable.setCurrentIndex(max(0, self.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchContains)))
+		self.fill_variables('NDVI · Sentinel-2')
+		self.theme.currentIndexChanged.connect(lambda i: self.fill_variables())
 		f.addRow('Variable', info(self.variable, lambda: variable_help(self.variable.currentData())))
 		self.start = QDateEdit(QDate.fromString(s.value(SETTINGS + 'start', '2020-01-01'), 'yyyy-MM-dd'))
 		self.end = QDateEdit(QDate.fromString(s.value(SETTINGS + 'end', '2021-12-31'), 'yyyy-MM-dd'))
@@ -503,6 +519,24 @@ class MonitorEODock(QDockWidget):
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
 
+	def feedback_button(self):
+		"""The button to suggest a change or report an error: an issue of GitHub or the anonymous form, filled with
+		the plugin and its version (see monitoreo.about.feedback)."""
+		from monitoreo import __version__, about
+		texts = about.FEEDBACK['en']
+		links = about.feedback('qgis', f'{plugin_version()} (monitoreo {__version__})')
+		button = QToolButton()
+		button.setText(texts['button'])
+		button.setToolTip('Opens a new issue of GitHub, or the anonymous form, in the browser')
+		button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+		menu = QMenu(button)
+		for key in ('issue', 'form'):
+			action = menu.addAction(texts[key])
+			action.triggered.connect(lambda checked=False, url=links[key]: QDesktopServices.openUrl(QUrl(url)))
+		button.setMenu(menu)
+		self.feedback_links = links
+		return button
+
 	def about_box(self):
 		"""What MonitorEO-OBSNEV is, who funds it and how to cite it, with the logos of the institutions and projects."""
 		from monitoreo import about
@@ -622,6 +656,25 @@ class MonitorEODock(QDockWidget):
 		if where:
 			args['where'] = where
 		return args
+
+	def fill_variables(self, choose=None):
+		"""The variables of the theme chosen (all of them with «All the variables»), keeping the one chosen if it is
+		there; else CHOOSE (the start of its text) or the first one."""
+		key = self.theme.currentData()
+		current = self.variable.currentText() or choose
+		self.variable.blockSignals(True)
+		self.variable.clear()
+		for v in self.all_variables:
+			if key is not None and (catalog.theme_of(v['variable']) or {}).get('key') != key:
+				continue
+			self.variable.addItem(f"{v['variable']} · {v['sensor']} · {v['resolution_m']} m · "
+			                      f"{v['collection'].split('/')[-1]}", v)
+			self.variable.setItemData(self.variable.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}",
+			                          Qt.ItemDataRole.ToolTipRole)
+		self.variable.setCurrentIndex(max(0, self.variable.findText(current or '', Qt.MatchFlag.MatchStartsWith)))
+		self.variable.blockSignals(False)
+		if hasattr(self, 'where'):  # built: the options of the variable chosen
+			self.variable_changed()
 
 	def where_args(self):
 		"""The checked conditions of «Only the pixels where» (see monitoreo.variable.where_specs), or None. Those of

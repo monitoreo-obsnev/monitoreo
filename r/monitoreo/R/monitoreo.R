@@ -260,18 +260,23 @@ rows_df <- function(rows) {
 #'   \code{"Copernicus"}.
 #' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
-#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit and, for some, metric:
-#'   its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without dates). The
+#' @param theme optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
+#'   \code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
+#'   of the Earth Engine app).
+#' @return A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
+#'   some, metric: its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without
+#'   dates). The
 #'   references of each variable: \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
 #' mo_variables("Sentinel-2")
 #' mo_variables(text = "water")
+#' mo_variables(theme = "climate")
 #' }
 #' @export
-mo_variables <- function(sensor = NULL, text = NULL, lang = "en") {
-  rows_df(services()$list_variables(sensor, text, lang))
+mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) {
+  rows_df(services()$list_variables(sensor, text, lang, theme = theme))
 }
 
 #' Everything about a variable of the catalog, and what to cite with it

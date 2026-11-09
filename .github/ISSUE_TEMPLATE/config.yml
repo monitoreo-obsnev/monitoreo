@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Anonymous form / Formulario anónimo
+    url: https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform
+    about: Without a GitHub account, name or email / Sin cuenta de GitHub, nombre ni correo
+  - name: Manual / Manual
+    url: https://github.com/monitoreo-obsnev/monitoreo/wiki
+    about: The manual of every tool, in Spanish and English / El manual de cada herramienta, en español e inglés

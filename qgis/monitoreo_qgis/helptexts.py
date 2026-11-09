@@ -127,6 +127,13 @@ HELP = {
 		'counts in the year in which it starts.</p><p>It applies to everything: series, maps, trends, comparisons and '
 		'exports.</p>'
 		+ manual('Concepts#period-and-season'),
+	'theme':
+		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI), <b>Water</b> (NDWI, LSWI, '
+		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR), <b>Energy and temperature</b> '
+		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
+		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
+		'<b>All the variables</b> lists every one.</p>'
+		+ manual('Concepts#variables'),
 	'where':
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
 		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, and <b>SLOPE · '

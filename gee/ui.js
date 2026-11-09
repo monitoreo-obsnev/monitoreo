@@ -31,7 +31,7 @@
 			drawHelp: 'Dibuja un polígono en el mapa: un clic por vértice y doble clic para cerrarlo.',
 			drawAgain: 'Dibujar otro', regionIs: 'Región: ', noRegion: 'Elige primero una región.',
 			mapView: 'Vista del mapa', polygon: 'Polígono dibujado', loadingRegion: 'Cargando la región…',
-			variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada año (MM-DD)',
+			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada año (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar píxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			whereHeader: 'Solo los píxeles donde', whereOn: 'una variable está entre dos valores', between: 'entre',
@@ -95,7 +95,7 @@
 			drawHelp: 'Draw a polygon on the map: a click per vertex and a double click to close it.',
 			drawAgain: 'Draw another', regionIs: 'Region: ', noRegion: 'Choose a region first.',
 			mapView: 'Map view', polygon: 'Drawn polygon', loadingRegion: 'Loading the region…',
-			variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
+			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
@@ -158,7 +158,7 @@
 		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
 		region: null, regionName: null, info: null,
-		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
+		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
@@ -453,12 +453,32 @@
 		return mo.byRef(state.ref);
 	}
 
-	function variableItems() {  // without RBR, which compares two periods (Burn severity)
-		return mo.variables().filter(function (e) { return !e.two_periods; }).sort(function (a, b) {
+	// The entries of the variable menu: those of THEME (a key of catalog.THEMES; all of them without it), without RBR,
+	// which compares two periods (Burn severity)
+	function variableItems(theme) {
+		return mo.variables().filter(function (e) {
+			return !e.two_periods && (!theme || e.theme === theme);
+		}).sort(function (a, b) {
 			return a.index < b.index ? -1 : a.index > b.index ? 1 : a.sensor < b.sensor ? -1 : a.sensor > b.sensor ? 1 :
 				a.ref - b.ref;
 		}).map(function (e) {
 			return {value: e.ref, label: [e.index, e.sensor, e.m + ' m', e.col.split('/').pop()].join(' · ')};
+		});
+	}
+
+	// The theme KEY ('all': every variable): its variables in the menu, and the first of them if the one chosen is not
+	// one of them
+	function setTheme(key) {
+		state.theme = key;
+		var items = variableItems(key === 'all' ? null : key);
+		if (items.length && !items.some(function (i) { return i.value === state.ref; })) return setVariable(items[0].value);
+		render();
+	}
+
+	// Whether the theme chosen has the analysis NAME of its own (e.g. burn_severity, of the fires)
+	function themeHas(name) {
+		return state.theme === 'all' || mo.themes().some(function (th) {
+			return th.key === state.theme && (th.analyses || []).indexOf(name) >= 0;
 		});
 	}
 
@@ -501,7 +521,11 @@
 
 	function variableWidgets() {
 		var e = entry();
-		var w = [header(t('variable')), select(variableItems(), state.ref, setVariable, '340px')];
+		var themes = mo.themes().map(function (th) { return {value: th.key, label: th[state.lang] || th.en}; });
+		var w = [header(t('theme')), select(themes.concat([{value: 'all', label: t('allThemes')}]), state.theme,
+			setTheme, '340px')];
+		w.push(header(t('variable')));
+		w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '340px'));
 		var name = state.lang === 'en' ? e.vname_en : e.vname;
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' · '), SMALL));
@@ -1180,14 +1204,24 @@
 
 	function render() {
 		controls.clear();
+		var fb = mo.CATALOG.about.feedback;
 		controls.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '22px', stretch: 'horizontal'}),
 			button(t('language'), function () {
 				state.lang = state.lang === 'es' ? 'en' : 'es';
 				render();
 			})));
 		controls.add(ui.Label(t('subtitle'), SMALL));
-		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(), fireWidgets(),
-			aboutWidgets()].forEach(function (ws) {
+		// suggestions and errors: an issue of GitHub or the anonymous form, filled with the app and its version
+		controls.add(button(fb[state.lang].button, function () {
+			state.feedbackOpen = !state.feedbackOpen;
+			render();
+		}));
+		if (state.feedbackOpen) {
+			controls.add(ui.Label('→ ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
+			controls.add(ui.Label('→ ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
+		}
+		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});
 	}

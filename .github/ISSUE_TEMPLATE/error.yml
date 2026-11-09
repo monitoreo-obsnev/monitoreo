@@ -1,0 +1,36 @@
+name: Report an error / Informar de un error
+description: Something of MonitorEO does not work as it should / Algo de MonitorEO no funciona como debería
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. You can paste or drag screenshots in the boxes below. Prefer not to use your GitHub account? Use the
+        [anonymous form](https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform).
+
+        Gracias. Puedes pegar o arrastrar pantallazos en los cuadros de abajo. ¿Prefieres no usar tu cuenta de GitHub?
+        Usa el [formulario anónimo](https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform).
+  - type: input
+    id: tool
+    attributes:
+      label: Tool / Herramienta
+      description: Earth Engine app, QGIS plugin, Assistant, Python or command line, MCP server, R package or Results viewer
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / Versión
+      description: If you know it / Si la sabes
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / Qué pasó
+      description: The message you saw, and screenshots / El mensaje que viste, y pantallazos
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to repeat it / Cómo repetirlo
+      description: Variable, sensor, region, dates and options / Variable, sensor, región, fechas y opciones

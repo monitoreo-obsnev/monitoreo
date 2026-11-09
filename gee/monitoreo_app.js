@@ -14,6 +14,22 @@ var CATALOG = {
    "es": "MonitorEO-OBSNEV es una herramienta abierta de monitorizaci\u00f3n de Variables Esenciales de la Biodiversidad basada en sensores satelitales y modelos generados por la Universidad de Granada. Permite a la ciudadan\u00eda, gestores y cient\u00edficos crear mapas y gr\u00e1ficos de m\u00e9tricas clave de los ecosistemas para apoyar la toma de decisiones."
   },
   "doi": "10.5281/zenodo.23814894",
+  "feedback": {
+   "en": {
+    "button": "Suggest a change or report an error",
+    "form": "Anonymous form: no account, no name and no email; screenshots as a link",
+    "issue": "On GitHub: public, with a GitHub account; you can paste screenshots and follow the answer"
+   },
+   "es": {
+    "button": "Sugerir un cambio o informar de un error",
+    "form": "Formulario an\u00f3nimo: sin cuenta, nombre ni correo; los pantallazos, como enlace",
+    "issue": "En GitHub: p\u00fablico, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
+   },
+   "links": {
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.25",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.25"
+   }
+  },
   "logos": [
    "data:image/png;base64,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",
    "data:image/jpeg;base64,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",
@@ -105,6 +121,114 @@ var CATALOG = {
    "start": "1981-01-01"
   }
  },
+ "themes": [
+  {
+   "en": "Vegetation",
+   "es": "Vegetaci\u00f3n",
+   "indices": [
+    "NDVI",
+    "EVI",
+    "LAI"
+   ],
+   "key": "vegetation"
+  },
+  {
+   "en": "Water",
+   "es": "Agua",
+   "indices": [
+    "NDWI",
+    "LSWI",
+    "Chl-a",
+    "NDCI"
+   ],
+   "key": "water"
+  },
+  {
+   "en": "Snow",
+   "es": "Nieve",
+   "indices": [
+    "NDSI",
+    "SCF"
+   ],
+   "key": "snow"
+  },
+  {
+   "analyses": [
+    "burn_severity"
+   ],
+   "en": "Fire",
+   "es": "Incendios",
+   "indices": [
+    "NBR",
+    "RBR"
+   ],
+   "key": "fire"
+  },
+  {
+   "en": "Energy and temperature",
+   "es": "Energ\u00eda y temperatura",
+   "indices": [
+    "LST",
+    "ALBEDO",
+    "ET",
+    "LE"
+   ],
+   "key": "energy"
+  },
+  {
+   "en": "Atmosphere",
+   "es": "Atm\u00f3sfera",
+   "indices": [
+    "ARSL",
+    "CF"
+   ],
+   "key": "atmosphere"
+  },
+  {
+   "en": "Climate",
+   "es": "Clima",
+   "indices": [
+    "PRECIP",
+    "TMEAN",
+    "TMIN",
+    "TMAX",
+    "PET",
+    "AET",
+    "CWD",
+    "SOILM",
+    "VPD",
+    "BIO01",
+    "BIO02",
+    "BIO03",
+    "BIO04",
+    "BIO05",
+    "BIO06",
+    "BIO07",
+    "BIO08",
+    "BIO09",
+    "BIO10",
+    "BIO11",
+    "BIO12",
+    "BIO13",
+    "BIO14",
+    "BIO15",
+    "BIO16",
+    "BIO17",
+    "BIO18",
+    "BIO19"
+   ],
+   "key": "climate"
+  },
+  {
+   "en": "Terrain",
+   "es": "Relieve",
+   "indices": [
+    "ELEVATION",
+    "SLOPE"
+   ],
+   "key": "terrain"
+  }
+ ],
  "variables": [
   {
    "axis": null,
@@ -141,6 +265,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -184,6 +309,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -235,6 +361,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -286,6 +413,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -332,6 +460,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "snow",
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -377,6 +506,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "snow",
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -422,6 +552,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "snow",
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -468,6 +599,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "snow",
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -518,6 +650,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -568,6 +701,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -631,6 +765,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -691,6 +826,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -758,6 +894,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Radiaci\u00f3n",
@@ -802,6 +939,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "16-days",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -846,6 +984,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -890,6 +1029,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -939,6 +1079,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -988,6 +1129,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1039,6 +1181,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1090,6 +1233,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1139,6 +1283,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1188,6 +1333,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1239,6 +1385,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1289,6 +1436,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1338,6 +1486,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1387,6 +1536,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1437,6 +1587,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producci\u00f3n Primaria)",
@@ -1490,6 +1641,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "atmosphere",
    "tr": "daily",
    "two_periods": null,
    "type": "Nutrientes / Aerosoles",
@@ -1539,6 +1691,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -1583,6 +1736,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "energy",
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -1633,6 +1787,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "water",
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1682,6 +1837,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "vegetation",
    "tr": "4-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1725,6 +1881,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "fire",
    "tr": "16-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1768,6 +1925,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "fire",
    "tr": "5-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1811,6 +1969,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "fire",
    "tr": "5-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1854,6 +2013,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "fire",
    "tr": "16-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1898,6 +2058,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "snow",
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -1940,6 +2101,7 @@ var CATALOG = {
    "sensor": "Copernicus",
    "static": true,
    "terrain": null,
+   "theme": "terrain",
    "tr": "fixed",
    "two_periods": null,
    "type": "Topograf\u00eda",
@@ -1982,6 +2144,7 @@ var CATALOG = {
    "sensor": "Copernicus",
    "static": true,
    "terrain": "slope",
+   "theme": "terrain",
    "tr": "fixed",
    "two_periods": null,
    "type": "Topograf\u00eda",
@@ -2024,6 +2187,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "atmosphere",
    "tr": "daily",
    "two_periods": null,
    "type": "Clima",
@@ -2066,6 +2230,7 @@ var CATALOG = {
    "sensor": "Modis",
    "static": null,
    "terrain": null,
+   "theme": "atmosphere",
    "tr": "daily",
    "two_periods": null,
    "type": "Clima",
@@ -2108,6 +2273,7 @@ var CATALOG = {
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
+   "theme": "atmosphere",
    "tr": "5-days",
    "two_periods": null,
    "type": "Clima",
@@ -2150,6 +2316,7 @@ var CATALOG = {
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
+   "theme": "atmosphere",
    "tr": "16-days",
    "two_periods": null,
    "type": "Clima",
@@ -2192,6 +2359,7 @@ var CATALOG = {
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2235,6 +2403,7 @@ var CATALOG = {
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2278,6 +2447,7 @@ var CATALOG = {
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2321,6 +2491,7 @@ var CATALOG = {
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2363,6 +2534,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2406,6 +2578,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2449,6 +2622,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2491,6 +2665,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2533,6 +2708,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2575,6 +2751,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2617,6 +2794,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2659,6 +2837,7 @@ var CATALOG = {
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "monthly",
    "two_periods": null,
    "type": "Clima",
@@ -2701,6 +2880,7 @@ var CATALOG = {
    "sensor": "CHIRPS",
    "static": null,
    "terrain": null,
+   "theme": "climate",
    "tr": "daily",
    "two_periods": null,
    "type": "Clima",
@@ -2744,6 +2924,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -2787,6 +2968,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -2830,6 +3012,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -2873,6 +3056,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -2916,6 +3100,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -2959,6 +3144,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3002,6 +3188,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3045,6 +3232,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3088,6 +3276,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3131,6 +3320,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3174,6 +3364,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3216,6 +3407,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3258,6 +3450,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3300,6 +3493,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3343,6 +3537,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3385,6 +3580,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3427,6 +3623,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3469,6 +3666,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3511,6 +3709,7 @@ var CATALOG = {
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
+   "theme": "climate",
    "tr": "fixed",
    "two_periods": null,
    "type": "Clima",
@@ -3713,6 +3912,11 @@ var MonitorEO = (function () {
 	var SCF_FILTERS = ['clouds', 'water'];  // fixed: the SCF is the % of the clear observations (see fixedFilters)
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
+
+	// catalog.THEMES: the themes of the menu, each with its variables (indices) and its own analyses
+	function themes() {
+		return CATALOG.themes || [];
+	}
 
 	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
 	// ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]')
@@ -4755,7 +4959,7 @@ var MonitorEO = (function () {
 	}
 
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
@@ -4809,7 +5013,7 @@ var MonitorEO = (function () {
 			drawHelp: 'Dibuja un pol\u00edgono en el mapa: un clic por v\u00e9rtice y doble clic para cerrarlo.',
 			drawAgain: 'Dibujar otro', regionIs: 'Regi\u00f3n: ', noRegion: 'Elige primero una regi\u00f3n.',
 			mapView: 'Vista del mapa', polygon: 'Pol\u00edgono dibujado', loadingRegion: 'Cargando la regi\u00f3n\u2026',
-			variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
+			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			whereHeader: 'Solo los p\u00edxeles donde', whereOn: 'una variable est\u00e1 entre dos valores', between: 'entre',
@@ -4873,7 +5077,7 @@ var MonitorEO = (function () {
 			drawHelp: 'Draw a polygon on the map: a click per vertex and a double click to close it.',
 			drawAgain: 'Draw another', regionIs: 'Region: ', noRegion: 'Choose a region first.',
 			mapView: 'Map view', polygon: 'Drawn polygon', loadingRegion: 'Loading the region\u2026',
-			variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
+			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
@@ -4936,7 +5140,7 @@ var MonitorEO = (function () {
 		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
 		region: null, regionName: null, info: null,
-		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
+		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
@@ -5231,12 +5435,32 @@ var MonitorEO = (function () {
 		return mo.byRef(state.ref);
 	}
 
-	function variableItems() {  // without RBR, which compares two periods (Burn severity)
-		return mo.variables().filter(function (e) { return !e.two_periods; }).sort(function (a, b) {
+	// The entries of the variable menu: those of THEME (a key of catalog.THEMES; all of them without it), without RBR,
+	// which compares two periods (Burn severity)
+	function variableItems(theme) {
+		return mo.variables().filter(function (e) {
+			return !e.two_periods && (!theme || e.theme === theme);
+		}).sort(function (a, b) {
 			return a.index < b.index ? -1 : a.index > b.index ? 1 : a.sensor < b.sensor ? -1 : a.sensor > b.sensor ? 1 :
 				a.ref - b.ref;
 		}).map(function (e) {
 			return {value: e.ref, label: [e.index, e.sensor, e.m + ' m', e.col.split('/').pop()].join(' \u00b7 ')};
+		});
+	}
+
+	// The theme KEY ('all': every variable): its variables in the menu, and the first of them if the one chosen is not
+	// one of them
+	function setTheme(key) {
+		state.theme = key;
+		var items = variableItems(key === 'all' ? null : key);
+		if (items.length && !items.some(function (i) { return i.value === state.ref; })) return setVariable(items[0].value);
+		render();
+	}
+
+	// Whether the theme chosen has the analysis NAME of its own (e.g. burn_severity, of the fires)
+	function themeHas(name) {
+		return state.theme === 'all' || mo.themes().some(function (th) {
+			return th.key === state.theme && (th.analyses || []).indexOf(name) >= 0;
 		});
 	}
 
@@ -5279,7 +5503,11 @@ var MonitorEO = (function () {
 
 	function variableWidgets() {
 		var e = entry();
-		var w = [header(t('variable')), select(variableItems(), state.ref, setVariable, '340px')];
+		var themes = mo.themes().map(function (th) { return {value: th.key, label: th[state.lang] || th.en}; });
+		var w = [header(t('theme')), select(themes.concat([{value: 'all', label: t('allThemes')}]), state.theme,
+			setTheme, '340px')];
+		w.push(header(t('variable')));
+		w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '340px'));
 		var name = state.lang === 'en' ? e.vname_en : e.vname;
 		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'p\u00edxel ') + e.m + ' m', e.dr, e.ft]
 			.filter(function (x) { return x; }).join(' \u00b7 '), SMALL));
@@ -5958,14 +6186,24 @@ var MonitorEO = (function () {
 
 	function render() {
 		controls.clear();
+		var fb = mo.CATALOG.about.feedback;
 		controls.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '22px', stretch: 'horizontal'}),
 			button(t('language'), function () {
 				state.lang = state.lang === 'es' ? 'en' : 'es';
 				render();
 			})));
 		controls.add(ui.Label(t('subtitle'), SMALL));
-		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(), fireWidgets(),
-			aboutWidgets()].forEach(function (ws) {
+		// suggestions and errors: an issue of GitHub or the anonymous form, filled with the app and its version
+		controls.add(button(fb[state.lang].button, function () {
+			state.feedbackOpen = !state.feedbackOpen;
+			render();
+		}));
+		if (state.feedbackOpen) {
+			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
+			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
+		}
+		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});
 	}

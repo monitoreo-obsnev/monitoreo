@@ -36,6 +36,14 @@ pixel queries. Decide with the developer, and write the decision in the PR.
   result needs a title and facts (`report.py`). Read the README of an example: no period for a layer without dates, no
   filters that were not applied.
 - **English texts** in every tool, and the same names and wording in all of them.
+- **Menus by themes.** In the QGIS plugin and the Earth Engine app the user first chooses a theme of
+  `catalog.THEMES`, then a variable of it. The general analyses (maps, time series, trends, comparisons, exports) are
+  in every theme; an analysis of one kind of variable is listed in the `analyses` of its theme, and the app shows its
+  section only there (see `themeHas` in `gee/ui.js`). A new kind of functionality gets its own theme in both menus.
+- **Suggestions and errors.** Every tool with a window (QGIS plugin, Earth Engine app) has the button "Suggest a change
+  or report an error", with the links of `about.feedback(tool, version)`: an issue of GitHub (templates in
+  `.github/ISSUE_TEMPLATE`) or the anonymous Google Form of the team. A new tool with a window gets it too, and its
+  name in `about.TOOLS` and in the options of the form.
 
 ## Bug fixes
 
