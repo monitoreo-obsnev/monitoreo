@@ -1216,8 +1216,10 @@ class Assistant:
 		except ValueError:
 			result = {'text': texts[0]}
 		if not images and isinstance(result, dict) and str(result.get('file', '')).endswith('.tif'):
-			preview = await asyncio.to_thread(report.tif_preview, result['file'], result.get('palette'),
-			                                  result.get('min'), result.get('max'))
+			style = report.map_style(tool, args, result) or {}  # its main band, with the colours of MonitorEO
+			preview = await asyncio.to_thread(report.tif_preview, result['file'], style.get('palette'),
+			                                  style.get('min'), style.get('max'), band=style.get('band', 1),
+			                                  classes=style.get('classes'))
 			images = [preview] if preview else []
 		item = {'id': len(self.results) + 1, 'tool': tool, 'args': args, 'result': result,
 		        'image': images[0] if images else None, 'title': title}
@@ -1346,8 +1348,12 @@ class Assistant:
 			labels, rows = table
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
 		if isinstance(result, dict):
-			if result.get('palette'):
-				card['legend'] = {k: result.get(k) for k in ('min', 'max', 'palette')}
+			style = report.map_style(tool, args, result)
+			if style and style.get('classes'):  # the burn severity: the classes of the USGS
+				card['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']}
+				                              for c in style['classes']]}
+			elif style:
+				card['legend'] = {k: style.get(k) for k in ('min', 'max', 'palette')}
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
 			for k in ('csv', 'file', 'readme'):
 				if isinstance(result.get(k), str):

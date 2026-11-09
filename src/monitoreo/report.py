@@ -22,8 +22,8 @@ import os
 import re
 import urllib.request
 
-from . import __version__, catalog, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, is_static, period_text, \
+from . import __version__, catalog, fire, references, services, trends
+from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, default_title, fire_variable, is_static, period_text, \
 	python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
@@ -116,6 +116,10 @@ th { background: var(--soft); }
 th:first-child, td:first-child, td.text { text-align: left; }
 .legend { display: flex; align-items: center; gap: 8px; font-size: .85em; }
 .legend .bar { height: 12px; width: 220px; border: 1px solid var(--line); }
+.legend.classes { flex-wrap: wrap; gap: 4px 14px; }
+.legend .class { display: inline-flex; align-items: center; gap: 5px; }
+.legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none;
+                  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8em; word-break: break-all;
        display: block; background: var(--soft); padding: 6px 8px; }
 footer { border-top: 2px solid var(--accent); margin-top: 32px; padding-top: 12px; font-size: .85em; }
@@ -432,8 +436,9 @@ def _item(item, n, names, annex, refs=()):
 		src = image if str(image).startswith('data:') else _data_url(image) if os.path.exists(image) else None
 		if src:
 			out.append(f'<figure><img src="{src}" alt="{_e(title)}">')
-			if isinstance(result, dict) and result.get('palette'):
-				out.append(_legend(result))
+			style = map_style(tool, args, result)
+			if style:
+				out.append(_class_legend(style['classes']) if style.get('classes') else _legend({**result, **style}))
 			out.append('</figure>')
 	table = item_table(tool, result, args) if item.get('table', True) else None
 	if table:
@@ -554,9 +559,38 @@ def _pixel(lon, lat, zoom):
 	return (lon + 180) / 360 * n, (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n
 
 
-def tif_preview(path, palette=None, vmin=None, vmax=None, width=900):
-	"""A PNG (data: URL) of the first band of a GeoTIFF with the colours PALETTE from VMIN to VMAX (default: its
-	percentiles 5 and 95), at most WIDTH pixels wide; None without GDAL or matplotlib, or if it cannot read it."""
+def map_style(tool, args, result):
+	"""How the map of the GeoTIFF of a result is drawn, as in the other tools of MonitorEO: {'band' (its number),
+	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}])} for the burn severity, its band severity with
+	the colours of the classes of the USGS; {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
+	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); None for
+	those without them."""
+	if not isinstance(result, dict):
+		return None
+	bands = result.get('bands') or []
+	if tool == 'burn_severity':
+		if 'severity' in bands:
+			return {'band': bands.index('severity') + 1, 'classes': fire.legend()}
+		if 'rbr' in bands:
+			return {'band': bands.index('rbr') + 1, 'min': fire.RBR_RANGE[0], 'max': fire.RBR_RANGE[1],
+			        'palette': list(reversed(trends.DIVERGING))}
+		return None
+	if result.get('palette'):
+		return {'band': 1, **{k: result.get(k) for k in ('min', 'max', 'palette')}}
+	return None
+
+
+def class_label(c):
+	"""The label of a class of the burn severity in a legend, with its dNBR: «Low severity (dNBR 0.1 to 0.27)»."""
+	low, high = c.get('dnbr_min'), c.get('dnbr_max')
+	dnbr = f'< {_num(high)}' if low is None else f'≥ {_num(low)}' if high is None else f'{_num(low)} to {_num(high)}'
+	return f"{c['label']} (dNBR {dnbr})"
+
+
+def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, classes=None):
+	"""A PNG (data: URL) of the band BAND (default: the first) of a GeoTIFF with the colours PALETTE from VMIN to VMAX
+	(default: its percentiles 5 and 95) or, with CLASSES ([{'value', 'color' ('#rrggbb')}]), with the colour of each
+	class; at most WIDTH pixels wide; None without GDAL or matplotlib, or if it cannot read it."""
 	try:
 		import io
 		import numpy as np
@@ -565,18 +599,22 @@ def tif_preview(path, palette=None, vmin=None, vmax=None, width=900):
 		from osgeo import gdal
 		gdal.UseExceptions()
 		ds = gdal.Open(path)
-		band = ds.GetRasterBand(1)
+		b = ds.GetRasterBand(band)
 		step = max(1, int(math.ceil(ds.RasterXSize / width)))
-		a = band.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
-		nodata = band.GetNoDataValue()
+		a = b.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
+		nodata = b.GetNoDataValue()
 		a = np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
 		if a.count() == 0:
 			return None
+		buf = io.BytesIO()
+		if classes:  # the colour of each class (nearest pixel), transparent outside them
+			rgba = _colours(a.astype('float64').filled(np.nan), {'type': 'categories', 'classes': classes})
+			plt.imsave(buf, rgba, format='png')
+			return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
 		lo, hi = (vmin, vmax) if vmin is not None and vmax is not None else np.percentile(a.compressed(), [5, 95])
 		cmap = colors.LinearSegmentedColormap.from_list('p', ['#' + c.lstrip('#') for c in palette or
 		                                                      ['440154', '21918c', 'fde725']])
 		cmap.set_bad(alpha=0)
-		buf = io.BytesIO()
 		plt.imsave(buf, a, cmap=cmap, vmin=lo, vmax=hi, format='png')
 		return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
 	except Exception:  # a preview never breaks a result
@@ -599,6 +637,12 @@ def _legend(result):
 	return (f'<figcaption class="legend"><span>{_num(result.get("min"))}</span>'
 	        f'<span class="bar" style="background: linear-gradient(to right, {colours})"></span>'
 	        f'<span>{_num(result.get("max"))}{" " + _e(unit) if unit else ""}</span></figcaption>')
+
+
+def _class_legend(classes):
+	items = ''.join(f'<span class="class"><span class="swatch" style="background: {_e(c["color"])}"></span>'
+	                f'{_e(class_label(c))}</span>' for c in classes)
+	return f'<figcaption class="legend classes">{items}</figcaption>'
 
 
 def _table(labels, rows):
