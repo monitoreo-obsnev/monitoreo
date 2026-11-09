@@ -1,0 +1,7 @@
+---
+type: llm
+focus: trace
+weight: 1
+---
+
+The result matches this description: Creates a branch release-<plugin version> from origin/main, raises the package version (pyproject.toml, src/monitoreo/__init__.py, r/monitoreo/DESCRIPTION) and the QGIS plugin version (metadata.txt) by one patch step, commits with the subject "monitoreo X and QGIS plugin Y: ...", runs the checks of a release (offline tests, no % in metadata.txt, build_plugin if possible), and stops before pushing or tagging: it explains that the tag goes after the PR is merged and asks first. 
