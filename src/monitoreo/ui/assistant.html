@@ -118,6 +118,9 @@ th:first-child, td:first-child { text-align: left; }
 ol.refs { padding-left: 1.6em; margin: 6px 0; font-size: .85em; }
 ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 .legend .bar { height: 12px; width: 200px; max-width: 50vw; border: 1px solid var(--line); }
+.legend.classes { flex-wrap: wrap; gap: 4px 14px; }
+.legend .class { display: inline-flex; align-items: center; gap: 5px; }
+.legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none; }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .85em; margin: 0 2px 6px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--line);
@@ -676,6 +679,17 @@ function mapButton(id) {  // shows the map of the result ID
   return b;
 }
 
+// The legend of a map: a bar from min to max with its palette, or a colour per class (the burn severity of the USGS)
+function legendItems(lg) {
+  if (lg.classes) {
+    return lg.classes.map(c => el('span', {class: 'class'}, el('span', {class: 'swatch', style: `background: ${c.color}`}),
+                                  el('span', {text: c.label})));
+  }
+  const colours = lg.palette.map(c => '#' + c.replace('#', '')).join(', ');
+  return [el('span', {text: fmt(lg.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
+          el('span', {text: fmt(lg.max) + (lg.unit ? ' ' + lg.unit : '')})];
+}
+
 function resultCard(e) {
   const check = el('input', {type: 'checkbox', 'data-id': e.id});
   check.checked = true;
@@ -684,12 +698,7 @@ function resultCard(e) {
        el('span', {class: 'muted'}, el('label', {}, check, ' In the report'), e.table ? ' · ' : '',
           e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Table in the report') : '')));
   if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
-  if (e.legend) {
-    const colours = e.legend.palette.map(c => '#' + c.replace('#', '')).join(', ');
-    card.append(el('div', {class: 'legend'}, el('span', {text: fmt(e.legend.min)}),
-      el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
-      el('span', {text: fmt(e.legend.max) + (e.legend.unit ? ' ' + e.legend.unit : '')})));
-  }
+  if (e.legend) card.append(el('div', {class: e.legend.classes ? 'legend classes' : 'legend'}, ...legendItems(e.legend)));
   if (e.table) card.append(table(e.table));
   if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
@@ -859,11 +868,8 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
   }
   const lg = $('maplegend');
   lg.replaceChildren();
-  if (m.legend) {
-    const colours = m.legend.palette.map(c => '#' + c.replace('#', '')).join(', ');
-    lg.append(el('span', {text: fmt(m.legend.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
-              el('span', {text: fmt(m.legend.max) + (m.legend.unit ? ' ' + m.legend.unit : '')}));
-  }
+  lg.classList.toggle('classes', Boolean(m.legend && m.legend.classes));
+  if (m.legend) lg.append(...legendItems(m.legend));
   mapHint();
 }
 

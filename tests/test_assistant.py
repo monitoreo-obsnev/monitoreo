@@ -597,6 +597,88 @@ def test_geotiff_preview(tmp_path, monkeypatch):
 	assert 'Done:' in a.messages[-1]['content'] and '0.9' not in a.messages[-1]['content']
 
 
+def _burn_tif(path):
+	"""A GeoTIFF of burn_severity: bands dnbr, severity (a column of each class, -2 to 4), nbr_before and nbr_after."""
+	import numpy as np
+	from osgeo import gdal, osr
+	gdal.UseExceptions()
+	ds = gdal.GetDriverByName('GTiff').Create(path, 70, 10, 4, gdal.GDT_Float32)
+	srs = osr.SpatialReference()
+	srs.ImportFromEPSG(32630)
+	ds.SetProjection(srs.ExportToWkt())
+	ds.SetGeoTransform([450000, 10, 0, 4090000, 0, -10])
+	classes = np.repeat(np.arange(-2, 5, dtype='float32'), 10)[None, :].repeat(10, axis=0)
+	dnbr = np.linspace(-0.4, 0.9, 700, dtype='float32').reshape(10, 70)  # a viridis of the dNBR, what it showed
+	for i, a in enumerate((dnbr, classes, dnbr + 0.3, dnbr * 0 + 0.2), 1):
+		b = ds.GetRasterBand(i)
+		b.SetNoDataValue(-9999)
+		b.WriteArray(a)
+	ds = None
+
+
+def _png_colours(url):
+	"""The colours '#rrggbb' of the middle row of a PNG data: URL, one per column."""
+	import base64
+	import io
+	from matplotlib import image
+	a = image.imread(io.BytesIO(base64.b64decode(url.split(',', 1)[1])), format='png')
+	row = a[a.shape[0] // 2]
+	return ['#' + ''.join(f'{round(float(v) * 255):02x}' for v in px[:3]) for px in row]
+
+
+def test_burn_severity_with_the_colours_of_the_usgs(tmp_path, monkeypatch):
+	# the result of burn_severity showed its first band, the dNBR, with the default ramp (viridis), and no legend: its
+	# card shows the band severity with the colour of each class of the USGS, and a legend with the classes
+	pytest.importorskip('osgeo')
+	pytest.importorskip('matplotlib')
+	from monitoreo import fire
+	path = str(tmp_path / 'burn.tif')
+	_burn_tif(path)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 4, 'sum': 3.0}], 'region')
+
+	class Fire(FakeAssistant):
+		async def call(self, name, args):
+			return None, [json.dumps({'index': 'dNBR', 'classes': rows, 'burned_ha': {'region': 15.5}, 'scale': 10,
+			                          'file': path, 'bands': ['dnbr', 'severity', 'nbr_before', 'nbr_after'],
+			                          'grid': {'crs': 'EPSG:32630', 'width': 70, 'height': 10}, 'resolution': 10})], []
+
+	a = Fire({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS + [{'name': 'burn_severity', 'description': '', 'inputSchema': {
+		'type': 'object', 'properties': {k: {'type': 'string'} for k in ('start', 'end', 'other_start', 'other_end')}}}])
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'burn_severity', 'arguments': {
+			'region': {'bbox': [-3.62, 36.86, -3.5, 36.93]}, 'start': '2022-06-01', 'end': '2022-07-31',
+			'other_start': '2022-09-01', 'other_end': '2022-10-31'}})]
+
+	result = next(e for e in asyncio.run(run()) if e['type'] == 'result')
+	colours = _png_colours(result['image'])
+	usgs = ['#' + fire.COLOURS[c] for c, _, _ in fire.SEVERITY]
+	assert [colours[i * len(colours) // 7 + len(colours) // 14] for i in range(7)] == usgs  # each class, its colour
+	legend = result['legend']['classes']
+	assert [c['color'] for c in legend] == usgs
+	assert legend[0]['label'] == 'Enhanced regrowth, high (dNBR < -0.25)'
+	assert legend[3]['label'] == 'Low severity (dNBR 0.1 to 0.27)'
+	assert legend[-1]['label'] == 'High severity (dNBR ≥ 0.66)'
+	html = open(a.write_report('Fire'), encoding='utf-8').read()  # and the report, with the legend of the classes
+	assert all(f'background: {c}' in html for c in usgs) and 'Moderate-high severity (dNBR 0.44 to 0.66)' in html
+
+
+def test_rbr_with_the_colours_of_the_earth_engine_app():
+	# the RBR (band rbr, the first one) with the reversed diverging ramp from -0.5 to 0.5, as the Earth Engine app
+	from monitoreo import fire, trends
+	result = {'index': 'RBR', 'file': 'x.tif', 'bands': ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], 'stats': []}
+	style = report.map_style('burn_severity', {'index': 'RBR'}, result)
+	assert style == {'band': 1, 'min': fire.RBR_RANGE[0], 'max': fire.RBR_RANGE[1],
+	                 'palette': list(reversed(trends.DIVERGING))}
+	dnbr = report.map_style('burn_severity', {}, {**result, 'bands': ['dnbr', 'severity', 'nbr_before', 'nbr_after']})
+	assert dnbr['band'] == 2 and [c['value'] for c in dnbr['classes']] == [-2, -1, 0, 1, 2, 3, 4]
+	assert report.map_style('burn_severity', {}, {'index': 'dNBR', 'classes': []}) is None  # without its GeoTIFF
+	assert report.map_style('download_image', {}, {'palette': ['000000', 'ffffff'], 'min': 0, 'max': 1}) == {
+		'band': 1, 'min': 0, 'max': 1, 'palette': ['000000', 'ffffff']}  # the others, as before
+
+
 def test_default_model():
 	assert [m['name'] for m in assistant.RECOMMENDED][0] == assistant.DEFAULTS['model'] == 'qwen3:8b'
 	assert assistant.default_model('qwen3:8b', ['qwen3:8b', 'gpt-oss:20b']) == 'qwen3:8b'  # the chosen one, installed
