@@ -411,9 +411,7 @@ def _continuous(lo, hi, palette, symmetric=False):
 
 
 def _severity_legend():
-	return {'type': 'categories', 'classes': [
-		{'value': c, 'label': label, 'color': '#' + fire.COLOURS[c], 'dnbr_min': fire.limits(c)[0],
-		 'dnbr_max': fire.limits(c)[1]} for c, _, label in fire.SEVERITY]}
+	return {'type': 'categories', 'classes': fire.legend()}
 
 
 def _entry(variable, sensor):
