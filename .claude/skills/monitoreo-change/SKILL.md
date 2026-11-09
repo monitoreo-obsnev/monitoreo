@@ -58,6 +58,13 @@ Decide what kind of change it is, then read the reference that applies before yo
 | Documentation only | `references/docs.md` |
 | A release (new versions, tag, Zenodo) | `references/release.md` |
 
+**First check that it does not exist already.** Search the catalog (`catalog.variables()`: the same collection and
+formula, maybe under another index), `services`, the tools and the wiki for what is being asked. Someone may ask for an
+index the catalog already has under another name. The NDMI of Sentinel-2 is `N(B8,B11)`, which is exactly the LSWI of
+Sentinel-2. They may also ask for an option that a tool already has. If you find it, stop and tell the developer
+before building anything, and propose the options: use what exists, document the other name, or add an alias. A
+duplicate entry is easy to add and hard to remove once users and reports depend on it.
+
 Most changes touch more places than they seem to. Before editing, list them for the developer: the files, the tools,
 the tests and the wiki pages you will change. Then they can say if something is missing or out of scope.
 
@@ -140,8 +147,11 @@ Then, as the change requires:
 - **Push the branch**, after asking: `git push -u origin <branch>`. If HTTPS has no credentials, push to
   `git@github.com:monitoreo-obsnev/monitoreo.git <branch>`.
 - **Open the pull request** against `main` with the checklist of `.github/PULL_REQUEST_TEMPLATE.md`, ticking only what
-  was actually done. Use `gh pr create --base main --head <branch>` if `gh` is signed in. If not, write the body to a
-  file and give the developer the link `https://github.com/monitoreo-obsnev/monitoreo/compare/main...<branch>?expand=1`.
+  was actually done. For each item that does not apply, write "n/a" and why. If your branch does not have the
+  template, read it from `main` (`git show origin/main:.github/PULL_REQUEST_TEMPLATE.md`). Use
+  `gh pr create --base main --head <branch>` if `gh` is signed in. If not, write the body to a file and give the
+  developer the link `https://github.com/monitoreo-obsnev/monitoreo/compare/main...<branch>?expand=1`, where GitHub
+  fills the body from the template.
 - **Never merge your own PR, and never push to `main`.** Another member of the team reviews and merges it.
 - **After the merge** (when the developer says it is merged): push the wiki branch to `master` after asking, delete
   the code branch, and, if the catalog changed, offer to update the Earth Engine app in the Code Editor.

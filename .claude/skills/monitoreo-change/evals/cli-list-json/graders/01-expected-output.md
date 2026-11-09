@@ -1,7 +1,0 @@
----
-type: llm
-focus: trace
-weight: 1
----
-
-The result matches this description: Works on a new branch from origin/main. Adds --json to `monitoreo list` in cli.py with a test, keeps the table as the default, considers the other tools (the MCP server and R already return structured data) and says so, documents the option in the wiki pages Command-line and Línea-de-comandos, runs the offline tests and writes a PR description, without pushing. 

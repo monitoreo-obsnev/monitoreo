@@ -3,6 +3,18 @@
 A variable lives in the catalog, but users meet it through every tool, its help, its files and the wiki. Work through
 this list in order. Tick off each item, or say why it does not apply.
 
+## 0. Is it there already?
+
+List the entries of the same sensor and compare their formulas (`ft`, `f`) with the one asked for:
+
+```bash
+PYTHONPATH=src python -c "from monitoreo import catalog; [print(e['ref'], e['index'], e['sensor'], e['ft'], e.get('f')) for e in catalog.variables()]"
+```
+
+An index often has several names in the literature. For example, the NDMI and the LSWI are the same normalized
+difference of NIR and SWIR1. If the formula is already there, stop and ask the developer before adding anything (see
+step 3 of `SKILL.md`).
+
 ## 1. The entry
 
 - **A plain variable** (a band, an expression of bands, or a normalized difference `N(b1,b2)` of a collection) is an
