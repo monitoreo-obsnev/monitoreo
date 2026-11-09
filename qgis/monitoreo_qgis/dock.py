@@ -702,9 +702,13 @@ class MonitorEODock(QDockWidget):
 			args['where'] = where
 		return args
 
-	def quality_args(self):
-		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2)."""
-		quality = {k: w.isChecked() for k, w in self.filters.items()}
+	def quality_args(self, own=False):
+		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2). OWN: those the
+		user chose, also while a variable with fixed filters is selected (elevation, slope, cloud or snow cover
+		frequency, which grey them out), for the analyses that compute other variables (the burn severity, the NBR)."""
+		chosen = self.chosen_filters if own and self.chosen_filters is not None else \
+			{k: w.isChecked() for k, w in self.filters.items()}
+		quality = dict(chosen)
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		return quality
 
@@ -1260,7 +1264,7 @@ class MonitorEODock(QDockWidget):
 		except Exception as e:
 			self.message(str(e), 'Warning')
 			return
-		quality = self.quality_args()
+		quality = self.quality_args(own=True)  # the NBR, whatever the variable selected
 		sensor, index = self.fire_sensor.currentData(), self.fire_index.currentData()
 		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'burn_severity' + ('_rbr' if index == 'RBR' else ''))
 
@@ -1270,6 +1274,10 @@ class MonitorEODock(QDockWidget):
 			                              where=where)
 
 		def done(res):
+			if not any((r.get('ha') or 0) > 0 for r in res.get('classes') or res.get('stats') or []):
+				self.message(f"{res['title'].split(' | ')[0]}: no values in the region (no images in a period, or all "
+				             'filtered out)', 'Warning', 15)
+				return
 			res['label'] = res['title']
 			res['kind'] = 'burn'
 			res['args'] = {'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],

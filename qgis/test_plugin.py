@@ -301,6 +301,10 @@ dock.compare_on.setChecked(False)
 # RBR over a part of the fire of Sierra Bermeja (September 2021), their layers coloured as in the other tools
 from monitoreo import fire, trends  # noqa: E402
 assert dock.theme.currentData() is None and dock.fire_box.isVisibleTo(dock)  # all the variables: every analysis
+# it computes the NBR with the filters the user chose, also while a variable with fixed filters greys them out
+dock.variable.setCurrentIndex(dock.variable.findText('ELEVATION · Copernicus', Qt.MatchFlag.MatchStartsWith))
+assert not dock.filters['clouds'].isChecked() and not dock.filters['clouds'].isEnabled()
+assert dock.quality_args()['clouds'] is False and dock.quality_args(own=True)['clouds'] is True
 dock.theme.setCurrentIndex(dock.theme.findData('vegetation'))
 assert not dock.fire_box.isVisibleTo(dock)
 dock.theme.setCurrentIndex(dock.theme.findData('fire'))

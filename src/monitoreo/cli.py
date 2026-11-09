@@ -138,7 +138,7 @@ def main(argv=None):
 		p.add_argument('--png')
 	p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, or the RBR')
 	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat'),
-	               help='Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984)')
+	               help='Sentinel-2 (10 m, 20 m with --index RBR; since 2017) or Landsat (30 m, since 1984)')
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-5.23, 36.47, -5.10, 36.57]}\'')
 	p.add_argument('--where', help=WHERE_HELP.replace('over the period,', 'over the period before the fire,'))
 	p.add_argument('--start', required=True, help='first day of the period before the fire')

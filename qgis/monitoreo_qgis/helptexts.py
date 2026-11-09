@@ -173,9 +173,9 @@ HELP = {
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'series_list':
 		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '
-		'press <b>Show</b> '
-		'to open its window again, with the chart, the table and the buttons <b>Save CSV…</b> and <b>Save '
-		'chart…</b>.</p><p>The list is lost when QGIS is closed: save what you want to keep.</p>'
+		'press <b>Show</b> to open its window again, with its chart (if it has one), its table and the buttons to save '
+		'them: <b>Save CSV…</b>, <b>Save chart…</b> and, for a burn severity, <b>Save GeoTIFF…</b>.</p>'
+		'<p>The list is lost when QGIS is closed: save what you want to keep.</p>'
 		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'trend_step':
 		'<p>Parts of the year whose trend is computed over the years of the period: <b>Year</b> (the whole year, or '
@@ -236,7 +236,8 @@ HELP = {
 	'fire_sensor':
 		'<p>The images of the burn severity: <b>Sentinel-2</b> (10 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
 		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m.</p>'
-		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>) and its conditions of '
+		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
+		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
 		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
