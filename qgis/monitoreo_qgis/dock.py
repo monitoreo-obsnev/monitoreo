@@ -22,11 +22,10 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import catalog, services, steps, trends  # noqa: E402
+from monitoreo import catalog, fire, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
-from .styles import burn_style  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
@@ -1281,15 +1280,16 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f'Burn severity ({index}, {sensor})', work, done)
 
 	def add_burn_layer(self, res):
-		"""Add the GeoTIFF of the burn severity RES coloured as in the other tools (see burn_style): the classes of the
-		USGS of its band severity, with their names in the legend, or the RBR from red (burned) to green (regrowth)."""
+		"""Add the GeoTIFF of the burn severity RES coloured as in the other tools (fire.map_style, as the assistant):
+		the classes of the USGS of its band severity, with their names and dNBR in the legend, or the RBR from red
+		(burned) to green (regrowth)."""
 		name = res['title']
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS could not open {res['file']}")
-		style = burn_style(res)
+		style = fire.map_style(res.get('bands'))
 		if style and style.get('classes'):
-			paletted(layer, style['band'], style['classes'])
+			paletted(layer, style['band'], [dict(c, label=fire.class_label(c)) for c in style['classes']])
 		elif style:
 			pseudocolor(layer, style['min'], style['max'], style['palette'], band=style['band'])
 		layer.setAbstract(f"MonitorEO: {name}, pixels of {res['resolution']:g} m, bands {', '.join(res['bands'])}. "

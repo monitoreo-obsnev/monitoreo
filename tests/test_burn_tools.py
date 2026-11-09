@@ -1,6 +1,7 @@
 """The burn severity (services.burn_severity) in the tools that offer it besides the MCP server: the command line
-(monitoreo burn) and the QGIS plugin (its help, the colours of its layer and its place in the theme Fire), without
-Earth Engine and without QGIS. qgis/test_plugin.py runs the plugin with QGIS and Earth Engine."""
+(monitoreo burn) and the QGIS plugin (its help, the colours of its layer, the same as in the assistant, and its place
+in the theme Fire), without Earth Engine and without QGIS. qgis/test_plugin.py runs the plugin with QGIS and Earth
+Engine."""
 
 import json
 import os
@@ -96,33 +97,38 @@ def test_the_command_line_refuses_wrong_arguments(burn, capsys):
 
 
 @pytest.fixture
-def plugin(monkeypatch):
-	"""The modules of the QGIS plugin that do not need QGIS (helptexts, styles)."""
+def helptexts(monkeypatch):
+	"""The help of the QGIS plugin, which does not need QGIS."""
 	monkeypatch.syspath_prepend(os.path.join(ROOT, 'qgis'))
 	for name in [m for m in sys.modules if m.startswith('monitoreo_qgis')]:
 		monkeypatch.delitem(sys.modules, name)
-	import monitoreo_qgis.helptexts as helptexts
-	import monitoreo_qgis.styles as styles
-	return helptexts, styles
+	import monitoreo_qgis.helptexts as module
+	return module
 
 
-def test_the_layer_of_the_plugin_has_the_colours_of_the_other_tools(plugin):
-	_, styles = plugin
-	style = styles.burn_style({'bands': ['dnbr', 'severity', 'nbr_before', 'nbr_after']})
+def test_the_maps_of_the_burn_severity_have_the_same_colours_in_every_tool():
+	"""fire.map_style draws the GeoTIFF of the burn severity in the QGIS plugin and in the assistant (report.map_style):
+	the classes of the USGS of the band severity, or the band rbr with the reversed diverging ramp from -0.5 to 0.5."""
+	from monitoreo import report
+	style = fire.map_style(['dnbr', 'severity', 'nbr_before', 'nbr_after'])
 	assert style['band'] == 2  # the band severity
 	assert [c['value'] for c in style['classes']] == [c for c, _, _ in fire.SEVERITY]
 	assert [c['color'] for c in style['classes']] == ['#' + fire.COLOURS[c] for c, _, _ in fire.SEVERITY]
-	labels = [c['label'] for c in style['classes']]
-	assert labels[0] == 'Enhanced regrowth, high (dNBR < -0.25)'
+	labels = [fire.class_label(c) for c in style['classes']]
+	assert labels[0] == 'Enhanced regrowth, high (dNBR < -0.25)' and labels[2] == 'Unburned (dNBR -0.1 to 0.1)'
 	assert labels[3] == 'Low severity (dNBR 0.1 to 0.27)' and labels[-1] == 'High severity (dNBR ≥ 0.66)'
-	rbr = styles.burn_style({'bands': ['rbr', 'dnbr', 'nbr_before', 'nbr_after']})
+	assert [report.class_label(c) for c in style['classes']] == labels
+	rbr = fire.map_style(('rbr', 'dnbr', 'nbr_before', 'nbr_after'))
 	assert rbr == {'band': 1, 'min': -0.5, 'max': 0.5, 'palette': list(reversed(trends.DIVERGING))}
 	assert rbr['palette'][0] == trends.DIVERGING[-1] and (rbr['min'], rbr['max']) == fire.RBR_RANGE
-	assert styles.burn_style({'bands': ['difference']}) is None and styles.burn_style({}) is None
+	assert fire.map_style(['difference']) is None and fire.map_style(None) is None
+	for bands, expected in ((['dnbr', 'severity', 'nbr_before', 'nbr_after'], style), (['rbr', 'dnbr'], rbr)):
+		assert report.map_style('burn_severity', {}, {'bands': bands}) == expected  # the assistant, the same
+	dock = _read('qgis', 'monitoreo_qgis', 'dock.py')
+	assert "fire.map_style(res.get('bands'))" in dock and 'fire.class_label(c)' in dock  # and the QGIS plugin
 
 
-def test_the_help_of_the_plugin_explains_the_burn_severity(plugin):
-	helptexts, _ = plugin
+def test_the_help_of_the_plugin_explains_the_burn_severity(helptexts):
 	for key in ('fire_sensor', 'fire_index', 'fire_before', 'fire_after'):
 		assert 'More in the manual' in helptexts.HELP[key], key
 		assert f'{helptexts.about.MANUAL}/' in helptexts.HELP[key]

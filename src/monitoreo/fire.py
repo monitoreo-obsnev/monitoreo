@@ -52,11 +52,35 @@ def limits(cls):
 
 
 def legend():
-	"""The classes with their colours, for the legends of the maps (those of the assistant, its reports and the
-	viewer): [{'value', 'label', 'color' ('#rrggbb'), 'dnbr_min', 'dnbr_max'}], from enhanced regrowth, high, to high
-	severity."""
+	"""The classes with their colours, for the legends of the maps (those of the assistant, its reports, the QGIS
+	plugin and the viewer): [{'value', 'label', 'color' ('#rrggbb'), 'dnbr_min', 'dnbr_max'}], from enhanced regrowth,
+	high, to high severity."""
 	return [{'value': c, 'label': label, 'color': '#' + COLOURS[c], 'dnbr_min': limits(c)[0],
 	         'dnbr_max': limits(c)[1]} for c, _, label in SEVERITY]
+
+
+def class_label(c):
+	"""The label of a class (one of legend()) in a legend, with its dNBR: «Low severity (dNBR 0.1 to 0.27)»."""
+	num = lambda v: '0' if v == 0 else f'{v:.4g}'  # noqa: E731
+	low, high = c.get('dnbr_min'), c.get('dnbr_max')
+	dnbr = f'< {num(high)}' if low is None else f'≥ {num(low)}' if high is None else f'{num(low)} to {num(high)}'
+	return f"{c['label']} (dNBR {dnbr})"
+
+
+def map_style(bands):
+	"""How the GeoTIFF of a burn severity with the bands BANDS is drawn, the same in every tool (the assistant and its
+	reports, the QGIS plugin; the Earth Engine app and the viewer have these colours too): {'band' (its number),
+	'classes' (legend())} for the dNBR, its band severity with the colours of the classes of the USGS; {'band', 'min',
+	'max', 'palette'} for the RBR, its band rbr with the diverging ramp of the trends reversed (burned in red) from
+	RBR_RANGE; None without those bands."""
+	bands = list(bands or [])
+	if 'severity' in bands:
+		return {'band': bands.index('severity') + 1, 'classes': legend()}
+	if 'rbr' in bands:
+		from .trends import DIVERGING
+		return {'band': bands.index('rbr') + 1, 'min': RBR_RANGE[0], 'max': RBR_RANGE[1],
+		        'palette': list(reversed(DIVERGING))}
+	return None
 
 
 def classify(dnbr):
