@@ -159,8 +159,24 @@ Then, as the change requires:
   developer the link `https://github.com/monitoreo-obsnev/monitoreo/compare/main...<branch>?expand=1`, where GitHub
   fills the body from the template.
 - **Never merge your own PR, and never push to `main`.** Another member of the team reviews and merges it.
-- **After the merge** (when the developer says it is merged): push the wiki branch to `master` after asking, delete
-  the code branch, and, if the catalog changed, offer to update the Earth Engine app in the Code Editor.
+- **After the merge**, when the developer says it is merged and `git fetch origin` shows it in `main`:
+  - push the wiki branch to `master`, after asking;
+  - if the catalog changed, offer to update the Earth Engine app in the Code Editor.
+- **Merged branches are always deleted** (team decision, 2026-11-09):
+  - **The code branch on GitHub.** The workflow `.github/workflows/delete-merged-branch.yml` deletes it when its PR is
+    merged. If it is still there, delete it: `git push origin --delete <branch>`.
+  - **Locally**, delete the branch, and the clone's own copy:
+
+    ```bash
+    git switch main && git pull --ff-only
+    git branch -d <branch>
+    git worktree remove <path>   # only if the work had a worktree of its own
+    ```
+
+    `git branch -d` refuses a branch that is not merged. Do not force it with `-D`: if it refuses, look at what is
+    missing first.
+  - **The wiki branch**, local and remote, once it is merged into the wiki's `master`.
+  - Set `git config fetch.prune true` in both clones, so that `git fetch` forgets the branches deleted on GitHub.
 
 ## 8. Report
 

@@ -62,3 +62,5 @@ GitHub only shows the wiki's `master`, and the wiki has no pull requests. So:
 4. When the code PR is merged: fetch, check the branch merges into `origin/master` without conflicts, merge it, and
    push `master` after asking the developer. Pushing the wiki before the code is merged documents something users
    don't have yet.
+5. Then delete the wiki branch: `git branch -d <branch>`, and `git push origin --delete <branch>` if it was ever
+   pushed. Merged branches are always deleted.
