@@ -26,6 +26,25 @@ def test_catalog():
 		catalog.find('NDVI', 'Planet')
 
 
+def test_app_has_the_catalog():
+	"""The catalog of the Earth Engine app (gee/catalog.js, written by gee/build.py) is that of the package: run
+	gee/build.py after changing catalog.json or catalog.py."""
+	path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gee', 'catalog.js')
+	with open(path, encoding='utf-8') as f:
+		text = f.read()
+	app = {e['ref']: e for e in json.loads(text[text.index('{'):text.rindex('}') + 1])['variables']}
+	entries = catalog.variables()
+	assert sorted(app) == sorted(e['ref'] for e in entries), 'run gee/build.py: the app has other variables'
+	for e in entries:
+		for k, v in app[e['ref']].items():
+			if k not in ('fk', 'fb'):  # the formula with the band names of Earth Engine
+				assert v == e.get(k), f"run gee/build.py: {k} of {e['ref']} {e['index']} differs in the app"
+	# the script of the app (monitoreo_app.js) carries that catalog, in ASCII
+	with open(path.replace('catalog.js', 'monitoreo_app.js'), encoding='ascii') as f:
+		script = f.read()
+	assert ''.join(c if ord(c) < 128 else f'\\u{ord(c):04x}' for c in text) in script, 'run gee/build.py'
+
+
 def test_rbr_in_the_catalog():
 	# RBR (Silva-Cardoza et al. 2022): the NBR of B8A and B12 in Sentinel-2, NIR and SWIR2 in Landsat; it compares two
 	# periods, so only burn_severity computes it

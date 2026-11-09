@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: add-ndmi-variable
+expected_outcome: |
+  Works on a new branch from origin/main. Notices that the catalog already has LSWI of Sentinel-2 (ref 4) with exactly
+  the formula asked for, (B8 - B11) / (B8 + B11), and tells the developer before adding a duplicate entry, proposing
+  what to do (an alias, the name NDMI in the help, or nothing). Whatever it changes keeps the rules of the team: a
+  branch, references with a verified DOI, UDUNITS units, tests, the help of the tools, the wiki in Spanish and English,
+  and no push.
