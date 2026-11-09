@@ -238,7 +238,7 @@ HELP = {
 		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m.</p>'
 		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
-		'<b>Region</b>.</p>'
+		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':
 		'<ul><li><b>dNBR</b>: NBR before the fire minus NBR after it, in the 7 classes of the USGS (Key &amp; Benson '
@@ -261,7 +261,7 @@ HELP = {
 	'fire_after':
 		'<p>A period <b>after the fire</b>, once it is out: the median of its images is the NBR after. The 1 or 2 '
 		'months after it ends measure the first effects; a year later (the same season), the effects that last.</p>'
-		'<p>At first, those of the fire of Sierra Bermeja (Málaga, 8-14 September 2021).</p>'
+		'<p>At first, those of the example of the manual: the fire of August 2023 in Teide National Park.</p>'
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 }
 

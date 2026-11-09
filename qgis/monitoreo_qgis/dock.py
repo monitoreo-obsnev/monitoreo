@@ -41,9 +41,10 @@ REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
 FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
 FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)', 'RBR')]
-# the two periods of the burn severity, at first those of the fire of Sierra Bermeja (Málaga), 8-14 September 2021
-FIRE_DATES = {'before_start': '2021-07-15', 'before_end': '2021-08-31', 'after_start': '2021-09-20',
-              'after_end': '2021-10-31'}
+# the two periods of the burn severity, at first those of the example of the manual: the fire of August 2023 in Teide
+# National Park (Tenerife)
+FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_start': '2023-09-15',
+              'after_end': '2023-11-30'}
 POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
