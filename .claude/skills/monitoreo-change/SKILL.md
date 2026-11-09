@@ -22,8 +22,8 @@ in order, and tell the developer what you are doing at each step, in their langu
 
 - **Never commit on `main`.** Use one branch per piece of work. Changes reach `main` only through a pull request on
   GitHub (team decision, 2026-11-09), because other people are working on `main` at the same time.
-- **Ask before anything that leaves this computer**: pushing a branch, opening a PR, pushing the wiki, tagging a
-  release, updating the Earth Engine app in the Code Editor or deploying the broker. Show what will be published, then
+- **Ask before anything that leaves this computer**: pushing a branch, opening or merging a PR, pushing the wiki,
+  tagging a release, updating the Earth Engine app in the Code Editor or deploying the broker. Show what will be published, then
   wait for a clear yes. An approval covers only the step it was given for.
 - **Say where it computes.** Everything computes in Google Earth Engine. Before you run anything that computes (`pytest -m ee`,
   `qgis/test_plugin.py`, `gee/build.py`, the CLI, MCP tools), say so and name the account and project it will use (the
@@ -158,8 +158,11 @@ Then, as the change requires:
   `gh pr create --base main --head <branch>` if `gh` is signed in. If not, write the body to a file and give the
   developer the link `https://github.com/monitoreo-obsnev/monitoreo/compare/main...<branch>?expand=1`, where GitHub
   fills the body from the template.
-- **Never merge your own PR, and never push to `main`.** Another member of the team reviews and merges it.
-- **After the merge**, when the developer says it is merged and `git fetch origin` shows it in `main`:
+- **Merge it when the developer says so** (team decision, 2026-11-09: whoever opens a PR may merge it; nobody else has
+  to review it first). Check first that GitHub can merge it (`gh pr view <n> --json mergeable`), that `main` is merged
+  in and the tests pass; for stacked PRs, merge them in order. Use a merge commit, as the history does:
+  `gh pr merge <n> --merge --delete-branch`. **Never push to `main`**: everything reaches it through a PR.
+- **After the merge**, when `git fetch origin` shows it in `main`:
   - push the wiki branch to `master`, after asking;
   - if the catalog changed, offer to update the Earth Engine app in the Code Editor.
 - **Merged branches are always deleted** (team decision, 2026-11-09):
