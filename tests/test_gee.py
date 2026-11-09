@@ -29,6 +29,16 @@ SIERRA_BERMEJA = {'bbox': [-5.23, 36.47, -5.10, 36.57]}  # fire of September 202
 LAGUNAS = {'bbox': [-3.40, 37.03, -3.33, 37.07]}  # the glacial lakes of Sierra Nevada, below the Mulhacén
 
 CASES = {
+	# cloud frequency (CF) of MODIS Terra, Sentinel-2 and Landsat; precipitation of ERA5-Land; WorldClim (an image)
+	'series_cf_modis': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                    'spec': {'ref': 108, 'period': ['2023-01-01', '2023-03-31']}},
+	'series_cf_s2': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                 'spec': {'ref': 110, 'period': ['2023-01-01', '2023-02-28']}},
+	'series_cf_landsat': {'kind': 'series', 'region': GUAJARES, 'step': 'annual', 'metric': 'mean', 'stat': 'mean',
+	                      'spec': {'ref': 111, 'period': ['2023-01-01', '2023-12-31']}},
+	'series_precip_era5': {'kind': 'series', 'region': GUAJARES, 'step': 'annual', 'metric': 'sum', 'stat': 'mean',
+	                       'spec': {'ref': 112, 'period': ['2023-01-01', '2023-12-31']}},
+	'map_bio01_worldclim': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 125}},
 	'series_s2_monthly': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                      'spec': {'ref': 27, 'period': ['2021-05-01', '2021-07-31']}},
 	'series_landsat_two_regions': {'kind': 'series', 'region': TWO, 'step': 'annual', 'metric': 'max', 'stat': 'median',
@@ -83,7 +93,7 @@ def _spec_args(s):
 def python(c):
 	"""The result of the case C with this package."""
 	s, region = c['spec'], c['region']
-	start, end = s['period']
+	start, end = s.get('period') or (None, None)  # none for the fixed layers (WorldClim, elevation)
 	if c['kind'] == 'series':
 		out = services.time_series(region, None, None, start, end, step=c['step'], stat=c['stat'],
 		                           **dict(_spec_args(s), metric=c['metric']))

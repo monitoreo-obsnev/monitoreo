@@ -133,9 +133,13 @@ def check_dates(spec, what='time series, trends or comparisons'):
 
 
 def _static_spec(spec):
-	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band and terrain)."""
+	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band, terrain, scale and
+	offset)."""
 	e = entry_of(spec)
-	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'))
+	if e.get('image_asset'):  # known to be an image (WorldClim): no need to ask Earth Engine
+		_types[e['col']] = 'IMAGE'
+	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'), scale=e.get('scale'),
+	            offset=e.get('offset'))  # e.g. the temperatures of WorldClim are in tenths of a degree
 
 
 def _span(spec):
@@ -256,8 +260,9 @@ def describe(spec):
 	if k == 'catalog':
 		e = entry_of(spec)
 		d.update({'monitoreo_ref': e['ref'], 'variable': e['vname_en'], 'collection': e['col'],
-		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'), 'unit': e['unit'],
-		          'udunits': catalog.udunits(e['unit']),
+		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'),
+		          'unit': catalog.unit_of(e['unit'], d.get('metric')),
+		          'udunits': catalog.udunits(catalog.unit_of(e['unit'], d.get('metric'))),
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]

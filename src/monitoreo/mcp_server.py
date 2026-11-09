@@ -58,6 +58,12 @@ snow cover frequency (SCF, Landsat) is the % of the clear observations of each p
 (variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
 series, trends or comparisons.
+The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
+with clouds: always with metric "mean" and no pixel filters (pass no quality). Climate: precipitation (PRECIP of
+ERA5-Land and TerraClimate, monthly; of CHIRPS, daily), air temperature (TMEAN, TMIN, TMAX of ERA5-Land; TMIN, TMAX
+of TerraClimate) and water balance of TerraClimate (PET, AET, CWD, SOILM, VPD): the totals of a period (e.g. the
+annual precipitation) are the metric "sum" (step "annual" for each year); the 19 bioclimatic variables of WorldClim
+(BIO01 to BIO19, climate of 1960-1990) are fixed layers, without dates, like the elevation.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an

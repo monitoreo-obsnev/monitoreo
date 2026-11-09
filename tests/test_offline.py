@@ -14,8 +14,10 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 39  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat and
-	# the elevation and slope of the Copernicus DEM
+	assert len(entries) == 75  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
+	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS and the 19 of WorldClim
+	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -106,6 +108,51 @@ def test_scf_in_the_catalog():
 	assert services._ylabel(services.make_spec('NDSI', 'Landsat', '2020-10-01', '2021-05-31')) == '[unitless]'
 
 
+def test_unit_of_the_sums():
+	"""The sum of a rate per month or per day (the annual precipitation) is a total in mm, in the results and in the
+	metadata of the files; the other metrics keep the unit of the catalog."""
+	from monitoreo import catalog, services, variable
+	assert catalog.unit_of('[mm/month]', 'sum') == '[mm]'
+	assert catalog.unit_of('[mm/day]', 'sum') == '[mm]'
+	assert catalog.unit_of('[mm/month]', 'mean') == '[mm/month]'
+	assert catalog.unit_of('[°C]', 'sum') == '[°C]'
+	spec = services.make_spec('PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31', metric='sum')
+	assert services._unit(spec) == '[mm]'
+	assert variable.describe(spec)['udunits'] == 'mm'
+	spec = services.make_spec('PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31')
+	assert services._unit(spec) == '[mm/month]'
+
+
+def test_cloud_frequency_and_climate_in_the_catalog():
+	# cloud frequency (CF): % of the observations with clouds, of MODIS Terra and Aqua, Sentinel-2 and Landsat; its
+	# only metric is the mean and it has no pixel filters (clouds are what it measures)
+	cfs = [e for e in catalog.variables() if e['index'] == 'CF']
+	assert [(e['ref'], e['sensor'], e['col']) for e in cfs] == [
+		(108, 'Modis', 'MODIS/061/MOD09GA'), (109, 'Modis', 'MODIS/061/MYD09GA'),
+		(110, 'Sentinel-2', 'COPERNICUS/S2_SR_HARMONIZED'), (111, 'Landsat', 'LANDSAT')]
+	for e in cfs:
+		assert sensors.is_cf(e) and sensors.fixed_filters(e) == [] and e['metric'] == 'mean' and e['unit'] == '[%]'
+		assert not any(sensors.filters(e, {'clouds': True}).values()) and 'wilson2016' in e['references']
+		assert sensors.parse_formula(e)[0] == 'cf'
+	assert sensors.parse_formula(cfs[2]) == ('cf', ['cs_cdf']) and catalog.find('cf', 'modis')['ref'] == 108
+	with pytest.raises(ValueError, match="only takes the metric 'mean'"):
+		services.make_spec('CF', 'Modis', '2023-01-01', '2023-12-31', metric='median')
+	# climate: ERA5-Land, TerraClimate and CHIRPS (series), WorldClim (fixed layers), without pixel filters
+	precip = {e['sensor']: e for e in catalog.variables() if e['index'] == 'PRECIP'}
+	assert set(precip) == {'ERA5-Land', 'TerraClimate', 'CHIRPS'}
+	assert precip['ERA5-Land']['scale'] == 1000 and precip['ERA5-Land']['unit'] == '[mm/month]'
+	assert precip['CHIRPS']['unit'] == '[mm/day]' and precip['CHIRPS']['col'] == 'UCSB-CHC/CHIRPS/V3/DAILY_SAT'
+	assert catalog.find('TMEAN', 'ERA5-Land')['offset'] == -273.15 and catalog.find('TMAX', 'TerraClimate')['scale'] == 0.1
+	assert not any(sensors.filters(precip['ERA5-Land']).values())
+	bio = [e for e in catalog.variables() if e['sensor'] == 'WorldClim']
+	assert [e['index'] for e in bio] == [f'BIO{i:02d}' for i in range(1, 20)] and all(e['static'] for e in bio)
+	assert catalog.find('BIO01', 'WorldClim')['scale'] == 0.1 and catalog.find('BIO04', 'WorldClim')['scale'] == 0.01
+	assert catalog.find('BIO12', 'WorldClim')['unit'] == '[mm]'
+	spec = services.make_spec('BIO01', 'WorldClim')
+	assert variable.is_static(spec) and variable._static_spec(spec)['scale'] == 0.1
+	assert all(catalog.udunits(e['unit']) for e in catalog.variables())
+
+
 def test_elevation_and_slope_in_the_catalog():
 	# elevation and slope of the Copernicus DEM GLO-30: fixed layers, without dates (maps and their statistics only)
 	for index, unit, terrain in (('ELEVATION', '[m]', None), ('SLOPE', '[°]', 'slope')):
@@ -114,7 +161,7 @@ def test_elevation_and_slope_in_the_catalog():
 			'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 30, unit, terrain, True)
 		assert sensors.fixed_filters(e) == [] and not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
 		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
-	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107]
+	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144))
 	# no metric, period nor season: one spec, named without them
 	spec = services.make_spec('SLOPE', 'Copernicus')
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)

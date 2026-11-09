@@ -85,6 +85,26 @@
   "COPERNICUS/S2_SR_HARMONIZED": {
    "start": "2017-03-28",
    "end": null
+  },
+  "MODIS/061/MOD09GA": {
+   "start": "2000-02-24",
+   "end": null
+  },
+  "MODIS/061/MYD09GA": {
+   "start": "2002-07-04",
+   "end": null
+  },
+  "ECMWF/ERA5_LAND/MONTHLY_AGGR": {
+   "start": "1950-02-01",
+   "end": null
+  },
+  "IDAHO_EPSCOR/TERRACLIMATE": {
+   "start": "1958-01-01",
+   "end": "2024-12-31"
+  },
+  "UCSB-CHC/CHIRPS/V3/DAILY_SAT": {
+   "start": "1981-01-01",
+   "end": null
   }
  },
  "datasets": {
@@ -212,6 +232,38 @@
    "references": [
     "mod09ga"
    ]
+  },
+  "MODIS/061/MOD09GA": {
+   "references": [
+    "mod09ga061"
+   ]
+  },
+  "MODIS/061/MYD09GA": {
+   "references": [
+    "myd09ga061"
+   ]
+  },
+  "ECMWF/ERA5_LAND/MONTHLY_AGGR": {
+   "references": [
+    "munozsabater2019"
+   ],
+   "credit": "Contains modified Copernicus Climate Change Service information {data_years}; neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains"
+  },
+  "IDAHO_EPSCOR/TERRACLIMATE": {
+   "references": [
+    "abatzoglou2018"
+   ]
+  },
+  "UCSB-CHC/CHIRPS/V3/DAILY_SAT": {
+   "references": [
+    "chc2025"
+   ]
+  },
+  "WORLDCLIM/V1/BIO": {
+   "references": [
+    "hijmans2005"
+   ],
+   "credit": "WorldClim 1.4 (Hijmans et al. 2005), licence CC BY-SA 4.0"
   },
   "NASA/OCEANDATA/MODIS-Aqua/L3SMI": {
    "references": [
@@ -372,6 +424,26 @@
    "citation": "Lyapustin, A., Wang, Y., Korkin, S., & Huang, D. (2018). MODIS Collection 6 MAIAC algorithm. Atmospheric Measurement Techniques, 11(10), 5741–5765.",
    "doi": "10.5194/amt-11-5741-2018"
   },
+  "wilson2016": {
+   "citation": "Wilson, A. M., & Jetz, W. (2016). Remotely sensed high-resolution global cloud dynamics for predicting ecosystem and biodiversity distributions. PLOS Biology, 14(3), e1002415.",
+   "doi": "10.1371/journal.pbio.1002415"
+  },
+  "munozsabater2021": {
+   "citation": "Muñoz-Sabater, J., Dutra, E., Agustí-Panareda, A., Albergel, C., Arduini, G., Balsamo, G., Boussetta, S., Choulga, M., Harrigan, S., Hersbach, H., Martens, B., Miralles, D. G., Piles, M., Rodríguez-Fernández, N. J., Zsoter, E., Buontempo, C., & Thépaut, J.-N. (2021). ERA5-Land: a state-of-the-art global reanalysis dataset for land applications. Earth System Science Data, 13(9), 4349–4383.",
+   "doi": "10.5194/essd-13-4349-2021"
+  },
+  "abatzoglou2018": {
+   "citation": "Abatzoglou, J. T., Dobrowski, S. Z., Parks, S. A., & Hegewisch, K. C. (2018). TerraClimate, a high-resolution global dataset of monthly climate and climatic water balance from 1958–2015. Scientific Data, 5, 170191.",
+   "doi": "10.1038/sdata.2017.191"
+  },
+  "funk2015": {
+   "citation": "Funk, C., Peterson, P., Landsfeld, M., Pedreros, D., Verdin, J., Shukla, S., Husak, G., Rowland, J., Harrison, L., Hoell, A., & Michaelsen, J. (2015). The climate hazards infrared precipitation with stations—a new environmental record for monitoring extremes. Scientific Data, 2, 150066.",
+   "doi": "10.1038/sdata.2015.66"
+  },
+  "hijmans2005": {
+   "citation": "Hijmans, R. J., Cameron, S. E., Parra, J. L., Jones, P. G., & Jarvis, A. (2005). Very high resolution interpolated climate surfaces for global land areas. International Journal of Climatology, 25(15), 1965–1978.",
+   "doi": "10.1002/joc.1276"
+  },
   "rizzoli2017": {
    "citation": "Rizzoli, P., Martone, M., Gonzalez, C., Wecklich, C., Borla Tridon, D., Bräutigam, B., Bachmann, M., Schulze, D., Fritz, T., Huber, M., Wessel, B., Krieger, G., Zink, M., & Moreira, A. (2017). Generation and performance assessment of the global TanDEM-X digital elevation model. ISPRS Journal of Photogrammetry and Remote Sensing, 132, 119–139.",
    "doi": "10.1016/j.isprsjprs.2017.08.008"
@@ -523,6 +595,22 @@
   "mod09ga": {
    "citation": "Vermote, E., & Wolfe, R. (2015). MOD09GA MODIS/Terra Surface Reflectance Daily L2G Global 1km and 500m SIN Grid V006 [Data set]. NASA Land Processes Distributed Active Archive Center.",
    "doi": "10.5067/MODIS/MOD09GA.006"
+  },
+  "mod09ga061": {
+   "citation": "Vermote, E., & Wolfe, R. (2021). MODIS/Terra Surface Reflectance Daily L2G Global 1km and 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD09GA.061"
+  },
+  "myd09ga061": {
+   "citation": "Vermote, E., & Wolfe, R. (2021). MODIS/Aqua Surface Reflectance Daily L2G Global 1km and 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MYD09GA.061"
+  },
+  "munozsabater2019": {
+   "citation": "Muñoz Sabater, J. (2019). ERA5-Land monthly averaged data from 1950 to present [Data set]. Copernicus Climate Change Service (C3S) Climate Data Store (CDS).",
+   "doi": "10.24381/cds.68d2bb30"
+  },
+  "chc2025": {
+   "citation": "Climate Hazards Center (2025). CHIRPS: Rainfall estimates from rain gauge and satellite observations, version 3 [Data set]. University of California, Santa Barbara.",
+   "doi": "10.15780/G2JQ0P"
   },
   "nasa_srtmgl1": {
    "citation": "NASA JPL (2013). NASA Shuttle Radar Topography Mission Global 1 arc second [Data set]. NASA Land Processes Distributed Active Archive Center.",

@@ -185,7 +185,8 @@ whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point),
 regions: MODIS, or a monthly or annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
-- Sensor: "Sentinel-2", "Landsat" or "Modis". The variable, as in the catalog (NDVI, EVI, NDWI, LST...).
+- Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS" or \
+"WorldClim". The variable, as in the catalog (NDVI, EVI, NDWI, LST, PRECIP...).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
@@ -194,6 +195,16 @@ are always removed, whatever the quality), so pass no quality. For the snow seas
 - Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
 "Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.
+- Cloud frequency (how often there are clouds: % of the observations with clouds): variable "CF", sensor "Modis" \
+(daily: the climate of clouds), "Sentinel-2" or "Landsat" (only when they pass); always with metric "mean" and \
+no quality (no pixel filter applies).
+- Climate: precipitation "PRECIP" (sensor "ERA5-Land" or "TerraClimate", monthly; "CHIRPS", daily, 5 km, \
+60°S-60°N), air temperature "TMEAN", "TMIN", "TMAX" ("ERA5-Land", 11 km, since 1950; "TerraClimate" TMIN \
+and TMAX, 4.6 km, 1958-2024) and water balance of "TerraClimate" ("PET", "AET", "CWD" climatic water deficit, \
+"SOILM" soil moisture, "VPD"). The total of a period (the annual precipitation) is metric "sum": step \
+"annual" for each year, or in maps temporal "annual" with interannual "mean" for the mean annual total. \
+Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-1990, 1 km): fixed layers, \
+without dates, like the elevation.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
@@ -228,6 +239,8 @@ Landsat, or Sentinel-2 only since 2017.
 2012 and March 2013 there are no Landsat images in the catalog.
 - MODIS: pixel of 250-1000 m, daily images or composites of 8-16 days, since 2000. For big regions, seasonality and \
 the variables that only MODIS gives (evapotranspiration, LAI, aerosols).
+- Climate (ERA5-Land, TerraClimate, CHIRPS, WorldClim): models and interpolations, not images: pixels of 1 to 11 km, \
+for the climate of a region, not of a plot; no clouds or filters.
 - MonitorEO discards the pixels with clouds, water, snow or aerosols, depending on the variable. In high mountains \
 snow leaves few valid pixels in winter for the vegetation indices.
 - Burn severity of a fire: burn_severity with Sentinel-2 or Landsat; period before, the 3 months before the fire; \

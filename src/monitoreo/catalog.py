@@ -7,6 +7,7 @@ references of each result."""
 
 import json
 import os
+import re
 
 CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'catalog.json')
 
@@ -95,7 +96,148 @@ DEM = {
 		      'filters do not apply.',
 	},
 }
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM}  # fields of EXTRA
+# CF: cloud frequency, the % of the observations of each pixel with clouds (Wilson & Jetz 2016 computed it from the
+# MODIS cloud flags): each image is 100 (cloud) or 0 (clear), with the cloud flags of its sensor (sensors.cf_collection),
+# and the mean of the images of a pixel is its frequency. Its pixel filters are none: clouds are what it measures.
+CF_PALETTE = ['f7fbff', 'e3e8ee', 'cfd5dc', 'bbc2ca', 'a7afb8', '939ca6', '7f8994', '6b7682', '576370']
+CF = {
+	'type': 'Clima', 'type_en': 'Climate', 'type_fr': 'Climate', 'type_de': 'Climate',
+	'vname': 'Frecuencia de nubes', 'vname_en': 'Cloud frequency', 'vname_fr': 'Cloud frequency',
+	'vname_de': 'Cloud frequency', 'unit': '[%]', 'minp': 0, 'maxp': 100, 'pm': CF_PALETTE, 'pg': '#7f8994',
+	'scale': 1, 'offset': 0, 'large_areas': True,
+	'metric': 'mean',  # the only metric: the mean of the images (100 or 0) of a pixel is its frequency
+	'axis': 'Cloud Frequency (CF)',  # title of the y axis of the charts, before the unit
+	'references': ['wilson2016'],
+	'notes': {
+		'ft': 'Cloud frequency (CF): % of the observations of each pixel with clouds. Each image is 100 where its cloud '
+		      'flags say cloud and 0 where they say clear: MODIS, state_1km bits 0-1 cloudy or mixed; Sentinel-2, Cloud '
+		      'Score+ cs_cdf below 0.6 (the threshold of the cloud filter of MonitorEO); Landsat, QA_PIXEL bit 3 '
+		      '(cloud) or bit 9 (medium or high cloud confidence). Cloud shadows are not clouds. Its only metric is the '
+		      'mean, and it has no pixel filters: clouds are what it measures. MODIS (daily, 1 km) gives the frequency '
+		      'of the climate; Sentinel-2 and Landsat, with an image every 5 to 16 days, only at the time they pass.',
+		'metric': 'it is the mean of the images of each pixel (100 = cloud, 0 = clear), that is, the % of the '
+		          'observations with clouds',
+		'filters': 'none: clouds are what it measures, so no pixel filter applies',
+	},
+}
+# Climate: monthly series of ERA5-Land (reanalysis, 11 km) and TerraClimate (4.6 km), daily precipitation of CHIRPS v3
+# (5.5 km) and the bioclimatic variables of WorldClim 1.4 (1960-1990, 1 km, fixed layers). They have no pixel filters
+# (no QA bands); the totals of a period (e.g. the annual precipitation) are the metric 'sum' of their images.
+CLIMATE_TYPE = {'type': 'Clima', 'type_en': 'Climate', 'type_fr': 'Climate', 'type_de': 'Climate', 'large_areas': True}
+PRECIP_PALETTE = ['ffffff', 'deebf7', 'c6dbef', '9ecae1', '6baed6', '4292c6', '2171b5', '08519c', '08306b']
+TEMP_PALETTE = ['313695', '4575b4', '74add1', 'abd9e9', 'ffffbf', 'fee090', 'fdae61', 'f46d43', 'd73027', 'a50026']
+WATER_PALETTE = ['ffffe5', 'fff7bc', 'fee391', 'fec44f', 'fe9929', 'ec7014', 'cc4c02', '993404', '662506']
+SOIL_PALETTE = ['8c510a', 'bf812d', 'dfc27d', 'f6e8c3', 'c7eae5', '80cdc1', '35978f', '01665e', '003c30']
+ERA5L = dict(CLIMATE_TYPE, sensor='ERA5-Land', col='ECMWF/ERA5_LAND/MONTHLY_AGGR', m=11132, tr='monthly',
+             dr='1950/02/01-now (a few months behind)', scale=1, offset=0, pg='#2171b5',
+             references=['munozsabater2021'],
+             notes={'ft': 'ERA5-Land (ECMWF, Copernicus Climate Change Service): a reanalysis of the land at 0.1° (some '
+                          '11 km), monthly, from 1950 to a few months ago: a model fed with observations, for the '
+                          'climate of a region, not of a plot. Precipitation in mm of each month (the sum of a year is '
+                          'its total); temperatures of the air at 2 m in °C (the mean, minimum and maximum of each '
+                          'month). No pixel filters.'})
+TERRACLIMATE = dict(CLIMATE_TYPE, sensor='TerraClimate', col='IDAHO_EPSCOR/TERRACLIMATE', m=4638, tr='monthly',
+                    dr='1958/01/01-2024/12/31', scale=1, offset=0, pg='#2171b5', references=['abatzoglou2018'],
+                    notes={'ft': 'TerraClimate: monthly climate and water balance at 1/24° (some 4.6 km), 1958-2024, '
+                                 'from WorldClim, CRU and JRA55. Precipitation, reference (PET) and actual (AET) '
+                                 'evapotranspiration and climatic water deficit (CWD = PET - AET) in mm of each month, '
+                                 'soil moisture in mm at the end of the month, vapour pressure deficit in kPa, minimum '
+                                 'and maximum temperatures in °C. No pixel filters.'})
+CHIRPS = dict(CLIMATE_TYPE, sensor='CHIRPS', col='UCSB-CHC/CHIRPS/V3/DAILY_SAT', m=5566, tr='daily',
+              dr='1981/01/01-now (60°S-60°N)', scale=1, offset=0, pg='#2171b5', references=['funk2015'],
+              notes={'ft': 'CHIRPS v3 (Climate Hazards Center): daily precipitation in mm at 0.05° (some 5.5 km) from '
+                           'satellite infrared and rain gauges, 1981 to now, only between 60°S and 60°N. The sum of a '
+                           'month or a year is its total. No pixel filters.'})
+WORLDCLIM = dict(CLIMATE_TYPE, sensor='WorldClim', col='WORLDCLIM/V1/BIO', m=928, tr='fixed',
+                 dr='fixed layer, without dates (climate of 1960-1990)', offset=0, pg='#d73027',
+                 static=True, image_asset=True, references=['hijmans2005'],  # an image, not a collection
+                 notes={'ft': 'WorldClim 1.4 (Hijmans et al. 2005): the 19 bioclimatic variables of the climate of '
+                              '1960-1990, interpolated from weather stations at 30 arc-seconds (some 1 km). Fixed '
+                              'layers, without dates: maps, GeoTIFFs and statistics of the region, but no time series, '
+                              'trends or comparisons. Licence CC BY-SA 4.0.'})
+
+
+def _climate(index, ft, names, unit, lo, hi, palette, **more):
+	"""The fields of a climate variable (see EXTRA): its index, formula, names (Spanish, English) and colour ramp."""
+	es, en = names
+	return dict({'index': index, 'ft': ft, 'f': ft, 'vname': es, 'vname_en': en, 'vname_fr': en, 'vname_de': en,
+	             'unit': unit, 'minp': lo, 'maxp': hi, 'pm': palette}, **more)
+
+
+PRECIP = ('Precipitación', 'Precipitation')
+EXTRA.update({
+	# cloud frequency of MODIS Terra and Aqua (daily, 1 km), Sentinel-2 (10 m) and Landsat (30 m)
+	108: (None, dict(index='CF', ft='CF(state_1km)', template='CF', sensor='Modis', col='MODIS/061/MOD09GA', m=1000,
+	                 tr='daily', dr='2000/02/24-now', f='state_1km bits 0-1: 1 (cloudy) or 2 (mixed) -> 100; 0 (clear) '
+	                 'or 3 (assumed clear) -> 0')),
+	109: (None, dict(index='CF', ft='CF(state_1km)', template='CF', sensor='Modis', col='MODIS/061/MYD09GA', m=1000,
+	                 tr='daily', dr='2002/07/04-now', f='state_1km bits 0-1: 1 (cloudy) or 2 (mixed) -> 100; 0 (clear) '
+	                 'or 3 (assumed clear) -> 0')),
+	110: (None, dict(index='CF', ft='CF(cs_cdf)', template='CF', sensor='Sentinel-2', col='COPERNICUS/S2_SR_HARMONIZED',
+	                 m=10, tr='5-days', dr='2017/03/28-now', f='Cloud Score+ cs_cdf < 0.6 -> 100; else 0',
+	                 references=['wilson2016', 'pasquarella2023'])),
+	111: (None, dict(index='CF', ft='CF(QA_PIXEL)', template='CF', sensor='Landsat', col='LANDSAT', m=30,
+	                 tr='16-days', dr='1984/03/16-now', f='QA_PIXEL bit 3 (cloud) or bit 9 (medium or high cloud '
+	                 'confidence) -> 100; else 0', references=['wilson2016', 'foga2017'])),
+	# ERA5-Land, monthly (temperatures in K, precipitation in m of each month)
+	112: (None, _climate('PRECIP', 'total_precipitation_sum', PRECIP, '[mm/month]', 0, 200, PRECIP_PALETTE,
+	                     template='ERA5L', scale=1000)),
+	113: (None, _climate('TMEAN', 'temperature_2m', ('Temperatura media del aire', 'Mean air temperature'), '[°C]',
+	                     -10, 35, TEMP_PALETTE, template='ERA5L', offset=-273.15)),
+	114: (None, _climate('TMIN', 'temperature_2m_min', ('Temperatura mínima del aire', 'Minimum air temperature'),
+	                     '[°C]', -20, 30, TEMP_PALETTE, template='ERA5L', offset=-273.15)),
+	115: (None, _climate('TMAX', 'temperature_2m_max', ('Temperatura máxima del aire', 'Maximum air temperature'),
+	                     '[°C]', -5, 45, TEMP_PALETTE, template='ERA5L', offset=-273.15)),
+	# TerraClimate, monthly (temperatures and water balance x 0.1, vapour pressure deficit x 0.01)
+	116: (None, _climate('PRECIP', 'pr', PRECIP, '[mm/month]', 0, 200, PRECIP_PALETTE, template='TERRACLIMATE')),
+	117: (None, _climate('TMIN', 'tmmn', ('Temperatura mínima del aire', 'Minimum air temperature'), '[°C]', -20, 30,
+	                     TEMP_PALETTE, template='TERRACLIMATE', scale=0.1)),
+	118: (None, _climate('TMAX', 'tmmx', ('Temperatura máxima del aire', 'Maximum air temperature'), '[°C]', -5, 45,
+	                     TEMP_PALETTE, template='TERRACLIMATE', scale=0.1)),
+	119: (None, _climate('PET', 'pet', ('Evapotranspiración de referencia', 'Reference evapotranspiration'),
+	                     '[mm/month]', 0, 250, WATER_PALETTE, template='TERRACLIMATE', scale=0.1)),
+	120: (None, _climate('AET', 'aet', ('Evapotranspiración real', 'Actual evapotranspiration'), '[mm/month]', 0, 150,
+	                     WATER_PALETTE, template='TERRACLIMATE', scale=0.1)),
+	121: (None, _climate('CWD', 'def', ('Déficit hídrico climático', 'Climatic water deficit'), '[mm/month]', 0, 200,
+	                     WATER_PALETTE, template='TERRACLIMATE', scale=0.1)),
+	122: (None, _climate('SOILM', 'soil', ('Humedad del suelo', 'Soil moisture'), '[mm]', 0, 300, SOIL_PALETTE,
+	                     template='TERRACLIMATE', scale=0.1)),
+	123: (None, _climate('VPD', 'vpd', ('Déficit de presión de vapor', 'Vapour pressure deficit'), '[kPa]', 0, 3,
+	                     WATER_PALETTE, template='TERRACLIMATE', scale=0.01)),
+	# CHIRPS v3, daily
+	124: (None, _climate('PRECIP', 'precipitation', PRECIP, '[mm/day]', 0, 20, PRECIP_PALETTE, template='CHIRPS')),
+})
+# WorldClim 1.4: the 19 bioclimatic variables (band, Spanish and English names, unit, colour ramp, scale)
+BIOCLIM = [
+	('Temperatura media anual', 'Annual mean temperature', '[°C]', -10, 30, 0.1),
+	('Oscilación diurna media', 'Mean diurnal range', '[°C]', 0, 20, 0.1),
+	('Isotermalidad', 'Isothermality', '[%]', 0, 100, 1),
+	('Estacionalidad de la temperatura (desviación típica)', 'Temperature seasonality (standard deviation)', '[°C]', 0,
+	 15, 0.01),
+	('Temperatura máxima del mes más cálido', 'Max temperature of the warmest month', '[°C]', 0, 45, 0.1),
+	('Temperatura mínima del mes más frío', 'Min temperature of the coldest month', '[°C]', -30, 20, 0.1),
+	('Oscilación anual de la temperatura', 'Temperature annual range', '[°C]', 0, 50, 0.1),
+	('Temperatura media del trimestre más húmedo', 'Mean temperature of the wettest quarter', '[°C]', -20, 35, 0.1),
+	('Temperatura media del trimestre más seco', 'Mean temperature of the driest quarter', '[°C]', -20, 35, 0.1),
+	('Temperatura media del trimestre más cálido', 'Mean temperature of the warmest quarter', '[°C]', -20, 35, 0.1),
+	('Temperatura media del trimestre más frío', 'Mean temperature of the coldest quarter', '[°C]', -20, 35, 0.1),
+	('Precipitación anual', 'Annual precipitation', '[mm]', 0, 3000, 1),
+	('Precipitación del mes más húmedo', 'Precipitation of the wettest month', '[mm]', 0, 500, 1),
+	('Precipitación del mes más seco', 'Precipitation of the driest month', '[mm]', 0, 200, 1),
+	('Estacionalidad de la precipitación (coeficiente de variación)', 'Precipitation seasonality (coefficient of '
+	 'variation)', '[%]', 0, 150, 1),
+	('Precipitación del trimestre más húmedo', 'Precipitation of the wettest quarter', '[mm]', 0, 1500, 1),
+	('Precipitación del trimestre más seco', 'Precipitation of the driest quarter', '[mm]', 0, 500, 1),
+	('Precipitación del trimestre más cálido', 'Precipitation of the warmest quarter', '[mm]', 0, 1500, 1),
+	('Precipitación del trimestre más frío', 'Precipitation of the coldest quarter', '[mm]', 0, 1500, 1),
+]
+for i, (es, en, unit, lo, hi, scale) in enumerate(BIOCLIM, 1):
+	EXTRA[124 + i] = (None, _climate(f'BIO{i:02d}', f'bio{i:02d}', (es, en), unit, lo, hi,
+	                                 PRECIP_PALETTE if unit == '[mm]' else TEMP_PALETTE, template='WORLDCLIM',
+	                                 band=f'bio{i:02d}', scale=scale))
+
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
+             'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -108,9 +250,21 @@ UDUNITS = {
 	'[%]': '%',  # the snow cover frequency (UDUNITS percent)
 	'[m]': 'm',  # the elevation
 	'[°]': 'degree',  # the slope, an angle (UDUNITS arc_degree)
+	'[mm]': 'mm',  # the soil moisture, the precipitation of the bioclimatic variables
+	'[mm/month]': 'mm month-1',  # monthly precipitation and water balance
+	'[mm/day]': 'mm day-1',  # daily precipitation
+	'[kPa]': 'kPa',  # the vapour pressure deficit
 }
 
 _catalog = None
+
+
+def unit_of(unit, metric=None):
+	"""The unit of a variable whose unit in the catalog is UNIT when its images are aggregated with METRIC: the sum of
+	a rate per month or per day ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]'); the other metrics
+	keep it."""
+	m = re.match(r'^\[(.+)/(?:month|day)\]$', str(unit or ''))
+	return f'[{m.group(1)}]' if m and str(metric or '').lower() == 'sum' else unit
 
 
 def udunits(unit, per_year=False):
@@ -134,8 +288,13 @@ def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
-	extra = [dict(by_ref[base] if base is not None else {}, **dict(TEMPLATES[changes['index']], **changes), ref=ref)
-	         for ref, (base, changes) in EXTRA.items() if base is None or base in by_ref]
+	extra = []
+	for ref, (base, changes) in EXTRA.items():
+		if base is not None and base not in by_ref:
+			continue
+		changes = dict(changes)
+		template = TEMPLATES[changes.pop('template', changes['index'])]
+		extra.append(dict(by_ref[base] if base is not None else {}, **dict(template, **changes), ref=ref))
 	return entries + extra
 
 

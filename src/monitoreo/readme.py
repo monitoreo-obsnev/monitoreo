@@ -88,7 +88,8 @@ def _catalog_unit(result, args):
 	if not unit and args.get('variable'):
 		try:
 			from . import catalog
-			unit = catalog.find(args['variable'], args.get('sensor'), args.get('collection'))['unit']
+			unit = catalog.unit_of(catalog.find(args['variable'], args.get('sensor'), args.get('collection'))['unit'],
+			                       args.get('metric'))
 		except (KeyError, ValueError):
 			unit = ''
 	return unit

@@ -102,6 +102,7 @@ SCF_TOA = {  # TOA collection of each Landsat collection, with its green and SWI
 	'LANDSAT/LC09/C02/T1_L2': ('LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']),
 }
 SCF_FILTERS = {'clouds', 'water'}  # fixed: the SCF is the % of the clear observations (see fixed_filters)
+CF_CLOUD_SCORE = 0.6  # cloud frequency of Sentinel-2: a pixel is cloud when its Cloud Score+ (cs_cdf) is below it
 
 
 def is_scf(entry):
@@ -109,11 +110,16 @@ def is_scf(entry):
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
 
 
+def is_cf(entry):
+	"""Whether ENTRY is the cloud frequency (formula CF(band of the cloud flags))."""
+	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('CF(')
+
+
 def fixed_filters(entry):
 	"""Pixel filters always on for ENTRY, whatever the quality, or None if they can be chosen: those of the snow cover
 	frequency, clouds and water (never snow, what it measures, nor aerosols); none for the fixed layers without dates
-	(elevation and slope)."""
-	if entry.get('static'):
+	(elevation and slope) and for the cloud frequency (clouds are what it measures)."""
+	if entry.get('static') or is_cf(entry):
 		return []
 	return [f for f in FILTERS if f in SCF_FILTERS] if is_scf(entry) else None
 
@@ -228,6 +234,8 @@ def parse_formula(entry):
 	case)."""
 	if entry.get('static'):
 		return 'static', [entry['band']]
+	if is_cf(entry):  # the band of the cloud flags (cs_cdf of Sentinel-2 comes from Cloud Score+, not from the images)
+		return 'cf', [entry['ft'].strip()[3:-1].strip()]
 	ft = entry['ft'].strip()
 	names = band_names(entry)
 	lower = {b.lower(): b for b in names}
@@ -342,6 +350,8 @@ def collection(entry, region, start, end, quality=None, resample=None):
 	kind, bands = parse_formula(entry)
 	if kind == 'scf':
 		return scf_collection(entry, region, start, end, quality, resample)
+	if kind == 'cf':
+		return cf_collection(entry, region, start, end, quality)
 	used = list(bands) if kind == 'nd' else sorted(set(bands.values()))
 
 	def compute(img):
@@ -393,3 +403,36 @@ def scf_collection(entry, region, start, end, quality, resample=None):
 		return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)
+
+
+def cf_collection(entry, region, start, end, quality):
+	"""Collection of single band images ('value', float) of the clouds of the cloud frequency (CF): 100 where the cloud
+	flags of an image say cloud, 0 where they say clear, masked where the image has no data. MODIS: state_1km bits 0-1
+	cloudy (1) or mixed (2); Sentinel-2: Cloud Score+ cs_cdf below CF_CLOUD_SCORE; Landsat: QA_PIXEL bit 3 (cloud) or
+	bit 9 (medium or high cloud confidence), without the fill pixels (bit 0)."""
+	sensor = entry['sensor']
+	if sensor == 'Sentinel-2':
+		col = ee.ImageCollection(entry['col']).filterBounds(region).filterDate(start, end)
+		col = col.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf'])
+
+		def compute(img):
+			img = ee.Image(img)
+			return img.select('cs_cdf').lt(CF_CLOUD_SCORE).multiply(100)
+	elif sensor == 'Landsat':
+		col = raw_collection(entry, region, start, end, quality)
+
+		def compute(img):
+			img = ee.Image(img)
+			qa = img.select('QA_PIXEL')
+			cloud = bits(qa, 3).eq(1).Or(bits(qa, 9).eq(1))
+			return cloud.multiply(100).updateMask(bits(qa, 0).eq(0))
+	else:  # MODIS
+		col = ee.ImageCollection(entry['col']).filterBounds(region).filterDate(start, end)
+
+		def compute(img):
+			img = ee.Image(img)
+			state = bits(img.select('state_1km'), 0, 1)
+			return state.eq(1).Or(state.eq(2)).multiply(100)
+
+	return col.map(lambda img: compute(img).toFloat().rename('value').copyProperties(ee.Image(img),
+	                                                                                ['system:time_start']))

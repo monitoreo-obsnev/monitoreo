@@ -639,7 +639,9 @@ def _named(spec, metric):
 
 
 def _unit(spec):
-	return variables.entry_of(spec)['unit'] if variables.kind(spec) == 'catalog' else ''
+	"""The unit of the values of SPEC (that of the catalog, or a total for the sums: see catalog.unit_of)."""
+	return catalog.unit_of(variables.entry_of(spec)['unit'], spec.get('metric')) if variables.kind(spec) == 'catalog' \
+		else ''
 
 
 def _ylabel(spec):
