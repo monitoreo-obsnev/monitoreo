@@ -841,7 +841,8 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
 
 let querying = false;  // whether a click on the map queries its pixel
 function mapHint() {
-  const what = current && current.map.pixel ? 'the value of a pixel and its time series' : 'the time series of a pixel';
+  const what = !current ? 'the time series of a pixel' : current.map.series === false ? 'the value of a pixel' :
+               current.map.pixel ? 'the value of a pixel and its time series' : 'the time series of a pixel';
   $('maphint').textContent = querying ? `Click on the map to see ${what} (computed in Google Earth Engine).`
                                       : `Press «Query pixel» to see ${what}.`;
 }
@@ -904,6 +905,10 @@ async function pixelAt(latlng) {
     if (r.value != null) head.append(` · ${r.label || 'value'} on this map: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
                                      (r.p_value != null ? ` (p-value ${fmt(r.p_value)})` : ''));
     else if (e.map.pixel) head.append(' · no value on this map (pixel without data)');
+    if (r.key == null) {  // a fixed layer (elevation, slope): its value, without a time series
+      box.replaceChildren(head, el('p', {text: 'A fixed layer, without dates: it has no time series.'}));
+      return;
+    }
     const keep = el('button', {type: 'button', text: 'Keep the series as a result'});
     keep.onclick = async () => {
       keep.disabled = true;

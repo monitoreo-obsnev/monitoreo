@@ -363,10 +363,17 @@ def open_end(args, said, today=None):
 	return args
 
 
+def dated(args):
+	"""Whether a map of ARGS has a period: not those of the fixed layers without dates (elevation, slope)."""
+	return bool(args.get('start') and args.get('end'))
+
+
 def main_label(m, args):
 	"""The name in the page of the map M of a result of ARGS: its interannual value, its whole period or its last
-	year."""
+	year (a fixed layer: that it has no dates)."""
 	a = m['args']
+	if not dated(a):
+		return 'Fixed layer, without dates'
 	period = report.period_text(a['start'], a['end'])
 	if m['tool'] == 'trend_map':
 		if a.get('part'):
@@ -1243,6 +1250,8 @@ class Assistant:
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
 		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
 		               'trend': m['tool'] == 'trend_map'}}  # with «Significant pixels only»
+		if not dated(m['args']):  # a fixed layer (elevation, slope): the value of a pixel, without its time series
+			out['map']['series'] = False
 		if result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
 			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
@@ -1269,10 +1278,17 @@ class Assistant:
 		item, m = self.map_of(rid, key)
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
 		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
-		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
 		unit = str(m['result'].get('unit'))
 		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
 		       'label': 'value'}
+		if not dated(a):  # a fixed layer (elevation, slope): its value at the point, and no time series
+			error, texts, _ = await self.call('region_stats', {**base, 'region': point})
+			if error:
+				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+			stats = json.loads(texts[0]) if texts else []
+			rows = stats.get('rows') if isinstance(stats, dict) else stats
+			return {**out, 'value': rows[0].get('mean') if rows else None}
+		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
 		if m['tool'] == 'trend_map':  # the trend at the pixel: Mann-Kendall and Sen of its part of the year
 			ma = m['args']
 			error, texts, _ = await self.call('trend_table', {
