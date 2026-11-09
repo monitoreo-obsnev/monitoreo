@@ -974,6 +974,42 @@ def test_map_and_pixel():
 	assert calls[0][1]['temporal'] == 'annual' and calls[1][1]['step'] == 'annual'
 
 
+def test_fixed_layers():
+	"""The maps of a fixed layer without dates (elevation, slope): their card and its name in the page, the map of
+	their statistics, and on a pixel its value without a time series (the arguments have no start nor end)."""
+	calls = []
+
+	class Maps(FakeAssistant):
+		async def call(self, name, args):
+			calls.append((name, args))
+			if name == 'region_stats':
+				return None, [json.dumps({'rows': [{'region': 'point', 'mean': 2950.0, 'n_pixels': 1}], 'unit': '[m]'})], []
+			return None, [json.dumps({**MAP, 'unit': '[m]'})], []
+
+	async def run():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {'region': {'wdpa_id': 389011}, 'variable': 'ELEVATION', 'sensor': 'Copernicus'}
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': a.titled('map_layer', args),
+		                  'result': {**MAP, 'unit': '[m]'}})
+		stats = {**args, 'variable': 'SLOPE'}
+		a.results.append({'id': 2, 'tool': 'region_stats', 'args': stats, 'image': None, 'title': 'Statistics',
+		                  'result': {'rows': [{'region': 'Sierra Nevada', 'mean': 20.1}], 'unit': '[°]'}})
+		card = a.card(a.results[0])
+		px = await a.pixel(1, -3.3, 37.05)
+		shown = await a.period_map(a.results[1])
+		return a, card, px, shown
+
+	a, card, px, shown = asyncio.run(run())
+	assert a.results[0]['title'] == 'Map of ELEVATION (Copernicus) · WDPA 389011'
+	assert card['main'] == 'Fixed layer, without dates' and card['steps'] == [] and card['map']['series'] is False
+	assert px == {'lon': -3.3, 'lat': 37.05, 'value': 2950.0, 'unit': 'm', 'label': 'value'}  # no key: no series
+	assert calls[0] == ('region_stats', {'variable': 'ELEVATION', 'sensor': 'Copernicus',
+	                                     'region': {'point': [-3.3, 37.05]}})
+	assert shown['main'] == 'Fixed layer, without dates' and shown['map']['series'] is False
+	assert calls[1] == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'SLOPE', 'sensor': 'Copernicus',
+	                                  'quick': True})
+
+
 def test_map_view(monkeypatch):
 	pytest.importorskip('PIL')
 	import base64
