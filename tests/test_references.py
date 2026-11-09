@@ -98,6 +98,16 @@ def test_cite():
 	assert 'monitoreo' not in _ids(references.of_entry(catalog.find('LAI', 'Modis')))
 	assert '[years of the data]' in references.of_entry(catalog.find('NDVI', 'Sentinel-2'))['credits'][0]
 	assert 'wdpa' in _ids(references.cite('find_protected_areas', {'text': 'Doñana'}))
+	# the cloud frequency (Wilson & Jetz 2016, and Cloud Score+ in Sentinel-2) and the climate, with their credits
+	cf = references.cite('time_series', {'variable': 'CF', 'sensor': 'Sentinel-2', 'start': '2023-01-01',
+	                                     'end': '2023-12-31'})
+	assert {'wilson2016', 'pasquarella2023', 'esa_s2_l2a'} <= set(_ids(cf)) and 'mainknorn2017' not in _ids(cf)
+	assert {'wilson2016', 'mod09ga061'} <= set(_ids(references.cite('map_layer', {'variable': 'CF', 'sensor': 'Modis'})))
+	era5 = references.cite('time_series', {'variable': 'PRECIP', 'sensor': 'ERA5-Land', 'start': '2001-01-01',
+	                                       'end': '2023-12-31'})
+	assert {'munozsabater2021', 'munozsabater2019'} <= set(_ids(era5))
+	assert era5['credits'][0].startswith('Contains modified Copernicus Climate Change Service information 2001-2023')
+	assert 'hijmans2005' in _ids(references.cite('region_stats', {'variable': 'BIO12', 'sensor': 'WorldClim'}))
 	# administrative units (FAO GAUL 2025, with its disclaimer as credit) and islands (Sayre et al. 2019)
 	gaul = references.cite('time_series', {'region': {'admin2': 141938}, 'variable': 'NDVI', 'sensor': 'Modis'})
 	assert 'fao_gaul2025' in _ids(gaul) and any(c.startswith('Source: FAO GAUL 2025') for c in gaul['credits'])

@@ -188,15 +188,22 @@ var MonitorEO = (function () {
 	};
 	var SCF_FILTERS = ['clouds', 'water'];  // fixed: the SCF is the % of the clear observations (see fixedFilters)
 
+	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
+
+	// sensors.is_cf: the cloud frequency
+	function isCf(entry) {
+		return entry.fk === 'cf';
+	}
+
 	// sensors.is_scf
 	function isScf(entry) {
 		return entry.fk === 'scf';
 	}
 
 	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
-	// none for the fixed layers without dates (elevation, slope)
+	// none for the fixed layers without dates (elevation, slope) and for the cloud frequency
 	function fixedFilters(entry) {
-		if (entry.static) return [];
+		if (entry.static || isCf(entry)) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
 	}
 
@@ -374,6 +381,7 @@ var MonitorEO = (function () {
 	function sensorCollection(entry, region, start, end, quality) {
 		quality = withQuality(quality);
 		if (isScf(entry)) return scfCollection(entry, region, start, end, quality);
+		if (isCf(entry)) return cfCollection(entry, region, start, end, quality);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
@@ -391,6 +399,33 @@ var MonitorEO = (function () {
 				out = data.expression(entry.ft, names);
 			}
 			return out.toFloat().rename('value').copyProperties(img, ['system:time_start']);
+		});
+	}
+
+	// sensors.cf_collection: the clouds of the cloud frequency, 100 where the cloud flags of an image say cloud, 0
+	// where they say clear, masked where it has no data
+	function cfCollection(entry, region, start, end, quality) {
+		var col, compute;
+		if (entry.sensor === 'Sentinel-2') {
+			col = ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end)
+				.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf']);
+			compute = function (img) { return img.select('cs_cdf').lt(CF_CLOUD_SCORE).multiply(100); };
+		} else if (entry.sensor === 'Landsat') {
+			col = rawCollection(entry, region, start, end, quality);
+			compute = function (img) {
+				var qa = img.select('QA_PIXEL');
+				return bits(qa, 3).eq(1).or(bits(qa, 9).eq(1)).multiply(100).updateMask(bits(qa, 0).eq(0));
+			};
+		} else {  // MODIS
+			col = ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end);
+			compute = function (img) {
+				var state = bits(img.select('state_1km'), 0, 1);
+				return state.eq(1).or(state.eq(2)).multiply(100);
+			};
+		}
+		return col.map(function (img) {
+			img = ee.Image(img);
+			return compute(img).toFloat().rename('value').copyProperties(img, ['system:time_start']);
 		});
 	}
 
@@ -461,8 +496,14 @@ var MonitorEO = (function () {
 	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
 	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
 	function staticImage(e, res) {
-		var col = ee.ImageCollection(e.col).select(e.band);
-		var img = col.mosaic().setDefaultProjection(col.first().projection());
+		var img;
+		if (e.image_asset) {  // an image (WorldClim), not a collection
+			img = ee.Image(e.col).select(e.band);
+		} else {
+			var col = ee.ImageCollection(e.col).select(e.band);
+			img = col.mosaic().setDefaultProjection(col.first().projection());
+		}
+		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
 		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);

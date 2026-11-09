@@ -131,6 +131,8 @@ def of_variable(entry, quality=None, period=None):
 			ids += _methods('sentinel2_scl')
 	elif entry['sensor'] == 'Landsat' and (on['clouds'] or on['water'] or on['snow']):
 		ids += _methods('landsat_qa')
+	if sensors.is_cf(entry) and entry['sensor'] == 'Sentinel-2':  # the clouds of the cloud frequency: Cloud Score+
+		cols.append(CLOUD_SCORE)
 	if sensors.is_scf(entry):  # the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow)
 		cols += [sensors.SCF_TOA[c][0] for c in list(cols) if c in sensors.SCF_TOA] + [sensors.SCF['dem']]
 	more, credits = of_datasets(cols)

@@ -55,6 +55,30 @@ def test_protected_areas():
 	assert any(p['SITE_ID'] == 389011 for p in parks)
 
 
+def test_cloud_frequency():
+	"""The % of the observations with clouds: between 0 and 100, in MODIS (daily), Sentinel-2 and Landsat."""
+	modis = services.time_series(GUAJARES, 'CF', 'Modis', '2023-01-01', '2023-12-31', step='monthly')['rows']
+	assert len(modis) == 12 and all(0 <= r['value'] <= 100 and r['n_images'] >= 25 for r in modis)
+	assert max(r['value'] for r in modis) > min(r['value'] for r in modis)  # more clouds in winter than in summer
+	s2 = services.time_series(GUAJARES, 'CF', 'Sentinel-2', '2023-01-01', '2023-03-31', step='monthly')['rows']
+	landsat = services.time_series(GUAJARES, 'CF', 'Landsat', '2023-01-01', '2023-12-31', step='annual')['rows']
+	assert all(0 <= r['value'] <= 100 for r in s2 + landsat) and landsat[0]['n_images'] > 10
+
+
+def test_climate():
+	"""Precipitation and temperature of ERA5-Land, TerraClimate and CHIRPS, and WorldClim, in their units."""
+	rain = services.time_series(GUAJARES, 'PRECIP', 'ERA5-Land', '2023-01-01', '2023-12-31', step='annual',
+	                            metric='sum')['rows'][0]
+	assert 100 < rain['value'] < 1500 and rain['n_images'] == 12  # mm in the year
+	july = services.time_series(GUAJARES, 'TMAX', 'TerraClimate', '2020-07-01', '2020-07-31', step='monthly')['rows']
+	assert 20 < july[0]['value'] < 40  # °C
+	chirps = services.time_series(GUAJARES, 'PRECIP', 'CHIRPS', '2023-01-01', '2023-12-31', step='annual',
+	                              metric='sum')['rows'][0]
+	assert 100 < chirps['value'] < 1500 and chirps['n_images'] > 300  # daily images
+	bio = services.region_stats(GUAJARES, 'BIO01', 'WorldClim')['rows'][0]
+	assert 5 < bio['mean'] < 20  # °C: the annual mean temperature, scaled from tenths of a degree
+
+
 def test_ramsar_sites():
 	sites = services.find_protected_areas('Doñana', 10, designation='ramsar')
 	assert sites and all('Ramsar' in s['DESIG_ENG'] for s in sites) and any(s['SITE_ID'] == 68175 for s in sites)
