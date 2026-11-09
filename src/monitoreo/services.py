@@ -573,9 +573,18 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	return out
 
 
-def find_protected_areas(text, limit=20):
-	"""Protected areas of WDPA whose name contains TEXT: [{SITE_ID (WDPA ID), NAME, DESIG, IUCN_CAT, ISO3, REP_AREA, ...}]."""
-	return areas.find_protected_areas(text, limit)
+def find_protected_areas(text, limit=20, designation=None):
+	"""Protected areas of WDPA whose name contains TEXT: [{SITE_ID (WDPA ID), NAME, DESIG, IUCN_CAT, ISO3, REP_AREA, ...}];
+	with DESIGNATION 'ramsar', only the Ramsar sites (Wetlands of International Importance)."""
+	return areas.find_protected_areas(text, limit, designation)
+
+
+def find_admin_units(text, level=1, country=None, limit=20):
+	"""Administrative units of FAO GAUL 2025 whose name contains TEXT: of LEVEL 1 (regions, states, provinces...) or 2
+	(provinces, districts, municipalities...), in COUNTRY (ISO3 code) if given: [{GAUL1_CODE or GAUL2_CODE, the names,
+	ISO3_CODE, DISP_EN, level}]. Use the code as {"admin1": ...} or {"admin2": ...}, and a country as
+	{"country": "ESP"}."""
+	return areas.find_admin_units(text, level, country, limit)
 
 
 # Variables ---------------------------------------------------------------------------------------------------------

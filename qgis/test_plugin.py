@@ -108,6 +108,33 @@ dock.wdpa_text.setText('Sierra Nevada')
 dock.search_wdpa()
 wait(dock)
 print('WDPA:', dock.wdpa.count(), 'areas, first:', dock.wdpa.itemText(0))
+dock.ramsar.setChecked(True)  # only the Ramsar sites
+dock.wdpa_text.setText('Doñana')
+dock.search_wdpa()
+wait(dock)
+assert dock.wdpa.count() and all('Ramsar' in dock.wdpa.itemText(i) for i in range(dock.wdpa.count()))
+dock.ramsar.setChecked(False)
+kinds = [dock.region_kind.itemData(i) for i in range(dock.region_kind.count())]
+
+# administrative units (FAO GAUL 2025), countries and islands
+dock.region_kind.setCurrentIndex(kinds.index('admin'))
+assert dock.admin_row.isVisibleTo(dock) and not dock.wdpa_row.isVisibleTo(dock)
+dock.admin_text.setText('Granada')
+dock.admin_level.setCurrentIndex(1)  # level 2
+dock.admin_country.setText('esp')
+dock.search_admin()
+wait(dock)
+assert 'Granada, Andalucía, Spain' in dock.admin.itemText(0), dock.admin.itemText(0)
+assert dock.region() == {'admin2': 141938}
+dock.region_kind.setCurrentIndex(kinds.index('country'))
+dock.country.setText('esp')
+assert dock.region() == {'country': 'ESP'}
+canvas = iface.mapCanvas()
+canvas.setDestinationCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
+canvas.setExtent(QgsRectangle(2.8, 39.5, 3.0, 39.7))  # Mallorca
+dock.region_kind.setCurrentIndex(kinds.index('island'))
+assert dock.region() == {'island_at': [2.9, 39.6]} or abs(dock.region()['island_at'][0] - 2.9) < 1e-6
+print('regions: administrative unit, country and island')
 
 # map layer over the map extent
 canvas = iface.mapCanvas()

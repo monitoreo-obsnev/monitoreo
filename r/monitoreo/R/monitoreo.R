@@ -104,8 +104,9 @@ cited <- function(df, res) {
 }
 #' Arguments shared by the functions of MonitorEO
 #'
-#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_bbox()}, \code{mo_point()},
-#'   \code{mo_geojson()} or \code{mo_sf()} (see \link{regions}). Several features give a result per feature.
+#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
+#'   \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
+#'   \link{regions}). Several features give a result per feature.
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).
 #' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
 #'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).
@@ -288,6 +289,8 @@ mo_describe <- function(variable, sensor = NULL, collection = NULL) {
 #'
 #' @param text text of their name.
 #' @param limit maximum number of areas.
+#' @param designation \code{"ramsar"}: only the Ramsar sites (Wetlands of International Importance; those that the
+#'   WDPA has only as points are not there).
 #' @return A data.frame of the protected areas whose name contains \code{text} (SITE_ID is the WDPA ID, for
 #'   \code{mo_wdpa()}), with their designation, IUCN category, country and area (km2).
 #' @references UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month
@@ -295,19 +298,45 @@ mo_describe <- function(variable, sensor = NULL, collection = NULL) {
 #' @examples
 #' \dontrun{
 #' mo_protected_areas("Sierra Nevada")
+#' mo_protected_areas("Doñana", designation = "ramsar")
 #' }
 #' @export
-mo_protected_areas <- function(text, limit = 20) {
-  rows_df(services()$find_protected_areas(text, as.integer(limit)))
+mo_protected_areas <- function(text, limit = 20, designation = NULL) {
+  if (is.null(designation)) return(rows_df(services()$find_protected_areas(text, as.integer(limit))))
+  rows_df(services()$find_protected_areas(text, as.integer(limit), designation = designation))
+}
+
+#' Administrative units of FAO GAUL 2025
+#'
+#' @param text text of their name.
+#' @param level 1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...).
+#' @param country ISO3 code of their country, e.g. \code{"ESP"} (optional).
+#' @param limit maximum number of units.
+#' @return A data.frame of the units whose name contains \code{text}, with their code (GAUL1_CODE or GAUL2_CODE, for
+#'   \code{mo_admin()}), names, country (ISO3_CODE) and full name (DISP_EN).
+#' @references FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of
+#'   the United Nations. Licence: CC BY 4.0. \url{https://data.apps.fao.org}
+#' @examples
+#' \dontrun{
+#' mo_admin_units("Granada", level = 2, country = "ESP")
+#' }
+#' @export
+mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
+  rows_df(services()$find_admin_units(text, as.integer(level), country, as.integer(limit)))
 }
 
 #' Regions of MonitorEO
 #'
 #' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
-#' by ID or by a point (\code{mo_ecoregion()}), a box (\code{mo_bbox()}), a point or a circle around it
-#' (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object (\code{mo_sf()}). Several features give a
-#' result per feature.
-#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}) or ecoregion IDs (ECO_ID).
+#' by ID or by a point (\code{mo_ecoregion()}), countries (\code{mo_country()}) and their administrative units of
+#' FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
+#' point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
+#' (\code{mo_sf()}). Several features give a result per feature.
+#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID) or codes of administrative
+#'   units (GAUL1_CODE or GAUL2_CODE of \code{mo_admin_units()}).
+#' @param iso3 ISO3 codes of countries, e.g. \code{"ESP"}.
+#' @param level level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
+#'   municipalities...).
 #' @param lon,lat longitude and latitude (degrees).
 #' @param west,south,east,north limits of the box (degrees).
 #' @param buffer radius of the circle around the point, in metres (0: the pixel at the point).
@@ -319,9 +348,19 @@ mo_protected_areas <- function(text, limit = 20) {
 #'
 #' Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., et al. (2017). An ecoregion-based
 #'   approach to protecting half the terrestrial realm. BioScience, 67(6), 534--545. \doi{10.1093/biosci/bix014}
+#'
+#' FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United
+#'   Nations. Licence: CC BY 4.0. \url{https://data.apps.fao.org}
+#'
+#' Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., et al. (2019). A new 30 meter resolution global
+#'   shoreline vector and associated global islands database for the development of standardized ecological coastal
+#'   units. Journal of Operational Oceanography, 12(sup2), S47--S56. \doi{10.1080/1755876X.2018.1529714}
 #' @examples
 #' mo_wdpa(389011)            # Sierra Nevada National Park
 #' mo_ecoregion(lon = -3.3, lat = 37.1)
+#' mo_country("ESP")
+#' mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
+#' mo_island(lon = 2.9, lat = 39.6)
 #' mo_bbox(-3.6, 36.9, -3.0, 37.2)
 #' mo_point(-3.4, 37.05, buffer = 1000)
 #' @name regions
@@ -332,6 +371,18 @@ mo_wdpa <- function(id) list(wdpa_id = as.list(as.integer(id)))
 mo_ecoregion <- function(id = NULL, lon = NULL, lat = NULL) {
   if (!is.null(id)) list(ecoregion_id = as.list(as.integer(id))) else list(ecoregion_at = list(lon, lat))
 }
+#' @rdname regions
+#' @export
+mo_country <- function(iso3) list(country = as.list(toupper(iso3)))
+#' @rdname regions
+#' @export
+mo_admin <- function(id, level = 1) {
+  stopifnot(level %in% c(1, 2))
+  stats::setNames(list(as.list(as.integer(id))), paste0("admin", level))
+}
+#' @rdname regions
+#' @export
+mo_island <- function(lon, lat) list(island_at = list(lon, lat))
 #' @rdname regions
 #' @export
 mo_bbox <- function(west, south, east, north) list(bbox = list(west, south, east, north))

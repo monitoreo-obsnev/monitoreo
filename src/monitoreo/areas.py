@@ -1,5 +1,7 @@
-"""Regions of interest: GeoJSON, vector files, protected areas (WDPA), ecoregions (RESOLVE Ecoregions 2017), boxes
-and points, as Earth Engine feature collections with a 'name' property per feature.
+"""Regions of interest: GeoJSON, vector files, protected areas (WDPA, also its Ramsar sites), ecoregions (RESOLVE
+Ecoregions 2017), administrative units (countries, their first and second levels: FAO GAUL 2025), islands (Global
+Islands, Sayre et al. 2019), boxes and points, as Earth Engine feature collections with a 'name' property per
+feature.
 
 GDAL (osgeo) is only needed to read vector files and to reproject local geometries; it is imported when used, so
 the rest works without it.
@@ -11,6 +13,13 @@ References (monitoreo.references gives them, with those of the data, with each r
       Hedao, P., Noss, R., Hansen, M., Locke, H., Ellis, E. C., Jones, B., Barber, C. V., Hayes, R., Kormos, C.,
       Martin, V., Crist, E., et al. (2017). An ecoregion-based approach to protecting half the terrestrial realm.
       BioScience, 67(6), 534–545. https://doi.org/10.1093/biosci/bix014
+    FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United
+      Nations. Licence: CC BY 4.0. https://data.apps.fao.org
+    Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., Butler, K., Van Graafeiland, K., Frye, C.,
+      Karagulle, D., Hopkins, D., Stephens, D., Kelly, K., Basher, Z., Burton, D., Cress, J., Atkins, K., Van Sistine,
+      D. P., Friesen, B., et al. (2019). A new 30 meter resolution global shoreline vector and associated global
+      islands database for the development of standardized ecological coastal units. Journal of Operational
+      Oceanography, 12(sup2), S47–S56. https://doi.org/10.1080/1755876X.2018.1529714
 """
 
 import json
@@ -22,8 +31,19 @@ ECOREGIONS = 'RESOLVE/ECOREGIONS/2017'
 ECO_FIELDS = ['ECO_ID', 'ECO_NAME', 'BIOME_NAME', 'REALM']
 WDPA = 'WCMC/WDPA/current/polygons'
 # Fields of WDPA since 2025: the WDPA ID is SITE_ID (WDPAID before) and NAME_ENG the English name (ORIG_NAME before)
-WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA', 'STATUS_YR']
-REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'bbox', 'point')
+WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'DESIG_TYPE', 'IUCN_CAT', 'ISO3', 'REP_AREA',
+               'STATUS_YR']
+RAMSAR = 'Ramsar Site'  # in DESIG_ENG of WDPA: «Wetland of International Importance (Ramsar Site)»
+# FAO GAUL 2025: the first (states, regions, provinces...) and second (districts, provinces, municipalities...) levels
+# of every country; it has no level 0, so a country is the union of its first level (simplified to 500 m: its border
+# is not needed at 30 m to compute over a whole country)
+GAUL = {1: 'FAO/GAUL/2025/level1', 2: 'FAO/GAUL/2025/level2'}
+GAUL_COUNTRIES = 'FAO/GAUL_SIMPLIFIED_500m/2025/level1'
+GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_EN'],
+               2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']}
+ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands'  # Global Islands of more than 1 km² (Sayre et al.)
+REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'country', 'admin1',
+               'admin2', 'island_at', 'bbox', 'point')
 WDPA_MAX_ERROR = 10  # metres: simplification of the protected areas fetched from WDPA (one pixel of Sentinel-2)
 
 _wdpa = {}  # protected areas already fetched: {region as JSON: [GeoJSON features]}
@@ -240,6 +260,11 @@ def region(spec):
 	  wdpa_name      exact name of a protected area in WDPA (see find_protected_areas)
 	  ecoregion_id   ECO_ID of RESOLVE Ecoregions 2017, or a list of them
 	  ecoregion_at   [lon, lat]: the ecoregion at that point
+	  country        ISO3 code of a country (e.g. 'ESP'), or a list of them (FAO GAUL 2025)
+	  admin1         GAUL1_CODE of a first-level administrative unit (region, state, province...), or a list of them
+	  admin2         GAUL2_CODE of a second-level administrative unit (province, district, municipality...), or a list
+	                 (see find_admin_units for the codes)
+	  island_at      [lon, lat]: the island (of more than 1 km²) at that point
 	  bbox           [west, south, east, north] in degrees
 	  point          [lon, lat], with buffer (metres, default 0)
 	Each feature has a 'name' property (used to label the rows of the time series). An ee.FeatureCollection is
@@ -268,6 +293,20 @@ def region(spec):
 		return _named(ee.FeatureCollection(ECOREGIONS).filter(ee.Filter.inList('ECO_ID', ids)), 'ECO_NAME')
 	if k == 'ecoregion_at':
 		return _named(ee.FeatureCollection(ECOREGIONS).filterBounds(ee.Geometry.Point(list(v))), 'ECO_NAME')
+	if k == 'country':
+		codes = [str(x).strip().upper() for x in (v if isinstance(v, (list, tuple)) else [v])]
+		return ee.FeatureCollection([_country(c) for c in codes])
+	if k in ('admin1', 'admin2'):
+		level = int(k[-1])
+		ids = [int(x) for x in (v if isinstance(v, (list, tuple)) else [v])]
+		fc = ee.FeatureCollection(GAUL[level]).filter(ee.Filter.inList(f'GAUL{level}_CODE', ids))
+		return _named(fc, 'DISP_EN')  # e.g. «Granada, Andalucía, Spain»: the names of the units repeat in other countries
+	if k == 'island_at':
+		lon, lat = list(v)
+		label = f'Island at {lat:.5f}, {lon:.5f}'
+		fc = ee.FeatureCollection(ISLANDS).filterBounds(ee.Geometry.Point([lon, lat]))
+		return fc.map(lambda f: f.set('name', ee.Algorithms.If(ee.String(f.get('Name')).length().gt(0),
+		                                                       f.get('Name'), label)))
 	if k == 'bbox':
 		return ee.FeatureCollection([ee.Feature(ee.Geometry.Rectangle(list(v), None, False), {'name': 'bbox'})])
 	geom = ee.Geometry.Point(list(v))
@@ -276,14 +315,44 @@ def region(spec):
 	return ee.FeatureCollection([ee.Feature(geom, {'name': 'point'})])
 
 
-def find_protected_areas(text, limit=20):
-	"""Protected areas of WDPA whose name (or English name) contains TEXT: [{SITE_ID (the WDPA ID), NAME, ...}]."""
+def _country(code):
+	"""The country of ISO3 CODE as a single feature: the union of its first-level units of GAUL 2025."""
+	units = ee.FeatureCollection(GAUL_COUNTRIES).filter(ee.Filter.eq('ISO3_CODE', code))
+	return ee.Feature(units.geometry(100).dissolve(100), {'name': ee.Feature(units.first()).get('GAUL0_NAME')})
+
+
+def _variants(text):
 	t = str(text).strip()
-	variants = sorted({t, t.title(), t.upper(), t.lower(), t.capitalize()})
+	return sorted({t, t.title(), t.upper(), t.lower(), t.capitalize()})
+
+
+def find_protected_areas(text, limit=20, designation=None):
+	"""Protected areas of WDPA whose name (or English name) contains TEXT: [{SITE_ID (the WDPA ID), NAME, ...}];
+	with DESIGNATION 'ramsar', only the Ramsar sites (Wetlands of International Importance)."""
+	variants = _variants(text)
 	f = ee.Filter.Or(*([ee.Filter.stringContains('NAME', s) for s in variants]
 	                   + [ee.Filter.stringContains('NAME_ENG', s) for s in variants]))
+	if designation:
+		if str(designation).strip().lower() != 'ramsar':
+			raise ValueError(f'unknown designation {designation}: use "ramsar" (or none)')
+		f = ee.Filter.And(f, ee.Filter.stringContains('DESIG_ENG', RAMSAR))
 	fc = ee.FeatureCollection(WDPA).filter(f).limit(int(limit))
 	return [x['properties'] for x in fc.map(lambda x: ee.Feature(None, x.toDictionary(WDPA_FIELDS))).getInfo()['features']]
+
+
+def find_admin_units(text, level=1, country=None, limit=20):
+	"""Administrative units of FAO GAUL 2025 of LEVEL (1: regions, states, provinces...; 2: provinces, districts,
+	municipalities...) whose name contains TEXT, in COUNTRY (ISO3 code) if given: [{GAUL1_CODE or GAUL2_CODE, its name,
+	the names of the country and of the first level, ISO3_CODE, DISP_EN (the full name), level}]."""
+	level = int(level)
+	if level not in GAUL:
+		raise ValueError('level is 1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...)')
+	f = ee.Filter.Or(*[ee.Filter.stringContains(f'GAUL{level}_NAME', s) for s in _variants(text)])
+	if country:
+		f = ee.Filter.And(f, ee.Filter.eq('ISO3_CODE', str(country).strip().upper()))
+	fc = ee.FeatureCollection(GAUL[level]).filter(f).limit(int(limit))
+	rows = fc.map(lambda x: ee.Feature(None, x.toDictionary(GAUL_FIELDS[level]))).getInfo()['features']
+	return [dict(x['properties'], level=level) for x in rows]
 
 
 # Ecoregions --------------------------------------------------------------------------------------------------------

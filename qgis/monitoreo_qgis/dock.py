@@ -35,7 +35,8 @@ TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annua
             ('Each month, then between years', 'monthly')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
-           ('Protected area (WDPA)', 'wdpa'), ('Ecoregion at the center of the map', 'ecoregion')]
+           ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
+           ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
 POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
@@ -243,6 +244,9 @@ class MonitorEODock(QDockWidget):
 		self.wdpa_text.setPlaceholderText('name of the area (e.g. Sierra Nevada)')
 		self.wdpa_text.returnPressed.connect(self.search_wdpa)
 		wl.addWidget(self.wdpa_text)
+		self.ramsar = QCheckBox('Ramsar only')
+		self.ramsar.setToolTip('Only the Ramsar sites (Wetlands of International Importance)')
+		wl.addWidget(self.ramsar)
 		b = QPushButton('Search')
 		b.clicked.connect(self.search_wdpa)
 		wl.addWidget(b)
@@ -255,6 +259,38 @@ class MonitorEODock(QDockWidget):
 		self.wdpa_field.setLayout(row)
 		f.addRow('Area', self.wdpa_field)
 		self.wdpa_label = f.labelForField(self.wdpa_field)
+		self.admin_row = QWidget()  # administrative units of FAO GAUL 2025: search by name, level and country
+		al = QHBoxLayout(self.admin_row)
+		al.setContentsMargins(0, 0, 0, 0)
+		self.admin_text = QLineEdit()
+		self.admin_text.setPlaceholderText('name of the unit (e.g. Granada)')
+		self.admin_text.returnPressed.connect(self.search_admin)
+		al.addWidget(self.admin_text)
+		self.admin_level = combo([('Level 1', 1), ('Level 2', 2)])
+		self.admin_level.setToolTip('Level 1: regions, states, provinces...; level 2: provinces, districts, '
+		                            'municipalities...')
+		al.addWidget(self.admin_level)
+		self.admin_country = QLineEdit()
+		self.admin_country.setPlaceholderText('ISO3')
+		self.admin_country.setToolTip('Country (ISO3 code, e.g. ESP): optional')
+		self.admin_country.setMaximumWidth(60)
+		al.addWidget(self.admin_country)
+		b = QPushButton('Search')
+		b.clicked.connect(self.search_admin)
+		al.addWidget(b)
+		al.addWidget(InfoButton(HELP['admin']))
+		f.addRow(self.admin_row)
+		self.admin = QComboBox()
+		f.addRow('Unit', self.admin)
+		self.admin_label = f.labelForField(self.admin)
+		self.country = QLineEdit()
+		self.country.setPlaceholderText('ISO3 code of the country (e.g. ESP)')
+		self.country_field = QWidget()
+		row = info(self.country, HELP['country'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.country_field.setLayout(row)
+		f.addRow('Country', self.country_field)
+		self.country_label = f.labelForField(self.country_field)
 		main.addWidget(box)
 
 		box = QGroupBox('Variable')
@@ -431,9 +467,12 @@ class MonitorEODock(QDockWidget):
 	def region_changed(self):
 		kind = self.region_kind.currentData()
 		self.layer_row.setVisible(kind == 'layer')
-		for w in (self.wdpa_row, self.wdpa_field, self.wdpa_label):
-			if w is not None:
-				w.setVisible(kind == 'wdpa')
+		for widgets, shown in (((self.wdpa_row, self.wdpa_field, self.wdpa_label), kind == 'wdpa'),
+		                       ((self.admin_row, self.admin, self.admin_label), kind == 'admin'),
+		                       ((self.country_field, self.country_label), kind == 'country')):
+			for w in widgets:
+				if w is not None:
+					w.setVisible(shown)
 
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
@@ -499,10 +538,25 @@ class MonitorEODock(QDockWidget):
 			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
 			c = tr.transform(canvas.extent().center())
 			return {'ecoregion_at': [c.x(), c.y()]}
+		if kind == 'island':
+			canvas = self.iface.mapCanvas()
+			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
+			c = tr.transform(canvas.extent().center())
+			return {'island_at': [c.x(), c.y()]}
 		if kind == 'wdpa':
 			if self.wdpa.currentData() is None:
 				raise ValueError('search for a protected area and choose it in the list')
 			return {'wdpa_id': self.wdpa.currentData()}
+		if kind == 'admin':
+			if self.admin.currentData() is None:
+				raise ValueError('search for an administrative unit and choose it in the list')
+			level, code = self.admin.currentData()
+			return {f'admin{level}': code}
+		if kind == 'country':
+			code = self.country.text().strip().upper()
+			if len(code) != 3:
+				raise ValueError('write the ISO3 code of the country (e.g. ESP)')
+			return {'country': code}
 		layer = self.layer.currentLayer()
 		if layer is None:
 			raise ValueError('choose a layer of polygons')
@@ -651,7 +705,23 @@ class MonitorEODock(QDockWidget):
 				                  f"(WDPA {p['SITE_ID']})", int(p['SITE_ID']))
 			self.message(f'{len(parks)} protected areas with "{text}"', 'Info', 4)
 
-		self.run_task('Search protected areas', lambda: services.find_protected_areas(text, 30), done)
+		more = {'designation': 'ramsar'} if self.ramsar.isChecked() else {}
+		self.run_task('Search protected areas', lambda: services.find_protected_areas(text, 30, **more), done)
+
+	def search_admin(self):
+		text, level = self.admin_text.text().strip(), self.admin_level.currentData()
+		country = self.admin_country.text().strip().upper() or None
+		if not text:
+			return
+
+		def done(units):
+			self.admin.clear()
+			for u in units:
+				code = u[f'GAUL{level}_CODE']
+				self.admin.addItem(f"{u.get('DISP_EN') or u[f'GAUL{level}_NAME']} (GAUL {code})", (level, int(code)))
+			self.message(f'{len(units)} administrative units with "{text}"', 'Info', 4)
+
+		self.run_task('Search administrative units', lambda: services.find_admin_units(text, level, country, 30), done)
 
 	def other_period(self):
 		"""(first day, last day) of the period to compare with the reference one, or None."""

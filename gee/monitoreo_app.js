@@ -2422,7 +2422,13 @@ var MonitorEO = (function () {
 
 	var ECOREGIONS = 'RESOLVE/ECOREGIONS/2017';
 	var WDPA = 'WCMC/WDPA/current/polygons';
-	var WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA', 'STATUS_YR'];
+	var WDPA_FIELDS = ['SITE_ID', 'NAME', 'NAME_ENG', 'DESIG', 'DESIG_ENG', 'DESIG_TYPE', 'IUCN_CAT', 'ISO3', 'REP_AREA',
+		'STATUS_YR'];
+	var RAMSAR = 'Ramsar Site';  // in DESIG_ENG: \u00abWetland of International Importance (Ramsar Site)\u00bb
+	var GAUL = {1: 'FAO/GAUL/2025/level1', 2: 'FAO/GAUL/2025/level2'};  // areas.GAUL
+	var GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_EN'],
+		2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']};
+	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
 	var WDPA_MAX_ERROR = 10;
 
 	// areas.utm_of
@@ -2435,9 +2441,44 @@ var MonitorEO = (function () {
 		return fc.map(function (f) { return f.set('name', ee.String(f.get(field))); });
 	}
 
+	// The case variants of a text searched (areas._variants)
+	function variantsOf(text) {
+		var t = String(text).trim();
+		var title = t.toLowerCase().replace(/(^|[^A-Za-z\u00c0-\u00ff])([a-z\u00e0-\u00ff])/g, function (m, a, b) {
+			return a + b.toUpperCase();
+		});
+		return [t, title, t.toUpperCase(), t.toLowerCase(), t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()]
+			.filter(function (v, i, a) { return a.indexOf(v) === i; }).sort();
+	}
+
+	// areas.find_admin_units: ee.FeatureCollection (without geometries) of the administrative units of FAO GAUL 2025
+	// of LEVEL (1 or 2) whose name contains TEXT, in COUNTRY (ISO3) if given
+	function findAdminUnits(text, level, country, limit) {
+		var f = ee.Filter.or.apply(null, variantsOf(text).map(function (v) {
+			return ee.Filter.stringContains('GAUL' + level + '_NAME', v);
+		}));
+		if (country) f = ee.Filter.and(f, ee.Filter.eq('ISO3_CODE', String(country).trim().toUpperCase()));
+		return ee.FeatureCollection(GAUL[level]).filter(f).limit(limit || 20).map(function (x) {
+			return ee.Feature(null, x.toDictionary(GAUL_FIELDS[level])).set('level', level);
+		});
+	}
+
+	// areas.region of {admin1: CODE} or {admin2: CODE}: the unit, named by its full name (DISP_EN)
+	function adminRegion(level, code) {
+		return named(ee.FeatureCollection(GAUL[level]).filter(ee.Filter.eq('GAUL' + level + '_CODE', code)), 'DISP_EN');
+	}
+
+	// areas.region of {island_at: [LON, LAT]}: the island of more than 1 km\u00b2 at that point
+	function islandAt(lon, lat) {
+		var label = 'Island at ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+		return ee.FeatureCollection(ISLANDS).filterBounds(ee.Geometry.Point([lon, lat])).map(function (f) {
+			return f.set('name', ee.Algorithms.If(ee.String(f.get('Name')).length().gt(0), f.get('Name'), label));
+		});
+	}
+
 	// areas.find_protected_areas: ee.FeatureCollection (without geometries) of the protected areas whose name
-	// contains TEXT
-	function findProtectedAreas(text, limit) {
+	// contains TEXT; with RAMSAR, only the Ramsar sites
+	function findProtectedAreas(text, limit, ramsar) {
 		var t = String(text).trim();
 		var title = t.toLowerCase().replace(/(^|[^A-Za-z\u00c0-\u00ff])([a-z\u00e0-\u00ff])/g, function (m, a, b) {
 			return a + b.toUpperCase();
@@ -2447,7 +2488,9 @@ var MonitorEO = (function () {
 		var f = [];
 		variants.forEach(function (v) { f.push(ee.Filter.stringContains('NAME', v)); });
 		variants.forEach(function (v) { f.push(ee.Filter.stringContains('NAME_ENG', v)); });
-		return ee.FeatureCollection(WDPA).filter(ee.Filter.or.apply(null, f)).limit(limit || 20).map(function (x) {
+		var filter = ee.Filter.or.apply(null, f);
+		if (ramsar) filter = ee.Filter.and(filter, ee.Filter.stringContains('DESIG_ENG', RAMSAR));
+		return ee.FeatureCollection(WDPA).filter(filter).limit(limit || 20).map(function (x) {
 			return ee.Feature(null, x.toDictionary(WDPA_FIELDS));
 		});
 	}
@@ -3024,7 +3067,8 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
-		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,
+		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
+		islandAt: islandAt,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
@@ -3060,6 +3104,10 @@ var MonitorEO = (function () {
 				'\u00e1reas protegidas, ecorregiones o tu propia zona. Calcula en Google Earth Engine: no necesitas cuenta.',
 			language: 'English',
 			region: 'Regi\u00f3n', mode_wdpa: '\u00c1rea protegida (WDPA)', mode_ecoregion: 'Ecorregi\u00f3n', mode_view: 'Vista del mapa',
+			mode_admin: 'Unidad administrativa (FAO GAUL)', mode_island: 'Isla', adminHint: 'Nombre, p. ej. Granada',
+			level1: 'Nivel 1 (regiones, provincias...)', level2: 'Nivel 2 (provincias, municipios...)',
+			countryHint: 'Pa\u00eds (ISO3, opcional)', chooseUnit: 'Elige la unidad', noUnit: 'Ninguna unidad con ese nombre.',
+			islandHelp: 'Pulsa en el mapa sobre la isla (de m\u00e1s de 1 km\u00b2).', ramsar: 'Solo sitios Ramsar',
 			mode_draw: 'Pol\u00edgono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el \u00e1rea', none: 'Ninguna \u00e1rea protegida con ese nombre.',
 			clickHelp: 'Pulsa en el mapa sobre la ecorregi\u00f3n.', useView: 'Usar la vista del mapa',
@@ -3116,6 +3164,10 @@ var MonitorEO = (function () {
 				'protected areas, ecoregions or your own area. Computed in Google Earth Engine: no account needed.',
 			language: 'Espa\u00f1ol',
 			region: 'Region', mode_wdpa: 'Protected area (WDPA)', mode_ecoregion: 'Ecoregion', mode_view: 'Map view',
+			mode_admin: 'Administrative unit (FAO GAUL)', mode_island: 'Island', adminHint: 'Name, e.g. Granada',
+			level1: 'Level 1 (regions, provinces...)', level2: 'Level 2 (provinces, municipalities...)',
+			countryHint: 'Country (ISO3, optional)', chooseUnit: 'Choose the unit', noUnit: 'No unit with that name.',
+			islandHelp: 'Click on the map over the island (of more than 1 km\u00b2).', ramsar: 'Ramsar sites only',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
 			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view',
@@ -3178,7 +3230,8 @@ var MonitorEO = (function () {
 	};
 
 	var state = {
-		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null,
+		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
+		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
 		region: null, regionName: null, info: null,
 		ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
@@ -3336,8 +3389,8 @@ var MonitorEO = (function () {
 	}
 
 	map.onClick(function (coords) {
-		if (state.mode !== 'ecoregion') return;
-		var fc = mo.ecoregionAt(coords.lon, coords.lat);
+		if (state.mode !== 'ecoregion' && state.mode !== 'island') return;
+		var fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
 		fc.aggregate_array('name').evaluate(function (names, error) {
 			if (error) return fail(error);
 			if (names && names.length) setRegion(fc, names[0]);
@@ -3353,7 +3406,7 @@ var MonitorEO = (function () {
 	function searchWdpa() {
 		state.wdpaItems = null;
 		message(t('computing'));
-		mo.findProtectedAreas(state.wdpaText, 30).evaluate(function (fc, error) {
+		mo.findProtectedAreas(state.wdpaText, 30, state.ramsar).evaluate(function (fc, error) {
 			if (error) return fail(error);
 			state.wdpaNames = {};
 			state.wdpaItems = fc.features.map(function (f) {
@@ -3369,6 +3422,30 @@ var MonitorEO = (function () {
 		});
 	}
 
+	function searchAdmin() {
+		state.adminItems = null;
+		message(t('computing'));
+		var level = state.adminLevel;
+		mo.findAdminUnits(state.adminText, level, state.adminCountry || null, 30).evaluate(function (fc, error) {
+			if (error) return fail(error);
+			state.adminNames = {};
+			state.adminItems = fc.features.map(function (f) {
+				var p = f.properties, code = p['GAUL' + level + '_CODE'];
+				state.adminNames[code] = p.DISP_EN;
+				return {value: code, label: p.DISP_EN + ' (GAUL ' + code + ')'};
+			});
+			results.style().set('shown', false);
+			if (!state.adminItems.length) message(t('noUnit'));
+			render();
+		});
+	}
+
+	function chooseAdmin(code) {
+		state.adminCode = code;
+		results.style().set('shown', false);
+		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code]);
+	}
+
 	function chooseWdpa(id) {
 		state.wdpaId = id;
 		var label = state.wdpaNames[id];
@@ -3382,7 +3459,9 @@ var MonitorEO = (function () {
 
 	function regionWidgets() {
 		var w = [header(t('region'))];
-		var modes = ['wdpa', 'ecoregion', 'view', 'draw'].map(function (m) { return {value: m, label: t('mode_' + m)}; });
+		var modes = ['wdpa', 'admin', 'ecoregion', 'island', 'view', 'draw'].map(function (m) {
+			return {value: m, label: t('mode_' + m)};
+		});
 		w.push(select(modes, state.mode, function (m) {
 			state.mode = m;
 			drawing.setShown(m === 'draw');
@@ -3396,10 +3475,31 @@ var MonitorEO = (function () {
 				state.wdpaText = text.getValue();
 				searchWdpa();
 			})));
+			w.push(ui.Checkbox({label: t('ramsar'), value: state.ramsar, style: SMALL,
+				onChange: function (v) { state.ramsar = v; }}));
 			if (state.wdpaItems && state.wdpaItems.length) {
 				w.push(ui.Select({items: state.wdpaItems, placeholder: t('chooseArea'), value: state.wdpaId,
 					onChange: chooseWdpa, style: {width: '340px'}}));
 			}
+		} else if (state.mode === 'admin') {
+			var name = ui.Textbox({placeholder: t('adminHint'), value: state.adminText,
+				onChange: function (v) { state.adminText = v; }, style: {width: '200px'}});
+			var country = ui.Textbox({placeholder: t('countryHint'), value: state.adminCountry,
+				onChange: function (v) { state.adminCountry = v; }, style: {width: '130px'}});
+			w.push(select([{value: 1, label: t('level1')}, {value: 2, label: t('level2')}], state.adminLevel,
+				function (v) { state.adminLevel = v; state.adminItems = null; render(); }, '250px'));
+			w.push(row(name, country));
+			w.push(button(t('search'), function () {
+				state.adminText = name.getValue();
+				state.adminCountry = country.getValue();
+				searchAdmin();
+			}));
+			if (state.adminItems && state.adminItems.length) {
+				w.push(ui.Select({items: state.adminItems, placeholder: t('chooseUnit'), value: state.adminCode,
+					onChange: chooseAdmin, style: {width: '340px'}}));
+			}
+		} else if (state.mode === 'island') {
+			w.push(ui.Label(t('islandHelp'), SMALL));
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
 		} else if (state.mode === 'view') {

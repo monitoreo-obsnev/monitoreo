@@ -45,10 +45,10 @@ Every result that writes files has also readme: the path of a README next to the
 with its unit in UDUNITS, how it was computed, how to reproduce it and how to cite it); give it with the files. Every
 result has references and credits: the references (with DOI) of the formula or algorithm of the variable, of
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
-(Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of
-MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat,
-Copernicus DEM). When the results go into a report, a paper or a map, end it with those references (all of them, as
-they are) and credits, and cite them in the text where each one is used.
+(Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions, FAO GAUL, Global Islands), of
+Google Earth Engine and of MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus
+Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL). When the results go into a report, a paper or a map, end it with
+those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
@@ -60,7 +60,8 @@ without dates: map_layer, region_stats, download_image and export_image_to_drive
 series, trends or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
-WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer (map tiles and preview),
+WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an
+administrative unit; then time_series (table, CSV and chart), map_layer (map tiles and preview),
 region_stats (statistics of a map) or the exports to Google Drive (export_image_to_drive,
 export_time_series_to_drive, then task_status). GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
@@ -72,7 +73,9 @@ Burn Ratio, a continuous index): burn_severity. Only for the
 administrators of the public viewer of results: publish_report, with the files written by those tools.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
-{"ecoregion_at": [lon, lat]}, {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
+{"ecoregion_at": [lon, lat]}, {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
+(administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"island_at": [lon, lat]} (the
+island at a point), {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
 features give one series per feature. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
 Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
@@ -213,11 +216,23 @@ def describe_variable(variable: str, sensor: Optional[str] = None, collection: O
 
 
 @tool
-def find_protected_areas(text: str, limit: int = 10) -> str:
+def find_protected_areas(text: str, limit: int = 10, designation: Optional[str] = None) -> str:
 	"""Protected areas of the World Database on Protected Areas (WDPA) whose name contains TEXT, with their WDPA ID
-	(SITE_ID), designation, IUCN category, country and area (km2). Use the SITE_ID as {"wdpa_id": ...}."""
+	(SITE_ID), designation, IUCN category, country and area (km2). Use the SITE_ID as {"wdpa_id": ...}. designation
+	"ramsar": only the Ramsar sites (Wetlands of International Importance; those that WDPA has only as points are
+	not there)."""
 	_ready()
-	return _text(services.find_protected_areas(text, limit))
+	return _text(services.find_protected_areas(text, limit, **({'designation': designation} if designation else {})))
+
+
+@tool
+def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, limit: int = 10) -> str:
+	"""Administrative units of FAO GAUL 2025 whose name contains TEXT: level 1 (regions, states, provinces...) or 2
+	(provinces, districts, municipalities...), in country (ISO3 code, e.g. "ESP") if given, with their code and full
+	name (DISP_EN). Use the code as {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}; a whole country is
+	{"country": "ESP"}."""
+	_ready()
+	return _text(services.find_admin_units(text, level, country, limit))
 
 
 @tool

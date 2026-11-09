@@ -4,6 +4,9 @@
 \alias{regions}
 \alias{mo_wdpa}
 \alias{mo_ecoregion}
+\alias{mo_country}
+\alias{mo_admin}
+\alias{mo_island}
 \alias{mo_bbox}
 \alias{mo_point}
 \alias{mo_geojson}
@@ -13,6 +16,12 @@ mo_wdpa(id)
 
 mo_ecoregion(id = NULL, lon = NULL, lat = NULL)
 
+mo_country(iso3)
+
+mo_admin(id, level = 1)
+
+mo_island(lon, lat)
+
 mo_bbox(west, south, east, north)
 
 mo_point(lon, lat, buffer = 0)
@@ -20,9 +29,15 @@ mo_point(lon, lat, buffer = 0)
 mo_geojson(geojson, name_field = NULL)
 }
 \arguments{
-\item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}) or ecoregion IDs (ECO_ID).}
+\item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID) or codes of administrative
+units (GAUL1_CODE or GAUL2_CODE of \code{mo_admin_units()}).}
 
 \item{lon, lat}{longitude and latitude (degrees).}
+
+\item{iso3}{ISO3 codes of countries, e.g. \code{"ESP"}.}
+
+\item{level}{level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
+municipalities...).}
 
 \item{west, south, east, north}{limits of the box (degrees).}
 
@@ -37,13 +52,17 @@ A region (a list) for the other functions.
 }
 \description{
 A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
-by ID or by a point (\code{mo_ecoregion()}), a box (\code{mo_bbox()}), a point or a circle around it
-(\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object (\code{mo_sf()}). Several features give a
-result per feature.
+by ID or by a point (\code{mo_ecoregion()}), countries (\code{mo_country()}) and their administrative units of
+FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
+point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
+(\code{mo_sf()}). Several features give a result per feature.
 }
 \examples{
 mo_wdpa(389011)            # Sierra Nevada National Park
 mo_ecoregion(lon = -3.3, lat = 37.1)
+mo_country("ESP")
+mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
+mo_island(lon = 2.9, lat = 39.6)
 mo_bbox(-3.6, 36.9, -3.0, 37.2)
 mo_point(-3.4, 37.05, buffer = 1000)
 }
@@ -53,4 +72,11 @@ UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas
 
 Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., et al. (2017). An ecoregion-based
   approach to protecting half the terrestrial realm. BioScience, 67(6), 534--545. \doi{10.1093/biosci/bix014}
+
+FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United
+  Nations. Licence: CC BY 4.0. \url{https://data.apps.fao.org}
+
+Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., et al. (2019). A new 30 meter resolution global
+  shoreline vector and associated global islands database for the development of standardized ecological coastal
+  units. Journal of Operational Oceanography, 12(sup2), S47--S56. \doi{10.1080/1755876X.2018.1529714}
 }
