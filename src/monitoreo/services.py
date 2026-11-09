@@ -240,6 +240,7 @@ def need_own_account(what='Exporting to Google Drive'):
 
 EECU_METRIC = 'earthengine.googleapis.com/project/cpu/usage_time'  # "Completed EECU-seconds" of Cloud Monitoring
 EECU_TIERS = {'Community': 150, 'Contributor': 1000, 'Partner': 100000}  # EECU-hours a month of the noncommercial tiers
+KNOWN_TIERS = {'ee-ugr-default-project': 'Contributor'}  # the tier of the projects that MonitorEO knows: its own
 EECU_LOW = 10  # percent of the EECU of the month left under which the tools warn
 EECU_TTL = 300  # seconds that an answer of eecu_usage is used again
 TIERS_URL = 'https://developers.google.com/earth-engine/guides/noncommercial_tiers'
@@ -314,11 +315,12 @@ class EECUWarning(UserWarning):
 	"""Less than EECU_LOW % of the EECU of the month are left (see eecu_warning)."""
 
 
-def eecu_limit(limit=None):
-	"""EECU-hours a month of the quota of the user's own project: LIMIT (hours, or the name of a noncommercial tier of
-	Earth Engine: Community, Contributor or Partner), the variable MONITOREO_EECU_LIMIT or 150, that of the Community
-	tier (every noncommercial project; see TIERS_URL). Earth Engine does not tell the tier of a project."""
-	limit = limit or os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'
+def eecu_limit(limit=None, project=None):
+	"""EECU-hours a month of the quota of the user's own PROJECT: that of its tier if MonitorEO knows it (KNOWN_TIERS:
+	the project of MonitorEO, Contributor), else LIMIT (hours, or the name of a noncommercial tier of Earth Engine:
+	Community, Contributor or Partner), the variable MONITOREO_EECU_LIMIT or 150, that of the Community tier (every
+	noncommercial project; see TIERS_URL). Earth Engine does not tell the tier of a project."""
+	limit = KNOWN_TIERS.get(project) or limit or os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'
 	tiers = {k.lower(): v for k, v in EECU_TIERS.items()}
 	if str(limit).strip().lower() in tiers:
 		return float(tiers[str(limit).strip().lower()])
@@ -435,7 +437,7 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 		init(warn=False)
 		if _shared:
 			raise RuntimeError('there is no project of your own: give it with init(project) or the variable EE_PROJECT')
-	own_limit = None if shared else eecu_limit(limit)
+	own_limit = None if shared else eecu_limit(limit, _project)
 	start, resets = eecu_month()
 	key = (None if shared else _project, shared)
 	hit = _eecu.get(key)

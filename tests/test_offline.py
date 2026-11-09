@@ -479,6 +479,10 @@ def test_eecu_month_and_limit():
 		(dt.datetime(2026, 12, 1, 8, tzinfo=utc), dt.date(2027, 1, 1))
 	assert services.eecu_limit() == 150 and services.eecu_limit('contributor') == 1000
 	assert services.eecu_limit('Partner') == 100000 and services.eecu_limit(250) == 250
+	# the project of MonitorEO is Contributor, whatever the setting says (its default, Community, too)
+	assert services.eecu_limit(None, 'ee-ugr-default-project') == 1000
+	assert services.eecu_limit('Community', 'ee-ugr-default-project') == 1000
+	assert services.eecu_limit(None, 'my-project') == 150
 	with pytest.raises(ValueError, match='tier'):
 		services.eecu_limit('Gold')
 
