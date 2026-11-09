@@ -108,6 +108,21 @@ def test_scf_in_the_catalog():
 	assert services._ylabel(services.make_spec('NDSI', 'Landsat', '2020-10-01', '2021-05-31')) == '[unitless]'
 
 
+def test_unit_of_the_sums():
+	"""The sum of a rate per month or per day (the annual precipitation) is a total in mm, in the results and in the
+	metadata of the files; the other metrics keep the unit of the catalog."""
+	from monitoreo import catalog, services, variable
+	assert catalog.unit_of('[mm/month]', 'sum') == '[mm]'
+	assert catalog.unit_of('[mm/day]', 'sum') == '[mm]'
+	assert catalog.unit_of('[mm/month]', 'mean') == '[mm/month]'
+	assert catalog.unit_of('[°C]', 'sum') == '[°C]'
+	spec = services.make_spec('PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31', metric='sum')
+	assert services._unit(spec) == '[mm]'
+	assert variable.describe(spec)['udunits'] == 'mm'
+	spec = services.make_spec('PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31')
+	assert services._unit(spec) == '[mm/month]'
+
+
 def test_cloud_frequency_and_climate_in_the_catalog():
 	# cloud frequency (CF): % of the observations with clouds, of MODIS Terra and Aqua, Sentinel-2 and Landsat; its
 	# only metric is the mean and it has no pixel filters (clouds are what it measures)

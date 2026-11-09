@@ -190,6 +190,13 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
+	// ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]')
+	function unitOf(entry, metric) {
+		var m = /^\[(.+)\/(?:month|day)\]$/.exec(entry.unit || '');
+		return m && metric === 'sum' ? '[' + m[1] + ']' : entry.unit;
+	}
+
 	// sensors.is_cf: the cloud frequency
 	function isCf(entry) {
 		return entry.fk === 'cf';
@@ -1165,7 +1172,7 @@ var MonitorEO = (function () {
 	}
 
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,

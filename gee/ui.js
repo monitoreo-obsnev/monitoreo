@@ -466,8 +466,9 @@
 
 	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
 	// (e.g. 'Snow Cover Frequency (SCF) [%]')
-	function axisTitle(e) {
-		return e.axis ? (e.axis + ' ' + (e.unit || '')).trim() : e.unit;
+	function axisTitle(e, metric) {
+		var unit = mo.unitOf(e, metric);
+		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
 	}
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
@@ -684,7 +685,8 @@
 				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
 			}
 			map.addLayer(band, vis, name);
-			colourBar(vis, name + (e.unit ? ' ' + e.unit : ''));
+			var unit = mo.unitOf(e, state.mapMetric);
+			colourBar(vis, name + (unit ? ' ' + unit : ''));
 			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
 			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
 			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
@@ -742,7 +744,7 @@
 				return {v: v === undefined ? null : v};
 			}))};
 		});
-		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)}, lineWidth: 1.5,
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)}, lineWidth: 1.5,
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -848,7 +850,7 @@
 					series[2 * i + 1] = {color: regions.length > 1 ? undefined : '#d62728', lineDashStyle: [6, 3],
 						pointShape: 'square'};
 				});
-				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)},
+				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
 					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name)]);
@@ -900,7 +902,7 @@
 			return {c: c};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: t('seeChart') + ' ' +
-			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e)}, hAxis: {format: '####'}, series: series,
+			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric)}, hAxis: {format: '####'}, series: series,
 			legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -915,7 +917,8 @@
 		var id = start();
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
 			var rows = mo.trendRows(yearly, step, first, state.lang);
-			var cols = [t('part'), 'n', 'τ', 'Z', 'p', t('significantShort'), e.unit ? 'Sen (' + e.unit + '/' +
+			var unit = mo.unitOf(e, state.trendMetric);
+			var cols = [t('part'), 'n', 'τ', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
 				(state.lang === 'es' ? 'año' : 'year') + ')' : 'Sen'];
 			var regions = regionsOf(rows);
 			if (regions.length > 1) cols.unshift(t('region'));
@@ -961,8 +964,9 @@
 		var output = state.output;
 		var band = img.select(output);
 		var name = title(e, [mo.partLabel(step, part, state.lang), t('o_' + output)]);
-		var unit = output === 'slope' ? e.unit + ' / ' + (state.lang === 'es' ? 'año' : 'year') :
-			output === 'intercept' ? e.unit : '';
+		var value = mo.unitOf(e, state.trendMetric);
+		var unit = output === 'slope' ? value + ' / ' + (state.lang === 'es' ? 'año' : 'year') :
+			output === 'intercept' ? value : '';
 		var id = start();
 		function add(vis) {
 			map.addLayer(band, vis, name);

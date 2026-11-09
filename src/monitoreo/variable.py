@@ -260,8 +260,9 @@ def describe(spec):
 	if k == 'catalog':
 		e = entry_of(spec)
 		d.update({'monitoreo_ref': e['ref'], 'variable': e['vname_en'], 'collection': e['col'],
-		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'), 'unit': e['unit'],
-		          'udunits': catalog.udunits(e['unit']),
+		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'),
+		          'unit': catalog.unit_of(e['unit'], d.get('metric')),
+		          'udunits': catalog.udunits(catalog.unit_of(e['unit'], d.get('metric'))),
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]

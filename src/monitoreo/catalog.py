@@ -7,6 +7,7 @@ references of each result."""
 
 import json
 import os
+import re
 
 CATALOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'catalog.json')
 
@@ -256,6 +257,14 @@ UDUNITS = {
 }
 
 _catalog = None
+
+
+def unit_of(unit, metric=None):
+	"""The unit of a variable whose unit in the catalog is UNIT when its images are aggregated with METRIC: the sum of
+	a rate per month or per day ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]'); the other metrics
+	keep it."""
+	m = re.match(r'^\[(.+)/(?:month|day)\]$', str(unit or ''))
+	return f'[{m.group(1)}]' if m and str(metric or '').lower() == 'sum' else unit
 
 
 def udunits(unit, per_year=False):

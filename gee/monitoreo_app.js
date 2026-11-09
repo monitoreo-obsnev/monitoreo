@@ -3714,6 +3714,13 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
+	// ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]')
+	function unitOf(entry, metric) {
+		var m = /^\[(.+)\/(?:month|day)\]$/.exec(entry.unit || '');
+		return m && metric === 'sum' ? '[' + m[1] + ']' : entry.unit;
+	}
+
 	// sensors.is_cf: the cloud frequency
 	function isCf(entry) {
 		return entry.fk === 'cf';
@@ -4689,7 +4696,7 @@ var MonitorEO = (function () {
 	}
 
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
@@ -5178,8 +5185,9 @@ var MonitorEO = (function () {
 
 	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
 	// (e.g. 'Snow Cover Frequency (SCF) [%]')
-	function axisTitle(e) {
-		return e.axis ? (e.axis + ' ' + (e.unit || '')).trim() : e.unit;
+	function axisTitle(e, metric) {
+		var unit = mo.unitOf(e, metric);
+		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
 	}
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
@@ -5396,7 +5404,8 @@ var MonitorEO = (function () {
 				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
 			}
 			map.addLayer(band, vis, name);
-			colourBar(vis, name + (e.unit ? ' ' + e.unit : ''));
+			var unit = mo.unitOf(e, state.mapMetric);
+			colourBar(vis, name + (unit ? ' ' + unit : ''));
 			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
 			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
 			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
@@ -5454,7 +5463,7 @@ var MonitorEO = (function () {
 				return {v: v === undefined ? null : v};
 			}))};
 		});
-		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)}, lineWidth: 1.5,
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)}, lineWidth: 1.5,
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -5560,7 +5569,7 @@ var MonitorEO = (function () {
 					series[2 * i + 1] = {color: regions.length > 1 ? undefined : '#d62728', lineDashStyle: [6, 3],
 						pointShape: 'square'};
 				});
-				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e)},
+				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
 					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name)]);
@@ -5612,7 +5621,7 @@ var MonitorEO = (function () {
 			return {c: c};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: t('seeChart') + ' ' +
-			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e)}, hAxis: {format: '####'}, series: series,
+			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric)}, hAxis: {format: '####'}, series: series,
 			legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -5627,7 +5636,8 @@ var MonitorEO = (function () {
 		var id = start();
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
 			var rows = mo.trendRows(yearly, step, first, state.lang);
-			var cols = [t('part'), 'n', '\u03c4', 'Z', 'p', t('significantShort'), e.unit ? 'Sen (' + e.unit + '/' +
+			var unit = mo.unitOf(e, state.trendMetric);
+			var cols = [t('part'), 'n', '\u03c4', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
 				(state.lang === 'es' ? 'a\u00f1o' : 'year') + ')' : 'Sen'];
 			var regions = regionsOf(rows);
 			if (regions.length > 1) cols.unshift(t('region'));
@@ -5673,8 +5683,9 @@ var MonitorEO = (function () {
 		var output = state.output;
 		var band = img.select(output);
 		var name = title(e, [mo.partLabel(step, part, state.lang), t('o_' + output)]);
-		var unit = output === 'slope' ? e.unit + ' / ' + (state.lang === 'es' ? 'a\u00f1o' : 'year') :
-			output === 'intercept' ? e.unit : '';
+		var value = mo.unitOf(e, state.trendMetric);
+		var unit = output === 'slope' ? value + ' / ' + (state.lang === 'es' ? 'a\u00f1o' : 'year') :
+			output === 'intercept' ? value : '';
 		var id = start();
 		function add(vis) {
 			map.addLayer(band, vis, name);
