@@ -23,8 +23,8 @@ import re
 import urllib.request
 
 from . import __version__, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, period_text, python_call, \
-	season_text, slug, unit_text
+from .publish import MONTHS, PARTS, SENSORS, STEPS, default_title, fire_variable, is_static, period_text, \
+	python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
@@ -55,6 +55,7 @@ METHODS = {
 	                      'of the study area and, if the recipe asks for it, of its ecoregions.',
 	'burn_severity': 'dNBR: NBR of the period before the fire minus NBR of the period after it, with the severity '
 	                 'classes of the USGS (Key and Benson, 2006). Burned area: dNBR ≥ 0.1.',
+	'static': 'A fixed layer, without dates: its value on each pixel (no period, temporal metric or pixel filters).',
 	'burn_severity_rbr': 'RBR (Relativized Burn Ratio, Parks et al., 2014): dNBR / (NBR before + 1.001), with the NBR '
 	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
 	                     '(2022), without phenological correction and without the factor 1000 of the articles. A '
@@ -202,6 +203,8 @@ def item_title(tool, args, result=None):
 	"""The title in English of the result of a call."""
 	if tool in TITLES:
 		v = f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
+		if tool in ('region_stats', 'map_layer') and (is_static(args) or not (args.get('start') and args.get('end'))):
+			return TITLES[tool].split(',')[0].format(var=v)  # elevation, slope: no period
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
 		                           season=season_text(args.get('season')))
@@ -225,7 +228,8 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Variable', f"{entry.get('name', '')} ({entry.get('index', '')})"))
 		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
 		                        f"collection {entry.get('col', '')}"))
-	if args.get('start') and args.get('end'):
+	static = bool(entry and entry.get('static'))  # elevation, slope: no period, temporal metric or pixel filters
+	if args.get('start') and args.get('end') and not static:
 		label = 'Before the fire' if tool == 'burn_severity' else \
 			'Reference period' if args.get('other_start') else 'Period'
 		facts.append((label, period_text(args['start'], args['end']) + season_text(args.get('season'))))
@@ -240,16 +244,18 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison') else 'mean')
-	facts.append(('Temporal metric', _stat(metric)))
-	if args.get('temporal') in PARTS:  # the metric of each year, month or 16 days, then that between the years
+	if not static:
+		facts.append(('Temporal metric', _stat(metric)))
+	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
 		each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[args['temporal']]
 		facts.append(('Temporal aggregation', f"{_stat(metric)} of each {each} and, between the years, "
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
-	if entry:
+	if entry and not static:
 		filters = dict(entry.get('pixel_filters') or {})
-		filters.update({k: bool(v) for k, v in (args.get('quality') or {}).items() if k in FILTERS})
+		if entry.get('fixed_filters') is None:  # the SCF: always clouds and water, whatever the quality
+			filters.update({k: bool(v) for k, v in (args.get('quality') or {}).items() if k in FILTERS})
 		on = [FILTERS[k] for k, v in filters.items() if v and k in FILTERS]
 		facts.append(('Discarded pixels', ', '.join(on) if on else 'none'))
 	if result.get('scale'):
@@ -279,7 +285,7 @@ def item_facts(tool, args, result=None, names=None):
 		                                               + (f' {unit}' if unit else '')))
 	if tool in METHODS:
 		rbr = tool == 'burn_severity' and fire_variable(args) == 'RBR'
-		facts.append(('Method', METHODS['burn_severity_rbr' if rbr else tool]))
+		facts.append(('Method', METHODS['static'] if static else METHODS['burn_severity_rbr' if rbr else tool]))
 	return facts
 
 

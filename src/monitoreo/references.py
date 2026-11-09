@@ -10,8 +10,8 @@ those of a call of a tool:
         'credits': ['Contains modified Copernicus Sentinel data 2018-2024']}
 
 A reference has its citation (APA) and its DOI (or, without one, its URL); 'text' is the citation with the link. The
-credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat). Every result of
-monitoreo.services carries both, and the reports (monitoreo.report, monitoreo.publish) list them.
+credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat, Copernicus DEM).
+Every result of monitoreo.services carries both, and the reports (monitoreo.report, monitoreo.publish) list them.
 
 References:
     Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
@@ -131,6 +131,8 @@ def of_variable(entry, quality=None, period=None):
 			ids += _methods('sentinel2_scl')
 	elif entry['sensor'] == 'Landsat' and (on['clouds'] or on['water'] or on['snow']):
 		ids += _methods('landsat_qa')
+	if sensors.is_scf(entry):  # the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow)
+		cols += [sensors.SCF_TOA[c][0] for c in list(cols) if c in sensors.SCF_TOA] + [sensors.SCF['dem']]
 	more, credits = of_datasets(cols)
 	return ids + more, credits
 

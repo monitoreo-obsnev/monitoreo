@@ -36,7 +36,9 @@ EXTRA = {
 	             'vname_fr': 'Elevation', 'vname_de': 'Elevation', 'unit': '[m]', 'minp': 0, 'maxp': 3500,
 	             'pm': ['1a9850', '91cf60', 'd9ef8b', 'fee08b', 'fdae61', 'b2734a', '8c510a', 'bdbdbd', 'ffffff']}),
 	107: (None, {'index': 'SLOPE', 'ft': 'slope(DEM)', 'f': 'ee.Terrain.slope(DEM)', 'terrain': 'slope',
-	             'vname': 'Pendiente', 'vname_en': 'Slope', 'vname_fr': 'Slope', 'vname_de': 'Slope', 'unit': '[º]',
+	             # ee.Terrain.slope: the gradient of the 4 neighbours of each pixel (Zevenbergen & Thorne 1987)
+	             'references': ['rizzoli2017', 'zevenbergen1987'],
+	             'vname': 'Pendiente', 'vname_en': 'Slope', 'vname_fr': 'Slope', 'vname_de': 'Slope', 'unit': '[°]',
 	             'minp': 0, 'maxp': 45,
 	             'pm': ['ffffcc', 'ffeda0', 'fed976', 'feb24c', 'fd8d3c', 'fc4e2a', 'e31a1c', 'bd0026', '800026']}),
 }
@@ -83,6 +85,7 @@ DEM = {
 	'dr': 'fixed layer, without dates (TanDEM-X, 2011-2015)', 'scale': 1, 'offset': 0, 'pg': '#8c510a',
 	'large_areas': True,
 	'static': True,  # without dates: maps and their statistics, no time series, trends or comparisons
+	'references': ['rizzoli2017'],  # the global TanDEM-X DEM, from which the Copernicus DEM comes
 	'notes': {
 		'ft': 'Copernicus DEM GLO-30 (release 2024_1), from the radar of TanDEM-X (2011-2015), 30 m: a surface model, '
 		      'so it gives the height of the canopy and of the buildings, not that of the ground. The slope is that of '
@@ -102,6 +105,9 @@ UDUNITS = {
 	'[kg/m²/8 days]': 'kg m-2 (8 day)-1',
 	'[J/m²/day]': 'J m-2 day-1',
 	'[mg m⁻³]': 'mg m-3',
+	'[%]': '%',  # the snow cover frequency (UDUNITS percent)
+	'[m]': 'm',  # the elevation
+	'[°]': 'degree',  # the slope, an angle (UDUNITS arc_degree)
 }
 
 _catalog = None

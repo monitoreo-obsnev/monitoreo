@@ -107,10 +107,13 @@ cited <- function(df, res) {
 #' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_bbox()}, \code{mo_point()},
 #'   \code{mo_geojson()} or \code{mo_sf()} (see \link{regions}). Several features give a result per feature.
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).
-#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).
 #' @param collection the Earth Engine collection when the variable of the sensor is in several, e.g.
 #'   \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).
-#' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}.
+#' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+#'   statistics.
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 #'   \code{"pN"} (percentile N).
@@ -232,7 +235,11 @@ rows_df <- function(rows) {
   if (length(rows) == 0) return(data.frame())
   cols <- unique(unlist(lapply(rows, names)))
   df <- as.data.frame(lapply(stats::setNames(cols, cols), function(col) {
-    v <- lapply(rows, function(r) if (is.null(r[[col]])) NA else r[[col]])
+    # one value per row: the lists (e.g. fixed_filters of mo_variables) as text, "clouds, water"
+    v <- lapply(rows, function(r) {
+      x <- r[[col]]
+      if (is.null(x)) NA else if (length(x) != 1) paste(unlist(x), collapse = ", ") else x
+    })
     unlist(v)
   }), stringsAsFactors = FALSE)
   if ("date" %in% names(df)) df$date <- as.Date(df$date)
@@ -241,11 +248,13 @@ rows_df <- function(rows) {
 
 #' Variables of the catalog of MonitorEO
 #'
-#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
+#'   \code{"Copernicus"}.
 #' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
-#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit). The references of
-#'   each variable: \code{mo_describe()}.
+#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit and, for some, metric:
+#'   its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without dates). The
+#'   references of each variable: \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
@@ -486,7 +495,7 @@ mo_leaflet <- function(layer) {
 #' x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
 #' }
 #' @export
-mo_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                      interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL) {
   s <- services()
   out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
@@ -500,7 +509,8 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     "composite_image", list(region = region, variable = variable, sensor = sensor, start = start, end = end,
                             quality = quality, collection = collection))
-  list(image = out[[1]], region = out[[2]], vis = vis, name = paste(variable, sensor, metric, start, end),
+  name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
+  list(image = out[[1]], region = out[[2]], vis = vis, name = name,
        references = cite$references, credits = cite$credits)
 }
 
@@ -681,8 +691,8 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @param alpha significance level of the Mann-Kendall test.
 #' @return A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
-#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, scale, csv,
-#'   references and credits (see \code{mo_references()}).
+#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, ylabel (title of
+#'   the y axis of the chart), scale, csv, references and credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -807,8 +817,8 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @return A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
-#'   rows (the yearly values of both periods), chart and the attributes title, unit, scale, csv, references and credits
-#'   (see \code{mo_references()}).
+#'   rows (the yearly values of both periods), chart and the attributes title, unit, ylabel (title of the y axis of the
+#'   chart), scale, csv, references and credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the

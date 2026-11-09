@@ -29,9 +29,12 @@ mo_compare_series(
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 
-\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}.}
+\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+statistics.}
 
 \item{other_start, other_end}{first and last day of the other period.}
 
@@ -58,8 +61,8 @@ mo_compare_series(
 }
 \value{
 A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
-  rows (the yearly values of both periods), chart and the attributes title, unit, scale, csv, references and credits
-  (see \code{mo_references()}).
+  rows (the yearly values of both periods), chart and the attributes title, unit, ylabel (title of the y axis of the
+  chart), scale, csv, references and credits (see \code{mo_references()}).
 }
 \description{
 The mean of each part of the year over the years of a reference period (\code{start} to \code{end}) and of

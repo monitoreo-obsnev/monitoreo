@@ -279,11 +279,13 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 	for name, f in sorted((rec.get('files') or {}).items()):
 		spec, src = f.get('spec') or {}, f.get('source') or {}
 		what = src.get('variable') or spec.get('index') or spec.get('image') or spec.get('collection') or ''
+		dated = spec.get('metric') is not None  # the fixed layers (elevation, slope, images) have no period
 		parts = [f"{what} ({spec['sensor']})" if spec.get('sensor') else what, f"collection {src['collection']}"
 		         if src.get('collection') else '', f"metric {spec.get('metric')}" if spec.get('metric') else '',
-		         'period ' + ' to '.join(spec['period']) if spec.get('period') else '',
-		         f"season {' to '.join(spec['season'])}" if spec.get('season') else '',
-		         f"temporal aggregation {spec.get('temporal')}" if spec.get('temporal') not in (None, 'period') else '',
+		         'period ' + ' to '.join(spec['period']) if dated and spec.get('period') else '',
+		         f"season {' to '.join(spec['season'])}" if dated and spec.get('season') else '',
+		         f"temporal aggregation {spec.get('temporal')}"
+		         if dated and spec.get('temporal') not in (None, 'period') else '',
 		         f"unit {src['unit']} (UDUNITS {src['udunits']})" if src.get('udunits') else
 		         f"unit {src['unit']}" if src.get('unit') else '',
 		         'pixels without ' + ', '.join(k for k, v in (src.get('pixel_filters') or {}).items() if v)

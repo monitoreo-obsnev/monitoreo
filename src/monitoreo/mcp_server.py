@@ -46,9 +46,9 @@ with its unit in UDUNITS, how it was computed, how to reproduce it and how to ci
 result has references and credits: the references (with DOI) of the formula or algorithm of the variable, of
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
 (Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of
-MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). When
-the results go into a report, a paper or a map, end it with those references (all of them, as they are) and credits,
-and cite them in the text where each one is used.
+MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat,
+Copernicus DEM). When the results go into a report, a paper or a map, end it with those references (all of them, as
+they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
@@ -366,12 +366,12 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
 	                           chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year"
 	summary['trends'] = res['rows']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
-	if res['chart']:
+	if res.get('chart'):
 		out.append(Image(path=res['chart']))
 	return out
 
@@ -423,11 +423,11 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
 	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
 	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
 	                              chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
-	if res['chart']:
+	if res.get('chart'):
 		out.append(Image(path=res['chart']))
 	return out
 

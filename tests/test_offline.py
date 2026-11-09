@@ -89,7 +89,7 @@ def test_scf_in_the_catalog():
 
 def test_elevation_and_slope_in_the_catalog():
 	# elevation and slope of the Copernicus DEM GLO-30: fixed layers, without dates (maps and their statistics only)
-	for index, unit, terrain in (('ELEVATION', '[m]', None), ('SLOPE', '[º]', 'slope')):
+	for index, unit, terrain in (('ELEVATION', '[m]', None), ('SLOPE', '[°]', 'slope')):
 		e = catalog.find(index, 'copernicus')
 		assert (e['col'], e['band'], e['m'], e['unit'], e.get('terrain'), e['static']) == (
 			'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 30, unit, terrain, True)
@@ -101,7 +101,7 @@ def test_elevation_and_slope_in_the_catalog():
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)
 	assert services.make_spec('SLOPE', 'Copernicus', '2020-01-01', '2020-12-31', metric='p95')['name'] == 'SLOPE_Copernicus'
 	assert services._title(services.make_spec('ELEVATION', 'Copernicus', '2020-01-01', '2020-12-31')) == 'ELEVATION Copernicus'
-	assert services._named(spec, 'median') == 'SLOPE Copernicus' and services._ylabel(spec) == '[º]'
+	assert services._named(spec, 'median') == 'SLOPE Copernicus' and services._ylabel(spec) == '[°]'
 	assert services._file_stem('SLOPE', 'Copernicus', 'median', None, None, {}) == 'SLOPE_Copernicus'
 	ndvi = services.make_spec('NDVI', 'Sentinel-2', '2020-01-01', '2020-12-31')
 	assert not variable.is_static(ndvi) and services._named(ndvi, 'median').endswith('(median)')

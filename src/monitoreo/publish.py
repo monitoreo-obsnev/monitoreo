@@ -271,6 +271,12 @@ def _var(args):
 	return f'{v} ({s})' if s else str(v)
 
 
+def is_static(args):
+	"""Whether the variable of the call with ARGS is a fixed layer without dates (elevation, slope): its results have
+	no period, temporal metric or pixel filters, even if the call gives them (QGIS sends its greyed-out dates)."""
+	return bool((_entry(args.get('variable'), args.get('sensor')) or {}).get('static'))
+
+
 def default_title(tool, args):
 	"""A title in English of the result of a call."""
 	var, season = _var(args), season_text(args.get('season'))
@@ -299,7 +305,7 @@ def default_title(tool, args):
 		index = 'RBR' if fire_variable(args) == 'RBR' else 'dNBR'
 		return f'Burn severity ({index} of {SENSORS.get(sensor, sensor)}): before, {period}; after, {other}'
 	if tool == 'download_image':
-		return f'Map of {var}, {period}{season}'
+		return f'Map of {var}' if is_static(args) or not period else f'Map of {var}, {period}{season}'
 	return var or 'Result'
 
 

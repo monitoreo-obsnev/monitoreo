@@ -28,9 +28,12 @@ mo_trend_table(
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 
-\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}.}
+\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+statistics.}
 
 \item{step}{\code{"monthly"}, \code{"16-day"} or \code{"annual"}.}
 
@@ -57,8 +60,8 @@ mo_trend_table(
 }
 \value{
 A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
-  last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, scale, csv,
-  references and credits (see \code{mo_references()}).
+  last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, ylabel (title of
+  the y axis of the chart), scale, csv, references and credits (see \code{mo_references()}).
 }
 \description{
 For each part of the year (step \code{"monthly"}: the months; \code{"16-day"}: 23 parts of 16 days from 1

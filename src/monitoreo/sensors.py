@@ -22,6 +22,13 @@ References (monitoreo.references gives them, with those of the data, with each r
     Foga, S., Scaramuzza, P. L., Guo, S., Zhu, Z., Dilley, R. D., Beckmann, T., Schmidt, G. L., Dwyer, J. L.,
       Hughes, M. J., & Laue, B. (2017). Cloud detection algorithm comparison and validation for operational Landsat
       data products. Remote Sensing of Environment, 194, 379–390. https://doi.org/10.1016/j.rse.2017.03.026
+    Farr, T. G., Rosen, P. A., Caro, E., Crippen, R., Duren, R., Hensley, S., Kobrick, M., Paller, M., Rodriguez,
+      E., Roth, L., Seal, D., Shaffer, S., Shimada, J., Umland, J., Werner, M., Oskin, M., Burbank, D., & Alsdorf,
+      D. (2007). The Shuttle Radar Topography Mission. Reviews of Geophysics, 45(2), RG2004.
+      https://doi.org/10.1029/2005RG000183 (the SRTM of the shadow of the relief of the SCF)
+    Chander, G., Markham, B. L., & Helder, D. L. (2009). Summary of current radiometric calibration coefficients for
+      Landsat MSS, TM, ETM+, and EO-1 ALI sensors. Remote Sensing of Environment, 113(5), 893–903.
+      https://doi.org/10.1016/j.rse.2009.01.007 (the TOA reflectance of the snow in the shadow of the SCF)
 """
 
 import re

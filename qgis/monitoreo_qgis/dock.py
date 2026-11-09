@@ -528,6 +528,8 @@ class MonitorEODock(QDockWidget):
 
 	def variable_args(self):
 		v = self.variable.currentData()
+		if v.get('static'):  # elevation, slope: without dates, pixel filters or season (greyed out), nor in the README
+			return {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']}
 		quality = {k: w.isChecked() for k, w in self.filters.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		args = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'],
@@ -833,7 +835,8 @@ class MonitorEODock(QDockWidget):
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
 		other = self.other_period()
-		opts = dict(var, metric=metric, temporal=temporal, interannual=inter)
+		static = (self.variable.currentData() or {}).get('static')  # no temporal metric for the fixed layers
+		opts = dict(var) if static else dict(var, metric=metric, temporal=temporal, interannual=inter)
 		if other:
 			opts.update(other_start=other[0], other_end=other[1])
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
@@ -960,9 +963,11 @@ class MonitorEODock(QDockWidget):
 		res = self.resolution.value() or None
 		folder = self.folder.text().strip() or 'MonitorEO'
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
+		time = {} if (self.variable.currentData() or {}).get('static') else \
+			{'metric': metric, 'temporal': temporal, 'interannual': inter}  # none for the fixed layers
 		self.run_task(f"Export the map of {var['variable']}",
-		              lambda: services.export_image(region, metric=metric, temporal=temporal, interannual=inter,
-		                                            resolution=res, folder=folder, **var), self.follow_export)
+		              lambda: services.export_image(region, resolution=res, folder=folder, **time, **var),
+		              self.follow_export)
 
 	def run_export_series(self):
 		args = self.prepare()

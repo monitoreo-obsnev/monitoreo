@@ -1927,7 +1927,7 @@ var CATALOG = {
    "two_periods": null,
    "type": "Topograf\u00eda",
    "type_en": "Topography",
-   "unit": "[\u00ba]",
+   "unit": "[\u00b0]",
    "vname": "Pendiente",
    "vname_en": "Slope"
   }

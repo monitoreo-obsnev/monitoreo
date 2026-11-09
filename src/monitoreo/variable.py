@@ -249,7 +249,8 @@ def describe(spec):
 	temporal metric and aggregation."""
 	k = kind(spec)
 	d = {'kind': k}
-	for key in ('period', 'season', 'metric', 'temporal', 'interannual'):
+	fixed = k == 'image' or is_static(spec)  # no period, season or temporal metric: they do not apply
+	for key in ('period', 'season', 'metric', 'temporal', 'interannual') if not fixed else ():
 		if spec.get(key) is not None and not (key == 'interannual' and spec.get('temporal', 'period') == 'period'):
 			d[key] = spec[key]
 	if k == 'catalog':
