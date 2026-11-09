@@ -97,6 +97,18 @@ def test_cite():
 	assert 'monitoreo' not in _ids(references.of_entry(catalog.find('LAI', 'Modis')))
 	assert '[years of the data]' in references.of_entry(catalog.find('NDVI', 'Sentinel-2'))['credits'][0]
 	assert 'wdpa' in _ids(references.cite('find_protected_areas', {'text': 'Doñana'}))
+	# the elevation and the slope of the Copernicus DEM: the DEM, its credit line and, for the slope, its gradient
+	dem = 'produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018'
+	for index, more in (('ELEVATION', set()), ('SLOPE', {'zevenbergen1987'})):
+		c = references.cite('map_layer', {'variable': index, 'sensor': 'Copernicus', 'region': {'wdpa_id': 389011}})
+		assert {'esa_copernicus_dem', 'rizzoli2017'} | more <= set(_ids(c)) and c['credits'][0].startswith(dem), index
+	assert 'esa_copernicus_dem' in _ids(got)  # the slope of the recipe, from the DEM image
+	# the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow), of the period only
+	scf = references.cite('time_series', {'variable': 'SCF', 'sensor': 'Landsat', 'start': '2022-01-01',
+	                                      'end': '2022-12-31'})
+	assert {'hall1995', 'usgs_landsat89', 'usgs_landsat89_l1', 'chander2009', 'farr2007', 'nasa_srtmgl1'} <= set(_ids(scf))
+	assert 'usgs_landsat45_l1' not in _ids(scf)
+	assert 'Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey' in scf['credits']
 
 
 def test_services_cite(monkeypatch, tmp_path):

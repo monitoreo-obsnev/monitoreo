@@ -7,7 +7,9 @@
     of EVI or the - 0.018 of the Landsat albedo need reflectances, not raw values);
   - band names of the formulas are matched without case (LST_day_1km is the band LST_Day_1km);
   - flag values of the MODIS products (e.g. 250 = cloud in NDSI_Snow_Cover) are masked;
-  - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector).
+  - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector);
+  - the snow cover frequency (SCF, formula SCF(green,nir,swir1)) classifies the snow of each image with its own
+    rules and masks (SCF below).
 
 References (monitoreo.references gives them, with those of the data, with each result):
     Pasquarella, V. J., Brown, C. F., Czerwinski, W., & Rucklidge, W. J. (2023). Comprehensive quality assessment of
@@ -20,6 +22,13 @@ References (monitoreo.references gives them, with those of the data, with each r
     Foga, S., Scaramuzza, P. L., Guo, S., Zhu, Z., Dilley, R. D., Beckmann, T., Schmidt, G. L., Dwyer, J. L.,
       Hughes, M. J., & Laue, B. (2017). Cloud detection algorithm comparison and validation for operational Landsat
       data products. Remote Sensing of Environment, 194, 379–390. https://doi.org/10.1016/j.rse.2017.03.026
+    Farr, T. G., Rosen, P. A., Caro, E., Crippen, R., Duren, R., Hensley, S., Kobrick, M., Paller, M., Rodriguez,
+      E., Roth, L., Seal, D., Shaffer, S., Shimada, J., Umland, J., Werner, M., Oskin, M., Burbank, D., & Alsdorf,
+      D. (2007). The Shuttle Radar Topography Mission. Reviews of Geophysics, 45(2), RG2004.
+      https://doi.org/10.1029/2005RG000183 (the SRTM of the shadow of the relief of the SCF)
+    Chander, G., Markham, B. L., & Helder, D. L. (2009). Summary of current radiometric calibration coefficients for
+      Landsat MSS, TM, ETM+, and EO-1 ALI sensors. Remote Sensing of Environment, 113(5), 893–903.
+      https://doi.org/10.1016/j.rse.2009.01.007 (the TOA reflectance of the snow in the shadow of the SCF)
 """
 
 import re
@@ -58,10 +67,55 @@ QUALITY = {
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')
 MEASURES = {  # variables whose signal a filter removes
 	'water': {'NDWI', 'Chl-a', 'NDCI'},  # open water and water quality
-	'snow': {'NDSI'},
+	'snow': {'NDSI', 'SCF'},
 	'aerosols': {'ARSL'},
 }
 S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, clouds, cirrus; water; snow
+
+# Snow cover frequency (SCF) of Landsat: the % of the clear observations of each pixel with snow or ice, the mean of
+# its images, each 100 (snow) or 0 (no snow). The method of the study of the snow of Sierra Nevada and its glacial
+# lakes (OBSNEV), for the whole massif and its north and south slopes, 1985-2026:
+#   - in the sun: snow if NDSI >= 0.35, green > 0.1 and NIR > 0.1 (surface reflectance); the green and NIR thresholds
+#     discard dark surfaces and water, which can also have a high NDSI. The pixels flagged as water (QA_PIXEL bit 7)
+#     are removed (filter 'water');
+#   - in the shadow of the relief (ee.Terrain.hillShadow over the SRTM with the sun of each scene): snow in shadow only
+#     gets diffuse light and does not reach those thresholds, and the surface reflectance of Landsat 8 and 9 is
+#     negative there. Above 1500 m, snow if NDSI >= 0.35 and green >= 0.08 of the TOA reflectance (the water flag is
+#     ignored: in shadow it marks shadow, not water); below 1500 m, no data (snow is rare there and the threshold was
+#     not checked);
+#   - clouds (filter 'clouds'): QA_PIXEL bit 3 (cloud) or bit 9 (medium or high cloud confidence); cloud shadows are
+#     kept. Only scenes with CLOUD_COVER below 80 %. The filters of snow and aerosols do not apply.
+SCF = {
+	'ndsi': 0.35,           # minimum NDSI of snow (surface reflectance in the sun, TOA in the shadow)
+	'green': 0.1,           # green and NIR surface reflectance of snow in the sun: above these
+	'nir': 0.1,
+	'toa_green': 0.08,      # green TOA reflectance of snow in the shadow: at least this
+	'min_elevation': 1500,  # metres: pixels in the shadow below it have no data
+	'shadow_reach': 70,     # reach of the shadows cast by the relief, in pixels (neighborhoodSize of hillShadow)
+	'scene_clouds': 80,     # scenes with a CLOUD_COVER (%) below it
+	'dem': 'USGS/SRTMGL1_003',
+}
+SCF_TOA = {  # TOA collection of each Landsat collection, with its green and SWIR1 bands
+	'LANDSAT/LT05/C02/T1_L2': ('LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']),
+	'LANDSAT/LE07/C02/T1_L2': ('LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']),
+	'LANDSAT/LC08/C02/T1_L2': ('LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']),
+	'LANDSAT/LC09/C02/T1_L2': ('LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']),
+}
+SCF_FILTERS = {'clouds', 'water'}  # fixed: the SCF is the % of the clear observations (see fixed_filters)
+
+
+def is_scf(entry):
+	"""Whether ENTRY is the snow cover frequency (formula SCF(green,nir,swir1))."""
+	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
+
+
+def fixed_filters(entry):
+	"""Pixel filters always on for ENTRY, whatever the quality, or None if they can be chosen: those of the snow cover
+	frequency, clouds and water (never snow, what it measures, nor aerosols); none for the fixed layers without dates
+	(elevation and slope)."""
+	if entry.get('static'):
+		return []
+	return [f for f in FILTERS if f in SCF_FILTERS] if is_scf(entry) else None
 
 
 def bits(band, first, last=None):
@@ -122,7 +176,11 @@ PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 
 def filters(entry, quality=None):
 	"""Pixel filters (clouds, water, snow, aerosols) that apply to ENTRY with QUALITY: {filter: True/False}, with
-	'auto' resolved and False for the filters its sensor has no QA band for (e.g. aerosols of Sentinel-2)."""
+	'auto' resolved and False for the filters its sensor has no QA band for (e.g. aerosols of Sentinel-2); with fixed
+	filters (the SCF), those, whatever QUALITY says."""
+	fixed = fixed_filters(entry)
+	if fixed is not None:
+		return {f: f in fixed for f in FILTERS}
 	quality = dict(QUALITY, **(quality or {}))
 	sensor, col = entry['sensor'], entry['col']
 	available = {'Sentinel-2': {'clouds', 'water', 'snow'}, 'Landsat': set(FILTERS)}.get(sensor)
@@ -164,8 +222,12 @@ def band_names(entry):
 
 
 def parse_formula(entry):
-	"""(kind, bands) of the formula of ENTRY: ('nd', [b1, b2]) for N(b1,b2), else ('expr', {name: band}) with the
-	band of every name of the expression (matched without case)."""
+	"""(kind, bands) of the formula of ENTRY: ('nd', [b1, b2]) for N(b1,b2), ('scf', [green, nir, swir1]) for
+	SCF(green,nir,swir1), ('static', [band]) for the fixed layers (elevation and slope: an image, see
+	variable.is_static), else ('expr', {name: band}) with the band of every name of the expression (matched without
+	case)."""
+	if entry.get('static'):
+		return 'static', [entry['band']]
 	ft = entry['ft'].strip()
 	names = band_names(entry)
 	lower = {b.lower(): b for b in names}
@@ -179,6 +241,8 @@ def parse_formula(entry):
 
 	if ft.startswith('N(') and ft.endswith(')'):
 		return 'nd', [band(b) for b in ft[2:-1].split(',')]
+	if is_scf(entry) and ft.endswith(')'):
+		return 'scf', [band(b) for b in ft[ft.index('(') + 1:-1].split(',')]
 	return 'expr', {name: band(name) for name in set(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', ft))}
 
 
@@ -221,9 +285,20 @@ def quality_mask(img, entry, quality):
 	return mask
 
 
+def _with_toa(col, col_id, region, start, end):
+	"""Images of COL (of the Landsat collection COL_ID) with the bands toa_green and toa_swir1 of the same scene in
+	the TOA collection (the scenes without it are left out)."""
+	toa_id, bands = SCF_TOA[col_id]
+	toa = ee.ImageCollection(toa_id).filterBounds(region).filterDate(start, end)
+	same = ee.Filter.equals(leftField='system:index', rightField='system:index')
+	joined = ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same))
+	return joined.map(lambda i: ee.Image(i).addBands(ee.Image(ee.Image(i).get('toa')).select(bands, ['toa_green', 'toa_swir1'])))
+
+
 def raw_collection(entry, region, start, end, quality):
 	"""Images of the collection of ENTRY over REGION between START and END (excluded), with the band names of the
-	formulas, filtered by the scene cloud cover if asked."""
+	formulas, filtered by the scene cloud cover if asked (and, for the SCF, with its scene filter and the TOA
+	bands)."""
 	sensor = entry['sensor']
 	prop = SCENE_CLOUDS.get(sensor)
 	scene = quality.get('scene_clouds')
@@ -232,15 +307,20 @@ def raw_collection(entry, region, start, end, quality):
 		return col.filter(ee.Filter.lte(prop, scene)) if prop and scene is not None else col
 
 	if sensor == 'Landsat':
+		scf = is_scf(entry)
 		cols = []
 		for col_id, aliases, last in LANDSAT:
 			end_l = min(end, last) if last else end
 			if end_l <= start:
 				continue
 			c = scene_filter(ee.ImageCollection(col_id).filterBounds(region).filterDate(start, end_l))
+			if scf:
+				c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF['scene_clouds']))
 			c = c.select(list(aliases), list(aliases.values()))
 			if 'SR_QA_AEROSOL' not in aliases:  # Landsat 5 and 7 have no aerosol QA: nothing is removed
 				c = c.map(lambda i: i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL')))
+			if scf:
+				c = _with_toa(c, col_id, region, start, end_l)
 			cols.append(c)
 		col = cols[0]
 		for c in cols[1:]:
@@ -260,6 +340,8 @@ def collection(entry, region, start, end, quality=None, resample=None):
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
 	kind, bands = parse_formula(entry)
+	if kind == 'scf':
+		return scf_collection(entry, region, start, end, quality, resample)
 	used = list(bands) if kind == 'nd' else sorted(set(bands.values()))
 
 	def compute(img):
@@ -275,5 +357,39 @@ def collection(entry, region, start, end, quality=None, resample=None):
 		else:
 			out = data.expression(entry['ft'], {name: data.select(b) for name, b in bands.items()})
 		return out.toFloat().rename('value').copyProperties(img, ['system:time_start'])
+
+	return raw_collection(entry, region, start, end, quality).map(compute)
+
+
+def scf_collection(entry, region, start, end, quality, resample=None):
+	"""Collection of single band images ('value', float) of the snow of the SCF (see SCF): 100 where a valid
+	observation has snow, 0 where it has none, masked where there is no valid observation."""
+	_, (green, nir, swir1) = parse_formula(entry)
+	scale = number(entry.get('scale'), 1.0)
+	offset = number(entry.get('offset'), 0.0)
+	dem = ee.Image(SCF['dem'])
+	high = dem.gte(SCF['min_elevation'])
+
+	def compute(img):
+		img = ee.Image(img)
+		sr = img.select([green, nir, swir1]).multiply(scale).add(offset)
+		toa = img.select(['toa_green', 'toa_swir1'])
+		if resample:
+			sr, toa = sr.resample(resample), toa.resample(resample)
+		g, n, s = sr.select(green), sr.select(nir), sr.select(swir1)
+		snow_sun = g.subtract(s).divide(g.add(s)).gte(SCF['ndsi']).And(g.gt(SCF['green'])).And(n.gt(SCF['nir']))
+		tg, ts = toa.select('toa_green'), toa.select('toa_swir1')
+		snow_shade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF['ndsi']).And(tg.gte(SCF['toa_green']))
+		zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')))
+		lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF['shadow_reach'], True)
+		shade = lit.Not()
+		qa = img.select('QA_PIXEL')
+		clear = bits(qa, 3).eq(0).And(bits(qa, 9).eq(0))  # its fixed filters (SCF_FILTERS): clouds and water
+		dry = bits(qa, 7).eq(0)
+		valid_sun = lit.And(clear).And(dry).And(snow_sun.mask())
+		valid_shade = shade.And(high).And(clear.unmask(0)).And(snow_shade.mask())
+		snow = snow_sun.unmask(0).And(lit).Or(snow_shade.unmask(0).And(shade))
+		valid = valid_sun.unmask(0).Or(valid_shade.unmask(0))
+		return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)

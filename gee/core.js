@@ -175,8 +175,30 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS = {'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
+	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat
+	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
+		scene_clouds: 80, dem: 'USGS/SRTMGL1_003'};
+	var SCF_TOA = {  // sensors.SCF_TOA: TOA collection of each Landsat collection, with its green and SWIR1 bands
+		'LANDSAT/LT05/C02/T1_L2': ['LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LE07/C02/T1_L2': ['LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']],
+		'LANDSAT/LC08/C02/T1_L2': ['LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']],
+		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']]
+	};
+	var SCF_FILTERS = ['clouds', 'water'];  // fixed: the SCF is the % of the clear observations (see fixedFilters)
+
+	// sensors.is_scf
+	function isScf(entry) {
+		return entry.fk === 'scf';
+	}
+
+	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
+	// none for the fixed layers without dates (elevation, slope)
+	function fixedFilters(entry) {
+		if (entry.static) return [];
+		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
+	}
 
 	function bits(band, first, last) {
 		last = last === undefined ? first : last;
@@ -242,12 +264,17 @@ var MonitorEO = (function () {
 
 	// sensors.filters: {filter: true/false} of the pixel filters that apply to ENTRY with QUALITY
 	function filters(entry, quality) {
+		var out = {};
+		var fixed = fixedFilters(entry);
+		if (fixed) {
+			FILTERS.forEach(function (f) { out[f] = fixed.indexOf(f) >= 0; });
+			return out;
+		}
 		quality = withQuality(quality);
 		var available;
 		if (entry.sensor === 'Sentinel-2') available = ['clouds', 'water', 'snow'];
 		else if (entry.sensor === 'Landsat') available = FILTERS;
 		else available = FILTERS.filter(function (f) { return (PRODUCTS[entry.col] || {})[f]; });
-		var out = {};
 		FILTERS.forEach(function (f) {
 			var on = quality[f];
 			if (String(on).toLowerCase() === 'auto') on = (MEASURES[f] || []).indexOf(entry.index) < 0;
@@ -296,6 +323,17 @@ var MonitorEO = (function () {
 		return mask;
 	}
 
+	// sensors._with_toa: images of COL with the bands toa_green and toa_swir1 of the same scene in the TOA collection
+	function withToa(col, colId, region, start, end) {
+		var toaId = SCF_TOA[colId][0], bands = SCF_TOA[colId][1];
+		var toa = ee.ImageCollection(toaId).filterBounds(region).filterDate(start, end);
+		var same = ee.Filter.equals({leftField: 'system:index', rightField: 'system:index'});
+		return ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same)).map(function (i) {
+			i = ee.Image(i);
+			return i.addBands(ee.Image(i.get('toa')).select(bands, ['toa_green', 'toa_swir1']));
+		});
+	}
+
 	// sensors.raw_collection
 	function rawCollection(entry, region, start, end, quality) {
 		var prop = SCENE_CLOUDS[entry.sensor];
@@ -304,17 +342,20 @@ var MonitorEO = (function () {
 			return prop && scene !== null && scene !== undefined ? col.filter(ee.Filter.lte(prop, scene)) : col;
 		}
 		if (entry.sensor === 'Landsat') {
+			var scf = isScf(entry);
 			var cols = [];
 			LANDSAT.forEach(function (l) {
 				var endL = l[2] && l[2] < end ? l[2] : end;
 				if (endL <= start) return;
 				var c = sceneFilter(ee.ImageCollection(l[0]).filterBounds(region).filterDate(start, endL));
+				if (scf) c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF.scene_clouds));
 				c = c.select(Object.keys(l[1]), Object.keys(l[1]).map(function (k) { return l[1][k]; }));
 				if (!l[1].SR_QA_AEROSOL) {  // Landsat 5 and 7 have no aerosol QA: nothing is removed
 					c = c.map(function (i) {
 						return i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL'));
 					});
 				}
+				if (scf) c = withToa(c, l[0], region, start, endL);
 				cols.push(c);
 			});
 			var col = cols[0];
@@ -332,6 +373,7 @@ var MonitorEO = (function () {
 	// sensors.collection: single band images ('value', float) of the variable of ENTRY between START and END (excluded)
 	function sensorCollection(entry, region, start, end, quality) {
 		quality = withQuality(quality);
+		if (isScf(entry)) return scfCollection(entry, region, start, end, quality);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
@@ -352,6 +394,34 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none
+	function scfCollection(entry, region, start, end, quality) {
+		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
+		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
+		var dem = ee.Image(SCF.dem);
+		var high = dem.gte(SCF.min_elevation);
+		return rawCollection(entry, region, start, end, quality).map(function (img) {
+			img = ee.Image(img);
+			var sr = img.select([green, nir, swir1]).multiply(scale).add(offset);
+			var toa = img.select(['toa_green', 'toa_swir1']);
+			var g = sr.select(green), n = sr.select(nir), s = sr.select(swir1);
+			var snowSun = g.subtract(s).divide(g.add(s)).gte(SCF.ndsi).and(g.gt(SCF.green)).and(n.gt(SCF.nir));
+			var tg = toa.select('toa_green'), ts = toa.select('toa_swir1');
+			var snowShade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF.ndsi).and(tg.gte(SCF.toa_green));
+			var zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')));
+			var lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF.shadow_reach, true);
+			var shade = lit.not();
+			var qa = img.select('QA_PIXEL');
+			var clear = bits(qa, 3).eq(0).and(bits(qa, 9).eq(0));  // its fixed filters (SCF_FILTERS): clouds and water
+			var dry = bits(qa, 7).eq(0);
+			var validSun = lit.and(clear).and(dry).and(snowSun.mask());
+			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
+			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
+			var valid = validSun.unmask(0).or(validShade.unmask(0));
+			return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start']);
+		});
+	}
+
 	// Variables (variable.py), for the catalog variables: a spec is {ref, metric, temporal, interannual, period,
 	// season, quality} ----------------------------------------------------------------------------------------------
 
@@ -359,6 +429,10 @@ var MonitorEO = (function () {
 		var s = {metric: 'mean', temporal: 'period', interannual: 'mean', season: null, quality: {}};
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
+		var e = s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
+		if (e.metric && String(s.metric).trim().toLowerCase() !== e.metric) {  // its only metric (SCF: the mean)
+			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
+		}
 		return s;
 	}
 
@@ -371,14 +445,40 @@ var MonitorEO = (function () {
 		return [iso(wins[0][1]), iso(wins[wins.length - 1][2])];
 	}
 
+	// variable.is_static: a variable of the catalog without dates (elevation, slope)
+	function isStatic(s) {
+		return Boolean(entryOf(s).static);
+	}
+
+	// variable.check_dates: error if S is a fixed layer without dates, for WHAT needs them
+	function checkDates(s, what) {
+		if (!isStatic(s)) return;
+		var e = entryOf(s);
+		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
+			'statistics of the region, but no ' + (what || 'time series, trends or comparisons'));
+	}
+
+	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
+	// slope, in degrees) and, on pixels RES more than twice as big as those of the data, the mean of its pixels
+	function staticImage(e, res) {
+		var col = ee.ImageCollection(e.col).select(e.band);
+		var img = col.mosaic().setDefaultProjection(col.first().projection());
+		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
+		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
+		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
+		return img.toFloat().rename('value');
+	}
+
 	// variable.collection
 	function collection(s, region) {
+		checkDates(s);
 		var sp = span(s);
 		return sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
 	}
 
-	// variable.image
-	function image(s, region) {
+	// variable.image, for output pixels of RES metres (by default those of the data)
+	function image(s, region, res) {
+		if (isStatic(s)) return staticImage(entryOf(s), res);
 		return composite(collection(s, region), s.metric, s.temporal, s.interannual, s.period, s.season);
 	}
 
@@ -867,6 +967,7 @@ var MonitorEO = (function () {
 
 	// The comparison image of services._comparison: bands difference (other - reference), reference and other
 	function comparisonImage(ref, other, region) {
+		checkDates(ref, 'comparisons of periods');
 		var a = image(ref, region);
 		var b = image(other, region);
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
@@ -982,8 +1083,10 @@ var MonitorEO = (function () {
 	return {
 		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
-		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, conflicts: conflicts,
-		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, collection: collection, image: image,
+		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
+		conflicts: conflicts,
+		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
+		collection: collection, image: image,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,

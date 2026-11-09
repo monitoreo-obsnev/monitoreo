@@ -25,6 +25,22 @@ EXTRA = {
 	# of each image: B8A and B12 in Sentinel-2 (NBR5n of Silva-Cardoza et al. 2022), NIR and SWIR2 in Landsat
 	103: (4, {'index': 'RBR', 'ft': 'N(B8A,B12)', 'f': '(B8A - B12) / (B8A + B12)', 'm': 20}),  # Sentinel-2
 	104: (3, {'index': 'RBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
+	# SCF: snow cover frequency, from the bands of the NDSI of Landsat (entry 5); each image is 100 (snow) or 0 (no
+	# snow) with the rules of sensors.SCF, and the mean of the images of a pixel is its frequency
+	105: (5, {'index': 'SCF', 'ft': 'SCF(green,nir,swir1)',
+	          'f': 'NDSI = (SR_B3 - SR_B6) / (SR_B3 + SR_B6); snow: NDSI >= 0.35, SR_B3 > 0.1 and SR_B5 > 0.1 (Landsat 8 and '
+	               '9; in the shadow of the relief, the NDSI >= 0.35 and the green >= 0.08 of the TOA reflectance)'}),
+	# Elevation and slope of the Copernicus DEM GLO-30: fixed layers, without dates (maps and their statistics, no
+	# time series, trends or comparisons: see variable.is_static); they copy no entry of catalog.json (None)
+	106: (None, {'index': 'ELEVATION', 'ft': 'DEM', 'f': 'DEM', 'vname': 'Elevación', 'vname_en': 'Elevation',
+	             'vname_fr': 'Elevation', 'vname_de': 'Elevation', 'unit': '[m]', 'minp': 0, 'maxp': 3500,
+	             'pm': ['1a9850', '91cf60', 'd9ef8b', 'fee08b', 'fdae61', 'b2734a', '8c510a', 'bdbdbd', 'ffffff']}),
+	107: (None, {'index': 'SLOPE', 'ft': 'slope(DEM)', 'f': 'ee.Terrain.slope(DEM)', 'terrain': 'slope',
+	             # ee.Terrain.slope: the gradient of the 4 neighbours of each pixel (Zevenbergen & Thorne 1987)
+	             'references': ['rizzoli2017', 'zevenbergen1987'],
+	             'vname': 'Pendiente', 'vname_en': 'Slope', 'vname_fr': 'Slope', 'vname_de': 'Slope', 'unit': '[°]',
+	             'minp': 0, 'maxp': 45,
+	             'pm': ['ffffcc', 'ffeda0', 'fed976', 'feb24c', 'fd8d3c', 'fc4e2a', 'e31a1c', 'bd0026', '800026']}),
 }
 RBR_OFFSET = 1.001  # RBR = dNBR / (NBR before + RBR_OFFSET) (Parks et al. 2014)
 RBR = {
@@ -45,6 +61,41 @@ NBR = {
 	'notes': {'f': 'Burn severity: dNBR = NBR before - NBR after the fire (compare_series or download_comparison give '
 	               'after - before, that is -dNBR); dNBR > 0.1 burned (Key & Benson 2006).'},
 }
+SCF_PALETTE = ['f7fbff', 'deebf7', 'c6dbef', '9ecae1', '6baed6', '4292c6', '2171b5', '08519c', '08306b']
+SCF = {
+	'vname': 'Frecuencia de nieve', 'vname_en': 'Snow cover frequency', 'vname_fr': 'Snow cover frequency',
+	'vname_de': 'Snow cover frequency', 'unit': '[%]', 'minp': 0, 'maxp': 100, 'pm': SCF_PALETTE, 'pg': '#4292c6',
+	'metric': 'mean',  # the only metric: the mean of the images (100 or 0) of a pixel is its frequency
+	'axis': 'Snow Cover Frequency (SCF)',  # title of the y axis of the charts, before the unit
+	'notes': {
+		'ft': 'Snow cover frequency (SCF): % of the clear observations of each pixel with snow or ice. In the sun, snow '
+		      'is NDSI >= 0.35, green > 0.1 and NIR > 0.1 (surface reflectance), without the pixels flagged as water. In '
+		      'the shadow of the relief (hillShadow of the SRTM with the sun of each scene), above 1500 m, snow is NDSI '
+		      '>= 0.35 and green >= 0.08 of the TOA reflectance; below 1500 m, no data. Clouds: QA_PIXEL bits 3 and 9 '
+		      '(cloud shadows are kept); scenes with less than 80 % of clouds. The thresholds were set in Sierra Nevada. '
+		      'Its only metric is the mean.',
+		'metric': 'it is the mean of the images of each pixel (100 = snow, 0 = no snow), that is, the % of the clear '
+		          'observations with snow',
+		'filters': 'fixed: clouds and water are always removed and snow and aerosols never, whatever the quality',
+	},
+}
+DEM = {
+	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',
+	'sensor': 'Copernicus', 'col': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'm': 30, 'tr': 'fixed',
+	'dr': 'fixed layer, without dates (TanDEM-X, 2011-2015)', 'scale': 1, 'offset': 0, 'pg': '#8c510a',
+	'large_areas': True,
+	'static': True,  # without dates: maps and their statistics, no time series, trends or comparisons
+	'references': ['rizzoli2017'],  # the global TanDEM-X DEM, from which the Copernicus DEM comes
+	'notes': {
+		'ft': 'Copernicus DEM GLO-30 (release 2024_1), from the radar of TanDEM-X (2011-2015), 30 m: a surface model, '
+		      'so it gives the height of the canopy and of the buildings, not that of the ground. The slope is that of '
+		      'ee.Terrain.slope, in degrees (0 = flat, 90 = vertical); on pixels more than twice as big as those of '
+		      'the data, the mean of the slopes of their 30 m pixels. A fixed layer, without dates: maps, GeoTIFFs and '
+		      'statistics of the region, but no time series, trends or comparisons; the period, metrics and pixel '
+		      'filters do not apply.',
+	},
+}
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -54,6 +105,9 @@ UDUNITS = {
 	'[kg/m²/8 days]': 'kg m-2 (8 day)-1',
 	'[J/m²/day]': 'J m-2 day-1',
 	'[mg m⁻³]': 'mg m-3',
+	'[%]': '%',  # the snow cover frequency (UDUNITS percent)
+	'[m]': 'm',  # the elevation
+	'[°]': 'degree',  # the slope, an angle (UDUNITS arc_degree)
 }
 
 _catalog = None
@@ -80,8 +134,8 @@ def variables():
 	"""Entries of the catalog, with FIXES applied, and those of EXTRA."""
 	entries = [dict(e, **FIXES.get(e['ref'], {})) for e in load()['variables']]
 	by_ref = {e['ref']: e for e in entries}
-	extra = [dict(by_ref[base], **dict(NBR, **(RBR if changes['index'] == 'RBR' else {}), **changes), ref=ref)
-	         for ref, (base, changes) in EXTRA.items() if base in by_ref]
+	extra = [dict(by_ref[base] if base is not None else {}, **dict(TEMPLATES[changes['index']], **changes), ref=ref)
+	         for ref, (base, changes) in EXTRA.items() if base is None or base in by_ref]
 	return entries + extra
 
 

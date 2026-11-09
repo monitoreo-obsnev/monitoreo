@@ -8,8 +8,8 @@ mo_export_image(
   region,
   variable,
   sensor,
-  start,
-  end,
+  start = NULL,
+  end = NULL,
   metric = "median",
   temporal = "period",
   season = NULL,
@@ -27,9 +27,12 @@ mo_export_image(
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 
-\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}.}
+\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+statistics.}
 
 \item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 \code{"pN"} (percentile N).}

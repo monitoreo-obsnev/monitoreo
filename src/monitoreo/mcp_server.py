@@ -46,13 +46,18 @@ with its unit in UDUNITS, how it was computed, how to reproduce it and how to ci
 result has references and credits: the references (with DOI) of the formula or algorithm of the variable, of
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
 (Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of
-MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). When
-the results go into a report, a paper or a map, end it with those references (all of them, as they are) and credits,
-and cite them in the text where each one is used.
+MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat,
+Copernicus DEM). When the results go into a report, a paper or a map, end it with those references (all of them, as
+they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols) of Sentinel-2,
-Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols).
+LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
+frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
+snow cover frequency (SCF, Landsat) is the % of the clear observations of each pixel with snow: always with metric
+"mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality). The elevation and the slope
+(variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
+without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
+series, trends or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area; then time_series (table, CSV and chart), map_layer (map tiles and preview),
@@ -230,7 +235,7 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
 	                           collection=collection)
 	rows = res['rows']
-	summary = {k: res.get(k) for k in ('title', 'unit', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
 	                                    'references', 'credits')}
 	summary['rows'] = rows[:MAX_ROWS_SHOWN]
 	if len(rows) > MAX_ROWS_SHOWN:
@@ -243,7 +248,8 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 
 
 @tool
-def map_layer(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def map_layer(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+              end: Optional[str] = None, metric: str = 'median',
               temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
               collection: Optional[str] = None, quick: bool = False):
@@ -264,7 +270,8 @@ def map_layer(region: dict, variable: str, sensor: str, start: str, end: str, me
 
 
 @tool
-def region_stats(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def region_stats(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                 end: Optional[str] = None, metric: str = 'median',
                  temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                  scale: Optional[float] = None, collection: Optional[str] = None) -> str:
 	"""Statistics (mean, std, min, p5, p50, p95, max, number of pixels) over each feature of a region of the map of
@@ -275,7 +282,8 @@ def region_stats(region: dict, variable: str, sensor: str, start: str, end: str,
 
 
 @tool
-def export_image_to_drive(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def export_image_to_drive(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                          end: Optional[str] = None, metric: str = 'median',
                           temporal: str = 'period', season: Optional[List[str]] = None,
                           quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
                           folder: str = 'MonitorEO', name: Optional[str] = None,
@@ -303,7 +311,8 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
 
 
 @tool
-def download_image(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+def download_image(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+                   end: Optional[str] = None, metric: str = 'median',
                    temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                    resolution: Optional[float] = None, crs: str = 'auto', clip: bool = True,
                    collection: Optional[str] = None) -> str:
@@ -357,12 +366,12 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
 	                           chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year"
 	summary['trends'] = res['rows']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
-	if res['chart']:
+	if res.get('chart'):
 		out.append(Image(path=res['chart']))
 	return out
 
@@ -414,11 +423,11 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
 	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
 	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
 	                              chart=_out(stem, 'png'), collection=collection)
-	summary = {k: res[k] for k in ('title', 'unit', 'scale', 'csv', 'chart')}
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
-	if res['chart']:
+	if res.get('chart'):
 		out.append(Image(path=res['chart']))
 	return out
 

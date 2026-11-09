@@ -79,12 +79,11 @@ def specs(var, defaults=None, two_periods=False):
 	if unknown:
 		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use {', '.join(sensors.QUALITY)}")
 	k = kind(base)
-	if k == 'catalog' and not two_periods:
-		e = entry_of(base)
-		if e.get('two_periods'):
-			raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
-			                 f"it with burn_severity and index '{e['index']}'")
-	if k == 'image':
+	e = entry_of(base) if k == 'catalog' else {}
+	if e.get('two_periods') and not two_periods:
+		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
+		                 f"it with burn_severity and index '{e['index']}'")
+	if k == 'image' or e.get('static'):  # a fixed image (elevation, slope): no metric, period or season
 		metrics = [None]
 	else:
 		metrics = base.pop('metrics', None) or base.get('metric')
@@ -93,6 +92,11 @@ def specs(var, defaults=None, two_periods=False):
 		metrics = metrics if isinstance(metrics, list) else [metrics]
 		for m in metrics + ([base['interannual']] if base['temporal'] != 'period' else []):
 			composite.check_metric(m)
+		only = e.get('metric')  # the only metric of a variable (the SCF, a frequency, is the mean of its images)
+		if only and any(str(m).strip().lower() != only for m in metrics):
+			why = e.get('notes', {}).get('metric')
+			raise ValueError(f"{e['index']} ({e['sensor']}) only takes the metric '{only}'{f': {why}' if why else ''}. "
+			                 f"Use metric '{only}' (the metric between years, interannual, can be any)")
 		if base['temporal'] not in composite.TEMPORAL:
 			raise ValueError(f"unknown temporal {base['temporal']}: use {', '.join(composite.TEMPORAL)}")
 		if not base.get('period'):
@@ -112,6 +116,26 @@ def specs(var, defaults=None, two_periods=False):
 
 def entry_of(spec):
 	return catalog.find(spec['index'], spec.get('sensor'), spec.get('collection'), spec.get('ref'))
+
+
+def is_static(spec):
+	"""Whether SPEC is a variable of the catalog without dates (elevation, slope): an image, with maps and their
+	statistics but no time series, trends or comparisons."""
+	return kind(spec) == 'catalog' and bool(entry_of(spec).get('static'))
+
+
+def check_dates(spec, what='time series, trends or comparisons'):
+	"""Error if SPEC is a fixed layer without dates, for WHAT needs them."""
+	if is_static(spec):
+		e = entry_of(spec)
+		raise ValueError(f"{e['index']} ({e['sensor']}) is a fixed layer, without dates: it has maps, GeoTIFFs and "
+		                 f"statistics of the region (map_layer, download_image, region_stats), but no {what}")
+
+
+def _static_spec(spec):
+	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band and terrain)."""
+	e = entry_of(spec)
+	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'))
 
 
 def _span(spec):
@@ -189,6 +213,7 @@ def collection(spec, region, res):
 	aggregation."""
 	if kind(spec) == 'collection':
 		return _from_collection(spec, region, res)
+	check_dates(spec)
 	entry = entry_of(spec)
 	start, end = _span(spec)
 	return sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])))
@@ -198,6 +223,8 @@ def image(spec, region, res):
 	"""Image ('value') of the variable SPEC over REGION (ee.Geometry) for output pixels of RES metres."""
 	if kind(spec) == 'image':
 		img = _fixed(spec, res)
+	elif is_static(spec):
+		img = _fixed(_static_spec(spec), res)
 	else:
 		img = composite.composite(collection(spec, region, res), spec['metric'], spec['temporal'],
 		                          spec['interannual'], spec['period'], spec['season'])
@@ -210,7 +237,7 @@ def image(spec, region, res):
 
 def n_images(spec, region):
 	"""Number of images of the period (and season) of SPEC over REGION (None for a fixed image)."""
-	if kind(spec) == 'image':
+	if kind(spec) == 'image' or is_static(spec):
 		return None
 	wins = composite.windows(spec['period'], spec['season'])
 	col = collection(dict(spec, resample='nearest'), region, 1e9)
@@ -222,7 +249,8 @@ def describe(spec):
 	temporal metric and aggregation."""
 	k = kind(spec)
 	d = {'kind': k}
-	for key in ('period', 'season', 'metric', 'temporal', 'interannual'):
+	fixed = k == 'image' or is_static(spec)  # no period, season or temporal metric: they do not apply
+	for key in ('period', 'season', 'metric', 'temporal', 'interannual') if not fixed else ():
 		if spec.get(key) is not None and not (key == 'interannual' and spec.get('temporal', 'period') == 'period'):
 			d[key] = spec[key]
 	if k == 'catalog':

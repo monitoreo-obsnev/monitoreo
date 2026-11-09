@@ -526,8 +526,8 @@ def _name(e, lang, field):
 
 def list_variables(sensor=None, text=None, lang='en'):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, group, resolution_m,
-	dates, unit}], optionally of one SENSOR or with TEXT in their variable or their name (in English or in Spanish,
-	whatever LANG is)."""
+	dates, unit}] (and two_periods, RBR, or metric, the only metric of the SCF), optionally of one SENSOR or with
+	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
 	for e in catalog.variables():
 		if sensor and e['sensor'].lower() != str(sensor).lower():
@@ -537,6 +537,12 @@ def list_variables(sensor=None, text=None, lang='en'):
 		       'dates': e['dr'], 'unit': e['unit']}
 		if e.get('two_periods'):
 			row['two_periods'] = True  # RBR: only burn_severity computes it
+		if e.get('metric'):
+			row['metric'] = e['metric']  # its only metric (SCF: the mean)
+		if sensors.fixed_filters(e) is not None:
+			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
+		if e.get('static'):
+			row['static'] = True  # elevation, slope: without dates, only maps and their statistics
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -554,6 +560,12 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	out['pixel_filters'] = sensors.filters(e)
 	out['measures'] = [f for f, idx in sensors.MEASURES.items() if e['index'] in idx]
 	out['notes'] = e.get('notes', {})
+	if e.get('metric'):
+		out['metric'] = e['metric']  # its only metric (SCF: the mean)
+	if sensors.fixed_filters(e) is not None:
+		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
+	if e.get('static'):
+		out['static'] = True  # elevation, slope: without dates, only maps and their statistics
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]
@@ -605,15 +617,28 @@ def _title(spec, step=None, metric=None, stat=None):
 		name = f"{e['index']} {e['sensor']}"
 	else:
 		name = f"{spec.get(k)} {spec.get('band') or ''}".strip()
-	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') else ''
+	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') and not variables.is_static(spec) else ''
 	parts = [name, period]
 	if step:
 		parts.append(f'{step} {metric}, spatial {stat}')
 	return ' | '.join(p for p in parts if p)
 
 
+def _named(spec, metric):
+	"""Name of a map of SPEC: its title and METRIC (not for the fixed layers, elevation and slope)."""
+	return _title(spec) + ('' if variables.is_static(spec) else f' ({metric})')
+
+
 def _unit(spec):
 	return variables.entry_of(spec)['unit'] if variables.kind(spec) == 'catalog' else ''
+
+
+def _ylabel(spec):
+	"""Title of the y axis of the charts of SPEC: the unit, after the axis title of the catalog if it has one (e.g.
+	'Snow Cover Frequency (SCF) [%]')."""
+	unit = _unit(spec)
+	axis = variables.entry_of(spec).get('axis') if variables.kind(spec) == 'catalog' else None
+	return f'{axis} {unit}'.strip() if axis else unit
 
 
 def _slug(text):
@@ -630,19 +655,20 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given.
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
 	unit = _unit(spec)
 	title = _title(spec, step, metric, stat)
-	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title,
-	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
+	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec),
+	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
 		out['csv'] = timeseries.write_csv(rows, csv, meta)
 	if chart and rows:
 		try:
-			charts.time_series_png(rows, chart, title=title, ylabel=unit or None)
+			charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass
@@ -656,6 +682,7 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 	Returns {'operation', 'file', 'folder'}."""
 	need_own_account()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	table = timeseries.table(spec, regions, step, metric, stat, scale)
 	name = _slug(name or f"{variable or source.get('collection')}_{sensor or ''}_{step}_{metric}_{start}_{end}")
@@ -701,7 +728,7 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	                                 quality, clip, None, source)
 	entry = variable_entry(spec)
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick)
-	out = dict(vis, url=maps.tile_url(img, vis), name=_title(spec) + f' ({metric})', unit=_unit(spec),
+	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:
 		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
@@ -752,7 +779,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 		row.update({s: p.get(n) for s, n in names.items()})
 		row['n_pixels'] = p.get('count')
 		rows.append(row)
-	return {'rows': rows, 'scale': scale, 'unit': _unit(spec), 'title': _title(spec) + f' ({metric})'}
+	return {'rows': rows, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
 
 
 # Exports -----------------------------------------------------------------------------------------------------------
@@ -784,6 +811,13 @@ def _grid(regions, res, crs):
 
 
 def _file_stem(variable, sensor, metric, start, end, source):
+	try:
+		static = bool(variable) and bool(catalog.find(variable, sensor, source.get('collection'), source.get('ref'))
+		                                 .get('static'))
+	except KeyError:
+		static = False
+	if static:  # a fixed layer (elevation, slope): no metric nor period
+		return f'{variable}_{sensor}'
 	return f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}"
 
 
@@ -812,7 +846,7 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
 	vmin, vmax = _percentiles(path)
 	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
-	        'images': variables.n_images(spec, regions.geometry()), 'name': _title(spec) + f' ({metric})',
+	        'images': variables.n_images(spec, regions.geometry()), 'name': _named(spec, metric),
 	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
 
 
@@ -905,13 +939,15 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	first_year, last_year}], 'yearly': [{region, part, year, value, n_pixels, n_images}], 'csv', 'chart', 'scale',
 	'unit', 'title'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
 	first = composite.windows(spec['period'], spec['season'])[0][0]
 	rows = trends.trend_rows(yearly, step, first, alpha=alpha)
 	unit = _unit(spec)
 	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}'
-	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit, 'title': title}
+	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
+	       'ylabel': _ylabel(spec), 'title': title}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit),
@@ -920,7 +956,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
 	if chart and any(r['slope'] is not None for r in rows):
 		try:
-			charts.trends_png(yearly, rows, chart, title=title, ylabel=unit or None)
+			charts.trends_png(yearly, rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass
@@ -929,6 +965,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 
 def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source):
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	part = _part(step, part)
 	native = float(variables.native_scale(spec))
@@ -990,6 +1027,7 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 	(symmetric range of the slope), 'palette'}."""
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec0, 'trends')
 	native = float(variables.native_scale(spec0))
 	grid, res = _fit_grid(regions_, float(resolution or native), crs, max_pixels)
 	spec, regions, img, part, native, name = _trend(regions_, variable, sensor, start, end, step, part, metric, season,
@@ -1020,6 +1058,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		raise ValueError('give the other period: other_start and other_end')
 	ref = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	scale = scale or timeseries.auto_scale(ref, regions)
 	ref_rows, _ = _seasonal_rows(ref, regions, step, metric, stat, scale, progress)
@@ -1035,7 +1074,8 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	         f"{oth['period'][0]} / {oth['period'][1]} | {step} {metric}, spatial {stat}")
 	names = tuple(a[:4] if a[:4] == b[:4] else f'{a[:4]}-{b[:4]}' for a, b in (ref['period'], oth['period']))
 	out = {'profile': profile, 'rows': ref_rows + oth_rows, 'csv': None, 'chart': None, 'scale': scale, 'unit': unit,
-	       'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']}, 'names': names}
+	       'ylabel': _ylabel(ref), 'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']},
+	       'names': names}
 	if csv:
 		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
 		        'reference_period': '/'.join(ref['period']), 'other_period': '/'.join(oth['period']), 'step': step,
@@ -1045,7 +1085,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		try:
 			labels = {r['part']: r['key'] if step == '16-day' else r['label'][:3] if step == 'monthly' else r['label']
 			          for r in profile}
-			charts.comparison_png(profile, labels, chart, title=title, ylabel=unit or None, names=names)
+			charts.comparison_png(profile, labels, chart, title=title, ylabel=out['ylabel'] or None, names=names)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass
@@ -1060,6 +1100,7 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	                season=season, quality=quality, two_periods=two_periods, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal=temporal,
 	                interannual=interannual, season=season, quality=quality, two_periods=two_periods, **source)
+	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	native = float(variables.native_scale(ref))
 	geom = regions.geometry()
@@ -1110,6 +1151,7 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                  season=season, quality=quality, **source)
+	variables.check_dates(spec0, 'comparisons of periods')
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
 	spec, regions, img, native, name = _comparison(regions_, variable, sensor, start, end, other_start, other_end,
 	                                               metric, temporal, interannual, season, quality, res, source)

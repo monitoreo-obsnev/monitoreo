@@ -9,7 +9,8 @@ mo_describe(variable, sensor = NULL, collection = NULL)
 \arguments{
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 
 \item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
 \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}

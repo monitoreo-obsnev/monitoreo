@@ -107,10 +107,13 @@ cited <- function(df, res) {
 #' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_bbox()}, \code{mo_point()},
 #'   \code{mo_geojson()} or \code{mo_sf()} (see \link{regions}). Several features give a result per feature.
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).
-#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).
 #' @param collection the Earth Engine collection when the variable of the sensor is in several, e.g.
 #'   \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).
-#' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}.
+#' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+#'   statistics.
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 #'   \code{"pN"} (percentile N).
@@ -232,7 +235,11 @@ rows_df <- function(rows) {
   if (length(rows) == 0) return(data.frame())
   cols <- unique(unlist(lapply(rows, names)))
   df <- as.data.frame(lapply(stats::setNames(cols, cols), function(col) {
-    v <- lapply(rows, function(r) if (is.null(r[[col]])) NA else r[[col]])
+    # one value per row: the lists (e.g. fixed_filters of mo_variables) as text, "clouds, water"
+    v <- lapply(rows, function(r) {
+      x <- r[[col]]
+      if (is.null(x)) NA else if (length(x) != 1) paste(unlist(x), collapse = ", ") else x
+    })
     unlist(v)
   }), stringsAsFactors = FALSE)
   if ("date" %in% names(df)) df$date <- as.Date(df$date)
@@ -241,11 +248,13 @@ rows_df <- function(rows) {
 
 #' Variables of the catalog of MonitorEO
 #'
-#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.
+#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
+#'   \code{"Copernicus"}.
 #' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
-#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit). The references of
-#'   each variable: \code{mo_describe()}.
+#' @return A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit and, for some, metric:
+#'   its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without dates). The
+#'   references of each variable: \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
@@ -362,8 +371,9 @@ mo_sf <- function(x, name = NULL) {
 #' \code{stat}, with the number of images and of valid pixels of each value.
 #' @inheritParams mo_params
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
-#' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, scale, csv,
-#'   references and credits (see \code{mo_references()}).
+#' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
+#'   (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
+#'   credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -386,6 +396,7 @@ mo_time_series <- function(region, variable, sensor, start, end, step = "monthly
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
+  attr(df, "ylabel") <- res$ylabel
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
   cited(df, res)
@@ -404,7 +415,7 @@ mo_time_series <- function(region, variable, sensor, start, end, step = "monthly
 #' @export
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
-  unit <- attr(ts, "unit")
+  unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
   if (requireNamespace("ggplot2", quietly = TRUE)) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
@@ -423,7 +434,8 @@ mo_plot <- function(ts) {
 #' Map of a variable over a region, as Earth Engine tiles
 #'
 #' The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and
-#' its colour ramp.
+#' its colour ramp. The fixed layers without dates (variables \code{"ELEVATION"} and \code{"SLOPE"} of sensor
+#' \code{"Copernicus"}) need no \code{start} and \code{end}.
 #' @inheritParams mo_params
 #' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -441,7 +453,7 @@ mo_plot <- function(ts) {
 #' layer <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
 #' }
 #' @export
-mo_map_layer <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                          interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
                          thumbnail = NULL, collection = NULL) {
   services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
@@ -483,7 +495,7 @@ mo_leaflet <- function(layer) {
 #' x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
 #' }
 #' @export
-mo_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                      interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL) {
   s <- services()
   out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
@@ -497,7 +509,8 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     "composite_image", list(region = region, variable = variable, sensor = sensor, start = start, end = end,
                             quality = quality, collection = collection))
-  list(image = out[[1]], region = out[[2]], vis = vis, name = paste(variable, sensor, metric, start, end),
+  name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
+  list(image = out[[1]], region = out[[2]], vis = vis, name = name,
        references = cite$references, credits = cite$credits)
 }
 
@@ -520,7 +533,7 @@ mo_image <- function(region, variable, sensor, start, end, metric = "median", te
 #' mo_region_stats(mo_wdpa(389011), "LST", "Modis", "2023-07-01", "2023-08-31")
 #' }
 #' @export
-mo_region_stats <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, scale = NULL, collection = NULL) {
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
                                  quality = quality, scale = scale, collection = collection)
@@ -553,7 +566,7 @@ mo_region_stats <- function(region, variable, sensor, start, end, metric = "medi
 #' mo_export_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-01-01", "2023-12-31")
 #' }
 #' @export
-mo_export_image <- function(region, variable, sensor, start, end, metric = "median", temporal = "period",
+mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                             season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
                             name = NULL, collection = NULL) {
   services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
@@ -615,7 +628,7 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' terra::rast(x$file)
 #' }
 #' @export
-mo_download_image <- function(region, variable, sensor, start, end, path, metric = "median", temporal = "period",
+mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median", temporal = "period",
                               interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
                               clip = TRUE, collection = NULL) {
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
@@ -678,8 +691,8 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @param alpha significance level of the Mann-Kendall test.
 #' @return A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
-#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, scale, csv,
-#'   references and credits (see \code{mo_references()}).
+#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, ylabel (title of
+#'   the y axis of the chart), scale, csv, references and credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -711,7 +724,7 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
                                 collection = collection)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
-  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   cited(df, res)
 }
 
@@ -804,8 +817,8 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @return A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
-#'   rows (the yearly values of both periods), chart and the attributes title, unit, scale, csv, references and credits
-#'   (see \code{mo_references()}).
+#'   rows (the yearly values of both periods), chart and the attributes title, unit, ylabel (title of the y axis of the
+#'   chart), scale, csv, references and credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -829,7 +842,7 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
                                    collection = collection)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
-  for (k in c("title", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   cited(df, res)
 }
 

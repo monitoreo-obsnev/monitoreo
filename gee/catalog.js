@@ -84,6 +84,8 @@ var CATALOG = {
  },
  "variables": [
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -95,6 +97,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 3276.7,
+   "metric": null,
    "minp": -3276.7,
    "offset": 0,
    "pm": [
@@ -112,6 +115,8 @@ var CATALOG = {
    "ref": 1,
    "scale": 0.1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -121,6 +126,8 @@ var CATALOG = {
    "vname_en": "Evapotranspiration"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2001/01/01-now",
    "fb": {
@@ -132,6 +139,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 327000000,
+   "metric": null,
    "minp": -327670000,
    "offset": 0,
    "pm": [
@@ -149,6 +157,8 @@ var CATALOG = {
    "ref": 2,
    "scale": 10000,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "8-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -158,6 +168,8 @@ var CATALOG = {
    "vname_en": "Latent Heat"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -170,6 +182,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -194,6 +207,8 @@ var CATALOG = {
    "ref": 3,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -203,6 +218,8 @@ var CATALOG = {
    "vname_en": "Land Surface Water Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -215,6 +232,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": null,
+   "metric": null,
    "minp": null,
    "offset": 0,
    "pm": [
@@ -239,6 +257,8 @@ var CATALOG = {
    "ref": 4,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -248,6 +268,8 @@ var CATALOG = {
    "vname_en": "Land Surface Water Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -260,6 +282,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -279,6 +302,8 @@ var CATALOG = {
    "ref": 5,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -288,6 +313,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -299,6 +326,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -318,6 +346,8 @@ var CATALOG = {
    "ref": 6,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -327,6 +357,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -338,6 +370,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -357,6 +390,8 @@ var CATALOG = {
    "ref": 7,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -366,6 +401,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -378,6 +415,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -397,6 +435,8 @@ var CATALOG = {
    "ref": 8,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -406,6 +446,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Snow Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -418,6 +460,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -441,6 +484,8 @@ var CATALOG = {
    "ref": 9,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -450,6 +495,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -462,6 +509,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -1,
    "offset": 0,
    "pm": [
@@ -485,6 +533,8 @@ var CATALOG = {
    "ref": 10,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -494,6 +544,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -509,6 +561,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -542,6 +595,8 @@ var CATALOG = {
    "ref": 11,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Balance de Radiación",
@@ -551,6 +606,8 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD43A3",
    "dr": "2000/02/24-now",
    "fb": {
@@ -563,6 +620,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 500,
    "maxp": 32.77,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -596,6 +654,8 @@ var CATALOG = {
    "ref": 12,
    "scale": 0.001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Radiación",
@@ -605,6 +665,8 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -624,6 +686,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -657,6 +720,8 @@ var CATALOG = {
    "ref": 13,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Balance de Radiación",
@@ -666,6 +731,8 @@ var CATALOG = {
    "vname_en": "Albedo"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -677,6 +744,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -124.15,
    "pm": [
@@ -695,6 +763,8 @@ var CATALOG = {
    "ref": 14,
    "scale": 0.00341802,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -704,6 +774,8 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "2000/02/24-now",
    "fb": {
@@ -715,6 +787,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -733,6 +806,8 @@ var CATALOG = {
    "ref": 15,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -742,6 +817,8 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD11A1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -753,6 +830,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -771,6 +849,8 @@ var CATALOG = {
    "ref": 16,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -780,6 +860,8 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
    "dr": "2002/07/03-now",
    "fb": {
@@ -791,6 +873,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -814,6 +897,8 @@ var CATALOG = {
    "ref": 17,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -823,6 +908,8 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "NASA/OCEANDATA/MODIS-Terra/L3SMI",
    "dr": "2000/02/24-now",
    "fb": {
@@ -834,6 +921,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 4616,
    "maxp": 100,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -857,6 +945,8 @@ var CATALOG = {
    "ref": 18,
    "scale": 1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -866,6 +956,8 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -879,6 +971,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -902,6 +995,8 @@ var CATALOG = {
    "ref": 19,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -911,6 +1006,8 @@ var CATALOG = {
    "vname_en": "Chlorophylla concentration"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": {
@@ -924,6 +1021,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -947,6 +1045,8 @@ var CATALOG = {
    "ref": 20,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -956,6 +1056,8 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -967,6 +1069,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -990,6 +1093,8 @@ var CATALOG = {
    "ref": 21,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -999,6 +1104,8 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1010,6 +1117,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1033,6 +1141,8 @@ var CATALOG = {
    "ref": 22,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1042,6 +1152,8 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
@@ -1055,6 +1167,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1078,6 +1191,8 @@ var CATALOG = {
    "ref": 23,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1087,6 +1202,8 @@ var CATALOG = {
    "vname_en": "Enhanced Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1099,6 +1216,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1.6,
+   "metric": null,
    "minp": -0.2,
    "offset": -0.2,
    "pm": [
@@ -1122,6 +1240,8 @@ var CATALOG = {
    "ref": 24,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1131,6 +1251,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
    "fb": {
@@ -1142,6 +1264,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1165,6 +1288,8 @@ var CATALOG = {
    "ref": 25,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1174,6 +1299,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1185,6 +1312,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 250,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1208,6 +1336,8 @@ var CATALOG = {
    "ref": 26,
    "scale": 0.0001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1217,6 +1347,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1229,6 +1361,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1252,6 +1385,8 @@ var CATALOG = {
    "ref": 27,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbono (Producción Primaria)",
@@ -1261,6 +1396,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Vegetation Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD19A2_GRANULES",
    "dr": "2000/02/24-now",
    "fb": {
@@ -1272,6 +1409,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 0.01,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1299,6 +1437,8 @@ var CATALOG = {
    "ref": 28,
    "scale": 0.001,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Nutrientes / Aerosoles",
@@ -1308,6 +1448,8 @@ var CATALOG = {
    "vname_en": "Aerosol Atmospheric Optical Depth"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/MOD09GA_006_NDWI",
    "dr": "24/02/2000-17/02/2023",
    "fb": {
@@ -1319,6 +1461,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 463,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": "#",
    "pm": [
@@ -1342,6 +1485,8 @@ var CATALOG = {
    "ref": 29,
    "scale": "#",
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Balance de Agua",
@@ -1351,6 +1496,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Water Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "24/02/2000-now",
    "fb": {
@@ -1362,6 +1509,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 1000,
    "maxp": 90,
+   "metric": null,
    "minp": -90,
    "offset": -273.15,
    "pm": [
@@ -1380,6 +1528,8 @@ var CATALOG = {
    "ref": 30,
    "scale": 0.02,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "daily",
    "two_periods": null,
    "type": "Calor Sensible",
@@ -1389,6 +1539,8 @@ var CATALOG = {
    "vname_en": "Land Surface Temperature"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1401,6 +1553,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": 0,
    "offset": 0,
    "pm": [
@@ -1424,6 +1577,8 @@ var CATALOG = {
    "ref": 31,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1433,6 +1588,8 @@ var CATALOG = {
    "vname_en": "Normalized Difference Chlorophyll Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "MODIS/061/MCD15A3H",
    "dr": "2002/07/04-now",
    "fb": {
@@ -1444,6 +1601,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 500,
    "maxp": 1,
+   "metric": null,
    "minp": -0.2,
    "offset": 0,
    "pm": [
@@ -1467,6 +1625,8 @@ var CATALOG = {
    "ref": 32,
    "scale": 0.1,
    "sensor": "Modis",
+   "static": null,
+   "terrain": null,
    "tr": "4-days",
    "two_periods": null,
    "type": "Carbon (Primary Production)",
@@ -1476,6 +1636,8 @@ var CATALOG = {
    "vname_en": "Leaf Area Index"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1488,6 +1650,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1504,6 +1667,8 @@ var CATALOG = {
    "ref": 101,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1513,6 +1678,8 @@ var CATALOG = {
    "vname_en": "Normalized Burn Ratio"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1525,6 +1692,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 10,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1541,6 +1709,8 @@ var CATALOG = {
    "ref": 102,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": null,
    "type": "Perturbaciones",
@@ -1550,6 +1720,8 @@ var CATALOG = {
    "vname_en": "Normalized Burn Ratio"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": [
@@ -1562,6 +1734,7 @@ var CATALOG = {
    "large_areas": false,
    "m": 20,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": 0,
    "pm": [
@@ -1578,6 +1751,8 @@ var CATALOG = {
    "ref": 103,
    "scale": 0.0001,
    "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
    "tr": "5-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1587,6 +1762,8 @@ var CATALOG = {
    "vname_en": "Relativized Burn Ratio"
   },
   {
+   "axis": null,
+   "band": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
    "fb": [
@@ -1599,6 +1776,7 @@ var CATALOG = {
    "large_areas": true,
    "m": 30,
    "maxp": 1,
+   "metric": null,
    "minp": -0.5,
    "offset": -0.2,
    "pm": [
@@ -1615,6 +1793,8 @@ var CATALOG = {
    "ref": 104,
    "scale": 2.75e-05,
    "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
    "tr": "16-days",
    "two_periods": true,
    "type": "Perturbaciones",
@@ -1622,6 +1802,131 @@ var CATALOG = {
    "unit": "[unitless]",
    "vname": "Índice Relativizado de Quema",
    "vname_en": "Relativized Burn Ratio"
+  },
+  {
+   "axis": "Snow Cover Frequency (SCF)",
+   "band": null,
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "green",
+    "nir",
+    "swir1"
+   ],
+   "fk": "scf",
+   "ft": "SCF(green,nir,swir1)",
+   "index": "SCF",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": -0.2,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 105,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
+  },
+  {
+   "axis": null,
+   "band": "DEM",
+   "col": "COPERNICUS/DEM/GLO30_2024_1",
+   "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
+   "fb": [
+    "DEM"
+   ],
+   "fk": "static",
+   "ft": "DEM",
+   "index": "ELEVATION",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 3500,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "1a9850",
+    "91cf60",
+    "d9ef8b",
+    "fee08b",
+    "fdae61",
+    "b2734a",
+    "8c510a",
+    "bdbdbd",
+    "ffffff"
+   ],
+   "ref": 106,
+   "scale": 1,
+   "sensor": "Copernicus",
+   "static": true,
+   "terrain": null,
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Topografía",
+   "type_en": "Topography",
+   "unit": "[m]",
+   "vname": "Elevación",
+   "vname_en": "Elevation"
+  },
+  {
+   "axis": null,
+   "band": "DEM",
+   "col": "COPERNICUS/DEM/GLO30_2024_1",
+   "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
+   "fb": [
+    "DEM"
+   ],
+   "fk": "static",
+   "ft": "slope(DEM)",
+   "index": "SLOPE",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 45,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffcc",
+    "ffeda0",
+    "fed976",
+    "feb24c",
+    "fd8d3c",
+    "fc4e2a",
+    "e31a1c",
+    "bd0026",
+    "800026"
+   ],
+   "ref": 107,
+   "scale": 1,
+   "sensor": "Copernicus",
+   "static": true,
+   "terrain": "slope",
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Topografía",
+   "type_en": "Topography",
+   "unit": "[°]",
+   "vname": "Pendiente",
+   "vname_en": "Slope"
   }
  ]
 };

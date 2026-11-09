@@ -7,15 +7,17 @@
 mo_variables(sensor = NULL, text = NULL, lang = "en")
 }
 \arguments{
-\item{sensor}{optional: only those of \code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
+\code{"Copernicus"}.}
 
 \item{text}{optional: only those with this text in their variable or their name (in English or in Spanish).}
 
 \item{lang}{language of the names: \code{"en"} or \code{"es"}.}
 }
 \value{
-A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit). The references of
-  each variable: \code{mo_describe()}.
+A data.frame (ref, variable, sensor, collection, name, group, resolution_m, dates, unit and, for some, metric:
+  its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without dates). The
+  references of each variable: \code{mo_describe()}.
 }
 \description{
 Variables of the catalog of MonitorEO

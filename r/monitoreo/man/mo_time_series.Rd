@@ -26,9 +26,12 @@ mo_time_series(
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"} or \code{"Modis"}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 
-\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}.}
+\item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
+statistics.}
 
 \item{step}{\code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.}
 
@@ -50,8 +53,9 @@ mo_time_series(
 \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
 }
 \value{
-A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, scale, csv,
-  references and credits (see \code{mo_references()}).
+A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
+  (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
+  credits (see \code{mo_references()}).
 }
 \description{
 A value per step and feature of the region, reduced in time with \code{metric} and over the region with

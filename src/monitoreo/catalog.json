@@ -4,13 +4,13 @@
   "type": "group of variables",
   "index": "variable",
   "vname": "name",
-  "sensor": "Sentinel-2, Landsat or Modis",
+  "sensor": "Sentinel-2, Landsat or Modis (Copernicus: the elevation model of catalog.EXTRA)",
   "col": "Earth Engine collection (LANDSAT = Landsat 5, 7, 8 and 9)",
   "m": "native pixel size (m)",
   "tr": "revisit time",
   "dr": "dates",
   "unit": "unit",
-  "ft": "formula: a band, an expression of the bands, or N(b1,b2) for the normalized difference",
+  "ft": "formula: a band, an expression of the bands, N(b1,b2) for the normalized difference, or SCF(green,nir,swir1) for the snow of the snow cover frequency (sensors.SCF)",
   "scale": "scale factor of the bands",
   "offset": "offset of the bands",
   "clouds_bandQA": "QA band for clouds",
@@ -21,6 +21,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
+  "static": "fixed layer, without dates (catalog.EXTRA: elevation and slope): an image (col and band, with terrain slope), with maps and their statistics but no time series, trends or comparisons",
   "notes": "comments of the fields",
   "references": "articles of the formula or algorithm of the variable (their IDs in references)"
  },
@@ -116,6 +117,46 @@
     "usgs_landsat89"
    ],
    "credit": "Landsat Collection 2 Level-2 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LT05/C02/T1_TOA": {
+   "references": [
+    "usgs_landsat45_l1",
+    "chander2009"
+   ],
+   "credit": "Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LE07/C02/T1_TOA": {
+   "references": [
+    "usgs_landsat7_l1",
+    "chander2009"
+   ],
+   "credit": "Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LC08/C02/T1_TOA": {
+   "references": [
+    "usgs_landsat89_l1",
+    "chander2009"
+   ],
+   "credit": "Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey"
+  },
+  "LANDSAT/LC09/C02/T1_TOA": {
+   "references": [
+    "usgs_landsat89_l1",
+    "chander2009"
+   ],
+   "credit": "Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey"
+  },
+  "COPERNICUS/DEM/GLO30_2024_1": {
+   "references": [
+    "esa_copernicus_dem"
+   ],
+   "credit": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
+  },
+  "USGS/SRTMGL1_003": {
+   "references": [
+    "farr2007",
+    "nasa_srtmgl1"
+   ]
   },
   "MODIS/061/MOD16A2": {
    "references": [
@@ -307,6 +348,14 @@
    "citation": "Lyapustin, A., Wang, Y., Korkin, S., & Huang, D. (2018). MODIS Collection 6 MAIAC algorithm. Atmospheric Measurement Techniques, 11(10), 5741–5765.",
    "doi": "10.5194/amt-11-5741-2018"
   },
+  "rizzoli2017": {
+   "citation": "Rizzoli, P., Martone, M., Gonzalez, C., Wecklich, C., Borla Tridon, D., Bräutigam, B., Bachmann, M., Schulze, D., Fritz, T., Huber, M., Wessel, B., Krieger, G., Zink, M., & Moreira, A. (2017). Generation and performance assessment of the global TanDEM-X digital elevation model. ISPRS Journal of Photogrammetry and Remote Sensing, 132, 119–139.",
+   "doi": "10.1016/j.isprsjprs.2017.08.008"
+  },
+  "zevenbergen1987": {
+   "citation": "Zevenbergen, L. W., & Thorne, C. R. (1987). Quantitative analysis of land surface topography. Earth Surface Processes and Landforms, 12(1), 47–56.",
+   "doi": "10.1002/esp.3290120107"
+  },
   "garcia1991": {
    "citation": "García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper data. Geocarto International, 6(1), 31–37.",
    "doi": "10.1080/10106049109354290"
@@ -359,9 +408,21 @@
    "citation": "Zanaga, D., Van De Kerchove, R., Daems, D., De Keersmaecker, W., Brockmann, C., Kirches, G., Wevers, J., Cartus, O., Santoro, M., Fritz, S., Lesiv, M., Herold, M., Tsendbazar, N.-E., Xu, P., Ramoino, F., & Arino, O. (2022). ESA WorldCover 10 m 2021 v200 [Data set]. Zenodo.",
    "doi": "10.5281/zenodo.7254221"
   },
+  "farr2007": {
+   "citation": "Farr, T. G., Rosen, P. A., Caro, E., Crippen, R., Duren, R., Hensley, S., Kobrick, M., Paller, M., Rodriguez, E., Roth, L., Seal, D., Shaffer, S., Shimada, J., Umland, J., Werner, M., Oskin, M., Burbank, D., & Alsdorf, D. (2007). The Shuttle Radar Topography Mission. Reviews of Geophysics, 45(2), RG2004.",
+   "doi": "10.1029/2005RG000183"
+  },
+  "chander2009": {
+   "citation": "Chander, G., Markham, B. L., & Helder, D. L. (2009). Summary of current radiometric calibration coefficients for Landsat MSS, TM, ETM+, and EO-1 ALI sensors. Remote Sensing of Environment, 113(5), 893–903.",
+   "doi": "10.1016/j.rse.2009.01.007"
+  },
   "esa_s2_l2a": {
    "citation": "European Space Agency (2022). Sentinel-2 MSI Level-2A BOA Reflectance [Data set].",
    "doi": "10.5270/S2_-znk9xsj"
+  },
+  "esa_copernicus_dem": {
+   "citation": "European Space Agency, & Airbus (2022). Copernicus DEM [Data set]. European Space Agency.",
+   "doi": "10.5270/ESA-c5d3d65"
   },
   "usgs_landsat45": {
    "citation": "Earth Resources Observation and Science (EROS) Center (2020). Landsat 4-5 Thematic Mapper Level-2, Collection 2 [Data set]. U.S. Geological Survey.",
@@ -374,6 +435,18 @@
   "usgs_landsat89": {
    "citation": "Earth Resources Observation and Science (EROS) Center (2013). Landsat 8-9 Operational Land Imager / Thermal Infrared Sensor Level-2, Collection 2 [Data set]. U.S. Geological Survey.",
    "doi": "10.5066/P9OGBGM6"
+  },
+  "usgs_landsat45_l1": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (1982). Landsat 4-5 Thematic Mapper Level-1, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P918ROHC"
+  },
+  "usgs_landsat7_l1": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (1999). Landsat 7 Enhanced Thematic Mapper Plus Level-1, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P9TU80IG"
+  },
+  "usgs_landsat89_l1": {
+   "citation": "Earth Resources Observation and Science (EROS) Center (2013). Landsat 8-9 Operational Land Imager / Thermal Infrared Sensor Level-1, Collection 2 [Data set]. U.S. Geological Survey.",
+   "doi": "10.5066/P975CC9B"
   },
   "mod16a2": {
    "citation": "Running, S., Mu, Q., & Zhao, M. (2021). MODIS/Terra Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
@@ -418,6 +491,10 @@
   "mod09ga": {
    "citation": "Vermote, E., & Wolfe, R. (2015). MOD09GA MODIS/Terra Surface Reflectance Daily L2G Global 1km and 500m SIN Grid V006 [Data set]. NASA Land Processes Distributed Active Archive Center.",
    "doi": "10.5067/MODIS/MOD09GA.006"
+  },
+  "nasa_srtmgl1": {
+   "citation": "NASA JPL (2013). NASA Shuttle Radar Topography Mission Global 1 arc second [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MEaSUREs/SRTM/SRTMGL1.003"
   },
   "obpg_aqua_chl": {
    "citation": "NASA Goddard Space Flight Center, Ocean Ecology Laboratory, Ocean Biology Processing Group (2017). MODIS-Aqua Level 3 Mapped Chlorophyll Data Version R2018.0 [Data set]. NASA Ocean Biology DAAC.",

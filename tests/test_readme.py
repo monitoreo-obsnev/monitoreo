@@ -88,6 +88,26 @@ def test_geotiff_metadata(tmp_path):
 	assert '1 value: Value of the variable (degC)' in text
 
 
+def test_fixed_layers_and_scf():
+	"""The README of a fixed layer (elevation, slope) has no period, temporal metric or pixel filters, even if the
+	call gives them (QGIS sends its greyed-out dates), and that of the SCF its fixed filters, whatever the quality."""
+	from monitoreo import report
+	region = {'wdpa_id': 389011}
+	for tool in ('download_image', 'map_layer', 'region_stats'):
+		args = {'region': region, 'variable': 'SLOPE', 'sensor': 'Copernicus', 'start': '2025-01-01',
+		        'end': '2025-12-31', 'metric': 'median', 'quality': {'clouds': True}}
+		facts = dict(report.item_facts(tool, args))
+		assert not {'Period', 'Temporal metric', 'Discarded pixels'} & set(facts), tool
+		assert facts['Method'] == report.METHODS['static'] and '2025' not in report.item_title(tool, args)
+	scf = dict(report.item_facts('download_image', {'region': region, 'variable': 'SCF', 'sensor': 'Landsat',
+	                                                'start': '2001-01-01', 'end': '2024-12-31', 'metric': 'mean',
+	                                                'quality': {'clouds': False, 'snow': True}}))
+	assert scf['Discarded pixels'] == 'clouds, water' and scf['Temporal metric'] == 'mean'
+	d = variable.describe({'index': 'ELEVATION', 'sensor': 'Copernicus', 'period': ['2018-01-01', '2021-12-31'],
+	                       'season': ['06-01', '08-31'], 'metric': None, 'quality': {}})
+	assert d['udunits'] == 'm' and not {'period', 'season', 'metric'} & set(d)
+
+
 def test_trend_bands(tmp_path):
 	path = _tif(tmp_path / 'trend.tif', ['slope', 'tau', 'z', 'p_value', 'intercept', 'n'])
 	readme.tag(path, 'download_trend', dict(ARGS, variable='NDVI'), {'unit': '[unitless] / year'})

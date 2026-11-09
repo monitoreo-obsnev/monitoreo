@@ -310,6 +310,7 @@ class MonitorEODock(QDockWidget):
 		row.addStretch()
 		f.addRow('Season', info(row, HELP['season']))
 		self.filters = {}
+		self.chosen_filters = None  # the filters checked by the user while a variable with fixed filters is chosen
 		row = QHBoxLayout()
 		for key, label in (('clouds', 'clouds'), ('water', 'water'), ('snow', 'snow'), ('aerosols', 'aerosols')):
 			self.filters[key] = QCheckBox(label)
@@ -322,6 +323,7 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		box = QGroupBox('Time series')
+		self.series_box = box  # greyed out for the fixed layers without dates (elevation, slope)
 		f = QFormLayout(box)
 		self.step = combo(STEPS, 'monthly')
 		self.ts_metric = combo(METRICS, 'mean')
@@ -345,6 +347,7 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		box = QGroupBox('Trends (Mann-Kendall and Sen)')
+		self.trends_box = box
 		box.setToolTip("Trend of each part of the year over the years of the period: Kendall's τ, Mann-Kendall Z and "
 		               "p-value, and Sen's slope (change per year). Better with 8 years or more")
 		f = QFormLayout(box)
@@ -400,12 +403,17 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(b)
 		b = QPushButton('Series (CSV)')
 		b.clicked.connect(self.run_export_series)
+		self.export_series_button = b
 		row.addWidget(b)
 		f.addRow(row)
 		self.export_status = QLabel('')
 		self.export_status.setWordWrap(True)
 		f.addRow(self.export_status)
 		main.addWidget(box)
+		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
+		# fixed layers (elevation, slope)
+		self.variable.currentIndexChanged.connect(self.variable_changed)
+		self.variable_changed()
 		main.addWidget(self.about_box())
 		main.addStretch()
 
@@ -520,6 +528,8 @@ class MonitorEODock(QDockWidget):
 
 	def variable_args(self):
 		v = self.variable.currentData()
+		if v.get('static'):  # elevation, slope: without dates, pixel filters or season (greyed out), nor in the README
+			return {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']}
 		quality = {k: w.isChecked() for k, w in self.filters.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		args = {'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection'],
@@ -645,7 +655,7 @@ class MonitorEODock(QDockWidget):
 
 	def other_period(self):
 		"""(first day, last day) of the period to compare with the reference one, or None."""
-		if not self.compare_on.isChecked():
+		if not self.compare_on.isChecked() or (self.variable.currentData() or {}).get('static'):
 			return None
 		return self.other_start.date().toString('yyyy-MM-dd'), self.other_end.date().toString('yyyy-MM-dd')
 
@@ -707,6 +717,39 @@ class MonitorEODock(QDockWidget):
 			self.add_result(res)
 
 		self.run_task(f"Comparison of periods of {var['variable']} ({var['sensor']})", work, done)
+
+	def variable_changed(self):
+		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
+		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
+		observations with snow, without clouds and water). The filters chosen before come back with another variable.
+		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
+		series and the trends greyed out."""
+		v = self.variable.currentData() or {}
+		only = v.get('metric')
+		static = bool(v.get('static'))
+		for w in (self.ts_metric, self.trend_metric, self.map_metric):
+			if only:
+				w.setCurrentIndex(max(0, w.findData(only)))
+			w.setEnabled(not only and not static)
+			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
+		for w in (self.start, self.end, self.compare_on, self.season_on, self.season_start, self.season_end,
+		          self.temporal, self.interannual, self.series_box, self.trends_box, self.export_series_button):
+			w.setEnabled(not static)
+		for w in (self.other_start, self.other_end):
+			w.setEnabled(not static and self.compare_on.isChecked())
+		fixed = v.get('fixed_filters')
+		self.cloud_score.setEnabled(fixed is None)
+		if fixed is not None and self.chosen_filters is None:
+			self.chosen_filters = {k: w.isChecked() for k, w in self.filters.items()}
+		for k, w in self.filters.items():
+			if fixed is not None:
+				w.setChecked(k in fixed)
+			elif self.chosen_filters is not None:
+				w.setChecked(self.chosen_filters[k])
+			w.setEnabled(fixed is None)
+			w.setToolTip(f"Fixed filters of {v['variable']}: they cannot be changed" if fixed is not None else '')
+		if fixed is None:
+			self.chosen_filters = None
 
 	def update_trend_parts(self):
 		step = self.trend_step.currentData()
@@ -792,7 +835,8 @@ class MonitorEODock(QDockWidget):
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
 		other = self.other_period()
-		opts = dict(var, metric=metric, temporal=temporal, interannual=inter)
+		static = (self.variable.currentData() or {}).get('static')  # no temporal metric for the fixed layers
+		opts = dict(var) if static else dict(var, metric=metric, temporal=temporal, interannual=inter)
 		if other:
 			opts.update(other_start=other[0], other_end=other[1])
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
@@ -919,9 +963,11 @@ class MonitorEODock(QDockWidget):
 		res = self.resolution.value() or None
 		folder = self.folder.text().strip() or 'MonitorEO'
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
+		time = {} if (self.variable.currentData() or {}).get('static') else \
+			{'metric': metric, 'temporal': temporal, 'interannual': inter}  # none for the fixed layers
 		self.run_task(f"Export the map of {var['variable']}",
-		              lambda: services.export_image(region, metric=metric, temporal=temporal, interannual=inter,
-		                                            resolution=res, folder=folder, **var), self.follow_export)
+		              lambda: services.export_image(region, resolution=res, folder=folder, **time, **var),
+		              self.follow_export)
 
 	def run_export_series(self):
 		args = self.prepare()
