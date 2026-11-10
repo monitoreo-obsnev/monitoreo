@@ -27,11 +27,15 @@ main() {
 	MAMBA="$MAMBA_DIR/micromamba"
 	APP="$HOME/Desktop/MonitorEO Assistant.app"
 
-	fail() {
+	fail() {  # fail MESSAGE [LINES OF WHAT TO DO]: by default, the connection, the cause of almost every error
 		echo
 		echo "ERROR: $1"
-		echo "Check the internet connection and open the installer again. If it keeps failing, see the page"
-		echo "Troubleshooting of the wiki of MonitorEO."
+		if [ $# -gt 1 ]; then
+			printf '%s\n' "${@:2}"
+		else
+			echo "Check the internet connection and open the installer again. If it keeps failing, see the page"
+			echo "Troubleshooting of the wiki of MonitorEO."
+		fi
 		read -r -p "Press Enter to close. " _ < /dev/tty || true
 		exit 1
 	}
@@ -51,6 +55,16 @@ main() {
 		x86_64) PLATFORM=osx-64 ;;
 		*) fail "this Mac is neither Apple Silicon nor Intel ($(uname -m))." ;;
 	esac
+
+	# The app goes on the Desktop, and macOS asks whether the Terminal may access it (once). If the user said Don't
+	# Allow, every access fails with "Operation not permitted" and macOS does not ask again: say so now, before the
+	# downloads, instead of blaming the connection at the end.
+	TEST="$HOME/Desktop/.monitoreo-installer-test"
+	if ! { mkdir -p "$HOME/Desktop" && touch "$TEST" && rm -f "$TEST"; } 2>/dev/null; then
+		fail "the Terminal may not access the Desktop, where the installer leaves the app of the assistant." \
+			"Go to System Settings > Privacy & Security > Files & Folders > Terminal, turn on Desktop and open the" \
+			"installer again."
+	fi
 
 	if [ -x "$ENV/bin/monitoreo" ]; then
 		echo "The environment is already installed in $ENV."
