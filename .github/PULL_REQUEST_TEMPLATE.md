@@ -18,6 +18,7 @@
 - [ ] The README and metadata of the files it writes read right
 - [ ] R help regenerated with roxygen2 (`r/monitoreo/man`), if the roxygen changed
 - [ ] Earth Engine app rebuilt (`gee/build.py`), if the catalog, `about.py` or `gee/` changed
+- [ ] Its entries, in English, under `### Unreleased` in the changelog of `README.md` (or n/a: users do not notice it)
 - [ ] Wiki pages in Spanish and English (wiki branch: `...`)
 - [ ] Texts of the tools in English
 

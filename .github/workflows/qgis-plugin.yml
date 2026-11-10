@@ -4,6 +4,8 @@
 # - when a tag v* is pushed (e.g. v0.2.0 from GitHub Desktop), creating the release if it does not exist;
 # - by hand (Actions > QGIS plugin > Run workflow) with the tag of a release that already exists; without a tag, it
 #   leaves the zip as an artifact of the run.
+# The notes of a release it creates (or that has none) are its entries of the changelog of README.md
+# (.github/changelog.py notes <tag>), with how to install the zip.
 # With a tag, it also uploads the zip to the official repository (plugins.qgis.org/plugins/monitoreo_qgis) if that
 # version is not there yet and the repository has the secret QGIS_PLUGINS_TOKEN (the token of the plugin there).
 name: QGIS plugin
@@ -67,6 +69,13 @@ jobs:
         run: |
           zip=$(ls dist/monitoreo_qgis-*.zip)
           notes="QGIS plugin: download $(basename "$zip") and install it in QGIS with Plugins > Manage and Install Plugins > Install from ZIP."
+          # what the release brings, from the changelog of README.md (none in the tags before it had one)
+          changes=$(python .github/changelog.py notes "$TAG" 2>/dev/null || true)
+          if [ -n "$changes" ]; then
+            notes="$changes
+
+          $notes"
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$zip" --clobber
             if [ -z "$(gh release view "$TAG" --json body --jq .body)" ]; then
