@@ -14,8 +14,10 @@ rem It puts on the Desktop the shortcut "MonitorEO Assistant" (with the logo of 
 rem installer/icons/monitoreo-assistant.ico), which opens the assistant in its window with pythonw.exe, without a
 rem console (its messages go to %USERPROFILE%\MonitorEO\assistant-output.log), and opens it. If the environment
 rem already exists, it only creates the shortcut and opens the assistant; to install it again, delete the folder
-rem entorno (it keeps its Spanish name, "environment", so that existing installations are found). No accents: cmd
-rem reads this file with the code page of the console.
+rem entorno (it keeps its Spanish name, "environment", so that existing installations are found). It downloads no
+rem language model: the assistant uses, by default, the model of MonitorEO in the cloud; a model of Ollama is
+rem optional, and the assistant downloads it (monitoreo.engine) if the user chooses one in Settings. No accents: cmd
+rem reads this file with the code page of the console. The parentheses of each echo close in its own line.
 setlocal
 title Installer of the MonitorEO assistant
 set "REPO=https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main"
@@ -29,9 +31,10 @@ echo Installer of the MonitorEO assistant
 echo ====================================
 echo.
 echo It installs in %ENV%, without administrator rights, what the assistant needs:
-echo Python, Google Earth Engine, GDAL and MonitorEO (about 0.3 GB to download and 1.7 GB on disk). Then, the first
-echo time it opens, the assistant downloads its language model and its engine (about 7 GB). Both downloads happen
-echo only the first time.
+echo Python, Google Earth Engine, GDAL and MonitorEO (about 0.3 GB to download and 1.7 GB on disk), only the
+echo first time. The assistant uses the language model of MonitorEO, in the cloud, with nothing more to download.
+echo A model on this computer (Ollama) is optional: if you choose one in Settings, it downloads about 7 GB the
+echo first time.
 echo.
 
 if exist "%ENV%\python.exe" if exist "%ENV%\Scripts\monitoreo.exe" (

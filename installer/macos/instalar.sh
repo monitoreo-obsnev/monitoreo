@@ -14,6 +14,8 @@
 # creates the app and opens it; to install it again, delete ~/MonitorEO/entorno
 # (the folder keeps its Spanish name, "environment", so that existing installations are found). The app is not
 # signed, but this computer creates it, so it is not quarantined and macOS opens it.
+# It downloads no language model: the assistant uses, by default, the model of MonitorEO in the cloud; a model of
+# Ollama is optional, and the assistant downloads it (monitoreo.engine) if the user chooses one in Settings.
 # Everything is inside main, which is called at the end: a broken download runs nothing.
 
 main() {
@@ -39,8 +41,9 @@ main() {
 	echo "===================================="
 	echo
 	echo "It installs in $ENV, without administrator rights, what the assistant needs: Python, Google Earth Engine,"
-	echo "GDAL and MonitorEO (about 0.2 GB to download and 0.8 GB on disk). Then, the first time it opens, the"
-	echo "assistant downloads its language model and its engine (about 5 GB). Both downloads happen only the first time."
+	echo "GDAL and MonitorEO (about 0.2 GB to download and 0.8 GB on disk, only the first time). The assistant uses the"
+	echo "language model of MonitorEO, in the cloud, with nothing more to download. A model on this computer (Ollama) is"
+	echo "optional: if you choose one in Settings, it downloads about 5 GB the first time."
 	echo
 
 	case "$(uname -m)" in
