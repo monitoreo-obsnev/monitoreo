@@ -40,10 +40,12 @@ pixel queries. Decide with the developer, and write the decision in the PR.
   `catalog.THEMES`, then a variable of it. The general analyses (maps, time series, trends, comparisons, exports) are
   in every theme; an analysis of one kind of variable is listed in the `analyses` of its theme, and the app shows its
   section only there (see `themeHas` in `gee/ui.js`). A new kind of functionality gets its own theme in both menus.
-- **Suggestions and errors.** Every tool with a window (QGIS plugin, Earth Engine app) has the button "Suggest a change
-  or report an error", with the links of `about.feedback(tool, version)`: an issue of GitHub (templates in
-  `.github/ISSUE_TEMPLATE`) or the anonymous Google Form of the team. A new tool with a window gets it too, and its
-  name in `about.TOOLS` and in the options of the form.
+- **Suggestions and errors.** Every tool with a window has the button "Suggest a change or report an error", with the
+  links of `about.feedback(tool, version)`: an issue of GitHub (templates in `.github/ISSUE_TEMPLATE`) or the anonymous
+  Google Form of the team. They are the QGIS plugin (`feedback_button` in `qgis/monitoreo_qgis/dock.py`), the Earth
+  Engine app (`render` in `gee/ui.js`, links built by `gee/build.py`) and the assistant (`feedback()` in
+  `assistant.py`, sent by `/api/state` and shown by `ui/assistant.html`); a change of the texts or the links reaches
+  all three. A new tool with a window gets it too, and its name in `about.TOOLS` and in the options of the form.
 
 ## Bug fixes
 
