@@ -12,6 +12,8 @@ MonitorEO-OBSNEV es una herramienta abierta de monitorización de Variables Esen
 herramienta con ejemplos, problemas frecuentes y [desarrollo](https://github.com/monitoreo-obsnev/monitoreo/wiki/Desarrollo).
 Cada página tiene su versión en inglés.
 
+**Novedades: [changelog](#changelog)**, lo que trae cada versión, al final de esta página (en inglés).
+
 ## Herramientas
 
 Todas calculan con Google Earth Engine y usan **las mismas funciones** (`monitoreo.services`): el mismo cálculo da el
@@ -50,6 +52,8 @@ MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversity Variables 
 manual of each tool with examples, troubleshooting and [development](https://github.com/monitoreo-obsnev/monitoreo/wiki/Development).
 Every page also has its Spanish version.
 
+**What's new: [changelog](#changelog)**, what each version brings, at the end of this page.
+
 ### Tools
 
 They all compute with Google Earth Engine and use **the same functions** (`monitoreo.services`): the same computation
@@ -77,5 +81,184 @@ The Zenodo DOI always resolves to the latest version; each version also has its 
 MonitorEO is an output of the EVEREST Project (PID2023-151939OB-I00), funded by MICIU/AEI 10.13039/501100011033, and co-funded by ERDF – European Union, as well as of the NevadEO Project (C-EXP-074-UGR23), co-funded by the ERDF 2014-2020 Program and the Regional Ministry of Economy, Knowledge, Enterprise, and Universities of the Regional Government of Andalusia. It is also an output of the PRESINMED Project (Preserving the singularity of Mediterranean high-mountain biodiversity hotspots: a NBS approach, PCI 2025-163175) of the Biodiversa+ NBS 2023 call.
 
 <p align="center"><img src="src/monitoreo/logos/monitoreo_obsnev.png" alt="Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada, Ministerio de Ciencia, Innovación y Universidades, Cofinanciado por la Unión Europea, Agencia Estatal de Investigación y Junta de Andalucía" width="850"><br><img src="src/monitoreo/logos/nevadeo_feder.jpg" alt="Cofinanciado por la Unión Europea, Gobierno de España – Fondos Europeos, Junta de Andalucía y Universidad de Granada" width="850"><br><img src="src/monitoreo/logos/biodiversa.png" alt="Biodiversa+, European Biodiversity Partnership" width="300"></p>
+
+---
+
+## Changelog
+
+What each version brings, newest first. A version is that of the QGIS plugin, the tag of its
+[release](https://github.com/monitoreo-obsnev/monitoreo/releases); the Python and R package `monitoreo` has its own
+number, next to it. **All tools** are those that MonitorEO had at that version, and **(fix)** marks an error that was
+fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
+**Unreleased** before its release.
+
+### Unreleased
+
+- **QGIS plugin**: The plugin manager of QGIS shows the changelog of the last five versions, and each GitHub release lists its changes.
+
+### [v0.3.19](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.19) · 2026-11-10 · package 0.3.29
+
+- **Assistant**: A "Suggest a change or report an error" button links to a new GitHub issue or the anonymous form, both filled in with the assistant and its version.
+- **Assistant**: The HTML report's hint now says that saving it as a PDF needs no printer, and explains how to do it in Firefox and Safari.
+
+### [v0.3.18](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.18) · 2026-11-09 · package 0.3.28
+
+- **Command line**: `monitoreo burn` computes the burn severity of a fire: hectares per USGS class and burned area (dNBR), or RBR statistics, with CSV and GeoTIFF.
+- **QGIS plugin**: The Fire theme has "Burn severity of a fire (dNBR or RBR)": a table of hectares per USGS class or RBR statistics, and a coloured map layer.
+- **QGIS plugin**: The burn severity window saves its CSV and GeoTIFF, each with a README, and stays in the session's list of results.
+- **QGIS plugin**: Burn severity uses the panel's region, the pixel filters you chose and the "Only the pixels where" conditions, and starts with the dates of the manual's Teide fire.
+
+### [v0.3.17](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.17) · 2026-11-09 · package 0.3.27
+
+- **Assistant** (fix): Burn severity maps in result cards and HTML reports now show the USGS classes in their colours, with a legend giving each class's dNBR range.
+- **Assistant** (fix): RBR maps in result cards and HTML reports now go from green (regrowth, -0.5) to red (burned, 0.5), with a colour bar, as in the Earth Engine app.
+
+### [v0.3.16](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.16) · 2026-11-09 · package 0.3.26
+
+- **All tools**: New variables: snow cover frequency (Landsat), cloud frequency (MODIS, Sentinel-2, Landsat), climate (ERA5-Land, TerraClimate, CHIRPS v3, WorldClim) and elevation and slope (Copernicus DEM).
+- **All tools**: Countries, FAO GAUL 2025 administrative units (searchable by name), islands (by a point) and Ramsar sites can be study areas (no countries in the Earth Engine app).
+- **All tools**: Study areas can be limited to the pixels that meet conditions on variables, e.g. above 1,500 m with under 600 mm of rain a year (`--where`, `where =`).
+- **Earth Engine app, QGIS plugin, MCP server, Python package, Command line, R package**: Variables are grouped by theme (Vegetation, Water, Snow, Fire, Climate, Terrain...) in the menus and can be listed by theme (`--theme`, `theme =`).
+- **Earth Engine app, QGIS plugin**: A button lets users suggest a change or report an error, through a GitHub issue or an anonymous form.
+- **Assistant**: Waits for the user's choice before computing, titles each map in full, shows the newest results first and suggests team articles as example questions.
+- **Earth Engine app, QGIS plugin, MCP server, Python package, Command line, R package** (fix): MonitorEO's own Earth Engine project no longer warns falsely that its quota is spent (1,000 EECU-hours, not 150), and the Earth Engine app shows [°C], not [ºC].
+
+### [v0.3.15](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.15) · 2026-11-08 · package 0.3.25
+
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: The files of each result come with a README: what was computed, each column or band with its unit, missing values, and how to reproduce and cite it.
+- **QGIS plugin, Assistant, R package**: The README is linked in the assistant's result cards, saved next to the CSV in QGIS and kept in the `readme` attribute in R.
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: Downloaded GeoTIFFs record the call, the MonitorEO version, the computation date, the period and the metric, and name each band with its unit.
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: Units in downloaded CSVs and GeoTIFFs follow UDUNITS, for example degC, kg m-2 (8 day)-1 or, for trend slopes, degC year-1.
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package** (fix): Land surface temperature shows its unit with the degree sign, [°C], instead of the ordinal indicator [ºC].
+
+### [v0.3.14](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.14) · 2026-11-08 · package 0.3.24
+
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package, Results viewer**: Every result, and the metadata of its GeoTIFFs, lists what to cite: references with DOI for the variable, its data, method and region, plus data credits.
+- **QGIS plugin, Assistant, Results viewer**: References with DOI links appear in QGIS result windows, help and layer descriptions, in the assistant's result cards and reports, and in viewer reports.
+- **R package**: Help pages for every function, `mo_references()` to print what to cite, and `citation("monitoreo")` now also cites Google Earth Engine.
+- **Assistant**: Installer for Ubuntu LTS 22.04, 24.04 and 26.04 that adds MonitorEO Assistant to the applications and the Desktop without administrator rights.
+- **Assistant** (fix): On Windows, the installer now works on a fresh system and downloads less, and the assistant starts with its new version after updating itself.
+- **Assistant**: The app and shortcuts of the assistant show the MonitorEO logo as their icon on macOS, Windows and Ubuntu.
+
+### [v0.3.13](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.13) · 2026-11-05 · package 0.3.23
+
+- **Assistant**: Uses MonitorEO's cloud model by default (Claude Sonnet 5.5, or Gemini 3.8 Flash): nothing to install, and the conversation goes to Anthropic or Google; Ollama stays optional.
+- **Assistant**: Explains concepts and its page step by step with the cloud model, and keeps water and snow pixels with NDWI, NDCI, chlorophyll-a and NDSI.
+- **All tools** (fix): Landsat albedo was 0.016 too low because of a wrong constant in its formula (Liang 2001: -0.0018, not -0.018).
+
+### [v0.3.12](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.12) · 2026-11-05 · package 0.3.22
+
+- **All tools**: Texts of every tool are now in English, with links to the English wiki; the Earth Engine app opens in English and keeps a Spanish button.
+- **Assistant, MCP server**: The assistant answers in the language of each question, Spanish or English, and the MCP server asks the model to use the user's language.
+- **Earth Engine app, Assistant, MCP server, Python package, R package, Results viewer**: Burn severity can compute the Relativized Burn Ratio (`index = "RBR"`): a continuous map, its statistics per region and a GeoTIFF.
+- **Earth Engine app, Assistant, MCP server, Python package, R package, Results viewer**: Burn severity classes have English names, and the Earth Engine app and the results viewer draw them with the UN-SPIDER colours.
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: Each user of the shared account now gets 25 research EECU-hours a month, within what the project has left for all its users.
+- **Assistant**: A Log out button revokes your Google sign-in, deletes this computer's Earth Engine credentials and computes with the shared account again.
+
+### [v0.3.11](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.11) · 2026-11-05 · package 0.3.21
+
+- **QGIS plugin** (fix): Published in the QGIS plugin repository, which had refused 0.3.10 for a character in its description; QGIS users get 0.3.10's EECU bar with it.
+
+### [v0.3.10](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.10) · 2026-11-05 · package 0.3.21
+
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: With the shared account, each user gets 10 research EECU-hours a month, then nothing until the next month; earlier versions can no longer use it.
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: Every tool shows the EECUs spent this month, yours or your project's, and warns under 10 % left: a bar in QGIS and the assistant, `monitoreo eecu`, `eecu_usage`, `mo_eecu()`.
+
+### [v0.3.9](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.9) · 2026-11-04 · package 0.3.20
+
+- **QGIS plugin**: The windows of a time series and of trends add to the map its whole period, each date or each part of the year, with comparable colours.
+- **QGIS plugin**: Maps of the dates of a series carry their days for the Temporal Controller, and trend maps can show only significant pixels (p < 0.05).
+
+### [v0.3.8](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.8) · 2026-11-04 · package 0.3.19
+
+- **QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: Without a project of your own, every tool computes with MonitorEO's shared Earth Engine account; exports to Google Drive still need your own account.
+- **Assistant, Command line**: New chat for managers (`monitoreo assistant`): an open language model on this computer helps choose variable, place and period; MonitorEO computes and makes a printable report.
+- **Assistant**: Installers for Windows and macOS set it up without administrator rights, with a Desktop shortcut that opens it in its own window; it installs Ollama and its model the first time.
+- **Assistant**: Results open on a large map with basemaps, each year or month, pixel values and series, significant-only trend maps, and views added to the report.
+- **Assistant**: Answers questions about MonitorEO from the wiki, takes uploaded study areas, downloads GeoTIFFs, exports to Google Drive and installs new versions from GitHub.
+- **QGIS plugin, Assistant, MCP server, Python package, R package** (fix): Maps of big areas or long periods no longer fail when Earth Engine runs out of memory for their colour range; the catalog's range is used.
+
+### [v0.3.7](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.7) · 2026-11-03 · package 0.3.10
+
+- **QGIS plugin, MCP server, Python package, Command line, R package**: Computing on this computer was removed, with the notices of where it computes: everything runs in Earth Engine, and `--local`, `--plan`, `mo_where()` and `mo_plan()` are gone.
+- **All tools**: The documentation moved to the wiki; the README keeps the description, the table of tools with links to their manuals, the citation and acknowledgements.
+
+### [v0.3.6](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.6) · 2026-11-02 · package 0.3.9
+
+- **Earth Engine app**: A web app on Earth Engine Apps offers maps, time series, trends, period comparisons and burn severity without an Earth Engine account.
+- **QGIS plugin, MCP server, Python package, Command line, R package**: Time series and maps of Sentinel-2 and Landsat can be computed on this computer, as a prototype, with open Planetary Computer data and no account.
+- **QGIS plugin, MCP server, Python package, Command line, R package**: Before computing, each tool says where it computes and which credentials it needs; on this computer, also how many images and megabytes it reads.
+- **Command line**: New command `monitoreo image` saves the map of a variable over a region, aggregated in time, as a GeoTIFF.
+- **MCP server, Python package, Command line, R package** (fix): Downloading a recipe of variables (`download_variables`) no longer fails with the error KeyError 'source'.
+
+### [v0.3.5](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.5) · 2026-10-30 · package 0.3.8
+
+- **QGIS plugin** (fix): The plugin zip passes the security scan of the official QGIS plugin repository (plugins.qgis.org), which had blocked version 0.3.4.
+
+### [v0.3.4](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.4) · 2026-10-30 · package 0.3.8
+
+- **QGIS plugin**: Requires QGIS 4.0.3 or newer; on QGIS 3, plugin versions up to 0.3.3 keep working.
+- **QGIS plugin**: The plugin zip is 2.5 MB instead of 17.6 MB, and its description in the plugin manager is now only in English.
+
+### [v0.3.3](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.3) · 2026-10-30 · package 0.3.8
+
+- **QGIS plugin**: The plugin is no longer marked experimental, so the QGIS plugin manager shows it without enabling experimental plugins.
+
+### [v0.3.2](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.2) · 2026-10-30 · package 0.3.8
+
+- **All tools**: How to cite MonitorEO, with its Zenodo DOI, in every tool: `monitoreo about`, the MCP server, the QGIS about box, `citation("monitoreo")` and the viewer footer.
+
+### [v0.3.1](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.1) · 2026-10-30 · package 0.3.7
+
+- **All tools**: The acknowledgements add the PRESINMED project (Biodiversa+ NBS 2023 call), with the Biodiversa+ logo in the viewer, the QGIS plugin and the MCP server.
+
+### [v0.3.0](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.0) · 2026-10-30 · package 0.3.6
+
+- **MCP server, Python package, R package**: Burn severity of a fire (dNBR with the USGS classes): hectares of each class, a CSV and a GeoTIFF (`burn_severity`, `mo_burn_severity`).
+- **All tools**: The Normalized Burn Ratio (NBR) of Landsat and Sentinel-2 joins the catalog of variables.
+- **All tools** (fix): Time series and trends no longer fail when a step has no images (e.g. Landsat in 2012); its value is left empty.
+- **MCP server, Python package, Command line, Results viewer**: A results viewer: a static website of published reports with maps and charts that anyone can see without Earth Engine, licensed CC BY 4.0 by default.
+- **QGIS plugin**: A ⓘ button beside every option gives short help and a link to the manual, and the panel fits without horizontal scrolling.
+- **QGIS plugin**: The homepage of the plugin in the plugin manager is now the manual (the repository wiki).
+
+### [v0.2.3](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.2.3) · 2026-10-28 · package 0.3.3
+
+- **All tools**: The Manual link now opens the repository wiki, with tutorials for QGIS, the MCP server, Python and R.
+- **All tools** (fix): Trend charts label whole years on their axis instead of values such as 2007.5.
+- **All tools** (fix): Comparison CSVs no longer have two columns named reference and two named other: the periods are now reference_period and other_period.
+- **Command line**: Tables of series and protected areas show values with 4 significant digits.
+- **R package** (fix): `mo_image()` gives a proper colour ramp (its minimum and maximum were equal), and the package loads in any locale.
+
+### [v0.2.2](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.2.2) · 2026-10-28 · package 0.3.2
+
+- **All tools**: The description, acknowledgements (EVEREST and NevadEO projects) and logos of MonitorEO in every tool, e.g. `monitoreo about`, `mo_about()` and the QGIS panel.
+
+### [v0.2.1](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.2.1) · 2026-10-28 · package 0.3.1
+
+- **All tools**: Time series, trend tables and period comparisons are much faster: 96 months of MODIS over Sierra Nevada take 12 s instead of about 300 s.
+
+### [v0.2.0](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.2.0) · 2026-10-28 · package 0.3.0
+
+- **All tools**: Seasonal trends (Mann-Kendall test and Sen's slope) by month, 16 days or year, as a table for the region or a map per pixel.
+- **All tools**: Comparison of a reference period with another: the mean of each part of the year in both and their difference, as chart, table and map.
+- **QGIS plugin** (fix): Removing a layer after reloading or updating the plugin no longer stops QGIS with a Python error.
+
+### [v0.1.1](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.1.1) · 2026-10-28 · package 0.2.0
+
+- **QGIS plugin**: Maps load as GeoTIFFs whose values the Identify tool reads, zoomed to the region; the time series of the session stay in a list to reopen.
+- **QGIS plugin** (fix): QGIS no longer crashes after computing a time series: the chart is drawn once the computation ends.
+- **All tools**: Protected areas compute much faster (3 months of MODIS over Sierra Nevada: 126 s down to 8 s), and time series that Earth Engine rejects as busy or too heavy are retried or split.
+- **MCP server, Python package, Command line, R package**: Download a map as a GeoTIFF, or a recipe of variables as GeoTIFFs on aligned grids over a study area and its ecoregions (`monitoreo download`, `mo_download_variables`).
+- **MCP server**: The server installs the latest version from GitHub when it starts, if needed; `--no-update` skips the check.
+- **All tools**: MonitorEO is free software under the GNU General Public License v3.0 or later.
+
+### [0.1](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/0.1) · 2026-10-28 · package 0.1.0
+
+- **All tools**: Thirteen satellite variables of the MonitorEO catalog (NDVI, EVI, NDWI, albedo, surface temperature, evapotranspiration, LAI and more), in 32 versions from Sentinel-2, Landsat and MODIS.
+- **All tools**: Pixel filters for clouds, water, snow and aerosols are on by default, with Cloud Score+ for the clouds of Sentinel-2.
+- **All tools**: Time series (table, CSV and chart), map layers, region statistics and Google Drive exports over protected areas, ecoregions, boxes, points or vector files.
+- **QGIS plugin, MCP server, Python package, Command line, R package**: Available as a Python package with a command line, an MCP server for language models, an R package and a plugin for QGIS 3 and 4.
+
+---
 
 Copyright (C) 2026 OBSNEV, Universidad de Granada · [GPL-3.0-or-later](LICENSE)

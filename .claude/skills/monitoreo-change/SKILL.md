@@ -109,6 +109,12 @@ These are the invariants of MonitorEO. Tests check some of them; the rest depend
   analyses, in both menus. Never leave a variable or an analysis outside the themes: users would not find it.
 - **Tests come with the change.** Add or adjust a test in `tests/` for each behaviour you add or fix. For a bug, write
   the test that reproduces it first.
+- **Users see every change in the changelog.** A change that users notice adds its entries, in English, under
+  `### Unreleased` at the top of the section `## Changelog` of `README.md` (create the heading if it is not there):
+  one line each, with the tools it reaches, `- **QGIS plugin, Earth Engine app**: <what users get>.`, or
+  `- **Assistant** (fix): <the error that no longer happens>.` for a fix. Say what users get, not how it was done.
+  The release renames `### Unreleased` to its own heading. `.github/changelog.py` has the format and the tool names;
+  `tests/test_changelog.py` and the checker check it.
 
 ## 5. Check before the pull request
 
@@ -153,7 +159,7 @@ Then, as the change requires:
 - Documentation lives in the **wiki**, a separate git repository (`git@github.com:monitoreo-obsnev/monitoreo.wiki.git`;
   the team keeps its clone next to this repository, in `../monitoreo.wiki`), with every page in Spanish and English.
   `references/docs.md` has the page pairs and what goes where.
-- `README.md` changes only for the table of tools, how to cite and the acknowledgements.
+- `README.md` changes only for the table of tools, how to cite, the acknowledgements and the changelog (section 4).
 - The wiki has no pull requests. Prepare the pages on a wiki branch with the same name as the code branch, and push
   them to the wiki's `master` right after the PR is merged, without asking again (`references/docs.md`).
 - The assistant answers from the wiki (`manual.py` searches it), so what is not in the wiki does not exist for its

@@ -12,6 +12,8 @@ It reads and computes nothing in Earth Engine, and changes no file. It checks:
     this branch, that the help of the tools, the Earth Engine app and the wiki know them;
   - the generated files: the Earth Engine app (gee/catalog.js) against the catalog, the R help (man/) against its
     roxygen, the references of .zenodo.json, the versions, the about of the QGIS plugin;
+  - the changelog of README.md: its format, its last release against the versions and, if the branch changes what
+    users get, its entries;
   - with --tests, the offline tests.
 
 Each line starts with OK, WARN (to look at, or to say in the PR) or FAIL (to fix before the PR). The exit status is 1
@@ -278,6 +280,42 @@ def check_generated():
 	check_r()
 
 
+def check_changelog():
+	"""The changelog of README.md (.github/changelog.py): its format, the versions of its last release and, if the
+	branch changes what users get, an entry for it."""
+	print('\n== Changelog (README.md)')
+	try:
+		sys.path.insert(0, os.path.join(ROOT, '.github'))
+		import changelog
+	except ImportError as e:
+		say('WARN', f'the changelog not checked: {e}')
+		return
+	text = read('README.md')
+	found = changelog.problems(text)
+	for p in found:
+		say('FAIL', p)
+	if found:
+		return
+	log = changelog.parse(text)
+	say('OK', f'the changelog has the release {log["releases"][0]["tag"]} of the versions of the files')
+	users = sorted(changed_since_base(['src/monitoreo', 'qgis/monitoreo_qgis', 'r/monitoreo', 'gee']))
+	base = git('merge-base', 'HEAD', MAIN).stdout.strip()
+	def entries(text):
+		try:
+			lg = changelog.parse(text)
+		except ValueError:
+			return None
+		lists = [lg['unreleased'] or []] + [r['entries'] for r in lg['releases']]
+		return [(e['tools'], e['fix'], e['text']) for entries in lists for e in entries]
+
+	if users and entries(git('show', f'{base}:README.md').stdout) == entries(text):
+		say('WARN', f'the branch changes what users get ({", ".join(users[:4])}{" ..." if len(users) > 4 else ""}) '
+		            'but not the changelog: add its entries under "### Unreleased" in README.md, or say in the PR '
+		            'why users do not notice it')
+	elif users:
+		say('OK', 'the changelog has the entries of the branch')
+
+
 def read(path):
 	try:
 		return open(os.path.join(ROOT, path), encoding='utf-8').read()
@@ -343,6 +381,7 @@ def main():
 	check_git(not args.no_fetch)
 	check_catalog(os.path.abspath(args.wiki))
 	check_generated()
+	check_changelog()
 	if args.tests:
 		run_tests()
 	print(f"\n{results['OK']} OK, {results['WARN']} WARN, {results['FAIL']} FAIL")

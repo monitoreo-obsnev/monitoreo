@@ -10,8 +10,9 @@
   ```
 
 - **`README.md`** has only the table of tools (with links to their wiki pages), how to cite (DOI) and the
-  acknowledgements with the logos, first in Spanish and then in English. Touch it only to add a tool to the table or
-  to change the citation or the acknowledgements.
+  acknowledgements with the logos, first in Spanish and then in English, and at the end the changelog, in English
+  only, linked from both languages. Touch it only to add a tool to the table, to change the citation or the
+  acknowledgements, or to add the entries of a change to the changelog (`SKILL.md`, section 4).
 - **Docstrings and roxygen** document functions for programmers (`help()` in Python, `?mo_...` in R). They are
   written in English, and the R help is regenerated with roxygen2.
 - **The assistant** answers questions about MonitorEO by searching the wiki (`src/monitoreo/manual.py`). A feature
