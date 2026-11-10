@@ -43,7 +43,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __version__, areas, engine, manual, report, services
+from . import __version__, about, areas, engine, manual, report, services
 from .variable import pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
@@ -1760,6 +1760,12 @@ def _file_url(path):
 
 # The web server ------------------------------------------------------------------------------------------------------
 
+def feedback():
+	"""The button "Suggest a change or report an error" of the page: its texts (in English, as the page) and its links
+	(about.feedback: a new issue of GitHub or the anonymous form, filled with the assistant and its version)."""
+	return dict(about.FEEDBACK['en'], links=about.feedback('assistant', __version__))
+
+
 def make_app(assistant, token, port):
 	"""The Starlette application of the page and its API."""
 	from starlette.applications import Starlette
@@ -1847,7 +1853,8 @@ def make_app(assistant, token, port):
 		                     'update': assistant.update_info, 'busy': assistant.running(),
 		                     'window': assistant.in_window, 'eecu': assistant.eecu,
 		                     'eecu_tier': s.get('eecu_tier') or 'Community',
-		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()]})
+		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()],
+		                     'feedback': feedback()})
 
 	async def signin(request):
 		import ee

@@ -51,6 +51,10 @@ header { padding-top: 12px; }
 .brand img { height: 34px; max-width: 100%; object-fit: contain; object-position: left; }
 .brand .top { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 .brand b { font-size: 1.05em; }
+.feedback { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; padding: 8px 12px; font-size: .92em;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.feedback[hidden] { display: none; }
+.feedback a { color: var(--accent); }
 .closed { max-width: 560px; margin: 18vh auto; padding: 24px; text-align: center; background: var(--panel);
           border: 1px solid var(--line); border-radius: 12px; }
 .muted { color: var(--muted); font-size: .9em; }
@@ -154,9 +158,14 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <img src="/logo.png" alt="MonitorEO-OBSNEV">
     <div><b>MonitorEO Assistant</b> <span id="version" class="muted"></span></div>
     <div class="top">
+      <button id="feedbackButton" type="button" aria-expanded="false" aria-controls="feedback" hidden>Suggest a change or report an error</button>
       <button id="update" type="button" class="primary" hidden>Update MonitorEO</button>
       <button id="quit" type="button" title="Closes the assistant and the engine of the models">Close the assistant</button>
     </div>
+  </div>
+  <div id="feedback" class="feedback" hidden>
+    <a id="feedbackIssue" target="_blank" rel="noopener"></a>
+    <a id="feedbackForm" target="_blank" rel="noopener"></a>
   </div>
   <details id="setup" open>
     <summary>Settings <span id="summary" class="muted"></span></summary>
@@ -410,6 +419,15 @@ async function refresh() {
   refresh.done = true;
   $('nres').textContent = state.results;
   $('quit').hidden = !!state.window;  // in a window of its own, its cross closes it (and asks while computing)
+  const fb = state.feedback;  // suggestions and errors: an issue of GitHub or the anonymous form (about.feedback)
+  if (fb) {
+    $('feedbackButton').textContent = fb.button;
+    $('feedbackButton').hidden = false;
+    for (const [id, key] of [['feedbackIssue', 'issue'], ['feedbackForm', 'form']]) {
+      $(id).textContent = '→ ' + fb[key];
+      $(id).href = fb.links[key];
+    }
+  }
   const up = state.update;
   $('update').hidden = !(up && up.available);
   if (up) $('update').title = `There is a new version of MonitorEO (${up.latest}); you have ${up.current || 'an older one'}`;
@@ -455,6 +473,11 @@ async function checkEecu(again) {
 }
 
 $('eecuCheck').onclick = () => checkEecu(true);
+$('feedbackButton').onclick = () => {
+  const box = $('feedback');
+  box.hidden = !box.hidden;
+  $('feedbackButton').setAttribute('aria-expanded', String(!box.hidden));
+};
 $('tier').onchange = async () => {
   try { await api('/api/settings', {eecu_tier: $('tier').value}); } catch (e) { notice(e.message, true); }
   refresh();

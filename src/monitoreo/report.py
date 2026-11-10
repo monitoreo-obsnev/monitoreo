@@ -171,8 +171,10 @@ def html_report(items, title, question=None, project=None, names=None, date=None
 	       f'<header class="top"><img src="{logos[0]}" alt="MonitorEO-OBSNEV"><div><b>MonitorEO-OBSNEV</b><br>'
 	       '<span class="meta">Sierra Nevada Global Change Observatory · University of Granada</span></div>'
 	       '</header>',
-	       '<p class="hint noprint">To save it as a PDF: <b>Print</b> and, as the destination, <b>Save as PDF</b>. '
-	       'Turn off “Headers and footers” in the options of the print dialog.</p>',
+	       '<p class="hint noprint">To save it as a PDF, with no printer: <b>Print or save as PDF</b> and, as the '
+	       'destination, <b>Save as PDF</b> (<b>Save to PDF</b> in Firefox; in Safari, the menu <b>PDF</b> at the bottom '
+	       'of the dialog). Turn off '
+	       '“Headers and footers” in the options of the print dialog.</p>',
 	       f'<h1>{_e(title)}</h1>',
 	       f'<p class="meta">{_long_date(date)} · {len(items)} result{"s" if len(items) != 1 else ""}'
 	       + (f' · computed in Google Earth Engine with the project {_e(project)}' if project else

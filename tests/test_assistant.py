@@ -1446,3 +1446,22 @@ def test_manual_with_the_articles_of_the_team(tmp_path):
 	found = manual.search('An example article on ecosystem functional types with EVI?', folder=str(tmp_path))[0]
 	assert found['name'] == 'Publications' and found['lang'] == 'en'
 	assert manual.search('¿Qué es el NDVI?', folder=str(tmp_path))[0]['title'] == 'Variables'
+
+
+def test_the_page_has_the_feedback_button():
+	"""The page of the assistant has the button "Suggest a change or report an error", like the QGIS plugin and the
+	Earth Engine app, with the links of about.feedback filled with the assistant and its version: it had none."""
+	import urllib.parse
+	from monitoreo import __version__, about
+	fb = assistant.feedback()
+	assert {k: fb[k] for k in ('button', 'issue', 'form')} == about.FEEDBACK['en']
+	issue = urllib.parse.parse_qs(urllib.parse.urlparse(fb['links']['issue']).query)
+	assert fb['links']['issue'].startswith(about.ISSUES) and issue == {'tool': ['Assistant'], 'version': [__version__]}
+	form = urllib.parse.parse_qs(urllib.parse.urlparse(fb['links']['form']).query)
+	assert fb['links']['form'].startswith(about.FORM)
+	assert form[about.FORM_FIELDS['tool']] == [about.TOOLS['assistant'][1]]
+	assert form[about.FORM_FIELDS['version']] == [__version__]
+	with open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8') as f:
+		page = f.read()
+	assert all(f'id="{i}"' in page for i in ('feedbackButton', 'feedback', 'feedbackIssue', 'feedbackForm'))
+	assert 'fb.links[key]' in page  # the links come from /api/state
