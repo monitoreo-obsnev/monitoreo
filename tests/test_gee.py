@@ -11,7 +11,7 @@ import subprocess
 import ee
 import pytest
 
-from monitoreo import areas, services, trends
+from monitoreo import areas, maps, services, trends
 from monitoreo import variable as variables
 
 GEE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gee')
@@ -99,6 +99,18 @@ CASES = {
 	'map_scf_seasons': {'kind': 'percentiles', 'region': LAGUNAS,
 	                    'spec': {'ref': 105, 'period': ['2008-10-01', '2011-05-31'], 'metric': 'mean',
 	                             'temporal': 'annual', 'interannual': 'mean', 'season': ['10-01', '05-31']}},
+	# the true colour of the images of a variable (rgb_map): the percentiles 2 and 98 of its bands red, green and blue
+	'rgb_s2_median': {'kind': 'rgb_percentiles', 'region': GUAJARES,
+	                  'spec': {'ref': 27, 'period': ['2021-06-01', '2021-08-31'], 'metric': 'median'}},
+	'rgb_landsat_annual': {'kind': 'rgb_percentiles', 'region': GUAJARES,
+	                       'spec': {'ref': 24, 'period': ['2019-01-01', '2020-12-31'], 'metric': 'median',
+	                                'temporal': 'annual', 'interannual': 'mean', 'quality': {'snow': False}}},
+	'rgb_scf_mean': {'kind': 'rgb_percentiles', 'region': LAGUNAS,
+	                 'spec': {'ref': 105, 'period': ['2021-11-01', '2022-03-31'], 'metric': 'mean'}},
+	'rgb_s2_ndvi_max': {'kind': 'rgb_percentiles', 'region': GUAJARES,  # the colours of the date of the highest NDVI
+	                    'spec': {'ref': 27, 'period': ['2021-06-01', '2021-08-31'], 'metric': 'max'}},
+	'rgb_cf_modis': {'kind': 'rgb_percentiles', 'region': GUAJARES,
+	                 'spec': {'ref': 108, 'period': ['2023-01-01', '2023-01-31'], 'metric': 'mean'}},
 }
 
 
@@ -138,6 +150,10 @@ def python(c):
 	if c['kind'] == 'trend_image':
 		img = trends.trend_image(spec, geom, native, c['step'], c['part'], c['metric'])
 		return img.reduceRegion(ee.Reducer.mean(), geom, native, bestEffort=True).getInfo()
+	if c['kind'] == 'rgb_percentiles':
+		img = variables.image(spec, geom, native, rgb=True).clipToCollection(regions)
+		return img.reduceRegion(ee.Reducer.percentile(list(maps.RGB_STRETCH)), geom, native, bestEffort=True,
+		                        maxPixels=int(1e6)).getInfo()
 	if c.get('difference'):
 		img = services._comparison(region, None, None, start, end, c['difference'][0], c['difference'][1],
 		                           args['metric'], s.get('temporal', 'period'), s.get('interannual', 'mean'),

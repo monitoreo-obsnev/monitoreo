@@ -50,6 +50,20 @@
 			t_annual: 'Cada año y entre años', t_monthly: 'Cada mes y entre años', 't_16-day': 'Cada 16 días y entre años',
 			interannual: 'Métrica entre años', addMap: 'Añadir al mapa', download: 'Descargar GeoTIFF',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
+			layer: 'Capa', l_index: 'Índice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
+			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas imágenes y píxeles que la ' +
+				'variable, con la misma métrica (mínimo y máximo: los colores de la fecha en que la variable es más baja o ' +
+				'más alta). Ambas: el índice sobre el color verdadero.',
+			rgbStatic: 'Sin color verdadero: una capa fija, sin fechas, no tiene imágenes.',
+			rgbNone: 'Sin color verdadero: solo las variables de Sentinel-2 y Landsat y la frecuencia de nubes de MODIS ' +
+				'tienen imágenes con bandas roja, verde y azul.',
+			rgbCompare: 'Sin color verdadero al comparar dos periodos: el mapa es su diferencia.',
+			rgbMetric: 'Sin color verdadero con esta métrica: solo con la media, la mediana, el mínimo, el máximo o un ' +
+				'percentil (también entre años).',
+			rgbLegend: 'Color verdadero (rojo, verde, azul): reflectancia de %s a %s',
+			rgbRangeNote: 'Color verdadero con la reflectancia de 0 a 0,3: Earth Engine no pudo calcular los percentiles ' +
+				'2 y 98 de la región.',
+			downloadRgb: 'Descargar GeoTIFF del color verdadero (bandas red, green, blue)',
 			series: 'Serie temporal', step: 'Paso', s_daily: 'Diario (días con imágenes)', 's_16-day': '16 días',
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'Métrica de cada paso', stat: 'Estadístico de la región',
 			computeSeries: 'Calcular la serie temporal',
@@ -114,6 +128,20 @@
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
+			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
+			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
+				'with the same metric (minimum and maximum: the colours of the date when the variable is lowest or ' +
+				'highest). Both: the index on top of the true colour.',
+			rgbStatic: 'No true colour: a fixed layer, without dates, has no images.',
+			rgbNone: 'No true colour: only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have ' +
+				'images with red, green and blue bands.',
+			rgbCompare: 'No true colour when comparing two periods: the map is their difference.',
+			rgbMetric: 'No true colour with this metric: only with the mean, median, minimum, maximum or a percentile ' +
+				'(also between years).',
+			rgbLegend: 'True colour (red, green, blue): reflectance from %s to %s',
+			rgbRangeNote: 'True colour with the reflectance from 0 to 0.3: Earth Engine could not compute the ' +
+				'percentiles 2 and 98 of the region.',
+			downloadRgb: 'Download GeoTIFF of the true colour (bands red, green, blue)',
 			series: 'Time series', step: 'Step', s_daily: 'Daily (days with images)', 's_16-day': '16 days',
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
 			computeSeries: 'Compute the time series',
@@ -162,7 +190,7 @@
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
-		mapMetric: 'median', temporal: 'period', interannual: 'mean',
+		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
@@ -274,6 +302,27 @@
 			dimensions: '200x12', format: 'png', min: 0, max: 1, palette: vis.palette}, style: {margin: '0'}}));
 		legend.add(row(ui.Label(num(vis.min), {fontSize: '11px', margin: '0'}),
 			ui.Label(num(vis.max), {fontSize: '11px', margin: '0 0 0 150px'})));
+		legend.style().set('shown', true);
+	}
+
+	// The range of the true colour VIS ({bands, min, max}) in words, its reflectance with 3 decimals: it has no colour
+	// bar
+	function rgbCaption(vis) {
+		function reflectance(x) {
+			var s = String(Math.round(x * 1000) / 1000);
+			return state.lang === 'es' ? s.replace('.', ',') : s;
+		}
+		return fmt(t('rgbLegend'), reflectance(vis.min), reflectance(vis.max));
+	}
+
+	// The legend of the true colour VIS: TITLE and its range, or only its range below the colour bar of the index of
+	// the same map (BELOW: the layer Both)
+	function rgbLegend(vis, title, below) {
+		if (!below) {
+			legend.clear();
+			legend.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
+		}
+		legend.add(ui.Label(rgbCaption(vis), {fontSize: '11px', margin: below ? '4px 0 0 0' : '0'}));
 		legend.style().set('shown', true);
 	}
 
@@ -693,10 +742,13 @@
 	}
 
 	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
-	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image)
-	function downloadWidget(img, e, bands, name) {
+	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image). LABEL: that of the
+	// button (default: Download GeoTIFF); SUFFIX: the end of the name of the file (the true colour: '_RGB', as
+	// services.download_rgb)
+	function downloadWidget(img, e, bands, name, label, suffix) {
 		var panel = ui.Panel();
-		panel.add(button(t('download'), function () {
+		suffix = suffix || '';
+		panel.add(button(label || t('download'), function () {
 			var native = Number(e.m);
 			var pixels = state.info.boundsArea / (native * native);
 			var maxPixels = LIMITS.downloadBytes / (4 * bands.length);
@@ -704,7 +756,8 @@
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
 			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
-				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90), region: state.region.geometry().bounds(1000),
+				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix,
+				region: state.region.geometry().bounds(1000),
 				scale: scale, crs: state.info.crs, format: 'GEO_TIFF', filePerBand: false
 			}, function (url, error) {
 				panel.clear();
@@ -742,6 +795,29 @@
 
 	// Map -----------------------------------------------------------------------------------------------------------
 
+	// Why the map of the variable cannot have the true colour of its images (a key of T), or null if it can: a fixed
+	// layer, a variable whose images have no red, green and blue bands (mo.rgbOf), a comparison of two periods (the map
+	// is their difference) and the metrics that give no colours (sum, std, count, mode: mo.checkRgbMetric)
+	function noRgbReason() {
+		var e = entry();
+		if (e.static) return 'rgbStatic';
+		if (!mo.rgbOf(e)) return 'rgbNone';
+		if (state.compareOn) return 'rgbCompare';
+		try {
+			mo.checkRgbMetric(state.mapMetric);
+			if (state.temporal !== 'period') mo.checkRgbMetric(state.interannual);
+		} catch (err) {
+			return 'rgbMetric';
+		}
+		return null;
+	}
+
+	// The layer of the map chosen: 'index', 'rgb' (the true colour of its images) or 'both' (the true colour, and the
+	// index on top of it); the index when there is no true colour (noRgbReason)
+	function mapLayer() {
+		return noRgbReason() ? 'index' : state.mapLayer;
+	}
+
 	function addMap() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -749,6 +825,7 @@
 		s.temporal = state.temporal;
 		s.interannual = state.interannual;
 		var geom = state.region.geometry();
+		var layer = mapLayer();
 		var img, name;
 		if (e.static) {  // a fixed layer without dates (elevation, slope): no metric, period nor comparison
 			var region = state.region;
@@ -764,24 +841,44 @@
 			img = mo.image(s, geom).clipToCollection(state.region);
 			name = title(e, [metricName(state.mapMetric), s.period.join('/')]);
 		}
+		// the true colour of the same images and pixels, with the same metric (services.rgb_map)
+		var rgb = layer === 'index' ? null : mo.image(s, geom, null, true).clipToCollection(state.region);
+		var rgbName = name + ' · ' + t('l_rgb');
 		var id = start();
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
-		mo.percentiles(band, geom, rangeScale(e)).evaluate(function (stats, error) {
+		var scale = rangeScale(e);
+		var ranges = {};  // one request for the ranges of both layers
+		if (layer !== 'rgb') ranges.index = mo.percentiles(band, geom, scale);
+		if (rgb) ranges.rgb = mo.rgbPercentiles(rgb, geom, scale);
+		ee.Dictionary(ranges).evaluate(function (st, error) {
 			if (id !== run) return;
-			var vis;
-			if (error) {  // the range of the catalog
-				var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-				vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
-			} else {
-				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+			var widgets = [];
+			var rvis = rgb ? mo.rgbVis(error ? null : st.rgb) : null;  // 0 to 0.3 if they cannot be computed
+			if (rgb) map.addLayer(rgb, rvis, rgbName);  // first, under the index (Both)
+			if (layer !== 'rgb') {
+				var stats = error ? null : st.index;
+				var vis;
+				if (error) {  // the range of the catalog
+					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
+					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+				} else {
+					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+				}
+				map.addLayer(band, vis, name);
+				var unit = mo.unitOf(e, state.mapMetric);
+				colourBar(vis, name + (unit ? ' ' + unit : ''));
+				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
+				if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
+				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			}
-			map.addLayer(band, vis, name);
-			var unit = mo.unitOf(e, state.mapMetric);
-			colourBar(vis, name + (unit ? ' ' + unit : ''));
-			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
-			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
-			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
+			if (rgb) {
+				rgbLegend(rvis, rgbName, layer === 'both');
+				widgets.push(ui.Label(rgbName, {fontWeight: 'bold'}));
+				widgets.push(ui.Label(rgbCaption(rvis), SMALL));
+				if (error) widgets.push(ui.Label(t('rgbRangeNote'), SMALL));
+				widgets.push(downloadWidget(rgb, e, mo.RGB_BANDS, name, t('downloadRgb'), '_RGB'));
+			}
 			show(widgets);
 		});
 	}
@@ -789,7 +886,10 @@
 	function mapWidgets() {
 		var w = [header(t('map'))];
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
+		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) {
+			state.mapMetric = v;
+			render();  // the true colour takes only some metrics (the Layer)
+		})));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
 		var time = [row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
@@ -798,9 +898,21 @@
 		if (state.temporal !== 'period') {
 			time.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
 				state.interannual = v;
+				render();
 			})));
 		}
 		w = w.concat(entry().static ? disable(time) : time);  // a fixed layer: no aggregation in time
+		// the index, the true colour of its images or both; greyed out, with the reason, when there is no true colour
+		var why = noRgbReason();
+		var layers = ['index', 'rgb', 'both'].map(function (x) { return {value: x, label: t('l_' + x)}; });
+		var layer = select(layers, mapLayer(), function (v) {
+			state.mapLayer = v;
+			render();
+		}, '190px');
+		layer.setDisabled(Boolean(why));
+		w.push(row(ui.Label(t('layer')), layer));
+		if (why) w.push(ui.Label(t(why), SMALL));
+		else if (state.mapLayer !== 'index') w.push(ui.Label(t('rgbNote'), SMALL));
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
 	}
