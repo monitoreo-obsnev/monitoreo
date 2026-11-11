@@ -5,8 +5,10 @@
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
-    monitoreo image VARIABLE --sensor S --region JSON --start D --end D --out F.tif [--metric median]
-                    [--resolution M]                 GeoTIFF of the map of a variable aggregated in time
+    monitoreo image VARIABLE --sensor S --region JSON --start D --end D [--out F.tif] [--rgb F.tif] [--metric median]
+                    [--resolution M]                 GeoTIFF of the map of a variable aggregated in time (--out), of the
+                                                     true colour of the same images (--rgb: bands red, green and blue)
+                                                     or both, on the same grid
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
@@ -106,7 +108,8 @@ def main(argv=None):
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
 	p.add_argument('--png')
-	p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, aggregated in time')
+	image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, aggregated in time, and of '
+	                                         'the true colour of the same images')
 	p.add_argument('variable')
 	p.add_argument('--sensor', required=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
@@ -117,7 +120,12 @@ def main(argv=None):
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean')
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
-	p.add_argument('--out', required=True, help='GeoTIFF file')
+	p.add_argument('--out', help='GeoTIFF file of the variable')
+	p.add_argument('--rgb', metavar='FILE', help='GeoTIFF file of the true colour of the same images and pixels: bands '
+	                                             'red, green and blue (surface reflectance), with the same metric; '
+	                                             'with --out too, on its grid. Only the variables of Sentinel-2 and '
+	                                             'Landsat and the cloud frequency of MODIS (rgb in monitoreo info), '
+	                                             'with metric median, mean, min, max or pN')
 	for name, help_ in (('trend', 'seasonal trends (Mann-Kendall and Sen) of a variable over a region'),
 	                    ('compare', 'a reference period against another, by part of the year')):
 		p = sub.add_parser(name, help=help_)
@@ -190,6 +198,8 @@ def main(argv=None):
 	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
+	if args.cmd == 'image' and not (args.out or args.rgb):
+		image.error('give --out (GeoTIFF of the variable), --rgb (GeoTIFF of its true colour) or both')
 
 	if args.cmd == 'about':
 		print(about.text(args.lang))
@@ -265,12 +275,7 @@ def _compute(args, services):
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
-		res = services.download_image(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
-		                              args.metric, args.temporal, args.interannual, resolution=args.resolution,
-		                              where=_where(args), path=args.out, progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
-		print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
-		      f"{res['resolution']:g} m | {res['images']} images | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
-		      f"{res['unit']}" if res['min'] is not None else f"{res['file']}: no valid pixel")
+		_image(args, services)
 		return
 	res = services.time_series(json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.step,
 	                           args.metric, args.stat, scale=args.scale, csv=args.csv, chart=args.png,
@@ -278,6 +283,35 @@ def _compute(args, services):
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m | unit {res['unit']}"
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+
+
+def _image(args, services):
+	"""GeoTIFFs of the map of a variable (services.download_image, --out) and of the true colour of the same images
+	(services.download_rgb, --rgb), or of one of them: with both, the true colour gets the pixel size of the map, so
+	that both are on the same grid, and what has no true colour is refused before computing the map."""
+	from . import variable as variables
+	tiles = lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr)  # noqa: E731
+	try:
+		same = (json.loads(args.region), args.variable, args.sensor, args.start, args.end, args.metric, args.temporal,
+		         args.interannual)
+		resolution = args.resolution
+		if args.out:
+			if args.rgb:  # its refusals (variable, metric) before Earth Engine computes the map
+				variables.check_rgb(services.make_spec(*same[1:], where=_where(args)))
+			res = services.download_image(*same, resolution=resolution, where=_where(args), path=args.out,
+			                              progress=tiles)
+			print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
+			      f"{res['resolution']:g} m | {res['images']} images | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
+			      f"{res['unit']}" if res['min'] is not None else f"{res['file']}: no valid pixel")
+			resolution = res['resolution']
+		if args.rgb:
+			res = services.download_rgb(*same, resolution=resolution, where=_where(args), path=args.rgb, progress=tiles)
+			print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
+			      f"{res['resolution']:g} m | {res['images']} images | bands {', '.join(res['bands'])} | reflectance "
+			      f"{res['min']:.4g} to {res['max']:.4g} (p2-p98)" if res['min'] is not None
+			      else f"{res['file']}: no valid pixel")
+	except ValueError as e:
+		sys.exit(f'ERROR: {e}')
 
 
 def _fmt(rows, digits=4):

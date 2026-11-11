@@ -158,9 +158,9 @@ def test_services_cite(monkeypatch, tmp_path):
 	assert 'mishra2012' in _ids(d) and d['credits']
 	assert services.about()['earth_engine'] == about.EARTH_ENGINE and 'Earth Engine' in about.text()
 	# every function of services that computes cites
-	for name in ('time_series', 'map_layer', 'region_stats', 'export_image', 'download_image', 'download_variables',
-	             'trend_table', 'trend_map', 'download_trend', 'compare_series', 'compare_map', 'download_comparison',
-	             'burn_severity', 'time_series_to_drive'):
+	for name in ('time_series', 'map_layer', 'rgb_map', 'region_stats', 'export_image', 'download_image',
+	             'download_rgb', 'download_variables', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
+	             'compare_map', 'download_comparison', 'burn_severity', 'time_series_to_drive'):
 		assert getattr(services, name).__wrapped__, name
 
 
