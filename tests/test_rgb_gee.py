@@ -220,3 +220,33 @@ def test_the_script_of_the_app_is_its_parts(tmp_path, monkeypatch):
 	with open(os.path.join(GEE, 'monitoreo_app.js'), encoding='ascii') as f:
 		assert f.read() == (tmp_path / 'monitoreo_app.js').read_text(encoding='ascii'), \
 			'run python gee/build.py --app-only'
+
+
+def test_the_stretch_reduces_as_the_app(monkeypatch):
+	"""The percentiles of the stretch of the true colour are reduced with the same arguments in Python (maps.rgb_vis)
+	and in the app (rgbPercentiles): those of Earth Engine are approximate, and the size of the tiles (tileScale)
+	changes them a little (the parity of the SCF of Sierra Nevada differed in its percentile 2)."""
+	import types
+	got = {}
+
+	class Image:
+		def __init__(self, *a):
+			pass
+
+		def select(self, bands):
+			return self
+
+		def reduceRegion(self, *args, **kwargs):
+			got.update(kwargs)
+			return self
+
+		def getInfo(self):
+			return {}
+
+	fake = types.SimpleNamespace(Image=Image, Reducer=types.SimpleNamespace(percentile=lambda p: p),
+	                             EEException=Exception)
+	monkeypatch.setattr(maps, 'ee', fake)
+	maps.rgb_vis(None, None, 30)
+	js = re.search(r'function rgbPercentiles\(.*?\n\t}', _read('core.js'), re.S).group(0)
+	assert (got['bestEffort'], got['maxPixels'], got['tileScale']) == (True, int(1e6), 4)
+	assert 'bestEffort: true' in js and 'maxPixels: 1e6' in js and 'tileScale: 4' in js

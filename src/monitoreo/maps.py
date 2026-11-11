@@ -58,8 +58,11 @@ def rgb_vis(image, region_geom, scale=None, vmin=None, vmax=None, compute=True):
 		lo_p, hi_p = RGB_STRETCH
 		if compute:
 			try:
+				# tileScale 4, as the Earth Engine app (gee/core.js rgbPercentiles): the percentiles of Earth Engine are
+				# approximate, and the tiles change them a little; smaller tiles also need less memory (four bands)
 				st = ee.Image(image).select(RGB_BANDS).reduceRegion(ee.Reducer.percentile([lo_p, hi_p]), region_geom,
-				                                                    scale, bestEffort=True, maxPixels=int(1e6)).getInfo()
+				                                                    scale, bestEffort=True, maxPixels=int(1e6),
+				                                                    tileScale=4).getInfo()
 			except ee.EEException:
 				st = {}
 		lows = [st.get(f'{b}_p{lo_p}') for b in RGB_BANDS]
