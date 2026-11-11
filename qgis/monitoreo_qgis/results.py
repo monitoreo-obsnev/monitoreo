@@ -3,8 +3,10 @@ PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no mat
 the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
 Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year
 (of a series, also the true colour of its images, under it or alone). That of a burn severity has the hectares of
-each class of the USGS, with its colour, or the statistics of the RBR. Each window ends with the references of its
-result (monitoreo.references), with the links of their DOIs."""
+each class of the USGS, with its colour, or the statistics of the RBR. The results of the data of Earth Engine outside
+the catalog (given by their ID) are those of a variable, named by their ID and band, with the unit given (if any) and
+without true colour. Each window ends with the references of its result (monitoreo.references), with the links of
+their DOIs."""
 
 import datetime as dt
 import math
@@ -37,10 +39,19 @@ KINDS_TIP = ('Index: the map of the variable. True colour (RGB): the red, green 
              'of it')
 
 
+def unit_label(res, per_year=False):
+	"""The unit of the values of RES for the text of its window ('[NDVI]', 'mm'; with PER_YEAR, that of a trend):
+	'unit not given' for the data of Earth Engine outside the catalog computed without one."""
+	unit = res.get('unit') or ''
+	if not unit:
+		return 'unit not given'
+	return f'{unit} per year' if per_year else unit
+
+
 def ylabel(res):
 	"""Title of the y axis of the charts of RES: the axis title of the catalog with the unit (e.g. 'Snow Cover
-	Frequency (SCF) [%]'), or the unit."""
-	return res.get('ylabel') or res['unit'] or None
+	Frequency (SCF) [%]'), or the unit (None for the data of Earth Engine outside the catalog without one)."""
+	return res.get('ylabel') or res.get('unit') or None
 
 
 def chart_png(res, path):
@@ -188,8 +199,7 @@ class ResultDialog(QDialog):
 		if kind == 'burn':
 			text = f"{res['title']} · pixels of {res['scale']:g} m" + burn_text(res)
 		else:
-			unit = f"{res['unit']} per year" if trends else res['unit']
-			text = (f"{res['title']} · {unit} · pixels of {res['scale']:g} m"
+			text = (f"{res['title']} · {unit_label(res, trends)} · pixels of {res['scale']:g} m"
 			        + (' · significant: p < 0.05 (Mann-Kendall)' if trends else
 			           ' · difference = other period - reference'))
 		info = QLabel(text)
@@ -336,7 +346,7 @@ class SeriesDialog(QDialog):
 		self.setWindowTitle(f"MonitorEO: {res['title']}")
 		self.resize(900, 720)
 		lay = QVBoxLayout(self)
-		info = QLabel(f"{res['title']} · {res['unit']} · pixels of {res['scale']:g} m · {len(res['rows']):,} values")
+		info = QLabel(f"{res['title']} · {unit_label(res)} · pixels of {res['scale']:g} m · {len(res['rows']):,} values")
 		info.setWordWrap(True)
 		lay.addWidget(info)
 		self.chart = None

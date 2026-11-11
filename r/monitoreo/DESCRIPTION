@@ -11,7 +11,9 @@ Description: MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversi
     temperature, evapotranspiration, precipitation, air temperature, water balance and bioclimatic variables of
     ERA5-Land, TerraClimate, CHIRPS and WorldClim,
     LAI, ...) of
-    Sentinel-2, Landsat and MODIS, with its pixel filters, computed with Google Earth Engine through the
+    Sentinel-2, Landsat and MODIS, with its pixel filters, and of any image or collection of images of
+    Earth Engine given by its ID (of the Earth Engine data catalog, of the GEE Community Catalog, browsed
+    by its themes, or of a project), computed with Google Earth Engine through the
     Python package 'monitoreo' (the same functions as its QGIS plugin and its MCP server). Earth Engine
     images can be shown with 'rgee'.
 License: GPL (>= 3)

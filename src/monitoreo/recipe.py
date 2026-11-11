@@ -49,7 +49,8 @@ ECO_FOLDER = 'ecoregion'
 MARGIN_PIXELS = 2
 GRIDS = ('study', 'ecoregion')
 KEYS = {'project', 'crs', 'study', 'ecoregion', 'variables', 'drive_folder', 'drive_dir'} | (variables.KEYS - {
-	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'terrain', 'metric', 'metrics'})
+	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'unit', 'terrain', 'metric',
+	'metrics'})
 
 
 def _quiet(*args, **kwargs):

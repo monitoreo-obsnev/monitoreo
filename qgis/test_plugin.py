@@ -5,8 +5,10 @@
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
 areas, a map layer (and its true colour under it), two time series (map extent, and a layer with two polygons) with
-the maps of two of their dates (and the true colour of two others), trends with their map, a comparison of periods and
-the burn severity of a fire (dNBR and RBR, only in the theme Fire), waiting for their QGIS tasks.
+the maps of two of their dates (and the true colour of two others), trends with their map, a comparison of periods,
+the burn severity of a fire (dNBR and RBR, only in the theme Fire) and data of Earth Engine given by their ID instead
+of a variable (a collection with dates, a fixed image and a dataset of the GEE Community Catalog chosen by its themes),
+waiting for their QGIS tasks.
 """
 
 import os
@@ -89,9 +91,13 @@ assert dock is not None, 'the panel did not open'
 _message = dock.message
 dock.message = lambda text, lvl='Info', duration=6: (iface.messages.append(f'{lvl}: {text}'), _message(text, lvl, duration))
 dock.project.setText(os.environ['EE_PROJECT'])
-print('themes:', [dock.theme.itemText(i) for i in range(dock.theme.count())], '| variables of',
-      dock.theme.currentText() + ':', dock.variable.count(), '| selected:', dock.variable.currentText())
+names = [dock.theme.itemText(i) for i in range(dock.theme.count())]
+print('themes:', names, '| variables of', dock.theme.currentText() + ':', dock.variable.count(), '| selected:',
+      dock.variable.currentText())
 assert dock.theme.currentData() == 'vegetation' and dock.variable.currentText().startswith('NDVI · Sentinel-2')
+# after the themes of the catalog, those of the data of Earth Engine outside it (services.themes), as in the app
+assert names[-3:] == ['Earth Engine data (by its ID)', 'GEE Community Catalog', 'All the variables'], names
+assert not dock.data_row.isVisibleTo(dock) and dock.variable_field.isVisibleTo(dock)
 links = dock.feedback_links
 assert links['issue'].startswith('https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=QGIS+plugin')
 assert 'entry.1706228456=Complemento+de+QGIS' in links['form'], links
@@ -100,7 +106,7 @@ dock.theme.setCurrentIndex(dock.theme.findData('climate'))
 assert all(dock.variable.itemData(i)['variable'] in ('PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM',
                                                      'VPD') or dock.variable.itemData(i)['variable'].startswith('BIO')
            for i in range(dock.variable.count()))
-dock.theme.setCurrentIndex(dock.theme.count() - 1)  # all the variables, for the help of each one
+dock.theme.setCurrentIndex(names.index('All the variables'))  # for the help of each one
 dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2 · 10 m', Qt.MatchFlag.MatchStartsWith))
 assert dock.variable.currentData()['variable'] == 'NDVI'
 print('all the variables:', dock.variable.count())
@@ -245,6 +251,13 @@ if chart is not None and os.environ.get('TEST_OUT'):  # chart drawn with Qt (no 
 	chart.resize(860, 360)
 	chart.grab().save(os.path.join(os.environ['TEST_OUT'], 'qt_chart.png'), 'PNG')
 	print('Qt chart saved')
+
+
+def variable_help_text(dock):
+	"""The help of the data of Earth Engine of the panel (that of the button ⓘ of their ID), with what
+	services.describe_asset read of them."""
+	from monitoreo_qgis.helptexts import data_help
+	return data_help(dock.variable.currentData(), dock.described())
 
 
 def add_from_window(res, index=0, significant=False, kind=None):
@@ -414,6 +427,141 @@ for index in ('dNBR', 'RBR'):
 		assert items[0].color.name() == '#' + trends.DIVERGING[-1] and items[-1].color.name() == '#' + trends.DIVERGING[0]
 		print('RBR:', new[0].name(), '|', {k: round(v, 3) for k, v in res['stats'][0].items() if k != 'region'})
 dock.show_series_button.click()  # the window of the last one
+
+# data of Earth Engine given by their ID instead of a variable (theme Earth Engine data): a collection with dates (the
+# precipitation of TerraClimate: a monthly series, the map of one of its months from its window, trends and the map of
+# its period) and a fixed image (bio01 of WorldClim, stored in tenths of °C: its map), without pixel filters nor true
+# colour; and a dataset of the GEE Community Catalog chosen by its themes (FABDEM), which fills the ID and reads it
+from monitoreo import services  # noqa: E402
+from monitoreo_qgis.dock import number  # noqa: E402
+dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
+assert dock.data_row.isVisibleTo(dock) and not dock.community_row.isVisibleTo(dock)
+assert not dock.variable_field.isVisibleTo(dock) and not dock.fire_box.isVisibleTo(dock)
+entry = dock.variable.currentData()
+assert entry['custom'] and entry['fixed_filters'] == [] and not entry['rgb'] and 'variable' not in entry, entry
+assert all('More in the manual' in b.help() for b in dock.findChildren(InfoButton))  # also before reading
+canvas.setExtent(QgsRectangle(-3.60, 36.90, -2.90, 37.20))  # Sierra Nevada
+dock.region_kind.setCurrentIndex(kinds.index('extent'))
+dock.asset_id.setText('ee.ImageCollection("IDAHO_EPSCOR/TERRACLIMATE")')  # as in the Code Editor
+dock.read_asset()
+wait(dock)
+read = dock.described()
+assert read and read['type'] == 'image_collection' and read['use'] == 'collection', iface.messages[-2:]
+assert dock.asset_id.text() == 'IDAHO_EPSCOR/TERRACLIMATE' and read['source'] == 'Earth Engine data catalog'
+bands = [dock.asset_band.itemText(i) for i in range(dock.asset_band.count())]
+assert 'pr' in bands and dock.asset_use.currentData() == 'collection' and dock.asset_use.isEnabled(), bands
+dock.asset_band.setCurrentIndex(bands.index('pr'))
+pr = next(b for b in read['bands'] if b['band'] == 'pr')
+assert dock.asset_unit.text() == (pr.get('unit') or '') and dock.band_scale.text() == number(pr.get('band_scale'))
+assert 'Earth Engine data catalog' in dock.asset_label.text() and read['references']
+assert 'use it as Images with dates (collection)' in dock.asset_label.text(), dock.asset_label.text()
+dock.asset_unit.setText('mm')
+assert not any(w.isEnabled() or w.isChecked() for w in dock.filters.values()) and not dock.cloud_score.isEnabled()
+assert not dock.map_kind.isEnabled() and dock.map_kind.currentData() == 'index'  # no true colour
+assert dock.series_box.isEnabled() and dock.trends_box.isEnabled() and dock.export_series_button.isEnabled()
+for b in dock.findChildren(InfoButton):
+	assert 'More in the manual' in b.help()
+assert 'IDAHO_EPSCOR/TERRACLIMATE' in variable_help_text(dock) and 'Abatzoglou' in variable_help_text(dock)
+dock.start.setDate(QDate(2019, 1, 1))
+dock.end.setDate(QDate(2020, 12, 31))
+args = dock.variable_args()
+assert args['collection'] == 'IDAHO_EPSCOR/TERRACLIMATE' and args['band'] == 'pr' and args['unit'] == 'mm', args
+assert args['start'] == '2019-01-01' and not {'variable', 'sensor', 'quality', 'image'} & set(args), args
+dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('monthly'))
+dock.run_series()
+wait(dock)
+res = dock.series[-1]
+assert res['kind'] == 'series' and res['n_steps'] == 24 and res['unit'] == 'mm', (res.get('unit'), iface.messages[-2:])
+assert res['title'].startswith('IDAHO_EPSCOR/TERRACLIMATE pr') and res['rgb'] is False and res['references'], res
+assert dock.series_dialogs[dock.series.index(res)].findChild(QComboBox, 'map_kind') is None
+july = add_from_window(res, 7)[0]  # July 2019
+t = july.temporalProperties().fixedTemporalRange()
+assert july.bandCount() == 1 and (t.begin().toString('yyyy-MM-dd'), t.end().toString('yyyy-MM-dd')) == \
+       ('2019-07-01', '2019-08-01'), (july.name(), t)
+assert 'mm, pixels of' in july.serverProperties().abstract(), july.serverProperties().abstract()
+print('Earth Engine data, series:', res['title'], '|', len(res['rows']), 'rows | map of the series:', july.name())
+dock.trend_step.setCurrentIndex(dock.trend_step.findData('annual'))
+dock.start.setDate(QDate(2013, 1, 1))
+dock.run_trend_table()
+wait(dock)
+res = dock.series[-1]
+assert res['kind'] == 'trends' and res['rows'][0]['n'] == 8, (res['rows'], iface.messages[-2:])
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait(dock)
+new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+assert len(new) == 1 and new[0].name().startswith('IDAHO_EPSCOR/TERRACLIMATE pr'), iface.messages[-2:]
+print('Earth Engine data, trends:', res['rows'][0]['slope'], '| map:', new[0].name())
+
+# a fixed image: only its map, as the elevation (no period, metrics, series, trends nor comparisons)
+dock.asset_id.setText('WORLDCLIM/V1/BIO')
+dock.asset_edited()  # as written by hand
+dock.read_asset()
+wait(dock)
+read = dock.described()
+assert read and read['type'] == 'image' and dock.asset_use.currentData() == 'image', iface.messages[-2:]
+assert not dock.asset_use.isEnabled()  # an image is never a collection
+assert 'use it as Fixed image (image)' in dock.asset_label.text(), dock.asset_label.text()  # the words of the panel
+dock.asset_band.setCurrentIndex(dock.asset_band.findText('bio01'))
+dock.band_scale.setText('0.1')
+dock.asset_unit.setText('degC')
+assert not dock.series_box.isEnabled() and not dock.trends_box.isEnabled() and not dock.export_series_button.isEnabled()
+assert not dock.compare_on.isEnabled() and not dock.map_metric.isEnabled() and not dock.start.isEnabled()
+args = dock.variable_args()  # no dates (and the offset of its record, if it gives one: 0)
+assert args.pop('band_offset', 0) == 0 and args == {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'band_scale': 0.1,
+                                                    'unit': 'degC'}, args
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait(dock)
+new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+assert len(new) == 1 and new[0].bandCount() == 1, iface.messages[-2:]
+abstract = new[0].serverProperties().abstract()
+assert new[0].name() == 'WORLDCLIM/V1/BIO bio01' and 'degC' in abstract and 'References' in abstract, \
+	(new[0].name(), abstract)
+print('Earth Engine image:', new[0].name(), '|', abstract.split('. ')[0])
+# a band that it does not have, and an ID that cannot be read: clear errors (that of the ID also under the options)
+dock.asset_band.setEditText('bio99')
+try:
+	dock.variable_args()
+	raise AssertionError('a band that the image does not have')
+except ValueError as e:
+	assert 'has no band bio99' in str(e), e
+dock.asset_band.setEditText('bio01')
+dock.asset_id.setText('NOT/AN/ASSET')
+dock.asset_edited()
+dock.read_asset()
+wait(dock)
+assert dock.described() is None and 'could not be read' in dock.asset_label.text(), dock.asset_label.text()
+
+# the GEE Community Catalog: its themes and their datasets from the copy of its index (no Earth Engine); a choice
+# fills the ID and reads it
+dock.theme.setCurrentIndex(dock.theme.findData('community'))
+assert dock.community_row.isVisibleTo(dock) and dock.data_row.isVisibleTo(dock)
+themes = [dock.community_theme.itemData(i) for i in range(dock.community_theme.count())]
+assert len(themes) == len(services.community_themes()) and 'Elevation and Bathymetry' in themes, themes
+dock.community_theme.setCurrentIndex(themes.index('Elevation and Bathymetry'))
+ids = [dock.community_dataset.itemData(i) for i in range(dock.community_dataset.count())]
+assert dock.community_dataset.currentIndex() == -1 and 'projects/sat-io/open-datasets/FABDEM' in ids, ids
+dock.dataset_chosen(ids.index('projects/sat-io/open-datasets/FABDEM'))  # as a choice of the user (activated)
+assert dock.asset_id.text() == 'projects/sat-io/open-datasets/FABDEM' and 'GEE Community Catalog' in \
+       dock.asset_label.text()
+wait(dock)
+read = dock.described()
+assert read and read['source'] == 'GEE Community Catalog' and read['bands'], iface.messages[-2:]
+assert dock.asset_use.currentData() == read['use'] and 'Roy' in variable_help_text(dock)
+dock.asset_use.setCurrentIndex(dock.asset_use.findData('image'))  # the mosaic of its tiles
+dock.asset_unit.setText('m')
+canvas.setExtent(QgsRectangle(-3.40, 37.00, -3.30, 37.08))
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait(dock)
+new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
+assert len(new) == 1 and new[0].name().startswith('projects/sat-io/open-datasets/FABDEM'), iface.messages[-2:]
+assert 'Roy' in new[0].serverProperties().abstract()  # the community catalog is cited with its datasets
+print('GEE Community Catalog:', new[0].name(), '| pixels of', new[0].rasterUnitsPerPixelX())
+dock.theme.setCurrentIndex(dock.theme.findData('vegetation'))  # back to the catalog: its variable again
+assert dock.variable_field.isVisibleTo(dock) and not dock.data_row.isVisibleTo(dock)
+assert dock.variable.currentData().get('variable') and dock.filters['clouds'].isEnabled()
 
 print('messages:', iface.messages)
 plugin.unload()

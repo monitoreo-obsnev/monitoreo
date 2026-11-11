@@ -38,7 +38,7 @@ written, in their language:
         args: {region: {wdpa_id: 389011}, variable: EVI, sensor: Modis, start: 2001-01-01, end: 2024-12-31}
         result: {file: trend.tif, min: -0.002, max: 0.002, palette: [...]}
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
-      - file: ~/MonitorEO/trend_EVI_Modis_annual_None_2001-01-01_2024-12-31_20261028-233108.tif
+      - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
     thumbnail: fig/sierra_nevada.png     # default: the first map, or the first chart of a tool

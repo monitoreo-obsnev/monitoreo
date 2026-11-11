@@ -2,6 +2,8 @@
 Community Catalog (monitoreo.community), without Earth Engine and without the internet: their listing by themes, how
 an ID is read and cited, the specs, units, titles, facts and file names of their results."""
 
+import re
+
 import pytest
 
 from monitoreo import assets, catalog, community, publish, references, report, services
@@ -42,7 +44,8 @@ WORLDCOVER = {
 
 def test_community_catalog():
 	snap = community.load()
-	assert snap['licence'] == 'CC BY 4.0' and len(snap['commit']) == 40 and snap['datasets']
+	assert snap['licence'] == 'CC BY 4.0' and re.search(r'/blob/[0-9a-f]{40}/community_datasets.json$', snap['source'])
+	assert snap['date'] and snap['datasets']
 	assert {d['type'] for d in snap['datasets']} == {'image', 'image_collection'}  # no tables
 	assert community.NOT_PUBLIC not in {d['theme'] for d in snap['datasets']}  # the insiders' datasets are not public
 	assert len({d['id'] for d in snap['datasets']}) == len(snap['datasets'])

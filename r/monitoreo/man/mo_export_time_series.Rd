@@ -6,8 +6,8 @@
 \usage{
 mo_export_time_series(
   region,
-  variable,
-  sensor,
+  variable = NULL,
+  sensor = NULL,
   start,
   end,
   step = "monthly",
@@ -19,7 +19,12 @@ mo_export_time_series(
   folder = "MonitorEO",
   name = NULL,
   collection = NULL,
-  where = NULL
+  where = NULL,
+  image = NULL,
+  band = NULL,
+  band_scale = NULL,
+  band_offset = NULL,
+  unit = NULL
 )
 }
 \arguments{
@@ -27,14 +32,17 @@ mo_export_time_series(
 \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
 \link{regions}). Several features give a result per feature.}
 
-\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
+\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
+take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
+\code{image}, with \code{band} (see \code{mo_asset()}).}
 
 \item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
+or \code{image} instead of \code{variable}.}
 
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
-statistics.}
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+which only have maps and their statistics.}
 
 \item{step}{\code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.}
 
@@ -46,7 +54,8 @@ statistics.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
-\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).}
+\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
 \item{scale}{pixel size of the statistics in metres (default: automatic).}
 
@@ -54,22 +63,43 @@ statistics.}
 
 \item{name}{name of the file (default: from the variable and the period).}
 
-\item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
-\code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
+\item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
+e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
+\code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
+Engine data catalog, of the GEE Community Catalog, \code{mo_community()}, or of a project that your account can
+read), e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"}, with \code{band}: aggregated in time like the variables of the
+catalog, with time series, trends and comparisons. \code{mo_asset()} says whether an ID is a collection or an
+image, and its bands.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
-each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
-own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
+result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
 \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+
+\item{image}{without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
+mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
+their statistics and GeoTIFFs, but no time series, trends or comparisons.}
+
+\item{band}{the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).}
+
+\item{band_scale, band_offset}{factor and offset of the stored values of \code{band}: the values are
+value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
+e.g. \code{band_scale = 0.1}.}
+
+\item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
+UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
 }
 \value{
 A list (operation, file, folder, references, credits); \code{mo_task_status()} follows the task.
 }
 \description{
-For long series or many regions (it needs your own Earth Engine account, not the shared one).
+For long series or many regions (it needs your own Earth Engine account, not the shared one). Instead of a variable
+of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and \code{band}
+(see \code{mo_asset()}).
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -84,6 +114,8 @@ For long series or many regions (it needs your own Earth Engine account, not the
 mo_init()
 mo_init("my-project")
 mo_export_time_series(mo_wdpa(389011), "NDVI", "Landsat", "1985-01-01", "2024-12-31")
+mo_export_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+                      start = "1958-01-01", end = "2024-12-31")
 }
 }
 \references{

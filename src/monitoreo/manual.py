@@ -43,9 +43,14 @@ PAGE_WEIGHT = {'Conceptos': 1.3, 'Asistente': 1.2, 'Home': 1.2, 'Python': 0.8, '
 PAGE_WEIGHT.update({ENGLISH[k]: w for k, w in PAGE_WEIGHT.items()})
 SYNONYMS = {  # words of the questions and the wiki
 	'es': {'resolucion': 'pixel', 'pixel': 'resolucion', 'frecuencia': 'fechas dias', 'cuanto': 'fechas dias',
-	       'nubes': 'filtros', 'citar': 'cita doi', 'instalar': 'instalacion'},
+	       'nubes': 'filtros', 'citar': 'cita doi', 'instalar': 'instalacion',
+	       # the data of Earth Engine outside the catalog (by their ID) and the GEE Community Catalog (not «comunidad»
+	       # alone: the questions on the comunidades autónomas would get it)
+	       'asset': 'datos earth engine id', 'community': 'catalogo comunidad gee'},
 	'en': {'resolution': 'pixel', 'pixel': 'resolution', 'frequency': 'dates days', 'often': 'dates days',
-	       'clouds': 'filters', 'cite': 'citation doi', 'install': 'installation'}}
+	       'clouds': 'filters', 'cite': 'citation doi', 'install': 'installation',
+	       'asset': 'data earth engine id', 'dataset': 'data earth engine id', 'community': 'gee community catalog',
+	       'awesome': 'gee community catalog'}}
 ENDINGS = {
 	'es': ('aciones', 'ación', 'acion', 'iones', 'ión', 'ion', 'amiento', 'mente', 'ando', 'iendo', 'ados', 'adas',
 	       'idos', 'idas', 'ado', 'ada', 'ido', 'ida', 'ar', 'er', 'ir', 'as', 'es', 'os', 'a', 'e', 'o', 's'),

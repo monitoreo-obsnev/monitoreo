@@ -6,8 +6,8 @@
 \usage{
 mo_image(
   region,
-  variable,
-  sensor,
+  variable = NULL,
+  sensor = NULL,
   start = NULL,
   end = NULL,
   metric = "median",
@@ -18,7 +18,13 @@ mo_image(
   clip = TRUE,
   collection = NULL,
   where = NULL,
-  rgb = FALSE
+  rgb = FALSE,
+  image = NULL,
+  band = NULL,
+  band_scale = NULL,
+  band_offset = NULL,
+  unit = NULL,
+  terrain = NULL
 )
 }
 \arguments{
@@ -26,14 +32,17 @@ mo_image(
 \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
 \link{regions}). Several features give a result per feature.}
 
-\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
+\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
+take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
+\code{image}, with \code{band} (see \code{mo_asset()}).}
 
 \item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
+or \code{image} instead of \code{variable}.}
 
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
-statistics.}
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+which only have maps and their statistics.}
 
 \item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 \code{"pN"} (percentile N).}
@@ -45,23 +54,46 @@ statistics.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
-\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).}
+\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
 \item{clip}{clip the image to the region.}
 
-\item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
-\code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
+\item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
+e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
+\code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
+Engine data catalog, of the GEE Community Catalog, \code{mo_community()}, or of a project that your account can
+read), e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"}, with \code{band}: aggregated in time like the variables of the
+catalog, with time series, trends and comparisons. \code{mo_asset()} says whether an ID is a collection or an
+image, and its bands.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
-each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
-own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
+result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
 \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
 
 \item{rgb}{the true colour of the images instead of the variable (only the variables with \code{rgb} in
-\code{mo_variables()}).}
+\code{mo_variables()}, not the data given as \code{collection} or \code{image}).}
+
+\item{image}{without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
+mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
+their statistics and GeoTIFFs, but no time series, trends or comparisons.}
+
+\item{band}{the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).}
+
+\item{band_scale, band_offset}{factor and offset of the stored values of \code{band}: the values are
+value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
+e.g. \code{band_scale = 0.1}.}
+
+\item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
+UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+
+\item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} (in degrees) of \code{band} (an elevation)
+instead of its values.}
 }
 \value{
 A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
@@ -72,7 +104,9 @@ The variable aggregated in time (band \code{"value"}), with its colour ramp, or 
 colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
 and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
 between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
-\code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
+\code{rgee::Map$addLayer(x$image, x$vis, x$name)}. Instead of a variable of the catalog, any data of Earth Engine by
+its ID: \code{collection} or \code{image}, with \code{band} (see \code{mo_asset()}), whose colour ramp goes from
+the percentile 5 to the percentile 95 of the band over the region.
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable
@@ -90,6 +124,9 @@ mo_init()
 x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
 rgb <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", rgb = TRUE)
 rgee::Map$addLayer(rgb$image, rgb$vis, rgb$name) + rgee::Map$addLayer(x$image, x$vis, x$name)
+# any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
+bio <- mo_image(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+rgee::Map$addLayer(bio$image, bio$vis, bio$name)
 }
 }
 \references{

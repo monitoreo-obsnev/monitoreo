@@ -689,6 +689,16 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 		var['offset'] = band_offset
 	if unit is not None and str(unit).strip() != '':
 		var['unit'] = unit
+	if variable or ref is not None:  # a variable of the catalog has its own band, scale, offset and unit
+		extra = [k for k, v in (('image', image), ('band', band), ('band_scale', band_scale),
+		                        ('band_offset', band_offset), ('terrain', terrain)) if v not in (None, '')]
+		if extra:
+			raise ValueError(f"{', '.join(extra)}: only for the data of Earth Engine given by their ID (collection or "
+			                 f"image, instead of variable and sensor); {variable or ref} is a variable of the catalog")
+	elif image and collection:
+		raise ValueError('give collection (images with dates) or image (a fixed image), not both')
+	elif terrain and not image:
+		raise ValueError('terrain is for an image (image=, e.g. a DEM), not for a collection')
 	var = {k: v for k, v in var.items() if v is not None}
 	return variable_specs(var, two_periods)[0]
 
@@ -787,7 +797,7 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	table = timeseries.table(spec, regions, step, metric, stat, scale)
-	name = _slug(name or f"{variable or source.get('collection')}_{sensor or ''}_{step}_{metric}_{start}_{end}")
+	name = _slug(name or f"{_what(variable, sensor, source)}_{step}_{metric}_{start}_{end}")
 	task = ee.batch.Export.table.toDrive(collection=table, description=name[:100], folder=folder, fileNamePrefix=name,
 	                                     fileFormat='CSV', selectors=timeseries.COLUMNS)
 	task.start()
@@ -956,13 +966,19 @@ def _grid(regions, res, crs):
 	return Grid.around(crs, res, min(xs), min(ys), max(xs), max(ys))
 
 
+def _what(variable, sensor, source):
+	"""The variable of a file name: 'NDVI_Modis', or the end of the ID of the data of Earth Engine and its band
+	('TERRACLIMATE_pr')."""
+	if not variable and (source.get('collection') or source.get('image')):
+		asset = str(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
+		return '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
+	return f"{variable}_{sensor or ''}"
+
+
 def _file_stem(variable, sensor, metric, start, end, source):
 	if not variable and (source.get('collection') or source.get('image')):  # data of Earth Engine: the end of the ID
-		asset = str(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
-		what = '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
-		if source.get('image'):  # a fixed image: no metric nor period
-			return what
-		return f'{what}_{metric}_{start}_{end}'
+		what = _what(variable, sensor, source)
+		return what if source.get('image') else f'{what}_{metric}_{start}_{end}'  # a fixed image: no metric nor period
 	try:
 		static = bool(variable) and bool(catalog.find(variable, sensor, source.get('collection'), source.get('ref'))
 		                                 .get('static'))
@@ -1193,7 +1209,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 		vis['palette'] = maps.ramp(None, palette)
 	unit = _unit(spec)
 	out = dict(vis, url=maps.tile_url(band, vis), name=f'{name}: {output}', bounds=_bounds(regions), thumbnail=None,
-	           unit=f'{unit} / year' if output == 'slope' else unit if output == 'intercept' else '')
+	           unit=(f'{unit} / year' if unit else '') if output == 'slope' else unit if output == 'intercept' else '')
 	if thumbnail:
 		maps.thumbnail(maps.with_outline(band, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
 		out['thumbnail'] = thumbnail
@@ -1224,7 +1240,7 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 	lo, hi = _percentiles(path)
 	vis = trends.vis('slope', lo, hi)
 	return dict(vis, file=path, bands=list(trends.OUTPUTS), grid=grid.describe(), resolution=res,
-	            native_resolution=native, name=name, unit=f'{_unit(spec)} / year')
+	            native_resolution=native, name=name, unit=f'{_unit(spec)} / year' if _unit(spec) else '')
 
 
 @_cited
@@ -1349,7 +1365,7 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
 	spec, regions, img, native, name = _comparison(regions_, variable, sensor, start, end, other_start, other_end,
 	                                               metric, temporal, interannual, season, quality, res, source)
-	path = path or _slug(f"comparison_{variable or source.get('collection')}_{sensor or ''}_{metric}_{start}_{end}_"
+	path = path or _slug(f"comparison_{_what(variable, sensor, source)}_{metric}_{start}_{end}_"
 	                     f"{other_start}_{other_end}") + '.tif'
 	bands = ['difference', 'reference', 'other']
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,

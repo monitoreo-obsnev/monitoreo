@@ -1,8 +1,10 @@
 /*
  * The app of MonitorEO for the Earth Engine Code Editor and Earth Engine Apps: the interface over core.js, with the
  * options of the QGIS plugin (region, variable, period, season, comparison, pixel filters, map, time series, trends,
- * burn severity). Published as an app, it computes with the Cloud project of the app: whoever uses it needs no
- * account of Earth Engine. LIMITS keep each request within what a shared project can afford.
+ * burn severity). Instead of a variable of the catalog, the themes of catalog.OTHER_THEMES compute any image or
+ * collection of images of Earth Engine given by its ID, or chosen in the GEE Community Catalog. Published as an app,
+ * it computes with the Cloud project of the app: whoever uses it needs no account of Earth Engine. LIMITS keep each
+ * request within what a shared project can afford.
  */
 
 (function () {
@@ -92,7 +94,26 @@
 			fewYears: 'Las tendencias necesitan un periodo de al menos dos años.',
 			badDate: 'Fecha no válida: «%s». Usa AAAA-MM-DD (y MM-DD en la temporada).', error: 'Error: ',
 			noData: 'No hay datos en ese periodo.',
-			rangeNote: 'Colores con el rango del catálogo: Earth Engine no pudo calcular los percentiles 5 y 95 de la región.'
+			rangeNote: 'Colores con el rango del catálogo: Earth Engine no pudo calcular los percentiles 5 y 95 de la región.',
+			rangeNoteData: 'Colores de un rango fijo (de 0 a 1; de −0,1 a 0,1 para una diferencia): Earth Engine no pudo ' +
+				'calcular los percentiles 5 y 95 de la región.',
+			assetId: 'ID de Earth Engine', assetHint: 'p. ej. IDAHO_EPSCOR/TERRACLIMATE', read: 'Leer',
+			reading: 'Leyendo el ID en Earth Engine…',
+			readFirst: 'Escribe el ID de una imagen o una colección de imágenes de Earth Engine y pulsa Leer.',
+			band: 'Banda', useAs: 'Usar como', use_collection: 'Imágenes con fechas (colección)',
+			use_image: 'Imagen fija (imagen)', bandScale: 'Escala de la banda', bandOffset: 'Desplazamiento de la banda',
+			unit: 'Unidad (UDUNITS)', unitHint: 'p. ej. mm, degC, kg m-2, 1',
+			bandNote: 'Valor = valor guardado × escala + desplazamiento, en la unidad dada. Earth Engine no los da: ' +
+				'búscalos en la página del conjunto de datos.',
+			customFilters: 'Estos datos guardan su propia máscara: los filtros de píxeles de MonitorEO son para las ' +
+				'variables de su catálogo.',
+			datasetPage: 'Página del conjunto de datos', src_data: 'Catálogo de datos de Earth Engine',
+			src_community: 'Catálogo de la comunidad de GEE', src_asset: 'Asset de Earth Engine', licence: 'Licencia',
+			licenceInPage: 'licencia en su página', type_image: 'imagen', type_image_collection: 'colección',
+			communityTheme: 'Tema del catálogo', dataset: 'Conjunto de datos', chooseDataset: 'Elige el conjunto de datos',
+			communityNote: 'Copia del índice del Catálogo de la comunidad de GEE (gee-community-catalog.org, CC BY 4.0) ' +
+				'del %s.',
+			badNumber: '%s: «%s» no es un número.'
 		},
 		en: {
 			subtitle: 'Maps, time series and trends of satellite variables (Sentinel-2, Landsat and MODIS) over ' +
@@ -169,7 +190,25 @@
 			fewYears: 'Trends need a period of at least two years.',
 			badDate: 'Not a valid date: "%s". Use YYYY-MM-DD (and MM-DD for the season).', error: 'Error: ',
 			noData: 'No data in that period.',
-			rangeNote: 'Colours with the range of the catalog: Earth Engine could not compute the percentiles 5 and 95 of the region.'
+			rangeNote: 'Colours with the range of the catalog: Earth Engine could not compute the percentiles 5 and 95 of the region.',
+			rangeNoteData: 'Colours of a fixed range (0 to 1; −0.1 to 0.1 for a difference): Earth Engine could not ' +
+				'compute the percentiles 5 and 95 of the region.',
+			assetId: 'Earth Engine ID', assetHint: 'e.g. IDAHO_EPSCOR/TERRACLIMATE', read: 'Read',
+			reading: 'Reading the ID in Earth Engine…',
+			readFirst: 'Write the ID of an image or a collection of images of Earth Engine and press Read.',
+			band: 'Band', useAs: 'Use as', use_collection: 'Images with dates (collection)',
+			use_image: 'Fixed image (image)', bandScale: 'Band scale', bandOffset: 'Band offset',
+			unit: 'Unit (UDUNITS)', unitHint: 'e.g. mm, degC, kg m-2, 1',
+			bandNote: 'Value = stored value × scale + offset, in the unit given. Earth Engine does not give them: read ' +
+				'them in the page of the dataset.',
+			customFilters: 'These data keep their own mask: the pixel filters of MonitorEO are for the variables of its ' +
+				'catalog.',
+			datasetPage: 'Page of the dataset', src_data: 'Earth Engine data catalog',
+			src_community: 'GEE Community Catalog', src_asset: 'Earth Engine asset', licence: 'Licence',
+			licenceInPage: 'licence in its page', type_image: 'image', type_image_collection: 'collection',
+			communityTheme: 'Theme of the catalog', dataset: 'Dataset', chooseDataset: 'Choose the dataset',
+			communityNote: 'Copy of the index of the GEE Community Catalog (gee-community-catalog.org, CC BY 4.0) of %s.',
+			badNumber: '%s: "%s" is not a number.'
 		}
 	};
 
@@ -194,7 +233,13 @@
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
-		fireIndex: 'dNBR'
+		fireIndex: 'dNBR',
+		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
+		// its band, use (collection or image), scale, offset and unit as written, and the theme and dataset of the GEE
+		// Community Catalog chosen
+		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
+			band: null, scale: '', offset: '', unit: '', title: null, source: null, page: null, licence: null,
+			communityTheme: null, communityId: null}
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -498,8 +543,138 @@
 
 	// Variable, period, filters -------------------------------------------------------------------------------------
 
+	// The entry of what the panel computes: the variable of the catalog chosen, or, in the themes of the data of Earth
+	// Engine (catalog.OTHER_THEMES), the data read (dataEntry)
 	function entry() {
-		return mo.byRef(state.ref);
+		return isData() ? dataEntry() : mo.byRef(state.ref);
+	}
+
+	// Whether the theme chosen is one of the data of Earth Engine outside the catalog: any image or collection by its
+	// ID (earth_engine) or the GEE Community Catalog (community)
+	function isData() {
+		return mo.otherThemes().some(function (th) { return th.key === state.theme; });
+	}
+
+	// The number written in TEXT (a comma is a decimal point), null if empty, or an error naming WHAT
+	function numberOf(text, what) {
+		text = String(text === null || text === undefined ? '' : text).trim().replace(',', '.');
+		if (!text) return null;
+		if (isNaN(Number(text))) throw new Error(fmt(t('badNumber'), what, text));
+		return Number(text);
+	}
+
+	// The entry of the data of Earth Engine of the panel (mo.customEntry: its ID read, band, use, scale, offset and
+	// unit), or, while it cannot be computed (no ID read, a scale or a unit that are not), one with the reason
+	// (problem), so that the panel can still be drawn and ready() says what is missing
+	function dataEntry() {
+		var d = state.data;
+		try {
+			if (!d.asset) throw new Error(t('readFirst'));
+			return mo.customEntry({asset: d.asset, type: d.type, band: d.band, use: d.use, m: d.scales[d.band],
+				scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')), unit: d.unit});
+		} catch (err) {
+			return {custom: true, static: d.use === 'image', col: d.asset || '', band: d.band || '', m: d.scales[d.band] || 1,
+				unit: '', problem: err.message || String(err)};
+		}
+	}
+
+	// Reads the ID TEXT in Earth Engine (mo.assetInfo, asynchronous): its type, bands and their pixel size, and where
+	// it comes from; the band, use and the rest of the panel are then those of what it is
+	function readAsset(text) {
+		var id = mo.assetId(text);
+		if (!id) return message(t('readFirst'), true);
+		var d = state.data;
+		d.text = id;
+		d.reading = id;
+		d.asset = null;
+		render();
+		mo.assetInfo(id, function (error, info) {
+			if (state.data.reading !== id) return;  // another ID was read since
+			d.reading = null;
+			if (error) {
+				render();
+				return message(error.message || String(error), true);
+			}
+			['asset', 'type', 'dated', 'use', 'bands', 'scales', 'title', 'source', 'page', 'licence'].forEach(function (k) {
+				d[k] = info[k] === undefined ? null : info[k];
+			});
+			d.band = info.bands[0] || null;
+			d.scale = d.offset = d.unit = '';  // Earth Engine does not say them (they are in the page of the dataset)
+			render();
+		});
+	}
+
+	// The theme and the dataset of the GEE Community Catalog (mo.communityThemes and mo.communityDatasets, from the
+	// copy of its index in the app): choosing a dataset reads its ID
+	function communityWidgets() {
+		var d = state.data;
+		var w = [header(t('communityTheme'))];
+		w.push(ui.Select({items: mo.communityThemes(state.lang).map(function (th) {
+			return {value: th.theme, label: th.name + ' (' + th.datasets + ')'};
+		}), placeholder: t('communityTheme'), value: d.communityTheme, onChange: function (v) {
+			d.communityTheme = v;
+			d.communityId = null;
+			render();
+		}, style: {width: '340px'}}));
+		if (d.communityTheme) {
+			w.push(header(t('dataset')));
+			w.push(ui.Select({items: mo.communityDatasets(d.communityTheme).map(function (r) {
+				return {value: r.id, label: r.title + ' · ' + t('type_' + r.type)};
+			}), placeholder: t('chooseDataset'), value: d.communityId, onChange: function (id) {
+				d.communityId = id;
+				readAsset(id);
+			}, style: {width: '340px'}}));
+		}
+		var c = mo.CATALOG.community || {};
+		w.push(ui.Label(fmt(t('communityNote'), c.date || ''), SMALL, c.site));
+		return w;
+	}
+
+	// The data of Earth Engine by its ID: the ID and Read, then what it is (title, source, licence and page), its band,
+	// its use (images with dates or a fixed image), the scale and offset of its stored values and their unit
+	function dataWidgets() {
+		var d = state.data;
+		var w = state.theme === 'community' ? communityWidgets() : [];
+		w.push(header(t('assetId')));
+		var id = ui.Textbox({placeholder: t('assetHint'), value: d.text, onChange: function (v) { d.text = v; },
+			style: {width: '250px'}});
+		w.push(row(id, button(t('read'), function () { readAsset(id.getValue()); })));
+		if (d.reading) return w.concat([ui.Label(t('reading'), SMALL)]);
+		if (!d.asset) return w.concat([ui.Label(t('readFirst'), SMALL)]);
+		var source = {};
+		source[mo.DATA_CATALOG] = 'src_data';
+		source[mo.COMMUNITY_CATALOG] = 'src_community';
+		source[mo.EE_ASSET] = 'src_asset';
+		w.push(ui.Label([d.title, t(source[d.source] || 'src_asset'), t('type_' + d.type),
+			d.licence ? t('licence') + ': ' + d.licence : t('licenceInPage')].join(' · '), SMALL));
+		if (d.page) w.push(ui.Label(t('datasetPage'), {fontSize: '12px', margin: '0 8px'}, d.page));
+		w.push(row(ui.Label(t('band')), select(d.bands.map(function (b) {
+			return {value: b, label: b + ' · ' + num(d.scales[b]) + ' m'};
+		}), d.band, function (v) {
+			// the scale, offset and unit are those of each band (bio01 of WorldClim is stored in tenths of a degree,
+			// bio12 in mm): empty again, as the QGIS plugin fills them from the record of the band, which the app
+			// cannot read
+			if (v !== d.band) d.scale = d.offset = d.unit = '';
+			d.band = v;
+			render();
+		}, '220px')));
+		var use = select(['collection', 'image'].map(function (x) { return {value: x, label: t('use_' + x)}; }),
+			d.type === 'image' ? 'image' : d.use, function (v) {
+				d.use = v;
+				render();
+			}, '220px');
+		use.setDisabled(d.type === 'image');  // an image has no dates
+		w.push(row(ui.Label(t('useAs')), use));
+		function field(key, hint, width) {
+			return ui.Textbox({placeholder: hint, value: d[key], onChange: function (v) { d[key] = v.trim(); },
+				style: {width: width}});
+		}
+		w.push(row(ui.Label(t('bandScale')), field('scale', '1', '70px'), ui.Label(t('bandOffset')),
+			field('offset', '0', '70px')));
+		w.push(row(ui.Label(t('unit')), field('unit', t('unitHint'), '180px')));
+		w.push(ui.Label(t('bandNote'), SMALL));
+		if (d.use === 'image' || d.type === 'image') w.push(ui.Label(t('staticNote'), SMALL));
+		return w;
 	}
 
 	// The entries of the variable menu: those of THEME (a key of catalog.THEMES; all of them without it), without RBR,
@@ -516,9 +691,10 @@
 	}
 
 	// The theme KEY ('all': every variable): its variables in the menu, and the first of them if the one chosen is not
-	// one of them
+	// one of them; the themes of the data of Earth Engine have no variables (dataWidgets)
 	function setTheme(key) {
 		state.theme = key;
+		if (isData()) return render();
 		var items = variableItems(key === 'all' ? null : key);
 		if (items.length && !items.some(function (i) { return i.value === state.ref; })) return setVariable(items[0].value);
 		render();
@@ -545,8 +721,15 @@
 	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
 	// (e.g. 'Snow Cover Frequency (SCF) [%]')
 	function axisTitle(e, metric) {
-		var unit = mo.unitOf(e, metric);
+		var unit = unitText(e, metric);
 		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
+	}
+
+	// The unit of the values of the entry E aggregated with METRIC as the titles show it: that of the catalog, or that
+	// given for the data of Earth Engine, in UDUNITS, between brackets as those of the catalog ('[mm]', services._ylabel)
+	function unitText(e, metric) {
+		var unit = mo.unitOf(e, metric);
+		return e.custom && unit && unit.charAt(0) !== '[' ? '[' + unit + ']' : unit;
 	}
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
@@ -570,16 +753,23 @@
 
 	function variableWidgets() {
 		var e = entry();
-		var themes = mo.themes().map(function (th) { return {value: th.key, label: th[state.lang] || th.en}; });
+		// the themes of the catalog, then those of the data of Earth Engine outside it (as services.themes)
+		var themes = mo.themes().concat(mo.otherThemes()).map(function (th) {
+			return {value: th.key, label: th[state.lang] || th.en};
+		});
 		var w = [header(t('theme')), select(themes.concat([{value: 'all', label: t('allThemes')}]), state.theme,
 			setTheme, '340px')];
-		w.push(header(t('variable')));
-		w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '340px'));
-		var name = state.lang === 'en' ? e.vname_en : e.vname;
-		w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
-			.filter(function (x) { return x; }).join(' · '), SMALL));
-		if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
-		if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
+		if (isData()) {
+			w = w.concat(dataWidgets());
+		} else {
+			w.push(header(t('variable')));
+			w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '340px'));
+			var name = state.lang === 'en' ? e.vname_en : e.vname;
+			w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
+				.filter(function (x) { return x; }).join(' · '), SMALL));
+			if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
+			if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
+		}
 		var dates = [header(t('period'))];  // greyed out for a fixed layer without dates (elevation, slope)
 		dates.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.period[1], function (v) { state.period[1] = v.trim(); })));
@@ -613,7 +803,7 @@
 			c.setDisabled(Boolean(fixed) || !available[f]);
 			w.push(c);
 		});
-		if (fixed) w.push(ui.Label(t('fixedFilters'), SMALL));
+		if (fixed) w.push(ui.Label(e.custom ? t('customFilters') : t('fixedFilters'), SMALL));
 		if (e.sensor === 'Sentinel-2') {
 			w.push(check(t('cloudScore'), state.quality.cloud_score !== null, function (v) {
 				state.quality.cloud_score = v ? 0.6 : null;
@@ -692,7 +882,8 @@
 		});
 	}
 
-	// The spec of the variable over PERIOD (default: the period), or an Error with what is wrong
+	// The spec of the variable over PERIOD (default: the period), or an Error with what is wrong; in the themes of
+	// the data of Earth Engine, the spec of their entry (dataEntry), without pixel filters (they keep their own mask)
 	function specOf(period, metric, ref) {
 		period = period || state.period;
 		checkPeriod(period);
@@ -701,14 +892,22 @@
 			state.season.forEach(function (d) { if (!MONTH_DAY.test(d)) throw new Error(fmt(t('badDate'), d)); });
 			season = state.season.slice();
 		}
-		var s = mo.spec({ref: ref || state.ref, period: period.slice(), season: season, quality: state.quality,
+		var e = ref ? null : entry();
+		if (e && e.problem) throw new Error(e.problem);
+		var what = e && e.custom ? {entry: e, quality: {}} : {ref: ref || state.ref, quality: state.quality};
+		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
 			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
 		return s;
 	}
 
-	// The region checked for the entry E: true, or false after showing why not
+	// The region checked for the entry E (and that the data of Earth Engine of the panel can be computed): true, or
+	// false after showing why not
 	function ready(e) {
+		if (e.problem) {
+			message(e.problem, true);
+			return false;
+		}
 		if (!state.region || !state.info) {
 			message(t('noRegion'), true);
 			return false;
@@ -737,8 +936,15 @@
 
 	function title(e, extra) {
 		var where = whereText();
-		return [e.index + ' ' + e.sensor, state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || [])
-			.join(' · ');
+		return [mo.entryName(e), state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || []).join(' · ');
+	}
+
+	// The name of a file of the result NAME (its title) of the entry E, ending in SUFFIX: the data of Earth Engine by
+	// the end of their ID, as services._file_stem
+	function fileName(name, e, suffix) {
+		suffix = suffix || '';
+		if (e && e.custom && e.col) name = name.split(e.col).join(e.col.split('/').pop());
+		return name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix;
 	}
 
 	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
@@ -756,7 +962,7 @@
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
 			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
-				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix,
+				name: fileName(name, e, suffix),
 				region: state.region.geometry().bounds(1000),
 				scale: scale, crs: state.info.crs, format: 'GEO_TIFF', filePerBand: false
 			}, function (url, error) {
@@ -769,8 +975,8 @@
 		return panel;
 	}
 
-	// CSV of ROWS (their COLUMNS) as a download link of Earth Engine
-	function csvWidget(rows, columns, name) {
+	// CSV of ROWS (their COLUMNS) as a download link of Earth Engine, named after NAME (of the entry E: see fileName)
+	function csvWidget(rows, columns, name, e) {
 		var panel = ui.Panel();
 		panel.add(button(t('csv'), function () {
 			panel.clear();
@@ -779,7 +985,7 @@
 				var p = {};
 				columns.forEach(function (c) { p[c] = r[c] === null || r[c] === undefined ? '' : r[c]; });
 				return ee.Feature(null, p);
-			})).getDownloadURL('CSV', columns, name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90), function (url, error) {
+			})).getDownloadURL('CSV', columns, fileName(name, e), function (url, error) {
 				panel.clear();
 				if (error) return panel.add(ui.Label(t('error') + error, {color: '#b00020'}));
 				panel.add(ui.Label(t('csv') + ' ↓', {fontSize: '12px'}, url));
@@ -871,17 +1077,17 @@
 			if (layer !== 'rgb') {
 				var stats = failed.index ? null : st.index;
 				var vis;
-				if (failed.index) {  // the range of the catalog
+				if (failed.index) {  // the range of the catalog (0 to 1 for the data outside it)
 					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
 					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
 				} else {
 					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
 				}
 				map.addLayer(band, vis, name);
-				var unit = mo.unitOf(e, state.mapMetric);
+				var unit = unitText(e, state.mapMetric);
 				colourBar(vis, name + (unit ? ' ' + unit : ''));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
-				if (failed.index) widgets.push(ui.Label(t('rangeNote'), SMALL));
+				if (failed.index) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
 				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			}
 			if (rgb) {
@@ -990,7 +1196,7 @@
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
 				show([seriesChart(rows, e, name), ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
-					csvWidget(rows, ['region', 'date', 'value', 'n_pixels', 'n_images'], name)]);
+					csvWidget(rows, ['region', 'date', 'value', 'n_pixels', 'n_images'], name, e)]);
 			});
 		}
 		if (state.step !== 'daily') return go(mo.seriesBins(s, state.step));
@@ -1069,7 +1275,7 @@
 				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
-					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name)]);
+					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name, e)]);
 			});
 		});
 	}
@@ -1133,7 +1339,7 @@
 		var id = start();
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
 			var rows = mo.trendRows(yearly, step, first, state.lang);
-			var unit = mo.unitOf(e, state.trendMetric);
+			var unit = unitText(e, state.trendMetric);
 			var cols = [t('part'), 'n', 'τ', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
 				(state.lang === 'es' ? 'año' : 'year') + ')' : 'Sen'];
 			var regions = regionsOf(rows);
@@ -1159,7 +1365,7 @@
 			widgets.push(chartPanel);
 			widgets.push(ui.Label(fmt(t('scaleNote'), num(scale)), SMALL));
 			widgets.push(csvWidget(rows, ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope',
-				'intercept', 'first_year', 'last_year'], name));
+				'intercept', 'first_year', 'last_year'], name, e));
 			show(widgets);
 			showPart(parts[0]);
 		});
@@ -1180,8 +1386,8 @@
 		var output = state.output;
 		var band = img.select(output);
 		var name = title(e, [mo.partLabel(step, part, state.lang), t('o_' + output)]);
-		var value = mo.unitOf(e, state.trendMetric);
-		var unit = output === 'slope' ? value + ' / ' + (state.lang === 'es' ? 'año' : 'year') :
+		var value = unitText(e, state.trendMetric);
+		var unit = output === 'slope' ? (value ? value + ' / ' + (state.lang === 'es' ? 'año' : 'year') : '') :
 			output === 'intercept' ? value : '';
 		var id = start();
 		function add(vis) {

@@ -278,8 +278,9 @@ def test_the_tools_of_the_true_colour_in_the_mcp_server(mcp):
 	"""rgb_map and download_rgb take the arguments of map_layer and download_image (the same images and pixels), and
 	the model learns what they are and when to use them."""
 	params = lambda fn: set(inspect.signature(fn).parameters)  # noqa: E731
-	assert params(mcp.rgb_map) == params(mcp.map_layer) | {'preview'}  # its range without the PNG (the assistant)
-	assert params(mcp.download_rgb) == params(mcp.download_image)
+	custom = {'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain'}  # data by their ID: no true colour
+	assert params(mcp.rgb_map) == params(mcp.map_layer) - custom | {'preview'}  # its range without the PNG (the assistant)
+	assert params(mcp.download_rgb) == params(mcp.download_image) - custom
 	for name in ('rgb_map', 'download_rgb'):  # every argument goes to services
 		fn, service = getattr(mcp, name), inspect.signature(getattr(services, name)).parameters
 		assert params(fn) - set(service) <= {'collection', 'where', 'preview'}, name

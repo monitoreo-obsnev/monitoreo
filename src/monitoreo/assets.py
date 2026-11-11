@@ -91,9 +91,12 @@ def page(asset):
 
 def _fetch_json(url, timeout=10):
 	"""The JSON at URL, or None if it cannot be read (no such record, no network)."""
+	if not str(url).startswith('https://'):
+		return None
 	try:
 		req = urllib.request.Request(url, headers={'User-Agent': 'monitoreo'})
-		with urllib.request.urlopen(req, timeout=timeout) as r:
+		# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+		with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310
 			return json.loads(r.read().decode('utf-8'))
 	except Exception:
 		return None

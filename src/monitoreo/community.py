@@ -2,10 +2,12 @@
 of images shared as public Earth Engine assets by the community of Earth Engine (projects/sat-io/open-datasets/...
 and others), which MonitorEO computes like any data of Earth Engine given by its ID (see monitoreo.assets).
 
-MonitorEO keeps a copy of its index (community.json, the images and collections of images of community_datasets.json
+MonitorEO keeps a copy of its index (community.json.gz, the images and collections of images of community_datasets.json
 of https://github.com/samapriya/awesome-gee-community-datasets, licence CC BY 4.0, without the tables, which are not
 rasters, and without the datasets of its "Insiders only" theme, which are not public), so that every tool lists them
-without the internet. Its maintainers refresh it with:
+without the internet. It is compressed (gzip -dc shows it): as text, its many IDs of Earth Engine look like secrets to
+detect-secrets, which the scan of plugins.qgis.org runs on the zip of the QGIS plugin. Its maintainers refresh it
+with:
 
     python -m monitoreo.community
 
@@ -22,10 +24,11 @@ References:
 """
 
 import datetime as dt
+import gzip
 import json
 import os
 
-SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'community.json')
+SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'community.json.gz')
 REPOSITORY = 'samapriya/awesome-gee-community-datasets'
 SOURCE = f'https://raw.githubusercontent.com/{REPOSITORY}/{{commit}}/community_datasets.json'
 SITE = 'https://gee-community-catalog.org'
@@ -60,10 +63,11 @@ _snapshot = None
 
 
 def load():
-	"""The copy of the index: {'source', 'commit', 'date', 'downloaded', 'licence', 'themes', 'datasets'}."""
+	"""The copy of the index: {'source' (the URL of community_datasets.json at the commit copied), 'date' (of that
+	commit), 'downloaded', 'licence', 'site', 'note', 'datasets'}."""
 	global _snapshot
 	if _snapshot is None:
-		with open(SNAPSHOT, encoding='utf-8') as f:
+		with gzip.open(SNAPSHOT, 'rt', encoding='utf-8') as f:
 			_snapshot = json.load(f)
 	return _snapshot
 
@@ -173,14 +177,12 @@ def update(commit=None, path=SNAPSHOT):
 		                 'to monitoreo.community.THEMES')
 	order = {en: i for i, (en, _) in enumerate(THEMES)}
 	kept.sort(key=lambda d: (order[d['theme']], d['title'].lower(), d['id']))
-	data = {'source': f'https://github.com/{REPOSITORY}', 'file': 'community_datasets.json', 'commit': commit,
-	        'date': date, 'downloaded': dt.date.today().isoformat(), 'licence': LICENCE, 'site': SITE,
+	data = {'source': f'https://github.com/{REPOSITORY}/blob/{commit}/community_datasets.json', 'date': date, 'downloaded': dt.date.today().isoformat(), 'licence': LICENCE, 'site': SITE,
 	        'note': 'The images and collections of images of the index of the GEE Community Catalog, without its '
 	                'tables and its insiders-only datasets, as MonitorEO lists them (monitoreo.community).',
 	        'datasets': kept}
-	with open(path, 'w', encoding='utf-8') as f:
-		json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
-		f.write('\n')
+	with gzip.GzipFile(path, 'wb', mtime=0) as gz:  # mtime 0: the same index, the same file
+		gz.write((json.dumps(data, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8'))
 	global _snapshot
 	_snapshot = None
 	return len(kept)

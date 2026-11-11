@@ -41,7 +41,8 @@ rbr, dnbr, nbr_before and nbr_after).}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
-\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).}
+\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
 \item{resolution}{pixel size in metres (default: that of the data).}
 
@@ -52,8 +53,8 @@ rbr, dnbr, nbr_before and nbr_after).}
 \item{index}{\code{"dNBR"} or \code{"RBR"}.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
-each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
-own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
+result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
 \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",

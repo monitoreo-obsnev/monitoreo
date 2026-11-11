@@ -5,6 +5,9 @@
  * It uses the globals ee and CATALOG (catalog.js, written by build.py from catalog.json with the formulas already
  * resolved to band names). ES5 only, as the Code Editor. Every function keeps the name and the behaviour of the
  * Python function it ports (module.function in the comments): change both together.
+ *
+ * A spec names a variable of the catalog by its ref, or carries the entry of the data of Earth Engine outside the
+ * catalog that it computes (spec.entry, see customEntry): any image or collection of images given by its ID.
  */
 
 var MonitorEO = (function () {
@@ -254,11 +257,18 @@ var MonitorEO = (function () {
 		return CATALOG.themes || [];
 	}
 
+	// catalog.OTHER_THEMES: the themes of the menu for the data of Earth Engine outside the catalog, after those of the
+	// catalog: any image or collection of images by its ID (earth_engine) and the GEE Community Catalog (community)
+	function otherThemes() {
+		return CATALOG.other_themes || [];
+	}
+
 	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
-	// ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]')
+	// ('[mm/month]', e.g. the annual precipitation; 'mm month-1' in UDUNITS, the data outside the catalog) is a total
+	// ('[mm]', 'mm')
 	function unitOf(entry, metric) {
-		var m = /^\[(.+)\/(?:month|day)\]$/.exec(entry.unit || '');
-		return m && metric === 'sum' ? '[' + m[1] + ']' : entry.unit;
+		var m = /^(\[?)(.+?)(?:\/(?:month|day)| (?:month|day)-1)(\]?)$/.exec(entry.unit || '');
+		return m && String(metric || '').toLowerCase() === 'sum' ? m[1] + m[2] + m[3] : entry.unit;
 	}
 
 	// sensors.is_cf: the cloud frequency
@@ -272,9 +282,10 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.rgb_of: [bands, scale, offset] of the true colour of the images of ENTRY (see RGB), or null if they have
-	// none (fixed layers, climate, most MODIS products) or the variable compares two periods (RBR: see burnRatio)
+	// none (fixed layers, climate, most MODIS products, the data of Earth Engine outside the catalog) or the variable
+	// compares two periods (RBR: see burnRatio)
 	function rgbOf(entry) {
-		if (!entry || entry.static || entry.two_periods) return null;
+		if (!entry || entry.static || entry.two_periods || entry.custom) return null;
 		return RGB[entry.sensor] || RGB[entry.col] || null;
 	}
 
@@ -295,9 +306,10 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
-	// none for the fixed layers without dates (elevation, slope) and for the cloud frequency
+	// none for the fixed layers without dates (elevation, slope), for the cloud frequency and for the data of Earth
+	// Engine outside the catalog (they keep their own mask: see variable.py)
 	function fixedFilters(entry) {
-		if (entry.static || isCf(entry)) return [];
+		if (entry.static || entry.custom || isCf(entry)) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
 	}
 
@@ -561,14 +573,253 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// Variables (variable.py), for the catalog variables: a spec is {ref, metric, temporal, interannual, period,
-	// season, quality} ----------------------------------------------------------------------------------------------
+	// Data of Earth Engine outside the catalog (assets.py, community.py and variable.py) ------------------------------
+
+	var ASSET_TYPES = {Image: 'image', IMAGE: 'image', ImageCollection: 'image_collection',
+		IMAGE_COLLECTION: 'image_collection'};  // assets.TYPES, also with the names of ee.data.getAsset of the Code Editor
+	var TABLES = ['Table', 'TABLE', 'FeatureView', 'FEATURE_VIEW'];
+	var FOLDERS = ['Folder', 'FOLDER'];
+	var DATA_CATALOG = 'Earth Engine data catalog', COMMUNITY_CATALOG = 'GEE Community Catalog',
+		EE_ASSET = 'Earth Engine asset';  // the sources of assets.describe
+	var CATALOG_PAGE = 'https://developers.google.com/earth-engine/datasets/catalog/';  // assets.PAGE
+	var LEGACY = 'projects/earthengine-legacy/assets/';
+	// catalog.UDUNITS_TEXT: a unit written in UDUNITS ('mm', 'degC', 'kg m-2', 'mm day-1', '1')
+	var UDUNITS_TEXT = /^[A-Za-z0-9 ._^()*\/%+-]+$/;
+	var TERRAIN = ['slope', 'aspect'];
+
+	// assets.normalize: the ID of an asset as the tools take it, without quotes, spaces or a call of the Code Editor
+	// around it (ee.ImageCollection("X") is X) and without the prefix of the public catalog
+	function assetId(asset) {
+		var text = String(asset === null || asset === undefined ? '' : asset).trim();
+		var m = /^ee\.(?:Image|ImageCollection)\(\s*['"]([^'"]+)['"]\s*\)\s*;?$/.exec(text);
+		if (m) text = m[1];
+		text = text.trim().replace(/^['"]+|['"]+$/g, '').trim();
+		return text.replace(/^projects\/earthengine-public\/assets\//, '');
+	}
+
+	// variable._udunits_text: UNIT of the data of ASSET as given, in UDUNITS ('mm', 'degC', '1' if dimensionless); an
+	// error if it cannot be one
+	function udunitsText(unit, asset) {
+		var text = String(unit).replace(/º/g, '°').split(/\s+/).filter(function (x) { return x; }).join(' ');
+		var named = {'°C': 'degC', '°': 'degree', unitless: '1', dimensionless: '1', '': '1'};
+		if (named.hasOwnProperty(text)) text = named[text];
+		if (!UDUNITS_TEXT.test(text)) {
+			throw new Error('the unit of ' + asset + " is written in UDUNITS (the units of the CF conventions), e.g. 'mm', " +
+				"'degC', 'kg m-2', 'mm day-1' or '1' (dimensionless), not '" + unit + "'");
+		}
+		return text;
+	}
+
+	// catalog.custom_unit: the unit in UDUNITS of the data outside the catalog as the results give it, without the
+	// brackets of the units of the catalog ('mm'; '[unitless]' if dimensionless, as in the catalog)
+	function customUnit(unit) {
+		unit = String(unit || '').trim();
+		return unit === '1' ? '[unitless]' : unit;
+	}
+
+	// variable.specs for the kinds collection and image: the entry of the data of Earth Engine of ID O.asset, computed
+	// like a variable of the catalog. O.use: 'collection' (images with dates, aggregated in time: fromCollection) or
+	// 'image' (a fixed layer without dates: staticImage, the mosaic of the tiles if O.type is 'image_collection'); O.band
+	// (one); O.scale and O.offset of its stored values; O.unit of the values (in UDUNITS); O.terrain ('slope' or
+	// 'aspect' of the band, image only); O.m, the pixel size of the band (m, as variable.native_scale: see assetInfo).
+	// An error with what is wrong (no band, an image given as a collection, a unit not in UDUNITS)
+	function customEntry(o) {
+		var asset = assetId(o.asset);
+		if (!asset) throw new Error('give the ID of an image or a collection of images of Earth Engine');
+		var band = String(o.band === null || o.band === undefined ? '' : o.band).trim();
+		if (!band) throw new Error('give the band of ' + asset + ' (one)');
+		var use = o.use === 'image' ? 'image' : 'collection';
+		if (use === 'collection' && o.type === 'image') {  // variable.check_asset
+			throw new Error(asset + " is an image, not a collection of images: give it as image='" + asset + "' (a " +
+				'fixed layer, without dates)');
+		}
+		var terrain = use === 'image' && o.terrain ? String(o.terrain) : null;  // variable._fixed: only for an image
+		if (terrain && TERRAIN.indexOf(terrain) < 0) {
+			throw new Error('unknown terrain ' + terrain + ': use ' + TERRAIN.join(', '));
+		}
+		var m = Number(o.m);
+		if (!(m > 0)) {
+			throw new Error('the pixel size of the band ' + band + ' of ' + asset + ' is unknown: read its ID first');
+		}
+		var given = o.unit === null || o.unit === undefined ? '' : String(o.unit).trim();  // services.make_spec: '' is none
+		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset, band: band,
+			scale: number(o.scale, 1) || 1, offset: number(o.offset, 0),  // variable._fixed: float(scale or 1)
+			unit: given ? customUnit(udunitsText(given, asset)) : '', terrain: terrain, m: m, type: o.type || null,
+			use: use};
+	}
+
+	// services._title: what names the data of the entry E in the titles: the variable and sensor of the catalog (NDVI
+	// Sentinel-2), or the ID and band of the data of Earth Engine (IDAHO_EPSCOR/TERRACLIMATE pr)
+	function entryName(e) {
+		return e.custom ? (e.col + ' ' + (e.band || '')).trim() : e.index + ' ' + e.sensor;
+	}
+
+	// assets._not_readable, for the app: it computes with the Cloud project of the app
+	function notReadable(asset, error) {
+		return 'Earth Engine has no image or collection ' + asset + ', or this app cannot read it (' + error + '). Check ' +
+			"the ID: it is the text between the quotes of ee.Image('...') or ee.ImageCollection('...') in the page of " +
+			'the dataset (e.g. IDAHO_EPSCOR/TERRACLIMATE). The data of the Earth Engine catalog and of the GEE Community ' +
+			'Catalog are public; private assets need to be shared so that anyone can read them.';
+	}
+
+	// assets._asset: an error for the assets that are not images or collections of images (TYPE of ee.data.getAsset)
+	function notRaster(asset, type) {
+		if (TABLES.indexOf(type) >= 0) {
+			return asset + ' is a table (ee.FeatureCollection), not an image: MonitorEO computes images and collections ' +
+				'of images (regions are given with region)';
+		}
+		if (FOLDERS.indexOf(type) >= 0) {
+			return asset + ' is a folder: give the ID of an image or a collection of images in it';
+		}
+		return asset + ' is a ' + type + ', not an image or a collection of images';
+	}
+
+	// assets.describe, without the STAC record (the app cannot read it): where the asset ASSET comes from, with A, its
+	// metadata of ee.data.getAsset: {source (DATA_CATALOG, COMMUNITY_CATALOG or EE_ASSET), title, page, licence (null if
+	// not known: the page says it), theme (of the GEE Community Catalog)}. The IDs without users/ or projects/ are those
+	// of the public catalog of Earth Engine
+	function assetSource(asset, a) {
+		var props = (a && a.properties) || {};
+		var title = props['system:title'] || props.title;
+		if (!/^(users|projects)\//.test(asset)) {
+			return {source: DATA_CATALOG, title: title || asset, page: CATALOG_PAGE + asset.replace(/\//g, '_'),
+				licence: null};
+		}
+		var rec = communityRecord(asset);
+		if (rec) return {source: COMMUNITY_CATALOG, title: rec.title, page: rec.docs, licence: rec.license, theme: rec.theme};
+		return {source: EE_ASSET, title: title || asset, page: 'https://code.earthengine.google.com/?asset=' + asset,
+			licence: null};
+	}
+
+	// assets.info for the app: what Earth Engine says of the image or collection ASSET (metadata, without computing
+	// pixels), to choose its band and use: done(error, {asset, type ('image' or 'image_collection'), dated (a collection
+	// whose images have dates), use ('collection' or 'image', as assets.describe), bands (of the image or of the first
+	// image of the collection), scales ({band: pixel size in m, as variable.native_scale}), source, title, page,
+	// licence, theme (see assetSource)}). Asynchronous (ee.data.getAsset and evaluate): it never blocks the Code Editor
+	function assetInfo(asset, done) {
+		asset = assetId(asset);
+		ee.data.getAsset(asset, function (a, error) {
+			if (error || !a) return done(new Error(notReadable(asset, error || 'no such asset')));
+			var type = ASSET_TYPES[a.type];
+			if (!type) return done(new Error(notRaster(asset, a.type)));
+			var src, size = null;
+			if (type === 'image') {
+				src = ee.Image(asset);
+			} else {
+				var col = ee.ImageCollection(asset).limit(1);
+				src = ee.Image(col.first());
+				size = col.size();
+			}
+			var names = src.bandNames();
+			var meta = ee.Dictionary({
+				bands: names,
+				scales: ee.Dictionary.fromLists(names, names.map(function (b) {
+					return src.select(ee.List([b])).projection().nominalScale();
+				})),
+				dated: src.propertyNames().contains('system:time_start')
+			});
+			var request = size ? ee.Algorithms.If(size.gt(0), meta, null) : meta;  // an empty collection has no bands
+			request.evaluate(function (m, err) {
+				if (err && size) {  // if Earth Engine computes both cases of If, an empty collection fails here (no image)
+					return size.evaluate(function (n) {
+						done(new Error(n === 0 ? 'the collection ' + asset + ' has no images' : notReadable(asset, err)));
+					});
+				}
+				if (err) return done(new Error(notReadable(asset, err)));
+				if (!m) return done(new Error('the collection ' + asset + ' has no images'));
+				var dated = type === 'image_collection' && Boolean(m.dated);
+				var out = {asset: asset, type: type, dated: dated, use: dated ? 'collection' : 'image', bands: m.bands || [],
+					scales: m.scales || {}};
+				var from = assetSource(asset, a);
+				for (var k in from) out[k] = from[k];
+				done(null, out);
+			});
+		});
+	}
+
+	// variable._from_collection: single band images ('value', float) of the band of the collection of the entry E
+	// (customEntry) over REGION between START and END (excluded), with the scale and offset of its stored values,
+	// bilinear on output pixels of RES metres finer than those of the data (variable._resample), and the date of each
+	// image. No pixel filters: the data keep their own mask
+	function fromCollection(e, region, start, end, res) {
+		var scale = number(e.scale, 1) || 1, offset = number(e.offset, 0);
+		var bilinear = Boolean(res) && res < Number(e.m);
+		return ee.ImageCollection(e.col).filterBounds(region).filterDate(start, end).map(function (img) {
+			img = ee.Image(img);
+			var out = img.select(e.band).multiply(scale).add(offset);
+			if (bilinear) out = out.resample('bilinear');
+			return out.toFloat().rename('value').copyProperties(img, ['system:time_start']);
+		});
+	}
+
+	// The copy of the index of the GEE Community Catalog in CATALOG.community (build.py, from monitoreo.community):
+	// its themes ([English, Spanish]) and licences once, and each dataset as [id, title, 1 if a collection of images (0:
+	// an image), theme (its index), page (after community.docs, or the whole URL), licence (its index, or null)]
+	function community() {
+		return CATALOG.community || {themes: [], licences: [], datasets: [], docs: ''};
+	}
+
+	function communityRecordOf(r) {
+		var c = community(), page = String(r[4] || '');
+		return {id: r[0], title: r[1], type: r[2] ? 'image_collection' : 'image', theme: c.themes[r[3]][0],
+			docs: page && !/^https?:\/\//.test(page) ? c.docs + page : page,
+			license: r[5] === null || r[5] === undefined ? null : c.licences[r[5]]};
+	}
+
+	// community._theme: the index of the theme of the catalog named THEME (in English or in Spanish, case insensitive)
+	function communityTheme(theme) {
+		var low = String(theme || '').trim().toLowerCase(), names = community().themes;
+		for (var i = 0; i < names.length; i++) {
+			if (low === names[i][0].toLowerCase() || low === names[i][1].toLowerCase()) return i;
+		}
+		var found = [];
+		names.forEach(function (n, j) {
+			if (low && (n[0].toLowerCase().indexOf(low) >= 0 || n[1].toLowerCase().indexOf(low) >= 0)) found.push(j);
+		});
+		if (found.length === 1) return found[0];
+		throw new Error('unknown theme ' + theme + ' of the GEE Community Catalog: use one of ' +
+			names.map(function (n) { return n[0]; }).join('; '));
+	}
+
+	// community.themes: the themes of the catalog with images or collections of images: [{theme (its name in the
+	// catalog), name (in LANG, 'en' or 'es'), datasets (how many)}]
+	function communityThemes(lang) {
+		var c = community(), counts = {};
+		c.datasets.forEach(function (r) { counts[r[3]] = (counts[r[3]] || 0) + 1; });
+		var out = [];
+		c.themes.forEach(function (n, i) {
+			if (counts[i]) out.push({theme: n[0], name: lang === 'es' ? n[1] : n[0], datasets: counts[i]});
+		});
+		return out;
+	}
+
+	// community.datasets of one THEME (its name, see communityTheme; all of them without it): [{id, title, type
+	// ('image' or 'image_collection'), theme, docs (its page), license}], in the order of the index
+	function communityDatasets(theme) {
+		var wanted = theme === null || theme === undefined || theme === '' ? null : communityTheme(theme);
+		return community().datasets.filter(function (r) { return wanted === null || r[3] === wanted; })
+			.map(communityRecordOf);
+	}
+
+	// community.record: the record of the Earth Engine asset ASSET in the catalog (with or without the prefix of the
+	// old API), or null
+	function communityRecord(asset) {
+		var id = String(asset || '').trim().replace(LEGACY, '');
+		var rows = community().datasets;
+		for (var i = 0; i < rows.length; i++) {
+			if (rows[i][0].replace(LEGACY, '') === id) return communityRecordOf(rows[i]);
+		}
+		return null;
+	}
+
+	// Variables (variable.py): a spec is {ref (a variable of the catalog) or entry (data of Earth Engine outside it:
+	// customEntry), metric, temporal, interannual, period, season, quality, where} ---------------------------------
 
 	function spec(options) {
 		var s = {metric: 'mean', temporal: 'period', interannual: 'mean', season: null, quality: {}};
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
-		var e = s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
+		var e = s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
 		if (e.metric && String(s.metric).trim().toLowerCase() !== e.metric) {  // its only metric (SCF: the mean)
 			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
 		}
@@ -576,7 +827,7 @@ var MonitorEO = (function () {
 	}
 
 	function entryOf(s) {
-		return byRef(s.ref);
+		return s.entry || byRef(s.ref);
 	}
 
 	function span(s) {
@@ -584,7 +835,8 @@ var MonitorEO = (function () {
 		return [iso(wins[0][1]), iso(wins[wins.length - 1][2])];
 	}
 
-	// variable.is_static: a variable of the catalog without dates (elevation, slope)
+	// variable.is_static: a fixed layer without dates: a variable of the catalog without them (elevation, slope) or an
+	// image of Earth Engine given as image (customEntry)
 	function isStatic(s) {
 		return Boolean(entryOf(s).static);
 	}
@@ -593,13 +845,19 @@ var MonitorEO = (function () {
 	function checkDates(s, what) {
 		if (!isStatic(s)) return;
 		var e = entryOf(s);
+		what = what || 'time series, trends or comparisons';
+		if (e.custom) {
+			throw new Error(e.col + ' (band ' + e.band + ') is given as a fixed image, without dates (image=): it has ' +
+				'maps, GeoTIFFs and statistics of the region (map_layer, download_image, region_stats), but no ' + what +
+				'. A collection of images with dates is given as collection=');
+		}
 		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
-			'statistics of the region, but no ' + (what || 'time series, trends or comparisons'));
+			'statistics of the region, but no ' + what);
 	}
 
-	// variable._fixed for the fixed layers of the catalog: the mosaic of the tiles of its collection, its terrain (the
-	// slope, in degrees), bilinear on pixels RES finer than those of the data and, on pixels RES more than twice as
-	// big, the mean of its pixels
+	// variable._fixed for the fixed layers of the catalog and the images of Earth Engine given as image (customEntry):
+	// the image, or the mosaic of the tiles of its collection, its terrain (slope or aspect, in degrees), bilinear on
+	// pixels RES finer than those of the data and, on pixels RES more than twice as big, the mean of its pixels
 	function staticImage(e, res) {
 		var img;
 		if (e.image_asset) {  // an image (WorldClim), not a collection
@@ -666,11 +924,15 @@ var MonitorEO = (function () {
 		return out.selfMask();
 	}
 
-	// variable.check_rgb: error, without Earth Engine, if S has no true colour (see RGB): fixed layers, variables whose
-	// images have no red, green and blue bands, and the metrics that do not give colours (see checkRgbMetric). The
-	// specs of the app are all of the catalog
+	// variable.check_rgb: error, without Earth Engine, if S has no true colour (see RGB): the data outside the catalog,
+	// fixed layers, variables whose images have no red, green and blue bands, and the metrics that do not give colours
+	// (see checkRgbMetric)
 	function checkRgb(s) {
 		var e = entryOf(s);
+		if (e.custom) {
+			throw new Error('only the variables of the catalog of MonitorEO have a true colour (of Sentinel-2, Landsat ' +
+				'and the cloud frequency of MODIS)');
+		}
 		if (e.static) {
 			throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has no images, nor true ' +
 				'colour');
@@ -680,14 +942,16 @@ var MonitorEO = (function () {
 		if ((s.temporal || 'period') !== 'period') checkRgbMetric(s.interannual);
 	}
 
-	// variable.collection: with the mask of the conditions of S (where) in every image, so the number of pixels and
-	// of images of each value count only the pixels kept (with RGB, also the bands red, green and blue of their true
-	// colour: see sensorCollection)
+	// variable.collection: the images of a variable of the catalog or of a collection of Earth Engine (fromCollection),
+	// with the mask of the conditions of S (where) in every image, so the number of pixels and of images of each value
+	// count only the pixels kept (with RGB, also the bands red, green and blue of their true colour: see
+	// sensorCollection)
 	function collection(s, region, res, rgb) {
 		if (rgb) checkRgb(s);
 		checkDates(s);
-		var sp = span(s);
-		var col = sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality, rgb);
+		var sp = span(s), e = entryOf(s);
+		var col = e.custom ? fromCollection(e, region, sp[0], sp[1], res) :
+			sensorCollection(e, region, sp[0], sp[1], s.quality, rgb);
 		var m = whereMask(s, region, res);
 		return m ? col.map(function (i) { return ee.Image(i).updateMask(m); }) : col;
 	}
@@ -1383,7 +1647,13 @@ var MonitorEO = (function () {
 
 	return {
 		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
-		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
+		otherThemes: otherThemes,
+		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
+		udunitsText: udunitsText, customUnit: customUnit, customEntry: customEntry, entryName: entryName,
+		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
+		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
+		staticImage: staticImage, iso: iso, date: date, windows: windows, bins: bins, reducer: reducer,
+		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
