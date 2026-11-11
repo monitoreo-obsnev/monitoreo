@@ -18,6 +18,7 @@ dependencies:
   - mcp>=1.10          # MCP server
   - starlette          # assistant for managers (monitoreo assistant)
   - uvicorn
+  - pypdf              # the text of the PDF documents uploaded to the assistant
   - pytest
   - pip
   - pip:

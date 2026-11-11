@@ -20,9 +20,9 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.10"]
 plot = ["matplotlib"]
-assistant = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview"]
+assistant = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf"]
 test = ["pytest"]
-all = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pytest"]
+all = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf", "pytest"]
 
 [project.scripts]
 monitoreo = "monitoreo.cli:main"

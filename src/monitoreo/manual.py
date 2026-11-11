@@ -43,9 +43,12 @@ PAGE_WEIGHT = {'Conceptos': 1.3, 'Asistente': 1.2, 'Home': 1.2, 'Python': 0.8, '
 PAGE_WEIGHT.update({ENGLISH[k]: w for k, w in PAGE_WEIGHT.items()})
 SYNONYMS = {  # words of the questions and the wiki
 	'es': {'resolucion': 'pixel', 'pixel': 'resolucion', 'frecuencia': 'fechas dias', 'cuanto': 'fechas dias',
-	       'nubes': 'filtros', 'citar': 'cita doi', 'instalar': 'instalacion'},
+	       'nubes': 'filtros', 'citar': 'cita doi', 'instalar': 'instalacion', 'documento': 'documentos subir tabla',
+	       'adjuntar': 'subir documentos', 'excel': 'documentos tabla hoja', 'csv': 'documentos tabla'},
 	'en': {'resolution': 'pixel', 'pixel': 'resolution', 'frequency': 'dates days', 'often': 'dates days',
-	       'clouds': 'filters', 'cite': 'citation doi', 'install': 'installation'}}
+	       'clouds': 'filters', 'cite': 'citation doi', 'install': 'installation', 'document': 'documents upload table',
+	       'attach': 'upload documents', 'excel': 'documents table spreadsheet',
+	       'spreadsheet': 'documents table', 'csv': 'documents table'}}
 ENDINGS = {
 	'es': ('aciones', 'ación', 'acion', 'iones', 'ión', 'ion', 'amiento', 'mente', 'ando', 'iendo', 'ados', 'adas',
 	       'idos', 'idas', 'ado', 'ada', 'ido', 'ida', 'ar', 'er', 'ir', 'as', 'es', 'os', 'a', 'e', 'o', 's'),

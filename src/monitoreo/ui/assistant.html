@@ -130,6 +130,7 @@ ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 .legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none; }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .85em; margin: 0 2px 6px; }
+.layers[hidden] { display: none; }  /* without study areas or documents, not even their label */
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--line);
         border-radius: 999px; padding: 1px 4px 1px 10px; }
 .chip button { border: 0; background: none; padding: 0 6px; color: var(--muted); }
@@ -220,6 +221,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <button id="eecuCheck" type="button" title="Checks again the EECUs (compute units of Earth Engine) spent this month">Check</button>
   </div>
   <div id="layers" class="layers" hidden></div>
+  <div id="documents" class="layers" hidden></div>
 </header>
 
 <nav id="tabs">
@@ -234,7 +236,8 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <p>Ask which variable or sensor suits you, or ask for a computation over a protected area or a zone. The results
       appear here and you can gather them in a report to print or save as PDF. To compute over your own polygons,
       upload your study area (GeoPackage, GeoJSON, KML or shapefile in a .zip) with the button or by dragging it here.
-      You can write in English or in Spanish. <b>The assistant does not interpret the results.</b></p>
+      To explain your question, upload documents: a report to replicate, a table of your plots, notes (PDF, Word,
+      Excel, CSV, text; 10 MB in all). You can write in English or in Spanish. <b>The assistant does not interpret the results.</b></p>
     <div class="examples">
       <button type="button">Which sensor suits me to follow the vegetation of a small farm since 2015?</button>
       <button type="button">Monthly evolution of the NDVI in the Sierra Nevada National Park since 2018</button>
@@ -254,6 +257,8 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div class="actions">
     <button id="addLayer" type="button">Upload study area</button>
     <input id="layerFile" type="file" accept=".gpkg,.geojson,.json,.kml,.zip" multiple hidden>
+    <button id="addDocument" type="button" title="Reports, tables or notes that help to explain your question (PDF, Word, OpenDocument, Excel, CSV, TSV, text; 10 MB in all): the language model reads their text">Upload documents</button>
+    <input id="documentFile" type="file" accept=".pdf,.docx,.odt,.xlsx,.ods,.csv,.tsv,.txt,.md" multiple hidden>
     <button id="report" type="button">Create report (<span id="nres">0</span>)</button>
     <button id="reset" type="button">New request</button>
   </div>
@@ -420,7 +425,7 @@ async function refresh() {
     ' The language model (', el('b', {text: !cloud ? state.model_name : state.model_name === 'MonitorEO' ?
                                            'that of MonitorEO' : state.model_name + ' of MonitorEO'}),
     cloud ? ', in the cloud' : local ? ', on this computer' : ', at ' + host,
-    ') only gets the text of the conversation: it does not see the results nor interpret them.');
+    ') only gets the text of the conversation and of your documents: it does not see the results nor interpret them.');
   const ready = accountOk && (cloud || (state.models && state.models.includes(state.model)));
   $('summary').textContent = ready ? '· all ready' : '· to be completed';
   if (ready && !refresh.done) $('setup').open = false;
@@ -440,6 +445,7 @@ async function refresh() {
   $('update').hidden = !(up && up.available);
   if (up) $('update').title = `There is a new version of MonitorEO (${up.latest}); you have ${up.current || 'an older one'}`;
   renderLayers(state.layers || []);
+  renderDocuments(state.documents || [], state.documents_used, state.documents_max);
   $('tierRow').hidden = !own;
   if (document.activeElement !== $('tier')) $('tier').value = state.eecu_tier || 'Community';
   renderEecu(state.eecu);
@@ -507,6 +513,63 @@ function renderLayers(layers) {
   }
 }
 
+// --- documents ----------------------------------------------------------------------------------------------------
+const DOCUMENT_TYPES = ['.pdf', '.docx', '.odt', '.xlsx', '.ods', '.csv', '.tsv', '.txt', '.md'];
+// documents that cannot be read, with what to do (documents.OTHERS): the other files dropped are taken for layers
+const OTHER_DOCUMENTS = ['.doc', '.rtf', '.xls', '.ppt', '.pptx', '.odp', '.pages', '.numbers', '.key'];
+let reading = 0;  // documents being uploaded and read: a message waits for them (see send)
+const extension = name => (name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+const size = n => n < 0.1 * 2 ** 20 ? Math.max(1, Math.round(n / 1024)) + ' KB'  // '12 KB', '3.4 MB'
+                                     : (n / 2 ** 20).toFixed(1).replace(/\.0$/, '') + ' MB';
+const TABLES = ['CSV table', 'TSV table', 'Excel workbook', 'OpenDocument spreadsheet'];
+
+function renderDocuments(docs, used, max) {
+  const box = $('documents');
+  box.hidden = !docs.length;
+  box.replaceChildren(el('span', {class: 'muted', text: `Documents (${size(used || 0)} of ${size(max || 10 * 2 ** 20)}):`}));
+  for (const d of docs) {
+    const remove = el('button', {type: 'button', title: 'Remove the document ' + d.name, 'aria-label': 'Remove the document ' + d.name, text: '×'});
+    remove.onclick = async () => {
+      if (!confirm(`Remove the document «${d.name}»? Its copy in the folder MonitorEO/documentos is deleted, and the model is told not to use it.`)) return;
+      await api('/api/document/remove', {name: d.name}).catch(e => notice(e.message, true));
+      refresh();
+    };
+    box.append(el('span', {class: 'chip', title: `${d.original}: ${d.text}`}, el('b', {text: d.name}), ' · ' + d.text, remove));
+  }
+}
+
+async function uploadDocuments(files) {
+  reading++;
+  for (const file of files) {
+    status('Reading the document ' + file.name + '…');
+    try {
+      const r = await fetch('/api/document?name=' + encodeURIComponent(file.name), {
+        method: 'POST', headers: {'X-Token': token, 'Content-Type': 'application/octet-stream'}, body: file});
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || r.statusText);
+      $('intro').hidden = true;
+      const example = TABLES.includes(data.kind) ? `«Use the table ${data.name} to choose the dates»`
+                                                 : `«Replicate the analysis of the document ${data.name} in my study area»`;
+      $('chat').append(el('div', {class: 'notice'}, 'Document ', el('b', {text: data.name}), ` uploaded: ${data.text} ` +
+        `(documents: ${size(data.used)} of ${size(data.max)}). The language model reads it with your next message, ` +
+        `for example: ${example}.`));
+      scroll();
+    } catch (e) { notice(`Document ${file.name}: ${e.message}`, true); }
+  }
+  reading--;
+  status(null);
+  refresh();
+  if (!reading && !busy && pending) { const text = pending; pending = null; send(text); }
+}
+
+function dropped(files) {  // each file where it goes: the documents, and the rest to the study areas (as before)
+  const doc = f => DOCUMENT_TYPES.includes(extension(f.name)) || OTHER_DOCUMENTS.includes(extension(f.name));
+  const layers = files.filter(f => !doc(f));
+  const docs = files.filter(doc);
+  if (layers.length) upload(layers);
+  if (docs.length) uploadDocuments(docs);
+}
+
 async function upload(files) {
   for (const file of files) {
     status('Reading the study area ' + file.name + '…');
@@ -528,6 +591,8 @@ async function upload(files) {
 
 $('addLayer').onclick = () => $('layerFile').click();
 $('layerFile').onchange = () => { upload([...$('layerFile').files]); $('layerFile').value = ''; };
+$('addDocument').onclick = () => $('documentFile').click();
+$('documentFile').onchange = () => { uploadDocuments([...$('documentFile').files]); $('documentFile').value = ''; };
 let drags = 0;
 document.addEventListener('dragenter', e => { if (e.dataTransfer.types.includes('Files')) { drags++; document.body.classList.add('dragging'); } });
 document.addEventListener('dragleave', () => { if (--drags <= 0) { drags = 0; document.body.classList.remove('dragging'); } });
@@ -536,7 +601,7 @@ document.addEventListener('drop', e => {
   e.preventDefault();
   drags = 0;
   document.body.classList.remove('dragging');
-  if (e.dataTransfer.files.length) upload([...e.dataTransfer.files]);
+  if (e.dataTransfer.files.length) dropped([...e.dataTransfer.files]);
 });
 
 $('signin').onclick = async () => {
@@ -1123,6 +1188,11 @@ async function send(text) {
   text = text.trim();
   if (!text) return;
   if (busy) return notice('Wait until what is running ends.', true);
+  if (reading) {  // the model would get the message without the documents being read
+    pending = text;
+    $('text').value = '';
+    return notice('Your message goes as soon as the documents are read.');
+  }
   try {
     await api('/api/chat', {text});  // the events of the answer come by follow
     $('text').value = '';
@@ -1189,7 +1259,7 @@ $('update').onclick = async () => {
 
 $('quit').onclick = async () => {
   if (!confirm((busy ? 'A request is running and will be lost. ' : '') + 'Close the assistant? The engine of the models ' +
-               'closes too. The results, the study areas and the reports stay in the folder MonitorEO.')) return;
+               'closes too. The results, the study areas, the documents and the reports stay in the folder MonitorEO.')) return;
   try { await api('/api/quit', {}); } catch (e) { return notice('It could not be closed: ' + e.message, true); }
   clearInterval(refresher);
   document.body.replaceChildren(el('div', {class: 'closed'},
