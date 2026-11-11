@@ -125,6 +125,7 @@ ol.refs { padding-left: 1.6em; margin: 6px 0; font-size: .85em; }
 ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 .legend .bar { height: 12px; width: 200px; max-width: 50vw; border: 1px solid var(--line); }
 .legend.classes { flex-wrap: wrap; gap: 4px 14px; }
+#maplegend { flex-wrap: wrap; }  /* the index and, under it, its true colour («Both») */
 .legend .class { display: inline-flex; align-items: center; gap: 5px; }
 .legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none; }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
@@ -265,6 +266,11 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
       <label>Map <select id="mapsel"></select></label>
       <label id="steplabel" hidden title="The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)"><span id="steptitle">Date</span> <select id="mapstep"></select></label>
       <label id="siglabel" hidden title="Shows only the pixels whose trend is significant (Mann-Kendall test, p &lt; 0.05)"><input type="checkbox" id="significant"> Significant pixels only (p &lt; 0.05)</label>
+      <label id="layerlabel" hidden title="Index: the map of the variable. True colour (RGB): the red, green and blue reflectance of the same images, dates and pixels, to see what the index shows (prepared in Google Earth Engine when you choose it). Both: the index over its true colour (Opacity changes the index). Only in the maps of variables of Sentinel-2, Landsat or the cloud frequency of MODIS: not in fixed layers, the climate, other MODIS products, trends or comparisons.">Layer <select id="layer">
+        <option value="index">Index</option>
+        <option value="rgb">True colour (RGB)</option>
+        <option value="both">Both</option>
+      </select></label>
       <label>Base map <select id="basemap">
         <option value="osm">Mapa (OpenStreetMap)</option>
         <option value="eox">Sentinel-2 cloudless (EOX, whole world)</option>
@@ -704,12 +710,14 @@ function mapButton(id) {  // shows the map of the result ID
   return b;
 }
 
-// The legend of a map: a bar from min to max with its palette, or a colour per class (the burn severity of the USGS)
+// The legend of a map: a bar from min to max with its palette, a colour per class (the burn severity of the USGS) or,
+// without colours, its text (the true colour of the images: the range of its reflectance)
 function legendItems(lg) {
   if (lg.classes) {
     return lg.classes.map(c => el('span', {class: 'class'}, el('span', {class: 'swatch', style: `background: ${c.color}`}),
                                   el('span', {text: c.label})));
   }
+  if (!lg.palette) return lg.text ? [el('span', {text: lg.text})] : [];
   const colours = lg.palette.map(c => '#' + c.replace('#', '')).join(', ');
   return [el('span', {text: fmt(lg.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
           el('span', {text: fmt(lg.max) + (lg.unit ? ' ' + lg.unit : '')})];
@@ -724,6 +732,7 @@ function resultCard(e) {
           e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Table in the report') : '')));
   if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
   if (e.legend) card.append(el('div', {class: e.legend.classes ? 'legend classes' : 'legend'}, ...legendItems(e.legend)));
+  if (e.under) card.append(el('div', {class: 'legend'}, ...legendItems(e.under)));  // a view over the true colour
   if (e.table) card.append(table(e.table));
   if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
@@ -823,7 +832,9 @@ function showPane(name) {
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showPane(b.dataset.pane));
 
-let leaflet = null, base = null, overlay = null, marker = null, current = null, refreshed = {};
+// overlay: the map shown (that of the variable, or its true colour), which Opacity changes; under: the true colour
+// under the map of the variable («Both»)
+let leaflet = null, base = null, overlay = null, under = null, marker = null, current = null, refreshed = {};
 const maps = {};
 const BASES = {
   osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -853,10 +864,12 @@ function clearMaps() {
   $('mapsel').replaceChildren();
   $('mapstep').replaceChildren();
   $('steplabel').hidden = true;
+  $('layerlabel').hidden = true;
   $('maptitle').textContent = '';
   $('mapbox').hidden = true;
   $('pixel').replaceChildren();
   if (overlay) { overlay.remove(); overlay = null; }
+  if (under) { under.remove(); under = null; }
   if (marker) { marker.remove(); marker = null; }
   current = null;
 }
@@ -874,18 +887,30 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
                                ...steps.map(s => el('option', {value: s.key, text: s.label})));
   $('steptitle').textContent = e.steps_label || 'Date';
   $('steplabel').hidden = !steps.length;
+  $('layerlabel').hidden = !e.rgb;  // the true colour of its images, if they have one (the choice stays as it was)
   display(id, '', e, true);
   if (e.map.trend && $('significant').checked) showStep('');  // the box stays as it was
 }
 
-function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page
-  current = {id, key, map: m.map, legend: m.legend, title: m.title};
-  $('maptitle').textContent = m.heading || m.title || '';  // what the map shows: variable, period and region
+const RGB = '|rgb';  // in the key of the map of the true colour of the images of a map (as the server)
+const layerMode = () => $('layerlabel').hidden ? 'index' : $('layer').value;  // 'index', 'rgb' or 'both'
+
+function tiles(id, name, url, opacity) {  // a layer of tiles of Earth Engine (asked for again if they expire)
+  const layer = L.tileLayer(url, {opacity, maxZoom: 20, attribution: 'MonitorEO · Google Earth Engine'});
+  layer.name = name;
+  return layer.on('tileerror', () => refreshTiles(id, name)).addTo(leaflet);
+}
+
+function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page,
+  current = {id, key, map: m.map, legend: m.legend, title: m.title, heading: m.heading};  // or its true colour (Layer)
+  const mode = layerMode(), rgb = mode === 'index' ? null : (maps[id].cache || {})[key + RGB];
+  const top = mode === 'rgb' && rgb ? rgb : m;  // the true colour alone, or the map of the variable (over it: «Both»)
+  $('maptitle').textContent = top.heading || top.title || '';  // what the map shows: variable, period and region
   $('siglabel').hidden = !m.map.trend;
   if (overlay) overlay.remove();
-  overlay = L.tileLayer(m.map.url, {opacity: Number($('opacity').value), maxZoom: 20,
-                                    attribution: 'MonitorEO · Google Earth Engine'})
-    .on('tileerror', () => refreshTiles(id, key)).addTo(leaflet);
+  if (under) { under.remove(); under = null; }
+  if (mode === 'both' && rgb) under = tiles(id, key + RGB, rgb.map.url, 1);
+  overlay = tiles(id, top === rgb ? key + RGB : key, top.map.url, Number($('opacity').value));
   if (fit) {
     const [w, s, east, n] = m.map.bounds;
     leaflet.fitBounds([[s, w], [n, east]], {padding: [12, 12]});
@@ -893,15 +918,36 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
   }
   const lg = $('maplegend');
   lg.replaceChildren();
-  lg.classList.toggle('classes', Boolean(m.legend && m.legend.classes));
-  if (m.legend) lg.append(...legendItems(m.legend));
+  lg.classList.toggle('classes', Boolean(top.legend && top.legend.classes));
+  if (top.legend) lg.append(...legendItems(top.legend));
+  if (under && rgb.legend) lg.append(el('span', {class: 'muted', text: '·'}), ...legendItems(rgb.legend));
   mapHint();
+  if (mode !== 'index' && !rgb) colour(id, key);  // the map of the variable until its true colour is ready
 }
 
+const preparing = {};  // the true colours asked for and not received yet
+async function colour(id, key) {  // the true colour of the images of the map of the result ID at its step KEY, made
+  const e = maps[id], name = key + RGB, asked = id + '/' + name;  // the first time; then shown if Layer still wants it
+  if (preparing[asked]) return;
+  preparing[asked] = true;
+  $('maphint').replaceChildren(el('span', {class: 'spinner'}), 'Preparing the true colour of the images in Google Earth Engine…');
+  try {
+    e.cache = e.cache || {};
+    e.cache[name] = await api('/api/map/step', {id, key, rgb: true});
+  } catch (err) {
+    notice('The true colour could not be prepared: ' + err.message, true);
+    if (current && current.id === id && current.key === key) { $('layer').value = 'index'; display(id, key, current, false); }
+    return;
+  } finally { delete preparing[asked]; }
+  if (current && current.id === id && current.key === key && layerMode() !== 'index') display(id, key, current, false);
+}
+$('layer').onchange = () => { if (current) display(current.id, current.key, current, false); };
+
 let querying = false;  // whether a click on the map queries its pixel
-function mapHint() {
-  const what = !current ? 'the time series of a pixel' : current.map.series === false ? 'the value of a pixel' :
-               current.map.pixel ? 'the value of a pixel and its time series' : 'the time series of a pixel';
+function mapHint() {  // on the true colour of a map, the pixel of the variable of the map, as in «Index»
+  const value = overlay && String(overlay.name).endsWith(RGB) ? 'the value of the variable at a pixel' : 'the value of a pixel';
+  const what = !current ? 'the time series of a pixel' : current.map.series === false ? value :
+               current.map.pixel ? value + ' and its time series' : 'the time series of a pixel';
   $('maphint').textContent = querying ? `Click on the map to see ${what} (computed in Google Earth Engine).`
                                       : `Press «Query pixel» to see ${what}.`;
 }
@@ -947,7 +993,7 @@ async function refreshTiles(id, key) {  // the tiles of Earth Engine expire afte
     const r = await api('/api/map/refresh', {id, key});
     const m = key ? maps[id].cache[key] : maps[id];
     m.map.url = r.url;
-    if (current && current.id === id && current.key === key && overlay) overlay.setUrl(r.url);
+    if (current && current.id === id) for (const layer of [overlay, under]) if (layer && layer.name === key) layer.setUrl(r.url);
   } catch (e) { notice('The map has expired and could not be renewed: ' + e.message, true); }
 }
 
@@ -991,7 +1037,8 @@ $('snapshot').onclick = async () => {
   try {
     await api('/api/map/snapshot', {id: current.id, key: current.key, bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
                                     zoom: leaflet.getZoom(), base: $('basemap').value, opacity: Number($('opacity').value),
-                                    marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null});
+                                    marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null,
+                                    layer: under ? 'both' : overlay && overlay.name.endsWith(RGB) ? 'rgb' : 'index'});  // what is seen
   } catch (e) { notice('The view could not be kept: ' + e.message, true); }
   button.disabled = false;
   button.textContent = 'Add this view to the report';

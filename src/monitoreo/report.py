@@ -456,6 +456,8 @@ def _item(item, n, names, annex, refs=()):
 			style = map_style(tool, args, result)
 			if style:
 				out.append(_class_legend(style['classes']) if style.get('classes') else _legend({**result, **style}))
+			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
+				out.append(_legend(map_style('rgb_map', args, item['under'])))
 			out.append('</figure>')
 	table = item_table(tool, result, args) if item.get('table', True) else None
 	if table:
@@ -492,8 +494,10 @@ WEB_MERCATOR = 20037508.342789244
 
 def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_pixels=4096 ** 2):
 	"""A PNG (data: URL) of a view of the interactive map: the tiles of the base map BASE (see BASEMAPS) and, over
-	them with OPACITY, those of OVERLAY (the template {z}/{x}/{y} of the tiles of Earth Engine), over BOUNDS
-	[w, s, e, n] at ZOOM, with MARKER ([lon, lat]) circled and the credits of the base map."""
+	them with OPACITY, those of OVERLAY (the template {z}/{x}/{y} of the tiles of Earth Engine; or a list of them,
+	drawn in its order, e.g. the true colour of the images under the map of the variable, with OPACITY a number for all
+	or a list, one each), over BOUNDS [w, s, e, n] at ZOOM, with MARKER ([lon, lat]) circled and the credits of the
+	base map."""
 	import io
 	from concurrent.futures import ThreadPoolExecutor
 	from PIL import Image, ImageDraw, ImageFont
@@ -506,6 +510,8 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 	tiles = [(tx, ty) for tx in range(int(x0 // TILE), int((x1 - 1) // TILE) + 1)
 	         for ty in range(int(y0 // TILE), int((y1 - 1) // TILE) + 1)]
 	b = BASEMAPS.get(base) or BASEMAPS['osm']
+	overlays = [overlay] if isinstance(overlay, str) else list(overlay)
+	opacities = list(opacity) if isinstance(opacity, (list, tuple)) else [opacity] * len(overlays)
 
 	def get(url):
 		try:
@@ -526,21 +532,23 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 			base_url = b['wms'].format(bbox=bbox)
 		else:
 			base_url = b['tiles'].format(z=z, x=tx // k, y=ty // k)
-		return base_url, overlay.format(z=zoom, x=tx, y=ty), k, (tx % k, ty % k)
+		return base_url, [o.format(z=zoom, x=tx, y=ty) for o in overlays], k, (tx % k, ty % k)
 
 	with ThreadPoolExecutor(8) as pool:
 		got = list(pool.map(lambda t: (t, urls(*t)), tiles))
-		images = list(pool.map(lambda g: (get(g[1][0]), get(g[1][1])), got))
+		images = list(pool.map(lambda g: (get(g[1][0]), [get(u) for u in g[1][1]]), got))
 	canvas = Image.new('RGBA', (width, height), (240, 240, 240, 255))
-	for ((tx, ty), (_, _, k, (dx, dy))), (base_tile, over) in zip(got, images):
+	for ((tx, ty), (_, _, k, (dx, dy))), (base_tile, overs) in zip(got, images):
 		at = (int(tx * TILE - x0), int(ty * TILE - y0))
 		if base_tile is not None:
 			if k > 1:
 				part = TILE // k
 				base_tile = base_tile.crop((dx * part, dy * part, (dx + 1) * part, (dy + 1) * part)).resize((TILE, TILE))
 			canvas.paste(base_tile, at)
-		if over is not None:
-			alpha = over.getchannel('A').point(lambda v: int(v * opacity))
+		for over, share in zip(overs, opacities):  # the first one at the bottom
+			if over is None:
+				continue
+			alpha = over.getchannel('A').point(lambda v, share=share: int(v * share))
 			over.putalpha(alpha)
 			layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
 			layer.paste(over, at)
@@ -580,14 +588,21 @@ def map_style(tool, args, result):
 	"""How the map of the GeoTIFF of a result is drawn, as in the other tools of MonitorEO: {'band' (its number),
 	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}])} for the burn severity, its band severity with
 	the colours of the classes of the USGS; {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
-	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); None for
-	those without them."""
+	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); {'band'
+	([1, 2, 3]: red, green and blue), 'min', 'max', 'text' (its legend)} for the true colour of the images (rgb_map,
+	download_rgb: the three bands stretched together from min to max, without a palette); None for those without
+	them."""
+	from .sensors import RGB_BANDS
 	if not isinstance(result, dict):
 		return None
 	if tool == 'burn_severity':  # as in the QGIS plugin: fire.map_style
 		return fire.map_style(result.get('bands'))
 	if result.get('palette'):
 		return {'band': 1, **{k: result.get(k) for k in ('min', 'max', 'palette')}}
+	if tool in ('rgb_map', 'download_rgb') or result.get('bands') == RGB_BANDS:
+		return {'band': [1, 2, 3], 'min': result.get('min'), 'max': result.get('max'),
+		        'text': f"True colour (red, green, blue): reflectance from {_num(result.get('min'))} to "
+		                f"{_num(result.get('max'))}"}
 	return None
 
 
@@ -600,23 +615,46 @@ def class_label(c):
 def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, classes=None):
 	"""A PNG (data: URL) of the band BAND (default: the first) of a GeoTIFF with the colours PALETTE from VMIN to VMAX
 	(default: its percentiles 5 and 95) or, with CLASSES ([{'value', 'color' ('#rrggbb')}]), with the colour of each
-	class; at most WIDTH pixels wide; None without GDAL or matplotlib, or if it cannot read it."""
+	class; with three bands BAND ([red, green, blue], e.g. [1, 2, 3]: the true colour of download_rgb), their colours,
+	the three stretched together from VMIN to VMAX (default: the lowest of their percentiles 2 and the highest of their
+	percentiles 98, as maps.RGB_STRETCH), transparent where one has no data; at most WIDTH pixels wide; None without
+	GDAL or matplotlib, or if it cannot read it."""
 	try:
 		import io
 		import numpy as np
 		from matplotlib import colors
 		from matplotlib import pyplot as plt
 		from osgeo import gdal
+		from .maps import RGB_STRETCH
 		gdal.UseExceptions()
 		ds = gdal.Open(path)
-		b = ds.GetRasterBand(band)
 		step = max(1, int(math.ceil(ds.RasterXSize / width)))
-		a = b.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
-		nodata = b.GetNoDataValue()
-		a = np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
+
+		def read(number):
+			b = ds.GetRasterBand(number)
+			a = b.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
+			nodata = b.GetNoDataValue()
+			return np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
+
+		buf = io.BytesIO()
+		if isinstance(band, (list, tuple)):  # the true colour: red, green and blue, with one stretch for the three
+			rgb = [read(number) for number in band]
+			empty = np.logical_or.reduce([np.ma.getmaskarray(a) for a in rgb])
+			if empty.all():
+				return None
+			if vmin is None or vmax is None:
+				lows, highs = zip(*(np.percentile(a.data[~empty], RGB_STRETCH) for a in rgb))
+				vmin, vmax = min(lows) if vmin is None else vmin, max(highs) if vmax is None else vmax
+			span = float(vmax) - float(vmin) or 1e-6
+			out = np.zeros(empty.shape + (4,))
+			for i, a in enumerate(rgb):
+				out[..., i] = np.clip((a.filled(float(vmin)) - float(vmin)) / span, 0, 1)
+			out[..., 3] = ~empty
+			plt.imsave(buf, out, format='png')
+			return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+		a = read(band)
 		if a.count() == 0:
 			return None
-		buf = io.BytesIO()
 		if classes:  # the colour of each class (nearest pixel), transparent outside them
 			rgba = _colours(a.astype('float64').filled(np.nan), {'type': 'categories', 'classes': classes})
 			plt.imsave(buf, rgba, format='png')
@@ -642,6 +680,10 @@ def view_facts(item):
 
 
 def _legend(result):
+	"""The legend of a map: a bar from min to max with its palette or, without a palette (the true colour of the
+	images, see map_style), its text."""
+	if not result.get('palette'):
+		return f'<figcaption class="legend">{_e(result["text"])}</figcaption>' if result.get('text') else ''
 	colours = ', '.join(f'#{c.lstrip("#")}' for c in result['palette'])
 	unit = unit_text(result.get('unit'))
 	return (f'<figcaption class="legend"><span>{_num(result.get("min"))}</span>'
