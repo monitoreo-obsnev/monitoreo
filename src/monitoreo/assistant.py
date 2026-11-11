@@ -89,13 +89,17 @@ PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_prox
 SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
-          'find_admin_units')  # their answers go to the model
+          'find_admin_units', 'describe_asset', 'community_themes',
+          'community_datasets')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
-# arguments the model does not see
-HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
+# arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
+HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
+# the arguments of the data of Earth Engine outside the catalog (instead of variable and sensor, see describe_asset),
+# which the calls that copy one (the map of the period of a result, the maps of its steps, its pixels) carry
+SOURCE = ('collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain')
 ALPHA = 0.05  # the trends whose pixels are kept by «Significant pixels only» (Mann-Kendall p < ALPHA)
 SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
 RGB = '|rgb'  # added to the key of a map for that of the true colour of its images (rgb_map: the select Layer)
@@ -158,7 +162,11 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'list_variables': 'Looking at the variables of the catalog',
           'describe_variable': 'Looking at the description of {variable}',
           'find_protected_areas': 'Searching for protected areas named «{text}»',
-          'find_admin_units': 'Searching for administrative units named «{text}»'}
+          'find_admin_units': 'Searching for administrative units named «{text}»',
+          'describe_asset': 'Reading the description of {asset} in Earth Engine',
+          'community_themes': 'Looking at the themes of the GEE Community Catalog',
+          'community_datasets': 'Looking at the datasets of the GEE Community Catalog'}
+LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
 NOTE = '\n\n(Note of the application, not of the user: '  # added to a message of the user (see Assistant.said)
@@ -239,6 +247,17 @@ and TMAX, 4.6 km, 1958-2024) and water balance of "TerraClimate" ("PET", "AET", 
 "annual" for each year, or in maps temporal "annual" with interannual "mean" for the mean annual total. \
 Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-1990, 1 km): fixed layers, \
 without dates, like the elevation.
+- Other data of Earth Engine, outside the catalog: any image or collection of images of Earth Engine by its ID (the \
+path of its asset), instead of variable and sensor, when the user asks for it or no variable of the catalog fits. \
+Never make up an ID: the user gives it, or community_themes and community_datasets find those of the GEE Community \
+Catalog by theme or word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
+maps, series, trends and comparisons) or as image (a fixed layer without dates, like the elevation: maps, their \
+statistics and downloads only, without start and end), its bands with their scale, offset and unit, and the arguments \
+to pass (band, one; band_scale, band_offset, unit in UDUNITS). With terrain, "slope" or "aspect" of the band of an \
+image (e.g. a DEM), the values are in degrees (its unit is then degree: pass no unit, not that of the band). They have \
+no pixel filters (pass no quality) nor true colour; where still takes variables of the catalog. With a variable of \
+the catalog, pass no collection, image or band. How to cite the data: as describe_asset says (the card of each result \
+cites them too).
 - Only part of an area («NDVI above 1,500 m», «where it rains less than 600 mm a year», «on slopes under 20°»): \
 where, a list of conditions that the pixels must all pass, each a variable between min and max, e.g. [{{"variable": \
 "ELEVATION", "sensor": "Copernicus", "min": 1500}}, {{"variable": "PRECIP", "sensor": "TerraClimate", "metric": \
@@ -413,22 +432,52 @@ def variables_text():
 
 def model_tools(tools):
 	"""The tools of the MCP server (as listed by it, in JSON) that the model may call, as Ollama wants them, without
-	the arguments in HIDDEN."""
+	the arguments in HIDDEN, and compact (see _compact and _description): the small models of Ollama have 16,384
+	tokens of context for the instructions, the tools and the conversation."""
 	out = []
 	for t in tools:
 		if t['name'] not in ADVICE + RESULTS + TASKS:
 			continue
-		schema = json.loads(json.dumps(t.get('inputSchema') or {'type': 'object', 'properties': {}}))
+		schema = _compact(t.get('inputSchema') or {'type': 'object', 'properties': {}})
 		props = schema.setdefault('properties', {})
 		for k in HIDDEN:
 			props.pop(k, None)
 		schema['required'] = [k for k in schema.get('required', []) if k in props]
-		description = (t.get('description') or '').strip()
+		description = _description(t.get('description'))
 		if t['name'] in RESULTS:
 			description += ' ' + RECEIPT_NOTE
 		out.append({'type': 'function', 'function': {'name': t['name'], 'description': description,
 		                                             'parameters': schema}})
 	return out
+
+
+def _compact(schema, names=False):
+	"""A copy of the JSON schema SCHEMA (NAMES: a dict of schemas by name, as its properties) without what tells the
+	model nothing: titles, null defaults, and the null of the optional arguments ({'anyOf': [{'type': 'string'},
+	{'type': 'null'}]} is {'type': 'string'}; required says which can be left out). The arguments of the data of Earth
+	Engine by their ID, optional in every compute tool, made the tools 60 % longer."""
+	if isinstance(schema, list):
+		return [_compact(s) for s in schema]
+	if not isinstance(schema, dict):
+		return schema
+	if names:  # an argument may be called title
+		return {k: _compact(v) for k, v in schema.items()}
+	out = {k: _compact(v, k in ('properties', '$defs', 'definitions')) for k, v in schema.items()
+	       if k != 'title' and not (k == 'default' and v is None)}
+	alts = [s for s in out.get('anyOf') or [] if s != {'type': 'null'}]
+	if out.get('anyOf') and len(alts) == 1:
+		out = {**{k: v for k, v in out.items() if k != 'anyOf'}, **alts[0]}
+	return out
+
+
+def _description(text):
+	"""The description of a tool for the model, in one paragraph and without the explanation of the data of Earth
+	Engine by their ID that the MCP server adds to each tool that takes them (its SOURCE_DOC): the instructions give it
+	once (PROMPT), and with a variable of the catalog the assistant passes no collection (see fix_args)."""
+	from . import mcp_server
+	text = ' '.join(str(text or '').split())
+	source = ' '.join(str(getattr(mcp_server, 'SOURCE_DOC', '')).split())
+	return (text.replace(source, '') if source else text).replace('  ', ' ').strip()
 
 
 SINCE = re.compile(r'\b(?:desde\s+(?:el\s+)?(?:año\s+)?(?:(?:\d{1,2}\s+de\s+)?[a-záéíóú]+\s+(?:de|del)\s+)?|'
@@ -454,8 +503,9 @@ def open_end(args, said, today=None):
 
 
 def dated(args):
-	"""Whether a map of ARGS has a period: not those of the fixed layers without dates (elevation, slope)."""
-	return bool(args.get('start') and args.get('end'))
+	"""Whether a map of ARGS has a period: not those of the fixed layers without dates (elevation, slope, an image of
+	Earth Engine given with image=), even when the model gives them dates, which they do not use."""
+	return bool(args.get('start') and args.get('end')) and not report.is_static(args)
 
 
 def true_colour(m):
@@ -492,8 +542,10 @@ def main_label(m, args):
 
 
 def fix_args(name, args, tools):
-	"""The arguments of a call of the model as the tool wants them: without those it does not know or in HIDDEN, and
-	with the objects and lists that small models give as JSON text decoded."""
+	"""The arguments of a call of the model as the tool wants them: without those it does not know or in HIDDEN, with
+	the objects and lists that small models give as JSON text decoded, and with the data of a variable of the catalog
+	(variable and sensor) or those of Earth Engine by their ID (SOURCE), not both: small models fill every argument,
+	and the MCP server refuses them mixed."""
 	if isinstance(args, str):
 		args = json.loads(args or '{}')
 	schema = next((t['function']['parameters'] for t in tools if t['function']['name'] == name), {})
@@ -510,6 +562,12 @@ def fix_args(name, args, tools):
 		out[k] = v
 	if out.get('temporal') in TEMPORAL_ALIASES:  # small models write what they want: «interannual»
 		out['temporal'] = TEMPORAL_ALIASES[out['temporal']]
+	if '/' in str(out.get('variable', '')) and (out.get('collection') or out.get('image')):
+		out = {k: v for k, v in out.items() if k not in ('variable', 'sensor')}  # an ID as variable: no variable has '/'
+	if out.get('variable'):  # with its own collection, band and unit (the collection was hidden before the data by ID)
+		out = {k: v for k, v in out.items() if k not in SOURCE}
+	elif out.get('collection') or out.get('image'):  # the sensor is that of a variable of the catalog
+		out.pop('sensor', None)
 	return out
 
 
@@ -554,6 +612,33 @@ def areas_text(areas, question=''):
 	         for i, a in enumerate(ranked)]
 	return (f'{len(areas)} protected areas; the user sees this list and can choose one in it:\n' + '\n'.join(lines)
 	        if areas else 'No protected area with that name: ask the user for another name or a layer.')
+
+
+def data_text(tool, text, limit=None):
+	"""What the model gets of the answer TEXT of describe_asset or community_datasets, so that what is cut at its LIMIT
+	(advice_limit) is the least useful part: the description of an image or collection of Earth Engine with its bands
+	last (some collections have many, with their classes and bits), after the arguments to pass, the notes and how to
+	cite it; the datasets of the GEE Community Catalog, a line each (ID, type, title, theme, page), not their JSON,
+	after how many they are and, when they do not fit in LIMIT (themes of more than 100), that only the first ones
+	reach the model and how to narrow them."""
+	try:
+		r = json.loads(text)
+	except ValueError:
+		return text
+	if tool == 'describe_asset' and isinstance(r, dict) and 'bands' in r:
+		return json.dumps({**{k: v for k, v in r.items() if k != 'bands'}, 'bands': r['bands']}, ensure_ascii=False,
+		                  indent=1, default=str)
+	if tool == 'community_datasets' and isinstance(r, list):
+		lines = [f"- {d.get('id')} ({'image collection' if d.get('type') == 'image_collection' else 'image'}): "
+		         f"{d.get('title', '')}; theme {d.get('theme', '')}; {d.get('docs', '')}" for d in r if isinstance(d, dict)]
+		if not lines:
+			return 'No dataset of the GEE Community Catalog with that theme or text: try another word or theme.'
+		head = f'{len(lines)} datasets of the GEE Community Catalog (ID, type, title, theme, page)'
+		rest = '; describe_asset tells whether one goes as collection or image, and its bands:\n' + '\n'.join(lines)
+		if limit and len(head) + len(rest) > limit:  # said first, as the end of the list is cut
+			head += '; only the first ones fit here: narrow the list with text or kind'
+		return head + rest
+	return text
 
 
 def task_text(tool, text):
@@ -1302,8 +1387,7 @@ class Assistant:
 			yield {'type': 'status', 'text': ('Checking the export' if name == 'task_status' else
 			                                  'Starting the export to Google Drive') + '…'}
 		else:
-			yield {'type': 'status', 'text': LABELS[name].format(**{k: args.get(k, '') for k in ('variable', 'text')})
-			                                 + '…'}
+			yield {'type': 'status', 'text': LABELS[name].format(**{k: args.get(k, '') for k in LABEL_KEYS}) + '…'}
 		try:
 			error, texts, images = await self.call(tool, args)
 		except Exception as e:  # the MCP server stopped
@@ -1334,6 +1418,8 @@ class Assistant:
 					if units_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
 						self.waiting = True
 						text += ASK_AND_WAIT
+			if name in ('describe_asset', 'community_datasets'):
+				text = data_text(name, text, self.advice_limit())
 			self._tool_message(name, text[:self.advice_limit()])
 			return
 		if name in TASKS:
@@ -1372,7 +1458,7 @@ class Assistant:
 		images over a big area, or to compute its colours. The event for the page, or None if Earth Engine cannot
 		make it (the result is there anyway)."""
 		a = item['args']
-		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality', 'collection')
+		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality') + SOURCE
 		        if a.get(k) is not None}
 		if a.get('where'):  # the pixels of the result, whatever the period of the map
 			args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
@@ -1401,7 +1487,8 @@ class Assistant:
 	def steps_card(self, item):
 		"""What the page offers of the maps of each step of the result ITEM (see map_steps): {'main', 'steps'}."""
 		_, m = self.map_of(item['id'])
-		item.setdefault('steps', map_steps(item['tool'], item['args']))
+		static = report.is_static(item['args'])  # a fixed layer has none, even with the dates that the model gave it
+		item.setdefault('steps', [] if static else map_steps(item['tool'], item['args']))
 		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']],
 		        'steps_label': 'Part of the year' if m['tool'] == 'trend_map' else 'Date'}
 
@@ -1434,7 +1521,7 @@ class Assistant:
 					tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
 				else:  # that of the variable, or of the true colour of its images (a result of rgb_map)
 					tool = 'rgb_map' if main['tool'] == 'rgb_map' else 'map_layer'
-					args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
+					args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality') + SOURCE if a.get(k) is not None}
 					args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
 					if a.get('where'):
 						args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
@@ -1563,7 +1650,7 @@ class Assistant:
 		can be kept as a result (keep_pixel, with its key)."""
 		item, m = self.map_of(rid, key)
 		a, point = item['args'], {'point': [round(lon, 6), round(lat, 6)]}
-		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') if a.get(k) is not None}
+		base = {k: a[k] for k in ('variable', 'sensor', 'season', 'quality') + SOURCE if a.get(k) is not None}
 		if a.get('where'):  # a pixel out of the area of the result has no values
 			base['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
 		unit = str(m['result'].get('unit'))
@@ -1601,7 +1688,8 @@ class Assistant:
 		if error:
 			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 		result = json.loads(texts[0])
-		title = f"{step[0].upper() + step[1:]} time series of {a.get('variable', '')} at the pixel {lat:.5f}, {lon:.5f}"
+		what = a.get('variable') or report._var(a)  # the data of Earth Engine outside the catalog: their ID and band
+		title = f"{step[0].upper() + step[1:]} time series of {what} at the pixel {lat:.5f}, {lon:.5f}"
 		self.pixels.append({'tool': 'time_series', 'args': args, 'result': result,
 		                    'image': images[0] if images else None, 'title': title})
 		return {**out, 'key': len(self.pixels) - 1, 'title': title, 'image': images[0] if images else None,

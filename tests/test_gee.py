@@ -111,38 +111,66 @@ CASES = {
 	                    'spec': {'ref': 27, 'period': ['2021-06-01', '2021-08-31'], 'metric': 'max'}},
 	'rgb_cf_modis': {'kind': 'rgb_percentiles', 'region': GUAJARES,
 	                 'spec': {'ref': 108, 'period': ['2023-01-01', '2023-01-31'], 'metric': 'mean'}},
+	# data of Earth Engine outside the catalog, by their ID (custom: collection= or image=, band=, band_scale=, unit=):
+	# the precipitation of TerraClimate (images with dates, a monthly series) and the mean annual temperature of
+	# WorldClim 1.4 (a fixed image, stored in tenths of a degree: the statistics of its map)
+	'series_custom_terraclimate': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                               'stat': 'mean',
+	                               'spec': {'custom': {'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'pr',
+	                                                   'use': 'collection', 'unit': 'mm'},
+	                                        'period': ['2020-01-01', '2020-12-31']}},
+	'map_custom_worldclim_bio01': {'kind': 'percentiles', 'region': GUAJARES,
+	                               'spec': {'custom': {'asset': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'use': 'image',
+	                                                   'scale': 0.1, 'unit': 'degC'}}},
+	# the slope of the Copernicus DEM, a collection of tiles given as an image: the mosaic of its tiles, in degrees
+	'map_custom_dem_slope': {'kind': 'percentiles', 'region': GUAJARES,
+	                         'spec': {'custom': {'asset': 'COPERNICUS/DEM/GLO30', 'band': 'DEM', 'use': 'image',
+	                                             'terrain': 'slope'}}},
 }
 
 
 def _spec_args(s):
-	return {'metric': s.get('metric', 'mean'), 'season': s.get('season'), 'quality': s.get('quality'), 'ref': s['ref'],
-	        'where': s.get('where')}
+	"""The arguments of the services for the spec S of a case: a variable of the catalog (ref) or, with custom, data of
+	Earth Engine by its ID (collection or image, band, band_scale, band_offset, unit, terrain)."""
+	out = {'metric': s.get('metric', 'mean'), 'season': s.get('season'), 'quality': s.get('quality'),
+	       'where': s.get('where')}
+	c = s.get('custom')
+	if c:
+		out.update({c['use']: c['asset'], 'band': c['band'], 'band_scale': c.get('scale'),
+		            'band_offset': c.get('offset'), 'unit': c.get('unit'), 'terrain': c.get('terrain')})
+	else:
+		out['ref'] = s['ref']
+	return out
 
 
 def python(c):
 	"""The result of the case C with this package."""
 	s, region = c['spec'], c['region']
 	start, end = s.get('period') or (None, None)  # none for the fixed layers (WorldClim, elevation)
+	# the dates by their names (as the tools that need them take them: keyword-only in the MCP server)
 	if c['kind'] == 'series':
-		out = services.time_series(region, None, None, start, end, step=c['step'], stat=c['stat'],
+		out = services.time_series(region, start=start, end=end, step=c['step'], stat=c['stat'],
 		                           **dict(_spec_args(s), metric=c['metric']))
 		return {'rows': out['rows'], 'scale': out['scale']}
 	if c['kind'] == 'trends':
-		out = services.trend_table(region, None, None, start, end, step=c['step'], stat=c['stat'],
+		out = services.trend_table(region, start=start, end=end, step=c['step'], stat=c['stat'],
 		                           **dict(_spec_args(s), metric=c['metric']))
 		return {'rows': out['rows'], 'yearly': out['yearly']}
 	if c['kind'] == 'compare':
-		out = services.compare_series(region, None, None, start, end, c['other'][0], c['other'][1], step=c['step'],
-		                              stat=c['stat'], **dict(_spec_args(s), metric=c['metric']))
+		out = services.compare_series(region, start=start, end=end, other_start=c['other'][0],
+		                              other_end=c['other'][1], step=c['step'], stat=c['stat'],
+		                              **dict(_spec_args(s), metric=c['metric']))
 		return {'profile': out['profile']}
 	if c['kind'] == 'burn':
-		out = services.burn_severity(region, 'Sentinel-2', start, end, c['after'][0], c['after'][1])
+		out = services.burn_severity(region, 'Sentinel-2', start=start, end=end, other_start=c['after'][0],
+		                             other_end=c['after'][1])
 		return {'classes': out['classes']}
 	if c['kind'] == 'burn_rbr':
-		out = services.burn_severity(region, 'Sentinel-2', start, end, c['after'][0], c['after'][1], index='RBR')
+		out = services.burn_severity(region, 'Sentinel-2', start=start, end=end, other_start=c['after'][0],
+		                             other_end=c['after'][1], index='RBR')
 		return {'stats': out['stats']}
 	args = _spec_args(s)
-	spec = services.make_spec(None, None, start, end, temporal=s.get('temporal', 'period'),
+	spec = services.make_spec(start=start, end=end, temporal=s.get('temporal', 'period'),
 	                          interannual=s.get('interannual', 'mean'), **args)
 	regions = areas.region(region)
 	geom = regions.geometry()

@@ -452,6 +452,14 @@
    "citation": "Zevenbergen, L. W., & Thorne, C. R. (1987). Quantitative analysis of land surface topography. Earth Surface Processes and Landforms, 12(1), 47–56.",
    "doi": "10.1002/esp.3290120107"
   },
+  "roy2026": {
+   "citation": "Roy, S., Majumdar, S., & Swetnam, T. (2026). A community data commons for equitable Earth Science. EarthArXiv (preprint, accepted in Earth's Future).",
+   "doi": "10.31223/X5WN4J"
+  },
+  "roy2026catalog": {
+   "citation": "Roy, S., Majumdar, S., & Swetnam, T. (2026). samapriya/awesome-gee-community-datasets: Community Catalog [Computer software]. Zenodo.",
+   "doi": "10.5281/zenodo.7144933"
+  },
   "garcia1991": {
    "citation": "García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper data. Geocarto International, 6(1), 31–37.",
    "doi": "10.1080/10106049109354290"

@@ -149,8 +149,9 @@ def test_mcp_answers_keep_readme(monkeypatch, tmp_path):
 	       'regions': [], 'profile': [], 'yearly': [], 'readme': '/x/y.README.txt', 'references': [], 'credits': []}
 	for name in ('time_series', 'trend_table', 'compare_series'):
 		monkeypatch.setattr(services, name, lambda *a, **k: res)
-	args = ({'bbox': [0, 0, 1, 1]}, 'NDVI', 'Modis', '2001-01-01', '2020-12-31')
-	for fn, more in ((mcp_server.time_series, ()), (mcp_server.trend_table, ()),
-	                 (mcp_server.compare_series, ('2021-01-01', '2022-12-31'))):
-		out = fn(*args, *more)
+	args = ({'bbox': [0, 0, 1, 1]}, 'NDVI', 'Modis')
+	dates = {'start': '2001-01-01', 'end': '2020-12-31'}  # by keyword, as MCP calls the tools
+	for fn, more in ((mcp_server.time_series, {}), (mcp_server.trend_table, {}),
+	                 (mcp_server.compare_series, {'other_start': '2021-01-01', 'other_end': '2022-12-31'})):
+		out = fn(*args, **dates, **more)
 		assert json.loads(out[0] if isinstance(out, list) else out)['readme'] == '/x/y.README.txt', fn.__name__

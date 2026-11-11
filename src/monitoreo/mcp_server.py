@@ -31,7 +31,8 @@ except ImportError:
 	from mcp.server.fastmcp.exceptions import ToolError
 
 from . import about as about_
-from . import publish, services
+from . import assets, publish, services
+from . import variable as variables
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 MAX_ROWS_SHOWN = 300
@@ -82,6 +83,21 @@ severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or,
 Burn Ratio, a continuous index): burn_severity. Only for the
 administrators of the public viewer of results: publish_report, with the files written by those tools.
 
+Other data of Earth Engine: besides the variables of the catalog, the tools compute any image or collection of images
+of Earth Engine given by its ID (of the Earth Engine data catalog, of the GEE Community Catalog or of a project the
+account can read), when the user gives an ID or asks for data that the catalog does not have. First describe_asset with
+the ID: its type and use say whether to give it as collection (images with dates, aggregated in time like a variable,
+with time series, trends and comparisons) or as image (a fixed image, or the mosaic of a collection of tiles: without
+dates, so only maps, their statistics and GeoTIFFs, no time series, trends or comparisons); it gives its bands, their
+scale, offset and unit, and arguments ready to pass. Then call the tools with collection or image, band (one),
+band_scale, band_offset and unit (in UDUNITS) instead of variable and sensor. With terrain, "slope" or "aspect" of the
+band of an image (e.g. of a DEM), the values are in degrees (its unit is then degree: give no unit, not that of the
+band). To find the datasets of the GEE Community Catalog by its themes: community_themes, then community_datasets (by
+theme or text), then describe_asset with the id of one. Never invent an ID: use only those that the user gives or that
+describe_asset, community_datasets or the page of a dataset give. The pixel filters of MonitorEO (quality) are not
+for these data, which keep their own mask; the conditions of where are still variables of the catalog. Cite the dataset
+as describe_asset and the references and credits of the results say.
+
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
 (administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"island_at": [lon, lat]} (the
@@ -104,8 +120,9 @@ the EECUs of the month are left), tell the user; with the shared account, tell t
 Engine account and Google Cloud project (connect).
 
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
-Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables) when the user writes in
-Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + about_.MANUAL + \
+Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes) when
+the user writes in Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + \
+	about_.MANUAL + \
 	"""/English (English) and """ + about_.MANUAL + """ (Spanish). Its page Publications (""" + about_.MANUAL + \
 	"""/Publications) has articles of the team of MonitorEO with the questions they answered and how to ask MonitorEO for
 them: examples for a user who does not know what or how to ask."""
@@ -119,11 +136,27 @@ WHERE_DOC = """
 	and interannual, between min and max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
 	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]."""
 
+SOURCE_DOC = """
+	variable and sensor: a variable of the catalog (list_variables); with them, collection is one of the collections of
+	that variable. Instead of variable and sensor, any data of Earth Engine by its ID (describe_asset first: it says
+	which to give and its arguments): collection (a collection of images with dates, aggregated in time like a
+	variable) or image (a fixed image, or the mosaic of a collection of tiles: without dates, so only maps, their
+	statistics and GeoTIFFs, no time series, trends or comparisons), with band (one, required), band_scale and
+	band_offset (factor and offset of its stored values) and unit (of the values after them, in UDUNITS: "mm", "degC",
+	"kg m-2", "mm day-1", "1" if dimensionless). These data keep their own mask: no pixel filters (quality)."""
+
+TERRAIN_DOC = """
+	terrain: "slope" or "aspect" of the band of an image (e.g. of a DEM), in degrees (its unit is then degree: give no
+	unit, or "degree", not that of the band)."""
+
 
 def tool(fn):
 	"""Register FN as a tool whose errors reach the client with their message, and whose calls that write files are
-	kept in the log of OUTPUT (see _log); the tools with where get its explanation (WHERE_DOC) in their description."""
+	kept in the log of OUTPUT (see _log); the tools of the data of Earth Engine by its ID (band) get their explanation
+	(SOURCE_DOC, TERRAIN_DOC) in their description, and those with where, its explanation (WHERE_DOC)."""
 	sig = inspect.signature(fn)
+	if 'band' in sig.parameters:
+		fn.__doc__ = fn.__doc__.rstrip() + SOURCE_DOC + (TERRAIN_DOC if 'terrain' in sig.parameters else '')
 	if 'where' in sig.parameters:
 		fn.__doc__ = fn.__doc__.rstrip() + WHERE_DOC
 
@@ -140,7 +173,8 @@ def tool(fn):
 	return server.tool()(wrapped)
 
 
-NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage')
+NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
+                   'community_themes', 'community_datasets')
 
 
 def _eecu_warning(out):
@@ -181,6 +215,80 @@ def _out(stem, ext):
 	os.makedirs(OUTPUT, exist_ok=True)
 	stem = re.sub(r'[^A-Za-z0-9_-]+', '_', stem).strip('_')[:80]
 	return os.path.join(OUTPUT, f"{stem}_{dt.datetime.now():%Y%m%d-%H%M%S}.{ext}")
+
+
+def _stem(*parts):
+	"""The name of the files of a tool, of PARTS without those left empty (e.g. the dates of a fixed layer)."""
+	return '_'.join(str(p) for p in parts if p is not None and p != '')
+
+
+def _source(variable, sensor, collection=None, image=None, band=None, band_scale=None, band_offset=None, unit=None,
+            terrain=None):
+	"""The keywords of services for the data of a tool: VARIABLE and SENSOR, a variable of the catalog (COLLECTION, one
+	of the collections of that variable), or instead the data of Earth Engine given by its ID (COLLECTION or IMAGE, with
+	BAND, BAND_SCALE, BAND_OFFSET, UNIT and TERRAIN; see describe_asset). ValueError, before Earth Engine, if neither
+	is given or they are mixed."""
+	custom = {k: v for k, v in (('image', image), ('band', band), ('band_scale', band_scale),
+	                            ('band_offset', band_offset), ('unit', unit), ('terrain', terrain))
+	          if v is not None and v != ''}
+	if variable:
+		# an ID of Earth Engine given as a variable of the catalog (none has '/'), also with a sensor: small models fill
+		# every argument
+		if '/' in str(variable):
+			raise ValueError(f'{variable} is not a variable of the catalog (list_variables): give an ID of Earth Engine '
+			                 'as collection or image (describe_asset says which), with band, instead of variable')
+		if not sensor:
+			raise ValueError(f'give the sensor of {variable} (list_variables gives those of each variable)')
+		if custom:
+			raise ValueError(f"{', '.join(custom)}: only for the data of Earth Engine given by its ID (collection or "
+			                 f'image instead of variable and sensor); {variable} is a variable of the catalog, with its '
+			                 'own band, scale and unit')
+		return {'collection': collection}
+	if sensor:
+		raise ValueError('sensor is for the variables of the catalog (with variable): the data of Earth Engine given by '
+		                 'its ID take collection or image, and band')
+	if not (collection or image):
+		raise ValueError('give variable and sensor (a variable of the catalog: list_variables), or collection or image '
+		                 'and band (any data of Earth Engine by its ID: describe_asset says which)')
+	if collection and image:
+		raise ValueError('give collection (a collection of images with dates) or image (a fixed image), not both')
+	if not band:
+		raise ValueError(f'give band: the band of {collection or image} (one; describe_asset lists them)')
+	if terrain and not image:
+		raise ValueError('terrain is for an image (image, e.g. a DEM), not for a collection')
+	return dict(custom, **({'collection': collection} if collection else {}))
+
+
+def _data(variable, sensor, source):
+	"""What a tool computes, in the names of its files: the variable and sensor of the catalog ('NDVI_Sentinel-2'), or
+	the end of the ID of the data of Earth Engine of SOURCE (see _source) with its band ('TERRACLIMATE_pr',
+	'GLO30_DEM_slope')."""
+	asset = source.get('collection') or source.get('image')
+	if variable or not asset:
+		return f'{variable}_{sensor}'
+	# as the services read the ID: ee.ImageCollection("X") is X
+	return _stem(assets.normalize(asset).rstrip('/').split('/')[-1], source.get('band'), source.get('terrain'))
+
+
+def _dates(variable, sensor, source, what, **given):
+	"""ValueError, before Earth Engine, for a tool of WHAT ('time series', 'trends', 'comparisons of periods'), which
+	needs dates: if its data (VARIABLE and SENSOR, or SOURCE: see _source) are a fixed layer or image, without them
+	(the message of the services, also when the dates are empty), or naming the dates of GIVEN that the call left
+	empty. These tools take their dates after '*', without a default, so that their schema requires them although
+	variable and sensor, before them, have one; an empty text still passes the schema."""
+	if source.get('image'):
+		spec = {'image': assets.normalize(source['image']), 'band': source.get('band')}
+	else:
+		spec = {'index': variable, 'sensor': sensor, 'collection': source.get('collection')} if variable else None
+	try:
+		static = spec is not None and variables.is_static(spec)
+	except KeyError:  # not in the catalog: the services say so
+		static = False
+	if static:
+		variables.check_dates(spec, what)
+	missing = [k for k, v in given.items() if v is None or v == '']
+	if missing:
+		raise ValueError(f"give {' and '.join(missing)}")
 
 
 def _text(obj):
@@ -242,7 +350,44 @@ def describe_variable(variable: str, sensor: Optional[str] = None, collection: O
 	whether its images have a true colour (rgb: see rgb_map), and what to cite with its data: references (the
 	articles of its formula or algorithm and its Earth Engine datasets, as their catalog pages suggest, with DOI) and
 	credits (lines asked by the terms of use of the data)."""
+	if '/' in str(variable):  # an ID of Earth Engine (no variable of the catalog has '/'): not the list of them all
+		raise ValueError(f'{variable} is not a variable of the catalog (list_variables): describe_asset describes an ID '
+		                 'of Earth Engine')
 	return _text(services.describe_variable(variable, sensor, collection))
+
+
+@tool
+def describe_asset(asset: str) -> str:
+	"""Everything about an image or a collection of images of Earth Engine given by its ID (the text between the
+	quotes of ee.Image('...') or ee.ImageCollection('...') in the page of the dataset, e.g. "IDAHO_EPSCOR/TERRACLIMATE"
+	or "projects/sat-io/open-datasets/..."), to compute it with the tools instead of a variable of the catalog: type
+	(image or image_collection) and use (the argument that takes it: collection or image) and how, title, source,
+	page, provider, licence, dates, cadence, its bands (description, units, unit in UDUNITS, band_scale, band_offset,
+	pixel size, classes), arguments (ready to pass to the tools, for its first band), notes, and what to cite with its
+	data (references and credits). It reads its metadata in Earth Engine (without computing) and, for the Earth Engine
+	data catalog, its STAC record. Use it before computing data given by its ID."""
+	_ready()
+	return _text(services.describe_asset(asset))
+
+
+@tool
+def community_themes(lang: str = 'en') -> str:
+	"""The themes of the GEE Community Catalog (https://gee-community-catalog.org: images and collections of images
+	shared by the community of Earth Engine as public assets) and how many datasets each has: theme (its name in the
+	catalog, for community_datasets) and name (in lang: en or es). Without Earth Engine."""
+	return _text(services.community_themes(lang))
+
+
+@tool
+def community_datasets(theme: Optional[str] = None, text: Optional[str] = None, kind: Optional[str] = None,
+                       limit: Optional[int] = None) -> str:
+	"""The images and collections of images of the GEE Community Catalog: id (the ID of its Earth Engine asset, for
+	collection or image), title, type (image or image_collection), theme, provider, license, tags and docs (its page,
+	with its bands and how to cite it); of one theme (see community_themes; its name in English or Spanish), with the
+	words of text in their title, ID, provider or tags, of one kind (image or image_collection), at most limit (by
+	default all of them, as in the other tools: some themes have more than 100). Then describe_asset with the id of
+	one. Without Earth Engine."""
+	return _text(services.community_datasets(theme, text, kind, limit))
 
 
 @tool
@@ -266,20 +411,24 @@ def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, l
 
 
 @tool
-def time_series(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'monthly',
-                metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
+def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                step: str = 'monthly', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None,
-                where: Optional[list] = None):
+                image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
+                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, pN) and over the region with STAT
 	(mean, median, min, max, std, pN), with the number of images and of valid pixels of each value. Writes a CSV
-	table and a PNG chart (paths in the answer) and returns the chart. quality: pixel filters, e.g.
-	{"snow": false} or {"cloud_score": null} (SCL clouds); scale: pixel size of the statistics in metres."""
+	table and a PNG chart (paths in the answer) and returns the chart. Required: region, start and end, and variable
+	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
+	clouds); scale: pixel size of the statistics in metres."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()
-	stem = f'{variable}_{sensor}_{step}_{metric}_{start}_{end}'
+	stem = _stem(_data(variable, sensor, source), step, metric, start, end)
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                           collection=collection, where=where)
+	                           where=where, **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
 	                                    'references', 'credits')}
@@ -294,21 +443,25 @@ def time_series(region: dict, variable: str, sensor: str, start: str, end: str, 
 
 
 @tool
-def map_layer(region: dict, variable: str, sensor: str, start: Optional[str] = None,
+def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, start: Optional[str] = None,
               end: Optional[str] = None, metric: str = 'median',
               temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
-              collection: Optional[str] = None,
-              where: Optional[list] = None, quick: bool = False):
+              collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+              band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
+              terrain: Optional[str] = None, where: Optional[list] = None, quick: bool = False):
 	"""Map of a variable over a region aggregated in time (e.g. the median NDVI of a period): returns the URL of
 	its Earth Engine map tiles (XYZ, {z}/{x}/{y}, valid for some hours; add it to QGIS as an XYZ layer), the colour
 	ramp and a PNG preview with the outline of the region. temporal: 'period' (METRIC over all the images),
 	'annual', 'monthly' or '16-day' (METRIC of each, then INTERANNUAL between the years). quick: only the tiles, at
-	once (without the preview, and with the colour ramp of the catalog instead of that of the map)."""
+	once (without the preview, and with the colour ramp of the catalog instead of that of the map). Required: region,
+	and variable and sensor or collection or image and band; start and end, except for the fixed layers."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
-	png = None if quick else _out(f'map_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
+	png = None if quick else _out(_stem('map', _data(variable, sensor, source),
+	                                    *(() if image else (metric, start, end))), 'png')
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-	                         vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
+	                         vmin, vmax, thumbnail=png, quick=quick, where=where, **source)
 	out = [_text(res)]
 	if png:
 		with open(png, 'rb') as f:
@@ -345,66 +498,82 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 
 
 @tool
-def region_stats(region: dict, variable: str, sensor: str, start: Optional[str] = None,
-                 end: Optional[str] = None, metric: str = 'median',
+def region_stats(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
+                 start: Optional[str] = None, end: Optional[str] = None, metric: str = 'median',
                  temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
-                 scale: Optional[float] = None, collection: Optional[str] = None,
-                 where: Optional[list] = None) -> str:
+                 scale: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
+                 band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                 unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None) -> str:
 	"""Statistics (mean, std, min, p5, p50, p95, max, number of pixels) over each feature of a region of the map of
-	a variable aggregated in time."""
+	a variable aggregated in time. Required: region, and variable and sensor or collection or image and band; start
+	and end, except for the fixed layers."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
 	return _text(services.region_stats(region, variable, sensor, start, end, metric, temporal, season=season,
-	                                   quality=quality, scale=scale, collection=collection, where=where))
+	                                   quality=quality, scale=scale, where=where, **source))
 
 
 @tool
-def export_image_to_drive(region: dict, variable: str, sensor: str, start: Optional[str] = None,
-                          end: Optional[str] = None, metric: str = 'median',
+def export_image_to_drive(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
+                          start: Optional[str] = None, end: Optional[str] = None, metric: str = 'median',
                           temporal: str = 'period', season: Optional[List[str]] = None,
                           quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
                           folder: str = 'MonitorEO', name: Optional[str] = None,
-                          collection: Optional[str] = None,
+                          collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+                          band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                          unit: Optional[str] = None, terrain: Optional[str] = None,
                           where: Optional[list] = None) -> str:
 	"""Export the map of a variable over a region to a GeoTIFF in a folder of the Google Drive of the Earth Engine
-	account (a batch task, without limits of size; it needs the user's own account, not the shared one). resolution: pixel size in metres (default: that of the data);
-	crs: 'auto' (UTM zone of the region) or e.g. 'EPSG:25830'. Check it with task_status."""
+	account (a batch task, without limits of size; it needs the user's own account, not the shared one). resolution:
+	pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g. 'EPSG:25830'.
+	Check it with task_status. Required: region, and variable and sensor or collection or image and band; start and
+	end, except for the fixed layers."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
 	return _text(services.export_image(region, variable, sensor, start, end, metric, temporal, season=season,
 	                                   quality=quality, resolution=resolution, crs=crs, folder=folder, name=name,
-	                                   collection=collection, where=where))
+	                                   where=where, **source))
 
 
 @tool
-def export_time_series_to_drive(region: dict, variable: str, sensor: str, start: str, end: str,
-                                step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
+def export_time_series_to_drive(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *,
+                                start: str, end: str, step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
                                 season: Optional[List[str]] = None, quality: Optional[dict] = None,
                                 scale: Optional[float] = None, folder: str = 'MonitorEO',
                                 name: Optional[str] = None, collection: Optional[str] = None,
-                                where: Optional[list] = None) -> str:
+                                image: Optional[str] = None, band: Optional[str] = None,
+                                band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                                unit: Optional[str] = None, where: Optional[list] = None) -> str:
 	"""Export a time series (as time_series) to a CSV file in a folder of Google Drive: for long series or many
-	regions (it needs the user's own Earth Engine account, not the shared one). Check it with task_status."""
+	regions (it needs the user's own Earth Engine account, not the shared one). Check it with task_status. Required:
+	region, start and end, and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()
 	return _text(services.time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season,
-	                                           quality, scale, folder, name, collection=collection, where=where))
+	                                           quality, scale, folder, name, where=where, **source))
 
 
 @tool
-def download_image(region: dict, variable: str, sensor: str, start: Optional[str] = None,
-                   end: Optional[str] = None, metric: str = 'median',
+def download_image(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
+                   start: Optional[str] = None, end: Optional[str] = None, metric: str = 'median',
                    temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
                    quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
-                   clip: bool = True, collection: Optional[str] = None,
-                   where: Optional[list] = None) -> str:
+                   clip: bool = True, collection: Optional[str] = None, image: Optional[str] = None,
+                   band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                   unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None) -> str:
 	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
 	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
 	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g.
-	'EPSG:25830'. Returns the path of the file and its grid."""
+	'EPSG:25830'. Returns the path of the file and its grid. Required: region, and variable and sensor or collection
+	or image and band; start and end, except for the fixed layers."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
+	stem = _stem(_data(variable, sensor, source), *(() if image else (metric, start, end)))
 	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, interannual,
 	                                     season=season,
 	                                     quality=quality, resolution=resolution, crs=crs, clip=clip,
-	                                     path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}', 'tif'),
-	                                     collection=collection, where=where))
+	                                     path=_out(stem, 'tif'), where=where, **source))
 
 
 @tool
@@ -452,23 +621,27 @@ def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = Fals
 
 
 @tool
-def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
-                metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
+def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
-                collection: Optional[str] = None,
+                collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+                band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
                 where: Optional[list] = None):
 	"""Seasonal trends of a variable over each feature of a region:
 	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
 	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
 	Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (change per year). Use 8 or more
-	years. Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart."""
+	years. Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart. Required:
+	region, start and end, and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	stem = f'trend_{variable}_{sensor}_{step}_{start}_{end}'
+	stem = _stem('trend', _data(variable, sensor, source), step, start, end)
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
-	                           chart=_out(stem, 'png'), collection=collection, where=where)
+	                           chart=_out(stem, 'png'), where=where, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
-	summary['slope_unit'] = f"{res['unit']} / year"
+	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
 	out = [_text(summary)]
@@ -478,55 +651,69 @@ def trend_table(region: dict, variable: str, sensor: str, start: str, end: str, 
 
 
 @tool
-def trend_map(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
-              part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
+def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+              step: str = 'annual', part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
               season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
-              collection: Optional[str] = None,
+              collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+              band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
               where: Optional[list] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
               quick: bool = False):
 	"""Map of the trend of a part of the year computed on each pixel (see trend_table): part is the month (1-12)
 	with step 'monthly', 1-23 with '16-day', nothing with 'annual'; output 'slope' (Sen, per year), 'tau', 'z',
 	'p_value', 'intercept' or 'n' (years with data); alpha (e.g. 0.05) keeps only the significant pixels. Returns
 	the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview. quick: only the tiles, at once
-	(without the preview, and with a fixed colour ramp instead of that of the map)."""
+	(without the preview, and with a fixed colour ramp instead of that of the map). Required: region, start and end,
+	and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	thumb = None if quick else _out(f'trend_{variable}_{sensor}_{step}_{part}_{output}', 'png')
+	thumb = None if quick else _out(_stem('trend', _data(variable, sensor, source), step, part, output), 'png')
 	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
 	                         quality=quality, alpha=alpha, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
-	                         collection=collection, where=where)
+	                         where=where, **source)
 	return [_text(res)] + ([Image(path=res['thumbnail'])] if thumb else [])
 
 
 @tool
-def download_trend(region: dict, variable: str, sensor: str, start: str, end: str, step: str = 'annual',
-                   part: Optional[int] = None, metric: str = 'mean', season: Optional[List[str]] = None,
-                   quality: Optional[dict] = None, alpha: Optional[float] = None,
+def download_trend(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                   end: str, step: str = 'annual', part: Optional[int] = None, metric: str = 'mean',
+                   season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
                    resolution: Optional[float] = None, crs: str = 'auto', collection: Optional[str] = None,
+                   image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
+                   band_offset: Optional[float] = None, unit: Optional[str] = None,
                    where: Optional[list] = None) -> str:
 	"""Download the trend of a part of the year on each pixel (see trend_map) to a GeoTIFF on this computer with
-	the bands slope, tau, z, p_value, intercept and n. For small regions (Earth Engine computes it in tiles)."""
+	the bands slope, tau, z, p_value, intercept and n. For small regions (Earth Engine computes it in tiles).
+	Required: region, start and end, and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
+	stem = _stem('trend', _data(variable, sensor, source), step, part, start, end)
 	return _text(services.download_trend(region, variable, sensor, start, end, step, part, metric, season=season,
 	                                     quality=quality, alpha=alpha, resolution=resolution, crs=crs,
-	                                     path=_out(f'trend_{variable}_{sensor}_{step}_{part}_{start}_{end}', 'tif'),
-	                                     collection=collection, where=where))
+	                                     path=_out(stem, 'tif'), where=where, **source))
 
 
 @tool
-def compare_series(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str,
-                   other_end: str, step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
-                   season: Optional[List[str]] = None, quality: Optional[dict] = None,
-                   scale: Optional[float] = None, collection: Optional[str] = None,
-                   where: Optional[list] = None):
+def compare_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                   end: str, other_start: str, other_end: str, step: str = 'monthly', metric: str = 'mean',
+                   stat: str = 'mean', season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                   scale: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
+                   band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                   unit: Optional[str] = None, where: Optional[list] = None):
 	"""Compare a reference period (start to end) with another (other_start to other_end) over each feature of a
 	region: the mean of each part of the year (step 'monthly', '16-day' or 'annual') over the years of each period
 	and the difference (other - reference). Writes a CSV and a chart of both
-	periods by part of the year, and returns the chart."""
+	periods by part of the year, and returns the chart. Required: region, start, end, other_start and other_end, and
+	variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
+	       other_end=other_end)
 	_ready()
-	stem = f'comparison_{variable}_{sensor}_{start}_{end}_{other_start}_{other_end}'
+	stem = _stem('comparison', _data(variable, sensor, source), start, end, other_start, other_end)
 	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
 	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
-	                              chart=_out(stem, 'png'), collection=collection, where=where)
+	                              chart=_out(stem, 'png'), where=where, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
@@ -537,35 +724,44 @@ def compare_series(region: dict, variable: str, sensor: str, start: str, end: st
 
 
 @tool
-def compare_map(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str, other_end: str,
-                metric: str = 'median', temporal: str = 'period', season: Optional[List[str]] = None,
-                quality: Optional[dict] = None, collection: Optional[str] = None,
-                where: Optional[list] = None):
+def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                other_start: str, other_end: str, metric: str = 'median', temporal: str = 'period',
+                season: Optional[List[str]] = None, quality: Optional[dict] = None, collection: Optional[str] = None,
+                image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
+                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
 	"""Map of the difference between the variable aggregated over another period (other_start to other_end) and
 	over the reference period (start to end), e.g. the median NDVI of 2023 minus that of 2018-2021. Returns the URL
-	of its Earth Engine tiles (XYZ, valid for some hours) and a preview."""
+	of its Earth Engine tiles (XYZ, valid for some hours) and a preview. Required: region, start, end, other_start
+	and other_end, and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
+	       other_end=other_end)
 	_ready()
-	thumb = _out(f'comparison_{variable}_{sensor}_{metric}', 'png')
+	thumb = _out(_stem('comparison', _data(variable, sensor, source), metric), 'png')
 	res = services.compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
-	                           season=season, quality=quality, thumbnail=thumb, collection=collection, where=where)
+	                           season=season, quality=quality, thumbnail=thumb, where=where, **source)
 	return [_text(res), Image(path=res['thumbnail'])]
 
 
 @tool
-def download_comparison(region: dict, variable: str, sensor: str, start: str, end: str, other_start: str,
-                        other_end: str, metric: str = 'median', temporal: str = 'period',
+def download_comparison(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                        end: str, other_start: str, other_end: str, metric: str = 'median', temporal: str = 'period',
                         season: Optional[List[str]] = None, quality: Optional[dict] = None,
                         resolution: Optional[float] = None, crs: str = 'auto',
-                        collection: Optional[str] = None,
-                        where: Optional[list] = None) -> str:
+                        collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+                        band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+                        unit: Optional[str] = None, where: Optional[list] = None) -> str:
 	"""Download the comparison of two periods (see compare_map) to a GeoTIFF on this computer with the bands
-	difference (other - reference), reference and other. For small regions."""
+	difference (other - reference), reference and other. For small regions. Required: region, start, end,
+	other_start and other_end, and variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
+	       other_end=other_end)
 	_ready()
+	stem = _stem('comparison', _data(variable, sensor, source), metric, start, end, other_start, other_end)
 	return _text(services.download_comparison(
 		region, variable, sensor, start, end, other_start, other_end, metric, temporal, season=season,
-		quality=quality, resolution=resolution, crs=crs,
-		path=_out(f'comparison_{variable}_{sensor}_{metric}_{start}_{end}_{other_start}_{other_end}', 'tif'),
-		collection=collection, where=where))
+		quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'), where=where, **source))
 
 
 @tool

@@ -22,9 +22,9 @@ import os
 import re
 import urllib.request
 
-from . import __version__, catalog, fire, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, default_title, fire_variable, is_static, period_text, \
-	python_call, season_text, slug, unit_text
+from . import __version__, assets, catalog, fire, references, services
+from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, data_unit, default_title, fire_variable, \
+	is_static, period_text, python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
@@ -221,7 +221,8 @@ def item_references(tool, args, result=None, date=None):
 def item_title(tool, args, result=None):
 	"""The title in English of the result of a call."""
 	if tool in TITLES:
-		v = f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
+		v = _var(args) if not args.get('variable') else \
+			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
 		if tool in ('region_stats', 'map_layer') and (is_static(args) or not (args.get('start') and args.get('end'))):
 			return TITLES[tool].split(',')[0].format(var=v)  # elevation, slope: no period
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
@@ -249,7 +250,21 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Variable', f"{entry.get('name', '')} ({entry.get('index', '')})"))
 		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
 		                        f"collection {entry.get('col', '')}"))
-	static = bool(entry and entry.get('static'))  # elevation, slope: no period, temporal metric or pixel filters
+	custom = not entry and not args.get('variable') and (args.get('collection') or args.get('image'))
+	if custom:  # data of Earth Engine outside the catalog, as given (the ID as the tools take it)
+		custom = assets.normalize(custom)
+		data = (f"Earth Engine {'image' if args.get('image') else 'image collection'} {custom}, band "
+		        f"{args.get('band', '?')}")
+		if args.get('image') and args.get('terrain'):
+			data += f", its {args['terrain']}"
+		if args.get('band_scale') is not None or args.get('band_offset') is not None:
+			data += f"; values × {_num(args.get('band_scale', 1))} + {_num(args.get('band_offset', 0))}"
+		given = data_unit(args)  # as the services computed it: 'unitless' is 1, a terrain is in degrees
+		unit = unit_text(catalog.custom_unit(given))
+		data += f"; unit {unit}" if unit else ('; dimensionless' if given == '1' else '; unit not given')
+		facts.append(('Data', data))
+	# elevation, slope, an image of Earth Engine: no period, temporal metric or pixel filters
+	static = bool(entry and entry.get('static')) or bool(custom and args.get('image'))
 	if args.get('start') and args.get('end') and not static:
 		label = 'Before the fire' if tool == 'burn_severity' else \
 			'Reference period' if args.get('other_start') else 'Period'
@@ -274,6 +289,9 @@ def item_facts(tool, args, result=None, names=None):
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
+	if custom and not static:
+		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
+		                                  'for the variables of its catalog)'))
 	if entry and not static:
 		filters = dict(entry.get('pixel_filters') or {})
 		if entry.get('fixed_filters') is None:  # the SCF: always clouds and water, whatever the quality
@@ -322,8 +340,13 @@ def _recipe_facts(args, result, names):
 	for v in recipe.get('variables') or []:
 		metric = v.get('metric') or 'median'
 		metrics = ', '.join(_stat(m) for m in (metric if isinstance(metric, list) else [metric]))
-		what = v.get('index') or v.get('name') or v.get('image') or '?'
-		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}: {metrics}")
+		asset = None if v.get('index') else v.get('collection') or v.get('image')
+		# the data of Earth Engine as the other results name them: the ID as the tools take it, band and terrain
+		what = v.get('index') or (_var({k: v.get(k) for k in ('collection', 'image', 'band', 'terrain')}) if asset
+		                          else v.get('name')) or '?'
+		fixed = bool(v.get('image') and not v.get('index'))  # a fixed image: no metric
+		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}" +
+		                 (' (fixed image)' if fixed else f': {metrics}'))
 	if variables:
 		facts.append(('Variables', '; '.join(variables)))
 	period = recipe.get('period')

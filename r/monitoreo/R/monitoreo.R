@@ -65,8 +65,8 @@ mo_about <- function(lang = "en") {
 #' credits that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). Cite them when the results go
 #' into a report, a paper or a map.
 #' @param x a result of MonitorEO: a data.frame (\code{mo_time_series()}, \code{mo_trend_table()}, ...) or a
-#'   list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, ...). \code{NULL}: the
-#'   citations of MonitorEO and of Google Earth Engine.
+#'   list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, \code{mo_asset()}, ...).
+#'   \code{NULL}: the citations of MonitorEO and of Google Earth Engine.
 #' @return The references (and then the credits) as a character vector, invisibly; it prints them, one per line.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
@@ -107,14 +107,36 @@ cited <- function(df, res) {
 #' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
 #'   \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
 #'   \link{regions}). Several features give a result per feature.
-#' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).
+#' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
+#'   take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
+#'   \code{image}, with \code{band} (see \code{mo_asset()}).
 #' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).
-#' @param collection the Earth Engine collection when the variable of the sensor is in several, e.g.
-#'   \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).
+#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
+#'   or \code{image} instead of \code{variable}.
+#' @param collection with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
+#'   e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
+#'   \code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
+#'   Engine data catalog, of the GEE Community Catalog, \code{mo_community()}, or of a project that your account can
+#'   read), e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"}, with \code{band}: aggregated in time like the variables of the
+#'   catalog, with time series, trends and comparisons. \code{mo_asset()} says whether an ID is a collection or an
+#'   image, and its bands.
+#' @param image without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
+#'   mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
+#'   their statistics and GeoTIFFs, but no time series, trends or comparisons.
+#' @param band the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).
+#' @param band_scale,band_offset factor and offset of the stored values of \code{band}: the values are
+#'   value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
+#'   e.g. \code{band_scale = 0.1}.
+#' @param unit the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
+#'   UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
+#'   reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+#'   aspect of \code{terrain} (in the functions that take it) \code{"degree"}.
+#' @param terrain with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
+#'   values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
+#'   band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
-#'   statistics.
+#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+#'   which only have maps and their statistics.
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 #'   \code{"pN"} (percentile N).
@@ -124,10 +146,11 @@ cited <- function(df, res) {
 #'   \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).
 #' @param interannual statistic between the years when \code{temporal} is not \code{"period"}.
 #' @param season optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).
-#' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).
+#' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+#'   only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
 #' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
-#'   each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
-#'   own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+#'   each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
+#'   result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
 #'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 #'   WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 #'   \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
@@ -144,6 +167,55 @@ cited <- function(df, res) {
 NULL
 
 utils::globalVariables(c("date", "value", "region"))
+
+# The data that a function computes: a variable of the catalog and its sensor (with them, collection is one of the
+# collections of that variable), or instead the data of Earth Engine given by its ID (collection or image, with band,
+# band_scale, band_offset, unit and, for an image, terrain; see mo_asset()). A clear error before Earth Engine, with
+# the words of the MCP server and the command line, when neither is given or they are mixed: Python would only say
+# that the spec has no index, or compute the variable and leave the image, band or terrain aside without a word. An ID
+# of Earth Engine given as the variable (none of the catalog has a '/') is told apart first, sensor or not: asking for
+# its sensor, or calling it a variable of the catalog, would send the user the wrong way.
+check_data <- function(variable, sensor, collection = NULL, image = NULL, band = NULL, band_scale = NULL,
+                       band_offset = NULL, unit = NULL, terrain = NULL) {
+  has <- function(x) !is.null(x) && !identical(x, "")
+  custom <- c(image = has(image), band = has(band), band_scale = has(band_scale), band_offset = has(band_offset),
+              unit = has(unit), terrain = has(terrain))
+  custom <- names(custom)[custom]
+  if (has(variable)) {
+    if (grepl("/", variable, fixed = TRUE)) {
+      stop(variable, " is not a variable of the catalog (mo_variables()): give an ID of Earth Engine as collection or ",
+           "image (mo_asset() says which), with band, instead of variable", call. = FALSE)
+    }
+    if (!has(sensor)) {
+      stop("give the sensor of ", variable, " (mo_variables() gives those of each variable)", call. = FALSE)
+    }
+    if (length(custom) > 0) {
+      stop(paste(custom, collapse = ", "), ": only for the data of Earth Engine given by its ID (collection or image ",
+           "instead of variable and sensor); ", variable, " is a variable of the catalog, with its own band, scale ",
+           "and unit", call. = FALSE)
+    }
+    return(invisible(TRUE))
+  }
+  if (has(sensor)) {
+    stop("sensor is for the variables of the catalog (with variable): the data of Earth Engine given by its ID take ",
+         "collection or image, and band", call. = FALSE)
+  }
+  if (!has(collection) && !has(image)) {
+    stop("give variable and sensor (a variable of the catalog: mo_variables()), or collection or image and band (any ",
+         "data of Earth Engine by its ID: mo_asset() says which)", call. = FALSE)
+  }
+  if (has(collection) && has(image)) {
+    stop("give collection (a collection of images with dates) or image (a fixed image), not both", call. = FALSE)
+  }
+  if (!has(band)) {
+    stop("give band: the band of ", if (has(collection)) collection else image, " (one; mo_asset() lists them)",
+         call. = FALSE)
+  }
+  if (has(terrain) && !has(image)) {
+    stop("terrain is for an image (image, e.g. a DEM), not for a collection", call. = FALSE)
+  }
+  invisible(TRUE)
+}
 
 services <- function() {
   if (is.null(.mo$services)) {
@@ -262,7 +334,9 @@ rows_df <- function(rows) {
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
 #' @param theme optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
 #'   \code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
-#'   of the Earth Engine app).
+#'   of the Earth Engine app). Their two other themes, \code{"earth_engine"} (Earth Engine data, by its ID) and
+#'   \code{"community"} (GEE Community Catalog), have no variables of the catalog: see \code{mo_asset()} and
+#'   \code{mo_community()}.
 #' @return A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
 #'   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
 #'   dates, and rgb: \code{TRUE} when its images have a true colour, see \code{mo_rgb_map()}; \code{NA} for the
@@ -286,7 +360,7 @@ mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) 
 #'   have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
 #'   formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
 #'   filters, each with citation, doi, url and text) and credits.
-#' @seealso \code{mo_references()}
+#' @seealso \code{mo_references()}; for any data of Earth Engine given by its ID, \code{mo_asset()}
 #' @examples
 #' \dontrun{
 #' d <- mo_describe("NDVI", "Sentinel-2")
@@ -296,6 +370,111 @@ mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) 
 #' @export
 mo_describe <- function(variable, sensor = NULL, collection = NULL) {
   services()$describe_variable(variable, sensor, collection)
+}
+
+#' Everything about an image or a collection of images of Earth Engine, given by its ID, and what to cite with it
+#'
+#' Any image or collection of images of Earth Engine given by its ID (of the Earth Engine data catalog, of the GEE
+#' Community Catalog, \code{mo_community()}, or of a project that your account can read) is computed by the functions
+#' of MonitorEO instead of a variable of the catalog: as \code{collection} (images with dates, aggregated in time like
+#' the variables of the catalog, with time series, trends and comparisons) or as \code{image} (a fixed image, or the
+#' mosaic of a collection of tiles: maps, their statistics and GeoTIFFs), with \code{band} and, if they are needed,
+#' \code{band_scale}, \code{band_offset} and \code{unit} (in UDUNITS). \code{mo_asset()} tells which, before computing:
+#' it reads the metadata of the ID in Earth Engine (without computing; \code{mo_init()} first) and, for the Earth
+#' Engine data catalog, its STAC record (the units, scale and offset of its bands, its licence and how to cite it).
+#' The pixel filters of MonitorEO are for the variables of its catalog: these data keep only their own mask.
+#' @param asset the ID of the image or collection, e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"} or
+#'   \code{"projects/sat-io/open-datasets/FABDEM"} (also as \code{"ee.ImageCollection('...')"}).
+#' @return A list: asset, type (\code{"image"} or \code{"image_collection"}), use (the argument that takes it:
+#'   \code{"collection"} or \code{"image"}), how (a sentence), title, source (\code{"Earth Engine data catalog"},
+#'   \code{"GEE Community Catalog"} or \code{"Earth Engine asset"}), page, provider, licence, dates (first and last),
+#'   cadence, theme (of the GEE Community Catalog), bands (a list, each with band, description, units as its record
+#'   says, unit in UDUNITS, band_scale, band_offset, resolution_m, data_type and, for codes, classes or bitmask),
+#'   arguments (those to compute its first band, e.g. \code{list(collection = "IDAHO_EPSCOR/TERRACLIMATE",
+#'   band = ..., band_scale = ..., unit = ...)}, for \code{do.call()}), notes, references (each with citation, doi,
+#'   url and text) and credits (see \code{mo_references()}). An error when the ID does not exist or your account
+#'   cannot read it, or when it is a table or a folder.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_community()}, \code{mo_references()}, \code{mo_describe()} (the variables of the catalog)
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' a <- mo_asset("IDAHO_EPSCOR/TERRACLIMATE")
+#' a$use                                  # "collection": images with dates
+#' vapply(a$bands, function(b) b$band, "")  # its bands
+#' mo_references(a)
+#' # the annual precipitation of TerraClimate, as any variable of the catalog: its band pr is the precipitation of
+#' # each month (mm month-1, as PRECIP of TerraClimate); the annual total, the sum of the 12 months of each year, in mm
+#' pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'                      start = "2001-01-01", end = "2024-12-31", step = "annual", metric = "sum")
+#' # its first band, with the arguments that mo_asset() gives
+#' aet <- do.call(mo_time_series, c(list(mo_wdpa(389011), start = "2020-01-01", end = "2024-12-31"), a$arguments))
+#' # a fixed image: the annual mean temperature of WorldClim (stored in tenths of degree)
+#' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+#' }
+#' @export
+mo_asset <- function(asset) {
+  services()$describe_asset(asset)
+}
+
+#' Themes of the GEE Community Catalog
+#'
+#' The themes of the GEE Community Catalog (\url{https://gee-community-catalog.org}) that have images or collections
+#' of images, from the copy of its index in MonitorEO (without Earth Engine and without the internet). Its datasets:
+#' \code{mo_community()}.
+#' @param lang language of the names: \code{"en"} or \code{"es"}.
+#' @return A data.frame (theme: its name in the catalog, for \code{mo_community()}; name: in \code{lang}; datasets:
+#'   how many images and collections it has).
+#' @references Roy, S., Majumdar, S., & Swetnam, T. (2026). A community data commons for equitable Earth Science.
+#'   EarthArXiv (preprint, accepted in Earth's Future). \doi{10.31223/X5WN4J}
+#'
+#' Roy, S., Majumdar, S., & Swetnam, T. (2026). samapriya/awesome-gee-community-datasets: Community Catalog
+#'   [Computer software]. Zenodo. \doi{10.5281/zenodo.7144933}
+#' @seealso \code{mo_community()}, \code{mo_asset()}
+#' @examplesIf reticulate::py_module_available("monitoreo")
+#' mo_community_themes()
+#' mo_community_themes("es")
+#' @export
+mo_community_themes <- function(lang = "en") {
+  rows_df(services()$community_themes(lang))
+}
+
+#' Images and collections of images of the GEE Community Catalog
+#'
+#' The images and collections of images that the community of Earth Engine shares in the GEE Community Catalog
+#' (\url{https://gee-community-catalog.org}), from the copy of its index in MonitorEO (without Earth Engine and
+#' without the internet), by its themes (\code{mo_community_themes()}). \code{mo_asset()} reads the bands of one (its
+#' page in the catalog gives their units, scale and offset, and how to cite it); then the functions of MonitorEO
+#' compute it with \code{collection} or \code{image} and \code{band}.
+#' @param theme optional: only those of a theme of \code{mo_community_themes()} (its name in English or in Spanish, or a
+#'   part of it, e.g. \code{"Hydrology"} or \code{"incendios"}).
+#' @param text optional: only those with these words in their title, ID, provider or tags.
+#' @param kind optional: only the \code{"image"} or the \code{"image_collection"}.
+#' @param limit optional: at most this number.
+#' @return A data.frame (id: the ID of its Earth Engine asset, for \code{mo_asset()} and then \code{collection} or
+#'   \code{image}; title; type: \code{"image"} or \code{"image_collection"}; theme; provider; license, and
+#'   license_text when it is custom; tags; docs: its page in the catalog, with its bands and how to cite it).
+#' @references Roy, S., Majumdar, S., & Swetnam, T. (2026). A community data commons for equitable Earth Science.
+#'   EarthArXiv (preprint, accepted in Earth's Future). \doi{10.31223/X5WN4J}
+#'
+#' Roy, S., Majumdar, S., & Swetnam, T. (2026). samapriya/awesome-gee-community-datasets: Community Catalog
+#'   [Computer software]. Zenodo. \doi{10.5281/zenodo.7144933}
+#' @seealso \code{mo_community_themes()}, \code{mo_asset()}
+#' @examplesIf reticulate::py_module_available("monitoreo")
+#' mo_community(theme = "Elevation and Bathymetry")
+#' mo_community(text = "fabdem")
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' dem <- mo_asset("projects/sat-io/open-datasets/FABDEM")  # a collection of tiles: use = "image"
+#' mo_map_layer(mo_wdpa(389011), image = "projects/sat-io/open-datasets/FABDEM", band = "b1", unit = "m")
+#' }
+#' @export
+mo_community <- function(theme = NULL, text = NULL, kind = NULL, limit = NULL) {
+  if (!is.null(limit)) limit <- as.integer(limit)
+  rows_df(services()$community_datasets(theme, text, kind, limit))
 }
 
 #' Protected areas of the World Database on Protected Areas (WDPA)
@@ -432,7 +611,9 @@ mo_sf <- function(x, name = NULL) {
 #' Time series of a variable over a region
 #'
 #' A value per step and feature of the region, reduced in time with \code{metric} and over the region with
-#' \code{stat}, with the number of images and of valid pixels of each value.
+#' \code{stat}, with the number of images and of valid pixels of each value. Instead of a variable of the catalog, any
+#' collection of images of Earth Engine with dates, by its ID: \code{collection} and \code{band} (see
+#' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
 #' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
@@ -451,12 +632,20 @@ mo_sf <- function(x, name = NULL) {
 #' \dontrun{
 #' mo_init()
 #' ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31")
+#' # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
+#' pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'                      start = "2015-01-01", end = "2024-12-31")
 #' }
 #' @export
-mo_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean", stat = "mean",
-                           season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL, where = NULL) {
+mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
+                           stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
+                           where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
+                           unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
-                                quality = quality, scale = scale, csv = csv, collection = collection, where = where)
+                                quality = quality, scale = scale, csv = csv, collection = collection, where = where,
+                                image = image, band = band, band_scale = band_scale, band_offset = band_offset,
+                                unit = unit)
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -499,7 +688,9 @@ mo_plot <- function(ts) {
 #'
 #' The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and
 #' its colour ramp. The fixed layers without dates (variables \code{"ELEVATION"} and \code{"SLOPE"} of sensor
-#' \code{"Copernicus"}) need no \code{start} and \code{end}.
+#' \code{"Copernicus"}, and the data given as \code{image}) need no \code{start} and \code{end}. Instead of a variable
+#' of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
+#' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -519,13 +710,19 @@ mo_plot <- function(ts) {
 #' # only the pixels above 1,500 m
 #' high <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31",
 #'                      where = list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500)))
+#' # any image of Earth Engine by its ID: the slope of the FABDEM (a collection of tiles, mosaicked)
+#' mo_map_layer(mo_wdpa(389011), image = "projects/sat-io/open-datasets/FABDEM", band = "b1", terrain = "slope")
 #' }
 #' @export
-mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                         interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
-                         thumbnail = NULL, collection = NULL, where = NULL) {
+mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
+                         temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
+                         vmax = NULL, thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                         band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
-                       vmax, thumbnail = thumbnail, collection = collection, where = where)
+                       vmax, thumbnail = thumbnail, collection = collection, where = where, image = image,
+                       band = band, band_scale = band_scale, band_offset = band_offset, unit = unit,
+                       terrain = terrain)
 }
 
 #' True colour map of the images of a variable over a region, as Earth Engine tiles
@@ -621,11 +818,13 @@ rgb_caption <- function(l) {
 #' colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
 #' and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
 #' between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
-#' \code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
+#' \code{rgee::Map$addLayer(x$image, x$vis, x$name)}. Instead of a variable of the catalog, any data of Earth Engine by
+#' its ID: \code{collection} or \code{image}, with \code{band} (see \code{mo_asset()}), whose colour ramp goes from
+#' the percentile 5 to the percentile 95 of the band over the region.
 #' @inheritParams mo_params
 #' @param clip clip the image to the region.
 #' @param rgb the true colour of the images instead of the variable (only the variables with \code{rgb} in
-#'   \code{mo_variables()}).
+#'   \code{mo_variables()}, not the data given as \code{collection} or \code{image}).
 #' @return A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
 #'   (the range of reflectance of the three bands), without palette.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable
@@ -644,37 +843,55 @@ rgb_caption <- function(l) {
 #' x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
 #' rgb <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", rgb = TRUE)
 #' rgee::Map$addLayer(rgb$image, rgb$vis, rgb$name) + rgee::Map$addLayer(x$image, x$vis, x$name)
+#' # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
+#' bio <- mo_image(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+#' rgee::Map$addLayer(bio$image, bio$vis, bio$name)
 #' }
 #' @export
-mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                     interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL,
-                     where = NULL, rgb = FALSE) {
+mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
+                     temporal = "period", interannual = "mean", season = NULL, quality = NULL, clip = TRUE,
+                     collection = NULL, where = NULL, rgb = FALSE, image = NULL, band = NULL, band_scale = NULL,
+                     band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   s <- services()
   maps <- reticulate::import("monitoreo.maps", convert = TRUE)
   variables <- reticulate::import("monitoreo.variable", convert = TRUE)
-  spec <- s$make_spec(variable, sensor, start, end, metric = metric, temporal = temporal, interannual = interannual,
-                      season = season, quality = quality, collection = collection, where = where)
+  data <- list(collection = collection, where = where, image = image, band = band, band_scale = band_scale,
+               band_offset = band_offset, unit = unit, terrain = terrain)  # NULL: None, as the services take them
+  spec <- do.call(s$make_spec, c(list(variable, sensor, start, end, metric = metric, temporal = temporal,
+                                      interannual = interannual, season = season, quality = quality), data))
+  # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none (the data
+  # of Earth Engine by its ID have none: native_scale would read them in Earth Engine first)
+  if (isTRUE(rgb)) variables$check_rgb(spec)
   # the percentiles on the pixels of the data (without a scale, Earth Engine would take pixels of 1 degree)
   res <- variables$native_scale(spec)
-  # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none
-  out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                           clip, collection = collection, where = where, rgb = isTRUE(rgb))
+  out <- do.call(s$composite_image, c(list(region, variable, sensor, start, end, metric, temporal, interannual, season,
+                                           quality, clip, rgb = isTRUE(rgb)), data))
   vis <- if (isTRUE(rgb)) {
     maps$rgb_vis(out[[1]], out[[2]]$geometry(), res)  # percentiles 2 and 98 of the three bands together
   } else {
-    maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)  # percentiles 5 and 95
+    # percentiles 5 and 95 (with the palette of the catalog; the data of Earth Engine by its ID have no entry in it)
+    maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
   }
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     if (isTRUE(rgb)) "rgb_map" else "composite_image",
-    list(region = region, variable = variable, sensor = sensor, start = start, end = end, metric = metric,
-         temporal = temporal, interannual = interannual, quality = quality, collection = collection, where = where))
-  name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
+    c(list(region = region, variable = variable, sensor = sensor, start = start, end = end, metric = metric,
+           temporal = temporal, interannual = interannual, quality = quality), data))
+  # the variable and its sensor, or the ID and band of the data of Earth Engine; no metric nor period for the fixed
+  # layers (elevation, slope, images)
+  kind <- variables$kind(spec)
+  what <- if (kind == "catalog") c(variable, sensor) else c(spec[[kind]], spec[["band"]], spec[["terrain"]])
+  dated <- !is.null(start) && !isTRUE(variables$is_static(spec))
+  name <- paste(c(what, if (dated) c(metric, start, end)), collapse = " ")
   list(image = out[[1]], region = out[[2]], vis = vis, name = if (isTRUE(rgb)) paste0(name, ", true colour") else name,
        references = cite$references, credits = cite$credits)
 }
 
 #' Statistics of the map of a variable over each feature of a region
 #'
+#' The statistics of the map of \code{mo_map_layer()} with the same arguments over each feature of the region. Instead
+#' of a variable of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with
+#' \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @return A data.frame (region, mean, std, min, p5, p50, p95, max, n_pixels) with the attributes title, unit, scale,
 #'   csv, references and credits (see \code{mo_references()}).
@@ -690,12 +907,19 @@ mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric 
 #' \dontrun{
 #' mo_init()
 #' mo_region_stats(mo_wdpa(389011), "LST", "Modis", "2023-07-01", "2023-08-31")
+#' # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
+#' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
 #' }
 #' @export
-mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                            season = NULL, quality = NULL, scale = NULL, collection = NULL, where = NULL) {
+mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
+                            temporal = "period", season = NULL, quality = NULL, scale = NULL, collection = NULL,
+                            where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                            terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
-                                 quality = quality, scale = scale, collection = collection, where = where)
+                                 quality = quality, scale = scale, collection = collection, where = where,
+                                 image = image, band = band, band_scale = band_scale, band_offset = band_offset,
+                                 unit = unit, terrain = terrain)
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -706,6 +930,8 @@ mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, 
 #' Export the map of a variable to a GeoTIFF in Google Drive
 #'
 #' A batch task of Earth Engine, without limits of size (it needs your own Earth Engine account, not the shared one).
+#' Instead of a variable of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with
+#' \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param folder folder of Google Drive.
 #' @param name name of the file (default: from the variable and the period).
@@ -723,19 +949,25 @@ mo_region_stats <- function(region, variable, sensor, start = NULL, end = NULL, 
 #' mo_init()
 #' mo_init("my-project")
 #' mo_export_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-01-01", "2023-12-31")
+#' mo_export_image(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio12", unit = "mm")
 #' }
 #' @export
-mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
-                            season = NULL, quality = NULL, resolution = NULL, crs = "auto", folder = "MonitorEO",
-                            name = NULL, collection = NULL, where = NULL) {
+mo_export_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
+                            temporal = "period", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
+                            folder = "MonitorEO", name = NULL, collection = NULL, where = NULL, image = NULL,
+                            band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
                           quality = quality, resolution = resolution, crs = crs, folder = folder, name = name,
-                          collection = collection, where = where)
+                          collection = collection, where = where, image = image, band = band,
+                          band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
 }
 
 #' Export a time series to a CSV file in Google Drive
 #'
-#' For long series or many regions (it needs your own Earth Engine account, not the shared one).
+#' For long series or many regions (it needs your own Earth Engine account, not the shared one). Instead of a variable
+#' of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and \code{band}
+#' (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @inheritParams mo_time_series
 #' @param folder folder of Google Drive.
@@ -754,19 +986,25 @@ mo_export_image <- function(region, variable, sensor, start = NULL, end = NULL, 
 #' mo_init()
 #' mo_init("my-project")
 #' mo_export_time_series(mo_wdpa(389011), "NDVI", "Landsat", "1985-01-01", "2024-12-31")
+#' mo_export_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'                       start = "1958-01-01", end = "2024-12-31")
 #' }
 #' @export
-mo_export_time_series <- function(region, variable, sensor, start, end, step = "monthly", metric = "mean",
-                                  stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
-                                  name = NULL, collection = NULL, where = NULL) {
+mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly",
+                                  metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
+                                  folder = "MonitorEO", name = NULL, collection = NULL, where = NULL, image = NULL,
+                                  band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality, scale,
-                                  folder, name, collection = collection, where = where)
+                                  folder, name, collection = collection, where = where, image = image, band = band,
+                                  band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
 #' Download the map of a variable to a GeoTIFF on this computer
 #'
 #' Computed by Earth Engine in tiles (float32, NoData -9999): for small regions (big ones: \code{mo_export_image()}).
-#' The GeoTIFF keeps the references in its metadata (item \code{references}).
+#' The GeoTIFF keeps the references in its metadata (item \code{references}). Instead of a variable of the catalog,
+#' any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param path path of the GeoTIFF.
 #' @param clip clip the map to the region.
@@ -786,13 +1024,21 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' mo_init()
 #' x <- mo_download_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "ndvi.tif")
 #' terra::rast(x$file)
+#' # any image of Earth Engine by its ID: the annual precipitation of WorldClim
+#' bio12 <- mo_download_image(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio12", unit = "mm",
+#'                            path = "bio12.tif")
 #' }
 #' @export
-mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median", temporal = "period",
-                              interannual = "mean", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                              clip = TRUE, collection = NULL, where = NULL) {
+mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, path,
+                              metric = "median", temporal = "period", interannual = "mean", season = NULL,
+                              quality = NULL, resolution = NULL, crs = "auto", clip = TRUE, collection = NULL,
+                              where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
+                              unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                            resolution, crs, path.expand(path), clip, collection = collection, where = where)
+                            resolution, crs, path.expand(path), clip, collection = collection, where = where,
+                            image = image, band = band, band_scale = band_scale, band_offset = band_offset,
+                            unit = unit, terrain = terrain)
 }
 
 #' Download the true colour of the images of a variable to a GeoTIFF on this computer
@@ -890,7 +1136,8 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' For each part of the year (step \code{"monthly"}: the months; \code{"16-day"}: 23 parts of 16 days from 1
 #' January; \code{"annual"}: the year), the spatial \code{stat} of the \code{metric} of its images in each year,
 #' and the trend of those yearly values: Kendall's tau and the Mann-Kendall Z and p-value, and Sen's slope (change per
-#' year). Use 8 or more years.
+#' year). Use 8 or more years. Instead of a variable of the catalog, any collection of images of Earth Engine with
+#' dates, by its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @param alpha significance level of the Mann-Kendall test.
@@ -918,14 +1165,20 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' \dontrun{
 #' mo_init()
 #' mo_trend_table(mo_wdpa(389011), "EVI", "Modis", "2001-01-01", "2024-12-31", step = "monthly")
+#' # any collection of images of Earth Engine by its ID: the annual precipitation of TerraClimate
+#' mo_trend_table(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'                start = "1991-01-01", end = "2024-12-31", metric = "sum")
 #' }
 #' @export
-mo_trend_table <- function(region, variable, sensor, start, end, step = "annual", metric = "mean", stat = "mean",
-                           season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL, chart = NULL,
-                           collection = NULL, where = NULL) {
+mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", metric = "mean",
+                           stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL,
+                           chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                           band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
-                                collection = collection, where = where)
+                                collection = collection, where = where, image = image, band = band,
+                                band_scale = band_scale, band_offset = band_offset, unit = unit)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -935,6 +1188,8 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
 #' Map of the trend of a part of the year on each pixel (Mann-Kendall and Sen)
 #'
 #' The trend (see \code{mo_trend_table()}) computed on each pixel, as Earth Engine tiles (see \code{mo_leaflet()}).
+#' Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by its ID:
+#' \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @inheritParams mo_trend_table
 #' @param part the month (1-12) with step \code{"monthly"}, 1-23 with \code{"16-day"}, \code{NULL} with
@@ -964,20 +1219,27 @@ mo_trend_table <- function(region, variable, sensor, start, end, step = "annual"
 #' \dontrun{
 #' mo_init()
 #' mo_trend_map(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", alpha = 0.05)
+#' mo_trend_map(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'              start = "1991-01-01", end = "2024-12-31", metric = "sum")
 #' }
 #' @export
-mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", part = NULL, output = "slope",
-                         metric = "mean", season = NULL, quality = NULL, alpha = NULL, thumbnail = NULL,
-                         collection = NULL, where = NULL) {
+mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", part = NULL,
+                         output = "slope", metric = "mean", season = NULL, quality = NULL, alpha = NULL,
+                         thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                         band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   if (!is.null(part)) part <- as.integer(part)
   services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
-                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection, where = where)
+                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection, where = where,
+                       image = image, band = band, band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
 #' Download the trend of a part of the year on each pixel to a GeoTIFF
 #'
 #' A GeoTIFF with the bands slope, tau, z, p_value, intercept and n (see \code{mo_trend_map()}), e.g. for
-#' \code{terra::rast()}, with its references in its metadata. For small regions.
+#' \code{terra::rast()}, with its references in its metadata. For small regions. Instead of a variable of the catalog,
+#' any collection of images of Earth Engine with dates, by its ID: \code{collection} and \code{band} (see
+#' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @inheritParams mo_trend_map
 #' @param path path of the GeoTIFF.
@@ -1006,18 +1268,24 @@ mo_trend_map <- function(region, variable, sensor, start, end, step = "annual", 
 #' mo_download_trend(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", "trend.tif")
 #' }
 #' @export
-mo_download_trend <- function(region, variable, sensor, start, end, path, step = "annual", part = NULL,
+mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", part = NULL,
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
-                              crs = "auto", collection = NULL, where = NULL) {
+                              crs = "auto", collection = NULL, where = NULL, image = NULL, band = NULL,
+                              band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   if (!is.null(part)) part <- as.integer(part)
   services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
-                            resolution, crs, path.expand(path), collection = collection, where = where)
+                            resolution, crs, path.expand(path), collection = collection, where = where,
+                            image = image, band = band, band_scale = band_scale, band_offset = band_offset,
+                            unit = unit)
 }
 
 #' Compare two periods over each feature of a region
 #'
 #' The mean of each part of the year over the years of a reference period (\code{start} to \code{end}) and of
-#' another (\code{other_start} to \code{other_end}), and their difference (other - reference).
+#' another (\code{other_start} to \code{other_end}), and their difference (other - reference). Instead of a variable
+#' of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and \code{band}
+#' (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @return A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
@@ -1036,14 +1304,20 @@ mo_download_trend <- function(region, variable, sensor, start, end, path, step =
 #' mo_init()
 #' mo_compare_series(mo_wdpa(389011), "NDSI", "Modis", "2001-01-01", "2010-12-31",
 #'                   "2015-01-01", "2024-12-31", quality = list(snow = FALSE))
+#' # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
+#' mo_compare_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
+#'                   start = "1961-01-01", end = "1990-12-31", other_start = "1995-01-01", other_end = "2024-12-31")
 #' }
 #' @export
-mo_compare_series <- function(region, variable, sensor, start, end, other_start, other_end, step = "monthly",
-                              metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
-                              csv = NULL, chart = NULL, collection = NULL, where = NULL) {
+mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
+                              step = "monthly", metric = "mean", stat = "mean", season = NULL, quality = NULL,
+                              scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL,
+                              band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
                                    season = season, quality = quality, scale = scale, csv = csv, chart = chart,
-                                   collection = collection, where = where)
+                                   collection = collection, where = where, image = image, band = band,
+                                   band_scale = band_scale, band_offset = band_offset, unit = unit)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -1053,7 +1327,8 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
 #' Map of the difference between two periods
 #'
 #' The variable aggregated over another period minus over the reference period, as Earth Engine tiles (see
-#' \code{mo_leaflet()}).
+#' \code{mo_leaflet()}). Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by
+#' its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -1070,18 +1345,22 @@ mo_compare_series <- function(region, variable, sensor, start, end, other_start,
 #' mo_compare_map(mo_wdpa(389011), "NDVI", "Sentinel-2", "2018-01-01", "2021-12-31", "2023-01-01", "2023-12-31")
 #' }
 #' @export
-mo_compare_map <- function(region, variable, sensor, start, end, other_start, other_end, metric = "median",
-                           temporal = "period", season = NULL, quality = NULL, thumbnail = NULL, collection = NULL,
-                           where = NULL) {
+mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
+                           metric = "median", temporal = "period", season = NULL, quality = NULL, thumbnail = NULL,
+                           collection = NULL, where = NULL, image = NULL, band = NULL, band_scale = NULL,
+                           band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                          season = season, quality = quality, thumbnail = thumbnail, collection = collection,
-                         where = where)
+                         where = where, image = image, band = band, band_scale = band_scale,
+                         band_offset = band_offset, unit = unit)
 }
 
 #' Download the comparison of two periods to a GeoTIFF
 #'
 #' A GeoTIFF with the bands difference (other - reference), reference and other, with its references in its metadata.
-#' For small regions.
+#' For small regions. Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by its
+#' ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param path path of the GeoTIFF.
 #' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
@@ -1101,12 +1380,15 @@ mo_compare_map <- function(region, variable, sensor, start, end, other_start, ot
 #'                        "2023-01-01", "2023-12-31", "difference.tif")
 #' }
 #' @export
-mo_download_comparison <- function(region, variable, sensor, start, end, other_start, other_end, path,
+mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end, path,
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
-                                   resolution = NULL, crs = "auto", collection = NULL, where = NULL) {
+                                   resolution = NULL, crs = "auto", collection = NULL, where = NULL, image = NULL,
+                                   band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                  season = season, quality = quality, resolution = resolution, crs = crs,
-                                 path = path.expand(path), collection = collection, where = where)
+                                 path = path.expand(path), collection = collection, where = where, image = image,
+                                 band = band, band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
 #' Burn severity of a fire (dNBR and RBR)

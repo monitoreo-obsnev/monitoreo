@@ -38,7 +38,7 @@ written, in their language:
         args: {region: {wdpa_id: 389011}, variable: EVI, sensor: Modis, start: 2001-01-01, end: 2024-12-31}
         result: {file: trend.tif, min: -0.002, max: 0.002, palette: [...]}
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
-      - file: ~/MonitorEO/trend_EVI_Modis_annual_None_2001-01-01_2024-12-31_20261028-233108.tif
+      - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
     thumbnail: fig/sierra_nevada.png     # default: the first map, or the first chart of a tool
@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import catalog, composite, fire, maps, references, trends
+from . import assets, catalog, composite, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -271,14 +271,34 @@ def season_text(season):
 
 
 def _var(args):
-	v = args.get('variable') or args.get('collection') or args.get('image') or ''
+	"""The variable of a call: 'NDVI (Sentinel-2)', or the ID (as the tools take it: ee.ImageCollection("X") is X),
+	band and terrain of the data of Earth Engine outside the catalog ('IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	if not args.get('variable') and (args.get('collection') or args.get('image')):
+		return ' '.join(str(x) for x in (assets.normalize(args.get('collection') or args.get('image')),
+		                                 args.get('band'), args.get('terrain')) if x)
+	v = args.get('variable') or ''
 	s = SENSORS.get(args.get('sensor'), args.get('sensor'))
 	return f'{v} ({s})' if s else str(v)
 
 
+def data_unit(args):
+	"""The unit in UDUNITS of the data of Earth Engine by their ID of a call with ARGS, as the services compute them
+	(see variable.given_unit): 'degree' for the slope or the aspect of an image, 'degC' for '°C', '1' for 'unitless';
+	'' if none was given. If it is not a unit (then the call fails), as given."""
+	from . import variable
+	asset = assets.normalize(args.get('collection') or args.get('image'))
+	try:
+		return variable.given_unit(args.get('unit'), asset, args.get('terrain') if args.get('image') else None)
+	except ValueError:
+		return str(args.get('unit') or '').strip()
+
+
 def is_static(args):
-	"""Whether the variable of the call with ARGS is a fixed layer without dates (elevation, slope): its results have
-	no period, temporal metric or pixel filters, even if the call gives them (QGIS sends its greyed-out dates)."""
+	"""Whether the variable of the call with ARGS is a fixed layer without dates (elevation, slope, or an image of
+	Earth Engine given with image=): its results have no period, temporal metric or pixel filters, even if the call
+	gives them (QGIS sends its greyed-out dates)."""
+	if not args.get('variable') and args.get('image'):
+		return True
 	return bool((_entry(args.get('variable'), args.get('sensor')) or {}).get('static'))
 
 
@@ -319,7 +339,7 @@ def default_title(tool, args):
 def unit_text(unit, per_year=False):
 	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/year', 'per year' with PER_YEAR)."""
 	u = str(unit or '').replace('/ year', '').strip().strip('[]').replace('º', '°').strip()
-	u = '' if u.lower() in ('unitless', 'none') else u
+	u = '' if u.lower() in ('unitless', 'none', '1') else u  # '1': dimensionless in UDUNITS
 	if per_year:
 		return f'{u}/year' if u else 'per year'
 	return u
@@ -664,7 +684,8 @@ def _results(item, files, n):
 	return out
 
 
-SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where')
+SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where',
+               'image', 'band', 'band_scale', 'band_offset', 'unit')
 
 
 def _link_trends(results, folder):
@@ -714,6 +735,11 @@ def _variables(items):
 	for it in items:
 		a = it['args']
 		var = a.get('variable') or (fire_variable(a) if it.get('tool') == 'burn_severity' else None)
+		if not var and (a.get('collection') or a.get('image')):  # data of Earth Engine outside the catalog
+			what = 'Earth Engine image' if a.get('image') else 'Earth Engine image collection'
+			out.setdefault((_var(a), None), {'variable': _var(a), 'sensor': '', 'name': what,
+			                                 'unit': unit_text(catalog.custom_unit(data_unit(a)))})
+			continue
 		if not var:
 			continue
 		sensor = a.get('sensor') or ('Sentinel-2' if it.get('tool') == 'burn_severity' else None)

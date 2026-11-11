@@ -14,7 +14,7 @@ TOOLS = [
 		'region': {'type': 'object', 'additionalProperties': True}, 'variable': {'type': 'string'},
 		'sensor': {'type': 'string'}, 'start': {'type': 'string'}, 'end': {'type': 'string'},
 		'season': {'anyOf': [{'type': 'array', 'items': {'type': 'string'}}, {'type': 'null'}]},
-		'collection': {'type': 'string'}}, 'required': ['region', 'variable', 'collection']}},
+		'collection': {'type': 'string'}, 'scale': {'type': 'number'}}, 'required': ['region', 'variable', 'scale']}},
 	{'name': 'connect', 'description': 'Connect.', 'inputSchema': {'type': 'object', 'properties': {
 		'project': {'type': 'string'}}}},
 	{'name': 'find_protected_areas', 'description': 'Protected areas.', 'inputSchema': {'type': 'object', 'properties': {
@@ -32,18 +32,21 @@ def test_model_tools():
 	tools = assistant.model_tools(TOOLS)
 	assert [t['function']['name'] for t in tools] == ['time_series', 'find_protected_areas']  # not connect
 	series = tools[0]['function']
-	assert 'collection' not in series['parameters']['properties']
+	assert 'scale' not in series['parameters']['properties']  # hidden
 	assert series['parameters']['required'] == ['region', 'variable']
+	assert 'collection' in series['parameters']['properties']  # an ID of Earth Engine (see describe_asset)
 	assert series['description'].endswith(assistant.RECEIPT_NOTE)
 	assert 'limit' not in tools[1]['function']['parameters']['properties']
 
 
 def test_fix_args():
 	tools = assistant.model_tools(TOOLS)
-	args = assistant.fix_args('time_series', {'region': '{"wdpa_id": 389011}', 'variable': 'NDVI', 'collection': 'X',
+	args = assistant.fix_args('time_series', {'region': '{"wdpa_id": 389011}', 'variable': 'NDVI', 'scale': 30,
 	                                          'season': '["06-01", "08-31"]', 'unknown': 1, 'sensor': None}, tools)
 	assert args == {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'season': ['06-01', '08-31']}
 	assert assistant.fix_args('time_series', '{"variable": "EVI"}', tools) == {'variable': 'EVI'}
+	assert assistant.fix_args('time_series', {'collection': 'IDAHO_EPSCOR/TERRACLIMATE'}, tools) == {
+		'collection': 'IDAHO_EPSCOR/TERRACLIMATE'}  # no longer hidden: the data of Earth Engine by their ID
 
 
 def test_instructions():
@@ -731,6 +734,34 @@ def test_manual(tmp_path):
 	assert manual.language('Compare the summers of 2023 to 2025 with those of 2018 to 2022 in Doñana') == 'en'
 
 
+def test_manual_of_the_data_of_earth_engine(tmp_path):
+	# the questions on the data of Earth Engine outside the catalog and on the GEE Community Catalog find their sections
+	# (manual.SYNONYMS: asset, dataset, community...), not those of the Earth Engine app; with the headings of the wiki
+	from monitoreo import manual
+	pages = {**WIKI_PAGES,
+	         'Conceptos': WIKI_PAGES['Conceptos'] + '\n## Datos de Earth Engine por su ID\n\nCualquier imagen o colección '
+	                      'de imágenes por su ID.\n\n## Catálogo de la comunidad de GEE\n\nSus conjuntos de datos por '
+	                      'temas.\n',
+	         'Concepts': WIKI_PAGES['Concepts'] + '\n## Earth Engine data by its ID\n\nAny image or collection of images '
+	                     'by its ID.\n\n## GEE Community Catalog\n\nIts datasets by theme.\n',
+	         'App-de-Earth-Engine': '# App de Earth Engine\n\n## Datos\n\nLa app de Earth Engine usa los datos y el catálogo '
+	                                'de Earth Engine en el navegador.\n',
+	         'Earth-Engine-app': '# Earth Engine app\n\n## Data\n\nThe Earth Engine app uses the data and the catalog of '
+	                             'Earth Engine in the browser.\n'}
+	for name, text in pages.items():
+		(tmp_path / f'{name}.md').write_text(text, encoding='utf-8')
+	data_es, data_en = '/wiki/Conceptos#datos-de-earth-engine-por-su-id', '/wiki/Concepts#earth-engine-data-by-its-id'
+	for question, url in (('otros datos de Earth Engine', data_es), ('¿Cómo uso un asset?', data_es),
+	                      ('¿Qué es el catálogo de la comunidad?', '/wiki/Conceptos#catálogo-de-la-comunidad-de-gee'),
+	                      ('other Earth Engine data', data_en), ('How do I use an asset?', data_en),
+	                      ('Can I use any dataset?', data_en),
+	                      ('community catalog', '/wiki/Concepts#gee-community-catalog')):
+		found = manual.search(question, folder=str(tmp_path))
+		assert found and found[0]['url'].endswith(url), (question, [s['url'] for s in found])
+	# an autonomous community (comunidad autónoma) is not the community of the catalog: «comunidad» alone adds nothing
+	assert 'comunidad' not in manual.SYNONYMS['es']
+
+
 def test_manual_update(tmp_path, monkeypatch):
 	# the pages of the sidebar and their English pages are downloaded; an English page not written yet is skipped
 	from monitoreo import manual
@@ -1209,6 +1240,280 @@ def test_fixed_layers():
 	assert shown['main'] == 'Fixed layer, without dates' and shown['map']['series'] is False
 	assert calls[1] == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'SLOPE', 'sensor': 'Copernicus',
 	                                  'quick': True})
+
+
+# The data of Earth Engine outside the catalog: the tools that find and describe them, and the compute tools with
+# their arguments instead of variable and sensor (as the MCP server lists them)
+OPTIONAL = {'anyOf': [{'type': 'string'}, {'type': 'null'}]}
+SOURCE_PROPS = {'variable': OPTIONAL, 'sensor': OPTIONAL, 'collection': OPTIONAL, 'image': OPTIONAL, 'band': OPTIONAL,
+                'band_scale': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
+                'band_offset': {'anyOf': [{'type': 'number'}, {'type': 'null'}]}, 'unit': OPTIONAL}
+DATA_TOOLS = [
+	{'name': 'describe_asset', 'description': 'An image or collection of Earth Engine by its ID.', 'inputSchema': {
+		'type': 'object', 'properties': {'asset': {'type': 'string'}}, 'required': ['asset']}},
+	{'name': 'community_themes', 'description': 'Themes of the GEE Community Catalog.', 'inputSchema': {
+		'type': 'object', 'properties': {'lang': {'type': 'string'}}}},
+	{'name': 'community_datasets', 'description': 'Datasets of the GEE Community Catalog.', 'inputSchema': {
+		'type': 'object', 'properties': {'theme': OPTIONAL, 'text': OPTIONAL, 'kind': OPTIONAL,
+		                                 'limit': {'type': 'integer'}}}},
+	{'name': 'map_layer', 'description': 'Map.', 'inputSchema': {'type': 'object', 'properties': {
+		**SOURCE_PROPS, 'region': {'type': 'object'}, 'start': OPTIONAL, 'end': OPTIONAL, 'metric': {'type': 'string'},
+		'temporal': {'type': 'string'}, 'interannual': {'type': 'string'}, 'terrain': OPTIONAL,
+		'vmin': {'type': 'number'}, 'vmax': {'type': 'number'}, 'quick': {'type': 'boolean'}}, 'required': ['region']}},
+]
+TERRACLIMATE = {'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'pr', 'band_scale': 1, 'unit': 'mm'}
+ASSET = {'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'type': 'image_collection', 'use': 'collection',
+         'how': "a collection of images with dates: give it as collection='IDAHO_EPSCOR/TERRACLIMATE'",
+         'title': 'TerraClimate: Monthly Climate and Climatic Water Balance', 'source': 'Earth Engine data catalog',
+         'dates': ['1958-01-01', '2024-12-01'],
+         'bands': [{'band': b, 'description': 'x' * 400, 'units': 'mm', 'unit': 'mm'} for b in ('aet', 'def', 'pr')],
+         'arguments': TERRACLIMATE, 'notes': ['monthly'],
+         'references': [{'id': 'abatzoglou2018', 'citation': 'Abatzoglou et al. (2018)'}], 'credits': []}
+COMMUNITY = [{'id': 'projects/sat-io/open-datasets/CHIRPS/v3', 'title': 'CHIRPS v3 precipitation',
+              'type': 'image_collection', 'theme': 'Weather & Climate', 'provider': 'CHC', 'license': 'CC BY 4.0',
+              'tags': 'rain, ' * 100, 'docs': 'https://gee-community-catalog.org/projects/chirps_v3/'},
+             {'id': 'projects/sat-io/open-datasets/RAIN/mean', 'title': 'Mean rain', 'type': 'image',
+              'theme': 'Weather & Climate', 'docs': 'https://gee-community-catalog.org/projects/rain/'}]
+
+
+class Data(FakeAssistant):
+	"""An assistant whose MCP server also answers describe_asset, the GEE Community Catalog and the statistics."""
+
+	async def call(self, name, args):
+		self.calls = getattr(self, 'calls', []) + [(name, args)]
+		if name == 'describe_asset':
+			return None, [json.dumps(ASSET)], []
+		if name == 'community_datasets':
+			return None, [json.dumps(COMMUNITY)], []
+		if name == 'community_themes':
+			return None, [json.dumps([{'theme': 'Weather & Climate', 'name': 'Weather & Climate', 'datasets': 20}])], []
+		if name == 'region_stats':
+			return None, [json.dumps({'rows': [{'region': 'point', 'mean': 512.5, 'n_pixels': 1}], 'unit': 'mm'})], []
+		if name in ('map_layer', 'trend_map'):
+			return None, [json.dumps({**MAP, 'unit': 'mm', 'url': f'https://ee/{len(self.calls)}/{{z}}/{{x}}/{{y}}'})], []
+		return None, [json.dumps({**SERIES, 'unit': 'mm'})], ['data:image/png;base64,iVBORw0KGgo=']
+
+
+def test_data_of_earth_engine_by_its_id(monkeypatch):
+	"""The model finds a dataset in the GEE Community Catalog, reads what an ID is with describe_asset (both answers go
+	to it, the bands last and the datasets a line each) and maps a collection by its ID and band: the result has its
+	title, facts and references, and a pixel of its map keeps the collection, its band, scale and unit."""
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	tools = assistant.model_tools(TOOLS + DATA_TOOLS)
+	names = [t['function']['name'] for t in tools]
+	assert {'describe_asset', 'community_themes', 'community_datasets'} <= set(names)
+	params = {t['function']['name']: t['function']['parameters']['properties'] for t in tools}
+	assert 'limit' not in params['community_datasets'] and 'lang' not in params['community_themes']  # hidden
+	assert set(SOURCE_PROPS) <= set(params['map_layer']) and 'quick' not in params['map_layer']
+	region = {'bbox': [-3.5, 37, -3, 37.2]}
+	mapped = {'region': region, **TERRACLIMATE, 'start': '2015-01-01', 'end': '2020-12-31', 'metric': 'sum',
+	          'temporal': 'annual', 'interannual': 'mean'}
+	answers = iter([
+		{'content': '', 'tool_calls': [{'function': {'name': 'community_datasets', 'arguments': {'text': 'rain'}}}]},
+		{'content': '', 'tool_calls': [{'function': {'name': 'describe_asset',
+		                                             'arguments': {'asset': 'IDAHO_EPSCOR/TERRACLIMATE'}}}]},
+		{'content': '', 'tool_calls': [{'function': {'name': 'map_layer', 'arguments': mapped}}]},
+		{'content': 'Done: the map is in result 1.'},
+	])
+	monkeypatch.setattr(assistant, 'chat_model', lambda settings, system, messages, tools: next(answers))
+
+	async def run():
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		a.tools = tools
+		events = [e async for e in a.chat('Mean annual precipitation of TerraClimate in this rectangle, 2015 to 2020')]
+		return a, events, await a.pixel(1, -3.25, 37.1)
+
+	a, events, px = asyncio.run(run())
+	statuses = [e['text'] for e in events if e['type'] == 'status']
+	assert 'Looking at the datasets of the GEE Community Catalog…' in statuses
+	assert 'Reading the description of IDAHO_EPSCOR/TERRACLIMATE in Earth Engine…' in statuses
+	answers_of = {m['tool_name']: m['content'] for m in a.messages if m['role'] == 'tool'}
+	found = answers_of['community_datasets']  # a line each, without the tags
+	assert '- projects/sat-io/open-datasets/CHIRPS/v3 (image collection): CHIRPS v3 precipitation; theme Weather & ' \
+	       'Climate; https://gee-community-catalog.org/projects/chirps_v3/' in found
+	assert '- projects/sat-io/open-datasets/RAIN/mean (image): Mean rain' in found and 'rain, rain' not in found
+	described = json.loads(answers_of['describe_asset'])  # all of it, the bands last
+	assert list(described)[-1] == 'bands' and described['arguments'] == TERRACLIMATE and described == ASSET
+	# the map: its title and facts name the ID and the band, and it cites the dataset
+	assert [e['type'] for e in events if e['type'] not in ('status', 'eecu')] == ['running', 'result', 'assistant']
+	assert a.calls[2] == ('map_layer', mapped)
+	result = next(e for e in events if e['type'] == 'result')
+	assert result['title'] == ('Map of IDAHO_EPSCOR/TERRACLIMATE pr, 2015-2020 · Rectangle of longitude -3.5 to -3 and '
+	                           'latitude 37 to 37.2')
+	facts = dict(result['facts'])
+	assert facts['Data'] == 'Earth Engine image collection IDAHO_EPSCOR/TERRACLIMATE, band pr; values × 1 + 0; unit mm'
+	assert facts['Discarded pixels'].startswith('none') and 'Variable' not in facts
+	assert any(r['citation'].startswith('Abatzoglou') for r in result['references'])  # TerraClimate
+	assert result['legend']['unit'] == 'mm' and result['map']['pixel'] and not result['rgb']
+	assert result['main'].startswith('Interannual value')
+	# its pixel: the value of the map and the series of the pixel, with the same data
+	same = {k: v for k, v in mapped.items() if k in assistant.SOURCE}
+	assert a.calls[3] == ('region_stats', {**same, 'region': {'point': [-3.25, 37.1]}, 'start': '2015-01-01',
+	                                       'end': '2020-12-31', 'metric': 'sum', 'temporal': 'annual'})
+	assert a.calls[4] == ('time_series', {**same, 'region': {'point': [-3.25, 37.1]}, 'start': '2015-01-01',
+	                                      'end': '2020-12-31', 'step': 'annual'})
+	assert px['value'] == 512.5 and px['unit'] == 'mm'
+	assert px['title'] == 'Annual time series of IDAHO_EPSCOR/TERRACLIMATE pr at the pixel 37.10000, -3.25000'
+
+
+def test_series_and_fixed_image_of_earth_engine(tmp_path):
+	"""A series of a collection of Earth Engine by its ID: the map of its period and those of its steps keep the data
+	(collection, band, scale, unit); a fixed image (image=): a map without dates, also when the model gives it dates,
+	on a pixel its value without a series, and the report."""
+	region = {'bbox': [-3.5, 37, -3, 37.2]}
+
+	async def series():
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		args = {'region': region, **TERRACLIMATE, 'start': '2018-01-01', 'end': '2020-12-31', 'step': 'monthly',
+		        'metric': 'sum'}
+		a.results.append({'id': 1, 'tool': 'time_series', 'args': args, 'result': {**SERIES, 'unit': 'mm'},
+		                  'image': None, 'title': a.titled('time_series', args)})
+		shown = await a.period_map(a.results[0])
+		step = await a.step_map(1, '2019-03-01/2019-03-31')
+		return a, shown, step
+
+	a, shown, step = asyncio.run(series())
+	same = {'region': region, **TERRACLIMATE}
+	assert a.calls[0] == ('map_layer', {**same, 'start': '2020-01-01', 'end': '2020-12-31', 'metric': 'median',
+	                                    'quick': True})
+	assert shown['title'].startswith('Monthly time series of IDAHO_EPSCOR/TERRACLIMATE pr')
+	assert shown['heading'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE pr, 2020')
+	assert len(shown['steps']) == 36 and shown['main'] == 'Last year of the period (2020)'
+	assert a.calls[1] == ('map_layer', {**same, 'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'sum',
+	                                    'vmin': 0, 'vmax': 1, 'quick': True})
+	assert step['title'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE pr, ')
+
+	async def fixed():
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		args = {'region': region, 'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'band_scale': 0.1, 'unit': 'degC'}
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': a.titled('map_layer', args),
+		                  'result': {**MAP, 'unit': 'degC'}})
+		return a, a.card(a.results[0]), await a.pixel(1, -3.25, 37.1)
+
+	a, card, px = asyncio.run(fixed())
+	assert card['title'] == 'Map of WORLDCLIM/V1/BIO bio01 · ' + a.region_name({'region': region})
+	assert card['main'] == 'Fixed layer, without dates' and card['steps'] == [] and card['map']['series'] is False
+	assert not card['rgb'] and card['legend']['unit'] == 'degC'
+	facts = dict(card['facts'])
+	assert facts['Data'] == 'Earth Engine image WORLDCLIM/V1/BIO, band bio01; values × 0.1 + 0; unit degC'
+	assert 'Period' not in facts and 'Discarded pixels' not in facts
+	assert any(r['citation'].startswith('Hijmans') for r in card['references'])  # WorldClim
+	assert a.calls == [('region_stats', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'band_scale': 0.1,
+	                                     'unit': 'degC', 'region': {'point': [-3.25, 37.1]}})]  # no series
+	assert px == {'lon': -3.25, 'lat': 37.1, 'value': 512.5, 'unit': 'degC', 'label': 'value'}
+	# the report of both
+	html = open(report.write(a.results, str(tmp_path / 'report.html'), title='WorldClim'), encoding='utf-8').read()
+	assert 'Earth Engine image WORLDCLIM/V1/BIO, band bio01' in html and 'Hijmans' in html
+	assert 'image=&quot;WORLDCLIM/V1/BIO&quot;, band=&quot;bio01&quot;' in html  # how to reproduce it
+
+	async def dates():  # a fixed image that the model gave dates: they change nothing (the services do not use them)
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		args = {'region': region, 'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'band_scale': 0.1, 'unit': 'degC',
+		        'start': '2015-01-01', 'end': '2020-12-31'}
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': a.titled('map_layer', args),
+		                  'result': {**MAP, 'unit': 'degC'}})
+		a.results.append({'id': 2, 'tool': 'region_stats', 'args': args, 'image': None, 'title': 'Statistics',
+		                  'result': {'rows': [{'region': 'r', 'mean': 14.2}], 'unit': 'degC'}})
+		return a, a.card(a.results[0]), await a.pixel(1, -3.25, 37.1), await a.period_map(a.results[1])
+
+	a, card, px, shown = asyncio.run(dates())
+	assert card['title'] == 'Map of WORLDCLIM/V1/BIO bio01 · ' + a.region_name({'region': region})
+	assert card['main'] == 'Fixed layer, without dates' and card['steps'] == [] and card['map']['series'] is False
+	assert 'key' not in px and a.calls[0] == ('region_stats', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01',
+	                                                           'band_scale': 0.1, 'unit': 'degC',
+	                                                           'region': {'point': [-3.25, 37.1]}})  # no series
+	assert shown['main'] == 'Fixed layer, without dates' and shown['steps'] == [] and shown['map']['series'] is False
+	assert assistant.dated({'start': '2015-01-01', 'end': '2020-12-31', **TERRACLIMATE})  # a collection has dates
+	assert not assistant.dated({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'start': '2015-01-01',
+	                            'end': '2020-12-31'})
+
+
+def test_data_of_the_catalog_or_by_its_id():
+	"""A call of the model with a variable of the catalog keeps none of the arguments of the data of Earth Engine by
+	their ID (small models fill them all, and the MCP server refuses them mixed; the collection of a variable was
+	hidden before), and one with data by their ID, no sensor."""
+	tools = assistant.model_tools(DATA_TOOLS)
+	mixed = {'region': {'wdpa_id': 1}, 'variable': 'PRECIP', 'sensor': 'TerraClimate', 'start': '2020-01-01',
+	         'end': '2020-12-31', **TERRACLIMATE, 'image': 'X', 'terrain': 'slope'}
+	assert assistant.fix_args('map_layer', mixed, tools) == {'region': {'wdpa_id': 1}, 'variable': 'PRECIP',
+	                                                         'sensor': 'TerraClimate', 'start': '2020-01-01',
+	                                                         'end': '2020-12-31'}
+	assert assistant.fix_args('map_layer', {'region': {'wdpa_id': 1}, **TERRACLIMATE, 'sensor': 'TerraClimate'},
+	                          tools) == {'region': {'wdpa_id': 1}, **TERRACLIMATE}
+	assert assistant.fix_args('map_layer', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'sensor': 'WorldClim'},
+	                          tools) == {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01'}
+	# an ID of Earth Engine as the variable, with the collection too (small models fill every argument): the data by
+	# their ID, not the catalog; without collection or image, as it is (the MCP server explains it)
+	by_id = {'region': {'wdpa_id': 1}, 'variable': TERRACLIMATE['collection'], 'sensor': 'TerraClimate',
+	         'start': '2020-01-01', 'end': '2020-12-31', **TERRACLIMATE}
+	assert assistant.fix_args('map_layer', by_id, tools) == {'region': {'wdpa_id': 1}, 'start': '2020-01-01',
+	                                                         'end': '2020-12-31', **TERRACLIMATE}
+	alone = {'variable': TERRACLIMATE['collection'], 'sensor': 'TerraClimate'}
+	assert assistant.fix_args('map_layer', alone, tools) == alone
+
+
+def test_tools_of_the_mcp_server():
+	"""The tools of the MCP server as the model gets them: those of the data of Earth Engine by their ID, with their
+	arguments, but compact (see assistant._compact and _description), as the small models of Ollama have 16,384 tokens
+	of context for the instructions, the tools and the conversation: their size before those data (39,337 characters)
+	is the limit, with some room."""
+	from monitoreo import mcp_server as mcp
+	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
+	names = [t['function']['name'] for t in tools]
+	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
+	text = json.dumps(tools)
+	assert len(text) < 42000, len(text)
+	assert '"title"' not in text and '{"type": "null"}' not in text and '"default": null' not in text
+	source = ' '.join(mcp.SOURCE_DOC.split())
+	assert source[:60] not in text  # said once in the instructions
+	f = {t['function']['name']: t['function'] for t in tools}
+	assert set(assistant.SOURCE) <= set(f['map_layer']['parameters']['properties'])
+	assert f['map_layer']['parameters']['properties']['band_scale'] == {'type': 'number'}
+	assert f['map_layer']['parameters']['properties']['season'] == {'type': 'array', 'items': {'type': 'string'}}
+	assert 'terrain: "slope" or "aspect"' in f['map_layer']['description']  # not said in the instructions
+	assert 'Required: region' in f['time_series']['description']  # what it needs, now that variable has a default
+	assert f['describe_asset']['parameters']['required'] == ['asset']
+	assert f['rgb_map']['parameters']['required'] == ['region', 'variable', 'sensor', 'start', 'end']
+	# the dates where they are needed, whatever the data (not variable and sensor: data by ID instead)
+	for name in ('time_series', 'export_time_series_to_drive', 'trend_table', 'trend_map', 'download_trend'):
+		assert f[name]['parameters']['required'] == ['region', 'start', 'end'], name
+	for name in ('compare_series', 'compare_map', 'download_comparison'):
+		assert f[name]['parameters']['required'] == ['region', 'start', 'end', 'other_start', 'other_end'], name
+	assert f['map_layer']['parameters']['required'] == ['region']  # the fixed layers have no dates
+	assert 'its unit is then degree' in f['map_layer']['description']  # the slope and the aspect, in degrees
+	assert 'limit' not in f['community_datasets']['parameters']['properties']
+	# an argument called title is an argument
+	assert assistant._compact({'title': 'X', 'properties': {'title': {'title': 'Title', 'type': 'string'}}}) == {
+		'properties': {'title': {'type': 'string'}}}
+
+
+def test_data_text():
+	"""What the model gets of the answers of describe_asset and community_datasets (see data_text), and the labels of
+	the page while they run."""
+	assert assistant.data_text('describe_asset', 'not JSON') == 'not JSON'
+	assert assistant.data_text('community_datasets', '[]').startswith('No dataset of the GEE Community Catalog')
+	described = json.loads(assistant.data_text('describe_asset', json.dumps({'bands': [1], 'asset': 'A', 'use': 'image'})))
+	assert list(described) == ['asset', 'use', 'bands']
+	assert set(assistant.ADVICE) >= {'describe_asset', 'community_themes', 'community_datasets'}
+	for name in assistant.ADVICE:  # every label is filled with the arguments it names
+		assert '{' not in assistant.LABELS[name].format(**{k: 'x' for k in assistant.LABEL_KEYS}), name
+	assert 'collection' not in assistant.HIDDEN
+	text = assistant.instructions()
+	assert 'describe_asset' in text and 'community_datasets' in text and 'Never make up an ID' in text
+	assert 'pass no quality' in text and 'With a variable of the catalog, pass no collection' in text
+	assert 'the values are in degrees (its unit is then degree: pass no unit, not that of the band)' in text
+	# the datasets of a theme (all of them: some have more than 100): when they do not fit, it says so first
+	many = [{'id': f'projects/sat-io/open-datasets/X{i}', 'type': 'image', 'title': f'Dataset {i}', 'theme': 'T',
+	         'docs': f'https://gee-community-catalog.org/projects/x{i}/'} for i in range(145)]
+	cut = assistant.data_text('community_datasets', json.dumps(many), assistant.MAX_ADVICE)
+	assert len(cut) > assistant.MAX_ADVICE  # the caller cuts it
+	assert cut[:assistant.MAX_ADVICE].splitlines()[0] == (
+		'145 datasets of the GEE Community Catalog (ID, type, title, theme, page); only the first ones fit here: '
+		'narrow the list with text or kind; describe_asset tells whether one goes as collection or image, and its bands:')
+	for limit in (None, assistant.BIG_ADVICE * 10):  # what fits: no such note
+		assert 'only the first ones' not in assistant.data_text('community_datasets', json.dumps(many), limit)
+	assert 'only the first ones' not in assistant.data_text('community_datasets', json.dumps(many[:3]),
+	                                                         assistant.MAX_ADVICE)
 
 
 def test_map_view(monkeypatch):

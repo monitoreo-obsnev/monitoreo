@@ -1,6 +1,9 @@
 """MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer (the
 map of the variable, the true colour of its images or both) and the exports to Google Drive; in the theme Fire, the
-burn severity of a fire. The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
+burn severity of a fire. Instead of a variable of the catalog, in the themes Earth Engine data (by its ID) and GEE
+Community Catalog: any image or collection of images of Earth Engine given by its ID (read with
+services.describe_asset), or a dataset of the GEE Community Catalog chosen by its themes (community_themes,
+community_datasets). The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
 function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the EECUs of Earth Engine
 spent this month (the research EECUs of this user with the shared account, or the monthly quota of the user's project)
 and the message bar warns when less than 10 % are left."""
@@ -23,10 +26,10 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import catalog, fire, services, steps, trends  # noqa: E402
+from monitoreo import assets, catalog, fire, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
-from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
+from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
 from .results import KINDS_TIP, MAP_KINDS  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
@@ -50,6 +53,15 @@ POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
 MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
+# the data of Earth Engine outside the catalog (monitoreo.assets): images with dates, aggregated in time like the
+# variables (collection=), or a fixed image without dates, like the elevation (image=)
+USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
+# their arguments besides collection, which the maps of a result keep (add_result_map)
+SOURCE = ('image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain')
+NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own mask: the pixel filters are for the '
+              'variables of the catalog')
+READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
+             'press Read: its bands, units, licence and how to cite it')
 
 
 def level(name):
@@ -180,6 +192,27 @@ def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=
 				raise
 			out['rgb_error'] = str(e)
 	return out
+
+
+def data_name(var, sensor=True):
+	"""What the arguments VAR compute, for the titles of the tasks: the variable of the catalog with its sensor (with
+	SENSOR: NDVI (Sentinel-2)), or the ID and band of the data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE
+	pr), which have no variable nor sensor."""
+	if var.get('variable'):
+		return f"{var['variable']} ({var['sensor']})" if sensor else var['variable']
+	return f"{var.get('collection') or var.get('image') or '?'} {var.get('band') or ''}".strip()
+
+
+def number(value):
+	"""VALUE (a number, or None) as the text of a field: '' if None."""
+	return '' if value is None else format(float(value), '.10g')
+
+
+def unit_text(res):
+	"""The unit of the values of the map RES for its abstract ('[NDVI]', 'mm', 'mm / year' of a trend): '(unit not
+	given)' for the data of Earth Engine outside the catalog computed without one (whose trends have ' / year')."""
+	unit = str(res.get('unit') or '').strip()
+	return '(unit not given)' if not unit or unit.startswith('/') else unit
 
 
 def combo(items, current=None):
@@ -384,19 +417,30 @@ class MonitorEODock(QDockWidget):
 
 		box = QGroupBox('Variable')
 		f = QFormLayout(box)
-		# first the theme (catalog.THEMES), then the variables of that theme
+		# first the theme (catalog.THEMES), then the variables of that theme; after them, as in the Earth Engine app,
+		# the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES, with 'data'), which have no
+		# variables: any image or collection by its ID, and the GEE Community Catalog
 		self.theme = QComboBox()
-		for t in services.themes('en'):
+		themes = services.themes('en')
+		for t in themes:
 			self.theme.addItem(t['name'], t['key'])
 		self.theme.addItem('All the variables', None)
+		self.data_themes = {t['key']: t['data'] for t in themes if t.get('data')}
 		f.addRow('Theme', info(self.theme, HELP['theme']))
+		f.addRow(self.data_block(s))
 		# the English names of the catalog (vname_en, type_en); RBR: only the burn severity of the Python package, the
 		# MCP server and the app
 		self.all_variables = [v for v in services.list_variables(lang='en') if not v.get('two_periods')]
+		self.catalog_choice = None  # the variable chosen before a theme of other data, chosen again when back
 		self.variable = QComboBox()
+		self.variable_field = QWidget()  # the list and its ⓘ, hidden in the themes of other data
+		row = info(self.variable, lambda: variable_help(self.variable.currentData(), self.described()))
+		row.setContentsMargins(0, 0, 0, 0)
+		self.variable_field.setLayout(row)
+		f.addRow('Variable', self.variable_field)
+		self.variable_label = f.labelForField(self.variable_field)
 		self.fill_variables('NDVI · Sentinel-2')
 		self.theme.currentIndexChanged.connect(lambda i: self.fill_variables())
-		f.addRow('Variable', info(self.variable, lambda: variable_help(self.variable.currentData())))
 		self.start = QDateEdit(QDate.fromString(s.value(SETTINGS + 'start', '2020-01-01'), 'yyyy-MM-dd'))
 		self.end = QDateEdit(QDate.fromString(s.value(SETTINGS + 'end', '2021-12-31'), 'yyyy-MM-dd'))
 		for d in (self.start, self.end):
@@ -611,6 +655,78 @@ class MonitorEODock(QDockWidget):
 		self.setWidget(scroll)
 		self.region_changed()
 
+	def data_block(self, s):
+		"""The options of the data of Earth Engine outside the catalog, shown in their themes instead of the list
+		Variable (with the settings S): the theme and the dataset of the GEE Community Catalog (only in its theme), the
+		ID of an image or a collection of images with the button Read (services.describe_asset), its band, how it is
+		used (images with dates or a fixed image), the scale, offset and unit of its values, and what its record says.
+		Their values reach the list Variable as an entry of it (custom_entry), so that the panel greys out what does
+		not apply to them as it does for the variables of the catalog."""
+		self.asset_info = None  # what services.describe_asset said of the last ID read
+		self.community_records = {}  # the records of the datasets listed, by ID
+		self.data_row = QWidget()
+		form = QFormLayout(self.data_row)
+		form.setContentsMargins(0, 0, 0, 0)
+		self.community_row = QWidget()  # the GEE Community Catalog: from the copy of its index (no Earth Engine)
+		cf = QFormLayout(self.community_row)
+		cf.setContentsMargins(0, 0, 0, 0)
+		self.community_theme = QComboBox()
+		for t in services.community_themes('en'):
+			self.community_theme.addItem(f"{t['name']} ({t['datasets']})", t['theme'])
+		self.community_theme.setCurrentIndex(max(0, self.community_theme.findData(
+			s.value(SETTINGS + 'community_theme', ''))))
+		cf.addRow('Theme of the catalog', info(self.community_theme, HELP['community_theme']))
+		self.community_dataset = QComboBox()
+		self.community_dataset.setPlaceholderText('choose the dataset')  # as the Earth Engine app
+		self.community_dataset.activated.connect(self.dataset_chosen)  # only a choice of the user reads it
+		cf.addRow('Dataset', info(self.community_dataset, HELP['community_dataset']))
+		self.fill_datasets()
+		self.community_theme.currentIndexChanged.connect(lambda i: self.fill_datasets())
+		form.addRow(self.community_row)
+		self.asset_id = QLineEdit(s.value(SETTINGS + 'asset', ''))
+		self.asset_id.setPlaceholderText('e.g. IDAHO_EPSCOR/TERRACLIMATE or projects/sat-io/open-datasets/FABDEM')
+		self.asset_id.returnPressed.connect(self.read_asset)
+		row = QHBoxLayout()
+		row.addWidget(self.asset_id, 1)
+		b = QPushButton('Read')
+		b.setToolTip('Reads in Earth Engine what this ID is (an image or a collection of images) and its bands; for the '
+		             'Earth Engine data catalog, also their units, scale and offset, its licence and how to cite it')
+		b.clicked.connect(lambda checked=False: self.read_asset())
+		row.addWidget(b)
+		form.addRow('Earth Engine ID', info(row, lambda: data_help(self.variable.currentData(), self.described())))
+		self.asset_band = QComboBox()  # the bands read, or one written
+		self.asset_band.setEditable(True)
+		self.asset_band.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+		self.asset_band.setEditText(s.value(SETTINGS + 'asset_band', ''))
+		self.asset_band.lineEdit().setPlaceholderText('press Read, or write it')
+		form.addRow('Band', info(self.asset_band, HELP['asset_band']))
+		use = s.value(SETTINGS + 'asset_use', 'collection')
+		self.asset_use = combo(USES, use if use in dict(USES).values() else 'collection')
+		form.addRow('Use as', info(self.asset_use, HELP['asset_use']))
+		self.band_scale = QLineEdit(s.value(SETTINGS + 'band_scale', ''))
+		self.band_scale.setPlaceholderText('1: the values as stored')
+		form.addRow('Band scale', info(self.band_scale, HELP['band_scale']))
+		self.band_offset = QLineEdit(s.value(SETTINGS + 'band_offset', ''))
+		self.band_offset.setPlaceholderText('0')
+		form.addRow('Band offset', info(self.band_offset, HELP['band_offset']))
+		self.asset_unit = QLineEdit(s.value(SETTINGS + 'asset_unit', ''))
+		self.asset_unit.setPlaceholderText('e.g. mm, degC, kg m-2, mm day-1 or 1 (dimensionless)')
+		form.addRow('Unit (UDUNITS)', info(self.asset_unit, HELP['asset_unit']))
+		self.asset_label = QLabel(READ_HINT)  # title, source, licence and page of the data read
+		self.asset_label.setWordWrap(True)
+		self.asset_label.setOpenExternalLinks(True)
+		self.asset_label.setStyleSheet('font-size: 11px; color: #444;')
+		form.addRow(self.asset_label)
+		# connected once filled: every change reaches the entry of the list Variable
+		self.asset_id.textEdited.connect(lambda text: self.asset_edited())
+		self.asset_id.textChanged.connect(lambda text: self.custom_changed())
+		self.asset_band.currentIndexChanged.connect(lambda i: self.band_changed())
+		self.asset_band.currentTextChanged.connect(lambda text: self.custom_changed())
+		self.asset_use.currentIndexChanged.connect(lambda i: self.custom_changed())
+		for w in (self.band_scale, self.band_offset, self.asset_unit):
+			w.textChanged.connect(lambda text: self.custom_changed())
+		return self.data_row
+
 	def sync_fields(self):
 		layer = self.layer.currentLayer()
 		if self.name_field.layer() is not layer:
@@ -696,6 +812,13 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
 		for key, d in self.fire_dates.items():
 			s.setValue(SETTINGS + 'fire_' + key, d.date().toString('yyyy-MM-dd'))
+		# the data of Earth Engine outside the catalog: the last ID, band, use, scale, offset and unit, as written
+		s.setValue(SETTINGS + 'asset', self.asset_id.text().strip())
+		s.setValue(SETTINGS + 'asset_band', self.asset_band.currentText().strip())
+		s.setValue(SETTINGS + 'asset_use', self.asset_use.currentData())
+		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset), ('asset_unit', self.asset_unit)):
+			s.setValue(SETTINGS + key, w.text().strip())
+		s.setValue(SETTINGS + 'community_theme', self.community_theme.currentData() or '')
 
 	def region(self):
 		"""Region of the services from the widgets (read in the main thread)."""
@@ -756,6 +879,15 @@ class MonitorEODock(QDockWidget):
 	def variable_args(self):
 		v = self.variable.currentData()
 		where = self.where_args()
+		if v.get('custom'):  # data of Earth Engine by its ID: no variable, sensor nor pixel filters (their own mask)
+			args = self.data_args()
+			if 'collection' in args:  # images with dates; a fixed image has none (greyed out, as the elevation)
+				args.update(start=self.start.date().toString('yyyy-MM-dd'), end=self.end.date().toString('yyyy-MM-dd'))
+				if self.season_on.isChecked():
+					args['season'] = [self.season_start.text().strip(), self.season_end.text().strip()]
+			if where:  # conditions on variables of the catalog
+				args['where'] = where
+			return args
 		if v.get('static'):  # elevation, slope: without dates, pixel filters or season (greyed out), nor in the README
 			return dict({'variable': v['variable'], 'sensor': v['sensor'], 'collection': v['collection']},
 			            **({'where': where} if where else {}))
@@ -767,6 +899,177 @@ class MonitorEODock(QDockWidget):
 		if where:
 			args['where'] = where
 		return args
+
+	def data_args(self):
+		"""The data of Earth Engine of the panel as the services take them instead of variable and sensor:
+		{'collection' or 'image': its ID, 'band'} and the 'band_scale', 'band_offset' and 'unit' written (see
+		monitoreo.assets)."""
+		asset = self.asset_text()
+		if not asset:
+			raise ValueError('Earth Engine data: write the ID of an image or a collection of images (or choose a '
+			                 'dataset) and press Read')
+		band = self.asset_band.currentText().strip()
+		if not band:
+			raise ValueError(f'Earth Engine data: choose or write the band of {asset} (Read lists them)')
+		read = self.described()
+		names = [b.get('band') for b in (read or {}).get('bands') or []]
+		if read and band not in names:
+			raise ValueError(f"Earth Engine data: {asset} has no band {band}: choose one of {', '.join(names)}")
+		args = {self.asset_use.currentData(): asset, 'band': band}
+		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset)):
+			text = w.text().strip().replace(',', '.')
+			if text:
+				try:
+					args[key] = float(text)
+				except ValueError:
+					raise ValueError(f"Earth Engine data: the {key.replace('_', ' ')} of {asset} is not a number: "
+					                 f'{text}') from None
+		unit = self.asset_unit.text().strip()
+		if unit:
+			args['unit'] = unit
+		return args
+
+	def asset_text(self):
+		"""The ID written, as the services take it (monitoreo.assets.normalize: also ee.ImageCollection('...'))."""
+		return assets.normalize(self.asset_id.text())
+
+	def described(self):
+		"""What services.describe_asset said of the ID written, or None if it has not been read."""
+		read = self.asset_info
+		return read if read and read.get('asset') == self.asset_text() else None
+
+	def custom_entry(self):
+		"""The data of Earth Engine of the panel as an entry of the list Variable, so that the panel treats them as a
+		variable: an image is a fixed layer without dates (static: no series, trends, comparisons nor exports of
+		series), they have no pixel filters (fixed_filters: none) nor true colour (rgb), and they have no variable nor
+		sensor of the catalog (custom)."""
+		asset, band, use = self.asset_text(), self.asset_band.currentText().strip(), self.asset_use.currentData()
+		return {'custom': True, 'asset': asset, 'band': band, 'use': use, 'static': use == 'image',
+		        'fixed_filters': [], 'rgb': False, 'name': f'{asset} {band}'.strip() or 'Earth Engine data',
+		        'band_scale': self.band_scale.text().strip(), 'band_offset': self.band_offset.text().strip(),
+		        'unit': self.asset_unit.text().strip()}
+
+	def custom_changed(self):
+		"""The data of Earth Engine changed: their entry of the list Variable, and what applies to them."""
+		if not hasattr(self, 'where'):  # not built yet
+			return
+		if (self.variable.currentData() or {}).get('custom'):
+			self.variable.setItemData(0, self.custom_entry())
+			self.variable_changed()
+
+	def show_data(self):
+		"""The options of the data of Earth Engine in their themes (those of the GEE Community Catalog only in its
+		own), instead of the list Variable."""
+		data = self.data_themes.get(self.theme.currentData())
+		self.data_row.setVisible(data is not None)
+		self.community_row.setVisible(data == 'community')
+		for w in (self.variable_field, self.variable_label):
+			if w is not None:
+				w.setVisible(data is None)
+
+	def read_asset(self, asset=None):
+		"""Read in Earth Engine what the ID ASSET (default: the one written) is, with services.describe_asset in a
+		task with the project of the panel (metadata, without computing), and fill its bands, its use, the scale,
+		offset and unit of its band and what its record says."""
+		asset = assets.normalize(asset or self.asset_id.text())
+		if not asset:
+			self.message(READ_HINT, 'Warning')
+			return
+
+		def work():
+			try:
+				return services.describe_asset(asset)
+			except Exception as e:  # an unknown ID, one without access, a table...: also said under the options
+				return {'asset': asset, 'error': str(e)}
+
+		self.run_task(f'Read {asset} in Earth Engine', work, self.asset_read)
+
+	def asset_read(self, d):
+		"""Show what services.describe_asset said (D): its bands (the one of its arguments chosen, or the one written
+		if it has it), how it is used (only as a fixed image if it is an image), the scale, offset and unit of the band
+		and its title, source, licence and page; or why it could not be read. Nothing if another ID was written
+		meanwhile (its own Read applies)."""
+		if d['asset'] != self.asset_text():
+			return
+		if d.get('error'):
+			self.asset_label.setText(f"<b>{esc(d['asset'])}</b>: it could not be read: {esc(d['error'])}")
+			self.message(f"Read {d['asset']} in Earth Engine: {d['error']}", 'Critical', 15)
+			return
+		self.asset_info = d
+		typed = self.asset_band.currentText().strip()
+		if self.asset_id.text() != d['asset']:
+			self.asset_id.setText(d['asset'])
+		bands = d.get('bands') or []
+		names = [b['band'] for b in bands]
+		self.asset_band.blockSignals(True)
+		self.asset_band.clear()
+		for b in bands:
+			self.asset_band.addItem(b['band'], b)
+			tip = ' · '.join(str(x) for x in (b.get('description'), b.get('units'), b.get('resolution_m') and
+			                                  f"{b['resolution_m']:g} m", b.get('data_type')) if x)
+			self.asset_band.setItemData(self.asset_band.count() - 1, tip, Qt.ItemDataRole.ToolTipRole)
+		chosen = typed if typed in names else (d.get('arguments') or {}).get('band')
+		self.asset_band.setCurrentIndex(names.index(chosen) if chosen in names else (0 if names else -1))
+		self.asset_band.blockSignals(False)
+		image = d.get('type') == 'image'
+		self.asset_use.setCurrentIndex(max(0, self.asset_use.findData(d.get('use') or 'collection')))
+		self.asset_use.setEnabled(not image)  # an image has no dates: never a collection
+		self.asset_use.setToolTip('An image has no dates: only a fixed image (maps and their statistics)' if image
+		                          else 'As its record suggests; a collection of tiles (e.g. a DEM) is a fixed image')
+		self.band_changed()
+		self.asset_label.setText(data_summary(d))
+		self.custom_changed()
+		self.message(f"{d['asset']}: {data_use(d)} ({len(names)} band{'' if len(names) == 1 else 's'})", 'Success', 10)
+
+	def asset_edited(self):
+		"""A new ID written by hand or chosen in the GEE Community Catalog: what was read of the former one no longer
+		applies until it is read."""
+		self.asset_use.setEnabled(True)
+		self.asset_use.setToolTip('')
+		self.asset_label.setText(READ_HINT)
+
+	def band_changed(self):
+		"""The scale, offset and unit of the band chosen, as the record of its data says (services.describe_asset);
+		if it gives its unit but not in UDUNITS, the field says it."""
+		b = self.asset_band.currentData()
+		if not isinstance(b, dict):  # a band written, not read
+			return
+		self.band_scale.setText(number(b.get('band_scale')))
+		self.band_offset.setText(number(b.get('band_offset')))
+		self.asset_unit.setText(b.get('unit') or '')
+		self.asset_unit.setPlaceholderText(f"its record says {b['units']}: write it in UDUNITS" if b.get('units') and
+		                                   not b.get('unit') else 'e.g. mm, degC, kg m-2, mm day-1 or 1 (dimensionless)')
+
+	def fill_datasets(self):
+		"""The datasets of the theme of the GEE Community Catalog chosen (services.community_datasets, from the copy of
+		its index in MonitorEO: no Earth Engine), none of them chosen."""
+		self.community_records = {}
+		self.community_dataset.clear()
+		for d in services.community_datasets(theme=self.community_theme.currentData()):
+			self.community_records[d['id']] = d
+			kind = 'collection' if d['type'] == 'image_collection' else 'image'
+			self.community_dataset.addItem(f"{d['title']} ({kind})", d['id'])
+			licence = d.get('license_text') if d.get('license') == 'custom' else d.get('license')
+			self.community_dataset.setItemData(self.community_dataset.count() - 1,
+			                                   '\n'.join(x for x in (d['id'], d.get('provider'), licence and
+			                                                         f'Licence: {licence}') if x),
+			                                   Qt.ItemDataRole.ToolTipRole)
+		self.community_dataset.setCurrentIndex(-1)
+
+	def dataset_chosen(self, i):
+		"""A dataset of the GEE Community Catalog chosen: its ID and what its record says, then read in Earth Engine
+		(its bands)."""
+		asset = self.community_dataset.itemData(i)
+		if not asset:
+			return
+		rec = self.community_records.get(asset) or {}
+		self.asset_id.setText(asset)
+		self.asset_edited()
+		self.asset_label.setText(data_summary({
+			'asset': asset, 'title': rec.get('title'), 'source': 'GEE Community Catalog', 'provider': rec.get('provider'),
+			'licence': rec.get('license_text') if rec.get('license') == 'custom' else rec.get('license'),
+			'page': rec.get('docs'), 'type': rec.get('type')}, read=False))
+		self.read_asset(asset)
 
 	def quality_args(self, own=False):
 		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2). OWN: those the
@@ -780,11 +1083,21 @@ class MonitorEODock(QDockWidget):
 
 	def fill_variables(self, choose=None):
 		"""The variables of the theme chosen (all of them with «All the variables»), keeping the one chosen if it is
-		there; else CHOOSE (the start of its text) or the first one."""
+		there; else CHOOSE (the start of its text) or the first one. In the themes of the data of Earth Engine outside
+		the catalog, only the entry of those data (custom_entry), with their options instead of the list."""
 		key = self.theme.currentData()
-		current = self.variable.currentText() or choose
+		was = self.variable.currentData() or {}
+		current = (self.catalog_choice if was.get('custom') else self.variable.currentText()) or choose
 		self.variable.blockSignals(True)
 		self.variable.clear()
+		if key in self.data_themes:
+			self.catalog_choice = current  # chosen again back in a theme of the catalog
+			self.variable.addItem('Earth Engine data (by its ID)', self.custom_entry())
+			self.variable.blockSignals(False)
+			self.show_data()
+			if hasattr(self, 'where'):  # built: the options of the data
+				self.variable_changed()
+			return
 		for v in self.all_variables:
 			if key is not None and (catalog.theme_of(v['variable']) or {}).get('key') != key:
 				continue
@@ -794,6 +1107,7 @@ class MonitorEODock(QDockWidget):
 			                          Qt.ItemDataRole.ToolTipRole)
 		self.variable.setCurrentIndex(max(0, self.variable.findText(current or '', Qt.MatchFlag.MatchStartsWith)))
 		self.variable.blockSignals(False)
+		self.show_data()
 		if hasattr(self, 'where'):  # built: the options of the variable chosen
 			self.variable_changed()
 
@@ -1005,11 +1319,14 @@ class MonitorEODock(QDockWidget):
 			res['kind'] = 'series'
 			res['args'] = dict(var, region=region, step=step, metric=metric)
 			res['maps'] = result_maps('time_series', res['args'])
-			# whether its maps can also be the true colour of their images (the list Layer of its window)
-			res['rgb'] = services.has_rgb(var['variable'], var['sensor'], var['collection'])
+			# whether its maps can also be the true colour of their images (the list Layer of its window): never for
+			# the data of Earth Engine outside the catalog
+			res['rgb'] = False
+			if var.get('variable'):
+				res['rgb'] = services.has_rgb(var['variable'], var['sensor'], var['collection'])
 			self.add_result(res)
 
-		self.run_task(f"Time series of {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Time series of {data_name(var)}", work, done)
 
 	def run_comparison(self, region, var, other, step, metric, stat, tmp):
 		if step not in trends.STEPS:
@@ -1030,14 +1347,15 @@ class MonitorEODock(QDockWidget):
 			res['kind'] = 'comparison'
 			self.add_result(res)
 
-		self.run_task(f"Comparison of periods of {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Comparison of periods of {data_name(var)}", work, done)
 
 	def variable_changed(self):
 		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
 		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
 		observations with snow, without clouds and water). The filters chosen before come back with another variable.
 		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
-		series and the trends greyed out. The list Layer of the map, with the true colour only if it has one
+		series and the trends greyed out. The data of Earth Engine outside the catalog (custom_entry): no pixel filters
+		and, a fixed image, as those layers. The list Layer of the map, with the true colour only if it has one
 		(update_map_kind)."""
 		v = self.variable.currentData() or {}
 		only = v.get('metric')
@@ -1058,6 +1376,7 @@ class MonitorEODock(QDockWidget):
 			w.setEnabled(not static and self.compare_on.isChecked())
 		fixed = v.get('fixed_filters')
 		self.cloud_score.setEnabled(fixed is None)
+		self.cloud_score.setToolTip(NO_FILTERS if v.get('custom') else '')
 		if fixed is not None and self.chosen_filters is None:
 			self.chosen_filters = {k: w.isChecked() for k, w in self.filters.items()}
 		for k, w in self.filters.items():
@@ -1066,19 +1385,24 @@ class MonitorEODock(QDockWidget):
 			elif self.chosen_filters is not None:
 				w.setChecked(self.chosen_filters[k])
 			w.setEnabled(fixed is None)
-			w.setToolTip(f"Fixed filters of {v['variable']}: they cannot be changed" if fixed is not None else '')
+			w.setToolTip('' if fixed is None else NO_FILTERS if v.get('custom') else
+			             f"Fixed filters of {v['variable']}: they cannot be changed")
 		if fixed is None:
 			self.chosen_filters = None
 		self.update_map_kind()
 
 	def update_map_kind(self):
 		"""The list Layer of the group Map (the map of the variable, its true colour or both): only for the variables
-		whose images have a true colour (services.has_rgb), not for the fixed layers nor the difference of «Compare
-		with»; else it is the map of the variable, and its tooltip says why."""
+		whose images have a true colour (services.has_rgb), not for the fixed layers, the data of Earth Engine outside
+		the catalog nor the difference of «Compare with»; else it is the map of the variable, and its tooltip says
+		why."""
 		if not hasattr(self, 'map_kind'):  # not built yet
 			return
 		v = self.variable.currentData() or {}
-		if v.get('static'):
+		if v.get('custom'):
+			why = (f"{v.get('name')}: the data of Earth Engine outside the catalog have no true colour (only the "
+			       'variables of Sentinel-2 and Landsat and the cloud frequency of MODIS)')
+		elif v.get('static'):
 			why = f"{v['variable']} is a fixed layer, without dates: it has no images, nor true colour"
 		elif not v.get('rgb'):
 			why = (f"{v.get('variable')} of {v.get('sensor')} has no true colour: only the variables of Sentinel-2 and "
@@ -1124,7 +1448,7 @@ class MonitorEODock(QDockWidget):
 			res['maps'] = result_maps('trend_table', res['args'])
 			self.add_result(res)
 
-		self.run_task(f"Trends of {var['variable']} ({var['sensor']})", work, done)
+		self.run_task(f"Trends of {data_name(var)}", work, done)
 
 	def run_trend_map(self):
 		args = self.prepare()
@@ -1144,7 +1468,7 @@ class MonitorEODock(QDockWidget):
 				res['error'] = str(e)
 				return res
 
-		self.run_task(f"Trend map of {var['variable']} ({var['sensor']})", work,
+		self.run_task(f"Trend map of {data_name(var)}", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
 	def update_series_list(self):
@@ -1193,7 +1517,7 @@ class MonitorEODock(QDockWidget):
 			its true colour; if they cannot be downloaded, Earth Engine tiles (colours only)."""
 			return maps_work(kind, region, opts, folder, download, tiles)
 
-		self.run_task(f"{title} of {var['variable']} ({var['sensor']})", work, self.add_maps)
+		self.run_task(f"{title} of {data_name(var)}", work, self.add_maps)
 
 	def add_maps(self, r, name=None, rgb_name=None, group=None, zoom=True, period=None, kept=None):
 		"""Add the layers of R (see maps_work): first its true colour, then the map of the variable on top of it, both
@@ -1236,7 +1560,8 @@ class MonitorEODock(QDockWidget):
 		else:
 			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
 		bands = ', '.join(res.get('bands') or [])
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, pixels of {res['resolution']:g} m"
+		# (the data of Earth Engine outside the catalog may have no unit: none was given)
+		layer.setAbstract(f"MonitorEO: {res['name']} {unit_text(res)}, pixels of {res['resolution']:g} m"
 		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
 		                  + (f", bands {bands}" if bands else '') + f". Temporary GeoTIFF: {res['file']}"
 		                  + references_text(res))
@@ -1301,14 +1626,16 @@ class MonitorEODock(QDockWidget):
 		layer = QgsRasterLayer(bytes(uri.encodedUri()).decode(), name, 'wms')
 		if not layer.isValid():
 			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
+		# the unit of a map of values (see unit_text); that of a true colour, as it comes
+		unit = unit_text(res) if res.get('palette') else str(res.get('unit') or '')
 		if res.get('palette'):
 			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
 			           f"{', '.join('#' + c for c in res['palette'])}")
-			shown = f"from {res['min']:.4g} to {res['max']:.4g} {res['unit']}"
+			shown = f"from {res['min']:.4g} to {res['max']:.4g} {unit}"
 		else:  # a true colour
 			colours = shown = rgb_caption(res['min'], res['max'])
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. {colours}. Earth Engine tiles, valid for a few "
-		                  'hours.' + references_text(res))
+		layer.setAbstract(f"MonitorEO: {res['name']} {unit}".rstrip() + f". {colours}. Earth Engine tiles, valid for a "
+		                  'few hours.' + references_text(res))
 		if period:
 			dated(layer, *period)
 		add_layer(layer, group)
@@ -1332,8 +1659,9 @@ class MonitorEODock(QDockWidget):
 		Earth Engine tiles."""
 		a = res['args']
 		region = a['region']
-		# the same pixels as the series: its filters, season and conditions (those with dates, over its whole period)
-		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season', 'where') if k in a}
+		# the same pixels as the series: its filters, season and conditions (those with dates, over its whole period);
+		# of the data of Earth Engine outside the catalog, their ID, band, scale, offset and unit (SOURCE)
+		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season', 'where') + SOURCE if k in a}
 		folder = tempfile.mkdtemp(prefix='monitoreo_')
 		if res['kind'] == 'trends':
 			kind = 'index'
@@ -1369,7 +1697,7 @@ class MonitorEODock(QDockWidget):
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
 		time = {} if (self.variable.currentData() or {}).get('static') else \
 			{'metric': metric, 'temporal': temporal, 'interannual': inter}  # none for the fixed layers
-		self.run_task(f"Export the map of {var['variable']}",
+		self.run_task(f"Export the map of {data_name(var, sensor=False)}",
 		              lambda: services.export_image(region, resolution=res, folder=folder, **time, **var),
 		              self.follow_export)
 
@@ -1380,7 +1708,7 @@ class MonitorEODock(QDockWidget):
 		region, var = args
 		folder = self.folder.text().strip() or 'MonitorEO'
 		step, metric, stat = self.step.currentData(), self.ts_metric.currentData(), self.stat.currentData()
-		self.run_task(f"Export the series of {var['variable']}",
+		self.run_task(f"Export the series of {data_name(var, sensor=False)}",
 		              lambda: services.time_series_to_drive(region, step=step, metric=metric, stat=stat, folder=folder,
 		                                                    **var), self.follow_export)
 

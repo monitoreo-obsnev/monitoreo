@@ -6,8 +6,8 @@
 \usage{
 mo_download_comparison(
   region,
-  variable,
-  sensor,
+  variable = NULL,
+  sensor = NULL,
   start,
   end,
   other_start,
@@ -20,7 +20,12 @@ mo_download_comparison(
   resolution = NULL,
   crs = "auto",
   collection = NULL,
-  where = NULL
+  where = NULL,
+  image = NULL,
+  band = NULL,
+  band_scale = NULL,
+  band_offset = NULL,
+  unit = NULL
 )
 }
 \arguments{
@@ -28,14 +33,17 @@ mo_download_comparison(
 \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
 \link{regions}). Several features give a result per feature.}
 
-\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
+\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
+take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
+\code{image}, with \code{band} (see \code{mo_asset()}).}
 
 \item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
+or \code{image} instead of \code{variable}.}
 
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}), which only have maps and their
-statistics.}
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+which only have maps and their statistics.}
 
 \item{other_start, other_end}{first and last day of the other period.}
 
@@ -49,22 +57,43 @@ statistics.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
-\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed).}
+\item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
 \item{resolution}{pixel size in metres (default: that of the data).}
 
 \item{crs}{\code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.}
 
-\item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
-\code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
+\item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
+e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
+\code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
+Engine data catalog, of the GEE Community Catalog, \code{mo_community()}, or of a project that your account can
+read), e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"}, with \code{band}: aggregated in time like the variables of the
+catalog, with time series, trends and comparisons. \code{mo_asset()} says whether an ID is a collection or an
+image, and its bands.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
-each a variable (and sensor) between \code{min} and \code{max}, aggregated over the period of the result (or its
-own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
+each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
+result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
 \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+
+\item{image}{without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
+mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
+their statistics and GeoTIFFs, but no time series, trends or comparisons.}
+
+\item{band}{the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).}
+
+\item{band_scale, band_offset}{factor and offset of the stored values of \code{band}: the values are
+value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
+e.g. \code{band_scale = 0.1}.}
+
+\item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
+UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
 A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
@@ -72,7 +101,8 @@ A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, 
 }
 \description{
 A GeoTIFF with the bands difference (other - reference), reference and other, with its references in its metadata.
-For small regions.
+For small regions. Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by its
+ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,

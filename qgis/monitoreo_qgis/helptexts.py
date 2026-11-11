@@ -1,7 +1,8 @@
 """Help of the options of the MonitorEO panel, shown by their buttons ⓘ: short texts in English (rich text of Qt),
 each ending with a link to the section of the manual (the English pages of the wiki of the repository) that explains
 it. The help of the variable and of the pixel filters also describes the variable chosen (variable_help,
-filters_help), with the references of its formula and of its data (monitoreo.references), with their DOIs."""
+filters_help), with the references of its formula and of its data (monitoreo.references), with their DOIs; that of
+the data of Earth Engine given by their ID, what services.describe_asset read of them (data_help, data_summary)."""
 
 from . import deps
 
@@ -13,12 +14,16 @@ FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols'
 MEASURED = {'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 
 
+def esc(text):
+	"""TEXT for the rich text of Qt."""
+	return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
 def cite_html(refs, credits=(), title='References'):
 	"""The references REFS (dictionaries of monitoreo.references) and the credits of the data as rich text, with the
 	links of their DOIs."""
 	if not refs:
 		return ''
-	esc = lambda t: str(t).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 	link = lambda url: f' <a href="{esc(url)}">{esc(url)}</a>' if url else ''
 	items = ''.join(f"<li>{esc(r['citation'])}{link(r.get('url'))}</li>" for r in refs)
 	return f'<p><b>{title}</b></p><ul>{items}</ul>' + (f"<p>{esc(' · '.join(credits))}</p>" if credits else '')
@@ -34,6 +39,12 @@ def manual(page):
 	"""Link to PAGE of the wiki (an English page, with the anchor of its section: 'Concepts#regions')."""
 	return f'<p><a href="{about.MANUAL}/{page}">More in the manual</a></p>'
 
+
+# The bands with classes or bit flags, in the words of the panel: the note of services.describe_asset on them names the
+# metric mode, which the panel does not offer (dock.METRICS). One text for the help of Band and for that of the data
+# read (data_help).
+CLASSES = ('Bands with classes or bit flags (land cover, quality) are codes, not quantities: their mean or median mean '
+           'nothing; use the <b>Minimum</b> or the <b>Maximum</b>.')
 
 HELP = {
 	'project':
@@ -136,7 +147,79 @@ HELP = {
 		'<b>All the variables</b> lists every one.</p>'
 		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
 		'<b>Burn severity of a fire</b>, in <b>Fire</b>.</p>'
+		'<p>Two more themes compute data of Earth Engine outside the catalog of MonitorEO, instead of a variable: '
+		'<b>Earth Engine data (by its ID)</b>, any image or collection of images of Earth Engine given by its ID, and '
+		'<b>GEE Community Catalog</b>, the datasets of the '
+		'<a href="https://gee-community-catalog.org">GEE Community Catalog</a> chosen by its themes. A collection of '
+		'images with dates has maps, time series, trends and comparisons; a fixed image, only maps.</p>'
 		+ manual('Concepts#variables'),
+	'community_theme':
+		'<p>The themes of the <a href="https://gee-community-catalog.org">GEE Community Catalog</a>: datasets shared by '
+		'the community of Earth Engine as public assets (<code>projects/sat-io/open-datasets/...</code> and others), '
+		'of population, elevation, soils, land cover, hydrology, vegetation, climate, fires... Each theme tells how '
+		'many images and collections of images it has.</p>'
+		'<p>MonitorEO keeps a copy of its index, so these lists need neither Earth Engine nor the internet. Its tables '
+		'are not there: MonitorEO computes images.</p>'
+		+ manual('QGIS-plugin#gee-community-catalog'),
+	'community_dataset':
+		'<p>The datasets of the theme by their title, each one an <i>image</i> or a <i>collection</i> of images (its '
+		'tooltip gives its ID, provider and licence). Choosing one writes its ID in <b>Earth Engine ID</b> and reads it '
+		'in Earth Engine (its bands).</p>'
+		'<p>The index of the community catalog has no units, scale or offset of the bands: read them in the page of '
+		'the dataset (the link under the options), which also says how to cite it, and write them in <b>Band '
+		'scale</b>, <b>Band offset</b> and <b>Unit (UDUNITS)</b>.</p>'
+		+ manual('Concepts#gee-community-catalog'),
+	'asset':
+		'<p>The ID of any image or collection of images of Earth Engine: the text between the quotes of '
+		'<code>ee.Image(\'...\')</code> or <code>ee.ImageCollection(\'...\')</code> in the page of the dataset, e.g. '
+		'<code>IDAHO_EPSCOR/TERRACLIMATE</code> (in the '
+		'<a href="https://developers.google.com/earth-engine/datasets">Earth Engine data catalog</a>), '
+		'<code>projects/sat-io/open-datasets/FABDEM</code> (in the GEE Community Catalog) or an asset of your project. '
+		'Private assets need your own account (your project in <b>Project</b>), or to be shared with it.</p>'
+		'<p><b>Read</b> reads in Earth Engine what it is (an image or a collection of images) and its bands and, for '
+		'the Earth Engine data catalog, the units, scale and offset of each band, its licence and how to cite it. It '
+		'reads metadata, without computing.</p>'
+		'<p>It is computed like a variable over the region, with the period, the season, the metrics and the '
+		'conditions of <b>Only the pixels where</b>, but without the pixel filters of MonitorEO (clouds, water, snow, '
+		'aerosols) nor true colour: these data keep only their own mask. The results are named by the ID and the band, '
+		'have the unit given and cite the dataset as its record says.</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'asset_band':
+		'<p>The band that is computed (one). <b>Read</b> lists them, with their description, unit and pixel size in '
+		'their tooltips; you can also write it. Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
+		'<b>Unit (UDUNITS)</b> as its record says.</p>'
+		f'<p>{CLASSES}</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'asset_use':
+		'<ul><li><b>Images with dates (collection)</b>: a collection of images over time (e.g. the monthly '
+		'TerraClimate), aggregated in time like the variables of MonitorEO: maps of a period, time series, trends and '
+		'comparisons of periods.</li>'
+		'<li><b>Fixed image (image)</b>: an image without dates (e.g. WorldClim, a land cover map), or the mosaic of a '
+		'collection of tiles (e.g. a DEM): like the elevation, only its map and its export; the period, the metrics, '
+		'the time series and the trends do not apply.</li></ul>'
+		'<p><b>Read</b> chooses what its record suggests; an image can only be a fixed image.</p>'
+		+ manual('Concepts#earth-engine-data-by-its-id'),
+	'band_scale':
+		'<p>Many datasets store their values as integers with a factor: the value is the stored one times the '
+		'<b>Band scale</b>, plus the <b>Band offset</b> (e.g. 0.0001 for the NDVI of MODIS, 0.1 for temperatures '
+		'stored in tenths of a degree). Empty: 1, the values as stored.</p>'
+		'<p><b>Read</b> fills it from the record of the Earth Engine data catalog; for other data, read it in the page '
+		'of the dataset.</p>'
+		+ manual('Concepts#earth-engine-data-by-its-id'),
+	'band_offset':
+		'<p>What is added to the values after the <b>Band scale</b> (e.g. -273.15 to turn kelvin into degrees Celsius, '
+		'with the unit <code>degC</code>). Empty: 0.</p>'
+		'<p><b>Read</b> fills it from the record of the Earth Engine data catalog, if it has one.</p>'
+		+ manual('Concepts#earth-engine-data-by-its-id'),
+	'asset_unit':
+		'<p>The unit of the values, after the scale and the offset, written in '
+		'<a href="https://docs.unidata.ucar.edu/udunits/current/">UDUNITS</a> (the units of the CF conventions): '
+		'<code>mm</code>, <code>degC</code>, <code>K</code>, <code>kg m-2</code>, <code>mm day-1</code>, '
+		'<code>W m-2</code>, or <code>1</code> if dimensionless. It goes to the CSV, the README and the GeoTIFF of the '
+		'results; empty, they say that no unit was given.</p>'
+		'<p><b>Read</b> fills it when the record of the Earth Engine data catalog gives it in a unit that MonitorEO '
+		'knows; otherwise the empty field shows what the record says.</p>'
+		+ manual('Concepts#earth-engine-data-by-its-id'),
 	'where':
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
 		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, and <b>SLOPE · '
@@ -234,8 +317,8 @@ HELP = {
 		'variable is lowest or highest on each pixel.</li>'
 		'<li><b>Both</b>: the true colour and, on top of it, the index, on the same pixels.</li></ul>'
 		'<p>Only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have a true colour: not the '
-		'fixed layers, the climate, the other products of MODIS (their NDVI and EVI have no green band) nor the '
-		'difference of <b>Compare with</b>.</p>'
+		'fixed layers, the climate, the other products of MODIS (their NDVI and EVI have no green band), the data of '
+		'Earth Engine given by their ID nor the difference of <b>Compare with</b>.</p>'
 		+ manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
@@ -308,8 +391,93 @@ def filter_lines(v, d):
 	return out
 
 
-def variable_help(v):
-	"""Help of the variable: the general text and the variable V chosen."""
+def data_use(d):
+	"""How the panel can use the data D read (services.describe_asset), in the words of its list Use as (the 'how' of
+	describe_asset gives the arguments of the services instead): an image, only as a fixed image; a collection with
+	dates, as images with dates or as the mosaic of its images; a collection without dates (tiles), as their mosaic."""
+	if d.get('type') == 'image':
+		return 'an image: use it as Fixed image (image), only its maps and their statistics'
+	if d.get('use') == 'collection':
+		return ('a collection of images with dates: use it as Images with dates (collection), with maps, time series, '
+		        'trends and comparisons, or as Fixed image (image), the mosaic of its images')
+	return 'a collection of images without dates (tiles): use it as Fixed image (image), the mosaic of its tiles'
+
+
+def data_summary(d, read=True):
+	"""What the panel says under the options of the data of Earth Engine D (services.describe_asset; without READ,
+	the record of a dataset of the GEE Community Catalog not read yet): its title, source, provider, licence and page,
+	its dates and how it is used (data_use)."""
+	parts = [x for x in (d.get('source'), d.get('provider'), d.get('licence') and f"licence {d['licence']}") if x]
+	line = f"<b>{esc(d.get('title') or d.get('asset') or '')}</b>" + ''.join(f' · {esc(x)}' for x in parts)
+	if d.get('page'):
+		line += f""" · <a href="{esc(d['page'])}">its page</a>"""
+	lines = [line]
+	dates = d.get('dates') or [None, None]
+	if dates[0]:
+		lines.append(f"Dates: {esc(dates[0])} to {esc(dates[1])}" if dates[1] else f"Dates: from {esc(dates[0])}")
+		if d.get('cadence'):
+			lines[-1] += f", every {esc(d['cadence'])}"
+	if not read:
+		lines.append('Reading its bands in Earth Engine…')
+	elif d.get('type'):
+		use = data_use(d)
+		lines.append(esc(use[:1].upper() + use[1:]) + '.')
+	return '<br>'.join(lines)
+
+
+def band_lines(b):
+	"""What the record of the data says of the band B (one of the bands of services.describe_asset)."""
+	lines = []
+	what = [b.get('description'), b.get('units') and f"unit in its record: {b['units']}",
+	        b.get('resolution_m') and f"pixel of {b['resolution_m']:g} m", b.get('data_type')]
+	if any(what):
+		lines.append(f"Band {esc(b['band'])}: " + '; '.join(esc(x) for x in what if x) + '.')
+	classes = b.get('classes') or {}
+	if classes:
+		shown = '; '.join(f'{esc(k)} {esc(v)}' for k, v in list(classes.items())[:12])
+		lines.append(f"Classes: {shown}" + ('; and more.' if len(classes) > 12 else '.'))
+	return lines
+
+
+def data_help(v, info=None):
+	"""Help of the data of Earth Engine given by their ID: with V the entry of those data in the list Variable of the
+	panel (dock.custom_entry), what is chosen and, once read (INFO: what services.describe_asset said of it), what its
+	record says of it and of its band, its notes and how to cite it; then the general text. With a variable of the
+	catalog, the general text."""
+	v = v or {}
+	if not v.get('custom') or not v.get('asset'):
+		return HELP['asset']
+	band = v.get('band')
+	use = 'images with dates (collection)' if v.get('use') == 'collection' else 'a fixed image (image)'
+	lines = [f"<b>{esc(v['asset'])}</b>" + (f", band <b>{esc(band)}</b>" if band else ', no band chosen') +
+	         f", as {use}.",
+	         f"Values: stored × {esc(v.get('band_scale') or '1')} + {esc(v.get('band_offset') or '0')}; unit: "
+	         f"{esc(v.get('unit') or 'not given')}. No pixel filters: these data keep only their own mask."]
+	if v.get('static'):
+		lines.append('<b>A fixed image, without dates</b>: only its map (Map and Export to Google Drive); the period, '
+		             'the metrics, the time series and the trends do not apply.')
+	refs, credits = (), ()
+	if info:
+		lines.append(data_summary(info))
+		for b in info.get('bands') or []:
+			if b.get('band') == band:
+				lines += band_lines(b)
+		# its notes, but that on the bands with classes in the words of the panel (CLASSES): describe_asset names the
+		# metric mode, which the panel does not offer
+		coded = any(b.get('classes') or b.get('bitmask') for b in info.get('bands') or [])
+		lines += [esc(n) for n in info.get('notes') or [] if 'classes' not in n.lower()] + ([CLASSES] if coded else [])
+		refs, credits = info.get('references') or (), info.get('credits') or ()
+	else:
+		lines.append('Press <b>Read</b> to see what it is, its bands and how to cite it.')
+	return ''.join(f'<p>{line}</p>' for line in lines) + \
+		cite_html(refs, credits, 'References of its data (cite them with its results)') + HELP['asset']
+
+
+def variable_help(v, info=None):
+	"""Help of the variable: the general text and the variable V chosen (the data of Earth Engine given by their ID:
+	data_help, with INFO, what services.describe_asset said of them)."""
+	if (v or {}).get('custom'):
+		return data_help(v, info)
 	d = describe(v)
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
@@ -326,6 +494,12 @@ def variable_help(v):
 
 
 def filters_help(v):
-	"""Help of the pixel filters, with those of the variable V chosen."""
+	"""Help of the pixel filters, with those of the variable V chosen (none for the data of Earth Engine given by
+	their ID)."""
+	if (v or {}).get('custom'):
+		return HELP['filters'] + (f"<p>{esc(v.get('name') or 'These data')}: the data of Earth Engine outside the "
+		                          'catalog keep only their own mask (e.g. that of their missing values); the pixel '
+		                          'filters are for the variables of the catalog.</p>') + \
+			manual('Concepts#earth-engine-data-by-its-id')
 	lines = filter_lines(v, describe(v))
 	return HELP['filters'] + ''.join(f'<p>{line}</p>' for line in lines) + manual('Concepts#per-pixel-filters')

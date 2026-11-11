@@ -88,12 +88,16 @@ def test_references_of_the_conditions():
 	assert 'TerraClimate' in text or 'Abatzoglou' in text
 
 
+TOOLS = ['time_series', 'map_layer', 'rgb_map', 'region_stats', 'export_image_to_drive', 'export_time_series_to_drive',
+         'download_image', 'download_rgb', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
+         'compare_map', 'download_comparison', 'burn_severity']  # the tools of the MCP server with a region
+CATALOG_ONLY = ('rgb_map', 'download_rgb', 'burn_severity')  # the true colour and the burn severity
+FIXED = ('map_layer', 'region_stats', 'download_image', 'export_image_to_drive')  # those that compute an image
+
+
 def test_every_tool_with_a_region_takes_where():
 	from monitoreo import mcp_server
-	tools = ['time_series', 'map_layer', 'rgb_map', 'region_stats', 'export_image_to_drive', 'export_time_series_to_drive',
-	         'download_image', 'download_rgb', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
-	         'compare_map', 'download_comparison', 'burn_severity']
-	for name in tools:
+	for name in TOOLS:
 		fn = getattr(mcp_server, name)
 		assert 'where' in inspect.signature(fn).parameters, name
 		assert 'where: only the pixels' in fn.__doc__, name
@@ -101,3 +105,25 @@ def test_every_tool_with_a_region_takes_where():
 	assert 'every tool with a region takes where' in mcp_server.INSTRUCTIONS.lower()
 	parser_help = cli.WHERE_HELP
 	assert 'ELEVATION' in parser_help
+
+
+def test_every_tool_with_a_region_takes_data_by_its_id():
+	"""Every tool with a region but those of the variables of the catalog only (true colour, burn severity) takes, instead
+	of variable and sensor, any data of Earth Engine by its ID (collection or image, band, band_scale, band_offset,
+	unit; terrain where it computes an image), with its explanation for the model (tests/test_assets_tools.py: the
+	calls and the command line)."""
+	from monitoreo import mcp_server
+	data = {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit'}
+	for name in TOOLS:
+		fn = getattr(mcp_server, name)
+		params = inspect.signature(fn).parameters
+		if name in CATALOG_ONLY:
+			assert not (data - {'collection'}) & set(params) and 'terrain' not in params, name
+			assert name == 'burn_severity' or params['variable'].default is inspect.Parameter.empty, name
+			continue
+		assert data <= set(params), name
+		assert params['variable'].default is None and params['sensor'].default is None, name
+		assert ('terrain' in params) == (name in FIXED), name
+		assert mcp_server.SOURCE_DOC.strip() in fn.__doc__, name
+		assert (mcp_server.TERRAIN_DOC.strip() in fn.__doc__) == (name in FIXED), name
+		assert 'Required: region' in ' '.join(fn.__doc__.split()), name
