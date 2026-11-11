@@ -78,6 +78,31 @@ def _pip(*args):
 	                '--quiet', *args], check=True, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
 
 
+def missing(extras=''):
+	"""The dependencies of the installed monitoreo (and of its EXTRAS, e.g. 'assistant') that are not installed: a
+	version installed by a program with other extras (the MCP server, 'mcp,plot', updates the package that the
+	assistant shares) lacks those of the assistant until they are installed."""
+	try:
+		requires = importlib.metadata.distribution('monitoreo').requires or []
+	except importlib.metadata.PackageNotFoundError:
+		return []
+	wanted = {e.strip().lower() for e in str(extras or '').split(',') if e.strip()}
+	out = []
+	for req in requires:
+		spec, _, marker = req.partition(';')
+		extra = re.search(r'extra\s*==\s*[\'"]([^\'"]+)[\'"]', marker)
+		if (extra and extra.group(1).lower() not in wanted) or (marker.strip() and not extra):
+			continue
+		name = re.match(r'\s*([A-Za-z0-9._-]+)', spec)
+		if not name:
+			continue
+		try:
+			importlib.metadata.distribution(name.group(1))
+		except importlib.metadata.PackageNotFoundError:
+			out.append(name.group(1))
+	return list(dict.fromkeys(out))
+
+
 def ensure_latest(extras='', log=_stderr, installing=None):
 	"""Install the last version of GitHub if the installed one is another, with the dependencies of EXTRAS (e.g.
 	'mcp,plot'), calling INSTALLING() before (it takes some minutes). Returns 'updated' (the new version is used by
@@ -96,6 +121,13 @@ def ensure_latest(extras='', log=_stderr, installing=None):
 		return 'local'
 	if inst and inst[1] == sha:
 		log(f'monitoreo {inst[0]} ({sha[:7]}): the last version of GitHub')
+		lacking = missing(extras)
+		if lacking:  # installed by another program with other extras, or without PyPI then: those it lacks
+			log(f"monitoreo: installing what it needs and is missing: {', '.join(lacking)}...")
+			try:
+				_pip(requirement(sha, extras))
+			except (OSError, subprocess.CalledProcessError) as e:
+				log(f"monitoreo: cannot install {', '.join(lacking)} ({e})")
 		return 'current'
 	log(f'monitoreo: installing the last version of GitHub ({REPO}, {sha[:7]})...')
 	if installing:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monitoreo"
-version = "0.3.33"
+version = "0.3.34"
 description = "MonitorEO-OBSNEV: open monitoring tool of Essential Biodiversity Variables based on satellite sensors (University of Granada), for Python, QGIS, R and language models (MCP)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -20,9 +20,9 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.10"]
 plot = ["matplotlib"]
-assistant = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview"]
+assistant = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf"]
 test = ["pytest"]
-all = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pytest"]
+all = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf", "pytest"]
 
 [project.scripts]
 monitoreo = "monitoreo.cli:main"

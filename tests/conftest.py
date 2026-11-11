@@ -1,16 +1,17 @@
-"""Fixtures of every test: no test reads the study areas that the developer added to their own assistant
-(~/MonitorEO/capas), which would change the instructions of the model and break the tests that compare them; and no
-test reads the STAC records of the Earth Engine data catalog on the internet (monitoreo.assets): those a test needs,
-it gives them."""
+"""Fixtures of every test: no test reads the study areas nor the documents that the developer added to their own
+assistant (~/MonitorEO/capas, ~/MonitorEO/documentos), which would change the instructions or the conversation of the
+model and break the tests that compare them; and no test reads the STAC records of the Earth Engine data catalog on
+the internet (monitoreo.assets): those a test needs, it gives them."""
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def empty_layers(tmp_path, monkeypatch):
-	"""The study areas of the assistant in an empty folder of the test, not in ~/MonitorEO/capas."""
+	"""The study areas and the documents of the assistant in empty folders of the test, not in ~/MonitorEO."""
 	from monitoreo import assistant
 	monkeypatch.setattr(assistant, 'LAYERS', str(tmp_path / 'capas'))
+	monkeypatch.setattr(assistant, 'DOCUMENTS', str(tmp_path / 'documentos'))
 
 
 @pytest.fixture(autouse=True)

@@ -97,6 +97,11 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 - **All tools**: Any image or collection of images of Earth Engine by its ID (e.g. `IDAHO_EPSCOR/TERRACLIMATE`, band `pr`), besides the variables of the catalog: a collection with dates has maps, statistics, time series, trends and comparisons; an image (or a collection of tiles, e.g. a DEM) has maps, their statistics and GeoTIFFs. Give its band, and optionally the scale and offset of its values and its unit (in UDUNITS); MonitorEO reads its type, bands, units and citation from Earth Engine and the Earth Engine data catalog, and cites it in every result. In the QGIS plugin and the Earth Engine app, the theme "Earth Engine data (by its ID)"; in Python, `collection=` or `image=` with `band=` and `describe_asset`; in R, the same arguments and `mo_asset`; in the command line, `--collection`/`--image` with `--band`, and `monitoreo asset`.
 - **All tools**: The datasets of the GEE Community Catalog (gee-community-catalog.org) by its themes: its 1,068 public images and collections of images, to compute like any data of Earth Engine. In the QGIS plugin and the Earth Engine app, the theme "GEE Community Catalog"; in Python, `community_themes` and `community_datasets`; in R, `mo_community_themes` and `mo_community`; in the command line, `monitoreo community`.
 
+### [v0.3.24](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.24) · 2026-11-11 · package 0.3.34
+
+- **Assistant**: Upload documents that explain your question (**Upload documents**, or drag them onto the page): reports to replicate, tables of your study areas or notes, in PDF, Word, OpenDocument, Excel, CSV, TSV, text or Markdown, 10 MB in all; the language model reads their text and says which document it takes each choice from.
+- **Assistant** (fix): The empty label «Study areas:» no longer shows under the header when there are no study areas.
+
 ### [v0.3.23](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.23) · 2026-11-11 · package 0.3.33
 
 - **QGIS plugin, Assistant, MCP server, Python package, R package** (fix): The colours of the true colour (RGB) maps are stretched exactly as in the Earth Engine app, so that both show the same colours.

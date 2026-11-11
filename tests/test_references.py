@@ -221,7 +221,7 @@ def test_zenodo_metadata():
 	assert about.DESCRIPTION['en'] in z['description'] and about.ACKNOWLEDGEMENTS['en'] in z['description']
 	names = [c['name'] for c in z['contributors']]
 	plain = lambda n: unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode().lower()
-	assert names == sorted(names, key=plain) and len(names) == 5
+	assert names == sorted(names, key=plain) and len(names) == 6
 	assert all(c['type'] == 'ProjectMember' and re.fullmatch(r'[^,]+, [^,]+', c['name']) for c in z['contributors'])
 	for c in z['contributors']:  # every one with their ORCID, with its ISO 7064 11,2 check digit
 		assert re.fullmatch(r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]', c.get('orcid', '')), f"{c['name']} has no ORCID"
