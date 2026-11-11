@@ -563,9 +563,13 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 
 def themes(lang='en'):
 	"""The themes of the menus of the tools (see catalog.THEMES): [{key, name, variables (their codes), analyses (those
-	of the theme besides maps, series, trends, comparisons and exports)}], in LANG ('en' or 'es')."""
+	of the theme besides maps, series, trends, comparisons and exports)}], in LANG ('en' or 'es'); then those of the
+	data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with 'data': 'earth_engine' (any image or
+	collection by its ID, see describe_asset) or 'community' (the GEE Community Catalog, see community_datasets)."""
 	return [{'key': t['key'], 'name': t.get(lang) or t['en'], 'variables': list(t['indices']),
-	         'analyses': list(t.get('analyses') or [])} for t in catalog.THEMES]
+	         'analyses': list(t.get('analyses') or [])} for t in catalog.THEMES] + \
+		[{'key': t['key'], 'name': t.get(lang) or t['en'], 'variables': [], 'analyses': [], 'data': t['key']}
+		 for t in catalog.OTHER_THEMES]
 
 
 def _theme(theme):
@@ -573,6 +577,9 @@ def _theme(theme):
 	for t in catalog.THEMES:
 		if low in (t['key'], t['en'].lower(), t['es'].lower()):
 			return t
+	for t in catalog.OTHER_THEMES:
+		if low in (t['key'], t['en'].lower(), t['es'].lower()):
+			raise ValueError(f"{t['en']} has no variables of the catalog: {t['help']}")
 	raise ValueError(f"unknown theme {theme}: use {', '.join(t['key'] for t in catalog.THEMES)}")
 
 
@@ -603,6 +610,39 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	return out
 
 
+# Data of Earth Engine outside the catalog --------------------------------------------------------------------------
+
+def describe_asset(asset):
+	"""Everything about an image or a collection of images of Earth Engine given by its ID (ASSET, e.g.
+	'IDAHO_EPSCOR/TERRACLIMATE' or 'projects/sat-io/open-datasets/FABDEM'), to compute it with the tools instead of a
+	variable of the catalog: {'asset', 'type' (image or image_collection), 'use' (the argument that takes it: collection
+	or image), 'how', 'title', 'source', 'page', 'provider', 'licence', 'dates', 'bands': [{'band', 'description',
+	'units', 'unit' (in UDUNITS), 'band_scale', 'band_offset', 'resolution_m', 'classes'}], 'arguments' (to compute its
+	first band, e.g. {'collection': ..., 'band': ..., 'band_scale': ..., 'unit': ...}), 'notes', 'references',
+	'credits'}. It reads the metadata of the asset in Earth Engine (without computing) and, for the Earth Engine data
+	catalog, its STAC record (see monitoreo.assets)."""
+	from . import assets
+	return assets.describe(asset)
+
+
+def community_themes(lang='en'):
+	"""The themes of the GEE Community Catalog with images or collections of images: [{'theme' (its name in the
+	catalog), 'name' (in LANG, 'en' or 'es'), 'datasets' (how many)}] (see monitoreo.community)."""
+	from . import community
+	return community.themes(lang)
+
+
+def community_datasets(theme=None, text=None, kind=None, limit=None):
+	"""The images and collections of images of the GEE Community Catalog (https://gee-community-catalog.org), from the
+	copy of its index in MonitorEO: [{'id' (the ID of its Earth Engine asset, for collection or image), 'title',
+	'type' (image or image_collection), 'theme', 'provider', 'license', 'tags', 'docs' (its page, with its bands and
+	how to cite it)}], of one THEME (see community_themes; its name in English or Spanish), with TEXT in their title,
+	ID, provider or tags, of one KIND ('image' or 'image_collection'), at most LIMIT. describe_asset gives the bands of
+	one; then compute it with collection= or image= and band=."""
+	from . import community
+	return community.datasets(theme, text, kind, limit)
+
+
 def find_protected_areas(text, limit=20, designation=None):
 	"""Protected areas of WDPA whose name contains TEXT: [{SITE_ID (WDPA ID), NAME, DESIG, IUCN_CAT, ISO3, REP_AREA, ...}];
 	with DESIGNATION 'ramsar', only the Ramsar sites (Wetlands of International Importance)."""
@@ -621,11 +661,15 @@ def find_admin_units(text, level=1, country=None, limit=20):
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',
               season=None, quality=None, collection=None, band=None, image=None, ref=None, band_scale=None,
-              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False):
+              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False, unit=None):
 	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
 	variables that compare two periods, RBR, for burn_severity). WHERE: the pixels of the study area to keep, a list of
 	conditions on variables (see variable.where_specs), e.g. [{'variable': 'ELEVATION', 'sensor': 'Copernicus',
-	'min': 1500}]; every tool that takes a region takes it."""
+	'min': 1500}]; every tool that takes a region takes it.
+	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see monitoreo.assets and describe_asset):
+	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND and
+	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC') and,
+	for an image, TERRAIN ('slope' or 'aspect' of the band, in degrees)."""
 	var = {'metric': metric, 'temporal': temporal, 'interannual': interannual, 'season': season,
 	       'quality': quality or {}, 'exclude_landcover': exclude_landcover, 'where': where}
 	if start or end:
@@ -643,6 +687,8 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 		var['scale'] = band_scale
 	if band_offset is not None:
 		var['offset'] = band_offset
+	if unit is not None and str(unit).strip() != '':
+		var['unit'] = unit
 	var = {k: v for k, v in var.items() if v is not None}
 	return variable_specs(var, two_periods)[0]
 
@@ -671,16 +717,29 @@ def _named(spec, metric):
 
 
 def _unit(spec):
-	"""The unit of the values of SPEC (that of the catalog, or a total for the sums: see catalog.unit_of)."""
-	return catalog.unit_of(variables.entry_of(spec)['unit'], spec.get('metric')) if variables.kind(spec) == 'catalog' \
-		else ''
+	"""The unit of the values of SPEC (that of the catalog, or a total for the sums: see catalog.unit_of; for the data
+	of Earth Engine outside the catalog, the unit given, in UDUNITS, see catalog.custom_unit; '' if none was given)."""
+	if variables.kind(spec) == 'catalog':
+		return catalog.unit_of(variables.entry_of(spec)['unit'], spec.get('metric'))
+	return catalog.unit_of(catalog.custom_unit(spec.get('unit')), spec.get('metric'))
+
+
+def _source_name(variable, source):
+	"""What a table says of the variable of a result: the variable of the catalog, or the ID and band of the data of
+	Earth Engine (e.g. 'IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	if variable:
+		return variable
+	asset = source.get('collection') or source.get('image')
+	return f"{asset} {source.get('band') or ''}".strip() if asset else ''
 
 
 def _ylabel(spec):
 	"""Title of the y axis of the charts of SPEC: the unit, after the axis title of the catalog if it has one (e.g.
 	'Snow Cover Frequency (SCF) [%]')."""
 	unit = _unit(spec)
-	axis = variables.entry_of(spec).get('axis') if variables.kind(spec) == 'catalog' else None
+	if variables.kind(spec) != 'catalog':  # in UDUNITS, without brackets: shown as those of the catalog
+		return f'[{unit}]' if unit and not unit.startswith('[') else unit
+	axis = variables.entry_of(spec).get('axis')
 	return f'{axis} {unit}'.strip() if axis else unit
 
 
@@ -706,7 +765,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec),
 	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
-		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
 		out['csv'] = timeseries.write_csv(rows, csv, meta)
 	if chart and rows:
@@ -774,7 +833,8 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, None, source)
 	entry = variable_entry(spec)
-	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick)
+	# the data of Earth Engine outside the catalog have no range in it: always from the map
+	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick or entry is None)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:
@@ -897,6 +957,12 @@ def _grid(regions, res, crs):
 
 
 def _file_stem(variable, sensor, metric, start, end, source):
+	if not variable and (source.get('collection') or source.get('image')):  # data of Earth Engine: the end of the ID
+		asset = str(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
+		what = '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
+		if source.get('image'):  # a fixed image: no metric nor period
+			return what
+		return f'{what}_{metric}_{start}_{end}'
 	try:
 		static = bool(variable) and bool(catalog.find(variable, sensor, source.get('collection'), source.get('ref'))
 		                                 .get('static'))
@@ -904,7 +970,7 @@ def _file_stem(variable, sensor, metric, start, end, source):
 		static = False
 	if static:  # a fixed layer (elevation, slope): no metric nor period
 		return f'{variable}_{sensor}'
-	return f"{variable or source.get('collection') or source.get('image')}_{sensor or ''}_{metric}_{start}_{end}"
+	return f"{variable}_{sensor or ''}_{metric}_{start}_{end}"
 
 
 @_cited
@@ -1067,7 +1133,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
 	       'ylabel': _ylabel(spec), 'title': title}
 	if csv:
-		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit),
 		        'slope_unit': catalog.udunits(unit, per_year=True),
 		        'scale_m': used}
@@ -1111,6 +1177,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	                                                quality, alpha, None, source)
 	band = img.select(output)
 	vis = trends.vis(output)
+	quick = quick and variable_entry(spec) is not None  # the data outside the catalog have no range in it
 	if quick and (vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None))):
 		entry = variable_entry(spec) or {}
 		span = entry.get('maxp', 1) - entry.get('minp', 0) if all(
@@ -1196,7 +1263,7 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	       'ylabel': _ylabel(ref), 'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']},
 	       'names': names}
 	if csv:
-		meta = {'variable': variable or source.get('collection') or source.get('image'), 'sensor': sensor or '',
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'reference_period': '/'.join(ref['period']), 'other_period': '/'.join(oth['period']), 'step': step,
 		        'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': scale}
 		out['csv'] = timeseries.write_csv(profile, csv, meta, COMPARISON_COLUMNS)

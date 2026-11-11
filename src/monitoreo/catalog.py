@@ -258,20 +258,37 @@ UDUNITS = {
 
 RGB_UNIT = '[unitless]'  # the true colour of the images: surface reflectance (see sensors.RGB)
 
+# A unit written in UDUNITS (that of the data of Earth Engine outside the catalog, given by the user: 'mm', 'degC',
+# 'kg m-2', 'mm day-1', 'W m-2', '1'): letters, digits, spaces and . ^ ( ) * / % + -
+UDUNITS_TEXT = re.compile(r'[A-Za-z0-9 ._^()*/%+-]+')
+
 _catalog = None
+
+
+def custom_unit(unit):
+	"""The unit of the data of Earth Engine outside the catalog, whose unit UNIT is in UDUNITS ('mm', '1'), as the
+	results give it: in UDUNITS, without the brackets of the units of the catalog ('mm'; '[unitless]' if
+	dimensionless, as in the catalog), so that udunits keeps it."""
+	unit = str(unit or '').strip()
+	return '[unitless]' if unit == '1' else unit
 
 
 def unit_of(unit, metric=None):
 	"""The unit of a variable whose unit in the catalog is UNIT when its images are aggregated with METRIC: the sum of
-	a rate per month or per day ('[mm/month]', e.g. the annual precipitation) is a total ('[mm]'); the other metrics
-	keep it."""
-	m = re.match(r'^\[(.+)/(?:month|day)\]$', str(unit or ''))
-	return f'[{m.group(1)}]' if m and str(metric or '').lower() == 'sum' else unit
+	a rate per month or per day ('[mm/month]', e.g. the annual precipitation; '[mm month-1]' in UDUNITS) is a total
+	('[mm]'); the other metrics keep it."""
+	m = re.match(r'^(\[?)(.+?)(?:/(?:month|day)| (?:month|day)-1)(\]?)$', str(unit or ''))
+	return f'{m.group(1)}{m.group(2)}{m.group(3)}' if m and str(metric or '').lower() == 'sum' else unit
 
 
 def udunits(unit, per_year=False):
-	"""The unit UNIT of the catalog (e.g. '[°C]') in UDUNITS ('degC'; PER_YEAR: 'degC year-1'), or '' if unknown."""
-	u = UDUNITS.get(str(unit or '').replace('º', '°').strip(), '')
+	"""The unit UNIT of the catalog (e.g. '[°C]') in UDUNITS ('degC'; PER_YEAR: 'degC year-1'), or '' if unknown.
+	The units of the data of Earth Engine outside the catalog are already in UDUNITS, without brackets (see
+	custom_unit): 'mm day-1' is 'mm day-1'."""
+	text = str(unit or '').replace('º', '°').strip()
+	u = UDUNITS.get(text, '')
+	if not u and not text.startswith('[') and UDUNITS_TEXT.fullmatch(text):
+		u = text
 	if per_year and u:
 		return 'year-1' if u == '1' else f'{u} year-1'
 	return u
@@ -303,6 +320,19 @@ THEMES = [
 	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD']
 	            + [f'BIO{i:02d}' for i in range(1, 20)]},
 	{'key': 'terrain', 'en': 'Terrain', 'es': 'Relieve', 'indices': ['ELEVATION', 'SLOPE']},
+]
+
+# The themes of the menus for the data of Earth Engine outside the catalog (no variables of it): any image or collection
+# of images by its ID, and the datasets of the GEE Community Catalog by its own themes (monitoreo.community). The
+# general analyses (maps, series, trends, comparisons, exports) are in both; series, trends and comparisons only for
+# collections with dates (monitoreo.assets).
+OTHER_THEMES = [
+	{'key': 'earth_engine', 'en': 'Earth Engine data (by its ID)', 'es': 'Datos de Earth Engine (por su ID)',
+	 'help': 'any image or collection of images of Earth Engine by its ID (describe_asset; then collection= or image= '
+	         'and band=)'},
+	{'key': 'community', 'en': 'GEE Community Catalog', 'es': 'Catálogo de la comunidad de GEE',
+	 'help': 'the datasets of the GEE Community Catalog by its own themes (community_themes, community_datasets; then '
+	         'describe_asset, and collection= or image= and band=)'},
 ]
 
 

@@ -271,14 +271,22 @@ def season_text(season):
 
 
 def _var(args):
-	v = args.get('variable') or args.get('collection') or args.get('image') or ''
+	"""The variable of a call: 'NDVI (Sentinel-2)', or the ID and band of the data of Earth Engine outside the catalog
+	('IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	if not args.get('variable') and (args.get('collection') or args.get('image')):
+		return ' '.join(str(x) for x in (args.get('collection') or args.get('image'), args.get('band'),
+		                                 args.get('terrain')) if x)
+	v = args.get('variable') or ''
 	s = SENSORS.get(args.get('sensor'), args.get('sensor'))
 	return f'{v} ({s})' if s else str(v)
 
 
 def is_static(args):
-	"""Whether the variable of the call with ARGS is a fixed layer without dates (elevation, slope): its results have
-	no period, temporal metric or pixel filters, even if the call gives them (QGIS sends its greyed-out dates)."""
+	"""Whether the variable of the call with ARGS is a fixed layer without dates (elevation, slope, or an image of
+	Earth Engine given with image=): its results have no period, temporal metric or pixel filters, even if the call
+	gives them (QGIS sends its greyed-out dates)."""
+	if not args.get('variable') and args.get('image'):
+		return True
 	return bool((_entry(args.get('variable'), args.get('sensor')) or {}).get('static'))
 
 
@@ -319,7 +327,7 @@ def default_title(tool, args):
 def unit_text(unit, per_year=False):
 	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/year', 'per year' with PER_YEAR)."""
 	u = str(unit or '').replace('/ year', '').strip().strip('[]').replace('º', '°').strip()
-	u = '' if u.lower() in ('unitless', 'none') else u
+	u = '' if u.lower() in ('unitless', 'none', '1') else u  # '1': dimensionless in UDUNITS
 	if per_year:
 		return f'{u}/year' if u else 'per year'
 	return u
@@ -664,7 +672,8 @@ def _results(item, files, n):
 	return out
 
 
-SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where')
+SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where',
+               'image', 'band', 'band_scale', 'band_offset', 'unit')
 
 
 def _link_trends(results, folder):
@@ -714,6 +723,11 @@ def _variables(items):
 	for it in items:
 		a = it['args']
 		var = a.get('variable') or (fire_variable(a) if it.get('tool') == 'burn_severity' else None)
+		if not var and (a.get('collection') or a.get('image')):  # data of Earth Engine outside the catalog
+			what = 'Earth Engine image' if a.get('image') else 'Earth Engine image collection'
+			out.setdefault((_var(a), None), {'variable': _var(a), 'sensor': '', 'name': what,
+			                                 'unit': unit_text(catalog.custom_unit(a.get('unit')))})
+			continue
 		if not var:
 			continue
 		sensor = a.get('sensor') or ('Sentinel-2' if it.get('tool') == 'burn_severity' else None)
