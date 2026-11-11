@@ -92,10 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.24](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.24) · 2026-11-11 · package 0.3.34
 
-- **Assistant**: upload documents that explain your question (**Upload documents**, or drag them onto the page): reports to replicate, tables of your study areas or notes, in PDF, Word, OpenDocument, Excel, CSV, TSV, text or Markdown, 10 MB in all; the language model reads their text and says which document it takes each choice from.
-- **Assistant** (fix): the empty label «Study areas:» no longer shows under the header when there are no study areas.
+- **Assistant**: Upload documents that explain your question (**Upload documents**, or drag them onto the page): reports to replicate, tables of your study areas or notes, in PDF, Word, OpenDocument, Excel, CSV, TSV, text or Markdown, 10 MB in all; the language model reads their text and says which document it takes each choice from.
+- **Assistant** (fix): The empty label «Study areas:» no longer shows under the header when there are no study areas.
 
 ### [v0.3.23](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.23) · 2026-11-11 · package 0.3.33
 
