@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.21](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.21) · 2026-11-11 · package 0.3.31
 
 - **Assistant** (fix): When the value of a pixel or another request of the page fails for an unforeseen reason, the page shows its cause instead of "Internal Server Error", and the terminal its traceback.
 - **Assistant** (fix): In the dark theme, the links of "From the manual:" are green, as the other links, and the logos of the header are on a light band, so that they can be read.
