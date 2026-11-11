@@ -278,11 +278,11 @@ def test_the_tools_of_the_true_colour_in_the_mcp_server(mcp):
 	"""rgb_map and download_rgb take the arguments of map_layer and download_image (the same images and pixels), and
 	the model learns what they are and when to use them."""
 	params = lambda fn: set(inspect.signature(fn).parameters)  # noqa: E731
-	assert params(mcp.rgb_map) == params(mcp.map_layer)
+	assert params(mcp.rgb_map) == params(mcp.map_layer) | {'preview'}  # its range without the PNG (the assistant)
 	assert params(mcp.download_rgb) == params(mcp.download_image)
 	for name in ('rgb_map', 'download_rgb'):  # every argument goes to services
 		fn, service = getattr(mcp, name), inspect.signature(getattr(services, name)).parameters
-		assert params(fn) - set(service) <= {'collection', 'where'}, name
+		assert params(fn) - set(service) <= {'collection', 'where', 'preview'}, name
 		assert 'where: only the pixels' in fn.__doc__ and 'same images and pixels' in fn.__doc__, name
 	assert 'burned areas' in mcp.rgb_map.__doc__ and 'rgb in list_variables' in mcp.rgb_map.__doc__
 	tools = {t.name: t for t in asyncio.run(mcp.server.list_tools())}

@@ -83,10 +83,10 @@ The metrics \code{"sum"}, \code{"std"}, \code{"count"} and \code{"mode"} give no
 \section{References}{
  The result carries its references (with DOI): those of its Earth Engine datasets (cited as
   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
-  of MonitorEO (not those of the formula of the variable, whose values it does not show, except the algorithms of
-  the snow cover frequency and of the cloud frequency, which choose its pixels), and the credits that the terms of
-  use of the data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them
-  (element \code{readme}): what each band is, with its unit, how it was computed and how to cite it.
+  of MonitorEO (not those of the formula of the variable, whose values it does not show, except when the variable
+  chooses the image or the pixels: with the metric max or min, and the algorithms of the snow cover frequency and
+  of the cloud frequency), and the credits that the terms of use of the data ask for. \code{mo_references()}
+  prints them. Its thumbnail has no README: \code{mo_download_rgb()} writes a GeoTIFF with one.
 }
 
 \examples{

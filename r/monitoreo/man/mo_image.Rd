@@ -75,7 +75,9 @@ between the lowest percentile 2 and the highest percentile 98 of the bands over 
 \code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
 }
 \section{References}{
- The result carries its references (with DOI): those of the formula or algorithm of the variable,
+ The result carries its references (with DOI): those of the formula or algorithm of the variable
+  (with \code{rgb = TRUE}, as \code{mo_rgb_map()}: not those of the formula, except with the metric max or min and
+  for the snow cover frequency and the cloud frequency),
   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or

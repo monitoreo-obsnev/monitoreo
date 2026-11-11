@@ -547,10 +547,10 @@ mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, met
 #'   unit, bounds, thumbnail, references, credits), without palette.
 #' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
 #'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
-#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except the algorithms of
-#'   the snow cover frequency and of the cloud frequency, which choose its pixels), and the credits that the terms of
-#'   use of the data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them
-#'   (element \code{readme}): what each band is, with its unit, how it was computed and how to cite it.
+#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except when the variable
+#'   chooses the image or the pixels: with the metric max or min, and the algorithms of the snow cover frequency and
+#'   of the cloud frequency), and the credits that the terms of use of the data ask for. \code{mo_references()}
+#'   prints them. Its thumbnail has no README: \code{mo_download_rgb()} writes a GeoTIFF with one.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -628,7 +628,9 @@ rgb_caption <- function(l) {
 #'   \code{mo_variables()}).
 #' @return A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
 #'   (the range of reflectance of the three bands), without palette.
-#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable
+#'   (with \code{rgb = TRUE}, as \code{mo_rgb_map()}: not those of the formula, except with the metric max or min and
+#'   for the snow cover frequency and the cloud frequency),
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
 #'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
@@ -664,8 +666,8 @@ mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric 
   }
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     if (isTRUE(rgb)) "rgb_map" else "composite_image",
-    list(region = region, variable = variable, sensor = sensor, start = start, end = end, quality = quality,
-         collection = collection, where = where))
+    list(region = region, variable = variable, sensor = sensor, start = start, end = end, metric = metric,
+         temporal = temporal, interannual = interannual, quality = quality, collection = collection, where = where))
   name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
   list(image = out[[1]], region = out[[2]], vis = vis, name = if (isTRUE(rgb)) paste0(name, ", true colour") else name,
        references = cite$references, credits = cite$credits)
@@ -808,9 +810,10 @@ mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL
 #'   references, credits, readme), without palette.
 #' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
 #'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
-#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except the algorithms of
-#'   the snow cover frequency and of the cloud frequency, which choose its pixels), and the credits that the terms of
-#'   use of the data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them
+#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except when the variable
+#'   chooses the image or the pixels: with the metric max or min, and the algorithms of the snow cover frequency and
+#'   of the cloud frequency), and the credits that the terms of use of the data ask for. \code{mo_references()}
+#'   prints them. The files that it writes have a README next to them
 #'   (element \code{readme}): what each band is, with its unit, how it was computed and how to cite it.
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.

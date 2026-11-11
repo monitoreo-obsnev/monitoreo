@@ -105,8 +105,9 @@ def map_row(res, add_map):
 		row.addWidget(kind)
 	b = QPushButton('Add to the map')
 	b.setToolTip(("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel"
-	              if trends else 'Temporary GeoTIFF with the values of each pixel (or, with Layer, its true colour), '
-	                             'with its dates in the Temporal Controller of QGIS') + ' (queryable with the Identify '
+	              if trends else 'Temporary GeoTIFF with the values of each pixel'
+	                             + (' (or, with Layer, its true colour)' if kind else '')
+	                             + ', with its dates in the Temporal Controller of QGIS') + ' (queryable with the Identify '
 	             'Features tool), in the group of this result and with the colors of its first map, so that they can '
 	             'be compared')
 	b.clicked.connect(lambda: add_map(res, res['maps'][choice.currentIndex()],

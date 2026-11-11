@@ -8,8 +8,8 @@ A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id
 
 Besides time series, maps and statistics, the variables are downloaded as GeoTIFFs: one map (download_image, or
 export_image to Google Drive), the true colour of the same images (rgb_map and download_rgb: the red, green and blue
-reflectance of the images of a variable of Sentinel-2 or Landsat, with the same dates, pixel filters and metric; see
-has_rgb) or a recipe of several variables on aligned grids over a study area and its ecoregions
+reflectance of the images of a variable of Sentinel-2 or Landsat, or of the cloud frequency of MODIS, with the same
+dates, pixel filters and metric; see has_rgb) or a recipe of several variables on aligned grids over a study area and its ecoregions
 (download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall and Sen: trend_table, trend_map,
 download_trend) and the comparison of a reference period with another (compare_series, compare_map,
 download_comparison) are described in monitoreo.trends. The results of an analysis are published

@@ -126,6 +126,8 @@ BANDS = {
 	'green': ('Surface reflectance, green (true colour)', ''),
 	'blue': ('Surface reflectance, blue (true colour)', ''),
 }
+TRUE_COLOUR = ('the true colour (download_rgb) cannot be published in the viewer of results yet: leave it out of the '
+               'report (its GeoTIFF and README stay on the computer)')
 DIVERGING_BANDS = ('slope', 'tau', 'z', 'difference', 'dnbr', 'rbr')
 MAIN_BANDS = ('slope', 'difference', 'severity', 'rbr')  # shown first when a GeoTIFF has them
 
@@ -609,8 +611,7 @@ def _results(item, files, n):
 	"""The results of report.json of a call (ITEM): a map with its GeoTIFF, a chart with its CSV, or both."""
 	tool, args, res = item.get('tool'), item['args'], item['result']
 	if tool == 'download_rgb':  # the viewer colours one band of a GeoTIFF with a ramp, not three as colours
-		raise ValueError('the true colour (download_rgb) cannot be published in the viewer of results yet: leave it '
-		                 'out of the report (its GeoTIFF and README stay on the computer)')
+		raise ValueError(TRUE_COLOUR)
 	call = {'tool': tool, 'args': args, 'python': python_call(tool, args)} if tool else None
 	title = item.get('title') or default_title(tool, args)
 	unit = res.get('unit') or ''
@@ -620,6 +621,8 @@ def _results(item, files, n):
 	if res.get('file') and str(res['file']).lower().endswith(('.tif', '.tiff')):
 		cog = files.add(res['file'], 'maps', f'Map (GeoTIFF): {title}', 'GeoTIFF', convert=to_cog)
 		ds, arrays = _read_map(os.path.join(files.folder, cog))
+		if {'red', 'green', 'blue'} <= set(arrays):  # a true colour made by Python, R or the command line
+			raise ValueError(TRUE_COLOUR)
 		bands = _bands(tool, args, res, arrays, item.get('palette'), unit)
 		names = [b['name'] for b in bands]
 		main = item.get('band') or next((b for b in MAIN_BANDS if b in names), names[0])

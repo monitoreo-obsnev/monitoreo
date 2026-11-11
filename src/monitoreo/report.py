@@ -52,8 +52,10 @@ METHODS = {
 	'rgb_map': 'The true colour of the images of the variable: the temporal metric of their red, green and blue surface '
 	           'reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, the colours '
 	           'of the image where the variable is highest or lowest), on the same pixels as the variable, with the '
-	           'three bands stretched together between the lowest percentile 2 and the highest percentile 98 of the '
-	           'bands.',
+	           'three bands stretched together between the same minimum and maximum (Colours): by default the lowest '
+	           'percentile 2 and the highest percentile 98 of the bands over the region (0 to 0.3 if they are not '
+	           'computed); the maps of the dates of a result take the range of its first true colour, so that they '
+	           'can be compared.',
 	'download_rgb': 'The true colour of the images of the variable: the temporal metric of their red, green and blue '
 	                'surface reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, '
 	                'the colours of the image where the variable is highest or lowest), on the same pixels as the '

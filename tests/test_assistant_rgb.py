@@ -241,7 +241,8 @@ def test_the_true_colour_of_each_date():
 	a.calls.clear()
 	main = asyncio.run(a.step_map(1, '', rgb=True))
 	assert main['key'] == '|rgb' and main['legend'] == {'text': TEXT} and main['map']['pixel'] is False
-	assert a.calls == [('rgb_map', {**NDVI, 'vmin': None, 'vmax': None, 'quick': False})]  # its range, once
+	assert a.calls == [('rgb_map', {**NDVI, 'vmin': None, 'vmax': None, 'quick': False, 'preview': False})]  # its range
+	# (once, without the PNG preview of the region, which the page does not show)
 	asyncio.run(a.step_map(1, '', rgb=True))
 	assert len(a.calls) == 1  # made once
 	assert a.results[0]['maps']['|rgb']['title'].startswith('True colour of the images of NDVI (Sentinel-2), 2018-2021')
@@ -253,7 +254,7 @@ def test_the_true_colour_of_each_date():
 	step = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2019-01-01', 'end': '2019-12-31',
 	        'metric': 'median', 'quick': True}
 	assert a.calls[1] == ('map_layer', {**step, 'vmin': INDEX['min'], 'vmax': INDEX['max']})
-	assert a.calls[2] == ('rgb_map', {**step, 'vmin': RGB['min'], 'vmax': RGB['max']})
+	assert a.calls[2] == ('rgb_map', {**step, 'vmin': RGB['min'], 'vmax': RGB['max'], 'preview': False})
 	assert colour['heading'].startswith('True colour of the images of Normalized Difference Vegetation Index (NDVI, '
 	                                    'Sentinel-2), 2019')
 	# its tiles again, with the same colours
@@ -358,3 +359,27 @@ def test_the_page_has_the_select_layer():
 	assert "const RGB = '|rgb'" in page and assistant.RGB == '|rgb'  # the same key as the server
 	assert 'if (!lg.palette) return lg.text' in page  # the legend of text of the true colour
 	assert "layer: under ? 'both'" in page  # the view of the report, as seen
+
+
+def test_two_true_colours_at_once_share_the_range():
+	"""Two dates asked at the same time (the page and a refresh): the first true colour computes the range and the
+	other waits for it and takes it, so that the dates can be compared."""
+	a = new()
+	run(a, 'map_layer', NDVI)
+	a.calls.clear()
+	fake = a.call
+
+	async def slow(name, args):  # Earth Engine takes a while: the other request comes meanwhile
+		await asyncio.sleep(0.01)
+		return await fake(name, args)
+
+	a.call = slow
+
+	async def both():
+		return await asyncio.gather(a.step_map(1, '', rgb=True), a.step_map(1, '2019-01-01/2019-12-31', rgb=True))
+
+	asyncio.run(both())
+	rgb = [c[1] for c in a.calls if c[0] == 'rgb_map']
+	assert len(rgb) == 2 and sorted(c['quick'] for c in rgb) == [False, True]
+	rgb.sort(key=lambda c: c['quick'])
+	assert (rgb[1]['vmin'], rgb[1]['vmax']) == (RGB['min'], RGB['max'])

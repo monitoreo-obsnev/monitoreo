@@ -321,7 +321,7 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
             temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
             quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
             collection: Optional[str] = None,
-            where: Optional[list] = None, quick: bool = False):
+            where: Optional[list] = None, quick: bool = False, preview: bool = True):
 	"""True colour of the images of a variable over a region: the red, green and blue surface reflectance of the
 	same images and pixels as its map (map_layer with the same arguments: period, season, pixel filters, where),
 	aggregated in time with the same metric (median, mean and pN band by band; max and min, the colours of the image
@@ -332,9 +332,9 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 	{z}/{x}/{y}, valid for some hours), the bands red, green and blue stretched together from min to max
 	(reflectance: the lowest percentile 2 and the highest percentile 98 of the bands over the region, or vmin and
 	vmax) and a PNG preview with the outline of the region. quick: only the tiles, at once (without the preview, and
-	from 0 to 0.3 instead of the range of the map)."""
+	from 0 to 0.3 instead of the range of the map); preview false: the tiles and their range, without the preview."""
 	_ready()
-	png = None if quick else _out(f'rgb_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
+	png = None if quick or not preview else _out(f'rgb_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
 	res = services.rgb_map(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
 	out = [_text(res)]

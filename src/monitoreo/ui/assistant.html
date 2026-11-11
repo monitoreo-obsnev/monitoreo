@@ -928,9 +928,9 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
 const preparing = {};  // the true colours asked for and not received yet
 async function colour(id, key) {  // the true colour of the images of the map of the result ID at its step KEY, made
   const e = maps[id], name = key + RGB, asked = id + '/' + name;  // the first time; then shown if Layer still wants it
-  if (preparing[asked]) return;
-  preparing[asked] = true;
   $('maphint').replaceChildren(el('span', {class: 'spinner'}), 'Preparing the true colour of the images in Google Earth Engine…');
+  if (preparing[asked]) return;  // asked already: the hint stays until it comes
+  preparing[asked] = true;
   try {
     e.cache = e.cache || {};
     e.cache[name] = await api('/api/map/step', {id, key, rgb: true});

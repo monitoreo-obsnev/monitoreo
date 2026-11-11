@@ -848,18 +848,30 @@
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
 		var scale = rangeScale(e);
-		var ranges = {};  // one request for the ranges of both layers
-		if (layer !== 'rgb') ranges.index = mo.percentiles(band, geom, scale);
-		if (rgb) ranges.rgb = mo.rgbPercentiles(rgb, geom, scale);
-		ee.Dictionary(ranges).evaluate(function (st, error) {
+		// the range of each layer in a request of its own (one that fails does not take the other with it), drawn when
+		// both have come
+		var st = {}, failed = {}, pending = 0;
+		function got(what) {
+			return function (value, error) {
+				st[what] = value;
+				failed[what] = Boolean(error);
+				if (--pending === 0) draw();
+			};
+		}
+		if (layer !== 'rgb') pending++;
+		if (rgb) pending++;
+		if (layer !== 'rgb') mo.percentiles(band, geom, scale).evaluate(got('index'));
+		if (rgb) mo.rgbPercentiles(rgb, geom, scale).evaluate(got('rgb'));
+
+		function draw() {
 			if (id !== run) return;
 			var widgets = [];
-			var rvis = rgb ? mo.rgbVis(error ? null : st.rgb) : null;  // 0 to 0.3 if they cannot be computed
+			var rvis = rgb ? mo.rgbVis(failed.rgb ? null : st.rgb) : null;  // 0 to 0.3 if they cannot be computed
 			if (rgb) map.addLayer(rgb, rvis, rgbName);  // first, under the index (Both)
 			if (layer !== 'rgb') {
-				var stats = error ? null : st.index;
+				var stats = failed.index ? null : st.index;
 				var vis;
-				if (error) {  // the range of the catalog
+				if (failed.index) {  // the range of the catalog
 					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
 					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
 				} else {
@@ -869,18 +881,18 @@
 				var unit = mo.unitOf(e, state.mapMetric);
 				colourBar(vis, name + (unit ? ' ' + unit : ''));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
-				if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
+				if (failed.index) widgets.push(ui.Label(t('rangeNote'), SMALL));
 				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			}
 			if (rgb) {
 				rgbLegend(rvis, rgbName, layer === 'both');
 				widgets.push(ui.Label(rgbName, {fontWeight: 'bold'}));
 				widgets.push(ui.Label(rgbCaption(rvis), SMALL));
-				if (error) widgets.push(ui.Label(t('rgbRangeNote'), SMALL));
+				if (failed.rgb) widgets.push(ui.Label(t('rgbRangeNote'), SMALL));
 				widgets.push(downloadWidget(rgb, e, mo.RGB_BANDS, name, t('downloadRgb'), '_RGB'));
 			}
 			show(widgets);
-		});
+		}
 	}
 
 	function mapWidgets() {

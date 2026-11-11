@@ -85,7 +85,8 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
-HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick')  # arguments the model does not see
+# arguments the model does not see
+HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
 ALPHA = 0.05  # the trends whose pixels are kept by «Significant pixels only» (Mann-Kendall p < ALPHA)
 SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
 RGB = '|rgb'  # added to the key of a map for that of the true colour of its images (rgb_map: the select Layer)
@@ -953,6 +954,7 @@ class Assistant:
 
 	def reset(self):
 		self.messages, self.results, self.names, self.question, self.pixels = [], [], {}, None, []
+		self.rgb_locks = {}  # one true colour at a time for each result (see step_map)
 		self.call_id = None  # the id of the call of the model being run (cloud), for the answer of its tool
 		self.waiting = False  # whether the user has to choose or answer before anything is computed (see chat)
 
@@ -1316,32 +1318,38 @@ class Assistant:
 		name = key + (SIGNIFICANT if significant else '') + (RGB if rgb else '')
 		if not name:
 			return {'key': '', **self.map_card(main)}
-		if name not in maps:
-			step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
-			if key and not step:
-				raise ValueError('that map does not exist')
-			a = item['args']
-			if not key:  # the map of the result
-				tool, args = main['tool'], dict(main['args'])
-			elif 'part' in step:  # the trend of a part of the year
-				tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
-			else:  # that of the variable, or of the true colour of its images (a result of rgb_map)
-				tool = 'rgb_map' if main['tool'] == 'rgb_map' else 'map_layer'
-				args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
-				args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
-				if a.get('where'):
-					args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
-			if significant:
-				args['alpha'] = ALPHA
-			r = main['result']
-			quick = True
-			if rgb:  # the same images in true colour, with the colours of the first one, which computes its range
-				tool, r = 'rgb_map', next((m['result'] for k, m in maps.items() if k.endswith(RGB)), {})
-				quick = bool(r)  # its percentiles 2 and 98 (maps.rgb_vis): once per result
-			error, texts, _ = await self.call(tool, {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': quick})
-			if error:
-				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
-			maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
+		# the true colours of a result one at a time: the first one computes the range that the others take
+		lock = self.rgb_locks.setdefault(rid, asyncio.Lock()) if rgb else contextlib.nullcontext()
+		async with lock:
+			if name not in maps:
+				step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
+				if key and not step:
+					raise ValueError('that map does not exist')
+				a = item['args']
+				if not key:  # the map of the result
+					tool, args = main['tool'], dict(main['args'])
+				elif 'part' in step:  # the trend of a part of the year
+					tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
+				else:  # that of the variable, or of the true colour of its images (a result of rgb_map)
+					tool = 'rgb_map' if main['tool'] == 'rgb_map' else 'map_layer'
+					args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
+					args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+					if a.get('where'):
+						args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
+				if significant:
+					args['alpha'] = ALPHA
+				r = main['result']
+				quick = True
+				if rgb:  # the same images in true colour, with the colours of the first one, which computes its range
+					tool, r = 'rgb_map', next((m['result'] for k, m in maps.items() if k.endswith(RGB)), {})
+					quick = bool(r)  # its percentiles 2 and 98 (maps.rgb_vis): once per result
+				call = {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': quick}
+				if rgb:
+					call['preview'] = False  # its colours: the page has the tiles
+				error, texts, _ = await self.call(tool, call)
+				if error:
+					raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+				maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
 		return {'key': name, **self.map_card(maps[name])}
 
 	async def ask_manual(self, args):

@@ -90,7 +90,8 @@ def test_the_record_of_its_geotiff():
 
 def test_what_it_cites():
 	"""The true colour cites the data and the pixel filters of the variable, but not the article of its formula
-	(except for the algorithms that decide its pixels: the snow cover frequency and the cloud frequency)."""
+	(except for the algorithms that decide its pixels, the snow cover frequency and the cloud frequency, and for the
+	metrics max and min, with which the variable chooses the image of each pixel)."""
 	args = dict(JUNE, region=REGION, variable='NDVI', sensor='Sentinel-2')
 	ndvi = {r['id'] for r in references.cite('map_layer', args)['references']}
 	rgb = references.cite('rgb_map', args)
@@ -103,6 +104,13 @@ def test_what_it_cites():
 	assert {r['id'] for r in references.cite('map_layer', scf)['references']} == \
 		{r['id'] for r in references.cite('rgb_map', scf)['references']}
 	assert {'rgb_map', 'download_rgb'} <= set(references.EARTH_ENGINE)
+	# with max or min, the variable chooses the image of each pixel: its formula is cited
+	top = {r['id'] for r in references.cite('rgb_map', dict(args, metric='max'))['references']}
+	assert 'tucker1979' in top
+	years = dict(args, metric='median', temporal='annual', interannual='MIN')
+	assert 'tucker1979' in {r['id'] for r in references.cite('download_rgb', years)['references']}
+	assert 'tucker1979' not in {r['id'] for r in references.cite('download_rgb', dict(years, temporal='period'))
+	                            ['references']}  # without years, the metric between years does not apply
 
 
 def test_stretch_without_earth_engine():
@@ -154,3 +162,22 @@ def test_report_and_viewer():
 	assert publish.default_title('download_rgb', args).startswith('True colour of the images of NDVI')
 	with pytest.raises(ValueError, match='cannot be published in the viewer'):
 		publish._results({'tool': 'download_rgb', 'args': args, 'result': {'file': 'x.tif'}}, None, 0)
+
+
+def test_the_viewer_refuses_a_true_colour_given_as_a_file(tmp_path):
+	"""A GeoTIFF of the true colour made with Python, R or the command line and given to publish as a file (without
+	its tool) is refused too, by its bands, instead of being shown as a ramp of its red band."""
+	import os
+	import types
+	gdal = pytest.importorskip('osgeo.gdal')
+	gdal.UseExceptions()
+	path = str(tmp_path / 'colour.tif')
+	ds = gdal.GetDriverByName('GTiff').Create(path, 4, 3, 3, gdal.GDT_Float32)
+	ds.SetGeoTransform([450000, 10, 0, 4110000, 0, -10])
+	ds.SetProjection('EPSG:32630')
+	for i, b in enumerate(sensors.RGB_BANDS):
+		ds.GetRasterBand(i + 1).SetDescription(b)
+	ds = None
+	files = types.SimpleNamespace(folder=str(tmp_path), add=lambda f, *a, **k: os.path.basename(f))
+	with pytest.raises(ValueError, match='cannot be published in the viewer'):
+		publish._results({'args': {}, 'result': {'file': path}}, files, 0)
