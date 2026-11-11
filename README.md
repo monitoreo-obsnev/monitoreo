@@ -92,6 +92,11 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant**: The installers of macOS, Windows and Linux no longer say that the assistant downloads a language model of 5 GB the first time it opens: the model of MonitorEO, in the cloud, downloads nothing, and a model on the computer (Ollama) is optional.
+- **Assistant** (fix): The installer of macOS says at once when the Terminal may not access the Desktop, and where to allow it, instead of stopping after the downloads with "Check the internet connection".
+
 ### [v0.3.26](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.26) · 2026-11-12 · package 0.3.36
 
 - **All tools**: Any image or collection of images of Earth Engine by its ID (e.g. `IDAHO_EPSCOR/TERRACLIMATE`, band `pr`), besides the variables of the catalog: a collection with dates has maps, statistics, time series, trends and comparisons; an image (or a collection of tiles, e.g. a DEM) has maps, their statistics and GeoTIFFs. Give its band, and optionally the scale and offset of its values and its unit (in UDUNITS); MonitorEO reads its type, bands, units and citation from Earth Engine and the Earth Engine data catalog, and cites it in every result. In the QGIS plugin and the Earth Engine app, the theme "Earth Engine data (by its ID)"; in Python, `collection=` or `image=` with `band=` and `describe_asset`; in R, the same arguments and `mo_asset`; in the command line, `--collection`/`--image` with `--band`, and `monitoreo asset`.
