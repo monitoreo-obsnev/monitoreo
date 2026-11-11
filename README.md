@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **QGIS plugin** (fix): The plugin no longer carries the documents module of the assistant, which it never uses: the security scan of plugins.qgis.org refused its XML parsers.
+
 ### [v0.3.24](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.24) · 2026-11-11 · package 0.3.34
 
 - **Assistant**: Upload documents that explain your question (**Upload documents**, or drag them onto the page): reports to replicate, tables of your study areas or notes, in PDF, Word, OpenDocument, Excel, CSV, TSV, text or Markdown, 10 MB in all; the language model reads their text and says which document it takes each choice from.
