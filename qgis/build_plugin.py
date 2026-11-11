@@ -40,11 +40,12 @@ DEPS = ['google-api-python-client', 'google-auth', 'google-auth-httplib2', 'http
 # never run by the plugin: Earth Engine reads its discovery document from the internet (static_discovery=False)
 UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestcase.py', 'ee/cli', 'ee/mapclient.py',
           'certifi/tests', 'rsa/cli.py']
-# modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual, report and the
-# documents of the user) and the web viewer, not used by the plugin (tests/test_plugin_zip.py checks that the zip leaves
-# out every module the plugin never imports: documents.py has XML parsers that Bandit flags)
-MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py',
-                    'report.py', 'ui', 'documents.py']
+# modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual and the documents
+# of the user) and the web viewer, not used by the plugin. tests/test_plugin_zip.py checks that the zip leaves out every
+# module the plugin never imports (documents.py has XML parsers that Bandit flags) and none that it imports: report.py
+# writes the titles and facts of the README of each result (monitoreo.readme)
+MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py', 'ui',
+                    'documents.py']
 OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 
