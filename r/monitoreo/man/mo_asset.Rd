@@ -39,8 +39,9 @@ a <- mo_asset("IDAHO_EPSCOR/TERRACLIMATE")
 a$use                                  # "collection": images with dates
 vapply(a$bands, function(b) b$band, "")  # its bands
 mo_references(a)
-# the annual precipitation of TerraClimate (band pr, in mm), as any variable of the catalog
-pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+# the annual precipitation of TerraClimate, as any variable of the catalog: its band pr is the precipitation of
+# each month (mm month-1, as PRECIP of TerraClimate); the annual total, the sum of the 12 months of each year, in mm
+pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                      start = "2001-01-01", end = "2024-12-31", step = "annual", metric = "sum")
 # its first band, with the arguments that mo_asset() gives
 aet <- do.call(mo_time_series, c(list(mo_wdpa(389011), start = "2020-01-01", end = "2024-12-31"), a$arguments))

@@ -120,10 +120,34 @@ def of_datasets(collections):
 	return ids, credits
 
 
+# The families of data of Earth Engine whose terms of use ask for a credit line (and, the Copernicus DEM, for its
+# references) whatever the dataset: (start of their IDs, the dataset of catalog.json with that credit, with its
+# references too). The Landsat data: the credit of Level-2 for the surface reflectance (_L2), else that of Level-1.
+FAMILIES = (('COPERNICUS/DEM/', 'COPERNICUS/DEM/GLO30_2024_1', True),
+            ('COPERNICUS/S1', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S2', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S3/', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S5P/', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('LANDSAT/', 'LANDSAT/LC08/C02/T1_TOA', False))
+LANDSAT_L2 = 'LANDSAT/LC08/C02/T1_L2'
+
+
+def family(asset):
+	"""(the dataset of catalog.json whose credit line the terms of use of ASSET ask for, whether with its references
+	too), or (None, False): COPERNICUS/DEM/* that of the Copernicus DEM; the Sentinels (COPERNICUS/S1*, S2*, S3/*,
+	S5P/*) that of the Copernicus Sentinel data; LANDSAT/* that of the USGS."""
+	for start, dataset, refs in FAMILIES:
+		if asset.startswith(start):
+			return (LANDSAT_L2 if dataset.startswith('LANDSAT/') and '_L2' in asset else dataset), refs
+	return None, False
+
+
 def of_asset(asset):
 	"""(reference IDs, credit lines) of the data of Earth Engine ASSET (an image or a collection given by its ID): as
 	the datasets of catalog.json say if it is one of them, else from its STAC record in the Earth Engine data catalog
-	or its record in the GEE Community Catalog (see monitoreo.assets.cite)."""
+	or its record in the GEE Community Catalog (see monitoreo.assets.cite), with the credit line that the terms of use
+	of its family ask for, in the words of catalog.json (see family: the Copernicus Sentinel data, the Copernicus DEM,
+	with its references, and Landsat)."""
 	from . import assets
 	asset = assets.normalize(asset)
 	if asset in catalog.load()['datasets']:
@@ -133,6 +157,11 @@ def of_asset(asset):
 	for rid, ref in refs:
 		DATA[rid] = ref
 		ids.append(rid)
+	dataset, with_refs = family(asset)
+	if dataset:
+		more, cred = of_datasets([dataset])
+		ids += more if with_refs else []
+		credits = cred + [c for c in credits if c not in cred]
 	return ids + [i for m in methods for i in ([m] if m in catalog.load()['references'] else _methods(m))], credits
 
 

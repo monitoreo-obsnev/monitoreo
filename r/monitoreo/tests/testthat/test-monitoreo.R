@@ -110,8 +110,10 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
              "trend_table", "trend_map", "download_trend", "compare_series", "compare_map", "download_comparison")
   local_mocked_bindings(services = function() stats::setNames(lapply(tools, answer), tools), .package = "monitoreo")
   region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
-  pr <- list(collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", band_scale = 0.1, band_offset = 0, unit = "mm")
-  bio <- list(image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, band_offset = 0, unit = "degC",
+  pr <- list(collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", band_scale = 0.1, band_offset = 0,
+             unit = "mm month-1")
+  # with terrain, its unit is degree (the slope and the aspect are in degrees, whatever the band)
+  bio <- list(image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, band_offset = 0, unit = "degree",
               terrain = "slope")
   periods <- list(start = "1991-01-01", end = "2000-12-31", other_start = "2011-01-01", other_end = "2020-12-31")
   run <- function(f, ..., data) do.call(f, c(list(region, ...), data))
@@ -150,6 +152,20 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
                "give variable and sensor (a variable of the catalog: mo_variables()), or collection or image and band",
                fixed = TRUE)
   expect_error(mo_time_series(region, "NDVI", start = "2020-01-01", end = "2020-12-31"), "give the sensor of NDVI")
+  # an ID of Earth Engine given as the variable (no variable of the catalog has a '/'), with a sensor or without:
+  # neither its sensor asked for nor called a variable of the catalog
+  not_variable <- paste("IDAHO_EPSCOR/TERRACLIMATE is not a variable of the catalog (mo_variables()): give an ID of",
+                        "Earth Engine as collection or image (mo_asset() says which), with band, instead of variable")
+  expect_error(mo_time_series(region, "IDAHO_EPSCOR/TERRACLIMATE", start = "2020-01-01", end = "2020-12-31"),
+               not_variable, fixed = TRUE)
+  expect_error(mo_time_series(region, "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+                              end = "2020-12-31"), not_variable, fixed = TRUE)
+  expect_error(mo_map_layer(region, "IDAHO_EPSCOR/TERRACLIMATE", "TerraClimate", "2020-01-01", "2020-12-31"),
+               not_variable, fixed = TRUE)
+  expect_error(mo_trend_table(region, "IDAHO_EPSCOR/TERRACLIMATE", "TerraClimate", "2001-01-01", "2020-12-31",
+                              collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr"), not_variable, fixed = TRUE)
+  expect_error(mo_image(region, "projects/sat-io/open-datasets/FABDEM", image = "projects/sat-io/open-datasets/FABDEM",
+                        band = "b1", terrain = "slope"), "FABDEM is not a variable of the catalog", fixed = TRUE)
   expect_error(mo_map_layer(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", image = "WORLDCLIM/V1/BIO",
                             band = "bio01"), "image, band: only for the data of Earth Engine given by its ID")
   expect_error(mo_region_stats(region, "ELEVATION", "Copernicus", terrain = "slope"), "^terrain: only for the data")
@@ -223,6 +239,10 @@ test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {
                                  other_start = "2011-01-01", other_end = "2020-12-31"), "without dates")
   expect_error(mo_map_layer(region, collection = terraclimate, band = "pr", start = "2020-01-01", end = "2020-12-31",
                             unit = "mm/día"), "UDUNITS")
+  # the slope and the aspect are in degrees, whatever the unit of the band (the m of a DEM, that mo_asset() gives in its
+  # arguments): another unit is refused, before Earth Engine
+  expect_error(mo_map_layer(region, image = "USGS/SRTMGL1_003", band = "elevation", unit = "m", terrain = "slope"),
+               "the slope of USGS/SRTMGL1_003 is in degrees", fixed = TRUE)
   # only the variables of the catalog have a true colour
   expect_error(mo_image(region, collection = terraclimate, band = "pr", start = "2020-01-01", end = "2020-12-31",
                         rgb = TRUE), "only the variables of the catalog")

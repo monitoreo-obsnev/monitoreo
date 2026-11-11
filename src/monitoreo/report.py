@@ -22,9 +22,9 @@ import os
 import re
 import urllib.request
 
-from . import __version__, catalog, fire, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, default_title, fire_variable, is_static, \
-	period_text, python_call, season_text, slug, unit_text
+from . import __version__, assets, catalog, fire, references, services
+from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, data_unit, default_title, fire_variable, \
+	is_static, period_text, python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
@@ -251,15 +251,17 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
 		                        f"collection {entry.get('col', '')}"))
 	custom = not entry and not args.get('variable') and (args.get('collection') or args.get('image'))
-	if custom:  # data of Earth Engine outside the catalog, as given
+	if custom:  # data of Earth Engine outside the catalog, as given (the ID as the tools take it)
+		custom = assets.normalize(custom)
 		data = (f"Earth Engine {'image' if args.get('image') else 'image collection'} {custom}, band "
 		        f"{args.get('band', '?')}")
 		if args.get('image') and args.get('terrain'):
-			data += f", its {args['terrain']} in degrees"
+			data += f", its {args['terrain']}"
 		if args.get('band_scale') is not None or args.get('band_offset') is not None:
 			data += f"; values × {_num(args.get('band_scale', 1))} + {_num(args.get('band_offset', 0))}"
-		unit = unit_text(catalog.custom_unit(args.get('unit')))
-		data += f"; unit {unit}" if unit else ('; dimensionless' if str(args.get('unit')) == '1' else '; unit not given')
+		given = data_unit(args)  # as the services computed it: 'unitless' is 1, a terrain is in degrees
+		unit = unit_text(catalog.custom_unit(given))
+		data += f"; unit {unit}" if unit else ('; dimensionless' if given == '1' else '; unit not given')
 		facts.append(('Data', data))
 	# elevation, slope, an image of Earth Engine: no period, temporal metric or pixel filters
 	static = bool(entry and entry.get('static')) or bool(custom and args.get('image'))
@@ -338,9 +340,10 @@ def _recipe_facts(args, result, names):
 	for v in recipe.get('variables') or []:
 		metric = v.get('metric') or 'median'
 		metrics = ', '.join(_stat(m) for m in (metric if isinstance(metric, list) else [metric]))
-		asset = v.get('collection') if not v.get('index') else None
-		asset = asset or (v.get('image') if not v.get('index') else None)
-		what = v.get('index') or (f"{asset} {v.get('band') or ''}".strip() if asset else v.get('name')) or '?'
+		asset = None if v.get('index') else v.get('collection') or v.get('image')
+		# the data of Earth Engine as the other results name them: the ID as the tools take it, band and terrain
+		what = v.get('index') or (_var({k: v.get(k) for k in ('collection', 'image', 'band', 'terrain')}) if asset
+		                          else v.get('name')) or '?'
 		fixed = bool(v.get('image') and not v.get('index'))  # a fixed image: no metric
 		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}" +
 		                 (' (fixed image)' if fixed else f': {metrics}'))

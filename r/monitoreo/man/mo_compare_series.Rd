@@ -95,7 +95,8 @@ e.g. \code{band_scale = 0.1}.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
 A data.frame (region, key, label, reference, other, difference, n_reference, n_other) with the attributes
@@ -122,7 +123,7 @@ mo_init()
 mo_compare_series(mo_wdpa(389011), "NDSI", "Modis", "2001-01-01", "2010-12-31",
                   "2015-01-01", "2024-12-31", quality = list(snow = FALSE))
 # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
-mo_compare_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+mo_compare_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                   start = "1961-01-01", end = "1990-12-31", other_start = "1995-01-01", other_end = "2024-12-31")
 }
 }

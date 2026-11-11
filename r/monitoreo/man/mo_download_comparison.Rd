@@ -92,7 +92,8 @@ e.g. \code{band_scale = 0.1}.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
 A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,

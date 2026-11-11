@@ -668,8 +668,12 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	'min': 1500}]; every tool that takes a region takes it.
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see monitoreo.assets and describe_asset):
 	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND and
-	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC') and,
-	for an image, TERRAIN ('slope' or 'aspect' of the band, in degrees)."""
+	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is
+	none) and, for an image, TERRAIN ('slope' or 'aspect' of the band of an image, in degrees: its unit is then
+	degree). An ID of Earth Engine given as VARIABLE is an error that says how to give it."""
+	if variable and '/' in str(variable):  # no variable of the catalog has '/': an ID of Earth Engine, whatever SENSOR
+		raise ValueError(f'{variable} is not a variable of the catalog: give an ID of Earth Engine as a collection or '
+		                 'an image (describe_asset says which), with its band, instead of the variable')
 	var = {'metric': metric, 'temporal': temporal, 'interannual': interannual, 'season': season,
 	       'quality': quality or {}, 'exclude_landcover': exclude_landcover, 'where': where}
 	if start or end:
@@ -712,8 +716,8 @@ def _title(spec, step=None, metric=None, stat=None):
 	if k == 'catalog':
 		e = variables.entry_of(spec)
 		name = f"{e['index']} {e['sensor']}"
-	else:
-		name = f"{spec.get(k)} {spec.get('band') or ''}".strip()
+	else:  # its ID, band and terrain: the slope of a DEM is not named as its elevation
+		name = variables.data_name(spec)
 	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') and not variables.is_static(spec) else ''
 	parts = [name, period]
 	if step:
@@ -735,12 +739,14 @@ def _unit(spec):
 
 
 def _source_name(variable, source):
-	"""What a table says of the variable of a result: the variable of the catalog, or the ID and band of the data of
-	Earth Engine (e.g. 'IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	"""What a table says of the variable of a result: the variable of the catalog, or the ID (as the tools take it:
+	ee.ImageCollection("X") is X), band and terrain of the data of Earth Engine (e.g. 'IDAHO_EPSCOR/TERRACLIMATE pr'),
+	as the titles (see variable.data_name)."""
 	if variable:
 		return variable
-	asset = source.get('collection') or source.get('image')
-	return f"{asset} {source.get('band') or ''}".strip() if asset else ''
+	if not (source.get('collection') or source.get('image')):
+		return ''
+	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'terrain')})
 
 
 def _ylabel(spec):
@@ -970,7 +976,8 @@ def _what(variable, sensor, source):
 	"""The variable of a file name: 'NDVI_Modis', or the end of the ID of the data of Earth Engine and its band
 	('TERRACLIMATE_pr')."""
 	if not variable and (source.get('collection') or source.get('image')):
-		asset = str(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
+		from . import assets  # the ID as the tools take it (ee.ImageCollection("X") is X), as the MCP server names it
+		asset = assets.normalize(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
 		return '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
 	return f"{variable}_{sensor or ''}"
 
@@ -1545,3 +1552,28 @@ def find_exported(folder, name):
 		if os.path.exists(p):
 			files.append(p)
 	return files
+
+
+# The data of Earth Engine by their ID in the help of every function that takes them (**source), as the MCP server,
+# the command line and R say it in theirs: help(time_series) tells them without reading make_spec
+SOURCE_DOC = """
+
+	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see describe_asset and community_datasets):
+	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles: maps and their
+	statistics, without dates), with BAND (one) and, optionally, BAND_SCALE and BAND_OFFSET (of its stored values), UNIT
+	(of the values after them, in UDUNITS: 'mm', 'degC', '1' if dimensionless) and, for an image, TERRAIN ('slope' or
+	'aspect' of the band of an image, in degrees: its unit is then degree). Also WHERE and EXCLUDE_LANDCOVER (the
+	pixels of the region to keep): see make_spec."""
+
+
+def _with_source_doc(names):
+	"""Add SOURCE_DOC to the help of the functions NAMES of this module that take **source (inspect.signature reads
+	that of the function itself, behind _cited)."""
+	for name, fn in names.items():
+		if inspect.isfunction(fn) and not name.startswith('_') and fn.__module__ == __name__ and fn.__doc__ and \
+				any(p.kind is inspect.Parameter.VAR_KEYWORD and p.name == 'source'
+				    for p in inspect.signature(fn).parameters.values()):
+			fn.__doc__ = fn.__doc__.rstrip() + SOURCE_DOC
+
+
+_with_source_doc(dict(globals()))

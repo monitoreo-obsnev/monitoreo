@@ -23,8 +23,8 @@ var CATALOG = {
     "issue": "En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.33",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.33"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.34",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.34"
    }
   },
   "logos": [
@@ -1192,13 +1192,13 @@ var CATALOG = {
   {
    "en": "Earth Engine data (by its ID)",
    "es": "Datos de Earth Engine (por su ID)",
-   "help": "any image or collection of images of Earth Engine by its ID (describe_asset; then collection= or image= and band=)",
+   "help": "any image or collection of images of Earth Engine by its ID: describe it (its bands, units and dates), then compute it with its ID as a collection or an image, and its band",
    "key": "earth_engine"
   },
   {
    "en": "GEE Community Catalog",
    "es": "Catálogo de la comunidad de GEE",
-   "help": "the datasets of the GEE Community Catalog by its own themes (community_themes, community_datasets; then describe_asset, and collection= or image= and band=)",
+   "help": "the datasets of the GEE Community Catalog by its own themes: list its themes and their datasets, describe one, then compute it with its ID as a collection or an image, and its band",
    "key": "community"
   }
  ],

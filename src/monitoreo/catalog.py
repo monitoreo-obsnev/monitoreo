@@ -273,11 +273,22 @@ def custom_unit(unit):
 	return '[unitless]' if unit == '1' else unit
 
 
+# A rate per month or per day, whose sum is a total: in the catalog ('[mm/month]', '[mm/day]') and in UDUNITS (the
+# data of Earth Engine outside the catalog: 'mm month-1', 'mm day-1'); in UDUNITS also per period of its images, the
+# total of N days of each one ('mm (5 day)-1' of CHIRPS PENTAD, 'kg m-2 (8 day)-1' of an 8-day product, written
+# '/N days' too) and 'd-1'. The units of the catalog keep their own (its ET of 8 days and LE are as they are).
+RATE = re.compile(r'^(\[)(.+?)(?:/(?:month|day)| (?:month|day)-1)(\])$')
+RATE_UDUNITS = re.compile(r'^()(.+?)(?:/(?:month|day|d|\d+ ?days?|\(\d+ ?days?\))| '
+                          r'(?:month|day|d|\(\d+ ?days?\))-1)()$')
+
+
 def unit_of(unit, metric=None):
-	"""The unit of a variable whose unit in the catalog is UNIT when its images are aggregated with METRIC: the sum of
-	a rate per month or per day ('[mm/month]', e.g. the annual precipitation; '[mm month-1]' in UDUNITS) is a total
-	('[mm]'); the other metrics keep it."""
-	m = re.match(r'^(\[?)(.+?)(?:/(?:month|day)| (?:month|day)-1)(\]?)$', str(unit or ''))
+	"""The unit of a variable whose unit is UNIT (of the catalog, or in UDUNITS of the data of Earth Engine outside it)
+	when its images are aggregated with METRIC: the sum of a rate per month or per day ('[mm/month]', e.g. the annual
+	precipitation; 'mm month-1' in UDUNITS) or per the days of each image ('mm (5 day)-1') is a total ('[mm]', 'mm');
+	the other metrics keep it."""
+	text = str(unit or '')
+	m = (RATE if text.startswith('[') else RATE_UDUNITS).match(text)
 	return f'{m.group(1)}{m.group(2)}{m.group(3)}' if m and str(metric or '').lower() == 'sum' else unit
 
 
@@ -328,12 +339,12 @@ THEMES = [
 # collections with dates (monitoreo.assets).
 OTHER_THEMES = [
 	{'key': 'earth_engine', 'en': 'Earth Engine data (by its ID)', 'es': 'Datos de Earth Engine (por su ID)',
-	 'help': 'any image or collection of images of Earth Engine by its ID (describe_asset; then collection= or image= '
-	         'and band=)'},
+	 'help': 'any image or collection of images of Earth Engine by its ID: describe it (its bands, units and dates), '
+	         'then compute it with its ID as a collection or an image, and its band'},
 	{'key': 'community', 'en': 'GEE Community Catalog', 'es': 'Catálogo de la comunidad de GEE',
-	 'help': 'the datasets of the GEE Community Catalog by its own themes (community_themes, community_datasets; then '
-	         'describe_asset, and collection= or image= and band=)'},
-]
+	 'help': 'the datasets of the GEE Community Catalog by its own themes: list its themes and their datasets, describe '
+	         'one, then compute it with its ID as a collection or an image, and its band'},
+]  # 'help' in the words of every tool (no function or argument of one of them): the command line and R show it too
 
 
 def theme_of(index):

@@ -11,6 +11,8 @@ The tools compute them like the variables of the catalog, with these arguments i
     band         the band (one)
     band_scale   factor of the stored values (e.g. 0.0001 for the NDVI of MODIS); band_offset, what is added after it
     unit         the unit of the values (after band_scale and band_offset) in UDUNITS, e.g. 'mm', 'degC', 'kg m-2'
+                 (the words of the STAC records too: 'C' is degC, 'W/m^2' is W m-2, 'unitless' is 1; '' is none)
+    terrain      'slope' or 'aspect' of the band of an image, in degrees (its unit is then degree)
 
 describe(asset) tells what an ID is before computing it: an image or a collection (so which argument), its bands, its
 dates and pixel size and, for the datasets of the Earth Engine data catalog, what their STAC record says of each band
@@ -23,8 +25,12 @@ References:
     https://doi.org/10.1016/j.rse.2017.06.031
 """
 
+import html
+import http.client
 import json
 import re
+import time
+import urllib.error
 import urllib.request
 
 from . import community
@@ -32,7 +38,16 @@ from . import community
 STAC = 'https://storage.googleapis.com/earthengine-stac/catalog'
 PAGE = 'https://developers.google.com/earth-engine/datasets/catalog/'
 TYPES = {'IMAGE': 'image', 'IMAGE_COLLECTION': 'image_collection'}
-DOI = re.compile(r'10\.\d{4,9}/[^\s\[\]()<>,;"\']+')
+# A DOI in a text: its suffix may have balanced parentheses and < > ; (the SICI DOIs of AMS and of old articles of
+# Elsevier: 10.1175/1520-0477(1996)077<0437:TNYRP>2.0.CO;2, 10.1016/0034-4257(79)90013-0)
+DOI = re.compile(r'''10\.\d{4,9}/(?:\([^\s()\[\]]*\)|[^\s()\[\]"',])+''')
+LINK = re.compile(r'\[([^\]]*)\]\((?:[^\s()]|\([^\s()]*\))*\)')  # of Markdown, whose target may have (...)
+DOI_OR_LINK = re.compile(LINK.pattern + r'|(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?' + DOI.pattern, re.I)
+# what a citation asks the reader to fill in: (<date of access>), (date of access), [access date], [indicate subset
+# used]
+PLACEHOLDER = re.compile(r'\(\s*<[^<>]*>\s*\)|[(\[]\s*(?:date of access|access(?:ed)? date|indicate [^)\]]*)\s*[)\]]',
+                         re.I)
+RETRY = 60  # seconds before a STAC record that could not be read (no network, timeout, server error) is read again
 # The units of the bands of the STAC records of the Earth Engine data catalog (gee:units) in UDUNITS; the others are
 # left to the user (unit=)
 UNITS = {
@@ -56,6 +71,7 @@ UNITS = {
 }
 
 _stac, _info = {}, {}
+_unread = {}  # {asset: when its STAC record could not be read}: not cached, read again after RETRY seconds
 
 
 def normalize(asset):
@@ -90,7 +106,9 @@ def page(asset):
 
 
 def _fetch_json(url, timeout=10):
-	"""The JSON at URL, or None if it cannot be read (no such record, no network)."""
+	"""The JSON at URL, or None if there is none (HTTP 4xx: Cloud Storage answers 403 or 404 for a record that does not
+	exist). OSError if it cannot be read now (no network, a timeout, a server error, a truncated answer): it may be
+	read later."""
 	if not str(url).startswith('https://'):
 		return None
 	try:
@@ -98,16 +116,29 @@ def _fetch_json(url, timeout=10):
 		# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
 		with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310
 			return json.loads(r.read().decode('utf-8'))
-	except Exception:
-		return None
+	except urllib.error.HTTPError as e:  # before OSError: an HTTPError is an OSError too
+		if 400 <= e.code < 500:
+			return None
+		raise OSError(f'{url}: HTTP {e.code}') from None
+	except (ValueError, http.client.HTTPException) as e:  # an answer cut short, or not JSON
+		raise OSError(f'{url}: {e}') from None
 
 
 def stac(asset):
 	"""The STAC record of ASSET in the Earth Engine data catalog (a dict), or None if it is not there (the community
-	datasets and the assets of the users are not) or it cannot be read."""
+	datasets and the assets of the users are not) or it cannot be read now. Only an answer is remembered (the record,
+	or that there is none): a record that could not be read (no network, a timeout, a server error) is read again
+	RETRY seconds later, so that one failure does not take the citation of the data for the rest of the session."""
 	asset = normalize(asset)
 	if asset not in _stac:
-		rec = _fetch_json(stac_url(asset))
+		if asset in _unread and time.monotonic() - _unread[asset] < RETRY:
+			return None
+		try:
+			rec = _fetch_json(stac_url(asset))
+		except OSError:  # URLError, timeouts, HTTP 5xx
+			_unread[asset] = time.monotonic()
+			return None
+		_unread.pop(asset, None)
 		_stac[asset] = rec if isinstance(rec, dict) and rec.get('id') == asset else None
 	return _stac[asset]
 
@@ -164,25 +195,43 @@ def info(asset):
 	'image_collection'), 'bands': [{'band', 'data_type', 'resolution_m'}], 'first_date' (of its first image, or of
 	the image; None without dates)} (and 'first_image', of a collection). ValueError if it is not an image or a
 	collection of images, or this account cannot read it."""
-	import ee
 	asset = normalize(asset)
 	a = _asset(asset)
 	out = {'asset': asset, 'type': a['type']}
 	if a['type'] == 'image':
 		img = a
 	else:
+		img = _first_image(asset)
+		out['first_image'] = normalize(img.get('id') or img.get('name') or '')
+	out['bands'] = [{'band': b.get('id'), 'data_type': (b.get('dataType') or {}).get('precision', '').lower() or None,
+	                 'resolution_m': _metres(b.get('grid'))} for b in img.get('bands') or []]
+	out['first_date'] = (img.get('startTime') or '')[:10] or None
+	return out
+
+
+def _first_image(asset):
+	"""What Earth Engine says of the first image of the collection ASSET (ee.data.listImages, metadata, without
+	computing; cached with the asset). ValueError if it has none or this account cannot read it."""
+	import ee
+	asset = normalize(asset)
+	a = _asset(asset)
+	if '_first' not in a:
 		try:
 			first = ee.data.listImages({'parent': asset, 'pageSize': 1}).get('images') or []
 		except ee.EEException as e:
 			raise ValueError(_not_readable(asset, e)) from None
 		if not first:
 			raise ValueError(f'the collection {asset} has no images')
-		img = first[0]
-		out['first_image'] = normalize(img.get('id') or img.get('name') or '')
-	out['bands'] = [{'band': b.get('id'), 'data_type': (b.get('dataType') or {}).get('precision', '').lower() or None,
-	                 'resolution_m': _metres(b.get('grid'))} for b in img.get('bands') or []]
-	out['first_date'] = (img.get('startTime') or '')[:10] or None
-	return out
+		a['_first'] = first[0]
+	return a['_first']
+
+
+def first_date(asset):
+	"""The date (YYYY-MM-DD) of the image ASSET or of the first image of the collection ASSET, or None if it has none
+	(a collection of tiles, e.g. a DEM: an image for the tools, their mosaic). ValueError as info."""
+	a = _asset(asset)
+	img = a if a['type'] == 'image' else _first_image(asset)
+	return (img.get('startTime') or '')[:10] or None
 
 
 def _provider(rec):
@@ -195,21 +244,77 @@ def _sentence(text):
 	return text if not text or text.endswith(('.', '?', '!')) else text + '.'
 
 
+def _doi(text):
+	"""The DOI in TEXT, as the STAC records give it ('10.x/y', 'doi:10.x/y', 'https://doi.org/10.x/y'), without the
+	punctuation after it nor the backslashes of Markdown ('TNYRP\\>2.0'); None if it has none."""
+	m = DOI.search(html.unescape(str(text or '')).replace('\\', ''))
+	return m.group(0).rstrip('.,;:>') if m else None
+
+
+def _given_doi(value):
+	"""A DOI given as such (sci:doi, the doi of sci:publications), without 'doi:' or 'https://doi.org/' before it."""
+	text = re.sub(r'^\s*(?:https?://(?:dx\.)?doi\.org/|doi:\s*)', '', str(value or ''), flags=re.I).strip()
+	return _doi(text) or text or None
+
+
+def _dois(text):
+	"""[(end, DOI)] of the DOIs of TEXT and where each one ends: that of a link of Markdown from its target (where the
+	DOI is whole), or else from its text; the same DOI right after another (a DOI and then its link) is one."""
+	out = []
+	for m in DOI_OR_LINK.finditer(text):
+		if m.group(1) is not None:  # a link: [text](target)
+			d = _doi(m.group(0)[len(m.group(1)) + 3:-1]) or _doi(m.group(1))
+		else:
+			d = _doi(m.group(0))
+		if d and out and out[-1][1] == d:
+			out[-1] = (m.end(), d)
+		elif d:
+			out.append((m.end(), d))
+	return out
+
+
+def _clean(text):
+	"""TEXT of a citation without its DOIs, links and URLs, and without what it asks the reader to fill in (the date of
+	access)."""
+	text = LINK.sub(r'\1', text)  # the text of the links of Markdown
+	text = re.sub(r'(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?' + DOI.pattern, '', text.replace('\\', ''), flags=re.I)
+	text = re.sub(r'https?://\S+', '', text)
+	text = PLACEHOLDER.sub('', text)
+	text = re.sub(r'\(\s*\)|\[\s*\]', '', text)
+	text = re.sub(r'\s+([.,;:])', r'\1', ' '.join(text.split()))  # the gap that they leave
+	return _sentence(re.sub(r'(?<!\.)\.\.(?!\.)', '.', text))
+
+
+def _articles(par):
+	"""[(text, DOI or None)] of a paragraph of sci:citation: one article, or one for each DOI if it has several (cut
+	after each of them, so that each article keeps its own)."""
+	dois = _dois(par)
+	if len(dois) < 2:
+		return [(par, dois[0][1] if dois else None)]
+	out, start = [], 0
+	for i, (end, d) in enumerate(dois):
+		end = len(par) if i == len(dois) - 1 else end + len(re.match(r'[).]*', par[end:]).group(0))
+		out.append((par[start:end], d))
+		start = end
+	return out
+
+
 def _publications(rec):
 	"""[(citation, DOI or None)] of the articles of a STAC record: sci:publications and the paragraphs of
-	sci:citation (without their DOIs and links, which go to DOI)."""
-	out = [(_sentence(p.get('citation')), p.get('doi')) for p in rec.get('sci:publications') or [] if p.get('citation')]
-	for par in re.split(r'\n\s*\n', str(rec.get('sci:citation') or '')):
-		dois = [d.rstrip('.') for d in DOI.findall(par)]
-		text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', par)  # the text of the links of Markdown
-		text = re.sub(r'(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?' + DOI.pattern, '', text, flags=re.I)
-		text = re.sub(r'https?://\S+', '', text)
-		text = re.sub(r'\(\s*\)|\[\s*\]', '', text)
-		text = _sentence(text)
-		if not re.search(r'\b(19|20)\d\d\b', text) or text.lower().startswith(('please', 'see ', 'for ')):
-			continue  # not a citation (e.g. "Please visit LP DAAC 'Citing Our Data' page")
-		if not any(c == text for c, _ in out):
-			out.append((text, dois[0] if dois else None))
+	sci:citation (without their DOIs and links, which go to DOI, and without the HTML entities of the records:
+	'Mu&ntilde;oz' is 'Muñoz')."""
+	out = []
+	for p in rec.get('sci:publications') or []:
+		if p.get('citation'):
+			text = html.unescape(str(p['citation']))
+			out.append((_clean(text), _given_doi(p.get('doi')) or next((d for _, d in _dois(text)), None)))
+	for par in re.split(r'\n\s*\n', html.unescape(str(rec.get('sci:citation') or ''))):
+		for piece, doi in _articles(par):
+			text = _clean(piece)
+			if not re.search(r'\b(19|20)\d\d\b', text) or text.lower().startswith(('please', 'see ', 'for ')):
+				continue  # not a citation (e.g. "Please visit LP DAAC 'Citing Our Data' page")
+			if not any(c == text for c, _ in out):
+				out.append((text, doi))
 	return out
 
 
@@ -229,7 +334,7 @@ def cite(asset):
 			refs.append((f'{asset}#{i}', {'citation': citation, 'doi': doi} if doi else {'citation': citation}))
 		dataset = _sentence(f"{provider + '. ' if provider else ''}{title} [Dataset]. Earth Engine data catalog, "
 		                    f'{asset}')
-		doi = rec.get('sci:doi')
+		doi = _given_doi(rec.get('sci:doi'))
 		if doi and not any(r.get('doi') == doi for _, r in refs):
 			refs.append((asset, {'citation': dataset, 'doi': doi}))
 		elif not refs:
@@ -244,10 +349,26 @@ def cite(asset):
 		methods = list(community.REFERENCES)
 		lic = com.get('license_text') if com.get('license') == 'custom' else com.get('license')
 		credits.append(f"{com['title']}{' (' + provider + ')' if provider else ''}: {lic or 'see its page'}")
+	elif in_data_catalog(asset):  # its record could not be read (or it has none): its page says how to cite it
+		refs.append((asset, {'citation': f'{asset} [Dataset]. Earth Engine data catalog.', 'url': page(asset)}))
+		credits.append(f'{asset}: terms of use in {page(asset)}#terms-of-use')
 	else:
 		refs.append((asset, {'citation': f'Earth Engine asset {asset}.',
 		                     'url': f'https://code.earthengine.google.com/?asset={asset}'}))
 	return refs, credits, methods
+
+
+def in_data_catalog(asset):
+	"""Whether ASSET is of the Earth Engine data catalog: every ID but those of the users and the projects (users/,
+	projects/), as the app says (gee/core.js)."""
+	return not re.match(r'(users|projects)/', normalize(asset))
+
+
+def _gsd(band):
+	"""The pixel size (m) of a band of a STAC record (gsd, a number or a list of them), or None."""
+	gsd = (band or {}).get('gsd')
+	gsd = gsd[0] if isinstance(gsd, list) and gsd else gsd
+	return float(gsd) if isinstance(gsd, (int, float)) else None
 
 
 def _band_stac(rec):
@@ -267,7 +388,11 @@ def describe(asset):
 	rec, com = stac(asset), community.record(asset)
 	by_band = _band_stac(rec)
 	bands = []
-	for b in meta['bands']:
+	# the bands of its first image, then those of its STAC record that it has not (some collections change their bands
+	# from image to image, e.g. Sentinel-1: VV and VH, or HH and HV; the tools use the images with the band)
+	first = {b['band'] for b in meta['bands']}
+	for b in meta['bands'] + [{'band': name, 'resolution_m': _gsd(s), 'data_type': None}
+	                          for name, s in by_band.items() if name not in first]:
 		s = by_band.get(b['band'], {})
 		row = {'band': b['band'], 'description': s.get('description'), 'units': s.get('gee:units'),
 		       'unit': udunits(s.get('gee:units')), 'band_scale': s.get('gee:scale'), 'band_offset': s.get('gee:offset'),
@@ -308,6 +433,12 @@ def describe(asset):
 		            'dates': [meta['first_date'], None] if dated else None})
 		notes.append('The GEE Community Catalog does not give the units, scale and offset of the bands: read them in '
 		             'its page, and give them with unit, band_scale and band_offset.')
+	elif in_data_catalog(asset):  # of the Earth Engine data catalog, but its record could not be read now
+		out.update({'title': asset, 'source': 'Earth Engine data catalog', 'page': page(asset),
+		            'dates': [meta['first_date'], None] if dated else None})
+		notes.append('Its record in the Earth Engine data catalog (STAC) could not be read: read the units, scale and '
+		             'offset of its bands and how to cite it in its page, and give them with unit, band_scale and '
+		             'band_offset.')
 	else:
 		out.update({'title': asset, 'source': 'Earth Engine asset', 'page': None,
 		            'dates': [meta['first_date'], None] if dated else None})

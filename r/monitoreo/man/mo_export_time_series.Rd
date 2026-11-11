@@ -91,7 +91,8 @@ e.g. \code{band_scale = 0.1}.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
 A list (operation, file, folder, references, credits); \code{mo_task_status()} follows the task.
@@ -114,7 +115,7 @@ of the catalog, any collection of images of Earth Engine with dates, by its ID: 
 mo_init()
 mo_init("my-project")
 mo_export_time_series(mo_wdpa(389011), "NDVI", "Landsat", "1985-01-01", "2024-12-31")
-mo_export_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+mo_export_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                       start = "1958-01-01", end = "2024-12-31")
 }
 }

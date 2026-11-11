@@ -1,0 +1,2 @@
+region,date,value,n_pixels,n_images,variable,sensor,step,metric,stat,unit,scale_m
+A,2020-01-01,1,1,1,x,,annual,sum,mean,mm (5 day)-1,5000

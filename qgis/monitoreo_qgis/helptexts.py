@@ -40,6 +40,12 @@ def manual(page):
 	return f'<p><a href="{about.MANUAL}/{page}">More in the manual</a></p>'
 
 
+# The bands with classes or bit flags, in the words of the panel: the note of services.describe_asset on them names the
+# metric mode, which the panel does not offer (dock.METRICS). One text for the help of Band and for that of the data
+# read (data_help).
+CLASSES = ('Bands with classes or bit flags (land cover, quality) are codes, not quantities: their mean or median mean '
+           'nothing; use the <b>Minimum</b> or the <b>Maximum</b>.')
+
 HELP = {
 	'project':
 		'<p><b>Empty</b>: the computations run in Earth Engine with the <b>shared account of MonitorEO</b>, with no '
@@ -182,8 +188,7 @@ HELP = {
 		'<p>The band that is computed (one). <b>Read</b> lists them, with their description, unit and pixel size in '
 		'their tooltips; you can also write it. Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
 		'<b>Unit (UDUNITS)</b> as its record says.</p>'
-		'<p>Bands with classes or bit flags (land cover, quality) are codes, not quantities: their mean or median mean '
-		'nothing; use the <b>Minimum</b> or the <b>Maximum</b>.</p>'
+		f'<p>{CLASSES}</p>'
 		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
 	'asset_use':
 		'<ul><li><b>Images with dates (collection)</b>: a collection of images over time (e.g. the monthly '
@@ -457,7 +462,10 @@ def data_help(v, info=None):
 		for b in info.get('bands') or []:
 			if b.get('band') == band:
 				lines += band_lines(b)
-		lines += [esc(n) for n in info.get('notes') or []]
+		# its notes, but that on the bands with classes in the words of the panel (CLASSES): describe_asset names the
+		# metric mode, which the panel does not offer
+		coded = any(b.get('classes') or b.get('bitmask') for b in info.get('bands') or [])
+		lines += [esc(n) for n in info.get('notes') or [] if 'classes' not in n.lower()] + ([CLASSES] if coded else [])
 		refs, credits = info.get('references') or (), info.get('credits') or ()
 	else:
 		lines.append('Press <b>Read</b> to see what it is, its bands and how to cite it.')

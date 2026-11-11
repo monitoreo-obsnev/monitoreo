@@ -263,11 +263,18 @@ var MonitorEO = (function () {
 		return CATALOG.other_themes || [];
 	}
 
-	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate per month or per day
-	// ('[mm/month]', e.g. the annual precipitation; 'mm month-1' in UDUNITS, the data outside the catalog) is a total
-	// ('[mm]', 'mm')
+	// catalog.RATE and catalog.RATE_UDUNITS: a rate per month or per day, whose sum is a total: in the catalog
+	// ('[mm/month]', '[mm/day]') and in UDUNITS (the data of Earth Engine outside the catalog: 'mm month-1', 'mm day-1');
+	// in UDUNITS also per period of its images, the total of N days of each one ('mm (5 day)-1' of CHIRPS PENTAD,
+	// 'kg m-2 (8 day)-1' of an 8-day product, written '/N days' too) and 'd-1'. The units of the catalog keep their own
+	var RATE = /^(\[)(.+?)(?:\/(?:month|day)| (?:month|day)-1)(\])$/;
+	var RATE_UDUNITS = /^()(.+?)(?:\/(?:month|day|d|\d+ ?days?|\(\d+ ?days?\))| (?:month|day|d|\(\d+ ?days?\))-1)()$/;
+
+	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate (RATE, RATE_UDUNITS:
+	// '[mm/month]', e.g. the annual precipitation; 'mm month-1', 'mm (5 day)-1') is a total ('[mm]', 'mm')
 	function unitOf(entry, metric) {
-		var m = /^(\[?)(.+?)(?:\/(?:month|day)| (?:month|day)-1)(\]?)$/.exec(entry.unit || '');
+		var text = String(entry.unit || '');
+		var m = (text.charAt(0) === '[' ? RATE : RATE_UDUNITS).exec(text);
 		return m && String(metric || '').toLowerCase() === 'sum' ? m[1] + m[2] + m[3] : entry.unit;
 	}
 
@@ -585,7 +592,32 @@ var MonitorEO = (function () {
 	var LEGACY = 'projects/earthengine-legacy/assets/';
 	// catalog.UDUNITS_TEXT: a unit written in UDUNITS ('mm', 'degC', 'kg m-2', 'mm day-1', '1')
 	var UDUNITS_TEXT = /^[A-Za-z0-9 ._^()*\/%+-]+$/;
-	var TERRAIN = ['slope', 'aspect'];
+	// assets.UNITS: the units of the bands of the STAC records of the Earth Engine data catalog (gee:units) in UDUNITS,
+	// which the unit given is translated from too (the page of a dataset writes them so: 'W/m^2', '°C', 'mm/d')
+	var UNITS = {
+		'mm': 'mm', 'cm': 'cm', 'm': 'm', 'km': 'km', 'K': 'K', '&deg;C': 'degC', '°C': 'degC', 'C': 'degC',
+		'&deg;F': 'degF', 'deg': 'degree', 'degrees': 'degree', 'rad': 'rad', '%': '%', 'Dimensionless': '1',
+		'dimensionless': '1', 'unitless': '1', 'Fraction': '1', 'fraction': '1', 'Area fraction': '1',
+		'Volume fraction': '1', 'Mass fraction': '1', 'Mol fraction': '1', 'Spectral reflectance': '1',
+		'Reflectance factor': '1', 'index': '1', 'Coefficient of Variation': '1', 'count': '1', 'm/s': 'm s-1',
+		'm/s^2': 'm s-2', 'm^2/s': 'm2 s-1', 'm^2/s^2': 'm2 s-2', 'm^2 s-2': 'm2 s-2', '1/s': 's-1', 's^-1': 's-1',
+		'm^-1': 'm-1', '1/m': 'm-1', 'Pa': 'Pa', 'hPa': 'hPa', 'kPa': 'kPa', 'mbar': 'mbar', 'Pa/s': 'Pa s-1',
+		'W/m^2': 'W m-2', 'J/m^2': 'J m-2', 'J/m^2/day': 'J m-2 day-1', 'MJ m^-2 day^-1': 'MJ m-2 day-1', 'J/kg': 'J kg-1',
+		'kg/m^2': 'kg m-2', 'kg/m^2/s': 'kg m-2 s-1', 'kg/m^2/8day': 'kg m-2 (8 day)-1', 'kg/m^3': 'kg m-3',
+		'g/m^2': 'g m-2', 'g/cm^3': 'g cm-3', 'g/kg': 'g kg-1', 'kg/kg': 'kg kg-1', 'mg/m^3': 'mg m-3',
+		'mg/m^3/day': 'mg m-3 day-1', 'mol/m^2': 'mol m-2', 'mol/m^3': 'mol m-3', 'mmol/m^3': 'mmol m-3',
+		'cm^3/cm^3': 'cm3 cm-3', 'm^2/m^3': 'm2 m-3', 'Mg/ha': 'Mg ha-1', 'tonnes/hectare': 'Mg ha-1', 'm^2': 'm2',
+		'km^2': 'km2', 'ha': 'ha', 'm^3': 'm3', 'mm/d': 'mm day-1', 'mm/day': 'mm day-1', 'mm, daily total': 'mm day-1',
+		'mm/hr': 'mm h-1', 'mm/h': 'mm h-1', 'm/h': 'm h-1', 'mm/month': 'mm month-1', 'mm/y': 'mm year-1',
+		'mm/pentad': 'mm (5 day)-1', 'meter/year': 'm year-1', 'm of water equivalent': 'm', 'gpm': 'm', 'h': 'h',
+		'min': 'min', 's': 's', 'seconds': 's', 'd': 'day', 'y': 'year', 'ppm': 'ppm', 'ppb': 'ppb', '&mu;m': 'um',
+		'&micro;m': 'um', 'MW': 'MW', 'dB': 'dB'
+	};
+	// variable.UNIT_WORDS: units given in other words, in UDUNITS (before those of UNITS)
+	var UNIT_WORDS = {'°C': 'degC', '°F': 'degF', '°': 'degree', 'deg C': 'degC', 'deg F': 'degF'};
+	// variable.DIMENSIONLESS: the names of a unit without dimensions, in any case ('1' in UDUNITS)
+	var DIMENSIONLESS = ['unitless', 'dimensionless', 'fraction', 'index'];
+	var TERRAIN = ['slope', 'aspect'];  // variable.TERRAIN: of the band of an image (ee.Terrain), in degrees
 
 	// assets.normalize: the ID of an asset as the tools take it, without quotes, spaces or a call of the Code Editor
 	// around it (ee.ImageCollection("X") is X) and without the prefix of the public catalog
@@ -597,15 +629,26 @@ var MonitorEO = (function () {
 		return text.replace(/^projects\/earthengine-public\/assets\//, '');
 	}
 
-	// variable._udunits_text: UNIT of the data of ASSET as given, in UDUNITS ('mm', 'degC', '1' if dimensionless); an
-	// error if it cannot be one
+	// Python's repr of the text TEXT: the messages of the package quote so what was given ('m', "it's")
+	function repr(text) {
+		text = String(text);
+		if (text.indexOf("'") >= 0 && text.indexOf('"') < 0) return '"' + text + '"';
+		return "'" + text.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+	}
+
+	// variable._udunits_text: UNIT of the data of ASSET as given (not blank: a blank unit is not given, see
+	// customEntry), in UDUNITS ('mm', 'degC', '1' if dimensionless), with the words of the STAC records translated ('C'
+	// and '°C' are degC, 'W/m^2' is W m-2, 'unitless' or 'Fraction' is 1: see UNITS); an error if it cannot be one, as
+	// the code of a variable of the catalog ('NDVI': a name, not a unit)
 	function udunitsText(unit, asset) {
 		var text = String(unit).replace(/º/g, '°').split(/\s+/).filter(function (x) { return x; }).join(' ');
-		var named = {'°C': 'degC', '°': 'degree', unitless: '1', dimensionless: '1', '': '1'};
-		if (named.hasOwnProperty(text)) text = named[text];
-		if (!UDUNITS_TEXT.test(text)) {
+		if (DIMENSIONLESS.indexOf(text.toLowerCase()) >= 0) return '1';
+		if (UNIT_WORDS.hasOwnProperty(text)) text = UNIT_WORDS[text];
+		else if (UNITS.hasOwnProperty(text)) text = UNITS[text];  // 'C' alone is coulomb in UDUNITS: here degC
+		var code = variables().some(function (e) { return String(e.index).toUpperCase() === text.toUpperCase(); });
+		if (code || !UDUNITS_TEXT.test(text)) {
 			throw new Error('the unit of ' + asset + " is written in UDUNITS (the units of the CF conventions), e.g. 'mm', " +
-				"'degC', 'kg m-2', 'mm day-1' or '1' (dimensionless), not '" + unit + "'");
+				"'degC', 'kg m-2', 'mm day-1' or '1' (dimensionless), not " + repr(unit));
 		}
 		return text;
 	}
@@ -621,37 +664,58 @@ var MonitorEO = (function () {
 	// like a variable of the catalog. O.use: 'collection' (images with dates, aggregated in time: fromCollection) or
 	// 'image' (a fixed layer without dates: staticImage, the mosaic of the tiles if O.type is 'image_collection'); O.band
 	// (one); O.scale and O.offset of its stored values; O.unit of the values (in UDUNITS); O.terrain ('slope' or
-	// 'aspect' of the band, image only); O.m, the pixel size of the band (m, as variable.native_scale: see assetInfo).
-	// An error with what is wrong (no band, an image given as a collection, a unit not in UDUNITS)
+	// 'aspect' of the band, image only, in degrees); O.m, the pixel size of the band (m, as variable.native_scale: see
+	// assetInfo); O.dated, false for a collection whose images have no dates (see assetInfo). An error with what is
+	// wrong (no band, an image or a collection of tiles given as a collection, a unit not in UDUNITS)
 	function customEntry(o) {
 		var asset = assetId(o.asset);
 		if (!asset) throw new Error('give the ID of an image or a collection of images of Earth Engine');
 		var band = String(o.band === null || o.band === undefined ? '' : o.band).trim();
 		if (!band) throw new Error('give the band of ' + asset + ' (one)');
 		var use = o.use === 'image' ? 'image' : 'collection';
-		if (use === 'collection' && o.type === 'image') {  // variable.check_asset
-			throw new Error(asset + " is an image, not a collection of images: give it as image='" + asset + "' (a " +
-				'fixed layer, without dates)');
-		}
-		var terrain = use === 'image' && o.terrain ? String(o.terrain) : null;  // variable._fixed: only for an image
+		// variable.specs, in its order: the terrain, then the unit
+		var terrain = o.terrain ? String(o.terrain) : null;  // only for an image, in degrees
+		if (terrain && use !== 'image') throw new Error('terrain is for an image (image=, e.g. a DEM), not for a collection');
 		if (terrain && TERRAIN.indexOf(terrain) < 0) {
 			throw new Error('unknown terrain ' + terrain + ': use ' + TERRAIN.join(', '));
+		}
+		// variable.given_unit: '' or blank is not given (not dimensionless); with a terrain, degree, whatever the unit of
+		// the band (ee.Terrain.slope and aspect give degrees)
+		var given = o.unit === null || o.unit === undefined ? '' : String(o.unit).trim();
+		var unit = given ? udunitsText(o.unit, asset) : '';
+		if (terrain) {
+			if (unit && unit !== 'degree') {
+				throw new Error('the ' + terrain + ' of ' + asset + " is in degrees: give no unit, or 'degree' (not " +
+					repr(o.unit) + ', the unit of its band)');
+			}
+			unit = 'degree';
+		}
+		// variable.check_asset, then: what Earth Engine says of the ID (O.type and O.dated, see assetInfo)
+		if (use === 'collection' && o.type === 'image') {
+			throw new Error(asset + ' is an image, not a collection of images: give it as an image (a fixed layer, ' +
+				'without dates: maps, GeoTIFFs and statistics of the region)');
+		}
+		// the dates of its images filter them, so a collection of tiles without dates (a DEM) given as a collection
+		// would have no images at all
+		if (use === 'collection' && o.type === 'image_collection' && o.dated === false) {
+			throw new Error(asset + ' is a collection of images without dates (tiles): give it as an image (their ' +
+				'mosaic, a fixed layer, without dates)');
 		}
 		var m = Number(o.m);
 		if (!(m > 0)) {
 			throw new Error('the pixel size of the band ' + band + ' of ' + asset + ' is unknown: read its ID first');
 		}
-		var given = o.unit === null || o.unit === undefined ? '' : String(o.unit).trim();  // services.make_spec: '' is none
 		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset, band: band,
 			scale: number(o.scale, 1) || 1, offset: number(o.offset, 0),  // variable._fixed: float(scale or 1)
-			unit: given ? customUnit(udunitsText(given, asset)) : '', terrain: terrain, m: m, type: o.type || null,
-			use: use};
+			unit: unit ? customUnit(unit) : '', terrain: terrain, m: m, type: o.type || null, use: use};
 	}
 
 	// services._title: what names the data of the entry E in the titles: the variable and sensor of the catalog (NDVI
-	// Sentinel-2), or the ID and band of the data of Earth Engine (IDAHO_EPSCOR/TERRACLIMATE pr)
+	// Sentinel-2), or the ID and band of the data of Earth Engine, and its terrain (IDAHO_EPSCOR/TERRACLIMATE pr,
+	// COPERNICUS/DEM/GLO30 DEM slope)
 	function entryName(e) {
-		return e.custom ? (e.col + ' ' + (e.band || '')).trim() : e.index + ' ' + e.sensor;
+		return e.custom ? [e.col, e.band, e.terrain].filter(function (x) { return x; }).join(' ') :
+			e.index + ' ' + e.sensor;
 	}
 
 	// assets._not_readable, for the app: it computes with the Cloud project of the app
@@ -737,6 +801,11 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// variable._with_band: the images of COL that have BAND (Sentinel-1 has VV and VH, or HH and HV)
+	function withBand(col, band) {
+		return col.filter(ee.Filter.listContains('system:band_names', band));
+	}
+
 	// variable._from_collection: single band images ('value', float) of the band of the collection of the entry E
 	// (customEntry) over REGION between START and END (excluded), with the scale and offset of its stored values,
 	// bilinear on output pixels of RES metres finer than those of the data (variable._resample), and the date of each
@@ -744,7 +813,8 @@ var MonitorEO = (function () {
 	function fromCollection(e, region, start, end, res) {
 		var scale = number(e.scale, 1) || 1, offset = number(e.offset, 0);
 		var bilinear = Boolean(res) && res < Number(e.m);
-		return ee.ImageCollection(e.col).filterBounds(region).filterDate(start, end).map(function (img) {
+		var col = ee.ImageCollection(e.col).filterBounds(region).filterDate(start, end);
+		return withBand(col, e.band).map(function (img) {
 			img = ee.Image(img);
 			var out = img.select(e.band).multiply(scale).add(offset);
 			if (bilinear) out = out.resample('bilinear');
@@ -819,11 +889,17 @@ var MonitorEO = (function () {
 		var s = {metric: 'mean', temporal: 'period', interannual: 'mean', season: null, quality: {}};
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
-		var e = s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref);
-		if (e.metric && String(s.metric).trim().toLowerCase() !== e.metric) {  // its only metric (SCF: the mean)
+		onlyMetric(s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref), s.metric);
+		return s;
+	}
+
+	// variable.specs: error if METRIC is not the only metric of the entry E, if it has one (SCF and CF: the mean of
+	// their images). Also for the metric of each step of a series and of each year of the trends (series,
+	// yearlyCollection), which the services of Python check as the metric of their spec
+	function onlyMetric(e, metric) {
+		if (e.metric && String(metric).trim().toLowerCase() !== e.metric) {
 			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
 		}
-		return s;
 	}
 
 	function entryOf(s) {
@@ -863,7 +939,9 @@ var MonitorEO = (function () {
 		if (e.image_asset) {  // an image (WorldClim), not a collection
 			img = ee.Image(e.col).select(e.band);
 		} else {
-			var col = ee.ImageCollection(e.col).select(e.band);
+			var col = ee.ImageCollection(e.col);
+			if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
+			col = col.select(e.band);
 			img = col.mosaic().setDefaultProjection(col.first().projection());
 		}
 		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
@@ -1178,6 +1256,7 @@ var MonitorEO = (function () {
 	// split in two when Earth Engine runs out of memory or time and repeated when it is busy.
 	// done(error, rows), progress(done steps, total) after each block.
 	function series(s, regions, nRegions, metric, stat, scale, crs, steps, done, progress) {
+		onlyMetric(entryOf(s), metric);
 		var block = Math.max(1, Math.min(Math.floor(MAX_ROWS / Math.max(nRegions, 1)), MAX_STEPS));
 		var blocks = [];
 		for (var i = 0; i < steps.length; i += block) blocks.push(steps.slice(i, i + block));
@@ -1302,6 +1381,7 @@ var MonitorEO = (function () {
 
 	// trends.yearly_collection
 	function yearlyCollection(s, region, step, part, metric) {
+		onlyMetric(entryOf(s), metric || 'mean');
 		var col = collection(s, region);
 		var red = reducer(metric || 'mean');
 		var imgs = [];
@@ -1649,7 +1729,8 @@ var MonitorEO = (function () {
 		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
 		otherThemes: otherThemes,
 		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
-		udunitsText: udunitsText, customUnit: customUnit, customEntry: customEntry, entryName: entryName,
+		UNITS: UNITS, UNIT_WORDS: UNIT_WORDS, DIMENSIONLESS: DIMENSIONLESS, udunitsText: udunitsText,
+		customUnit: customUnit, customEntry: customEntry, entryName: entryName,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
 		staticImage: staticImage, iso: iso, date: date, windows: windows, bins: bins, reducer: reducer,

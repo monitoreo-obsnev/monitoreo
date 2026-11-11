@@ -186,9 +186,18 @@ var image = mo.spec({entry: mo.customEntry({asset: 'WORLDCLIM/V1/BIO', type: 'im
 	m: 927.67, scale: 0.1, unit: 'degC'})});
 var collection = mo.spec({entry: mo.customEntry({asset: 'IDAHO_EPSCOR/TERRACLIMATE', type: 'image_collection',
 	band: 'pr', m: 4638.3, unit: 'mm'}), period: ['2020-01-01', '2020-12-31']});
-out.names = [mo.entryName(mo.entryOf(image)), mo.entryName(mo.entryOf(collection))];
+var slope = mo.spec({entry: mo.customEntry({asset: 'COPERNICUS/DEM/GLO30', type: 'image_collection', dated: true,
+	band: 'DEM', use: 'image', m: 30, terrain: 'slope'})});
+out.names = [mo.entryName(mo.entryOf(image)), mo.entryName(mo.entryOf(collection)), mo.entryName(mo.entryOf(slope))];
+out.slopeUnit = mo.entryOf(slope).unit;
+out.unitTables = {units: mo.UNITS, words: mo.UNIT_WORDS, dimensionless: mo.DIMENSIONLESS};
 out.checkDates = attempt(function () { mo.checkDates(image, 'time series'); });
 out.checkRgb = attempt(function () { mo.checkRgb(collection); });
+// the only metric of the SCF (the mean) also for each step of a series and each year of the trends
+var scf = mo.spec({ref: 105, period: ['2020-01-01', '2021-12-31']});
+out.onlyMetric = [attempt(function () { mo.spec({ref: 105, period: ['2020-01-01', '2021-12-31'], metric: 'max'}); }),
+	attempt(function () { mo.series(scf, object(), 1, 'max', 'mean', 30, 'EPSG:32630', [['2020-01-01', '2020-02-01']]); }),
+	attempt(function () { mo.trendImage(scf, object(), 'monthly', 7, 'max'); })];
 out.filters = mo.filters(mo.entryOf(collection), {});
 out.fixed = mo.fixedFilters(mo.entryOf(collection));
 out.rgb = mo.rgbOf(mo.customEntry({asset: 'MODIS/061/MOD09GA', type: 'image_collection', band: 'sur_refl_b01',
@@ -260,7 +269,7 @@ def _arg(a):
 
 # The images of the data of Earth Engine as the package and the app build them: a collection (on the pixels of the
 # data and on finer ones: bilinear), an image (stored scaled, on bigger pixels: their mean) and a collection of tiles
-# given as an image, with the slope of its band
+# given as an image, with the slope of its band (in degrees: no unit given)
 CHAINS = [
 	{'entry': {'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'type': 'image_collection', 'band': 'pr', 'use': 'collection',
 	           'm': 4638.3, 'unit': 'mm'}, 'period': ['2020-01-01', '2020-12-31'], 'res': 4638.3},
@@ -272,7 +281,7 @@ CHAINS = [
 	{'entry': {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': 'bio12', 'use': 'image', 'm': 927.67},
 	 'period': None, 'res': 5000},
 	{'entry': {'asset': 'projects/sat-io/open-datasets/FABDEM', 'type': 'image_collection', 'band': 'b1',
-	           'use': 'image', 'm': 30, 'terrain': 'slope', 'unit': 'm'}, 'period': None, 'res': 10},
+	           'use': 'image', 'm': 30, 'terrain': 'slope'}, 'period': None, 'res': 10},
 ]
 
 
@@ -290,6 +299,10 @@ def _python_chain(c, monkeypatch):
 	spec = _python_spec(c)
 	monkeypatch.setitem(variable._native, (e['asset'], e['band']), e['m'])
 	monkeypatch.setitem(variable._types, e['asset'], 'IMAGE' if e['type'] == 'image' else 'IMAGE_COLLECTION')
+	# what Earth Engine says of the ID (variable.check_asset): its type, and the date of its first image (those given
+	# as a collection have dates)
+	monkeypatch.setattr(assets, 'asset_type', lambda asset: e['type'])
+	monkeypatch.setattr(assets, 'first_date', lambda asset: '2000-01-01' if e['use'] == 'collection' else None)
 	rec = []
 	monkeypatch.setattr(variable, 'ee', _Root(rec))
 	if e['use'] == 'image':
@@ -302,8 +315,14 @@ def _python_chain(c, monkeypatch):
 IDS = ['IDAHO_EPSCOR/TERRACLIMATE', ' ee.ImageCollection("IDAHO_EPSCOR/TERRACLIMATE"); ', "'WORLDCLIM/V1/BIO'",
        "ee.Image('WORLDCLIM/V1/BIO')", 'projects/earthengine-public/assets/COPERNICUS/DEM/GLO30',
        'projects/sat-io/open-datasets/FABDEM', '"users/someone/an_image"']
-UNITS = ['mm', ' mm ', '1', 'unitless', 'degC', '°C', 'º', 'mm month-1', 'mm day-1', 'kg m-2 s-1', '', None, 'm²',
-         'mm/día']
+# as written in UDUNITS, blank (not given), without dimensions, as the STAC records write them (and the pages of the
+# datasets), rates per day, per N days and per hour, the code of a variable (not a unit), and not UDUNITS
+UNITS = ['mm', ' mm ', '1', 'unitless', 'degC', '°C', 'º', 'mm month-1', 'mm day-1', 'kg m-2 s-1', '', '   ', None,
+         'm²', 'mm/día', 'Fraction', 'INDEX', 'Dimensionless', 'C', '°F', 'deg C', 'deg', 'W/m^2', 'mm/d',
+         'mm/pentad', 'kg/m^2/8day', 'mm d-1', 'mm (5 day)-1', 'kg m-2 (8 day)-1', 'mm h-1', 'NDVI', 'ndvi', 'Chl-a',
+         "it's", 'constructor']
+CATALOG_UNITS = [['[mm/month]', 'sum'], ['[mm/month]', 'mean'], ['[mm/day]', 'Sum'], ['[°C]', 'sum'],
+                 ['[kg/m²/8 days]', 'sum'], ['[kg/m²/8 days]', 'max'], ['[J/m²/day]', 'sum']]
 METRICS = ['mean', 'sum', 'SUM', 'max']
 COMMUNITY_THEMES = ['Hydrology', 'Tiempo y clima', 'soil properties']
 INFOS = [  # what ee.data.getAsset and the evaluate of mo.assetInfo answer
@@ -336,12 +355,17 @@ def app():
 	legacy = 'projects/earthengine-legacy/assets/' + next(d['id'] for d in community.datasets()
 	                                                      if d['id'].startswith('projects/sat-io/'))
 	data = {'ids': IDS, 'units': [[u] for u in UNITS], 'metrics': METRICS, 'chains': CHAINS,
-	        'catalogUnits': [['[mm/month]', 'sum'], ['[mm/month]', 'mean'], ['[mm/day]', 'Sum'], ['[°C]', 'sum']],
+	        'catalogUnits': CATALOG_UNITS,
 	        'errors': [{'asset': 'A/B', 'band': '', 'm': 30},
 	                   {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': 'bio01', 'use': 'collection', 'm': 927.67},
 	                   {'asset': 'A/B', 'band': 'b', 'm': 30, 'unit': 'm²'},
 	                   {'asset': 'A/B', 'band': 'b', 'use': 'image', 'm': 30, 'terrain': 'curvature'},
-	                   {'asset': 'A/B', 'band': 'b'}, {'asset': ' ', 'band': 'b', 'm': 30}],
+	                   {'asset': 'A/B', 'band': 'b'}, {'asset': ' ', 'band': 'b', 'm': 30},
+	                   {'asset': 'projects/sat-io/open-datasets/FABDEM', 'type': 'image_collection', 'dated': False,
+	                    'band': 'b1', 'use': 'collection', 'm': 30},
+	                   {'asset': 'COPERNICUS/DEM/GLO30', 'type': 'image_collection', 'dated': True, 'band': 'DEM',
+	                    'use': 'image', 'm': 30, 'terrain': 'slope', 'unit': 'm'},
+	                   {'asset': 'A/B', 'band': 'b', 'use': 'collection', 'm': 30, 'terrain': 'slope'}],
 	        'themes': COMMUNITY_THEMES, 'records': [legacy, 'projects/someone/assets/nothing'],
 	        'sources': ['IDAHO_EPSCOR/TERRACLIMATE', 'projects/sat-io/open-datasets/FABDEM', 'users/someone/an_image'],
 	        'infos': INFOS, 'assets': ASSETS, 'community': _build().community_index(),
@@ -375,10 +399,22 @@ def test_the_app_takes_the_ids_and_units_as_the_package(app):
 				assert js == {'error': str(error)}, (u, m)
 				continue
 			assert js == {'value': services._unit(spec)}, (u, m)
-	assert app['units'][UNITS.index('1')][0] == {'value': '[unitless]'}
-	assert app['units'][UNITS.index('mm month-1')][1] == {'value': 'mm'}  # the sum of a rate is a total
-	assert app['catalogUnits'] == [catalog.unit_of(u, m) for u, m in
-	                               [['[mm/month]', 'sum'], ['[mm/month]', 'mean'], ['[mm/day]', 'Sum'], ['[°C]', 'sum']]]
+	def value(unit, metric='mean'):
+		return app['units'][UNITS.index(unit)][METRICS.index(metric)].get('value', 'error')
+
+	assert value('1') == value('Fraction') == value('INDEX') == '[unitless]'
+	assert value('') == value('   ') == value(None) == ''  # blank: not given, not dimensionless
+	assert value('C') == value('°C') == value('deg C') == 'degC' and value('°F') == 'degF'
+	assert (value('W/m^2'), value('deg'), value('mm/d')) == ('W m-2', 'degree', 'mm day-1')
+	assert value('NDVI') == value('ndvi') == value('m²') == 'error'  # a variable of the catalog is no unit
+	# the sum of a rate per month, per day or per N days is a total; per hour it stays a rate
+	assert value('mm month-1', 'sum') == value('mm d-1', 'sum') == value('mm/pentad', 'sum') == 'mm'
+	assert value('mm (5 day)-1', 'SUM') == 'mm' and value('kg m-2 (8 day)-1', 'sum') == 'kg m-2'
+	assert value('mm (5 day)-1', 'max') == 'mm (5 day)-1' and value('mm h-1', 'sum') == 'mm h-1'
+	assert app['catalogUnits'] == [catalog.unit_of(u, m) for u, m in CATALOG_UNITS]
+	# the tables of the units given in other words: those of the package
+	assert app['unitTables'] == {'units': assets.UNITS, 'words': variable.UNIT_WORDS,
+	                             'dimensionless': list(variable.DIMENSIONLESS)}
 
 
 def test_the_app_refuses_the_data_of_earth_engine_as_the_package(app, monkeypatch):
@@ -386,15 +422,20 @@ def test_the_app_refuses_the_data_of_earth_engine_as_the_package(app, monkeypatc
 	of data outside the catalog, an image given as a collection and a unit that is not UDUNITS."""
 	image = _python_spec(CHAINS[2])
 	collection = _python_spec(CHAINS[0])
-	assert app['names'] == [services._title(image), services._title(collection).split(' | ')[0]]
-	assert app['names'] == ['WORLDCLIM/V1/BIO bio01', 'IDAHO_EPSCOR/TERRACLIMATE pr']
+	slope = services.make_spec(image='COPERNICUS/DEM/GLO30', band='DEM', terrain='slope')
+	assert app['names'] == [services._title(image), services._title(collection).split(' | ')[0], services._title(slope)]
+	assert app['names'] == ['WORLDCLIM/V1/BIO bio01', 'IDAHO_EPSCOR/TERRACLIMATE pr', 'COPERNICUS/DEM/GLO30 DEM slope']
+	assert app['slopeUnit'] == services._unit(slope) == 'degree'  # the slope is in degrees, whatever the band
 	with pytest.raises(ValueError) as error:
 		variable.check_dates(image, 'time series')
 	assert app['checkDates'] == {'error': str(error.value)}
 	with pytest.raises(ValueError) as error:
 		variable.check_rgb(collection)
 	assert app['checkRgb'] == {'error': str(error.value)}
-	no_band, image_as_collection, bad_unit, bad_terrain, no_size, no_id = app['errors']
+	# the only metric of the SCF, the mean: also for the steps of a series and the years of the trends
+	assert app['onlyMetric'] == [{'error': "SCF (Landsat) only takes the metric 'mean'"}] * 3
+	no_band, image_as_collection, bad_unit, bad_terrain, no_size, no_id, tiles_as_collection, slope_in_metres, \
+		terrain_of_collection = app['errors']
 	assert 'give the band of A/B' in no_band['error']
 	monkeypatch.setattr(variable, '_types', {})
 	monkeypatch.setattr(assets, 'asset_type', lambda asset: 'image')
@@ -402,6 +443,21 @@ def test_the_app_refuses_the_data_of_earth_engine_as_the_package(app, monkeypatc
 	with pytest.raises(ValueError) as error:
 		variable.check_asset(spec)
 	assert image_as_collection == {'error': str(error.value)}
+	# a collection of tiles without dates (FABDEM), given as a collection: the period would leave it without images
+	monkeypatch.setattr(assets, 'asset_type', lambda asset: 'image_collection')
+	monkeypatch.setattr(assets, 'first_date', lambda asset: None)
+	spec = services.make_spec(None, None, '2020-01-01', '2020-12-31', collection='projects/sat-io/open-datasets/FABDEM',
+	                          band='b1')
+	with pytest.raises(ValueError) as error:
+		variable.check_asset(spec)
+	assert tiles_as_collection == {'error': str(error.value)}
+	assert 'give it as an image (their mosaic' in tiles_as_collection['error']
+	with pytest.raises(ValueError) as error:  # the slope of a DEM is in degrees, not in the metres of its band
+		services.make_spec(image='COPERNICUS/DEM/GLO30', band='DEM', terrain='slope', unit='m')
+	assert slope_in_metres == {'error': str(error.value)}
+	with pytest.raises(ValueError) as error:
+		services.make_spec(None, None, '2020-01-01', '2020-12-31', collection='A/B', band='b', terrain='slope')
+	assert terrain_of_collection == {'error': str(error.value)}
 	with pytest.raises(ValueError) as error:
 		services.make_spec(None, None, '2020-01-01', '2020-12-31', collection='A/B', band='b', unit='m²')
 	assert bad_unit == {'error': str(error.value)}
@@ -513,8 +569,11 @@ function call(name) {
 		return object();
 	}, {get: function (t, p) { return p === TAG ? true : typeof p === 'symbol' ? undefined : call(name + '.' + p); }});
 }
+var later = [];  // the answers of ee.data.getAsset held back, for the IDs of input.later (a slow read)
 var data = {getAsset: function (id, done) {
-	return input.assets[id] ? done(input.assets[id]) : done(null, 'Asset ' + id + ' not found');
+	function answer() { return input.assets[id] ? done(input.assets[id]) : done(null, 'Asset ' + id + ' not found'); }
+	if ((input.later || []).indexOf(id) >= 0) return later.push(answer);
+	return answer();
 }};
 global.ee = new Proxy({}, {get: function (t, p) { return p === 'data' ? data : call(p); }});
 // a ui that draws nothing: each widget keeps its options, its widgets and whether it is greyed out
@@ -731,11 +790,83 @@ out.community.page = find(controls, 'Label', function (w) {
 	return w.opts.value === 'Página del conjunto de datos';
 }).map(function (w) { return w.opts.url; });
 out.community.use = selectWith('image').opts.value;
+out.community.useDisabled = selectWith('image').disabled;  // tiles without dates: only their mosaic, a fixed image
 // back to a variable of the catalog
 button('English').opts.onClick();
 selectWith('vegetation').opts.onChange('vegetation');
 out.back = {variables: Boolean(selectWith(27)), clouds: [check('clouds and shadows').opts.value,
 	check('clouds and shadows').disabled]};
+function theme(key) {
+	selectWith('earth_engine').opts.onChange(key);
+}
+function metricSelects() {  // of the map, of each step of the series and of each year of the trends
+	return find(controls, 'Select', function (w) {
+		return (w.opts.items || []).some(function (i) { return i.value === 'count'; });
+	});
+}
+// an ID whose reading fails late, after the map of a variable was computed: the map keeps the results panel, and the
+// error is under the ID
+theme('earth_engine');
+read('projects/someone/assets/slow', null);
+theme('vegetation');
+answer = {value_p5: 0.1, value_p95: 0.8};
+button('Add to the map').opts.onClick();
+out.late = {map: last()};
+later.shift()();
+out.late.after = last();
+theme('earth_engine');
+out.late.controls = texts(controls);
+// a big region (50,000 km²): Sentinel-2 by its ID only for regions up to 5,000 km², as in the catalog; a band of
+// bigger pixels and the same collection as a fixed image are computed
+answer = {info: {area: 5e10, centroid: [-3.56, 36.9], total: 5e10, boundsArea: 6e10}, n: 1};
+button('Use the map view').opts.onClick();
+read('COPERNICUS/S2_SR_HARMONIZED', {bands: ['B4', 'B1'], scales: {B4: 10, B1: 60}, dated: true});
+answer = {value_p5: 0, value_p95: 3000};
+button('Add to the map').opts.onClick();
+out.fine = {s2: last()};
+answer = 'rows';
+button('Compute the time series').opts.onClick();
+out.fine.series = last();
+selectWith('B4').opts.onChange('B1');
+answer = {value_p5: 0, value_p95: 3000};
+button('Add to the map').opts.onClick();
+out.fine.coarse = last();
+selectWith('B4').opts.onChange('B4');
+selectWith('image').opts.onChange('image');
+button('Add to the map').opts.onClick();
+out.fine.fixed = last();
+answer = {info: {area: 8e7, centroid: [-3.56, 36.9], total: 8e7, boundsArea: 9e7}, n: 1};
+button('Use the map view').opts.onClick();
+// a fixed image keeps the unit given, whatever the metric its select greyed out holds (a sum would make a total of a
+// rate per month)
+read('IDAHO_EPSCOR/TERRACLIMATE', {bands: ['aet', 'pr'], scales: {aet: 4638.3, pr: 4638.3}, dated: true});
+selectWith('pr').opts.onChange('pr');
+field('e.g. mm, degC, kg m-2, 1').opts.onChange('mm month-1');
+metricSelects()[0].opts.onChange('sum');
+selectWith('image').opts.onChange('image');
+answer = {value_p5: 2, value_p95: 80};
+button('Add to the map').opts.onClick();
+out.fixedRate = legendTitle();
+// SCF (Snow) takes only the mean: the data of Earth Engine let the metrics change, and back in Snow they are the mean
+theme('snow');
+selectWith(105).opts.onChange(105);
+theme('earth_engine');
+read('IDAHO_EPSCOR/TERRACLIMATE', {bands: ['aet', 'pr'], scales: {aet: 4638.3, pr: 4638.3}, dated: true});
+out.scf = {enabled: metricSelects().map(function (w) { return !w.disabled; })};
+metricSelects()[0].opts.onChange('median');
+metricSelects()[1].opts.onChange('max');
+metricSelects()[2].opts.onChange('max');
+theme('snow');
+out.scf.selects = metricSelects().map(function (w) { return [w.opts.value, w.disabled]; });
+answer = {value_p5: 0, value_p95: 100};
+button('Add to the map').opts.onClick();
+out.scf.map = last();
+answer = 'rows';
+button('Compute the time series').opts.onClick();
+out.scf.series = last();
+answer = 'rows';
+button('Trend table').opts.onClick();
+out.scf.trends = last();
 out.files = files;
 process.stdout.write(JSON.stringify(out));
 """
@@ -753,7 +884,8 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 		'IDAHO_EPSCOR/TERRACLIMATE': {'type': 'IMAGE_COLLECTION', 'properties': {'title': 'TerraClimate'}},
 		'WORLDCLIM/V1/BIO': {'type': 'IMAGE', 'properties': {}},
 		'projects/sat-io/open-datasets/FABDEM': {'type': 'IMAGE_COLLECTION', 'properties': {}},
-		'projects/someone/assets/regions': {'type': 'TABLE'}}}
+		'COPERNICUS/S2_SR_HARMONIZED': {'type': 'IMAGE_COLLECTION', 'properties': {}},
+		'projects/someone/assets/regions': {'type': 'TABLE'}}, 'later': ['projects/someone/assets/slow']}
 	run = subprocess.run(['node', '-e', PANEL, GEE], input=json.dumps(data), capture_output=True, text=True,
 	                     timeout=120)
 	assert run.returncode == 0, run.stderr
@@ -809,8 +941,32 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	assert com['datasets'] == [{'value': d['id'], 'label': f"{d['title']} · {kinds[d['type']]}"}
 	                           for d in community.datasets('Elevation and Bathymetry')]
 	rec = community.record('projects/sat-io/open-datasets/FABDEM')
-	assert com['id'] == rec['id'] and com['page'] == [rec['docs']] and com['use'] == 'image'
+	assert com['id'] == rec['id'] and com['page'] == [rec['docs']] and com['use'] == 'image' and com['useDisabled']
 	assert any(rec['title'] in t and 'Catálogo de la comunidad de GEE' in t and rec['license'] in t
 	           for t in com['texts'])
 	# back to a variable of the catalog, with its pixel filters
 	assert out['back'] == {'variables': True, 'clouds': [True, False]}
+	# a read that fails after a computation started leaves its result, and says why under the ID
+	late = out['late']
+	assert late['map']['texts'][0] == 'NDVI Sentinel-2 · Map view · Median · 2015-01-01/2025-12-31'
+	assert late['after'] == late['map']
+	assert any(t.startswith('Earth Engine has no image or collection projects/someone/assets/slow, or this app cannot')
+	           for t in late['controls'])
+	# Sentinel-2 by its ID: only for regions up to 5,000 km² (pixels of 20 m or less), but not as a fixed image
+	fine = out['fine']
+	too_big = ('COPERNICUS/S2_SR_HARMONIZED B4 has pixels of 10 m: collections of images with pixels of 20 m or less, '
+	           'like Sentinel-2, are only available for regions up to 5,000 km² (this one has 50,000).')
+	assert fine['s2']['texts'] == [too_big] and fine['series']['texts'] == [too_big]
+	assert fine['coarse']['texts'][0] == 'COPERNICUS/S2_SR_HARMONIZED B1 · Map view · Median · 2015-01-01/2025-12-31'
+	assert fine['fixed']['texts'][0] == 'COPERNICUS/S2_SR_HARMONIZED B4 · Map view'
+	# a fixed image has no metric: its unit is the one given, as services._unit (make_spec gives it no metric)
+	assert out['fixedRate'] == 'IDAHO_EPSCOR/TERRACLIMATE pr · Map view [mm month-1]'
+	assert services._unit(services.make_spec(image='IDAHO_EPSCOR/TERRACLIMATE', band='pr', unit='mm month-1',
+	                                         metric='sum')) == 'mm month-1'
+	# SCF takes only the mean again after the data of Earth Engine changed the metrics
+	scf = out['scf']
+	assert scf['enabled'] == [True] * 3 and scf['selects'] == [['mean', True]] * 3
+	assert scf['map']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
+	assert scf['series']['charts'][0]['title'] == 'SCF Landsat · Map view · Mean monthly · mean'
+	assert 'Trends (Mann-Kendall and Sen) · mean' in ' '.join(scf['trends']['texts'] +
+	                                                           [c.get('title') or '' for c in scf['trends']['charts']])

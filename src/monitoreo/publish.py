@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import catalog, composite, fire, maps, references, trends
+from . import assets, catalog, composite, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -271,14 +271,26 @@ def season_text(season):
 
 
 def _var(args):
-	"""The variable of a call: 'NDVI (Sentinel-2)', or the ID and band of the data of Earth Engine outside the catalog
-	('IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	"""The variable of a call: 'NDVI (Sentinel-2)', or the ID (as the tools take it: ee.ImageCollection("X") is X),
+	band and terrain of the data of Earth Engine outside the catalog ('IDAHO_EPSCOR/TERRACLIMATE pr')."""
 	if not args.get('variable') and (args.get('collection') or args.get('image')):
-		return ' '.join(str(x) for x in (args.get('collection') or args.get('image'), args.get('band'),
-		                                 args.get('terrain')) if x)
+		return ' '.join(str(x) for x in (assets.normalize(args.get('collection') or args.get('image')),
+		                                 args.get('band'), args.get('terrain')) if x)
 	v = args.get('variable') or ''
 	s = SENSORS.get(args.get('sensor'), args.get('sensor'))
 	return f'{v} ({s})' if s else str(v)
+
+
+def data_unit(args):
+	"""The unit in UDUNITS of the data of Earth Engine by their ID of a call with ARGS, as the services compute them
+	(see variable.given_unit): 'degree' for the slope or the aspect of an image, 'degC' for '°C', '1' for 'unitless';
+	'' if none was given. If it is not a unit (then the call fails), as given."""
+	from . import variable
+	asset = assets.normalize(args.get('collection') or args.get('image'))
+	try:
+		return variable.given_unit(args.get('unit'), asset, args.get('terrain') if args.get('image') else None)
+	except ValueError:
+		return str(args.get('unit') or '').strip()
 
 
 def is_static(args):
@@ -726,7 +738,7 @@ def _variables(items):
 		if not var and (a.get('collection') or a.get('image')):  # data of Earth Engine outside the catalog
 			what = 'Earth Engine image' if a.get('image') else 'Earth Engine image collection'
 			out.setdefault((_var(a), None), {'variable': _var(a), 'sensor': '', 'name': what,
-			                                 'unit': unit_text(catalog.custom_unit(a.get('unit')))})
+			                                 'unit': unit_text(catalog.custom_unit(data_unit(a)))})
 			continue
 		if not var:
 			continue

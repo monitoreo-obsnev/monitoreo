@@ -1442,6 +1442,14 @@ def test_data_of_the_catalog_or_by_its_id():
 	                          tools) == {'region': {'wdpa_id': 1}, **TERRACLIMATE}
 	assert assistant.fix_args('map_layer', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'sensor': 'WorldClim'},
 	                          tools) == {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01'}
+	# an ID of Earth Engine as the variable, with the collection too (small models fill every argument): the data by
+	# their ID, not the catalog; without collection or image, as it is (the MCP server explains it)
+	by_id = {'region': {'wdpa_id': 1}, 'variable': TERRACLIMATE['collection'], 'sensor': 'TerraClimate',
+	         'start': '2020-01-01', 'end': '2020-12-31', **TERRACLIMATE}
+	assert assistant.fix_args('map_layer', by_id, tools) == {'region': {'wdpa_id': 1}, 'start': '2020-01-01',
+	                                                         'end': '2020-12-31', **TERRACLIMATE}
+	alone = {'variable': TERRACLIMATE['collection'], 'sensor': 'TerraClimate'}
+	assert assistant.fix_args('map_layer', alone, tools) == alone
 
 
 def test_tools_of_the_mcp_server():
@@ -1466,6 +1474,13 @@ def test_tools_of_the_mcp_server():
 	assert 'Required: region' in f['time_series']['description']  # what it needs, now that variable has a default
 	assert f['describe_asset']['parameters']['required'] == ['asset']
 	assert f['rgb_map']['parameters']['required'] == ['region', 'variable', 'sensor', 'start', 'end']
+	# the dates where they are needed, whatever the data (not variable and sensor: data by ID instead)
+	for name in ('time_series', 'export_time_series_to_drive', 'trend_table', 'trend_map', 'download_trend'):
+		assert f[name]['parameters']['required'] == ['region', 'start', 'end'], name
+	for name in ('compare_series', 'compare_map', 'download_comparison'):
+		assert f[name]['parameters']['required'] == ['region', 'start', 'end', 'other_start', 'other_end'], name
+	assert f['map_layer']['parameters']['required'] == ['region']  # the fixed layers have no dates
+	assert 'its unit is then degree' in f['map_layer']['description']  # the slope and the aspect, in degrees
 	assert 'limit' not in f['community_datasets']['parameters']['properties']
 	# an argument called title is an argument
 	assert assistant._compact({'title': 'X', 'properties': {'title': {'title': 'Title', 'type': 'string'}}}) == {
@@ -1486,6 +1501,19 @@ def test_data_text():
 	text = assistant.instructions()
 	assert 'describe_asset' in text and 'community_datasets' in text and 'Never make up an ID' in text
 	assert 'pass no quality' in text and 'With a variable of the catalog, pass no collection' in text
+	assert 'the values are in degrees (its unit is then degree: pass no unit, not that of the band)' in text
+	# the datasets of a theme (all of them: some have more than 100): when they do not fit, it says so first
+	many = [{'id': f'projects/sat-io/open-datasets/X{i}', 'type': 'image', 'title': f'Dataset {i}', 'theme': 'T',
+	         'docs': f'https://gee-community-catalog.org/projects/x{i}/'} for i in range(145)]
+	cut = assistant.data_text('community_datasets', json.dumps(many), assistant.MAX_ADVICE)
+	assert len(cut) > assistant.MAX_ADVICE  # the caller cuts it
+	assert cut[:assistant.MAX_ADVICE].splitlines()[0] == (
+		'145 datasets of the GEE Community Catalog (ID, type, title, theme, page); only the first ones fit here: '
+		'narrow the list with text or kind; describe_asset tells whether one goes as collection or image, and its bands:')
+	for limit in (None, assistant.BIG_ADVICE * 10):  # what fits: no such note
+		assert 'only the first ones' not in assistant.data_text('community_datasets', json.dumps(many), limit)
+	assert 'only the first ones' not in assistant.data_text('community_datasets', json.dumps(many[:3]),
+	                                                         assistant.MAX_ADVICE)
 
 
 def test_map_view(monkeypatch):

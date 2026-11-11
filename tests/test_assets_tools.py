@@ -121,6 +121,11 @@ def test_the_command_line_computes_an_image_by_its_id(computed, capsys, tmp_path
 	                                                  'list): give an ID of Earth Engine with --collection and --band'),
 	(['image', 'WORLDCLIM/V1/BIO', '--out', 'x.tif'] + ARGS, 'give an ID of Earth Engine with --collection or --image '
 	                                                         'and --band, instead of VARIABLE'),
+	(['series', TERRACLIMATE, '--sensor', 'TerraClimate'] + ARGS, f'{TERRACLIMATE} is not a variable of the catalog '
+	                                                              '(monitoreo list): give an ID of Earth Engine with '
+	                                                              '--collection and --band'),  # also with a sensor
+	(['info', TERRACLIMATE], f'{TERRACLIMATE} is not a variable of the catalog (monitoreo list): monitoreo asset '
+	                         f'{TERRACLIMATE} describes an ID of Earth Engine'),
 	(['trend', 'NDVI', '--sensor', 'Modis', '--band', 'NDVI'] + ARGS, '--band: only for the data of Earth Engine given '
 	                                                                  'by its ID (--collection instead of VARIABLE'),
 	(['trend', '--collection', TERRACLIMATE] + ARGS, f'give --band: the band of {TERRACLIMATE} (one; monitoreo asset '
@@ -234,6 +239,56 @@ def test_the_command_line_explains_the_data_by_its_id(capsys):
 		assert line in cli.__doc__, line
 	with pytest.raises(SystemExit, match='^ERROR: Earth Engine data \\(by its ID\\) has no variables of the catalog'):
 		cli.main(['list', '--theme', 'earth_engine'])
+	# the slope and the aspect are in degrees, whatever the unit of the band (of a DEM, m)
+	terrain = text[text.index('--terrain {slope,aspect}'):]
+	assert 'in degrees (its unit is then degree: give no --unit, or degree, not that of the band)' in terrain
+	assert 'with --terrain, none or degree' in text and '--terrain slope|aspect (in degrees' in cli.__doc__
+
+
+@pytest.mark.parametrize('theme, words', [
+	('earth_engine', 'monitoreo asset ID describes it'),
+	('community', 'monitoreo community lists its themes'),
+	('Catálogo de la comunidad de GEE', 'monitoreo community lists its themes'),  # its name in Spanish
+])
+def test_the_command_line_names_its_own_commands_for_the_other_themes(monkeypatch, theme, words):
+	"""monitoreo list --theme of the data of Earth Engine outside the catalog: its commands and options (monitoreo
+	asset, monitoreo community, --collection, --image, --band), not those of Python or of the MCP server."""
+	from monitoreo import cli
+	monkeypatch.setattr(services, 'init', lambda *a, **k: pytest.fail('it connected to Earth Engine'))
+	with pytest.raises(SystemExit) as e:
+		cli.main(['list', '--theme', theme])
+	text = str(e.value.code)
+	assert text.startswith('ERROR: ') and 'has no variables of the catalog: ' in text and words in text, text
+	assert '--collection (or --image, in monitoreo image) and --band' in text
+	assert not re.search(r'describe_asset|community_(themes|datasets)|collection=|image=|band=', text), text
+
+
+def test_the_command_line_says_how_to_give_an_image(computed, monkeypatch):
+	"""When the services refuse data given with --collection that go as an image (an image, or a collection of tiles
+	without dates), the command line adds its own option for them; other errors as they are."""
+	from monitoreo import cli
+	said = {}
+
+	def refuse(*a, **kw):
+		raise ValueError(said['error'])
+	for name in ('time_series', 'trend_table', 'download_image'):
+		monkeypatch.setattr(services, name, refuse)
+	said['error'] = 'WORLDCLIM/V1/BIO is an image, not a collection of images: give it as an image (a fixed layer)'
+	with pytest.raises(SystemExit) as e:
+		cli.main(['series', '--collection', 'WORLDCLIM/V1/BIO', '--band', 'bio01'] + ARGS)
+	assert str(e.value.code) == (f"ERROR: {said['error']}; in the command line, monitoreo image --image "
+	                             'WORLDCLIM/V1/BIO --band bio01 (a GeoTIFF)')
+	with pytest.raises(SystemExit) as e:
+		cli.main(['trend', '--collection', 'WORLDCLIM/V1/BIO', '--band', 'bio01'] + ARGS)
+	assert str(e.value.code).endswith('monitoreo image --image WORLDCLIM/V1/BIO --band bio01 (a GeoTIFF)')
+	said['error'] = 'X/TILES is a collection of images without dates (tiles): give it as an image (their mosaic)'
+	with pytest.raises(SystemExit) as e:
+		cli.main(['image', '--collection', 'X/TILES', '--band', 'b1', '--out', 'x.tif'] + ARGS)
+	assert str(e.value.code) == f"ERROR: {said['error']}; in the command line, --image X/TILES instead of --collection"
+	said['error'] = 'the unit of X is written in UDUNITS'
+	with pytest.raises(SystemExit) as e:
+		cli.main(['series', '--collection', 'X', '--band', 'b1'] + ARGS)
+	assert str(e.value.code) == f"ERROR: {said['error']}"
 
 
 # The MCP server -----------------------------------------------------------------------------------------------------
@@ -256,6 +311,8 @@ COMPUTE = {'time_series': 'time_series', 'export_time_series_to_drive': 'time_se
            'download_trend': 'download_trend', 'compare_series': 'compare_series', 'compare_map': 'compare_map',
            'download_comparison': 'download_comparison'}
 OTHER = {'other_start': '2021-01-01', 'other_end': '2024-12-31'}
+DATED = ('time_series', 'export_time_series_to_drive', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
+         'compare_map', 'download_comparison')  # the tools that need dates, whatever the data
 COLLECTION = {'collection': TERRACLIMATE, 'band': 'tmmx', 'band_scale': 0.1, 'unit': 'degC'}
 IMAGE = {'image': 'COPERNICUS/DEM/GLO30', 'band': 'DEM', 'terrain': 'slope', 'unit': 'degree'}
 
@@ -337,14 +394,14 @@ def test_the_server_takes_the_arguments_of_the_data(faked, mcp):
 
 def test_the_catalog_still_reaches_the_services(faked, mcp):
 	"""The variables of the catalog as before: the same names of the files, collection one of those of the variable."""
-	mcp.time_series(REGION, 'NDVI', 'Modis', *YEARS, collection='MODIS/061/MOD13Q1')
+	mcp.time_series(REGION, 'NDVI', 'Modis', start=YEARS[0], end=YEARS[1], collection='MODIS/061/MOD13Q1')
 	call = faked[-1]
 	assert (call['variable'], call['sensor'], call['collection']) == ('NDVI', 'Modis', 'MODIS/061/MOD13Q1')
 	assert re.fullmatch(r'NDVI_Modis_monthly_mean_2001-01-01_2020-12-31_\d{8}-\d{6}\.csv', _files(call)[0])
 	assert not {'image', 'band', 'band_scale', 'band_offset', 'unit'} & set(call)
 	mcp.map_layer(REGION, 'ELEVATION', 'Copernicus')  # a fixed layer: no None for its dates
 	assert re.fullmatch(r'map_ELEVATION_Copernicus_median_\d{8}-\d{6}\.png', _files(faked[-1])[0])
-	mcp.download_trend(REGION, 'EVI', 'Modis', *YEARS)
+	mcp.download_trend(REGION, 'EVI', 'Modis', start=YEARS[0], end=YEARS[1])
 	assert re.fullmatch(r'trend_EVI_Modis_annual_2001-01-01_2020-12-31_\d{8}-\d{6}\.tif', _files(faked[-1])[0])
 
 
@@ -355,6 +412,11 @@ def test_the_catalog_still_reaches_the_services(faked, mcp):
 	('time_series', dict(variable=TERRACLIMATE, band='pr', start=YEARS[0], end=YEARS[1]),
 	 f'{TERRACLIMATE} is not a variable of the catalog (list_variables): give an ID of Earth Engine as collection or '
 	 'image'),
+	('trend_table', dict(variable=TERRACLIMATE, sensor='TerraClimate', start=YEARS[0], end=YEARS[1]),
+	 f'{TERRACLIMATE} is not a variable of the catalog (list_variables): give an ID of Earth Engine as collection or '
+	 'image'),
+	('map_layer', dict(variable=TERRACLIMATE, sensor='TerraClimate', collection=TERRACLIMATE, band='pr'),
+	 f'{TERRACLIMATE} is not a variable of the catalog (list_variables)'),
 	('trend_table', dict(collection=TERRACLIMATE, start=YEARS[0], end=YEARS[1]), f'give band: the band of {TERRACLIMATE}'),
 	('map_layer', dict(variable='NDVI', sensor='Modis', band='NDVI', band_scale=0.0001),
 	 'band, band_scale: only for the data of Earth Engine given by its ID'),
@@ -363,25 +425,41 @@ def test_the_catalog_still_reaches_the_services(faked, mcp):
 	('download_image', dict(collection=TERRACLIMATE, image='WORLDCLIM/V1/BIO', band='pr'),
 	 'give collection (a collection of images with dates) or image (a fixed image), not both'),
 	('region_stats', dict(collection=TERRACLIMATE, band='pr', terrain='slope'), 'terrain is for an image'),
-	('time_series', dict(collection=TERRACLIMATE, band='pr'), 'give start and end'),
-	('compare_series', dict(collection=TERRACLIMATE, band='pr', start=YEARS[0], end=YEARS[1]),
-	 'give other_start and other_end'),
+	('time_series', dict(collection=TERRACLIMATE, band='pr', start='', end=''), 'give start and end'),
+	('compare_series', dict(collection=TERRACLIMATE, band='pr', start=YEARS[0], end=YEARS[1], other_start='',
+	                        other_end=''), 'give other_start and other_end'),
 	# a fixed image where dates are needed: what the services say, also before asking for the dates
 	('time_series', dict(image='WORLDCLIM/V1/BIO', band='bio01', start=YEARS[0], end=YEARS[1]),
 	 'WORLDCLIM/V1/BIO (band bio01) is given as a fixed image, without dates (image=): it has maps, GeoTIFFs and '
 	 'statistics of the region (map_layer, download_image, region_stats), but no time series'),
-	('trend_map', dict(image='WORLDCLIM/V1/BIO', band='bio01'), 'WORLDCLIM/V1/BIO (band bio01) is given as a fixed '
-	                                                            'image, without dates'),
-	('download_comparison', dict(image='ee.Image("WORLDCLIM/V1/BIO")', band='bio01'),
-	 'WORLDCLIM/V1/BIO (band bio01) is given as a fixed image, without dates'),
-	('trend_table', dict(variable='ELEVATION', sensor='Copernicus'), 'ELEVATION (Copernicus) is a fixed layer, without '
-	                                                                 'dates'),  # and those of the catalog
-	('time_series', dict(variable='NDVI', sensor='Modis'), 'give start and end'),
+	('trend_map', dict(image='WORLDCLIM/V1/BIO', band='bio01', start='', end=''), 'WORLDCLIM/V1/BIO (band bio01) is '
+	                                                                              'given as a fixed image, without dates'),
+	('download_comparison', dict(image='ee.Image("WORLDCLIM/V1/BIO")', band='bio01', start='', end='', other_start='',
+	                             other_end=''), 'WORLDCLIM/V1/BIO (band bio01) is given as a fixed image, without dates'),
+	('trend_table', dict(variable='ELEVATION', sensor='Copernicus', start='', end=''),
+	 'ELEVATION (Copernicus) is a fixed layer, without dates'),  # and those of the catalog
+	('time_series', dict(variable='NDVI', sensor='Modis', start='', end=''), 'give start and end'),
 ])
 def test_the_mcp_server_refuses_what_it_cannot_compute(faked, mcp, tool, kw, message):
 	with pytest.raises(mcp.ToolError, match='^ValueError: ' + re.escape(message)):
 		getattr(mcp, tool)(REGION, **kw)
 	assert not faked and not mcp.READY  # before Earth Engine
+
+
+def test_the_mcp_server_requires_the_dates(faked, mcp):
+	"""Through the server, a tool that needs dates without them is refused by its schema, before the tool: the
+	model learns that they are required (they come after variable and sensor, which have a default)."""
+	for tool, more in (('time_series', {}), ('trend_map', {}), ('compare_map', {'start': YEARS[0], 'end': YEARS[1]})):
+		with pytest.raises(Exception, match='start|other_start') as e:
+			asyncio.run(mcp.server.call_tool(tool, dict(more, region=REGION, variable='NDVI', sensor='Modis')))
+		assert 'Field required' in str(e.value), str(e.value)
+	assert not faked and not mcp.READY
+
+
+def test_the_mcp_server_does_not_describe_an_id_as_a_variable(mcp):
+	with pytest.raises(mcp.ToolError, match=f'^ValueError: {TERRACLIMATE} is not a variable of the catalog '
+	                                        r'\(list_variables\): describe_asset describes an ID of Earth Engine'):
+		mcp.describe_variable(TERRACLIMATE)
 
 
 def test_the_mcp_server_gives_the_errors_of_the_services(mcp, tmp_path):
@@ -404,7 +482,10 @@ def test_the_mcp_server_describes_assets_and_the_community_catalog(mcp, monkeypa
 	assert json.loads(mcp.community_themes()) == services.community_themes()  # no Earth Engine, nor its warning
 	assert json.loads(mcp.community_themes('es'))[0]['name'] == services.community_themes('es')[0]['name']
 	rows = json.loads(mcp.community_datasets(theme='Elevation and Bathymetry'))
-	assert len(rows) == min(50, len(services.community_datasets('Elevation and Bathymetry')))  # at most 50
+	assert len(rows) == len(services.community_datasets('Elevation and Bathymetry'))  # all of them, as in the others
+	weather = json.loads(mcp.community_datasets(theme='Weather and Climate Layers'))
+	assert len(weather) == len(services.community_datasets('Weather and Climate Layers')) > 50  # no cut at 50
+	assert len(json.loads(mcp.community_datasets(theme='Weather and Climate Layers', limit=5))) == 5
 	assert {r['theme'] for r in rows} == {'Elevation and Bathymetry'} and all(r['id'] and r['docs'] for r in rows)
 	rows = json.loads(mcp.community_datasets(text='FABDEM', kind='image_collection', limit=None))
 	assert 'projects/sat-io/open-datasets/FABDEM' in {r['id'] for r in rows}
@@ -427,18 +508,26 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 		assert words in text, words
 	tools = {t.name: t for t in asyncio.run(mcp.server.list_tools())}
 	schema = lambda name: getattr(tools[name], 'input_schema', None) or tools[name].inputSchema  # noqa: E731
-	assert schema('time_series')['required'] == ['region'] and schema('compare_map')['required'] == ['region']
+	for name in COMPUTE:  # dates required where they are needed, variable and sensor never (data by ID instead)
+		dates = ['start', 'end'] + (['other_start', 'other_end'] if 'compar' in name else [])
+		assert schema(name)['required'] == (['region'] + dates if name in DATED else ['region']), name
+		params = inspect.signature(getattr(mcp, name)).parameters
+		assert all(params[d].kind is inspect.Parameter.KEYWORD_ONLY for d in dates if name in DATED), name
 	assert {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain'} <= \
 		set(schema('map_layer')['properties'])
 	assert schema('rgb_map')['required'] == ['region', 'variable', 'sensor', 'start', 'end']  # the catalog only
 	assert schema('describe_asset')['required'] == ['asset']
 	assert not schema('community_datasets').get('required') and not schema('community_themes').get('required')
-	assert schema('community_datasets')['properties']['limit']['default'] == 50
+	assert schema('community_datasets')['properties']['limit']['default'] is None  # all of them
 	for name, service in COMPUTE.items():  # every argument goes to services: by position or among those of the data
 		params, given = set(inspect.signature(getattr(mcp, name)).parameters), \
 			set(inspect.signature(getattr(services, service)).parameters)
 		assert params - given <= {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain',
 		                          'where'}, name
 	assert 'ee.ImageCollection' in mcp.describe_asset.__doc__ and 'references and credits' in mcp.describe_asset.__doc__
+	# the slope and the aspect are in degrees, whatever the unit of the band (that describe_asset gives: m for a DEM)
+	assert 'in degrees (its unit is then degree: give no unit, or "degree", not that of the band)' in \
+		' '.join(mcp.TERRAIN_DOC.split())
+	assert 'the values are in degrees (its unit is then degree: give no unit' in text
 	assert 'Without Earth Engine' in mcp.community_themes.__doc__ and 'describe_asset' in \
 		mcp.community_datasets.__doc__

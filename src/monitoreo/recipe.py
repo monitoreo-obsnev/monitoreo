@@ -14,7 +14,7 @@ A recipe is a dictionary, or a YAML file, with the grids and the variables:
     quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6}
     variables:
       - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}  # a file per metric
-      - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}
+      - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}  # in degrees (unit degree)
 
 The study grid covers the rectangle of the study area grown by buffer metres and 2 pixels; the ecoregion grid, the
 rectangle of the ecoregions, with NoData outside them. Their edges are multiples of the pixel size. The files of

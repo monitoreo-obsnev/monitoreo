@@ -90,12 +90,13 @@ the ID: its type and use say whether to give it as collection (images with dates
 with time series, trends and comparisons) or as image (a fixed image, or the mosaic of a collection of tiles: without
 dates, so only maps, their statistics and GeoTIFFs, no time series, trends or comparisons); it gives its bands, their
 scale, offset and unit, and arguments ready to pass. Then call the tools with collection or image, band (one),
-band_scale, band_offset and unit (in UDUNITS) instead of variable and sensor. To find the datasets of the GEE Community
-Catalog by its themes: community_themes, then community_datasets (by theme or text), then describe_asset with the id
-of one. Never invent an ID: use only those that the user gives or that describe_asset, community_datasets or the page
-of a dataset give. The pixel filters of MonitorEO (quality) are not for these data, which keep their own mask; the
-conditions of where are still variables of the catalog. Cite the dataset as describe_asset and the references and
-credits of the results say.
+band_scale, band_offset and unit (in UDUNITS) instead of variable and sensor. With terrain, "slope" or "aspect" of the
+band of an image (e.g. of a DEM), the values are in degrees (its unit is then degree: give no unit, not that of the
+band). To find the datasets of the GEE Community Catalog by its themes: community_themes, then community_datasets (by
+theme or text), then describe_asset with the id of one. Never invent an ID: use only those that the user gives or that
+describe_asset, community_datasets or the page of a dataset give. The pixel filters of MonitorEO (quality) are not
+for these data, which keep their own mask; the conditions of where are still variables of the catalog. Cite the dataset
+as describe_asset and the references and credits of the results say.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
 {"ecoregion_at": [lon, lat]}, {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
@@ -145,7 +146,8 @@ SOURCE_DOC = """
 	"kg m-2", "mm day-1", "1" if dimensionless). These data keep their own mask: no pixel filters (quality)."""
 
 TERRAIN_DOC = """
-	terrain: "slope" or "aspect" of the band of an image (e.g. of a DEM), in degrees."""
+	terrain: "slope" or "aspect" of the band of an image (e.g. of a DEM), in degrees (its unit is then degree: give no
+	unit, or "degree", not that of the band)."""
 
 
 def tool(fn):
@@ -230,7 +232,9 @@ def _source(variable, sensor, collection=None, image=None, band=None, band_scale
 	                            ('band_offset', band_offset), ('unit', unit), ('terrain', terrain))
 	          if v is not None and v != ''}
 	if variable:
-		if not sensor and '/' in str(variable):  # an ID of Earth Engine given as a variable of the catalog
+		# an ID of Earth Engine given as a variable of the catalog (none has '/'), also with a sensor: small models fill
+		# every argument
+		if '/' in str(variable):
 			raise ValueError(f'{variable} is not a variable of the catalog (list_variables): give an ID of Earth Engine '
 			                 'as collection or image (describe_asset says which), with band, instead of variable')
 		if not sensor:
@@ -269,8 +273,9 @@ def _data(variable, sensor, source):
 def _dates(variable, sensor, source, what, **given):
 	"""ValueError, before Earth Engine, for a tool of WHAT ('time series', 'trends', 'comparisons of periods'), which
 	needs dates: if its data (VARIABLE and SENSOR, or SOURCE: see _source) are a fixed layer or image, without them
-	(the message of the services, also when no date was given), or naming the dates of GIVEN that the call left empty
-	(they have a default because variable and sensor, before them, have one)."""
+	(the message of the services, also when the dates are empty), or naming the dates of GIVEN that the call left
+	empty. These tools take their dates after '*', without a default, so that their schema requires them although
+	variable and sensor, before them, have one; an empty text still passes the schema."""
 	if source.get('image'):
 		spec = {'image': assets.normalize(source['image']), 'band': source.get('band')}
 	else:
@@ -345,6 +350,9 @@ def describe_variable(variable: str, sensor: Optional[str] = None, collection: O
 	whether its images have a true colour (rgb: see rgb_map), and what to cite with its data: references (the
 	articles of its formula or algorithm and its Earth Engine datasets, as their catalog pages suggest, with DOI) and
 	credits (lines asked by the terms of use of the data)."""
+	if '/' in str(variable):  # an ID of Earth Engine (no variable of the catalog has '/'): not the list of them all
+		raise ValueError(f'{variable} is not a variable of the catalog (list_variables): describe_asset describes an ID '
+		                 'of Earth Engine')
 	return _text(services.describe_variable(variable, sensor, collection))
 
 
@@ -372,12 +380,13 @@ def community_themes(lang: str = 'en') -> str:
 
 @tool
 def community_datasets(theme: Optional[str] = None, text: Optional[str] = None, kind: Optional[str] = None,
-                       limit: Optional[int] = 50) -> str:
+                       limit: Optional[int] = None) -> str:
 	"""The images and collections of images of the GEE Community Catalog: id (the ID of its Earth Engine asset, for
 	collection or image), title, type (image or image_collection), theme, provider, license, tags and docs (its page,
 	with its bands and how to cite it); of one theme (see community_themes; its name in English or Spanish), with the
-	words of text in their title, ID, provider or tags, of one kind (image or image_collection), at most limit. Then
-	describe_asset with the id of one. Without Earth Engine."""
+	words of text in their title, ID, provider or tags, of one kind (image or image_collection), at most limit (by
+	default all of them, as in the other tools: some themes have more than 100). Then describe_asset with the id of
+	one. Without Earth Engine."""
 	return _text(services.community_datasets(theme, text, kind, limit))
 
 
@@ -402,9 +411,8 @@ def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, l
 
 
 @tool
-def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                start: Optional[str] = None, end: Optional[str] = None, step: str = 'monthly',
-                metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
+def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                step: str = 'monthly', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None,
                 image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
@@ -528,9 +536,8 @@ def export_image_to_drive(region: dict, variable: Optional[str] = None, sensor: 
 
 
 @tool
-def export_time_series_to_drive(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                                start: Optional[str] = None, end: Optional[str] = None,
-                                step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
+def export_time_series_to_drive(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *,
+                                start: str, end: str, step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
                                 season: Optional[List[str]] = None, quality: Optional[dict] = None,
                                 scale: Optional[float] = None, folder: str = 'MonitorEO',
                                 name: Optional[str] = None, collection: Optional[str] = None,
@@ -614,9 +621,8 @@ def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = Fals
 
 
 @tool
-def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                start: Optional[str] = None, end: Optional[str] = None, step: str = 'annual',
-                metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
+def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
                 collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
                 band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
@@ -645,9 +651,8 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 
 
 @tool
-def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-              start: Optional[str] = None, end: Optional[str] = None, step: str = 'annual',
-              part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
+def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+              step: str = 'annual', part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
               season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
               collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
@@ -670,10 +675,9 @@ def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str
 
 
 @tool
-def download_trend(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                   start: Optional[str] = None, end: Optional[str] = None, step: str = 'annual',
-                   part: Optional[int] = None, metric: str = 'mean', season: Optional[List[str]] = None,
-                   quality: Optional[dict] = None, alpha: Optional[float] = None,
+def download_trend(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                   end: str, step: str = 'annual', part: Optional[int] = None, metric: str = 'mean',
+                   season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
                    resolution: Optional[float] = None, crs: str = 'auto', collection: Optional[str] = None,
                    image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
                    band_offset: Optional[float] = None, unit: Optional[str] = None,
@@ -691,10 +695,9 @@ def download_trend(region: dict, variable: Optional[str] = None, sensor: Optiona
 
 
 @tool
-def compare_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                   start: Optional[str] = None, end: Optional[str] = None, other_start: Optional[str] = None,
-                   other_end: Optional[str] = None, step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
-                   season: Optional[List[str]] = None, quality: Optional[dict] = None,
+def compare_series(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                   end: str, other_start: str, other_end: str, step: str = 'monthly', metric: str = 'mean',
+                   stat: str = 'mean', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                    scale: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
                    band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
                    unit: Optional[str] = None, where: Optional[list] = None):
@@ -721,9 +724,8 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
 
 
 @tool
-def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                start: Optional[str] = None, end: Optional[str] = None, other_start: Optional[str] = None,
-                other_end: Optional[str] = None, metric: str = 'median', temporal: str = 'period',
+def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                other_start: str, other_end: str, metric: str = 'median', temporal: str = 'period',
                 season: Optional[List[str]] = None, quality: Optional[dict] = None, collection: Optional[str] = None,
                 image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
@@ -742,9 +744,8 @@ def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[s
 
 
 @tool
-def download_comparison(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
-                        start: Optional[str] = None, end: Optional[str] = None, other_start: Optional[str] = None,
-                        other_end: Optional[str] = None, metric: str = 'median', temporal: str = 'period',
+def download_comparison(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                        end: str, other_start: str, other_end: str, metric: str = 'median', temporal: str = 'period',
                         season: Optional[List[str]] = None, quality: Optional[dict] = None,
                         resolution: Optional[float] = None, crs: str = 'auto',
                         collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,

@@ -90,10 +90,12 @@ e.g. \code{band_scale = 0.1}.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 
-\item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} (in degrees) of \code{band} (an elevation)
-instead of its values.}
+\item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
+values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
+band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
 }
 \value{
 A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max

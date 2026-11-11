@@ -36,8 +36,8 @@ function prepare(c, done) {
 		var s = {};
 		for (var k in c.spec) if (k !== 'custom') s[k] = c.spec[k];
 		try {
-			s.entry = mo.customEntry({asset: info.asset, type: info.type, band: custom.band, use: custom.use,
-				m: info.scales[custom.band], scale: custom.scale, offset: custom.offset, unit: custom.unit,
+			s.entry = mo.customEntry({asset: info.asset, type: info.type, dated: info.dated, band: custom.band,
+				use: custom.use, m: info.scales[custom.band], scale: custom.scale, offset: custom.offset, unit: custom.unit,
 				terrain: custom.terrain});
 		} catch (e) {
 			return done(e);

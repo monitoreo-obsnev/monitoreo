@@ -13,6 +13,7 @@
 	var LIMITS = {
 		maxAreaKm2: 100000,   // the biggest region (km², all its polygons)
 		s2AreaKm2: 5000,      // Sentinel-2 only for regions up to this size; bigger ones, Landsat or MODIS
+		fineM: 20,            // and so the collections given by their ID with pixels of this size (m) or smaller
 		maxSteps: 400,        // steps of a time series (and of the series of the trends and comparisons)
 		downloadBytes: 32e6   // size of a GeoTIFF (float32): bigger regions are downloaded with bigger pixels
 	};
@@ -89,6 +90,8 @@
 			yes: 'sí', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La región es demasiado grande para esta app (%s km²; máximo %s km²).',
 			s2TooBig: 'Sentinel-2 solo está disponible para regiones de hasta %s km² (esta tiene %s): elige Landsat o MODIS.',
+			fineTooBig: '%s tiene píxeles de %s m: las colecciones de imágenes con píxeles de %s m o menos, como ' +
+				'Sentinel-2, solo están disponibles para regiones de hasta %s km² (esta tiene %s).',
 			tooManySteps: 'Son %s pasos (máximo %s): usa un paso más largo o un periodo más corto.',
 			dailyCompare: 'Para comparar periodos o calcular tendencias, el paso no puede ser diario.',
 			fewYears: 'Las tendencias necesitan un periodo de al menos dos años.',
@@ -185,6 +188,8 @@
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km²; at most %s km²).',
 			s2TooBig: 'Sentinel-2 is only available for regions up to %s km² (this one has %s): choose Landsat or MODIS.',
+			fineTooBig: '%s has pixels of %s m: collections of images with pixels of %s m or less, like Sentinel-2, are ' +
+				'only available for regions up to %s km² (this one has %s).',
 			tooManySteps: '%s steps (at most %s): use a longer step or a shorter period.',
 			dailyCompare: 'To compare periods or compute trends, the step cannot be daily.',
 			fewYears: 'Trends need a period of at least two years.',
@@ -235,11 +240,11 @@
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
-		// its band, use (collection or image), scale, offset and unit as written, and the theme and dataset of the GEE
-		// Community Catalog chosen
+		// its band, use (collection or image), scale, offset and unit as written, why the last ID could not be read
+		// (error), and the theme and dataset of the GEE Community Catalog chosen
 		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
 			band: null, scale: '', offset: '', unit: '', title: null, source: null, page: null, licence: null,
-			communityTheme: null, communityId: null}
+			error: null, communityTheme: null, communityId: null}
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -570,8 +575,9 @@
 		var d = state.data;
 		try {
 			if (!d.asset) throw new Error(t('readFirst'));
-			return mo.customEntry({asset: d.asset, type: d.type, band: d.band, use: d.use, m: d.scales[d.band],
-				scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')), unit: d.unit});
+			return mo.customEntry({asset: d.asset, type: d.type, dated: d.dated, band: d.band, use: d.use,
+				m: d.scales[d.band], scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')),
+				unit: d.unit});
 		} catch (err) {
 			return {custom: true, static: d.use === 'image', col: d.asset || '', band: d.band || '', m: d.scales[d.band] || 1,
 				unit: '', problem: err.message || String(err)};
@@ -584,16 +590,20 @@
 		var id = mo.assetId(text);
 		if (!id) return message(t('readFirst'), true);
 		var d = state.data;
+		var at = run;  // a computation started after this read keeps its answer in the results panel
 		d.text = id;
 		d.reading = id;
 		d.asset = null;
+		d.error = null;
 		render();
 		mo.assetInfo(id, function (error, info) {
 			if (state.data.reading !== id) return;  // another ID was read since
 			d.reading = null;
 			if (error) {
+				d.error = error.message || String(error);  // under the ID too (dataWidgets), where it stays
 				render();
-				return message(error.message || String(error), true);
+				if (at === run) message(d.error, true);
+				return;
 			}
 			['asset', 'type', 'dated', 'use', 'bands', 'scales', 'title', 'source', 'page', 'licence'].forEach(function (k) {
 				d[k] = info[k] === undefined ? null : info[k];
@@ -640,6 +650,7 @@
 			style: {width: '250px'}});
 		w.push(row(id, button(t('read'), function () { readAsset(id.getValue()); })));
 		if (d.reading) return w.concat([ui.Label(t('reading'), SMALL)]);
+		if (d.error) return w.concat([ui.Label(d.error, {fontSize: '12px', color: '#b00020', whiteSpace: 'pre-wrap'})]);
 		if (!d.asset) return w.concat([ui.Label(t('readFirst'), SMALL)]);
 		var source = {};
 		source[mo.DATA_CATALOG] = 'src_data';
@@ -659,11 +670,12 @@
 			render();
 		}, '220px')));
 		var use = select(['collection', 'image'].map(function (x) { return {value: x, label: t('use_' + x)}; }),
-			d.type === 'image' ? 'image' : d.use, function (v) {
+			d.dated ? d.use : 'image', function (v) {
 				d.use = v;
 				render();
 			}, '220px');
-		use.setDisabled(d.type === 'image');  // an image has no dates
+		// an image has no dates, nor have the tiles of a collection of them (a DEM): only their mosaic, a fixed image
+		use.setDisabled(!d.dated);
 		w.push(row(ui.Label(t('useAs')), use));
 		function field(key, hint, width) {
 			return ui.Textbox({placeholder: hint, value: d[key], onChange: function (v) { d[key] = v.trim(); },
@@ -673,7 +685,7 @@
 			field('offset', '0', '70px')));
 		w.push(row(ui.Label(t('unit')), field('unit', t('unitHint'), '180px')));
 		w.push(ui.Label(t('bandNote'), SMALL));
-		if (d.use === 'image' || d.type === 'image') w.push(ui.Label(t('staticNote'), SMALL));
+		if (d.use === 'image' || !d.dated) w.push(ui.Label(t('staticNote'), SMALL));
 		return w;
 	}
 
@@ -697,6 +709,10 @@
 		if (isData()) return render();
 		var items = variableItems(key === 'all' ? null : key);
 		if (items.length && !items.some(function (i) { return i.value === state.ref; })) return setVariable(items[0].value);
+		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
+		// data of Earth Engine let the metrics change meanwhile
+		var only = mo.byRef(state.ref).metric;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
 		render();
 	}
 
@@ -726,9 +742,11 @@
 	}
 
 	// The unit of the values of the entry E aggregated with METRIC as the titles show it: that of the catalog, or that
-	// given for the data of Earth Engine, in UDUNITS, between brackets as those of the catalog ('[mm]', services._ylabel)
+	// given for the data of Earth Engine, in UDUNITS, between brackets as those of the catalog ('[mm]', services._ylabel).
+	// A fixed layer has no metric (services.make_spec: none for an image), whatever the select greyed out holds: the
+	// mosaic of a collection of rates per month is still a rate, not their sum
 	function unitText(e, metric) {
-		var unit = mo.unitOf(e, metric);
+		var unit = mo.unitOf(e, e.static ? null : metric);
 		return e.custom && unit && unit.charAt(0) !== '[' ? '[' + unit + ']' : unit;
 	}
 
@@ -919,6 +937,13 @@
 		}
 		if (e.sensor === 'Sentinel-2' && area > LIMITS.s2AreaKm2) {
 			message(fmt(t('s2TooBig'), bigNum(LIMITS.s2AreaKm2), bigNum(area)), true);
+			return false;
+		}
+		// the same images given by their ID (COPERNICUS/S2_SR_HARMONIZED) cost as much, and so do those of any other
+		// collection with pixels as fine (Sentinel-1); a fixed image is a single mosaic, as the elevation
+		if (e.custom && !e.static && Number(e.m) <= LIMITS.fineM && area > LIMITS.s2AreaKm2) {
+			message(fmt(t('fineTooBig'), mo.entryName(e), num(Number(e.m)), LIMITS.fineM, bigNum(LIMITS.s2AreaKm2),
+				bigNum(area)), true);
 			return false;
 		}
 		return true;

@@ -253,9 +253,11 @@ Never make up an ID: the user gives it, or community_themes and community_datase
 Catalog by theme or word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
 maps, series, trends and comparisons) or as image (a fixed layer without dates, like the elevation: maps, their \
 statistics and downloads only, without start and end), its bands with their scale, offset and unit, and the arguments \
-to pass (band, one; band_scale, band_offset, unit in UDUNITS). They have no pixel filters (pass no quality) nor true \
-colour; where still takes variables of the catalog. With a variable of the catalog, pass no collection, image or band. \
-How to cite the data: as describe_asset says (the card of each result cites them too).
+to pass (band, one; band_scale, band_offset, unit in UDUNITS). With terrain, "slope" or "aspect" of the band of an \
+image (e.g. a DEM), the values are in degrees (its unit is then degree: pass no unit, not that of the band). They have \
+no pixel filters (pass no quality) nor true colour; where still takes variables of the catalog. With a variable of \
+the catalog, pass no collection, image or band. How to cite the data: as describe_asset says (the card of each result \
+cites them too).
 - Only part of an area («NDVI above 1,500 m», «where it rains less than 600 mm a year», «on slopes under 20°»): \
 where, a list of conditions that the pixels must all pass, each a variable between min and max, e.g. [{{"variable": \
 "ELEVATION", "sensor": "Copernicus", "min": 1500}}, {{"variable": "PRECIP", "sensor": "TerraClimate", "metric": \
@@ -560,6 +562,8 @@ def fix_args(name, args, tools):
 		out[k] = v
 	if out.get('temporal') in TEMPORAL_ALIASES:  # small models write what they want: «interannual»
 		out['temporal'] = TEMPORAL_ALIASES[out['temporal']]
+	if '/' in str(out.get('variable', '')) and (out.get('collection') or out.get('image')):
+		out = {k: v for k, v in out.items() if k not in ('variable', 'sensor')}  # an ID as variable: no variable has '/'
 	if out.get('variable'):  # with its own collection, band and unit (the collection was hidden before the data by ID)
 		out = {k: v for k, v in out.items() if k not in SOURCE}
 	elif out.get('collection') or out.get('image'):  # the sensor is that of a variable of the catalog
@@ -610,11 +614,13 @@ def areas_text(areas, question=''):
 	        if areas else 'No protected area with that name: ask the user for another name or a layer.')
 
 
-def data_text(tool, text):
-	"""What the model gets of the answer TEXT of describe_asset or community_datasets, so that what is cut at its limit
+def data_text(tool, text, limit=None):
+	"""What the model gets of the answer TEXT of describe_asset or community_datasets, so that what is cut at its LIMIT
 	(advice_limit) is the least useful part: the description of an image or collection of Earth Engine with its bands
 	last (some collections have many, with their classes and bits), after the arguments to pass, the notes and how to
-	cite it; the datasets of the GEE Community Catalog, a line each (ID, type, title, theme, page), not their JSON."""
+	cite it; the datasets of the GEE Community Catalog, a line each (ID, type, title, theme, page), not their JSON,
+	after how many they are and, when they do not fit in LIMIT (themes of more than 100), that only the first ones
+	reach the model and how to narrow them."""
 	try:
 		r = json.loads(text)
 	except ValueError:
@@ -625,9 +631,13 @@ def data_text(tool, text):
 	if tool == 'community_datasets' and isinstance(r, list):
 		lines = [f"- {d.get('id')} ({'image collection' if d.get('type') == 'image_collection' else 'image'}): "
 		         f"{d.get('title', '')}; theme {d.get('theme', '')}; {d.get('docs', '')}" for d in r if isinstance(d, dict)]
-		return (f'{len(lines)} datasets of the GEE Community Catalog (ID, type, title, theme, page); describe_asset '
-		        'tells whether one goes as collection or image, and its bands:\n' + '\n'.join(lines)) if lines else \
-			'No dataset of the GEE Community Catalog with that theme or text: try another word or theme.'
+		if not lines:
+			return 'No dataset of the GEE Community Catalog with that theme or text: try another word or theme.'
+		head = f'{len(lines)} datasets of the GEE Community Catalog (ID, type, title, theme, page)'
+		rest = '; describe_asset tells whether one goes as collection or image, and its bands:\n' + '\n'.join(lines)
+		if limit and len(head) + len(rest) > limit:  # said first, as the end of the list is cut
+			head += '; only the first ones fit here: narrow the list with text or kind'
+		return head + rest
 	return text
 
 
@@ -1409,7 +1419,7 @@ class Assistant:
 						self.waiting = True
 						text += ASK_AND_WAIT
 			if name in ('describe_asset', 'community_datasets'):
-				text = data_text(name, text)
+				text = data_text(name, text, self.advice_limit())
 			self._tool_message(name, text[:self.advice_limit()])
 			return
 		if name in TASKS:

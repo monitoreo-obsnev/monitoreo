@@ -17,8 +17,8 @@
                                                      the same with any collection of images of Earth Engine by its ID,
                                                      instead of VARIABLE and --sensor (also image, trend and compare);
                                                      image also takes --image ID (a fixed image, without dates) and
-                                                     --terrain slope|aspect
-    monitoreo asset ID                               what an image or collection of Earth Engine is (type, bands,
+                                                     --terrain slope|aspect (in degrees: its unit is then degree)
+    monitoreo asset ID                              what an image or collection of Earth Engine is (type, bands,
                                                      units, scale, dates, how to cite it), to give it with --collection
                                                      or --image and --band
     monitoreo community [--theme T] [--text T] [--kind image|image_collection] [--limit N] [--lang es]
@@ -95,10 +95,43 @@ def _source_options(p, image=False):
 	p.add_argument('--band-offset', type=float, metavar='F',
 	               help='what is added to the values of the band after --band-scale')
 	p.add_argument('--unit', help="unit of the values (after --band-scale and --band-offset) in UDUNITS, e.g. mm, degC, "
-	                              "'kg m-2', 'mm day-1' or 1 (dimensionless)")
+	                              "'kg m-2', 'mm day-1' or 1 (dimensionless)" +
+	                              ('; with --terrain, none or degree' if image else ''))
 	if image:
 		p.add_argument('--terrain', choices=('slope', 'aspect'),
-		               help='the slope or the aspect of the band of --image, in degrees (e.g. of a DEM)')
+		               help='the slope or the aspect of the band of --image (e.g. of a DEM), in degrees (its unit is '
+		                    'then degree: give no --unit, or degree, not that of the band)')
+
+
+# the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
+# the command line
+OTHER_THEMES = {
+	'earth_engine': 'any image or collection of images of Earth Engine by its ID: monitoreo asset ID describes it (its '
+	                'bands, units and dates); then compute it with --collection (or --image, in monitoreo image) and '
+	                '--band',
+	'community': 'the datasets of the GEE Community Catalog by its own themes: monitoreo community lists its themes '
+	             'and, with --theme or --text, their datasets; monitoreo asset ID describes one; then compute it with '
+	             '--collection (or --image, in monitoreo image) and --band'}
+
+
+def _other_theme(theme):
+	"""The theme of catalog.OTHER_THEMES named THEME (its key, or its name in English or Spanish, as services read
+	them), or None."""
+	from . import catalog
+	low = str(theme or '').strip().lower()
+	return next((t for t in catalog.OTHER_THEMES if low and low in (t['key'], t['en'].lower(), t['es'].lower())), None)
+
+
+def _error(e, args):
+	"""The message of the error E of the services for a command that computes ARGS.source: when the data given with
+	--collection have to be given as an image (the services say «give it as an image»: an image, or a collection of
+	tiles without dates), with the option of the command line that does it."""
+	text = f'ERROR: {e}'
+	asset = None if 'variable' in args.source else args.source.get('collection')
+	if asset and 'give it as an image' in str(e):
+		text += (f'; in the command line, --image {asset} instead of --collection' if args.cmd == 'image' else
+		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
+	return text
 
 
 def _source(args, parser):
@@ -111,7 +144,7 @@ def _source(args, parser):
 	image = 'image' in given
 	ids = '--collection or --image' if hasattr(args, 'image') else '--collection'  # --image: only the command image
 	if args.variable:
-		if not args.sensor and '/' in args.variable:  # an ID of Earth Engine given as a variable of the catalog
+		if '/' in args.variable:  # an ID of Earth Engine given as a variable of the catalog (none has '/'), sensor or not
 			parser.error(f'{args.variable} is not a variable of the catalog (monitoreo list): give an ID of Earth Engine '
 			             f'with {ids} and --band, instead of VARIABLE (monitoreo asset ID says which)')
 		if not args.sensor:
@@ -158,7 +191,7 @@ def main(argv=None):
 	                               'or terrain (other data of Earth Engine: monitoreo asset and monitoreo community)')
 	p.add_argument('--text')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
-	p = sub.add_parser('info', help='everything about a variable')
+	info = p = sub.add_parser('info', help='everything about a variable')
 	p.add_argument('variable')
 	p.add_argument('--sensor')
 	p = sub.add_parser('parks', help='protected areas of WDPA by name')
@@ -179,7 +212,7 @@ def main(argv=None):
 	p.add_argument('--theme', help='only those of a theme of the catalog (its name in English or Spanish, or part of it)')
 	p.add_argument('--text', help='only those with these words in their title, ID, provider or tags')
 	p.add_argument('--kind', choices=('image', 'image_collection'), help='only images or only collections of images')
-	p.add_argument('--limit', type=int, help='at most this number of datasets')
+	p.add_argument('--limit', type=int, help='at most this number of datasets (default: all)')
 	p.add_argument('--lang', default='en', choices=('en', 'es'), help='language of the names of the themes')
 	computes = {}  # the subcommands of a variable or of data of Earth Engine by its ID, for the errors of _source
 	computes['series'] = p = sub.add_parser('series', help='time series of a variable over a region')
@@ -292,6 +325,9 @@ def main(argv=None):
 	args = parser.parse_args(argv)
 	if args.cmd in computes:  # what it computes, or its error before Earth Engine
 		args.source = _source(args, computes[args.cmd])
+	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
+		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '
+		           'describes an ID of Earth Engine')
 	if args.cmd == 'image' and not (args.out or args.rgb):
 		image.error('give --out (GeoTIFF of the variable), --rgb (GeoTIFF of its true colour) or both')
 	if args.cmd == 'image' and args.rgb and not args.variable:
@@ -311,6 +347,9 @@ def main(argv=None):
 		return _assistant(args)
 	from . import services
 	if args.cmd == 'list':
+		other = _other_theme(args.theme)
+		if other:  # in the words of the command line, not those of the services (describe_asset, collection=...)
+			sys.exit(f"ERROR: {other['en']} has no variables of the catalog: {OTHER_THEMES[other['key']]}")
 		try:
 			rows = services.list_variables(args.sensor, args.text, args.lang, theme=args.theme)
 		except ValueError as e:  # an unknown theme, or one of the data of Earth Engine outside the catalog
@@ -415,7 +454,7 @@ def _compute(args, services):
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
 		                           progress=progress, where=_where(args), **args.source)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
-		sys.exit(f'ERROR: {e}')
+		sys.exit(_error(e, args))
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
 	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
@@ -448,7 +487,7 @@ def _image(args, services):
 			      f"{res['min']:.4g} to {res['max']:.4g} (p2-p98)" if res['min'] is not None
 			      else f"{res['file']}: no valid pixel")
 	except ValueError as e:
-		sys.exit(f'ERROR: {e}')
+		sys.exit(_error(e, args))
 
 
 def _fmt(rows, digits=4):
@@ -466,7 +505,7 @@ def _trend_or_compare(args, services):
 		else:
 			res = services.compare_series(region, other_start=args.other_start, other_end=args.other_end, **same)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
-		sys.exit(f'ERROR: {e}')
+		sys.exit(_error(e, args))
 	if args.cmd == 'trend':
 		_table(_fmt(res['rows']), ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope',
 		                           'intercept'])

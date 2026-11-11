@@ -4,10 +4,10 @@ catalog     a variable of MonitorEO: index (NDVI, LST, ...), sensor (Sentinel-2,
             collection (when the catalog has several for that variable and sensor) or ref (ID of the entry).
 collection  any other image collection of Earth Engine: collection and band (e.g. IDAHO_EPSCOR/TERRACLIMATE, pr),
             with optional scale and offset of the band and unit (of its values, in UDUNITS: 'mm', 'degC').
-image       a fixed image (or a collection of tiles, mosaicked): image and band (e.g. COPERNICUS/DEM/GLO30, DEM),
-            with optional scale, offset, unit and terrain (slope or aspect, in degrees, computed from the band). Like
-            the fixed layers of the catalog, it has no dates: maps and their statistics, no time series, trends or
-            comparisons.
+image       a fixed image (or a collection of tiles, mosaicked): image and band (e.g. COPERNICUS/DEM/GLO30_2024_1,
+            DEM), with optional scale, offset, unit and terrain ('slope' or 'aspect' of the band, in degrees: its unit
+            is then degree). Like the fixed layers of the catalog, it has no dates: maps and their statistics, no time
+            series, trends or comparisons.
 
 The data of Earth Engine outside the catalog (any ID of the Earth Engine data catalog, of the GEE Community Catalog or
 of a project the account can read: see monitoreo.assets) keep their own mask: the pixel filters of MonitorEO (quality)
@@ -47,6 +47,11 @@ WHERE_KEYS = {'variable', 'sensor', 'collection', 'ref', 'metric', 'temporal', '
               'period',
               'min', 'max'}  # of a condition of where
 
+TERRAIN = ('slope', 'aspect')  # of the band of an image (ee.Terrain), in degrees whatever the unit of the band
+# Units given in other words, in UDUNITS: those of the STAC records (monitoreo.assets.UNITS: 'C', 'W/m^2', 'mm/d') too
+UNIT_WORDS = {'°C': 'degC', '°F': 'degF', '°': 'degree', 'deg C': 'degC', 'deg F': 'degF'}
+DIMENSIONLESS = ('unitless', 'dimensionless', 'fraction', 'index')  # in any case: '1'
+
 _native = {}
 _types = {}
 
@@ -66,6 +71,14 @@ def _metric_label(spec):
 	if spec['temporal'] == 'period':
 		return m
 	return f"{spec['temporal']}-{m}_{str(spec['interannual']).lower()}"
+
+
+def data_name(spec):
+	"""The name of the data of Earth Engine of SPEC (kind 'collection' or 'image') in titles and records: its ID, its
+	band and its terrain ('COPERNICUS/DEM/GLO30_2024_1 DEM slope'), so that the slope of a DEM is not named as its
+	elevation."""
+	k = kind(spec)
+	return ' '.join(str(x) for x in (_asset_id(spec.get(k)), spec.get('band'), spec.get('terrain')) if x)
 
 
 def _default_name(spec):
@@ -95,6 +108,8 @@ def specs(var, defaults=None, two_periods=False):
 		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use {', '.join(sensors.QUALITY)}")
 	k = kind(base)
 	e = entry_of(base) if k == 'catalog' else {}
+	if base.get('unit') is not None and not str(base['unit']).strip():
+		base.pop('unit')  # '' or blank: not given, as in services.make_spec and the app (not dimensionless)
 	if k == 'catalog' and base.get('unit') is not None:
 		raise ValueError(f"{e['index']} ({e['sensor']}) has its unit in the catalog ({e['unit']}): unit is for the "
 		                 'data of Earth Engine outside it (collection or image)')
@@ -103,8 +118,13 @@ def specs(var, defaults=None, two_periods=False):
 		if not base.get('band'):
 			raise ValueError(f"variable {base.get('name') or base[k]}: give the band of {base[k]} (one; describe_asset "
 			                 'lists them)')
-		if base.get('unit') is not None:
-			base['unit'] = _udunits_text(base['unit'], base[k])
+		if base.get('terrain') and k != 'image':  # a recipe does not go through services.make_spec
+			raise ValueError('terrain is for an image (image=, e.g. a DEM), not for a collection')
+		if base.get('terrain') and base['terrain'] not in TERRAIN:  # now, not when Earth Engine computes it
+			raise ValueError(f"unknown terrain {base['terrain']}: use {', '.join(TERRAIN)}")
+		base['unit'] = given_unit(base.get('unit'), base[k], base.get('terrain'))
+		if not base['unit']:
+			base.pop('unit')
 	if e.get('two_periods') and not two_periods:
 		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
 		                 f"it with burn_severity and index '{e['index']}'")
@@ -225,12 +245,35 @@ def _asset_id(asset):
 
 def _udunits_text(unit, asset):
 	"""UNIT of data of Earth Engine outside the catalog, as given (in UDUNITS: 'mm', 'degC', 'kg m-2', '1' if
-	dimensionless); ValueError if it cannot be one."""
+	dimensionless), with the words of the STAC records translated ('C' and '°C' are degC, 'W/m^2' is W m-2, 'unitless'
+	or 'Fraction' is 1: see monitoreo.assets.UNITS); ValueError if it cannot be one, as the code of a variable of the
+	catalog ('NDVI': a name, not a unit). Empty: not given (see given_unit)."""
+	from . import assets
 	text = ' '.join(str(unit).replace('º', '°').split())
-	text = {'°C': 'degC', '°': 'degree', 'unitless': '1', 'dimensionless': '1', '': '1'}.get(text, text)
-	if not catalog.UDUNITS_TEXT.fullmatch(text):
+	if text.lower() in DIMENSIONLESS:
+		return '1'
+	text = UNIT_WORDS.get(text) or assets.UNITS.get(text) or text  # 'C' alone is coulomb in UDUNITS: here degC
+	if not catalog.UDUNITS_TEXT.fullmatch(text) or text.upper() in _codes():
 		raise ValueError(f"the unit of {asset} is written in UDUNITS (the units of the CF conventions), e.g. 'mm', "
 		                 f"'degC', 'kg m-2', 'mm day-1' or '1' (dimensionless), not {unit!r}")
+	return text
+
+
+def _codes():
+	"""The codes of the variables of the catalog, in capitals (NDVI, LST, ...)."""
+	return {str(e['index']).upper() for e in catalog.variables()}
+
+
+def given_unit(unit, asset, terrain=None):
+	"""The unit in UDUNITS of the data of Earth Engine ASSET outside the catalog with UNIT given by the user (see
+	_udunits_text), or '' if none was given (None, '' or blank); with TERRAIN (the slope or the aspect of the band of
+	an image), 'degree', whatever the unit of the band: ValueError if another one is given."""
+	text = _udunits_text(unit, asset) if unit is not None and str(unit).strip() else ''
+	if terrain:
+		if text not in ('', 'degree'):
+			raise ValueError(f"the {terrain} of {asset} is in degrees: give no unit, or 'degree' (not {unit!r}, the "
+			                 'unit of its band)')
+		return 'degree'
 	return text
 
 
@@ -271,7 +314,9 @@ def _span(spec):
 
 def check_asset(spec):
 	"""Error if the data of Earth Engine of SPEC (kind 'collection' or 'image') cannot be computed as given: an ID that
-	this account cannot read, a table or a folder, or an image given as a collection (see monitoreo.assets)."""
+	this account cannot read, a table or a folder, an image given as a collection, or a collection of images without
+	dates (tiles, e.g. a DEM) given as a collection, which the period would leave empty (see monitoreo.assets). The
+	words are those of every tool (no argument of Python): the command line and R read them too."""
 	from . import assets
 	k = kind(spec)
 	if k == 'catalog':
@@ -279,8 +324,11 @@ def check_asset(spec):
 	t = assets.asset_type(spec[k])
 	_types[spec[k]] = 'IMAGE' if t == 'image' else 'IMAGE_COLLECTION'
 	if k == 'collection' and t == 'image':
-		raise ValueError(f"{spec[k]} is an image, not a collection of images: give it as image='{spec[k]}' (a fixed "
-		                 'layer, without dates)')
+		raise ValueError(f'{spec[k]} is an image, not a collection of images: give it as an image (a fixed layer, '
+		                 'without dates: maps, GeoTIFFs and statistics of the region)')
+	if k == 'collection' and not assets.first_date(spec[k]):  # Earth Engine filters out the images without a date
+		raise ValueError(f'{spec[k]} is a collection of images without dates (tiles): give it as an image (their '
+		                 'mosaic, a fixed layer, without dates)')
 
 
 def native_scale(spec):
@@ -288,13 +336,21 @@ def native_scale(spec):
 	k = kind(spec)
 	if k == 'catalog':
 		return float(entry_of(spec)['m'])
+	# every time, not only the first (its answers are cached in monitoreo.assets): the same ID given as an image and
+	# then as a collection shares the pixel size, but not what can be computed with it
+	check_asset(spec)
 	key = (spec.get(k), spec.get('band'))
 	if key not in _native:
-		check_asset(spec)
-	if key not in _native:
-		src = ee.Image(spec['image']) if k == 'image' and _is_image(spec['image']) else ee.ImageCollection(spec.get(k)).first()
+		src = ee.Image(spec['image']) if k == 'image' and _is_image(spec['image']) else \
+			_with_band(ee.ImageCollection(spec.get(k)), spec['band']).first()
 		_native[key] = src.select(spec['band']).projection().nominalScale().getInfo()
 	return _native[key]
+
+
+def _with_band(col, band):
+	"""The images of the collection COL that have BAND: some collections change their bands from image to image
+	(Sentinel-1: VV and VH, or HH and HV), and select would fail on those without it."""
+	return col.filter(ee.Filter.listContains('system:band_names', band))
 
 
 def _is_image(asset):
@@ -316,7 +372,10 @@ def _fixed(spec, res):
 	if _is_image(spec['image']):
 		img = ee.Image(spec['image']).select(spec['band'])
 	else:
-		col = ee.ImageCollection(spec['image']).select(spec['band'])
+		col = ee.ImageCollection(spec['image'])
+		if kind(spec) != 'catalog':  # data by its ID: only the tiles with the band (those of the catalog all have it)
+			col = _with_band(col, spec['band'])
+		col = col.select(spec['band'])
 		img = col.mosaic().setDefaultProjection(col.first().projection())
 	native = native_scale(spec)
 	img = img.multiply(float(spec.get('scale') or 1)).add(float(spec.get('offset') or 0))
@@ -325,10 +384,9 @@ def _fixed(spec, res):
 		img = img.resample(method)
 	terrain = spec.get('terrain')
 	if terrain:
-		ops = {'slope': ee.Terrain.slope, 'aspect': ee.Terrain.aspect}
-		if terrain not in ops:
-			raise ValueError(f"unknown terrain {terrain}: use {', '.join(ops)}")
-		img = ops[terrain](img)
+		if terrain not in TERRAIN:
+			raise ValueError(f"unknown terrain {terrain}: use {', '.join(TERRAIN)}")
+		img = getattr(ee.Terrain, terrain)(img)
 	agg = str(spec.get('aggregate') or 'auto').lower()
 	if agg in ('auto', 'mean') and res > 2 * native:
 		img = img.reduceResolution(ee.Reducer.mean(), True, 65535)
@@ -348,7 +406,8 @@ def _from_collection(spec, region, res):
 			out = out.resample(method)
 		return out.toFloat().rename('value').copyProperties(img, ['system:time_start'])
 
-	return ee.ImageCollection(spec['collection']).filterBounds(region).filterDate(start, end).map(prep)
+	return _with_band(ee.ImageCollection(spec['collection']).filterBounds(region).filterDate(start, end),
+	                  spec['band']).map(prep)
 
 
 def check_rgb(spec):
@@ -426,7 +485,7 @@ def describe(spec, rgb=False):
 		if spec.get(key) is not None and not (key == 'interannual' and spec.get('temporal', 'period') == 'period'):
 			d[key] = spec[key]
 	if k != 'catalog':  # the data of Earth Engine as given, without the pixel filters of MonitorEO
-		d.update({'variable': f"{spec[k]} {spec.get('band') or ''}".strip(), k: spec[k], 'band': spec.get('band'),
+		d.update({'variable': data_name(spec), k: spec[k], 'band': spec.get('band'),
 		          'scale': spec.get('scale'), 'offset': spec.get('offset'), 'terrain': spec.get('terrain'),
 		          'pixel_filters': {}})
 		if spec.get('unit'):

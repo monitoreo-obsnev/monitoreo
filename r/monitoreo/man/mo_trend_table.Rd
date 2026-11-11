@@ -94,7 +94,8 @@ e.g. \code{band_scale = 0.1}.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own.}
+reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
+aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
 A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
@@ -121,7 +122,7 @@ dates, by its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 mo_init()
 mo_trend_table(mo_wdpa(389011), "EVI", "Modis", "2001-01-01", "2024-12-31", step = "monthly")
 # any collection of images of Earth Engine by its ID: the annual precipitation of TerraClimate
-mo_trend_table(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+mo_trend_table(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                start = "1991-01-01", end = "2024-12-31", metric = "sum")
 }
 }
