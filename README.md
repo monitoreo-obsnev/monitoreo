@@ -92,6 +92,11 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **QGIS plugin, Earth Engine app, Assistant, MCP server, Python package, Command line, R package**: The true colour (RGB) of the images of a map: the red, green and blue reflectance of the same images and pixels as the map of a variable of Sentinel-2 or Landsat (sensor, dates, pixel filters and metric), to see what a change of an index is (burned area, bare soil, snow, water or clouds). In the QGIS plugin, the Earth Engine app and the assistant, a "Layer" choice (Index, True colour (RGB) or Both) next to the map; in Python and R, `rgb_map` and `download_rgb`; in the command line, `monitoreo image --rgb`.
+- **QGIS plugin** (fix): The maps of each date of a time series keep the "Only the pixels where" conditions of the series.
+
 ### [v0.3.21](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.21) · 2026-11-11 · package 0.3.31
 
 - **Assistant** (fix): When the value of a pixel or another request of the page fails for an unforeseen reason, the page shows its cause instead of "Internal Server Error", and the terminal its traceback.
