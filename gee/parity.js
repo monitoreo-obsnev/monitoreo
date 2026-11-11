@@ -25,6 +25,28 @@ function regionOf(r, done) {
 	});
 }
 
+// The spec of the case C: a variable of the catalog (ref) or, with custom ({asset, band, use, scale, offset, unit,
+// terrain}), data of Earth Engine by its ID, whose entry (mo.customEntry) needs the type of the asset and the pixel
+// size of the band (mo.assetInfo, as variable.native_scale): done(error), with C.spec carrying that entry
+function prepare(c, done) {
+	var custom = c.spec.custom;
+	if (!custom) return done(null);
+	mo.assetInfo(custom.asset, function (error, info) {
+		if (error) return done(error);
+		var s = {};
+		for (var k in c.spec) if (k !== 'custom') s[k] = c.spec[k];
+		try {
+			s.entry = mo.customEntry({asset: info.asset, type: info.type, dated: info.dated, band: custom.band,
+				use: custom.use, m: info.scales[custom.band], scale: custom.scale, offset: custom.offset, unit: custom.unit,
+				terrain: custom.terrain});
+		} catch (e) {
+			return done(e);
+		}
+		c.spec = s;
+		done(null);
+	});
+}
+
 // Scale, CRS and number of the regions, as the Python package chooses them
 function setup(entry, regions, done) {
 	ee.Dictionary({info: mo.regionInfo(regions), n: regions.size()}).evaluate(function (d, error) {
@@ -66,7 +88,7 @@ var CASES = {
 			if (error) return done(error);
 			seasonalRows(s, regions, c.step, c.metric, c.stat, g.scale, g.crs, g.n, function (err, yearly) {
 				if (err) return done(err);
-				done(null, {rows: mo.trendRows(yearly, c.step, mo.windows(s.period, s.season)[0][0]), yearly: yearly});
+				done(null, {rows: mo.trendRows(yearly, c.step, mo.windows(s.period, s.season)[0][0], 'en'), yearly: yearly});
 			});
 		});
 	},
@@ -93,6 +115,14 @@ var CASES = {
 			return mo.comparisonImage(s, other, geom).select('difference');
 		})() : mo.image(s, geom);
 		mo.percentiles(img.clipToCollection(regions), geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {
+			done(error, st);
+		});
+	},
+	// the true colour of the images of a variable (services.rgb_map): the percentiles 2 and 98 of its bands
+	rgb_percentiles: function (c, regions, done) {
+		var s = mo.spec(c.spec), geom = regions.geometry();
+		var img = mo.image(s, geom, null, true).clipToCollection(regions);
+		mo.rgbPercentiles(img, geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {
 			done(error, st);
 		});
 	},
@@ -145,15 +175,21 @@ function main(cases) {
 				results[names[i]] = {error: String(error)};
 				return next(i + 1);
 			}
-			try {
-				CASES[c.kind](c, regions, function (err, out) {
-					results[names[i]] = err ? {error: String(err)} : out;
+			prepare(c, function (err) {
+				if (err) {
+					results[names[i]] = {error: String(err)};
+					return next(i + 1);
+				}
+				try {
+					CASES[c.kind](c, regions, function (e, out) {
+						results[names[i]] = e ? {error: String(e)} : out;
+						next(i + 1);
+					});
+				} catch (e) {
+					results[names[i]] = {error: String(e.stack || e)};
 					next(i + 1);
-				});
-			} catch (e) {
-				results[names[i]] = {error: String(e.stack || e)};
-				next(i + 1);
-			}
+				}
+			});
 		});
 	}
 	next(0);

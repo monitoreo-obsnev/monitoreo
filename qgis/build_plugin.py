@@ -5,7 +5,8 @@ Install Plugins > Install from ZIP).
 
 It copies the package monitoreo (src/monitoreo) into monitoreo_qgis/ext and adds earthengine-api and its
 dependencies as pure Python wheels for Python 3.9 or newer (QGIS 4 has 3.12; on Windows, macOS and Linux), without
-google-cloud-storage, which Earth Engine does not import. It needs pip and internet.
+google-cloud-storage, which Earth Engine does not import. It needs pip and internet. The metadata.txt of the zip gets
+the changelog of the last releases, from README.md (.github/changelog.py), which the plugin manager of QGIS shows.
 
 The security scan of plugins.qgis.org blocks a version with any finding of Bandit or of detect-secrets (each tool is
 one critical check, whatever the severity of its rules: plugins/security_scanner.py of
@@ -39,10 +40,12 @@ DEPS = ['google-api-python-client', 'google-auth', 'google-auth-httplib2', 'http
 # never run by the plugin: Earth Engine reads its discovery document from the internet (static_discovery=False)
 UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestcase.py', 'ee/cli', 'ee/mapclient.py',
           'certifi/tests', 'rsa/cli.py']
-# modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual and report) and
-# the web viewer, not used by the plugin
-MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py',
-                    'report.py', 'ui']
+# modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual and the documents
+# of the user) and the web viewer, not used by the plugin. tests/test_plugin_zip.py checks that the zip leaves out every
+# module the plugin never imports (documents.py has XML parsers that Bandit flags) and none that it imports: report.py
+# writes the titles and facts of the README of each result (monitoreo.readme)
+MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py', 'ui',
+                    'documents.py']
 OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 
@@ -92,16 +95,37 @@ def scan(out):
 		sys.exit('Critical findings of the security scan of plugins.qgis.org:\n' + '\n'.join(critical))
 
 
-def check_metadata():
-	"""Read metadata.txt as plugins.qgis.org does (ConfigParser, with its interpolation of %), or stop: it refuses a
-	zip whose metadata.txt it cannot read (a % that is not %% or %(name)s, e.g. "10 %")."""
+def check_metadata(text=None):
+	"""Read metadata.txt (or TEXT) as plugins.qgis.org does (ConfigParser, with its interpolation of %), or stop: it
+	refuses a zip whose metadata.txt it cannot read (a % that is not %% or %(name)s, e.g. "10 %")."""
 	meta = configparser.ConfigParser()
 	meta.optionxform = str
 	try:
-		meta.read(os.path.join(PLUGIN, 'metadata.txt'), encoding='utf-8')
+		if text is None:
+			meta.read(os.path.join(PLUGIN, 'metadata.txt'), encoding='utf-8')
+		else:
+			meta.read_string(text)
 		meta.items('general')
 	except configparser.Error as e:
 		sys.exit(f'metadata.txt cannot be read as plugins.qgis.org reads it (write "percent" instead of %): {e}')
+
+
+def metadata_with_changelog():
+	"""metadata.txt with the changelog of the last releases (from README.md, with .github/changelog.py), which the
+	plugin manager of QGIS and plugins.qgis.org show. It goes only into the zip: the changelog has one source."""
+	sys.path.insert(0, os.path.join(ROOT, '.github'))
+	import changelog
+	with open(os.path.join(PLUGIN, 'metadata.txt'), encoding='utf-8') as f:
+		text = f.read()
+	try:
+		log = changelog.qgis(changelog.readme())
+	except ValueError as e:
+		sys.exit(f'the changelog of README.md cannot be read: {e}')
+	text = re.sub(r'^changelog=.*\n(?:[ \t]+.*\n)*', '', text, flags=re.M)
+	block = 'changelog=' + '\n    '.join(log.splitlines()) + '\n'  # one value of several lines, indented
+	text = re.sub(r'^(version=.*\n)', lambda m: m.group(1) + block, text, count=1, flags=re.M)
+	check_metadata(text)
+	return text
 
 
 def main():
@@ -109,6 +133,7 @@ def main():
 	parser.add_argument('--no-ee', action='store_true', help='without earthengine-api (when QGIS already has it)')
 	args = parser.parse_args()
 	check_metadata()
+	metadata = metadata_with_changelog()
 
 	shutil.rmtree(EXT, ignore_errors=True)
 	os.makedirs(EXT)
@@ -141,7 +166,10 @@ def main():
 				if f.endswith('.pyc') or f == '.DS_Store':
 					continue
 				path = os.path.join(folder, f)
-				z.write(path, os.path.relpath(path, HERE))
+				if path == os.path.join(PLUGIN, 'metadata.txt'):
+					z.writestr(os.path.relpath(path, HERE), metadata)
+				else:
+					z.write(path, os.path.relpath(path, HERE))
 		z.write(os.path.join(ROOT, 'LICENSE'), os.path.join(os.path.basename(PLUGIN), 'LICENSE'))
 		ini = bandit_ini()
 		if ini:

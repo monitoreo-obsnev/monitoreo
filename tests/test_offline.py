@@ -121,6 +121,20 @@ def test_unit_of_the_sums():
 	assert variable.describe(spec)['udunits'] == 'mm'
 	spec = services.make_spec('PRECIP', 'TerraClimate', '2020-01-01', '2020-12-31')
 	assert services._unit(spec) == '[mm/month]'
+	# the data of Earth Engine by their ID (in UDUNITS): also per the days of each image (CHIRPS PENTAD, 8-day
+	# products), written '/N days' too, and per day as 'd-1'; per hour, a rate whose sum is not a total
+	for unit, total in (('mm month-1', 'mm'), ('mm day-1', 'mm'), ('mm d-1', 'mm'), ('mm (5 day)-1', 'mm'),
+	                    ('kg m-2 (8 day)-1', 'kg m-2'), ('mm/d', 'mm'), ('mm/8 days', 'mm'), ('J m-2 day-1', 'J m-2')):
+		assert catalog.unit_of(unit, 'sum') == catalog.unit_of(unit, 'SUM') == total, unit
+		assert catalog.unit_of(unit, 'max') == unit
+	assert catalog.unit_of('mm h-1', 'sum') == 'mm h-1' and catalog.unit_of('kg m-2 s-1', 'sum') == 'kg m-2 s-1'
+	# the units of the catalog keep their own: its ET (a total of 8 days) and LE are as they were
+	assert catalog.unit_of('[kg/m²/8 days]', 'sum') == '[kg/m²/8 days]' and catalog.unit_of('[J/m²/day]', 'sum') == \
+		'[J/m²]'
+	spec = services.make_spec(collection='UCSB-CHG/CHIRPS/PENTAD', band='precipitation', start='2020-01-01',
+	                          end='2020-12-31', metric='sum', unit='mm/pentad')  # as describe_asset gives it
+	assert spec['unit'] == 'mm (5 day)-1' and services._unit(spec) == 'mm' and variable.describe(spec)['udunits'] == 'mm'
+	assert catalog.udunits(services._unit(spec), per_year=True) == 'mm year-1'  # the trends of the annual totals
 
 
 def test_cloud_frequency_and_climate_in_the_catalog():
@@ -309,6 +323,18 @@ def test_recipe(tmp_path):
 	assert len(warnings) == 1 and 'snow' in warnings[0]
 	many = recipe.expand(dict(r, variables=[{'name': f'v{i}', 'image': 'X', 'band': 'b'} for i in range(10)]))
 	assert many[0]['file'] == '01_v0.tif' and many[-1]['file'] == '10_v9.tif'
+	# a unit left empty is not given (not dimensionless), as in the tools; the slope of a DEM is in degrees
+	for unit in ('', ' '):
+		spec, = recipe.expand(dict(r, variables=[{'collection': 'X/Y', 'band': 'b', 'metric': 'mean', 'unit': unit}]))
+		assert 'unit' not in spec and 'unit' not in variable.describe(spec)
+	assert specs[2]['unit'] == 'degree' and variable.describe(specs[2])['udunits'] == 'degree'
+	assert variable.describe(specs[2])['variable'] == 'COPERNICUS/DEM/GLO30_2024_1 DEM slope'
+	with pytest.raises(ValueError, match='is in degrees'):
+		recipe.expand(dict(r, variables=[{'image': 'X/DEM', 'band': 'b', 'terrain': 'slope', 'unit': 'm'}]))
+	with pytest.raises(ValueError, match='terrain is for an image'):
+		recipe.expand(dict(r, variables=[{'collection': 'X/Y', 'band': 'b', 'metric': 'mean', 'terrain': 'slope'}]))
+	with pytest.raises(ValueError, match='unknown terrain hillshade'):
+		recipe.expand(dict(r, variables=[{'image': 'X/DEM', 'band': 'b', 'terrain': 'hillshade'}]))
 
 
 def test_update(monkeypatch):
@@ -982,3 +1008,27 @@ def test_eecu_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
 	assert mcp_server._eecu_warning('[1, 2]') == '[1, 2]'  # only in objects
 	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	assert mcp_server._eecu_warning('{"a": 1}') == '{"a": 1}'
+
+
+def test_assistant_api_unforeseen_error():
+	# an error that the API of the assistant does not foresee comes to the page with its cause, not as «Internal
+	# Server Error» (issue #26)
+	import asyncio
+	from starlette.requests import Request
+	from monitoreo import assistant
+
+	class Broken:
+		async def pixel(self, *a):
+			raise IndexError('list index out of range')
+
+	app = assistant.make_app(Broken(), 'tok', 8765)
+	route = next(r for r in app.routes if r.path == '/api/pixel')
+
+	async def receive():
+		return {'type': 'http.request', 'body': b'{"id": 1, "lon": -3.4, "lat": 37.1}', 'more_body': False}
+
+	request = Request({'type': 'http', 'method': 'POST', 'path': '/api/pixel', 'query_string': b'',
+	                   'headers': [(b'host', b'127.0.0.1:8765'), (b'x-token', b'tok')]}, receive)
+	response = asyncio.run(route.endpoint(request))
+	assert response.status_code == 500
+	assert json.loads(response.body) == {'error': 'IndexError: list index out of range'}

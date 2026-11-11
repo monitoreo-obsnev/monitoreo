@@ -258,3 +258,52 @@ def test_comparison(tmp_path):
 	ok = (b[0] != -9999) & (b[1] != -9999) & (b[2] != -9999)
 	assert ds.GetRasterBand(1).GetDescription() == 'difference' and ok.any()
 	assert abs((b[2][ok] - b[1][ok]) - b[0][ok]).max() < 1e-5
+
+
+def _bands_of(path):
+	"""(arrays of the bands, nodata, names) of a GeoTIFF."""
+	from osgeo import gdal
+	gdal.UseExceptions()
+	ds = gdal.Open(path)
+	bands = [ds.GetRasterBand(i + 1) for i in range(ds.RasterCount)]
+	out = [b.ReadAsArray() for b in bands], bands[0].GetNoDataValue(), [b.GetDescription() for b in bands]
+	ds = None
+	return out
+
+
+def test_true_colour_on_the_pixels_of_the_variable(tmp_path):
+	"""The true colour of the images of a variable (issue #24): three bands of reflectance on the same grid and the same
+	pixels as the map of the variable with the same arguments, and a stretch between its percentiles 2 and 98."""
+	args = dict(region=GUAJARES, variable='NDVI', sensor='Sentinel-2', start='2021-06-01', end='2021-08-31',
+	            metric='median', max_pixels=40000)
+	idx = services.download_image(path=str(tmp_path / 'ndvi.tif'), **args)
+	rgb = services.download_rgb(path=str(tmp_path / 'rgb.tif'), **args)
+	(value,), nodata, _ = _bands_of(idx['file'])
+	colours, nodata_rgb, names = _bands_of(rgb['file'])
+	assert names == ['red', 'green', 'blue'] and nodata_rgb == nodata and rgb['grid'] == idx['grid']
+	for band in colours:
+		assert band.shape == value.shape
+		assert ((band == nodata) == (value == nodata)).all()  # the same pixels
+		valid = band[band != nodata]
+		assert valid.size and -0.05 < valid.mean() < 0.6  # surface reflectance
+	assert rgb['images'] == idx['images'] and rgb['bands'] == ['red', 'green', 'blue']
+	assert 0 <= rgb['min'] < rgb['max'] < 1 and rgb['unit'] == '[unitless]'
+	assert 'tucker' not in str(rgb['references']).lower() and rgb['readme'].endswith('.README.txt')
+
+
+def test_true_colour_metrics_and_sensors(tmp_path):
+	"""The maximum is the colour of the image of the highest NDVI of each pixel; Landsat by years; the SCF (with its
+	own masks) and the tiles of the map."""
+	box = {'bbox': [-3.58, 36.88, -3.55, 36.90]}
+	top = services.download_rgb(box, 'NDVI', 'Sentinel-2', '2021-04-01', '2021-09-30', metric='max',
+	                            path=str(tmp_path / 'max.tif'))
+	assert 0 <= top['min'] < top['max'] < 1
+	landsat = services.download_rgb(box, 'NBR', 'Landsat', '2018-01-01', '2020-12-31', metric='median',
+	                                temporal='annual', interannual='mean', path=str(tmp_path / 'landsat.tif'))
+	assert landsat['resolution'] == 30 and landsat['min'] < landsat['max']
+	scf = services.rgb_map(GUAJARES, 'SCF', 'Landsat', '2020-01-01', '2020-03-31', metric='mean')
+	assert '{z}' in scf['url'] and scf['bands'] == ['red', 'green', 'blue'] and scf['min'] < scf['max']
+	m = services.rgb_map(GUAJARES, 'NDVI', 'Sentinel-2', '2021-06-01', '2021-08-31', thumbnail=str(tmp_path / 'rgb.png'))
+	assert m['url'].startswith('https://') and open(m['thumbnail'], 'rb').read(4) == b'\x89PNG'
+	quick = services.rgb_map(GUAJARES, 'NDVI', 'Sentinel-2', '2021-06-01', '2021-08-31', quick=True)
+	assert (quick['min'], quick['max']) == (0.0, 0.3)

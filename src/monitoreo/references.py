@@ -31,16 +31,24 @@ WORLDCOVER = 'ESA/WorldCover/v200'
 WDPA = 'WCMC/WDPA/current/polygons'
 ECOREGIONS = 'RESOLVE/ECOREGIONS/2017'
 TRENDS = ('trend_table', 'trend_map', 'download_trend')
+RGB = ('rgb_map', 'download_rgb')  # the true colour of the images of a variable: its data, not its formula (see cite)
 # tools that compute in Earth Engine (the others only read the catalog or publish)
 EARTH_ENGINE = TRENDS + ('time_series', 'time_series_to_drive', 'export_time_series_to_drive', 'map_layer',
                          'region_stats', 'thumbnail', 'composite_image', 'export_image', 'export_image_to_drive',
                          'download_image', 'download_variables', 'compare_series', 'compare_map', 'download_comparison',
-                         'burn_severity', 'find_protected_areas')
+                         'burn_severity', 'find_protected_areas') + RGB
+
+
+# The references of the data of Earth Engine outside the datasets of catalog.json met so far (see of_asset): {id:
+# {'citation', 'doi' or 'url'}}, from their STAC record or their record in the GEE Community Catalog
+DATA = {}
 
 
 def bibliography():
-	"""Every reference of the catalog, by its ID, with that of MonitorEO: {id: {'citation', 'doi' or 'url'}}."""
+	"""Every reference of the catalog, by its ID, with that of MonitorEO (and those of the data of Earth Engine outside
+	the catalog met so far, DATA): {id: {'citation', 'doi' or 'url'}}."""
 	refs = dict(catalog.load()['references'])
+	refs.update(DATA)
 	refs[MONITOREO] = {'citation': about.CITATION.replace(f'https://doi.org/{about.DOI}', '').strip(),
 	                   'doi': about.DOI}
 	return refs
@@ -112,15 +120,72 @@ def of_datasets(collections):
 	return ids, credits
 
 
+# The families of data of Earth Engine whose terms of use ask for a credit line (and, the Copernicus DEM, for its
+# references) whatever the dataset: (start of their IDs, the dataset of catalog.json with that credit, with its
+# references too). The Landsat data: the credit of Level-2 for the surface reflectance (_L2), else that of Level-1.
+FAMILIES = (('COPERNICUS/DEM/', 'COPERNICUS/DEM/GLO30_2024_1', True),
+            ('COPERNICUS/S1', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S2', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S3/', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('COPERNICUS/S5P/', 'COPERNICUS/S2_SR_HARMONIZED', False),
+            ('LANDSAT/', 'LANDSAT/LC08/C02/T1_TOA', False))
+LANDSAT_L2 = 'LANDSAT/LC08/C02/T1_L2'
+
+
+def family(asset):
+	"""(the dataset of catalog.json whose credit line the terms of use of ASSET ask for, whether with its references
+	too), or (None, False): COPERNICUS/DEM/* that of the Copernicus DEM; the Sentinels (COPERNICUS/S1*, S2*, S3/*,
+	S5P/*) that of the Copernicus Sentinel data; LANDSAT/* that of the USGS."""
+	for start, dataset, refs in FAMILIES:
+		if asset.startswith(start):
+			return (LANDSAT_L2 if dataset.startswith('LANDSAT/') and '_L2' in asset else dataset), refs
+	return None, False
+
+
+def of_asset(asset):
+	"""(reference IDs, credit lines) of the data of Earth Engine ASSET (an image or a collection given by its ID): as
+	the datasets of catalog.json say if it is one of them, else from its STAC record in the Earth Engine data catalog
+	or its record in the GEE Community Catalog (see monitoreo.assets.cite), with the credit line that the terms of use
+	of its family ask for, in the words of catalog.json (see family: the Copernicus Sentinel data, the Copernicus DEM,
+	with its references, and Landsat)."""
+	from . import assets
+	asset = assets.normalize(asset)
+	if asset in catalog.load()['datasets']:
+		return of_datasets([asset])
+	refs, credits, methods = assets.cite(asset)
+	ids = []
+	for rid, ref in refs:
+		DATA[rid] = ref
+		ids.append(rid)
+	dataset, with_refs = family(asset)
+	if dataset:
+		more, cred = of_datasets([dataset])
+		ids += more if with_refs else []
+		credits = cred + [c for c in credits if c not in cred]
+	return ids + [i for m in methods for i in ([m] if m in catalog.load()['references'] else _methods(m))], credits
+
+
+def of_data(asset):
+	"""What to cite with the data of Earth Engine ASSET, whatever the period: {'references', 'credits'} as cite
+	(without Earth Engine and MonitorEO)."""
+	ids, credits = of_asset(asset)
+	years = '[years of the data]'
+	return {'references': sorted((get(i, data_years=years) for i in dict.fromkeys(ids)), key=_sort_key),
+	        'credits': list(dict.fromkeys(_fill(c, None, years) for c in credits))}
+
+
 def _methods(name):
 	return list(catalog.load()['methods'].get(name, []))
 
 
-def of_variable(entry, quality=None, period=None):
+def of_variable(entry, quality=None, period=None, formula=True):
 	"""(reference IDs, credit lines) of a variable of the catalog (its entry): those of its formula or algorithm, of its
 	Earth Engine datasets in PERIOD and of its pixel filters with QUALITY (Landsat: the QA band of CFMask; Sentinel-2:
-	Cloud Score+ for the clouds, else the SCL of Sen2Cor, which also gives water and snow)."""
-	ids = list(entry.get('references', []))
+	Cloud Score+ for the clouds, else the SCL of Sen2Cor, which also gives water and snow). Without FORMULA (the true
+	colour of its images), not those of its formula, except for the algorithms that decide which pixels it keeps (the
+	snow cover frequency and the cloud frequency); see cite for the metrics max and min."""
+	keep = formula or sensors.is_scf(entry) or sensors.is_cf(entry)
+	ids = list(entry.get('references', [])) if keep else []
 	cols = datasets(entry['col'], period)
 	on = sensors.filters(entry, quality)
 	q = dict(sensors.QUALITY, **(quality or {}))
@@ -146,20 +211,20 @@ def _entry(variable, sensor=None, collection=None):
 		return None
 
 
-def of_spec(var, period=None):
+def of_spec(var, period=None, formula=True):
 	"""(reference IDs, credit lines) of a variable as given to the tools or in a recipe: {'index', 'sensor',
 	'collection', 'quality', 'exclude_landcover', 'where'} of the catalog, or {'collection' or 'image', ...} of other
-	data of Earth Engine (cited when they are in the datasets of the catalog); with the variables of the conditions of
-	where (the pixels of the study area kept)."""
+	data of Earth Engine (see of_asset); with the variables of the conditions of where (the pixels of the study area
+	kept)."""
 	ids, credits = [], []
 	entry = _entry(var.get('index') or var.get('variable'), var.get('sensor'), var.get('collection')) \
 		if (var.get('index') or var.get('variable')) else None
 	if entry:
-		ids, credits = of_variable(entry, var.get('quality'), period)
+		ids, credits = of_variable(entry, var.get('quality'), period, formula)
 	else:
 		asset = var.get('collection') or var.get('image')
 		if asset:
-			ids, credits = of_datasets([asset])
+			ids, credits = of_asset(asset)
 	if var.get('exclude_landcover'):
 		more, _ = of_datasets([WORLDCOVER])
 		ids += more
@@ -188,6 +253,18 @@ def _region(region):
 		if 'island_at' in region:
 			cols.append(areas.ISLANDS)
 	return cols
+
+
+def _picks(args):
+	"""Whether the variable of a true colour chooses the image of each pixel (its metric, or its metric between
+	years, max or min: the colours of the image where the variable is highest or lowest), so that its formula is
+	cited."""
+	from .composite import MOSAICS
+
+	def low(k):
+		return str(args.get(k) or '').strip().lower()
+
+	return low('metric') in MOSAICS or ((args.get('temporal') or 'period') != 'period' and low('interannual') in MOSAICS)
 
 
 def cite(tool, args=None, date=None, datasets=()):
@@ -222,7 +299,7 @@ def cite(tool, args=None, date=None, datasets=()):
 		                         'quality': args.get('quality')}, period)
 		ids += more + _methods('rbr' if rbr else 'burn_severity')
 	elif args.get('variable') or args.get('index') or args.get('collection') or args.get('image'):
-		ids, credits = of_spec(args, period)
+		ids, credits = of_spec(args, period, formula=tool not in RGB or _picks(args))
 	if tool in TRENDS:
 		ids += _methods('trends')
 	if tool == 'find_protected_areas':

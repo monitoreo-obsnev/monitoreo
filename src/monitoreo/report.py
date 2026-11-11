@@ -22,14 +22,16 @@ import os
 import re
 import urllib.request
 
-from . import __version__, catalog, fire, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, default_title, fire_variable, is_static, period_text, \
-	python_call, season_text, slug, unit_text
+from . import __version__, assets, catalog, fire, references, services
+from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, data_unit, default_title, fire_variable, \
+	is_static, period_text, python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
 
 TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 'Map of {var}, {period}{season}',
+          'rgb_map': 'True colour of the images of {var}, {period}{season}',
+          'download_rgb': 'True colour of the images of {var}, {period}{season} (GeoTIFF)',
           'trend_map': 'Map of the trend of {var}, {period}{season}',
           'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}'}
 
@@ -47,6 +49,17 @@ METHODS = {
 	'compare_map': 'On each pixel, the temporal metric of the other period minus that of the reference period.',
 	'download_image': 'The temporal metric of the images of the period on each pixel, in a GeoTIFF (float32, NoData '
 	                  '-9999).',
+	'rgb_map': 'The true colour of the images of the variable: the temporal metric of their red, green and blue surface '
+	           'reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, the colours '
+	           'of the image where the variable is highest or lowest), on the same pixels as the variable, with the '
+	           'three bands stretched together between the same minimum and maximum (Colours): by default the lowest '
+	           'percentile 2 and the highest percentile 98 of the bands over the region (0 to 0.3 if they are not '
+	           'computed); the maps of the dates of a result take the range of its first true colour, so that they '
+	           'can be compared.',
+	'download_rgb': 'The true colour of the images of the variable: the temporal metric of their red, green and blue '
+	                'surface reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, '
+	                'the colours of the image where the variable is highest or lowest), on the same pixels as the '
+	                'variable, in a GeoTIFF with the bands red, green and blue (float32 reflectance, NoData -9999).',
 	'download_trend': "The trend computed on each pixel (Mann-Kendall test and Sen's slope, change per year), in a "
 	                  'GeoTIFF with a band per result (NoData -9999).',
 	'download_comparison': 'On each pixel, the temporal metric of the other period minus that of the reference '
@@ -208,7 +221,8 @@ def item_references(tool, args, result=None, date=None):
 def item_title(tool, args, result=None):
 	"""The title in English of the result of a call."""
 	if tool in TITLES:
-		v = f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
+		v = _var(args) if not args.get('variable') else \
+			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
 		if tool in ('region_stats', 'map_layer') and (is_static(args) or not (args.get('start') and args.get('end'))):
 			return TITLES[tool].split(',')[0].format(var=v)  # elevation, slope: no period
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
@@ -236,7 +250,21 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Variable', f"{entry.get('name', '')} ({entry.get('index', '')})"))
 		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
 		                        f"collection {entry.get('col', '')}"))
-	static = bool(entry and entry.get('static'))  # elevation, slope: no period, temporal metric or pixel filters
+	custom = not entry and not args.get('variable') and (args.get('collection') or args.get('image'))
+	if custom:  # data of Earth Engine outside the catalog, as given (the ID as the tools take it)
+		custom = assets.normalize(custom)
+		data = (f"Earth Engine {'image' if args.get('image') else 'image collection'} {custom}, band "
+		        f"{args.get('band', '?')}")
+		if args.get('image') and args.get('terrain'):
+			data += f", its {args['terrain']}"
+		if args.get('band_scale') is not None or args.get('band_offset') is not None:
+			data += f"; values × {_num(args.get('band_scale', 1))} + {_num(args.get('band_offset', 0))}"
+		given = data_unit(args)  # as the services computed it: 'unitless' is 1, a terrain is in degrees
+		unit = unit_text(catalog.custom_unit(given))
+		data += f"; unit {unit}" if unit else ('; dimensionless' if given == '1' else '; unit not given')
+		facts.append(('Data', data))
+	# elevation, slope, an image of Earth Engine: no period, temporal metric or pixel filters
+	static = bool(entry and entry.get('static')) or bool(custom and args.get('image'))
 	if args.get('start') and args.get('end') and not static:
 		label = 'Before the fire' if tool == 'burn_severity' else \
 			'Reference period' if args.get('other_start') else 'Period'
@@ -251,7 +279,8 @@ def item_facts(tool, args, result=None, names=None):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
-	                                                      'download_image', 'download_comparison') else 'mean')
+	                                                      'download_image', 'download_comparison', 'rgb_map',
+	                                                      'download_rgb') else 'mean')
 	if not static:
 		facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
@@ -260,6 +289,9 @@ def item_facts(tool, args, result=None, names=None):
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
+	if custom and not static:
+		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
+		                                  'for the variables of its catalog)'))
 	if entry and not static:
 		filters = dict(entry.get('pixel_filters') or {})
 		if entry.get('fixed_filters') is None:  # the SCF: always clouds and water, whatever the quality
@@ -291,6 +323,9 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	if tool in ('rgb_map', 'download_rgb') and result.get('min') is not None:
+		facts.append(('Colours', f"red, green and blue reflectance stretched from {_num(result['min'])} to "
+		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
 		rbr = tool == 'burn_severity' and fire_variable(args) == 'RBR'
 		facts.append(('Method', METHODS['static'] if static else METHODS['burn_severity_rbr' if rbr else tool]))
@@ -305,8 +340,13 @@ def _recipe_facts(args, result, names):
 	for v in recipe.get('variables') or []:
 		metric = v.get('metric') or 'median'
 		metrics = ', '.join(_stat(m) for m in (metric if isinstance(metric, list) else [metric]))
-		what = v.get('index') or v.get('name') or v.get('image') or '?'
-		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}: {metrics}")
+		asset = None if v.get('index') else v.get('collection') or v.get('image')
+		# the data of Earth Engine as the other results name them: the ID as the tools take it, band and terrain
+		what = v.get('index') or (_var({k: v.get(k) for k in ('collection', 'image', 'band', 'terrain')}) if asset
+		                          else v.get('name')) or '?'
+		fixed = bool(v.get('image') and not v.get('index'))  # a fixed image: no metric
+		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}" +
+		                 (' (fixed image)' if fixed else f': {metrics}'))
 	if variables:
 		facts.append(('Variables', '; '.join(variables)))
 	period = recipe.get('period')
@@ -441,6 +481,8 @@ def _item(item, n, names, annex, refs=()):
 			style = map_style(tool, args, result)
 			if style:
 				out.append(_class_legend(style['classes']) if style.get('classes') else _legend({**result, **style}))
+			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
+				out.append(_legend(map_style('rgb_map', args, item['under'])))
 			out.append('</figure>')
 	table = item_table(tool, result, args) if item.get('table', True) else None
 	if table:
@@ -477,8 +519,10 @@ WEB_MERCATOR = 20037508.342789244
 
 def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_pixels=4096 ** 2):
 	"""A PNG (data: URL) of a view of the interactive map: the tiles of the base map BASE (see BASEMAPS) and, over
-	them with OPACITY, those of OVERLAY (the template {z}/{x}/{y} of the tiles of Earth Engine), over BOUNDS
-	[w, s, e, n] at ZOOM, with MARKER ([lon, lat]) circled and the credits of the base map."""
+	them with OPACITY, those of OVERLAY (the template {z}/{x}/{y} of the tiles of Earth Engine; or a list of them,
+	drawn in its order, e.g. the true colour of the images under the map of the variable, with OPACITY a number for all
+	or a list, one each), over BOUNDS [w, s, e, n] at ZOOM, with MARKER ([lon, lat]) circled and the credits of the
+	base map."""
 	import io
 	from concurrent.futures import ThreadPoolExecutor
 	from PIL import Image, ImageDraw, ImageFont
@@ -491,12 +535,17 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 	tiles = [(tx, ty) for tx in range(int(x0 // TILE), int((x1 - 1) // TILE) + 1)
 	         for ty in range(int(y0 // TILE), int((y1 - 1) // TILE) + 1)]
 	b = BASEMAPS.get(base) or BASEMAPS['osm']
+	overlays = [overlay] if isinstance(overlay, str) else list(overlay)
+	opacities = list(opacity) if isinstance(opacity, (list, tuple)) else [opacity] * len(overlays)
 
 	def get(url):
+		if not str(url).startswith('https://'):  # the base maps and the tiles of Earth Engine are https
+			return None
 		try:
 			req = urllib.request.Request(url, headers={'User-Agent': f'MonitorEO/{__version__} '
 			                                                        '(+https://github.com/monitoreo-obsnev/monitoreo)'})
-			with urllib.request.urlopen(req, timeout=30) as r:
+			# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+			with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310
 				return Image.open(io.BytesIO(r.read())).convert('RGBA')
 		except Exception:  # a missing tile leaves its place empty
 			return None
@@ -511,21 +560,23 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 			base_url = b['wms'].format(bbox=bbox)
 		else:
 			base_url = b['tiles'].format(z=z, x=tx // k, y=ty // k)
-		return base_url, overlay.format(z=zoom, x=tx, y=ty), k, (tx % k, ty % k)
+		return base_url, [o.format(z=zoom, x=tx, y=ty) for o in overlays], k, (tx % k, ty % k)
 
 	with ThreadPoolExecutor(8) as pool:
 		got = list(pool.map(lambda t: (t, urls(*t)), tiles))
-		images = list(pool.map(lambda g: (get(g[1][0]), get(g[1][1])), got))
+		images = list(pool.map(lambda g: (get(g[1][0]), [get(u) for u in g[1][1]]), got))
 	canvas = Image.new('RGBA', (width, height), (240, 240, 240, 255))
-	for ((tx, ty), (_, _, k, (dx, dy))), (base_tile, over) in zip(got, images):
+	for ((tx, ty), (_, _, k, (dx, dy))), (base_tile, overs) in zip(got, images):
 		at = (int(tx * TILE - x0), int(ty * TILE - y0))
 		if base_tile is not None:
 			if k > 1:
 				part = TILE // k
 				base_tile = base_tile.crop((dx * part, dy * part, (dx + 1) * part, (dy + 1) * part)).resize((TILE, TILE))
 			canvas.paste(base_tile, at)
-		if over is not None:
-			alpha = over.getchannel('A').point(lambda v: int(v * opacity))
+		for over, share in zip(overs, opacities):  # the first one at the bottom
+			if over is None:
+				continue
+			alpha = over.getchannel('A').point(lambda v, share=share: int(v * share))
 			over.putalpha(alpha)
 			layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
 			layer.paste(over, at)
@@ -565,14 +616,21 @@ def map_style(tool, args, result):
 	"""How the map of the GeoTIFF of a result is drawn, as in the other tools of MonitorEO: {'band' (its number),
 	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}])} for the burn severity, its band severity with
 	the colours of the classes of the USGS; {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
-	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); None for
-	those without them."""
+	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); {'band'
+	([1, 2, 3]: red, green and blue), 'min', 'max', 'text' (its legend)} for the true colour of the images (rgb_map,
+	download_rgb: the three bands stretched together from min to max, without a palette); None for those without
+	them."""
+	from .sensors import RGB_BANDS
 	if not isinstance(result, dict):
 		return None
 	if tool == 'burn_severity':  # as in the QGIS plugin: fire.map_style
 		return fire.map_style(result.get('bands'))
 	if result.get('palette'):
 		return {'band': 1, **{k: result.get(k) for k in ('min', 'max', 'palette')}}
+	if tool in ('rgb_map', 'download_rgb') or result.get('bands') == RGB_BANDS:
+		return {'band': [1, 2, 3], 'min': result.get('min'), 'max': result.get('max'),
+		        'text': f"True colour (red, green, blue): reflectance from {_num(result.get('min'))} to "
+		                f"{_num(result.get('max'))}"}
 	return None
 
 
@@ -585,23 +643,46 @@ def class_label(c):
 def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, classes=None):
 	"""A PNG (data: URL) of the band BAND (default: the first) of a GeoTIFF with the colours PALETTE from VMIN to VMAX
 	(default: its percentiles 5 and 95) or, with CLASSES ([{'value', 'color' ('#rrggbb')}]), with the colour of each
-	class; at most WIDTH pixels wide; None without GDAL or matplotlib, or if it cannot read it."""
+	class; with three bands BAND ([red, green, blue], e.g. [1, 2, 3]: the true colour of download_rgb), their colours,
+	the three stretched together from VMIN to VMAX (default: the lowest of their percentiles 2 and the highest of their
+	percentiles 98, as maps.RGB_STRETCH), transparent where one has no data; at most WIDTH pixels wide; None without
+	GDAL or matplotlib, or if it cannot read it."""
 	try:
 		import io
 		import numpy as np
 		from matplotlib import colors
 		from matplotlib import pyplot as plt
 		from osgeo import gdal
+		from .maps import RGB_STRETCH
 		gdal.UseExceptions()
 		ds = gdal.Open(path)
-		b = ds.GetRasterBand(band)
 		step = max(1, int(math.ceil(ds.RasterXSize / width)))
-		a = b.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
-		nodata = b.GetNoDataValue()
-		a = np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
+
+		def read(number):
+			b = ds.GetRasterBand(number)
+			a = b.ReadAsArray(buf_xsize=ds.RasterXSize // step or 1, buf_ysize=ds.RasterYSize // step or 1)
+			nodata = b.GetNoDataValue()
+			return np.ma.masked_invalid(np.ma.masked_equal(a, nodata) if nodata is not None else a)
+
+		buf = io.BytesIO()
+		if isinstance(band, (list, tuple)):  # the true colour: red, green and blue, with one stretch for the three
+			rgb = [read(number) for number in band]
+			empty = np.logical_or.reduce([np.ma.getmaskarray(a) for a in rgb])
+			if empty.all():
+				return None
+			if vmin is None or vmax is None:
+				lows, highs = zip(*(np.percentile(a.data[~empty], RGB_STRETCH) for a in rgb))
+				vmin, vmax = min(lows) if vmin is None else vmin, max(highs) if vmax is None else vmax
+			span = float(vmax) - float(vmin) or 1e-6
+			out = np.zeros(empty.shape + (4,))
+			for i, a in enumerate(rgb):
+				out[..., i] = np.clip((a.filled(float(vmin)) - float(vmin)) / span, 0, 1)
+			out[..., 3] = ~empty
+			plt.imsave(buf, out, format='png')
+			return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+		a = read(band)
 		if a.count() == 0:
 			return None
-		buf = io.BytesIO()
 		if classes:  # the colour of each class (nearest pixel), transparent outside them
 			rgba = _colours(a.astype('float64').filled(np.nan), {'type': 'categories', 'classes': classes})
 			plt.imsave(buf, rgba, format='png')
@@ -627,6 +708,10 @@ def view_facts(item):
 
 
 def _legend(result):
+	"""The legend of a map: a bar from min to max with its palette or, without a palette (the true colour of the
+	images, see map_style), its text."""
+	if not result.get('palette'):
+		return f'<figcaption class="legend">{_e(result["text"])}</figcaption>' if result.get('text') else ''
 	colours = ', '.join(f'#{c.lstrip("#")}' for c in result['palette'])
 	unit = unit_text(result.get('unit'))
 	return (f'<figcaption class="legend"><span>{_num(result.get("min"))}</span>'

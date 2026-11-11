@@ -158,9 +158,9 @@ def test_services_cite(monkeypatch, tmp_path):
 	assert 'mishra2012' in _ids(d) and d['credits']
 	assert services.about()['earth_engine'] == about.EARTH_ENGINE and 'Earth Engine' in about.text()
 	# every function of services that computes cites
-	for name in ('time_series', 'map_layer', 'region_stats', 'export_image', 'download_image', 'download_variables',
-	             'trend_table', 'trend_map', 'download_trend', 'compare_series', 'compare_map', 'download_comparison',
-	             'burn_severity', 'time_series_to_drive'):
+	for name in ('time_series', 'map_layer', 'rgb_map', 'region_stats', 'export_image', 'download_image',
+	             'download_rgb', 'download_variables', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
+	             'compare_map', 'download_comparison', 'burn_severity', 'time_series_to_drive'):
 		assert getattr(services, name).__wrapped__, name
 
 
@@ -195,10 +195,11 @@ def test_mcp_answers_keep_references(monkeypatch, tmp_path):
 	           yearly=[])
 	for name in ('time_series', 'trend_table', 'compare_series'):
 		monkeypatch.setattr(services, name, lambda *a, **k: res)
-	args = ({'bbox': [0, 0, 1, 1]}, 'NDVI', 'Modis', '2001-01-01', '2020-12-31')
-	for fn, more in ((mcp_server.time_series, ()), (mcp_server.trend_table, ()),
-	                 (mcp_server.compare_series, ('2021-01-01', '2022-12-31'))):
-		out = fn(*args, *more)
+	args = ({'bbox': [0, 0, 1, 1]}, 'NDVI', 'Modis')
+	dates = {'start': '2001-01-01', 'end': '2020-12-31'}  # by keyword, as MCP calls the tools
+	for fn, more in ((mcp_server.time_series, {}), (mcp_server.trend_table, {}),
+	                 (mcp_server.compare_series, {'other_start': '2021-01-01', 'other_end': '2022-12-31'})):
+		out = fn(*args, **dates, **more)
 		answer = json.loads(out[0] if isinstance(out, list) else out)
 		assert answer['references'] == json.loads(json.dumps(cited['references'])), fn.__name__
 		assert 'credits' in answer, fn.__name__
@@ -221,7 +222,7 @@ def test_zenodo_metadata():
 	assert about.DESCRIPTION['en'] in z['description'] and about.ACKNOWLEDGEMENTS['en'] in z['description']
 	names = [c['name'] for c in z['contributors']]
 	plain = lambda n: unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode().lower()
-	assert names == sorted(names, key=plain) and len(names) == 5
+	assert names == sorted(names, key=plain) and len(names) == 6
 	assert all(c['type'] == 'ProjectMember' and re.fullmatch(r'[^,]+, [^,]+', c['name']) for c in z['contributors'])
 	for c in z['contributors']:  # every one with their ORCID, with its ISO 7064 11,2 check digit
 		assert re.fullmatch(r'\d{4}-\d{4}-\d{4}-\d{3}[\dX]', c.get('orcid', '')), f"{c['name']} has no ORCID"

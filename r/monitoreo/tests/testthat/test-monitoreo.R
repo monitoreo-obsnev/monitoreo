@@ -18,6 +18,17 @@ test_that("catalog and regions", {
                "fixed layer, without dates")
   expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
                "only takes the metric 'mean'")
+  # true colour: the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS, refused before Earth Engine
+  expect_true(isTRUE(v$rgb[v$variable == "NDVI"]))
+  expect_true(mo_describe("NDVI", "Sentinel-2")$rgb)
+  expect_false(mo_describe("NDVI", "Modis")$rgb)  # MOD13Q1 has no green band
+  expect_error(mo_rgb_map(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Modis", "2020-01-01", "2020-12-31"),
+               "has no true colour")
+  expect_error(mo_rgb_map(mo_bbox(-3.4, 37.0, -3.3, 37.1), "ELEVATION", "Copernicus"), "fixed layer")
+  expect_error(mo_download_rgb(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Sentinel-2", "2020-06-01", "2020-06-30",
+                               tempfile(fileext = ".tif"), metric = "std"), "is not a colour")
+  expect_error(mo_image(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Modis", "2020-01-01", "2020-12-31", rgb = TRUE),
+               "has no true colour")
   expect_equal(mo_bbox(-3.6, 36.8, -3.5, 36.9)$bbox[[3]], -3.5)
   expect_equal(mo_wdpa(c(1, 2))$wdpa_id, list(1L, 2L))
   expect_equal(mo_country("esp"), list(country = list("ESP")))
@@ -41,6 +52,200 @@ test_that("references", {
   refs <- capture.output(mo_references(d))
   expect_true(any(grepl("^Tucker, C. J. \\(1979\\).*https://doi.org/10.1016/0034-4257\\(79\\)90013-0$", refs)))
   expect_true(any(grepl("Copernicus Sentinel data", refs)))
+})
+
+test_that("leaflet with several maps: the true colour, then the index on top", {
+  skip_if_not_installed("leaflet")
+  rgb <- list(url = "https://ee/rgb/{z}/{x}/{y}", bands = list("red", "green", "blue"), min = 0.0123, max = 0.2876,
+              name = "NDVI Sentinel-2 | 2023-06-01 / 2023-08-31 (median), true colour")
+  ndvi <- list(url = "https://ee/ndvi/{z}/{x}/{y}", min = 0.1, max = 0.8, palette = list("000080", "800000"),
+               name = "NDVI Sentinel-2 | 2023-06-01 / 2023-08-31 (median)")
+  calls <- function(m) vapply(m$x$calls, function(k) k$method, "")
+  one <- mo_leaflet(ndvi)  # as before: one map, without control of layers
+  expect_equal(calls(one), c("addProviderTiles", "addTiles"))
+  expect_equal(one$x$calls[[2]]$args[[1]], ndvi$url)
+  both <- mo_leaflet(rgb, ndvi)
+  expect_equal(calls(both), c("addProviderTiles", "addTiles", "addControl", "addTiles", "addLayersControl"))
+  expect_equal(both$x$calls[[2]]$args[[1]], rgb$url)
+  expect_equal(both$x$calls[[3]]$args[[1]], "True colour (red, green, blue): reflectance from 0.0123 to 0.288")
+  expect_equal(both$x$calls[[4]]$args[[1]], ndvi$url)
+  expect_equal(unlist(both$x$calls[[5]]$args[[2]]), c(rgb$name, ndvi$name))
+  expect_equal(mo_leaflet(list(rgb, ndvi))$x$calls, both$x$calls)  # a list of maps, the same
+})
+
+test_that("the GEE Community Catalog by its themes, without Earth Engine", {
+  skip_if_no_python()
+  th <- mo_community_themes()
+  expect_s3_class(th, "data.frame")
+  expect_equal(names(th), c("theme", "name", "datasets"))
+  expect_true(all(th$datasets > 0))
+  es <- mo_community_themes("es")
+  expect_equal(es$theme, th$theme)  # the names of the catalog, for mo_community(), in any language
+  expect_equal(es$name[es$theme == "Hydrology"], "Hidrología")
+  dem <- mo_community(text = "fabdem")
+  expect_equal(dem$id, "projects/sat-io/open-datasets/FABDEM")
+  expect_equal(dem$type, "image_collection")
+  expect_match(dem$docs, "^https://gee-community-catalog.org/")
+  fire <- mo_community("incendios")  # a theme by a part of its name in Spanish
+  expect_true(nrow(fire) > 0 && all(fire$theme == "Fire Monitoring and Analysis"))
+  img <- mo_community(kind = "image", limit = 5)
+  expect_equal(nrow(img), 5)
+  expect_true(all(img$type == "image"))
+  expect_equal(nrow(mo_community(theme = "Hydrology", text = "no dataset has these words")), 0)
+  expect_error(mo_community("mountains"), "unknown theme")
+  expect_error(mo_community(kind = "table"), "unknown kind")
+  # the two themes of the menus without variables of the catalog point to these functions
+  expect_error(mo_variables(theme = "community"), "community_datasets")
+  expect_error(mo_variables(theme = "earth_engine"), "describe_asset")
+})
+
+test_that("data of Earth Engine by its ID: the arguments reach the services by name", {
+  calls <- list()
+  answer <- function(tool) function(...) {
+    calls[[tool]] <<- list(...)
+    list(rows = list(), yearly = list(), profile = list(), title = tool, unit = "mm", references = list(),
+         credits = list())
+  }
+  tools <- c("time_series", "time_series_to_drive", "map_layer", "region_stats", "export_image", "download_image",
+             "trend_table", "trend_map", "download_trend", "compare_series", "compare_map", "download_comparison")
+  local_mocked_bindings(services = function() stats::setNames(lapply(tools, answer), tools), .package = "monitoreo")
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  pr <- list(collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", band_scale = 0.1, band_offset = 0,
+             unit = "mm month-1")
+  # with terrain, its unit is degree (the slope and the aspect are in degrees, whatever the band)
+  bio <- list(image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, band_offset = 0, unit = "degree",
+              terrain = "slope")
+  periods <- list(start = "1991-01-01", end = "2000-12-31", other_start = "2011-01-01", other_end = "2020-12-31")
+  run <- function(f, ..., data) do.call(f, c(list(region, ...), data))
+  run(mo_time_series, start = "2020-01-01", end = "2020-12-31", data = pr)
+  run(mo_export_time_series, start = "2020-01-01", end = "2020-12-31", data = pr)
+  run(mo_trend_table, start = "2001-01-01", end = "2020-12-31", data = pr)
+  run(mo_trend_map, start = "2001-01-01", end = "2020-12-31", data = pr)
+  run(mo_download_trend, start = "2001-01-01", end = "2020-12-31", path = "trend.tif", data = pr)
+  run(mo_compare_series, data = c(periods, pr))
+  run(mo_compare_map, data = c(periods, pr))
+  run(mo_download_comparison, path = "comparison.tif", data = c(periods, pr))
+  run(mo_map_layer, data = bio)
+  run(mo_region_stats, data = bio)
+  run(mo_export_image, data = bio)
+  run(mo_download_image, path = "bio01.tif", data = bio)
+  expect_setequal(names(calls), tools)
+  for (tool in tools) {
+    sent <- calls[[tool]]
+    data <- if (tool %in% c("map_layer", "region_stats", "export_image", "download_image")) bio else pr
+    expect_equal(sent[names(data)], data, info = tool)  # by name
+    expect_null(sent[[2]])  # variable and sensor (by position, as before): None
+    expect_null(sent[[3]])
+  }
+  expect_true("image" %in% names(calls$time_series) && is.null(calls$time_series[["image"]]))
+  expect_false("terrain" %in% names(calls$trend_table))  # only where an image can be computed
+  # the calls of the variables of the catalog, by position, as before
+  mo_time_series(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", "annual")
+  expect_equal(unname(calls$time_series[1:6]), list(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", "annual"))
+  expect_null(calls$time_series[["band"]])
+  mo_map_layer(region, "ELEVATION", "Copernicus")
+  expect_equal(unname(calls$map_layer[1:5]), list(region, "ELEVATION", "Copernicus", NULL, NULL))
+  # neither a variable nor data of Earth Engine, or both mixed: a clear error before Python (the words of the MCP
+  # server and the command line), and nothing sent to the services
+  calls <- list()
+  expect_error(mo_time_series(region, start = "2020-01-01", end = "2020-12-31"),
+               "give variable and sensor (a variable of the catalog: mo_variables()), or collection or image and band",
+               fixed = TRUE)
+  expect_error(mo_time_series(region, "NDVI", start = "2020-01-01", end = "2020-12-31"), "give the sensor of NDVI")
+  # an ID of Earth Engine given as the variable (no variable of the catalog has a '/'), with a sensor or without:
+  # neither its sensor asked for nor called a variable of the catalog
+  not_variable <- paste("IDAHO_EPSCOR/TERRACLIMATE is not a variable of the catalog (mo_variables()): give an ID of",
+                        "Earth Engine as collection or image (mo_asset() says which), with band, instead of variable")
+  expect_error(mo_time_series(region, "IDAHO_EPSCOR/TERRACLIMATE", start = "2020-01-01", end = "2020-12-31"),
+               not_variable, fixed = TRUE)
+  expect_error(mo_time_series(region, "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+                              end = "2020-12-31"), not_variable, fixed = TRUE)
+  expect_error(mo_map_layer(region, "IDAHO_EPSCOR/TERRACLIMATE", "TerraClimate", "2020-01-01", "2020-12-31"),
+               not_variable, fixed = TRUE)
+  expect_error(mo_trend_table(region, "IDAHO_EPSCOR/TERRACLIMATE", "TerraClimate", "2001-01-01", "2020-12-31",
+                              collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr"), not_variable, fixed = TRUE)
+  expect_error(mo_image(region, "projects/sat-io/open-datasets/FABDEM", image = "projects/sat-io/open-datasets/FABDEM",
+                        band = "b1", terrain = "slope"), "FABDEM is not a variable of the catalog", fixed = TRUE)
+  expect_error(mo_map_layer(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", image = "WORLDCLIM/V1/BIO",
+                            band = "bio01"), "image, band: only for the data of Earth Engine given by its ID")
+  expect_error(mo_region_stats(region, "ELEVATION", "Copernicus", terrain = "slope"), "^terrain: only for the data")
+  expect_error(mo_map_layer(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", unit = "1"),
+               "NDVI is a variable of the catalog, with its own band, scale and unit")
+  expect_error(do.call(mo_time_series, c(list(region, sensor = "Modis", start = "2020-01-01", end = "2020-12-31"), pr)),
+               "sensor is for the variables of the catalog")
+  expect_error(mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", image = "WORLDCLIM/V1/BIO",
+                            band = "bio01"), "give collection (a collection of images with dates) or image", fixed = TRUE)
+  expect_error(mo_trend_table(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", start = "2001-01-01",
+                              end = "2020-12-31"), "give band: the band of IDAHO_EPSCOR/TERRACLIMATE")
+  expect_error(mo_download_image(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+                                 end = "2020-12-31", path = "pr.tif", terrain = "slope"), "terrain is for an image")
+  expect_length(calls, 0)
+})
+
+test_that("mo_image of data of Earth Engine by its ID: its name, and the arguments sent by name", {
+  skip_if_no_python()
+  # the spec, kind and is_static of Python, without Earth Engine; the image, its colour ramp and pixel size faked
+  real <- reticulate::import("monitoreo.services", convert = TRUE)
+  variables <- reticulate::import("monitoreo.variable", convert = TRUE)
+  real_import <- reticulate::import
+  sent <- list()
+  s <- list(make_spec = real$make_spec, variable_entry = real$variable_entry, composite_image = function(...) {
+    sent$composite_image <<- list(...)
+    list("image", list(geometry = function() "geometry"))
+  })
+  modules <- list(
+    monitoreo.maps = list(vis_params = function(...) list(min = 0, max = 1), rgb_vis = function(...) list()),
+    monitoreo.variable = list(kind = variables$kind, is_static = variables$is_static, check_rgb = variables$check_rgb,
+                              native_scale = function(spec) 30),
+    monitoreo.references = list(cite = function(tool, args) {
+      sent$cite <<- args
+      list(references = list(), credits = list())
+    }))
+  local_mocked_bindings(services = function() s, .package = "monitoreo")
+  local_mocked_bindings(import = function(module, ...) if (module %in% names(modules)) modules[[module]] else
+    real_import(module, ...), .package = "reticulate")
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  bio <- mo_image(region, image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+  expect_equal(bio$name, "WORLDCLIM/V1/BIO bio01")  # a fixed image: no metric nor period
+  data <- list(image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+  expect_equal(sent$composite_image[names(data)], data)
+  expect_null(sent$composite_image[[2]])  # variable and sensor: None
+  expect_null(sent$composite_image[[3]])
+  expect_equal(sent$cite[names(data)], data)  # cited as those data
+  slope <- mo_image(region, image = "ee.ImageCollection('projects/sat-io/open-datasets/FABDEM')", band = "b1",
+                    terrain = "slope")
+  expect_equal(slope$name, "projects/sat-io/open-datasets/FABDEM b1 slope")
+  pr <- mo_image(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+                 end = "2020-12-31", metric = "sum", unit = "mm")
+  expect_equal(pr$name, "IDAHO_EPSCOR/TERRACLIMATE pr sum 2020-01-01 2020-12-31")
+  expect_equal(sent$composite_image$collection, "IDAHO_EPSCOR/TERRACLIMATE")
+  # the variables of the catalog, as before; their fixed layers without metric nor period
+  expect_equal(mo_image(region, "NDVI", "Modis", "2020-01-01", "2020-12-31")$name,
+               "NDVI Modis median 2020-01-01 2020-12-31")
+  expect_equal(mo_image(region, "ELEVATION", "Copernicus")$name, "ELEVATION Copernicus")
+})
+
+test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {
+  skip_if_no_python()
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  bio <- "WORLDCLIM/V1/BIO"
+  terraclimate <- "IDAHO_EPSCOR/TERRACLIMATE"
+  # a fixed image has no dates: maps and their statistics, but no series, trends or comparisons
+  expect_error(mo_time_series(region, image = bio, band = "bio01", start = "2020-01-01", end = "2020-12-31"),
+               "given as a fixed image, without dates")
+  expect_error(mo_trend_table(region, image = bio, band = "bio01", start = "2001-01-01", end = "2020-12-31"),
+               "without dates")
+  expect_error(mo_compare_series(region, image = bio, band = "bio01", start = "1991-01-01", end = "2000-12-31",
+                                 other_start = "2011-01-01", other_end = "2020-12-31"), "without dates")
+  expect_error(mo_map_layer(region, collection = terraclimate, band = "pr", start = "2020-01-01", end = "2020-12-31",
+                            unit = "mm/día"), "UDUNITS")
+  # the slope and the aspect are in degrees, whatever the unit of the band (the m of a DEM, that mo_asset() gives in its
+  # arguments): another unit is refused, before Earth Engine
+  expect_error(mo_map_layer(region, image = "USGS/SRTMGL1_003", band = "elevation", unit = "m", terrain = "slope"),
+               "the slope of USGS/SRTMGL1_003 is in degrees", fixed = TRUE)
+  # only the variables of the catalog have a true colour
+  expect_error(mo_image(region, collection = terraclimate, band = "pr", start = "2020-01-01", end = "2020-12-31",
+                        rgb = TRUE), "only the variables of the catalog")
 })
 
 test_that("time series, statistics and map with Earth Engine", {
@@ -94,6 +299,28 @@ test_that("download of a recipe and of a map", {
   expect_true(file.exists(img$file))
 })
 
+test_that("true colour with Earth Engine", {
+  skip_if_no_python()
+  skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
+  mo_init()
+  region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+  x <- mo_download_rgb(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30", tempfile(fileext = ".tif"),
+                       resolution = 60)
+  expect_true(file.exists(x$file))
+  expect_equal(unlist(x$bands), c("red", "green", "blue"))
+  expect_equal(reticulate::import("osgeo.gdal")$Open(x$file)$RasterCount, 3)  # a GeoTIFF of three bands
+  expect_equal(x$grid$crs, "EPSG:32630")
+  expect_true(x$min < x$max)
+  expect_null(x$palette)
+  m <- mo_rgb_map(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30")
+  expect_match(m$url, "^https://.*\\{z\\}")
+  expect_match(m$name, "true colour$")
+  expect_true(m$min < m$max)
+  img <- mo_image(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30", rgb = TRUE)
+  expect_equal(unlist(img$image$bandNames()$getInfo()), c("red", "green", "blue"))
+  expect_equal(unlist(img$vis$bands), c("red", "green", "blue"))
+})
+
 test_that("seasonal trends and comparison of periods", {
   skip_if_no_python()
   skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
@@ -109,4 +336,43 @@ test_that("seasonal trends and comparison of periods", {
   f <- tempfile(fileext = ".tif")
   d <- mo_download_trend(region, "NDVI", "Modis", "2014-01-01", "2021-12-31", f)
   expect_equal(unlist(d$bands), c("slope", "tau", "z", "p_value", "intercept", "n"))
+})
+
+test_that("data of Earth Engine by its ID with Earth Engine", {
+  skip_if_no_python()
+  skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
+  mo_init()
+  region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+  # a collection of images with dates, of the Earth Engine data catalog
+  a <- mo_asset("IDAHO_EPSCOR/TERRACLIMATE")
+  expect_equal(a$type, "image_collection")
+  expect_equal(a$use, "collection")
+  expect_equal(a$source, "Earth Engine data catalog")
+  expect_true("pr" %in% vapply(a$bands, function(b) b$band, ""))
+  expect_equal(a$arguments$collection, "IDAHO_EPSCOR/TERRACLIMATE")
+  expect_true(any(grepl("10.1038/sdata.2017.191", capture.output(mo_references(a)), fixed = TRUE)))
+  ts <- mo_time_series(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm",
+                       start = "2021-01-01", end = "2021-06-30")
+  expect_equal(nrow(ts), 6)
+  expect_true(all(ts$value >= 0))
+  expect_equal(attr(ts, "unit"), "mm")
+  expect_match(attr(ts, "title"), "IDAHO_EPSCOR/TERRACLIMATE pr", fixed = TRUE)
+  expect_true(any(grepl("^Abatzoglou", attr(ts, "references"))))
+  # a fixed image: maps and their statistics
+  expect_equal(mo_asset("WORLDCLIM/V1/BIO")$use, "image")
+  st <- mo_region_stats(region, image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+  expect_true(st$mean > 5 && st$mean < 25)  # the annual mean temperature, in degrees Celsius
+  expect_equal(attr(st, "unit"), "degC")
+  expect_equal(attr(st, "title"), "WORLDCLIM/V1/BIO bio01")
+  img <- mo_image(region, image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+  expect_true(inherits(img$image, "ee.image.Image"))
+  expect_equal(img$name, "WORLDCLIM/V1/BIO bio01")
+  expect_true(img$vis$min < img$vis$max)
+  expect_true(length(img$references) > 0)
+  m <- mo_map_layer(region, image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+  expect_match(m$url, "^https://.*\\{z\\}")
+  expect_equal(m$unit, "degC")
+  # an image given as a collection
+  expect_error(mo_time_series(region, collection = "WORLDCLIM/V1/BIO", band = "bio01", start = "2021-01-01",
+                              end = "2021-06-30"), "give it as image=")
 })

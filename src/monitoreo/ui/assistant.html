@@ -17,6 +17,7 @@
     --bg: #131719; --panel: #1c2225; --ink: #e6eaec; --muted: #9aa6ad; --line: #323b40;
     --accent: #72c088; --accent-ink: #0d1a10; --user: #22332a; --err: #ff9196; --err-bg: #3a1f21; --soft: #232b2e;
   }
+  img[src="/logo.png"] { background: #fff; padding: 2px 6px; border-radius: 6px; }  /* its dark logos, on light */
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -102,6 +103,7 @@ main { overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
 .msg.assistant { background: var(--panel); border: 1px solid var(--line); }
 .notice { margin: 10px 0; padding: 8px 12px; border-radius: 8px; background: var(--soft); font-size: .92em; }
 .notice.error { background: var(--err-bg); color: var(--err); }
+.notice a { color: var(--accent); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
 .card h3 { margin: 0; font-size: 1em; }
 .card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -123,10 +125,12 @@ ol.refs { padding-left: 1.6em; margin: 6px 0; font-size: .85em; }
 ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 .legend .bar { height: 12px; width: 200px; max-width: 50vw; border: 1px solid var(--line); }
 .legend.classes { flex-wrap: wrap; gap: 4px 14px; }
+#maplegend { flex-wrap: wrap; }  /* the index and, under it, its true colour («Both») */
 .legend .class { display: inline-flex; align-items: center; gap: 5px; }
 .legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none; }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .85em; margin: 0 2px 6px; }
+.layers[hidden] { display: none; }  /* without study areas or documents, not even their label */
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--line);
         border-radius: 999px; padding: 1px 4px 1px 10px; }
 .chip button { border: 0; background: none; padding: 0 6px; color: var(--muted); }
@@ -217,6 +221,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <button id="eecuCheck" type="button" title="Checks again the EECUs (compute units of Earth Engine) spent this month">Check</button>
   </div>
   <div id="layers" class="layers" hidden></div>
+  <div id="documents" class="layers" hidden></div>
 </header>
 
 <nav id="tabs">
@@ -231,7 +236,8 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     <p>Ask which variable or sensor suits you, or ask for a computation over a protected area or a zone. The results
       appear here and you can gather them in a report to print or save as PDF. To compute over your own polygons,
       upload your study area (GeoPackage, GeoJSON, KML or shapefile in a .zip) with the button or by dragging it here.
-      You can write in English or in Spanish. <b>The assistant does not interpret the results.</b></p>
+      To explain your question, upload documents: a report to replicate, a table of your plots, notes (PDF, Word,
+      Excel, CSV, text; 10 MB in all). You can write in English or in Spanish. <b>The assistant does not interpret the results.</b></p>
     <div class="examples">
       <button type="button">Which sensor suits me to follow the vegetation of a small farm since 2015?</button>
       <button type="button">Monthly evolution of the NDVI in the Sierra Nevada National Park since 2018</button>
@@ -251,6 +257,8 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div class="actions">
     <button id="addLayer" type="button">Upload study area</button>
     <input id="layerFile" type="file" accept=".gpkg,.geojson,.json,.kml,.zip" multiple hidden>
+    <button id="addDocument" type="button" title="Reports, tables or notes that help to explain your question (PDF, Word, OpenDocument, Excel, CSV, TSV, text; 10 MB in all): the language model reads their text">Upload documents</button>
+    <input id="documentFile" type="file" accept=".pdf,.docx,.odt,.xlsx,.ods,.csv,.tsv,.txt,.md" multiple hidden>
     <button id="report" type="button">Create report (<span id="nres">0</span>)</button>
     <button id="reset" type="button">New request</button>
   </div>
@@ -263,6 +271,11 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
       <label>Map <select id="mapsel"></select></label>
       <label id="steplabel" hidden title="The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)"><span id="steptitle">Date</span> <select id="mapstep"></select></label>
       <label id="siglabel" hidden title="Shows only the pixels whose trend is significant (Mann-Kendall test, p &lt; 0.05)"><input type="checkbox" id="significant"> Significant pixels only (p &lt; 0.05)</label>
+      <label id="layerlabel" hidden title="Index: the map of the variable. True colour (RGB): the red, green and blue reflectance of the same images, dates and pixels, to see what the index shows (prepared in Google Earth Engine when you choose it). Both: the index over its true colour (Opacity changes the index). Only in the maps of variables of Sentinel-2, Landsat or the cloud frequency of MODIS: not in fixed layers, the climate, other MODIS products, trends or comparisons.">Layer <select id="layer">
+        <option value="index">Index</option>
+        <option value="rgb">True colour (RGB)</option>
+        <option value="both">Both</option>
+      </select></label>
       <label>Base map <select id="basemap">
         <option value="osm">Mapa (OpenStreetMap)</option>
         <option value="eox">Sentinel-2 cloudless (EOX, whole world)</option>
@@ -412,7 +425,7 @@ async function refresh() {
     ' The language model (', el('b', {text: !cloud ? state.model_name : state.model_name === 'MonitorEO' ?
                                            'that of MonitorEO' : state.model_name + ' of MonitorEO'}),
     cloud ? ', in the cloud' : local ? ', on this computer' : ', at ' + host,
-    ') only gets the text of the conversation: it does not see the results nor interpret them.');
+    ') only gets the text of the conversation and of your documents: it does not see the results nor interpret them.');
   const ready = accountOk && (cloud || (state.models && state.models.includes(state.model)));
   $('summary').textContent = ready ? '· all ready' : '· to be completed';
   if (ready && !refresh.done) $('setup').open = false;
@@ -432,6 +445,7 @@ async function refresh() {
   $('update').hidden = !(up && up.available);
   if (up) $('update').title = `There is a new version of MonitorEO (${up.latest}); you have ${up.current || 'an older one'}`;
   renderLayers(state.layers || []);
+  renderDocuments(state.documents || [], state.documents_used, state.documents_max);
   $('tierRow').hidden = !own;
   if (document.activeElement !== $('tier')) $('tier').value = state.eecu_tier || 'Community';
   renderEecu(state.eecu);
@@ -499,6 +513,63 @@ function renderLayers(layers) {
   }
 }
 
+// --- documents ----------------------------------------------------------------------------------------------------
+const DOCUMENT_TYPES = ['.pdf', '.docx', '.odt', '.xlsx', '.ods', '.csv', '.tsv', '.txt', '.md'];
+// documents that cannot be read, with what to do (documents.OTHERS): the other files dropped are taken for layers
+const OTHER_DOCUMENTS = ['.doc', '.rtf', '.xls', '.ppt', '.pptx', '.odp', '.pages', '.numbers', '.key'];
+let reading = 0;  // documents being uploaded and read: a message waits for them (see send)
+const extension = name => (name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+const size = n => n < 0.1 * 2 ** 20 ? Math.max(1, Math.round(n / 1024)) + ' KB'  // '12 KB', '3.4 MB'
+                                     : (n / 2 ** 20).toFixed(1).replace(/\.0$/, '') + ' MB';
+const TABLES = ['CSV table', 'TSV table', 'Excel workbook', 'OpenDocument spreadsheet'];
+
+function renderDocuments(docs, used, max) {
+  const box = $('documents');
+  box.hidden = !docs.length;
+  box.replaceChildren(el('span', {class: 'muted', text: `Documents (${size(used || 0)} of ${size(max || 10 * 2 ** 20)}):`}));
+  for (const d of docs) {
+    const remove = el('button', {type: 'button', title: 'Remove the document ' + d.name, 'aria-label': 'Remove the document ' + d.name, text: '×'});
+    remove.onclick = async () => {
+      if (!confirm(`Remove the document «${d.name}»? Its copy in the folder MonitorEO/documentos is deleted, and the model is told not to use it.`)) return;
+      await api('/api/document/remove', {name: d.name}).catch(e => notice(e.message, true));
+      refresh();
+    };
+    box.append(el('span', {class: 'chip', title: `${d.original}: ${d.text}`}, el('b', {text: d.name}), ' · ' + d.text, remove));
+  }
+}
+
+async function uploadDocuments(files) {
+  reading++;
+  for (const file of files) {
+    status('Reading the document ' + file.name + '…');
+    try {
+      const r = await fetch('/api/document?name=' + encodeURIComponent(file.name), {
+        method: 'POST', headers: {'X-Token': token, 'Content-Type': 'application/octet-stream'}, body: file});
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || r.statusText);
+      $('intro').hidden = true;
+      const example = TABLES.includes(data.kind) ? `«Use the table ${data.name} to choose the dates»`
+                                                 : `«Replicate the analysis of the document ${data.name} in my study area»`;
+      $('chat').append(el('div', {class: 'notice'}, 'Document ', el('b', {text: data.name}), ` uploaded: ${data.text} ` +
+        `(documents: ${size(data.used)} of ${size(data.max)}). The language model reads it with your next message, ` +
+        `for example: ${example}.`));
+      scroll();
+    } catch (e) { notice(`Document ${file.name}: ${e.message}`, true); }
+  }
+  reading--;
+  status(null);
+  refresh();
+  if (!reading && !busy && pending) { const text = pending; pending = null; send(text); }
+}
+
+function dropped(files) {  // each file where it goes: the documents, and the rest to the study areas (as before)
+  const doc = f => DOCUMENT_TYPES.includes(extension(f.name)) || OTHER_DOCUMENTS.includes(extension(f.name));
+  const layers = files.filter(f => !doc(f));
+  const docs = files.filter(doc);
+  if (layers.length) upload(layers);
+  if (docs.length) uploadDocuments(docs);
+}
+
 async function upload(files) {
   for (const file of files) {
     status('Reading the study area ' + file.name + '…');
@@ -520,6 +591,8 @@ async function upload(files) {
 
 $('addLayer').onclick = () => $('layerFile').click();
 $('layerFile').onchange = () => { upload([...$('layerFile').files]); $('layerFile').value = ''; };
+$('addDocument').onclick = () => $('documentFile').click();
+$('documentFile').onchange = () => { uploadDocuments([...$('documentFile').files]); $('documentFile').value = ''; };
 let drags = 0;
 document.addEventListener('dragenter', e => { if (e.dataTransfer.types.includes('Files')) { drags++; document.body.classList.add('dragging'); } });
 document.addEventListener('dragleave', () => { if (--drags <= 0) { drags = 0; document.body.classList.remove('dragging'); } });
@@ -528,7 +601,7 @@ document.addEventListener('drop', e => {
   e.preventDefault();
   drags = 0;
   document.body.classList.remove('dragging');
-  if (e.dataTransfer.files.length) upload([...e.dataTransfer.files]);
+  if (e.dataTransfer.files.length) dropped([...e.dataTransfer.files]);
 });
 
 $('signin').onclick = async () => {
@@ -702,12 +775,14 @@ function mapButton(id) {  // shows the map of the result ID
   return b;
 }
 
-// The legend of a map: a bar from min to max with its palette, or a colour per class (the burn severity of the USGS)
+// The legend of a map: a bar from min to max with its palette, a colour per class (the burn severity of the USGS) or,
+// without colours, its text (the true colour of the images: the range of its reflectance)
 function legendItems(lg) {
   if (lg.classes) {
     return lg.classes.map(c => el('span', {class: 'class'}, el('span', {class: 'swatch', style: `background: ${c.color}`}),
                                   el('span', {text: c.label})));
   }
+  if (!lg.palette) return lg.text ? [el('span', {text: lg.text})] : [];
   const colours = lg.palette.map(c => '#' + c.replace('#', '')).join(', ');
   return [el('span', {text: fmt(lg.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
           el('span', {text: fmt(lg.max) + (lg.unit ? ' ' + lg.unit : '')})];
@@ -722,6 +797,7 @@ function resultCard(e) {
           e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Table in the report') : '')));
   if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
   if (e.legend) card.append(el('div', {class: e.legend.classes ? 'legend classes' : 'legend'}, ...legendItems(e.legend)));
+  if (e.under) card.append(el('div', {class: 'legend'}, ...legendItems(e.under)));  // a view over the true colour
   if (e.table) card.append(table(e.table));
   if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
@@ -821,7 +897,9 @@ function showPane(name) {
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showPane(b.dataset.pane));
 
-let leaflet = null, base = null, overlay = null, marker = null, current = null, refreshed = {};
+// overlay: the map shown (that of the variable, or its true colour), which Opacity changes; under: the true colour
+// under the map of the variable («Both»)
+let leaflet = null, base = null, overlay = null, under = null, marker = null, current = null, refreshed = {};
 const maps = {};
 const BASES = {
   osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -851,10 +929,12 @@ function clearMaps() {
   $('mapsel').replaceChildren();
   $('mapstep').replaceChildren();
   $('steplabel').hidden = true;
+  $('layerlabel').hidden = true;
   $('maptitle').textContent = '';
   $('mapbox').hidden = true;
   $('pixel').replaceChildren();
   if (overlay) { overlay.remove(); overlay = null; }
+  if (under) { under.remove(); under = null; }
   if (marker) { marker.remove(); marker = null; }
   current = null;
 }
@@ -872,18 +952,30 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
                                ...steps.map(s => el('option', {value: s.key, text: s.label})));
   $('steptitle').textContent = e.steps_label || 'Date';
   $('steplabel').hidden = !steps.length;
+  $('layerlabel').hidden = !e.rgb;  // the true colour of its images, if they have one (the choice stays as it was)
   display(id, '', e, true);
   if (e.map.trend && $('significant').checked) showStep('');  // the box stays as it was
 }
 
-function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page
-  current = {id, key, map: m.map, legend: m.legend, title: m.title};
-  $('maptitle').textContent = m.heading || m.title || '';  // what the map shows: variable, period and region
+const RGB = '|rgb';  // in the key of the map of the true colour of the images of a map (as the server)
+const layerMode = () => $('layerlabel').hidden ? 'index' : $('layer').value;  // 'index', 'rgb' or 'both'
+
+function tiles(id, name, url, opacity) {  // a layer of tiles of Earth Engine (asked for again if they expire)
+  const layer = L.tileLayer(url, {opacity, maxZoom: 20, attribution: 'MonitorEO · Google Earth Engine'});
+  layer.name = name;
+  return layer.on('tileerror', () => refreshTiles(id, name)).addTo(leaflet);
+}
+
+function display(id, key, m, fit) {  // the map M (that of the result ID or of its step KEY) on the map of the page,
+  current = {id, key, map: m.map, legend: m.legend, title: m.title, heading: m.heading};  // or its true colour (Layer)
+  const mode = layerMode(), rgb = mode === 'index' ? null : (maps[id].cache || {})[key + RGB];
+  const top = mode === 'rgb' && rgb ? rgb : m;  // the true colour alone, or the map of the variable (over it: «Both»)
+  $('maptitle').textContent = top.heading || top.title || '';  // what the map shows: variable, period and region
   $('siglabel').hidden = !m.map.trend;
   if (overlay) overlay.remove();
-  overlay = L.tileLayer(m.map.url, {opacity: Number($('opacity').value), maxZoom: 20,
-                                    attribution: 'MonitorEO · Google Earth Engine'})
-    .on('tileerror', () => refreshTiles(id, key)).addTo(leaflet);
+  if (under) { under.remove(); under = null; }
+  if (mode === 'both' && rgb) under = tiles(id, key + RGB, rgb.map.url, 1);
+  overlay = tiles(id, top === rgb ? key + RGB : key, top.map.url, Number($('opacity').value));
   if (fit) {
     const [w, s, east, n] = m.map.bounds;
     leaflet.fitBounds([[s, w], [n, east]], {padding: [12, 12]});
@@ -891,15 +983,36 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
   }
   const lg = $('maplegend');
   lg.replaceChildren();
-  lg.classList.toggle('classes', Boolean(m.legend && m.legend.classes));
-  if (m.legend) lg.append(...legendItems(m.legend));
+  lg.classList.toggle('classes', Boolean(top.legend && top.legend.classes));
+  if (top.legend) lg.append(...legendItems(top.legend));
+  if (under && rgb.legend) lg.append(el('span', {class: 'muted', text: '·'}), ...legendItems(rgb.legend));
   mapHint();
+  if (mode !== 'index' && !rgb) colour(id, key);  // the map of the variable until its true colour is ready
 }
 
+const preparing = {};  // the true colours asked for and not received yet
+async function colour(id, key) {  // the true colour of the images of the map of the result ID at its step KEY, made
+  const e = maps[id], name = key + RGB, asked = id + '/' + name;  // the first time; then shown if Layer still wants it
+  $('maphint').replaceChildren(el('span', {class: 'spinner'}), 'Preparing the true colour of the images in Google Earth Engine…');
+  if (preparing[asked]) return;  // asked already: the hint stays until it comes
+  preparing[asked] = true;
+  try {
+    e.cache = e.cache || {};
+    e.cache[name] = await api('/api/map/step', {id, key, rgb: true});
+  } catch (err) {
+    notice('The true colour could not be prepared: ' + err.message, true);
+    if (current && current.id === id && current.key === key) { $('layer').value = 'index'; display(id, key, current, false); }
+    return;
+  } finally { delete preparing[asked]; }
+  if (current && current.id === id && current.key === key && layerMode() !== 'index') display(id, key, current, false);
+}
+$('layer').onchange = () => { if (current) display(current.id, current.key, current, false); };
+
 let querying = false;  // whether a click on the map queries its pixel
-function mapHint() {
-  const what = !current ? 'the time series of a pixel' : current.map.series === false ? 'the value of a pixel' :
-               current.map.pixel ? 'the value of a pixel and its time series' : 'the time series of a pixel';
+function mapHint() {  // on the true colour of a map, the pixel of the variable of the map, as in «Index»
+  const value = overlay && String(overlay.name).endsWith(RGB) ? 'the value of the variable at a pixel' : 'the value of a pixel';
+  const what = !current ? 'the time series of a pixel' : current.map.series === false ? value :
+               current.map.pixel ? value + ' and its time series' : 'the time series of a pixel';
   $('maphint').textContent = querying ? `Click on the map to see ${what} (computed in Google Earth Engine).`
                                       : `Press «Query pixel» to see ${what}.`;
 }
@@ -945,7 +1058,7 @@ async function refreshTiles(id, key) {  // the tiles of Earth Engine expire afte
     const r = await api('/api/map/refresh', {id, key});
     const m = key ? maps[id].cache[key] : maps[id];
     m.map.url = r.url;
-    if (current && current.id === id && current.key === key && overlay) overlay.setUrl(r.url);
+    if (current && current.id === id) for (const layer of [overlay, under]) if (layer && layer.name === key) layer.setUrl(r.url);
   } catch (e) { notice('The map has expired and could not be renewed: ' + e.message, true); }
 }
 
@@ -989,7 +1102,8 @@ $('snapshot').onclick = async () => {
   try {
     await api('/api/map/snapshot', {id: current.id, key: current.key, bounds: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
                                     zoom: leaflet.getZoom(), base: $('basemap').value, opacity: Number($('opacity').value),
-                                    marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null});
+                                    marker: marker ? [marker.getLatLng().lng, marker.getLatLng().lat] : null,
+                                    layer: under ? 'both' : overlay && overlay.name.endsWith(RGB) ? 'rgb' : 'index'});  // what is seen
   } catch (e) { notice('The view could not be kept: ' + e.message, true); }
   button.disabled = false;
   button.textContent = 'Add this view to the report';
@@ -1074,6 +1188,11 @@ async function send(text) {
   text = text.trim();
   if (!text) return;
   if (busy) return notice('Wait until what is running ends.', true);
+  if (reading) {  // the model would get the message without the documents being read
+    pending = text;
+    $('text').value = '';
+    return notice('Your message goes as soon as the documents are read.');
+  }
   try {
     await api('/api/chat', {text});  // the events of the answer come by follow
     $('text').value = '';
@@ -1140,7 +1259,7 @@ $('update').onclick = async () => {
 
 $('quit').onclick = async () => {
   if (!confirm((busy ? 'A request is running and will be lost. ' : '') + 'Close the assistant? The engine of the models ' +
-               'closes too. The results, the study areas and the reports stay in the folder MonitorEO.')) return;
+               'closes too. The results, the study areas, the documents and the reports stay in the folder MonitorEO.')) return;
   try { await api('/api/quit', {}); } catch (e) { return notice('It could not be closed: ' + e.message, true); }
   clearInterval(refresher);
   document.body.replaceChildren(el('div', {class: 'closed'},

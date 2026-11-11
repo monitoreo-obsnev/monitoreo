@@ -3,6 +3,8 @@ name: prepare-release
 expected_outcome: |
   Creates a branch release-<plugin version> from origin/main, raises the package version (pyproject.toml,
   src/monitoreo/__init__.py, r/monitoreo/DESCRIPTION) and the QGIS plugin version (metadata.txt) by one patch step
-  from those of main, commits with the subject "monitoreo X and QGIS plugin Y: ...", runs the checks of a release
-  (offline tests, no % in metadata.txt, build_plugin if possible) and, as the developer asked, publishes nothing: it
-  says what comes next: pushing the branch, the PR, its merge and the tag on the merge commit.
+  from those of main, renames "### Unreleased" of the changelog of README.md to the heading of the new release (with
+  the entries of what was merged since the last tag), commits with the subject "monitoreo X and QGIS plugin Y: ...",
+  runs the checks of a release (offline tests, no % in metadata.txt, build_plugin if possible) and, as the developer
+  asked, publishes nothing: it says what comes next: pushing the branch, the PR, its merge and the tag on the merge
+  commit.

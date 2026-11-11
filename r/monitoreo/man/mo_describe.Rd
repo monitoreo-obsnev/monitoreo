@@ -7,18 +7,27 @@
 mo_describe(variable, sensor = NULL, collection = NULL)
 }
 \arguments{
-\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}).}
+\item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
+take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
+\code{image}, with \code{band} (see \code{mo_asset()}).}
 
 \item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
+or \code{image} instead of \code{variable}.}
 
-\item{collection}{the Earth Engine collection when the variable of the sensor is in several, e.g.
-\code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
+\item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
+e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
+\code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
+Engine data catalog, of the GEE Community Catalog, \code{mo_community()}, or of a project that your account can
+read), e.g. \code{"IDAHO_EPSCOR/TERRACLIMATE"}, with \code{band}: aggregated in time like the variables of the
+catalog, with time series, trends and comparisons. \code{mo_asset()} says whether an ID is a collection or an
+image, and its bands.}
 }
 \value{
-A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, alternatives (other
-  collections), references (the articles of its formula or algorithm, its Earth Engine datasets as their pages of the
-  Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and text) and credits.
+A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, rgb (whether its images
+  have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
+  formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
+  filters, each with citation, doi, url and text) and credits.
 }
 \description{
 Everything about a variable of the catalog, and what to cite with it
@@ -31,5 +40,5 @@ mo_references(d)
 }
 }
 \seealso{
-\code{mo_references()}
+\code{mo_references()}; for any data of Earth Engine given by its ID, \code{mo_asset()}
 }

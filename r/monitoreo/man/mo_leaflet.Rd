@@ -2,21 +2,30 @@
 % Please edit documentation in R/monitoreo.R
 \name{mo_leaflet}
 \alias{mo_leaflet}
-\title{A leaflet map with the tiles of a map}
+\title{A leaflet map with the tiles of one or several maps}
 \usage{
-mo_leaflet(layer)
+mo_leaflet(layer, ...)
 }
 \arguments{
-\item{layer}{a map of \code{mo_map_layer()}, \code{mo_trend_map()} or \code{mo_compare_map()}.}
+\item{layer}{a map of \code{mo_map_layer()}, \code{mo_rgb_map()}, \code{mo_trend_map()} or
+\code{mo_compare_map()}, or a list of them.}
+
+\item{...}{more maps, on top of \code{layer}.}
 }
 \value{
 A leaflet map.
 }
 \description{
-A leaflet map with the tiles of a map
+Each map is a layer of tiles over an orthoimage, in the order given (the last one on top), in a group with its
+name; with several, a control turns each one on and off. For both, the true colour under the map of a variable,
+give first the map of \code{mo_rgb_map()} and then that of \code{mo_map_layer()} with the same arguments. A true
+colour gets the caption "True colour (red, green, blue): reflectance from min to max".
 }
 \examples{
 \dontrun{
 mo_leaflet(mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"))
+# both: the true colour, and the NDVI on top of it
+mo_leaflet(mo_rgb_map(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"),
+           mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"))
 }
 }

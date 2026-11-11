@@ -7,6 +7,7 @@ from . import composite
 from .publish import MONTHS, period_text
 
 PERIOD_MAP = ('time_series', 'region_stats', 'compare_series', 'trend_table')  # with the map of their period
+VARIABLE_MAPS = ('map_layer', 'rgb_map')  # maps of a variable: of its values, or of the true colour of its images
 MAX_MAP_STEPS = 400  # maps of the steps of a result that are offered (the last ones)
 UNITS = {'annual': 'years', 'monthly': 'months', '16-day': '16-day periods'}
 
@@ -14,15 +15,15 @@ UNITS = {'annual': 'years', 'monthly': 'months', '16-day': '16-day periods'}
 def map_steps(tool, args):
 	"""[{'key', 'label', 'start', 'end'}] of the maps of each step of a result: its years, months or periods of 16
 	days (its step, or the temporal aggregation of its map; years for a whole period), with its season. [] if it is
-	not a map of a variable nor a result over regions, or if it has only one step. Those of a trend are its parts of
-	the year (the trend of each month or 16 days, key 'part:N')."""
+	not a map of a variable (map_layer, or rgb_map: the true colour of its images) nor a result over regions, or if it
+	has only one step. Those of a trend are its parts of the year (the trend of each month or 16 days, key 'part:N')."""
 	if tool in ('trend_table', 'trend_map'):
 		n = {'monthly': 12, '16-day': 23}.get(args.get('step'), 0)
 		return [{'key': f'part:{p}', 'label': f'Trend of {MONTHS[p - 1]}' if n == 12 else
 		         f'Trend of 16-day period {p}', 'part': p} for p in range(1, n + 1)]
-	if tool not in PERIOD_MAP + ('map_layer',) or not args.get('start') or not args.get('end'):
+	if tool not in PERIOD_MAP + VARIABLE_MAPS or not args.get('start') or not args.get('end'):
 		return []
-	unit = args.get('temporal') if tool in ('map_layer', 'region_stats') else args.get('step')
+	unit = args.get('temporal') if tool in VARIABLE_MAPS + ('region_stats',) else args.get('step')
 	unit = 'monthly' if unit == 'daily' else unit if unit in UNITS else 'annual'
 	try:
 		wins = composite.windows((args['start'][:10], args['end'][:10]), args.get('season'))

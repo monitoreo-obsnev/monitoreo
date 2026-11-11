@@ -8,8 +8,8 @@ mo_references(x = NULL)
 }
 \arguments{
 \item{x}{a result of MonitorEO: a data.frame (\code{mo_time_series()}, \code{mo_trend_table()}, ...) or a
-list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, ...). \code{NULL}: the
-citations of MonitorEO and of Google Earth Engine.}
+list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, \code{mo_asset()}, ...).
+\code{NULL}: the citations of MonitorEO and of Google Earth Engine.}
 }
 \value{
 The references (and then the credits) as a character vector, invisibly; it prints them, one per line.
