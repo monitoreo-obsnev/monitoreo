@@ -98,6 +98,11 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 - **All tools**: The datasets of the GEE Community Catalog (gee-community-catalog.org) by its themes: its 1,068 public images and collections of images, to compute like any data of Earth Engine. In the QGIS plugin and the Earth Engine app, the theme "GEE Community Catalog"; in Python, `community_themes` and `community_datasets`; in R, `mo_community_themes` and `mo_community`; in the command line, `monitoreo community`.
 - **Command line**: With the new options `--collection` and `--terrain`, the short forms `--c` (of `--csv`) and `--te` (of `--temporal`) no longer work: write those options in full.
 
+### [v0.3.25](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.25) · 2026-11-12 · package 0.3.35
+
+- **QGIS plugin** (fix): The files of each result have their README (what each column or band is, how it was computed and how to cite it), which the plugin installed from its zip could not write.
+- **QGIS plugin** (fix): The plugin no longer carries the documents module of the assistant, which it never uses: the security scan of plugins.qgis.org refused its XML parsers.
+
 ### [v0.3.24](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.24) · 2026-11-11 · package 0.3.34
 
 - **Assistant**: Upload documents that explain your question (**Upload documents**, or drag them onto the page): reports to replicate, tables of your study areas or notes, in PDF, Word, OpenDocument, Excel, CSV, TSV, text or Markdown, 10 MB in all; the language model reads their text and says which document it takes each choice from.

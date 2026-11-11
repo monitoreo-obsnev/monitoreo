@@ -539,10 +539,13 @@ def map_view(bounds, zoom, overlay, base='osm', opacity=0.85, marker=None, max_p
 	opacities = list(opacity) if isinstance(opacity, (list, tuple)) else [opacity] * len(overlays)
 
 	def get(url):
+		if not str(url).startswith('https://'):  # the base maps and the tiles of Earth Engine are https
+			return None
 		try:
 			req = urllib.request.Request(url, headers={'User-Agent': f'MonitorEO/{__version__} '
 			                                                        '(+https://github.com/monitoreo-obsnev/monitoreo)'})
-			with urllib.request.urlopen(req, timeout=30) as r:
+			# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+			with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310
 				return Image.open(io.BytesIO(r.read())).convert('RGBA')
 		except Exception:  # a missing tile leaves its place empty
 			return None
