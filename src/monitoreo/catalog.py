@@ -256,6 +256,8 @@ UDUNITS = {
 	'[kPa]': 'kPa',  # the vapour pressure deficit
 }
 
+RGB_UNIT = '[unitless]'  # the true colour of the images: surface reflectance (see sensors.RGB)
+
 _catalog = None
 
 

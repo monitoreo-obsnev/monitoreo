@@ -2,13 +2,22 @@
 
 The tiles are computed by Earth Engine as they are viewed, so a map shows without downloading anything. Their URL
 is valid for some hours (then ask for a new one).
+
+The true colour of the images of a variable (bands red, green and blue, surface reflectance) is shown with the three
+bands stretched together between the lowest of their percentiles 2 and the highest of their percentiles 98 over the
+region (rgb_vis): one range for the three, so that the colours keep their balance (a stretch of each band would tint
+them).
 """
 
 import urllib.request
 
 import ee
 
+from .sensors import RGB_BANDS
+
 DEFAULT_PALETTE = ['000080', '0000FF', '0080FF', '00FFFF', '80FFFF', 'FFFFFF', 'FFFF00', 'FF8000', 'FF0000', '800000']
+RGB_STRETCH = (2, 98)  # percentiles of the reflectance of the true colour between which it is stretched
+RGB_RANGE = (0.0, 0.3)  # the reflectance of the true colour when it is not computed (quick) or cannot be
 
 
 def ramp(entry=None, colours=None):
@@ -37,6 +46,33 @@ def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None,
 	if vmax == vmin:
 		vmax = vmin + 1e-6
 	return {'min': float(vmin), 'max': float(vmax), 'palette': ramp(entry, palette)}
+
+
+def rgb_vis(image, region_geom, scale=None, vmin=None, vmax=None, compute=True):
+	"""Visualization of the true colour IMAGE (bands red, green and blue: reflectance): the three bands stretched
+	together between VMIN and VMAX, by default the lowest percentile 2 and the highest percentile 98 of the bands over
+	REGION_GEOM (see RGB_STRETCH). Without COMPUTE, or if Earth Engine cannot compute them, RGB_RANGE.
+	Returns {'bands', 'min', 'max'} (the min and max of the three bands)."""
+	if vmin is None or vmax is None:
+		st = {}
+		lo_p, hi_p = RGB_STRETCH
+		if compute:
+			try:
+				st = ee.Image(image).select(RGB_BANDS).reduceRegion(ee.Reducer.percentile([lo_p, hi_p]), region_geom,
+				                                                    scale, bestEffort=True, maxPixels=int(1e6)).getInfo()
+			except ee.EEException:
+				st = {}
+		lows = [st.get(f'{b}_p{lo_p}') for b in RGB_BANDS]
+		highs = [st.get(f'{b}_p{hi_p}') for b in RGB_BANDS]
+		if any(v is None for v in lows + highs):
+			lo, hi = RGB_RANGE
+		else:
+			lo, hi = min(lows), max(highs)
+		vmin = lo if vmin is None else vmin
+		vmax = hi if vmax is None else vmax
+	if vmax <= vmin:
+		vmax = vmin + 1e-6
+	return {'bands': list(RGB_BANDS), 'min': float(vmin), 'max': float(vmax)}
 
 
 def tile_url(image, vis):

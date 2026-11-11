@@ -30,6 +30,8 @@ FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '
 MAX_ROWS = 40  # longer tables go to the annex
 
 TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 'Map of {var}, {period}{season}',
+          'rgb_map': 'True colour of the images of {var}, {period}{season}',
+          'download_rgb': 'True colour of the images of {var}, {period}{season} (GeoTIFF)',
           'trend_map': 'Map of the trend of {var}, {period}{season}',
           'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}'}
 
@@ -47,6 +49,15 @@ METHODS = {
 	'compare_map': 'On each pixel, the temporal metric of the other period minus that of the reference period.',
 	'download_image': 'The temporal metric of the images of the period on each pixel, in a GeoTIFF (float32, NoData '
 	                  '-9999).',
+	'rgb_map': 'The true colour of the images of the variable: the temporal metric of their red, green and blue surface '
+	           'reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, the colours '
+	           'of the image where the variable is highest or lowest), on the same pixels as the variable, with the '
+	           'three bands stretched together between the lowest percentile 2 and the highest percentile 98 of the '
+	           'bands.',
+	'download_rgb': 'The true colour of the images of the variable: the temporal metric of their red, green and blue '
+	                'surface reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, '
+	                'the colours of the image where the variable is highest or lowest), on the same pixels as the '
+	                'variable, in a GeoTIFF with the bands red, green and blue (float32 reflectance, NoData -9999).',
 	'download_trend': "The trend computed on each pixel (Mann-Kendall test and Sen's slope, change per year), in a "
 	                  'GeoTIFF with a band per result (NoData -9999).',
 	'download_comparison': 'On each pixel, the temporal metric of the other period minus that of the reference '
@@ -251,7 +262,8 @@ def item_facts(tool, args, result=None, names=None):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
-	                                                      'download_image', 'download_comparison') else 'mean')
+	                                                      'download_image', 'download_comparison', 'rgb_map',
+	                                                      'download_rgb') else 'mean')
 	if not static:
 		facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
@@ -291,6 +303,9 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	if tool in ('rgb_map', 'download_rgb') and result.get('min') is not None:
+		facts.append(('Colours', f"red, green and blue reflectance stretched from {_num(result['min'])} to "
+		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
 		rbr = tool == 'burn_severity' and fire_variable(args) == 'RBR'
 		facts.append(('Method', METHODS['static'] if static else METHODS['burn_severity_rbr' if rbr else tool]))

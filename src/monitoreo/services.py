@@ -7,7 +7,9 @@ A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id
 {'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file': 'area.gpkg'}.
 
 Besides time series, maps and statistics, the variables are downloaded as GeoTIFFs: one map (download_image, or
-export_image to Google Drive) or a recipe of several variables on aligned grids over a study area and its ecoregions
+export_image to Google Drive), the true colour of the same images (rgb_map and download_rgb: the red, green and blue
+reflectance of the images of a variable of Sentinel-2 or Landsat, with the same dates, pixel filters and metric; see
+has_rgb) or a recipe of several variables on aligned grids over a study area and its ecoregions
 (download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall and Sen: trend_table, trend_map,
 download_trend) and the comparison of a reference period with another (compare_series, compare_map,
 download_comparison) are described in monitoreo.trends. The results of an analysis are published
@@ -529,7 +531,8 @@ def _name(e, lang, field):
 def list_variables(sensor=None, text=None, lang='en', theme=None):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
-	two_periods, RBR, or metric, the only metric of the SCF), optionally of one SENSOR, of one THEME (its key or its
+	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb),
+	optionally of one SENSOR, of one THEME (its key or its
 	name) or with TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
 	wanted = _theme(theme) if theme else None
@@ -550,6 +553,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 		if e.get('static'):
 			row['static'] = True  # elevation, slope: without dates, only maps and their statistics
+		if sensors.rgb_of(e):
+			row['rgb'] = True  # its images have a true colour (rgb_map, download_rgb)
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -590,6 +595,7 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 	if e.get('static'):
 		out['static'] = True  # elevation, slope: without dates, only maps and their statistics
+	out['rgb'] = sensors.rgb_of(e) is not None  # its images have a true colour (rgb_map, download_rgb)
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]
@@ -741,12 +747,15 @@ def composite_image(region, variable=None, sensor=None, start=None, end=None, me
 	return img, regions
 
 
-def _build(region, var_name, sensor, start, end, metric, temporal, interannual, season, quality, clip, res, source):
+def _build(region, var_name, sensor, start, end, metric, temporal, interannual, season, quality, clip, res, source,
+           rgb=False):
 	spec = make_spec(var_name, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                 season=season, quality=quality, **source)
+	if rgb:
+		variables.check_rgb(spec)  # before Earth Engine
 	regions = areas.region(region)
 	res = res or variables.native_scale(spec)
-	img = variables.image(spec, regions.geometry(), res)
+	img = variables.image(spec, regions.geometry(), res, rgb)
 	if clip:
 		img = img.clipToCollection(regions)
 	return spec, regions, img, res
@@ -766,6 +775,45 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	entry = variable_entry(spec)
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
+	           bounds=_bounds(regions), thumbnail=None)
+	if thumbnail:
+		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
+		out['thumbnail'] = thumbnail
+	return out
+
+
+def has_rgb(variable=None, sensor=None, collection=None, ref=None):
+	"""Whether the images of a variable of the catalog have a true colour (rgb_map, download_rgb): those of Sentinel-2
+	and Landsat and the cloud frequency of MODIS (MOD09GA, MYD09GA); not the fixed layers, the climate nor the other
+	MODIS products (MOD13Q1 has no green band)."""
+	try:
+		e = catalog.find(variable, sensor, collection, ref)
+	except (KeyError, ValueError):
+		return False
+	return sensors.rgb_of(e) is not None
+
+
+def _rgb_name(spec, metric):
+	return f'{_named(spec, metric)}, true colour'
+
+
+@_cited
+def rgb_map(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
+            interannual='mean', season=None, quality=None, vmin=None, vmax=None, clip=True, thumbnail=None, quick=False,
+            **source):
+	"""True colour map of the images of a variable over REGION: the red, green and blue surface reflectance of the
+	same images and pixels as its map (map_layer with the same arguments: sensor, period, season, pixel filters,
+	where), aggregated in time with the same METRIC: median, mean and pN band by band; max and min, the colour of the
+	image where the variable is highest or lowest on each pixel (sum, std, count and mode give no colours). URL of its
+	Earth Engine tiles (XYZ, valid for some hours), with the three bands stretched together between VMIN and VMAX
+	(reflectance; by default the lowest percentile 2 and the highest percentile 98 of the bands over the region, or 0
+	to 0.3 if QUICK). Only the variables whose images have red, green and blue bands (see has_rgb). Writes a PNG
+	preview to THUMBNAIL if given.
+	Returns {'url', 'bands', 'min', 'max', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
+	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                 quality, clip, None, source, rgb=True)
+	vis = maps.rgb_vis(img, regions.geometry(), res, vmin, vmax, compute=not quick)
+	out = dict(vis, url=maps.tile_url(img, vis), name=_rgb_name(spec, metric), unit=catalog.RGB_UNIT,
 	           bounds=_bounds(regions), thumbnail=None)
 	if thumbnail:
 		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
@@ -885,6 +933,38 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
 	        'images': variables.n_images(spec, regions.geometry()), 'name': _named(spec, metric),
 	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
+
+
+@_cited
+def download_rgb(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
+                 interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
+                 max_pixels=None, tile=512, workers=8, progress=None, **source):
+	"""Download the true colour of the images of a variable over REGION (see rgb_map: the red, green and blue surface
+	reflectance of the same images and pixels as its map, with the same metric) to the GeoTIFF PATH: three bands, red,
+	green and blue (float32 reflectance, NoData -9999), on the same grid as download_image with the same arguments
+	(RESOLUTION, CRS, MAX_PIXELS: see download_image).
+	Returns {'file', 'grid', 'resolution', 'native_resolution', 'images', 'name', 'unit', 'bands', 'min', 'max' (the
+	lowest percentile 2 and the highest percentile 98 of the three bands: the range to show them together)}."""
+	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
+	                 season=season, quality=quality, **source)
+	variables.check_rgb(spec)  # before Earth Engine
+	regions = areas.region(region)
+	native = float(variables.native_scale(spec))
+	grid, res = _fit_grid(regions, float(resolution or native), crs, max_pixels)
+	img = variables.image(spec, regions.geometry(), res, rgb=True)
+	if clip:
+		img = img.clipToCollection(regions)
+	path = path or _slug(_file_stem(variable, sensor, metric, start, end, source) + '_RGB') + '.tif'
+	desc = variables.describe(spec, rgb=True)
+	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=sensors.RGB_BANDS,
+	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
+	lo_p, hi_p = maps.RGB_STRETCH
+	stretch = [_percentiles(path, lo_p, hi_p, b) for b in (1, 2, 3)]
+	lows, highs = [lo for lo, _ in stretch if lo is not None], [hi for _, hi in stretch if hi is not None]
+	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
+	        'images': variables.n_images(spec, regions.geometry()), 'name': _rgb_name(spec, metric),
+	        'unit': catalog.RGB_UNIT, 'bands': list(sensors.RGB_BANDS), 'min': min(lows) if lows else None,
+	        'max': max(highs) if highs else None}
 
 
 def _fit_grid(regions, res, crs, max_pixels=None):
