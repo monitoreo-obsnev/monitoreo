@@ -1,17 +1,18 @@
-"""MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer
-and the exports to Google Drive; in the theme Fire, the burn severity of a fire. The work runs in QGIS tasks
-(QgsTask), so QGIS keeps responding; every computation is a function of monitoreo.services, the same as in the MCP
-server and the R package. A bar shows the EECUs of Earth Engine spent this month (the research EECUs of this user with
-the shared account, or the monthly quota of the user's project) and the message bar warns when less than 10 % are
-left."""
+"""MonitorEO panel: region, variable, period and pixel filters, and the buttons of the time series, the map layer (the
+map of the variable, the true colour of its images or both) and the exports to Google Drive; in the theme Fire, the
+burn severity of a fire. The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
+function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the EECUs of Earth Engine
+spent this month (the research EECUs of this user with the shared account, or the monthly quota of the user's project)
+and the message bar warns when less than 10 % are left."""
 
 import json
 import os
 import tempfile
 
-from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsDataSourceUri, QgsDateTimeRange, QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer,
-                       QgsRasterShader, QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
+from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsContrastEnhancement, QgsCoordinateReferenceSystem,
+                       QgsCoordinateTransform, QgsDataSourceUri, QgsDateTimeRange, QgsMultiBandColorRenderer,
+                       QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
+                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
@@ -26,6 +27,7 @@ from monitoreo import catalog, fire, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, filters_help, variable_help  # noqa: E402
+from .results import KINDS_TIP, MAP_KINDS  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
@@ -74,6 +76,30 @@ def pseudocolor(layer, vmin, vmax, palette, band=1):
 	layer.setRenderer(renderer)
 
 
+def rgb(layer, lo, hi, bands=(1, 2, 3)):
+	"""Show the bands BANDS of LAYER (default: the first three, those of a true colour, red, green and blue) as its
+	red, green and blue, the three stretched together from LO to HI (one range for the three, as in the other tools,
+	so that the colours keep their balance)."""
+	if hi <= lo:
+		hi = lo + 1e-6
+	provider = layer.dataProvider()
+	renderer = QgsMultiBandColorRenderer(provider, *bands)
+	for band, set_enhancement in zip(bands, (renderer.setRedContrastEnhancement, renderer.setGreenContrastEnhancement,
+	                                         renderer.setBlueContrastEnhancement)):
+		enhancement = QgsContrastEnhancement(provider.dataType(band))
+		enhancement.setContrastEnhancementAlgorithm(
+			QgsContrastEnhancement.ContrastEnhancementAlgorithm.StretchToMinimumMaximum)
+		enhancement.setMinimumValue(lo)
+		enhancement.setMaximumValue(hi)
+		set_enhancement(enhancement)
+	layer.setRenderer(renderer)
+
+
+def rgb_caption(lo, hi):
+	"""The legend of a true colour shown from LO to HI (reflectance), as in the other tools."""
+	return f'True colour (red, green, blue): reflectance from {lo:.4g} to {hi:.4g}'
+
+
 def paletted(layer, band, classes):
 	"""Colour the band BAND of LAYER with a colour for each of its values (a paletted renderer: unique values), from
 	CLASSES ([{'value', 'color' ('#rrggbb'), 'label'}]); the legend of the layer shows their labels."""
@@ -117,6 +143,43 @@ def result_maps(tool, args):
 	else:
 		main = {'key': '', 'label': f'Whole period ({period})', 'start': args['start'], 'end': args['end']}
 	return [main] + steps.map_steps(tool, args)
+
+
+def true_colour(region, opts, path, resolution=None, stretch=None):
+	"""The true colour of the images of the map with the arguments OPTS (services.download_rgb: the GeoTIFF PATH with
+	the bands red, green and blue, on the grid of pixels of RESOLUTION m, that of the map, so that their pixels match)
+	or, if it cannot be downloaded, its Earth Engine tiles (services.rgb_map, stretched from STRETCH[0] to STRETCH[1]
+	if given). In a task."""
+	try:
+		return services.download_rgb(region, path=path, resolution=resolution, max_pixels=MAP_PIXELS, **opts)
+	except Exception as e:
+		out = services.rgb_map(region, **opts, **({'vmin': stretch[0], 'vmax': stretch[1]} if stretch else {}))
+		out['error'] = str(e)
+		return out
+
+
+def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None):
+	"""The layers of a map with the arguments OPTS, in a task: with KIND 'index' or 'both', the map of the variable
+	(DOWNLOAD: the GeoTIFF map.tif of FOLDER or, if it cannot be downloaded, TILES, with the colours COLORS (min, max)
+	if given); with KIND 'rgb' or 'both', the true colour of the same images and pixels (rgb.tif, on the grid of the
+	map; see true_colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
+	'rgb_error' instead of 'rgb' (the map is added all the same)."""
+	out = {}
+	if kind != 'rgb':
+		try:
+			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), max_pixels=MAP_PIXELS, **opts)
+		except Exception as e:
+			out['index'] = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
+			out['index']['error'] = str(e)
+	if kind != 'index':
+		try:
+			out['rgb'] = true_colour(region, opts, os.path.join(folder, 'rgb.tif'),
+			                         (out.get('index') or {}).get('resolution'), stretch)
+		except Exception as e:
+			if kind == 'rgb':
+				raise
+			out['rgb_error'] = str(e)
+	return out
 
 
 def combo(items, current=None):
@@ -472,13 +535,16 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Metric', info(self.map_metric, HELP['map_metric']))
 		f.addRow('Temporal aggregation', info(self.temporal, HELP['temporal']))
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
+		self.map_kind = combo(MAP_KINDS, 'index')  # the map of the variable, its true colour or both
+		f.addRow('Layer', info(self.map_kind, HELP['map_kind']))
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
-		             'Identify Features tool), at the resolution of the data or, in big regions, with bigger pixels '
-		             f'(up to {MAP_PIXELS / 1e6:g} million pixels)')
+		             'Identify Features tool) or, with Layer, its true colour, at the resolution of the data or, in '
+		             f'big regions, with bigger pixels (up to {MAP_PIXELS / 1e6:g} million pixels)')
 		b.clicked.connect(self.run_map)
 		f.addRow(b)
 		main.addWidget(box)
+		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
 		box = QGroupBox('Export to Google Drive')
 		f = QFormLayout(box)
@@ -939,6 +1005,8 @@ class MonitorEODock(QDockWidget):
 			res['kind'] = 'series'
 			res['args'] = dict(var, region=region, step=step, metric=metric)
 			res['maps'] = result_maps('time_series', res['args'])
+			# whether its maps can also be the true colour of their images (the list Layer of its window)
+			res['rgb'] = services.has_rgb(var['variable'], var['sensor'], var['collection'])
 			self.add_result(res)
 
 		self.run_task(f"Time series of {var['variable']} ({var['sensor']})", work, done)
@@ -969,7 +1037,8 @@ class MonitorEODock(QDockWidget):
 		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
 		observations with snow, without clouds and water). The filters chosen before come back with another variable.
 		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
-		series and the trends greyed out."""
+		series and the trends greyed out. The list Layer of the map, with the true colour only if it has one
+		(update_map_kind)."""
 		v = self.variable.currentData() or {}
 		only = v.get('metric')
 		static = bool(v.get('static'))
@@ -1000,6 +1069,29 @@ class MonitorEODock(QDockWidget):
 			w.setToolTip(f"Fixed filters of {v['variable']}: they cannot be changed" if fixed is not None else '')
 		if fixed is None:
 			self.chosen_filters = None
+		self.update_map_kind()
+
+	def update_map_kind(self):
+		"""The list Layer of the group Map (the map of the variable, its true colour or both): only for the variables
+		whose images have a true colour (services.has_rgb), not for the fixed layers nor the difference of «Compare
+		with»; else it is the map of the variable, and its tooltip says why."""
+		if not hasattr(self, 'map_kind'):  # not built yet
+			return
+		v = self.variable.currentData() or {}
+		if v.get('static'):
+			why = f"{v['variable']} is a fixed layer, without dates: it has no images, nor true colour"
+		elif not v.get('rgb'):
+			why = (f"{v.get('variable')} of {v.get('sensor')} has no true colour: only the variables of Sentinel-2 and "
+			       'Landsat and the cloud frequency of MODIS (MOD09GA, MYD09GA) have images with red, green and blue '
+			       'bands')
+		elif self.compare_on.isChecked():
+			why = 'No true colour with Compare with: the map is the difference between two periods'
+		else:
+			why = None
+		if why:
+			self.map_kind.setCurrentIndex(self.map_kind.findData('index'))
+		self.map_kind.setEnabled(why is None)
+		self.map_kind.setToolTip(why or KINDS_TIP + ', with the same pixels')
 
 	def update_trend_parts(self):
 		step = self.trend_step.currentData()
@@ -1084,7 +1176,7 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
+		folder = tempfile.mkdtemp(prefix='monitoreo_')
 		other = self.other_period()
 		static = (self.variable.currentData() or {}).get('static')  # no temporal metric for the fixed layers
 		opts = dict(var) if static else dict(var, metric=metric, temporal=temporal, interannual=inter)
@@ -1092,19 +1184,44 @@ class MonitorEODock(QDockWidget):
 			opts.update(other_start=other[0], other_end=other[1])
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
 		                   (services.download_image, services.map_layer))
+		# the map of the variable, its true colour or both (never of a fixed layer or a difference: see update_map_kind)
+		kind = 'index' if static or other or not self.map_kind.isEnabled() else self.map_kind.currentData()
+		title = {'index': 'Map', 'rgb': 'True colour', 'both': 'Map and true colour'}[kind]
 
 		def work():
-			"""The map as a GeoTIFF with the values (with OTHER, the difference between the periods, and both); if it
-			cannot be downloaded, Earth Engine tiles (colours only)."""
-			try:
-				return download(region, path=path, max_pixels=MAP_PIXELS, **opts)
-			except Exception as e:
-				res = tiles(region, **opts)
-				res['error'] = str(e)
-				return res
+			"""The map as a GeoTIFF with the values (with OTHER, the difference between the periods, and both) and/or
+			its true colour; if they cannot be downloaded, Earth Engine tiles (colours only)."""
+			return maps_work(kind, region, opts, folder, download, tiles)
 
-		self.run_task(f"Map of {var['variable']} ({var['sensor']})", work,
-		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
+		self.run_task(f"{title} of {var['variable']} ({var['sensor']})", work, self.add_maps)
+
+	def add_maps(self, r, name=None, rgb_name=None, group=None, zoom=True, period=None, kept=None):
+		"""Add the layers of R (see maps_work): first its true colour, then the map of the variable on top of it, both
+		with PERIOD in the Temporal Controller, and zoom to the first one (with ZOOM). NAME and RGB_NAME: their names
+		(by default, those of the results). KEPT (the result of a series): the colours of its first map ('colors') and
+		the stretch of its first true colour ('rgb_stretch'), kept there for its next maps, so that they can be
+		compared."""
+		kept = {} if kept is None else kept
+		if r.get('rgb_error'):  # only the true colour failed: the map is added all the same
+			self.message(f"True colour of {name or r['index']['name']}: {r['rgb_error']} (only the map was added)",
+			             'Warning', 15)
+		c = r.get('rgb')
+		if c is not None:
+			if 'rgb_stretch' not in kept and c.get('min') is not None:
+				kept['rgb_stretch'] = (c['min'], c['max'])
+			if 'url' in c:
+				self.add_tile_layer(c, rgb_name, group, zoom=zoom, period=period)
+			else:
+				self.add_rgb_layer(c, rgb_name, group, kept.get('rgb_stretch'), zoom=zoom, period=period)
+			zoom = False
+		i = r.get('index')
+		if i is not None:
+			if 'colors' not in kept and i.get('min') is not None:
+				kept['colors'] = (i['min'], i['max'])
+			if 'url' in i:
+				self.add_tile_layer(i, name, group, zoom=zoom, period=period)
+			else:
+				self.add_map_layer(i, name, group, kept.get('colors'), zoom=zoom, period=period)
 
 	def add_map_layer(self, res, name=None, group=None, colors=None, zoom=True, period=None):
 		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95, or COLORS: (min, max))
@@ -1134,6 +1251,35 @@ class MonitorEODock(QDockWidget):
 		                                 'export the map to Google Drive)')
 		             + '. Query the values with the Identify Features tool', 'Success', 10)
 
+	def add_rgb_layer(self, res, name=None, group=None, stretch=None, zoom=True, period=None):
+		"""Add the GeoTIFF of a true colour (services.download_rgb: the bands red, green and blue, reflectance) with the
+		three bands stretched together between its percentiles 2 and 98 (or STRETCH: (min, max), that of the first true
+		colour of a series, so that its dates can be compared) and zoom to it; with GROUP and PERIOD, as
+		add_map_layer."""
+		name = name or res['name']
+		layer = QgsRasterLayer(res['file'], name)
+		if not layer.isValid():
+			raise RuntimeError(f"QGIS could not open {res['file']}")
+		lo, hi = stretch or (res['min'], res['max'])
+		if res['min'] is None:
+			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
+		if lo is not None and hi is not None:
+			rgb(layer, lo, hi)
+		caption = rgb_caption(lo, hi) if lo is not None and hi is not None else 'True colour (red, green, blue)'
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, pixels of {res['resolution']:g} m"
+		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
+		                  + f", bands {', '.join(res.get('bands') or ['red', 'green', 'blue'])}. {caption}. "
+		                  f"Temporary GeoTIFF: {res['file']}" + references_text(res))
+		if period:
+			dated(layer, *period)
+		add_layer(layer, group)
+		if zoom:
+			self.zoom_to(layer.extent(), layer.crs())
+		native = res['resolution'] <= res['native_resolution']
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
+		             + ('' if native else ' (big region: pixels bigger than those of the data)')
+		             + f'. {caption}. Query the reflectance with the Identify Features tool', 'Success', 10)
+
 	def zoom_to(self, rect, crs):
 		canvas = self.iface.mapCanvas()
 		tr = QgsCoordinateTransform(crs, canvas.mapSettings().destinationCrs(), QgsProject.instance())
@@ -1142,7 +1288,10 @@ class MonitorEODock(QDockWidget):
 		canvas.setExtent(r)
 		canvas.refresh()
 
-	def add_tile_layer(self, res, name=None, group=None, zoom=True):
+	def add_tile_layer(self, res, name=None, group=None, zoom=True, period=None):
+		"""Add the Earth Engine tiles RES of a map (with its colour ramp) or of a true colour (services.rgb_map: without
+		palette, the bands red, green and blue), when its GeoTIFF could not be downloaded; with GROUP and PERIOD, as
+		add_map_layer."""
 		name = name or res['name']
 		uri = QgsDataSourceUri()
 		uri.setParam('type', 'xyz')
@@ -1152,59 +1301,63 @@ class MonitorEODock(QDockWidget):
 		layer = QgsRasterLayer(bytes(uri.encodedUri()).decode(), name, 'wms')
 		if not layer.isValid():
 			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
-		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
-		                  f"{', '.join('#' + c for c in res['palette'])}. Earth Engine tiles, valid for a few hours."
-		                  + references_text(res))
+		if res.get('palette'):
+			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
+			           f"{', '.join('#' + c for c in res['palette'])}")
+			shown = f"from {res['min']:.4g} to {res['max']:.4g} {res['unit']}"
+		else:  # a true colour
+			colours = shown = rgb_caption(res['min'], res['max'])
+		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}. {colours}. Earth Engine tiles, valid for a few "
+		                  'hours.' + references_text(res))
+		if period:
+			dated(layer, *period)
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(QgsRectangle(*res['bounds']), QgsCoordinateReferenceSystem('EPSG:4326'))
-		self.message(f"Tile layer added: {name} (from {res['min']:.4g} to {res['max']:.4g} {res['unit']}; "
-		             f"no queryable values: the GeoTIFF could not be downloaded: {res.get('error')})", 'Warning', 15)
+		self.message(f"Tile layer added: {name} ({shown}; no queryable values: the GeoTIFF could not be downloaded: "
+		             f"{res.get('error')})", 'Warning', 15)
 
 	def result_group(self, res):
 		"""The group of the layer tree with the maps of the result RES (made the first time, on top)."""
 		root = QgsProject.instance().layerTreeRoot()
 		return root.findGroup(res['label']) or root.insertGroup(0, res['label'])
 
-	def add_result_map(self, res, entry, significant=False):
+	def add_result_map(self, res, entry, significant=False, kind='index'):
 		"""Add the map ENTRY (one of res['maps']: its whole period or one of its steps) of the series or trends RES,
 		as a GeoTIFF in the group of the result, with the colours of the first map of the result, so that its maps can
 		be compared; the dates of a series, with their days in the Temporal Controller of QGIS. Trends with
-		SIGNIFICANT: only the pixels with p < ALPHA. If the GeoTIFF cannot be downloaded, Earth Engine tiles."""
+		SIGNIFICANT: only the pixels with p < ALPHA. A series with KIND 'rgb' or 'both': the true colour of the same
+		images and pixels (services.download_rgb, with the same arguments and on the same grid), stretched as the first
+		true colour of the result, alone or under the map, with the same days. If a GeoTIFF cannot be downloaded,
+		Earth Engine tiles."""
 		a = res['args']
 		region = a['region']
-		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season') if k in a}
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'map.tif')
+		# the same pixels as the series: its filters, season and conditions (those with dates, over its whole period)
+		var = {k: a[k] for k in ('variable', 'sensor', 'collection', 'quality', 'season', 'where') if k in a}
+		folder = tempfile.mkdtemp(prefix='monitoreo_')
 		if res['kind'] == 'trends':
+			kind = 'index'
 			opts = dict(var, start=a['start'], end=a['end'], step=entry.get('step') or a['step'], part=entry.get('part'),
 			            metric=a['metric'], alpha=ALPHA if significant else None)
 			download, tiles = services.download_trend, services.trend_map
 		else:
 			opts = dict(var, start=entry['start'], end=entry['end'], metric=a['metric'])
 			download, tiles = services.download_image, services.map_layer
-		colors = res.get('colors')  # (min, max) of the first map of the result
-		name = f"{res['title'].split(' | ')[0]} · {entry['label']}" + (' (p < 0.05)' if significant else '')
+		# (min, max) of the first map and of the first true colour of the result
+		colors, stretch = res.get('colors'), res.get('rgb_stretch')
+		label = f"{res['title'].split(' | ')[0]} · {entry['label']}"
+		name = label + (' (p < 0.05)' if significant else '')
 		period = (entry['start'], entry['end']) if res['kind'] == 'series' and entry['key'] else None
+		title = {'index': f'Map of {name}', 'rgb': f'True colour of {label}', 'both': f'Map and true colour of {label}'}
 
 		def work():
-			try:
-				return download(region, path=path, max_pixels=MAP_PIXELS, **opts)
-			except Exception as e:
-				out = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
-				out['error'] = str(e)
-				return out
+			return maps_work(kind, region, opts, folder, download, tiles, colors, stretch)
 
 		def done(r):
-			first = 'colors' not in res
-			if first and r.get('min') is not None:
-				res['colors'] = (r['min'], r['max'])
-			group = self.result_group(res)
-			if 'url' in r:
-				self.add_tile_layer(r, name, group, zoom=first)
-			else:
-				self.add_map_layer(r, name, group, res.get('colors'), zoom=first, period=period)
+			first = 'colors' not in res and 'rgb_stretch' not in res  # zoom to the first map of the result
+			self.add_maps(r, name, f'{label} · true colour', self.result_group(res), first, period, res)
 
-		self.run_task(f'Map of {name}', work, done)
+		self.run_task(title[kind], work, done)
 
 	def run_export_image(self):
 		args = self.prepare()

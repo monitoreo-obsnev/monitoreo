@@ -1,9 +1,10 @@
 """Windows of the results: chart, table and buttons to save the CSV and the chart. The chart of a time series is the
 PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no matplotlib, one drawn with Qt; those of
 the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
-Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year.
-That of a burn severity has the hectares of each class of the USGS, with its colour, or the statistics of the RBR.
-Each window ends with the references of its result (monitoreo.references), with the links of their DOIs."""
+Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year
+(of a series, also the true colour of its images, under it or alone). That of a burn severity has the hectares of
+each class of the USGS, with its colour, or the statistics of the RBR. Each window ends with the references of its
+result (monitoreo.references), with the links of their DOIs."""
 
 import datetime as dt
 import math
@@ -28,6 +29,12 @@ BURN_COLUMNS = [('region', 'Region'), ('label', 'Class (USGS)'), ('dnbr_min', 'd
                 ('ha', 'Hectares')]
 RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('p10', 'Percentile 10'),
                ('p90', 'Percentile 90'), ('min', 'Minimum'), ('max', 'Maximum'), ('ha', 'Hectares with values')]
+# the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
+MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
+KINDS_TIP = ('Index: the map of the variable. True colour (RGB): the red, green and blue surface reflectance of the '
+             'same images (sensor, dates, pixel filters and metric) and of the same pixels as the index, the three '
+             'bands stretched together between their percentiles 2 and 98. Both: the true colour, and the index on top '
+             'of it')
 
 
 def ylabel(res):
@@ -70,27 +77,41 @@ def comparison_png(res, step, path):
 
 def map_row(res, add_map):
 	"""Row of the window of the series or trends RES with its maps (res['maps']: that of its whole period and those of
-	each of its dates or parts of the year) and the button that adds the chosen one (ADD_MAP(res, map, significant));
-	None if it has no maps."""
+	each of its dates or parts of the year) and the button that adds the chosen one (ADD_MAP(res, map, significant,
+	kind)); in a series whose images have a true colour (res['rgb'], see services.has_rgb), also the list Layer: its
+	index, its true colour or both (KIND, see MAP_KINDS). None if it has no maps."""
 	if add_map is None or not res.get('maps'):
 		return None
 	trends = res.get('kind') == 'trends'
 	row = QHBoxLayout()
 	row.addWidget(QLabel('Map of'))
 	choice = QComboBox()
+	choice.setObjectName('map_choice')
 	for m in res['maps']:
 		choice.addItem(m['label'])
 	row.addWidget(choice, 1)
 	significant = QCheckBox('Significant pixels only (p < 0.05)') if trends else None
 	if significant:
 		row.addWidget(significant)
+	kind = None
+	if not trends and res.get('rgb'):
+		row.addWidget(QLabel('Layer'))
+		kind = QComboBox()
+		kind.setObjectName('map_kind')
+		for label, value in MAP_KINDS:
+			kind.addItem(label, value)
+		kind.setToolTip(KINDS_TIP + ', with the same days in the Temporal Controller. The true colour maps of this '
+		                'result are stretched as its first one, so that its dates can be compared')
+		row.addWidget(kind)
 	b = QPushButton('Add to the map')
 	b.setToolTip(("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel"
-	              if trends else 'Temporary GeoTIFF with the values of each pixel, with its dates in the Temporal '
-	                             'Controller of QGIS') + ' (queryable with the Identify Features tool), in the group of '
-	             'this result and with the colors of its first map, so that they can be compared')
+	              if trends else 'Temporary GeoTIFF with the values of each pixel (or, with Layer, its true colour), '
+	                             'with its dates in the Temporal Controller of QGIS') + ' (queryable with the Identify '
+	             'Features tool), in the group of this result and with the colors of its first map, so that they can '
+	             'be compared')
 	b.clicked.connect(lambda: add_map(res, res['maps'][choice.currentIndex()],
-	                                  bool(significant and significant.isChecked())))
+	                                  bool(significant and significant.isChecked()),
+	                                  kind.currentData() if kind else 'index'))
 	row.addWidget(b)
 	return row
 
