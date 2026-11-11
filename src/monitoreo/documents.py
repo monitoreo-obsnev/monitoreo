@@ -17,6 +17,8 @@ import csv
 import io
 import os
 import re
+import sys
+import unicodedata
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -26,7 +28,10 @@ TYPES = {'.pdf': 'PDF', '.docx': 'Word document', '.odt': 'OpenDocument text', '
 OTHERS = {'.doc': 'save it as .docx or PDF', '.rtf': 'save it as .docx or PDF', '.xls': 'save it as .xlsx or CSV',
           '.ppt': 'save it as PDF', '.pptx': 'save it as PDF', '.odp': 'save it as PDF', '.pages': 'export it as PDF',
           '.numbers': 'export it as .xlsx or CSV', '.key': 'export it as PDF'}
-MAX_INSIDE = 200 * 2 ** 20  # bytes of a part of a .docx or .odt once decompressed (more is not a document: a zip bomb)
+MAX_INSIDE = 40 * 2 ** 20  # bytes of the text of a .docx or .odt once decompressed (more is not a document: a zip bomb)
+MAX_SHEETS = 200 * 2 ** 20  # bytes of a .xlsx or .ods once decompressed
+LIGATURES = str.maketrans({'\ufb00': 'ff', '\ufb01': 'fi', '\ufb02': 'fl', '\ufb03': 'ffi', '\ufb04': 'ffl',
+                           '\ufb05': 'st', '\ufb06': 'st'})  # those of the PDFs made with LaTeX, as their letters
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 ODF = {'text': 'urn:oasis:names:tc:opendocument:xmlns:text:1.0', 'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0'}
 
@@ -48,16 +53,23 @@ def check_type(filename):
 
 
 def decode(data):
-	"""The text of the bytes DATA of a text file: UTF-8 (with or without its mark) or UTF-16 (with its mark), else
-	Windows-1252 (that of the CSVs of Excel in Spanish, and of Latin-1), else the encoding that charset_normalizer
-	finds."""
+	"""The text of the bytes DATA of a text file: UTF-8 (with or without its mark, also with a stray byte now and
+	then) or UTF-16 (with its mark), else Windows-1252 (that of the CSVs of Excel in Spanish, and of Latin-1), else
+	the encoding that charset_normalizer finds (the few bytes that Windows-1252 does not have)."""
 	if data.startswith((b'\xff\xfe', b'\xfe\xff')):
 		return data.decode('utf-16', errors='replace')
-	for encoding in ('utf-8-sig', 'cp1252'):
-		try:
-			return data.decode(encoding)
-		except UnicodeDecodeError:
-			pass
+	try:
+		return data.decode('utf-8-sig')
+	except UnicodeDecodeError:
+		pass
+	text = data.decode('utf-8-sig', errors='replace')
+	bad, good = text.count('\ufffd'), len(re.findall(r'[^\x00-\x7f\ufffd]', text))
+	if good > bad:  # UTF-8 with a stray byte (e.g. a € of Windows pasted in): its letters are those of UTF-8
+		return text
+	try:
+		return data.decode('cp1252')
+	except UnicodeDecodeError:
+		pass
 	try:
 		import charset_normalizer
 		best = charset_normalizer.from_bytes(data).best()
@@ -69,8 +81,11 @@ def decode(data):
 
 
 def _clean(text):
-	"""TEXT without the blanks at the end of its lines and without more than one empty line in a row."""
-	lines = [re.sub(r'[ \t ]+$', '', line) for line in str(text).replace('\r\n', '\n').replace('\r', '\n').split('\n')]
+	"""TEXT without the blanks at the end of its lines, without more than one empty line in a row, without the
+	ligatures of the PDFs (the fi of LaTeX is fi) and without halves of characters (surrogates) that cannot be
+	written."""
+	text = str(text).encode('utf-16-le', 'surrogatepass').decode('utf-16-le', 'replace').translate(LIGATURES)
+	lines = [line.rstrip(' \t\u00a0') for line in text.replace('\r\n', '\n').replace('\r', '\n').split('\n')]
 	return re.sub(r'\n{3,}', '\n\n', '\n'.join(lines)).strip()
 
 
@@ -123,26 +138,35 @@ def _docx(path):
 				text += '\n'
 		return text
 
-	for block in list(body) if body is not None else []:
-		if block.tag == f'{W}p':
-			out.append(paragraph(block))
-		elif block.tag == f'{W}tbl':
-			for row in block.iter(f'{W}tr'):
-				cells = [' '.join(paragraph(p) for p in cell.iter(f'{W}p')).strip() for cell in row.iter(f'{W}tc')]
-				out.append(' | '.join(cells))
-			out.append('')
+	def blocks(node):  # the paragraphs and tables, also inside content controls (w:sdt) and w:customXml
+		for block in node:
+			if block.tag == f'{W}p':
+				out.append(paragraph(block))
+			elif block.tag == f'{W}tbl':
+				for row in block.iter(f'{W}tr'):
+					cells = [' '.join(paragraph(p) for p in cell.iter(f'{W}p')).strip() for cell in row.iter(f'{W}tc')]
+					out.append(' | '.join(cells))
+				out.append('')
+			elif block.tag not in (f'{W}sdtPr', f'{W}sdtEndPr', f'{W}sectPr', f'{W}del', f'{W}moveFrom'):
+				blocks(block)
+
+	blocks(body if body is not None else [])
 	return _clean('\n'.join(out)), {}
 
 
 def _odt(path):
 	root = _zip_xml(path, 'content.xml')
 	t, tb = f"{{{ODF['text']}}}", f"{{{ODF['table']}}}"
+	office = '{urn:oasis:names:tc:opendocument:xmlns:office:1.0}'
+	skip = (f'{t}tracked-changes', f'{office}annotation', f'{office}annotation-end')  # deleted text, comments
 	out = []
 
 	def text_of(node):
 		parts = [node.text or '']
 		for child in node:
-			if child.tag == f'{t}tab':
+			if child.tag in skip:
+				pass
+			elif child.tag == f'{t}tab':
 				parts.append('\t')
 			elif child.tag == f'{t}line-break':
 				parts.append('\n')
@@ -155,6 +179,8 @@ def _odt(path):
 
 	def walk(node):
 		for child in node:
+			if child.tag in skip:
+				continue
 			if child.tag in (f'{t}p', f'{t}h'):
 				out.append(text_of(child))
 			elif child.tag == f'{tb}table':
@@ -183,6 +209,12 @@ def _sheets(path):
 		raise ValueError('reading spreadsheets needs GDAL, which comes with the installation of MonitorEO with conda: '
 		                 'save it as CSV instead') from e
 	gdal.UseExceptions()
+	try:
+		with zipfile.ZipFile(path) as z:
+			if sum(i.file_size for i in z.infolist()) > MAX_SHEETS:
+				raise ValueError('the spreadsheet is too big once decompressed: save the sheets that matter as CSV')
+	except zipfile.BadZipFile as e:
+		raise ValueError('the spreadsheet cannot be read: is it damaged?') from e
 	try:
 		ds = gdal.OpenEx(path, gdal.OF_VECTOR, open_options=['HEADERS=AUTO'])
 	except RuntimeError as e:
@@ -222,15 +254,23 @@ def _table(path, delimiter=None):
 			delimiter = csv.Sniffer().sniff(sample, delimiters=',;\t|').delimiter
 		except csv.Error:
 			delimiter = ','
-	rows = list(csv.reader(io.StringIO(text), delimiter=delimiter))
-	while rows and not any(c.strip() for c in rows[-1]):
-		rows.pop()
-	if not rows:
-		raise ValueError('the table is empty')
-	columns = max(len(r) for r in rows)
 	sep = {'\t': 'tab', ',': 'comma', ';': 'semicolon', '|': 'vertical bar'}.get(delimiter, repr(delimiter))
-	head = f'[table: {len(rows) - 1} rows and a header, {columns} columns; separator {sep}]'
-	return head + '\n' + _clean(text), {'rows': len(rows) - 1, 'columns': columns}
+	limit = csv.field_size_limit()
+	try:  # its rows and columns, for the line before it (its text goes as it is)
+		csv.field_size_limit(min(sys.maxsize, 2 ** 31 - 1))  # long fields: geometries in WKT, notes
+		rows = list(csv.reader(io.StringIO(text, newline=''), delimiter=delimiter))
+		while rows and not any(c.strip() for c in rows[-1]):
+			rows.pop()
+		if not rows:
+			raise ValueError('the table is empty')
+		n, columns, about = len(rows) - 1, max(len(r) for r in rows), ''
+	except csv.Error:  # an open quote...: the lines, roughly
+		lines = [line for line in text.splitlines() if line.strip()]
+		n, columns, about = len(lines) - 1, lines[0].count(delimiter) + 1, 'about '
+	finally:
+		csv.field_size_limit(limit)
+	head = f'[table: {about}{n} rows and a header, {about}{columns} columns; separator {sep}]'
+	return head + '\n' + _clean(text), {'rows': n, 'columns': columns}
 
 
 def _text(path):
@@ -280,22 +320,33 @@ def parts(text, size):
 	return out or ['']
 
 
+class _Fold(dict):
+	"""For str.translate: each character as a lowercase letter without its accent (á is a, Ñ is n), always one for
+	one, so that a position in the folded text is that of the text."""
+
+	def __missing__(self, code):
+		c = chr(code)
+		folded = (unicodedata.normalize('NFKD', c)[:1] or c).lower()
+		self[code] = folded if len(folded) == 1 else c
+		return self[code]
+
+
+_FOLD = _Fold()
+
+
 def _plain(text):
-	import unicodedata
-	return unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode().lower()
+	return text.translate(_FOLD)
 
 
 def search(text, query, size, context=600):
-	"""The passages of TEXT with the words of QUERY (without accents, at least 3 letters), together at most SIZE
-	characters, in the order of the text: [(part, passage)], with the number of the part (from 1) of parts(TEXT, size)
-	where each starts. The passages around the rarest words, and with more of the words near, come first; each takes
-	at most 2 * CONTEXT characters."""
+	"""The passages of TEXT with the words of QUERY (without accents nor case, at least 3 letters), together at most
+	SIZE characters, in the order of the text: [(part, passage)], with the number of the part (from 1) of
+	parts(TEXT, size) where each starts. The passages around the rarest words, and with more of the words near, come
+	first; each takes at most 2 * CONTEXT characters."""
 	words = list(dict.fromkeys(w for w in re.findall(r'\w+', _plain(query)) if len(w) >= 3))
 	if not words:
 		return []
 	plain = _plain(text)
-	if len(plain) != len(text):  # a letter that changed length: search in the text as it is
-		plain = text.lower()
 	hits = {w: [m.start() for m in re.finditer(re.escape(w), plain)] for w in words}
 	hits = {w: h for w, h in hits.items() if h}
 	if not hits:

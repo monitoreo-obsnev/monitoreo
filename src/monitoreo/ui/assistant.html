@@ -514,9 +514,10 @@ function renderLayers(layers) {
 }
 
 // --- documents ----------------------------------------------------------------------------------------------------
-const LAYER_TYPES = ['.gpkg', '.geojson', '.json', '.kml', '.zip'];
-const GEO_TYPES = ['.shp', '.shx', '.dbf', '.prj', '.cpg', '.kmz', '.gml', '.gpx', '.tif', '.tiff'];  // their error is that of the layers
 const DOCUMENT_TYPES = ['.pdf', '.docx', '.odt', '.xlsx', '.ods', '.csv', '.tsv', '.txt', '.md'];
+// documents that cannot be read, with what to do (documents.OTHERS): the other files dropped are taken for layers
+const OTHER_DOCUMENTS = ['.doc', '.rtf', '.xls', '.ppt', '.pptx', '.odp', '.pages', '.numbers', '.key'];
+let reading = 0;  // documents being uploaded and read: a message waits for them (see send)
 const extension = name => (name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
 const size = n => n < 0.1 * 2 ** 20 ? Math.max(1, Math.round(n / 1024)) + ' KB'  // '12 KB', '3.4 MB'
                                      : (n / 2 ** 20).toFixed(1).replace(/\.0$/, '') + ' MB';
@@ -538,6 +539,7 @@ function renderDocuments(docs, used, max) {
 }
 
 async function uploadDocuments(files) {
+  reading++;
   for (const file of files) {
     status('Reading the document ' + file.name + '…');
     try {
@@ -546,7 +548,7 @@ async function uploadDocuments(files) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || r.statusText);
       $('intro').hidden = true;
-      const example = TABLES.includes(data.kind) ? `«Use the table ${data.name} to choose the plots and the dates»`
+      const example = TABLES.includes(data.kind) ? `«Use the table ${data.name} to choose the dates»`
                                                  : `«Replicate the analysis of the document ${data.name} in my study area»`;
       $('chat').append(el('div', {class: 'notice'}, 'Document ', el('b', {text: data.name}), ` uploaded: ${data.text} ` +
         `(documents: ${size(data.used)} of ${size(data.max)}). The language model reads it with your next message, ` +
@@ -554,14 +556,16 @@ async function uploadDocuments(files) {
       scroll();
     } catch (e) { notice(`Document ${file.name}: ${e.message}`, true); }
   }
+  reading--;
   status(null);
   refresh();
+  if (!reading && !busy && pending) { const text = pending; pending = null; send(text); }
 }
 
-function dropped(files) {  // each file where it goes: the study areas and the documents
-  const geo = f => LAYER_TYPES.includes(extension(f.name)) || GEO_TYPES.includes(extension(f.name));
-  const layers = files.filter(geo);
-  const docs = files.filter(f => !geo(f));
+function dropped(files) {  // each file where it goes: the documents, and the rest to the study areas (as before)
+  const doc = f => DOCUMENT_TYPES.includes(extension(f.name)) || OTHER_DOCUMENTS.includes(extension(f.name));
+  const layers = files.filter(f => !doc(f));
+  const docs = files.filter(doc);
   if (layers.length) upload(layers);
   if (docs.length) uploadDocuments(docs);
 }
@@ -1184,6 +1188,11 @@ async function send(text) {
   text = text.trim();
   if (!text) return;
   if (busy) return notice('Wait until what is running ends.', true);
+  if (reading) {  // the model would get the message without the documents being read
+    pending = text;
+    $('text').value = '';
+    return notice('Your message goes as soon as the documents are read.');
+  }
   try {
     await api('/api/chat', {text});  // the events of the answer come by follow
     $('text').value = '';
