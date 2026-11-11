@@ -13,6 +13,8 @@
 # and opens it. If the environment already exists, it only adds what is missing,
 # writes the launchers and opens it; to install it again, delete ~/MonitorEO/entorno (the folder keeps its Spanish
 # name, "environment", as on macOS and Windows). Other Linux distributions with glibc 2.28 or later may work too.
+# It downloads no language model: the assistant uses, by default, the model of MonitorEO in the cloud; a model of
+# Ollama is optional, and the assistant downloads it (monitoreo.engine) if the user chooses one in Settings.
 # Everything is inside main, which is called at the end: a broken download runs nothing.
 
 main() {
@@ -53,7 +55,8 @@ main() {
 	echo
 	echo "It installs in $ENV, without administrator rights, what the assistant needs: Python, Google Earth Engine,"
 	echo "GDAL, MonitorEO and its window (about 0.6 GB to download and 2.5 GB on disk, only the first time). The"
-	echo "assistant uses the language model of MonitorEO, in the cloud, with nothing more to download."
+	echo "assistant uses the language model of MonitorEO, in the cloud, with nothing more to download. A model on this"
+	echo "computer (Ollama) is optional: if you choose one in Settings, it downloads about 7 GB the first time."
 	echo
 
 	[ "$(id -u)" != 0 ] || fail "run the installer as your user, without sudo: it installs everything in your folder."

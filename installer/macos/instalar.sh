@@ -14,6 +14,8 @@
 # creates the app and opens it; to install it again, delete ~/MonitorEO/entorno
 # (the folder keeps its Spanish name, "environment", so that existing installations are found). The app is not
 # signed, but this computer creates it, so it is not quarantined and macOS opens it.
+# It downloads no language model: the assistant uses, by default, the model of MonitorEO in the cloud; a model of
+# Ollama is optional, and the assistant downloads it (monitoreo.engine) if the user chooses one in Settings.
 # Everything is inside main, which is called at the end: a broken download runs nothing.
 
 main() {
@@ -25,11 +27,15 @@ main() {
 	MAMBA="$MAMBA_DIR/micromamba"
 	APP="$HOME/Desktop/MonitorEO Assistant.app"
 
-	fail() {
+	fail() {  # fail MESSAGE [LINES OF WHAT TO DO]: by default, the connection, the cause of almost every error
 		echo
 		echo "ERROR: $1"
-		echo "Check the internet connection and open the installer again. If it keeps failing, see the page"
-		echo "Troubleshooting of the wiki of MonitorEO."
+		if [ $# -gt 1 ]; then
+			printf '%s\n' "${@:2}"
+		else
+			echo "Check the internet connection and open the installer again. If it keeps failing, see the page"
+			echo "Troubleshooting of the wiki of MonitorEO."
+		fi
 		read -r -p "Press Enter to close. " _ < /dev/tty || true
 		exit 1
 	}
@@ -39,8 +45,9 @@ main() {
 	echo "===================================="
 	echo
 	echo "It installs in $ENV, without administrator rights, what the assistant needs: Python, Google Earth Engine,"
-	echo "GDAL and MonitorEO (about 0.2 GB to download and 0.8 GB on disk). Then, the first time it opens, the"
-	echo "assistant downloads its language model and its engine (about 5 GB). Both downloads happen only the first time."
+	echo "GDAL and MonitorEO (about 0.2 GB to download and 0.8 GB on disk, only the first time). The assistant uses the"
+	echo "language model of MonitorEO, in the cloud, with nothing more to download. A model on this computer (Ollama) is"
+	echo "optional: if you choose one in Settings, it downloads about 5 GB the first time."
 	echo
 
 	case "$(uname -m)" in
@@ -48,6 +55,16 @@ main() {
 		x86_64) PLATFORM=osx-64 ;;
 		*) fail "this Mac is neither Apple Silicon nor Intel ($(uname -m))." ;;
 	esac
+
+	# The app goes on the Desktop, and macOS asks whether the Terminal may access it (once). If the user said Don't
+	# Allow, every access fails with "Operation not permitted" and macOS does not ask again: say so now, before the
+	# downloads, instead of blaming the connection at the end.
+	TEST="$HOME/Desktop/.monitoreo-installer-test"
+	if ! { mkdir -p "$HOME/Desktop" && touch "$TEST" && rm -f "$TEST"; } 2>/dev/null; then
+		fail "the Terminal may not access the Desktop, where the installer leaves the app of the assistant." \
+			"Go to System Settings > Privacy & Security > Files & Folders > Terminal, turn on Desktop and open the" \
+			"installer again."
+	fi
 
 	if [ -x "$ENV/bin/monitoreo" ]; then
 		echo "The environment is already installed in $ENV."
