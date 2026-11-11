@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.25](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.25) · 2026-11-12 · package 0.3.35
 
 - **QGIS plugin** (fix): The files of each result have their README (what each column or band is, how it was computed and how to cite it), which the plugin installed from its zip could not write.
 - **QGIS plugin** (fix): The plugin no longer carries the documents module of the assistant, which it never uses: the security scan of plugins.qgis.org refused its XML parsers.
