@@ -153,7 +153,7 @@ def python(c):
 	if c['kind'] == 'rgb_percentiles':
 		img = variables.image(spec, geom, native, rgb=True).clipToCollection(regions)
 		return img.reduceRegion(ee.Reducer.percentile(list(maps.RGB_STRETCH)), geom, native, bestEffort=True,
-		                        maxPixels=int(1e6)).getInfo()
+		                        maxPixels=int(1e6), tileScale=4).getInfo()  # as maps.rgb_vis
 	if c.get('difference'):
 		img = services._comparison(region, None, None, start, end, c['difference'][0], c['difference'][1],
 		                           args['metric'], s.get('temporal', 'period'), s.get('interannual', 'mean'),

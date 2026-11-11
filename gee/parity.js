@@ -66,7 +66,7 @@ var CASES = {
 			if (error) return done(error);
 			seasonalRows(s, regions, c.step, c.metric, c.stat, g.scale, g.crs, g.n, function (err, yearly) {
 				if (err) return done(err);
-				done(null, {rows: mo.trendRows(yearly, c.step, mo.windows(s.period, s.season)[0][0]), yearly: yearly});
+				done(null, {rows: mo.trendRows(yearly, c.step, mo.windows(s.period, s.season)[0][0], 'en'), yearly: yearly});
 			});
 		});
 	},
