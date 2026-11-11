@@ -37,6 +37,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1785,6 +1786,9 @@ def make_app(assistant, token, port):
 				return await handler(request)
 			except (ValueError, RuntimeError, ModelError) as e:
 				return JSONResponse({'error': str(e)}, status_code=400)
+			except Exception as e:  # not foreseen: its cause on the page, and its traceback in the terminal
+				traceback.print_exc()
+				return JSONResponse({'error': f'{type(e).__name__}: {e}'}, status_code=500)
 		return wrapped
 
 	def ndjson(events):

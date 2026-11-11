@@ -982,3 +982,27 @@ def test_eecu_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
 	assert mcp_server._eecu_warning('[1, 2]') == '[1, 2]'  # only in objects
 	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	assert mcp_server._eecu_warning('{"a": 1}') == '{"a": 1}'
+
+
+def test_assistant_api_unforeseen_error():
+	# an error that the API of the assistant does not foresee comes to the page with its cause, not as «Internal
+	# Server Error» (issue #26)
+	import asyncio
+	from starlette.requests import Request
+	from monitoreo import assistant
+
+	class Broken:
+		async def pixel(self, *a):
+			raise IndexError('list index out of range')
+
+	app = assistant.make_app(Broken(), 'tok', 8765)
+	route = next(r for r in app.routes if r.path == '/api/pixel')
+
+	async def receive():
+		return {'type': 'http.request', 'body': b'{"id": 1, "lon": -3.4, "lat": 37.1}', 'more_body': False}
+
+	request = Request({'type': 'http', 'method': 'POST', 'path': '/api/pixel', 'query_string': b'',
+	                   'headers': [(b'host', b'127.0.0.1:8765'), (b'x-token', b'tok')]}, receive)
+	response = asyncio.run(route.endpoint(request))
+	assert response.status_code == 500
+	assert json.loads(response.body) == {'error': 'IndexError: list index out of range'}
