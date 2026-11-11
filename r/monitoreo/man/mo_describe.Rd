@@ -16,9 +16,10 @@ slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30).}
 \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra).}
 }
 \value{
-A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, alternatives (other
-  collections), references (the articles of its formula or algorithm, its Earth Engine datasets as their pages of the
-  Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and text) and credits.
+A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, rgb (whether its images
+  have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
+  formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
+  filters, each with citation, doi, url and text) and credits.
 }
 \description{
 Everything about a variable of the catalog, and what to cite with it

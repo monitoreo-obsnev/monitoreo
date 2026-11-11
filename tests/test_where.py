@@ -90,9 +90,9 @@ def test_references_of_the_conditions():
 
 def test_every_tool_with_a_region_takes_where():
 	from monitoreo import mcp_server
-	tools = ['time_series', 'map_layer', 'region_stats', 'export_image_to_drive', 'export_time_series_to_drive',
-	         'download_image', 'trend_table', 'trend_map', 'download_trend', 'compare_series', 'compare_map',
-	         'download_comparison', 'burn_severity']
+	tools = ['time_series', 'map_layer', 'rgb_map', 'region_stats', 'export_image_to_drive', 'export_time_series_to_drive',
+	         'download_image', 'download_rgb', 'trend_table', 'trend_map', 'download_trend', 'compare_series',
+	         'compare_map', 'download_comparison', 'burn_severity']
 	for name in tools:
 		fn = getattr(mcp_server, name)
 		assert 'where' in inspect.signature(fn).parameters, name

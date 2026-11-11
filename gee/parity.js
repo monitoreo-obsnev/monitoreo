@@ -96,6 +96,14 @@ var CASES = {
 			done(error, st);
 		});
 	},
+	// the true colour of the images of a variable (services.rgb_map): the percentiles 2 and 98 of its bands
+	rgb_percentiles: function (c, regions, done) {
+		var s = mo.spec(c.spec), geom = regions.geometry();
+		var img = mo.image(s, geom, null, true).clipToCollection(regions);
+		mo.rgbPercentiles(img, geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {
+			done(error, st);
+		});
+	},
 	trend_image: function (c, regions, done) {
 		var s = mo.spec(c.spec), geom = regions.geometry();
 		mo.trendImage(s, geom, c.step, c.part, c.metric).reduceRegion({reducer: ee.Reducer.mean(), geometry: geom,

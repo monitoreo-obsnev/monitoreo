@@ -31,11 +31,12 @@ WORLDCOVER = 'ESA/WorldCover/v200'
 WDPA = 'WCMC/WDPA/current/polygons'
 ECOREGIONS = 'RESOLVE/ECOREGIONS/2017'
 TRENDS = ('trend_table', 'trend_map', 'download_trend')
+RGB = ('rgb_map', 'download_rgb')  # the true colour of the images of a variable: its data, not its formula (see cite)
 # tools that compute in Earth Engine (the others only read the catalog or publish)
 EARTH_ENGINE = TRENDS + ('time_series', 'time_series_to_drive', 'export_time_series_to_drive', 'map_layer',
                          'region_stats', 'thumbnail', 'composite_image', 'export_image', 'export_image_to_drive',
                          'download_image', 'download_variables', 'compare_series', 'compare_map', 'download_comparison',
-                         'burn_severity', 'find_protected_areas')
+                         'burn_severity', 'find_protected_areas') + RGB
 
 
 def bibliography():
@@ -116,11 +117,14 @@ def _methods(name):
 	return list(catalog.load()['methods'].get(name, []))
 
 
-def of_variable(entry, quality=None, period=None):
+def of_variable(entry, quality=None, period=None, formula=True):
 	"""(reference IDs, credit lines) of a variable of the catalog (its entry): those of its formula or algorithm, of its
 	Earth Engine datasets in PERIOD and of its pixel filters with QUALITY (Landsat: the QA band of CFMask; Sentinel-2:
-	Cloud Score+ for the clouds, else the SCL of Sen2Cor, which also gives water and snow)."""
-	ids = list(entry.get('references', []))
+	Cloud Score+ for the clouds, else the SCL of Sen2Cor, which also gives water and snow). Without FORMULA (the true
+	colour of its images), not those of its formula, except for the algorithms that decide which pixels it keeps (the
+	snow cover frequency and the cloud frequency); see cite for the metrics max and min."""
+	keep = formula or sensors.is_scf(entry) or sensors.is_cf(entry)
+	ids = list(entry.get('references', [])) if keep else []
 	cols = datasets(entry['col'], period)
 	on = sensors.filters(entry, quality)
 	q = dict(sensors.QUALITY, **(quality or {}))
@@ -146,7 +150,7 @@ def _entry(variable, sensor=None, collection=None):
 		return None
 
 
-def of_spec(var, period=None):
+def of_spec(var, period=None, formula=True):
 	"""(reference IDs, credit lines) of a variable as given to the tools or in a recipe: {'index', 'sensor',
 	'collection', 'quality', 'exclude_landcover', 'where'} of the catalog, or {'collection' or 'image', ...} of other
 	data of Earth Engine (cited when they are in the datasets of the catalog); with the variables of the conditions of
@@ -155,7 +159,7 @@ def of_spec(var, period=None):
 	entry = _entry(var.get('index') or var.get('variable'), var.get('sensor'), var.get('collection')) \
 		if (var.get('index') or var.get('variable')) else None
 	if entry:
-		ids, credits = of_variable(entry, var.get('quality'), period)
+		ids, credits = of_variable(entry, var.get('quality'), period, formula)
 	else:
 		asset = var.get('collection') or var.get('image')
 		if asset:
@@ -190,6 +194,18 @@ def _region(region):
 	return cols
 
 
+def _picks(args):
+	"""Whether the variable of a true colour chooses the image of each pixel (its metric, or its metric between
+	years, max or min: the colours of the image where the variable is highest or lowest), so that its formula is
+	cited."""
+	from .composite import MOSAICS
+
+	def low(k):
+		return str(args.get(k) or '').strip().lower()
+
+	return low('metric') in MOSAICS or ((args.get('temporal') or 'period') != 'period' and low('interannual') in MOSAICS)
+
+
 def cite(tool, args=None, date=None, datasets=()):
 	"""What to cite with the result of the call of TOOL (a function of monitoreo.services or a tool of the MCP server)
 	with ARGS: {'references': [{'id', 'citation', 'doi', 'url', 'text'}], 'credits': [lines]}, the references in the
@@ -222,7 +238,7 @@ def cite(tool, args=None, date=None, datasets=()):
 		                         'quality': args.get('quality')}, period)
 		ids += more + _methods('rbr' if rbr else 'burn_severity')
 	elif args.get('variable') or args.get('index') or args.get('collection') or args.get('image'):
-		ids, credits = of_spec(args, period)
+		ids, credits = of_spec(args, period, formula=tool not in RGB or _picks(args))
 	if tool in TRENDS:
 		ids += _methods('trends')
 	if tool == 'find_protected_areas':

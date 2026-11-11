@@ -175,6 +175,12 @@ HELP = {
 		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '
 		'press <b>Show</b> to open its window again, with its chart (if it has one), its table and the buttons to save '
 		'them: <b>Save CSV…</b>, <b>Save chart…</b> and, for a burn severity, <b>Save GeoTIFF…</b>.</p>'
+		'<p>In the window of a time series, <b>Map of</b> and <b>Add to the map</b> add the map of its whole period or '
+		'of one of its dates, with its days in the Temporal Controller. If the images of the variable have a true '
+		'colour (Sentinel-2, Landsat and the cloud frequency of MODIS), <b>Layer</b> chooses the <b>Index</b>, its '
+		'<b>True colour (RGB)</b>, the red, green and blue reflectance of the same images and pixels, or <b>Both</b>, '
+		'the true colour under the index. The true colours of a series are stretched as its first one, so that its '
+		'dates can be compared.</p>'
 		'<p>The list is lost when QGIS is closed: save what you want to keep.</p>'
 		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'trend_step':
@@ -217,6 +223,20 @@ HELP = {
 		'<p>Only with <b>Each year, then between years</b> or <b>Each month, then between years</b>: how the values of '
 		'the different years are combined. With <b>Whole period</b> it is not used.</p>'
 		+ manual('Concepts#maps-aggregation-over-time'),
+	'map_kind':
+		'<p>What <b>Add the layer to the map</b> adds:</p><ul>'
+		'<li><b>Index</b>: the map of the variable, with its values.</li>'
+		'<li><b>True colour (RGB)</b>: the red, green and blue surface reflectance of the same images (sensor, period, '
+		'season and pixel filters) and of the same pixels as the index (also those of <b>Only the pixels where</b>), '
+		'with the same <b>Metric</b>, <b>Temporal aggregation</b> and <b>Metric between years</b>: a GeoTIFF with the '
+		'bands red, green and blue, the three stretched together between their percentiles 2 and 98, so that the '
+		'colours keep their balance. With <b>Minimum</b> and <b>Maximum</b>, the colours of the image where the '
+		'variable is lowest or highest on each pixel.</li>'
+		'<li><b>Both</b>: the true colour and, on top of it, the index, on the same pixels.</li></ul>'
+		'<p>Only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have a true colour: not the '
+		'fixed layers, the climate, the other products of MODIS (their NDVI and EVI have no green band) nor the '
+		'difference of <b>Compare with</b>.</p>'
+		+ manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '

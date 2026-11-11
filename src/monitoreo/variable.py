@@ -296,22 +296,51 @@ def _from_collection(spec, region, res):
 	return ee.ImageCollection(spec['collection']).filterBounds(region).filterDate(start, end).map(prep)
 
 
-def collection(spec, region, res):
+def check_rgb(spec):
+	"""Raise ValueError, without Earth Engine, if SPEC has no true colour (see sensors.RGB): other sources than the
+	catalog, fixed layers, variables whose images have no red, green and blue bands, and the metrics that do not give
+	colours (see composite.check_rgb_metric)."""
+	if kind(spec) != 'catalog':
+		raise ValueError('only the variables of the catalog of MonitorEO have a true colour (of Sentinel-2, Landsat '
+		                 'and the cloud frequency of MODIS)')
+	e = entry_of(spec)
+	if e.get('static'):
+		raise ValueError(f"{e['index']} ({e['sensor']}) is a fixed layer, without dates: it has no images, nor true "
+		                 'colour')
+	if sensors.rgb_of(e) is None:
+		raise sensors._no_rgb(e)
+	composite.check_rgb_metric(spec['metric'])
+	if spec.get('temporal', 'period') != 'period':
+		composite.check_rgb_metric(spec['interannual'])
+
+
+def collection(spec, region, res, rgb=False):
 	"""Collection of single band images ('value') of a spec of kind 'catalog' or 'collection', before the temporal
-	aggregation."""
+	aggregation (with RGB, also the bands red, green and blue of their true colour: see sensors.collection)."""
+	if rgb:
+		check_rgb(spec)
 	if kind(spec) == 'collection':
 		col = _from_collection(spec, region, res)
 	else:
 		check_dates(spec)
 		entry = entry_of(spec)
 		start, end = _span(spec)
-		col = sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])))
+		col = sensors.collection(entry, region, start, end, spec['quality'], _resample(spec, res, float(entry['m'])),
+		                         rgb)
 	m = mask(spec, region, res)  # the pixels of the study area to keep, in every image (n_pixels and count too)
 	return col if m is None else col.map(lambda i: ee.Image(i).updateMask(m))
 
 
-def image(spec, region, res):
-	"""Image ('value') of the variable SPEC over REGION (ee.Geometry) for output pixels of RES metres."""
+def image(spec, region, res, rgb=False):
+	"""Image ('value') of the variable SPEC over REGION (ee.Geometry) for output pixels of RES metres; with RGB, the
+	true colour of its images instead (bands red, green and blue: surface reflectance), on the same pixels and with the
+	same metric (see composite)."""
+	if rgb:
+		check_rgb(spec)
+		col = collection(spec, region, res, rgb=True)
+		bands = ['value'] + sensors.RGB_BANDS
+		return composite.composite(col, spec['metric'], spec['temporal'], spec['interannual'], spec['period'],
+		                           spec['season'], bands).select(sensors.RGB_BANDS)
 	if kind(spec) == 'image':
 		img = _fixed(spec, res)
 	elif is_static(spec):
@@ -332,9 +361,9 @@ def n_images(spec, region):
 	return col.filter(composite.date_filter(wins)).size().getInfo()
 
 
-def describe(spec):
+def describe(spec, rgb=False):
 	"""What SPEC computes, for the record of the downloaded files: its source and, if given, its period, season and
-	temporal metric and aggregation."""
+	temporal metric and aggregation; with RGB, of its true colour (see image)."""
 	k = kind(spec)
 	d = {'kind': k}
 	fixed = k == 'image' or is_static(spec)  # no period, season or temporal metric: they do not apply
@@ -354,4 +383,9 @@ def describe(spec):
 			d['note'] = e['notes']['ft']
 	if spec.get('where'):
 		d['where'] = spec['where']  # the pixels of the study area kept
+	if rgb:
+		bands, scale, offset = sensors.rgb_of(entry_of(spec))
+		d['true_colour'] = {'bands': dict(zip(sensors.RGB_BANDS, bands)), 'scale': scale, 'offset': offset,
+		                    'pixels': 'those of the variable', 'unit': 'surface reflectance', 'udunits': '1'}
+		d['unit'], d['udunits'] = catalog.RGB_UNIT, '1'
 	return d

@@ -8,6 +8,11 @@
 Run it after changing catalog.json, about.py, core.js or ui.js (Earth Engine is needed for the band names):
 
   python gee/build.py --project my-ee-project
+
+After changing only core.js or ui.js, monitoreo_app.js can be written from the catalog.js there is, without Earth
+Engine:
+
+  python gee/build.py --app-only
 """
 
 import argparse
@@ -55,17 +60,8 @@ def about_texts():
 	        'logos': [logo(p, w) for p, w in zip(about.LOGOS, LOGO_WIDTHS)]}
 
 
-def main():
-	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
-	args = parser.parse_args()
-	services.init(args.project)
-	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
-	        'themes': catalog.THEMES}
-	text = json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True)
-	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:
-		f.write('// Written by build.py from src/monitoreo (catalog.json, catalog.py, about.py): do not edit.\n')
-		f.write(f'var CATALOG = {text};\n')
+def app():
+	"""Write monitoreo_app.js: catalog.js, core.js and ui.js in a single script."""
 	parts = []
 	for name in ('catalog.js', 'core.js', 'ui.js'):
 		with open(os.path.join(HERE, name), encoding='utf-8') as f:
@@ -78,6 +74,26 @@ def main():
 		f.write('// MonitorEO for the Earth Engine Code Editor and Earth Engine Apps. Written by gee/build.py from\n'
 		        '// catalog.js, core.js and ui.js of https://github.com/monitoreo-obsnev/monitoreo: do not edit.\n\n')
 		f.write(text)
+
+
+def main():
+	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
+	parser.add_argument('--app-only', action='store_true',
+	                    help='only write monitoreo_app.js, from the catalog.js there is (without Earth Engine)')
+	args = parser.parse_args()
+	if args.app_only:
+		app()
+		print('wrote monitoreo_app.js (catalog.js as it was)')
+		return
+	services.init(args.project)
+	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
+	        'themes': catalog.THEMES}
+	text = json.dumps(data, ensure_ascii=False, indent=1, sort_keys=True)
+	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:
+		f.write('// Written by build.py from src/monitoreo (catalog.json, catalog.py, about.py): do not edit.\n')
+		f.write(f'var CATALOG = {text};\n')
+	app()
 	print(f"{len(data['variables'])} variables; wrote catalog.js and monitoreo_app.js")
 
 

@@ -3787,6 +3787,11 @@ var MonitorEO = (function () {
 
 	var TEMPORAL = ['period', 'annual', 'monthly', '16-day'];
 	var METRICS = 'mean, median, mode, min, max, sum, std, count or pN (percentile N, e.g. p95, p2.5)';
+	// composite.RGB_METRICS: the metrics of the true colour (RGB) of the images of a variable: each band with the
+	// metric (mean, median or pN), or, with max and min, the bands of the image where the variable is highest or lowest
+	// on each pixel (composite.MOSAICS: Earth Engine qualityMosaic), so that the colours are those of one date
+	var RGB_METRICS = 'mean, median, min, max or pN';
+	var MOSAICS = ['max', 'min'];
 
 	// composite.reducer
 	function reducer(metric) {
@@ -3797,6 +3802,24 @@ var MonitorEO = (function () {
 		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
 		if (p && Number(p[1]) <= 100) return ee.Reducer.percentile([Number(p[1])]);
 		throw new Error('unknown metric ' + metric + ': use ' + METRICS);
+	}
+
+	// composite.check_metric: error if METRIC is not valid (without Earth Engine)
+	function checkMetric(metric) {
+		var m = String(metric).trim().toLowerCase();
+		if (['mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'count'].indexOf(m) >= 0) return;
+		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
+		if (!(p && Number(p[1]) <= 100)) throw new Error('unknown metric ' + metric + ': use ' + METRICS);
+	}
+
+	// composite.check_rgb_metric: error if METRIC does not give the true colour of the images (see RGB_METRICS)
+	function checkRgbMetric(metric) {
+		checkMetric(metric);
+		var m = String(metric).trim().toLowerCase();
+		if (['mean', 'median', 'min', 'max'].indexOf(m) < 0 && m.charAt(0) !== 'p') {
+			throw new Error('the true colour of the images takes the metrics ' + RGB_METRICS + ', not ' + metric +
+				': the ' + m + ' of the red, green and blue bands is not a colour');
+		}
 	}
 
 	// composite._md: date of MM-DD in YEAR (29 February is the 28th in common years)
@@ -3841,10 +3864,25 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// composite._reduce: single band image 'value' of COL reduced with RED, all masked if COL is empty
-	function reduce(col, red) {
-		var empty = ee.Image.constant(0).toFloat().rename('value').updateMask(0);
-		return ee.Image(ee.Algorithms.If(col.size().gt(0), col.reduce(red).rename('value'), empty));
+	// composite._reduce: image of COL reduced with RED, with the bands BANDS (one, 'value', by default), all masked if
+	// COL is empty. With MOSAIC ('max' or 'min'), the bands of the image where the first band is highest or lowest on
+	// each pixel instead (the true colour of the date of the maximum or minimum of the variable)
+	function reduce(col, red, bands, mosaic) {
+		bands = bands || ['value'];
+		var empty = ee.Image.constant(bands.length > 1 ? bands.map(function () { return 0; }) : 0).toFloat()
+			.rename(bands).updateMask(0);
+		var out;
+		if (mosaic === 'max') {
+			out = col.qualityMosaic(bands[0]).select(bands);
+		} else if (mosaic === 'min') {
+			var low = col.map(function (i) {
+				return ee.Image(i).addBands(ee.Image(i).select(bands[0]).multiply(-1).rename('_low'));
+			});
+			out = low.qualityMosaic('_low').select(bands);
+		} else {
+			out = col.reduce(red).rename(bands);
+		}
+		return ee.Image(ee.Algorithms.If(col.size().gt(0), out, empty));
 	}
 
 	// composite.date_filter
@@ -3855,17 +3893,26 @@ var MonitorEO = (function () {
 		return filters.length === 1 ? filters[0] : ee.Filter.or.apply(null, filters);
 	}
 
-	// composite.composite
-	function composite(col, metric, temporal, interannual, period, season) {
+	// composite._mosaic: the mosaic of METRIC for an image with BANDS (see reduce): only for the true colour, whose
+	// first band is the variable
+	function mosaic(metric, bands) {
+		var m = String(metric).trim().toLowerCase();
+		return bands.length > 1 && MOSAICS.indexOf(m) >= 0 ? m : null;
+	}
+
+	// composite.composite: one image of the collection COL of images of PERIOD, with one band, 'value', or with BANDS,
+	// the variable ('value') and its true colour (red, green, blue)
+	function composite(col, metric, temporal, interannual, period, season, bands) {
+		bands = bands || ['value'];
 		var wins = windows(period, season);
-		var red = reducer(metric);
-		if (temporal === 'period') return reduce(col.filter(dateFilter(wins)), red);
-		var red2 = reducer(interannual);
+		var red = reducer(metric), mos = mosaic(metric, bands);
+		if (temporal === 'period') return reduce(col.filter(dateFilter(wins)), red, bands, mos);
+		var red2 = reducer(interannual), mos2 = mosaic(interannual, bands);
 		if (temporal === 'annual') {
 			var years = wins.map(function (w) {
-				return reduce(col.filterDate(iso(w[1]), iso(w[2])), red);
+				return reduce(col.filterDate(iso(w[1]), iso(w[2])), red, bands, mos);
 			});
-			return reduce(ee.ImageCollection.fromImages(years), red2);
+			return reduce(ee.ImageCollection.fromImages(years), red2, bands, mos2);
 		}
 		if (temporal !== 'monthly' && temporal !== '16-day') {
 			throw new Error('unknown temporal aggregation ' + temporal + ': use ' + TEMPORAL.join(', '));
@@ -3873,13 +3920,13 @@ var MonitorEO = (function () {
 		var parts = {};
 		wins.forEach(function (w) {
 			bins(w, temporal).forEach(function (b) {
-				(parts[b[0]] = parts[b[0]] || []).push(reduce(col.filterDate(iso(b[1]), iso(b[2])), red));
+				(parts[b[0]] = parts[b[0]] || []).push(reduce(col.filterDate(iso(b[1]), iso(b[2])), red, bands, mos));
 			});
 		});
 		var months = Object.keys(parts).map(Number).sort(function (a, b) { return a - b; }).map(function (m) {
-			return reduce(ee.ImageCollection.fromImages(parts[m]), red2);
+			return reduce(ee.ImageCollection.fromImages(parts[m]), red2, bands, mos2);
 		});
-		return reduce(ee.ImageCollection.fromImages(months), ee.Reducer.mean());
+		return reduce(ee.ImageCollection.fromImages(months), ee.Reducer.mean(), bands);
 	}
 
 	// Sensors: quality masks, scale and offset, formula (sensors.py) ------------------------------------------------
@@ -3895,7 +3942,19 @@ var MonitorEO = (function () {
 		['LANDSAT/LC09/C02/T1_L2', LANDSAT_89, null]
 	];
 	var CLOUD_SCORE = 'GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED';
-	var SCENE_CLOUDS = {'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
+	// sensors.RGB: the true colour (RGB) of the images of a variable, the red, green and blue surface reflectance bands
+	// of each sensor with their scale and offset (reflectance = raw value x scale + offset). Sentinel-2 L2A: B4, B3, B2;
+	// Landsat Collection 2 Level-2: those named red, green and blue by rawCollection; MODIS daily surface reflectance
+	// (MOD09GA, MYD09GA, those of the cloud frequency): sur_refl_b01, b04, b03. The other MODIS products, the climate
+	// and the fixed layers have no true colour
+	var RGB = {
+		'Sentinel-2': [['B4', 'B3', 'B2'], 0.0001, 0.0],
+		'Landsat': [['red', 'green', 'blue'], 2.75e-05, -0.2],
+		'MODIS/061/MOD09GA': [['sur_refl_b01', 'sur_refl_b04', 'sur_refl_b03'], 0.0001, 0.0],
+		'MODIS/061/MYD09GA': [['sur_refl_b01', 'sur_refl_b04', 'sur_refl_b03'], 0.0001, 0.0]
+	};
+	var RGB_BANDS = ['red', 'green', 'blue'];  // sensors.RGB_BANDS: the bands of the true colour, in this order
+	var SCENE_CLOUDS ={'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
 	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF'], aerosols: ['ARSL']};
@@ -3933,6 +3992,29 @@ var MonitorEO = (function () {
 	// sensors.is_scf
 	function isScf(entry) {
 		return entry.fk === 'scf';
+	}
+
+	// sensors.rgb_of: [bands, scale, offset] of the true colour of the images of ENTRY (see RGB), or null if they have
+	// none (fixed layers, climate, most MODIS products) or the variable compares two periods (RBR: see burnRatio)
+	function rgbOf(entry) {
+		if (!entry || entry.static || entry.two_periods) return null;
+		return RGB[entry.sensor] || RGB[entry.col] || null;
+	}
+
+	// sensors._with_rgb: VALUE (the image 'value' of the variable of the image IMG) with the true colour of IMG, the
+	// bands red, green and blue (surface reflectance), only on the pixels where VALUE has data, so that they are the
+	// same pixels as those of the variable (its pixel filters, its own masks and its formula). Without the RESAMPLE of
+	// Python (pixels finer than those of the data), which sensorCollection does not port either
+	function withRgb(img, value, entry) {
+		var rgb = rgbOf(entry);
+		var bands = ee.Image(img).select(rgb[0]).multiply(rgb[1]).add(rgb[2]);
+		return value.addBands(bands.toFloat().rename(RGB_BANDS).updateMask(value.mask()));
+	}
+
+	// sensors._no_rgb
+	function noRgb(entry) {
+		return new Error(entry.index + ' (' + entry.sensor + ') has no true colour: only the variables of Sentinel-2 and ' +
+			'Landsat and the cloud frequency of MODIS (MOD09GA, MYD09GA) have images with red, green and blue bands');
 	}
 
 	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
@@ -4112,11 +4194,13 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// sensors.collection: single band images ('value', float) of the variable of ENTRY between START and END (excluded)
-	function sensorCollection(entry, region, start, end, quality) {
+	// sensors.collection: single band images ('value', float) of the variable of ENTRY between START and END (excluded);
+	// with RGB, each image also has the bands red, green and blue of its true colour on the same pixels (see withRgb)
+	function sensorCollection(entry, region, start, end, quality, rgb) {
+		if (rgb && !rgbOf(entry)) throw noRgb(entry);
 		quality = withQuality(quality);
-		if (isScf(entry)) return scfCollection(entry, region, start, end, quality);
-		if (isCf(entry)) return cfCollection(entry, region, start, end, quality);
+		if (isScf(entry)) return scfCollection(entry, region, start, end, quality, rgb);
+		if (isCf(entry)) return cfCollection(entry, region, start, end, quality, rgb);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
@@ -4133,13 +4217,16 @@ var MonitorEO = (function () {
 				for (var name in entry.fb) names[name] = data.select(entry.fb[name]);
 				out = data.expression(entry.ft, names);
 			}
-			return out.toFloat().rename('value').copyProperties(img, ['system:time_start']);
+			out = out.toFloat().rename('value');
+			if (rgb) out = withRgb(img, out, entry);
+			return out.copyProperties(img, ['system:time_start']);
 		});
 	}
 
 	// sensors.cf_collection: the clouds of the cloud frequency, 100 where the cloud flags of an image say cloud, 0
-	// where they say clear, masked where it has no data
-	function cfCollection(entry, region, start, end, quality) {
+	// where they say clear, masked where it has no data (with RGB, also the true colour of each image on those pixels:
+	// no pixel filters, the clouds are in it)
+	function cfCollection(entry, region, start, end, quality, rgb) {
 		var col, compute;
 		if (entry.sensor === 'Sentinel-2') {
 			col = ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end)
@@ -4160,12 +4247,15 @@ var MonitorEO = (function () {
 		}
 		return col.map(function (img) {
 			img = ee.Image(img);
-			return compute(img).toFloat().rename('value').copyProperties(img, ['system:time_start']);
+			var out = compute(img).toFloat().rename('value');
+			if (rgb) out = withRgb(img, out, entry);
+			return out.copyProperties(img, ['system:time_start']);
 		});
 	}
 
-	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none
-	function scfCollection(entry, region, start, end, quality) {
+	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none (with
+	// RGB, also its true colour on those pixels)
+	function scfCollection(entry, region, start, end, quality, rgb) {
 		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var dem = ee.Image(SCF.dem);
@@ -4188,7 +4278,9 @@ var MonitorEO = (function () {
 			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
 			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
 			var valid = validSun.unmask(0).or(validShade.unmask(0));
-			return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start']);
+			var out = snow.multiply(100).updateMask(valid).toFloat().rename('value');
+			if (rgb) out = withRgb(img, out, entry);
+			return out.copyProperties(img, ['system:time_start']);
 		});
 	}
 
@@ -4297,18 +4389,41 @@ var MonitorEO = (function () {
 		return out.selfMask();
 	}
 
+	// variable.check_rgb: error, without Earth Engine, if S has no true colour (see RGB): fixed layers, variables whose
+	// images have no red, green and blue bands, and the metrics that do not give colours (see checkRgbMetric). The
+	// specs of the app are all of the catalog
+	function checkRgb(s) {
+		var e = entryOf(s);
+		if (e.static) {
+			throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has no images, nor true ' +
+				'colour');
+		}
+		if (!rgbOf(e)) throw noRgb(e);
+		checkRgbMetric(s.metric);
+		if ((s.temporal || 'period') !== 'period') checkRgbMetric(s.interannual);
+	}
+
 	// variable.collection: with the mask of the conditions of S (where) in every image, so the number of pixels and
-	// of images of each value count only the pixels kept
-	function collection(s, region, res) {
+	// of images of each value count only the pixels kept (with RGB, also the bands red, green and blue of their true
+	// colour: see sensorCollection)
+	function collection(s, region, res, rgb) {
+		if (rgb) checkRgb(s);
 		checkDates(s);
 		var sp = span(s);
-		var col = sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality);
+		var col = sensorCollection(entryOf(s), region, sp[0], sp[1], s.quality, rgb);
 		var m = whereMask(s, region, res);
 		return m ? col.map(function (i) { return ee.Image(i).updateMask(m); }) : col;
 	}
 
-	// variable.image, for output pixels of RES metres (by default those of the data)
-	function image(s, region, res) {
+	// variable.image, for output pixels of RES metres (by default those of the data); with RGB, the true colour of its
+	// images instead (bands red, green and blue: surface reflectance), on the same pixels and with the same metric
+	function image(s, region, res, rgb) {
+		if (rgb) {
+			checkRgb(s);
+			var col = collection(s, region, res, true);
+			return composite(col, s.metric, s.temporal, s.interannual, s.period, s.season, ['value'].concat(RGB_BANDS))
+				.select(RGB_BANDS);
+		}
 		if (isStatic(s)) {
 			var img = staticImage(entryOf(s), res);
 			var m = whereMask(s, region, res);
@@ -4958,6 +5073,37 @@ var MonitorEO = (function () {
 		return {min: lo, max: hi, palette: ramp(entry, palette)};
 	}
 
+	// maps.RGB_STRETCH: percentiles of the reflectance of the true colour between which it is stretched; maps.RGB_RANGE:
+	// the reflectance of the true colour when they cannot be computed
+	var RGB_STRETCH = [2, 98];
+	var RGB_RANGE = [0.0, 0.3];
+
+	// The percentiles 2 and 98 of the bands red, green and blue of a true colour image over REGION (maps.rgb_vis), to
+	// evaluate: then rgbVis
+	function rgbPercentiles(img, region, scale) {
+		return ee.Image(img).select(RGB_BANDS).reduceRegion({reducer: ee.Reducer.percentile(RGB_STRETCH), geometry: region,
+			scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	}
+
+	// maps.rgb_vis from the evaluated percentiles STATS (or VMIN and VMAX): the three bands stretched together between
+	// the lowest percentile 2 and the highest percentile 98 of the bands (one range for the three, so that the colours
+	// keep their balance); RGB_RANGE without them. {bands, min, max}
+	function rgbVis(stats, vmin, vmax) {
+		if (vmin === null || vmin === undefined || vmax === null || vmax === undefined) {
+			var lows = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[0]] : null; });
+			var highs = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[1]] : null; });
+			var lo = RGB_RANGE[0], hi = RGB_RANGE[1];
+			if (!lows.concat(highs).some(function (v) { return v === null || v === undefined; })) {
+				lo = Math.min.apply(null, lows);
+				hi = Math.max.apply(null, highs);
+			}
+			vmin = vmin === null || vmin === undefined ? lo : vmin;
+			vmax = vmax === null || vmax === undefined ? hi : vmax;
+		}
+		if (vmax <= vmin) vmax = vmin + 1e-6;
+		return {bands: RGB_BANDS.slice(), min: Number(vmin), max: Number(vmax)};
+	}
+
 	return {
 		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
 		iso: iso, date: date, windows: windows, bins: bins, reducer: reducer, composite: composite, TEMPORAL: TEMPORAL,
@@ -4976,7 +5122,10 @@ var MonitorEO = (function () {
 		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
-		ramp: ramp, percentiles: percentiles, visParams: visParams
+		ramp: ramp, percentiles: percentiles, visParams: visParams,
+		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
+		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
+		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
 	};
 })();
 
@@ -5032,6 +5181,20 @@ var MonitorEO = (function () {
 			t_annual: 'Cada a\u00f1o y entre a\u00f1os', t_monthly: 'Cada mes y entre a\u00f1os', 't_16-day': 'Cada 16 d\u00edas y entre a\u00f1os',
 			interannual: 'M\u00e9trica entre a\u00f1os', addMap: 'A\u00f1adir al mapa', download: 'Descargar GeoTIFF',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
+			layer: 'Capa', l_index: '\u00cdndice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
+			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas im\u00e1genes y p\u00edxeles que la ' +
+				'variable, con la misma m\u00e9trica (m\u00ednimo y m\u00e1ximo: los colores de la fecha en que la variable es m\u00e1s baja o ' +
+				'm\u00e1s alta). Ambas: el \u00edndice sobre el color verdadero.',
+			rgbStatic: 'Sin color verdadero: una capa fija, sin fechas, no tiene im\u00e1genes.',
+			rgbNone: 'Sin color verdadero: solo las variables de Sentinel-2 y Landsat y la frecuencia de nubes de MODIS ' +
+				'tienen im\u00e1genes con bandas roja, verde y azul.',
+			rgbCompare: 'Sin color verdadero al comparar dos periodos: el mapa es su diferencia.',
+			rgbMetric: 'Sin color verdadero con esta m\u00e9trica: solo con la media, la mediana, el m\u00ednimo, el m\u00e1ximo o un ' +
+				'percentil (tambi\u00e9n entre a\u00f1os).',
+			rgbLegend: 'Color verdadero (rojo, verde, azul): reflectancia de %s a %s',
+			rgbRangeNote: 'Color verdadero con la reflectancia de 0 a 0,3: Earth Engine no pudo calcular los percentiles ' +
+				'2 y 98 de la regi\u00f3n.',
+			downloadRgb: 'Descargar GeoTIFF del color verdadero (bandas red, green, blue)',
 			series: 'Serie temporal', step: 'Paso', s_daily: 'Diario (d\u00edas con im\u00e1genes)', 's_16-day': '16 d\u00edas',
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'M\u00e9trica de cada paso', stat: 'Estad\u00edstico de la regi\u00f3n',
 			computeSeries: 'Calcular la serie temporal',
@@ -5096,6 +5259,20 @@ var MonitorEO = (function () {
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
+			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
+			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
+				'with the same metric (minimum and maximum: the colours of the date when the variable is lowest or ' +
+				'highest). Both: the index on top of the true colour.',
+			rgbStatic: 'No true colour: a fixed layer, without dates, has no images.',
+			rgbNone: 'No true colour: only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have ' +
+				'images with red, green and blue bands.',
+			rgbCompare: 'No true colour when comparing two periods: the map is their difference.',
+			rgbMetric: 'No true colour with this metric: only with the mean, median, minimum, maximum or a percentile ' +
+				'(also between years).',
+			rgbLegend: 'True colour (red, green, blue): reflectance from %s to %s',
+			rgbRangeNote: 'True colour with the reflectance from 0 to 0.3: Earth Engine could not compute the ' +
+				'percentiles 2 and 98 of the region.',
+			downloadRgb: 'Download GeoTIFF of the true colour (bands red, green, blue)',
 			series: 'Time series', step: 'Step', s_daily: 'Daily (days with images)', 's_16-day': '16 days',
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
 			computeSeries: 'Compute the time series',
@@ -5144,7 +5321,7 @@ var MonitorEO = (function () {
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
-		mapMetric: 'median', temporal: 'period', interannual: 'mean',
+		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
@@ -5256,6 +5433,27 @@ var MonitorEO = (function () {
 			dimensions: '200x12', format: 'png', min: 0, max: 1, palette: vis.palette}, style: {margin: '0'}}));
 		legend.add(row(ui.Label(num(vis.min), {fontSize: '11px', margin: '0'}),
 			ui.Label(num(vis.max), {fontSize: '11px', margin: '0 0 0 150px'})));
+		legend.style().set('shown', true);
+	}
+
+	// The range of the true colour VIS ({bands, min, max}) in words, its reflectance with 3 decimals: it has no colour
+	// bar
+	function rgbCaption(vis) {
+		function reflectance(x) {
+			var s = String(Math.round(x * 1000) / 1000);
+			return state.lang === 'es' ? s.replace('.', ',') : s;
+		}
+		return fmt(t('rgbLegend'), reflectance(vis.min), reflectance(vis.max));
+	}
+
+	// The legend of the true colour VIS: TITLE and its range, or only its range below the colour bar of the index of
+	// the same map (BELOW: the layer Both)
+	function rgbLegend(vis, title, below) {
+		if (!below) {
+			legend.clear();
+			legend.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
+		}
+		legend.add(ui.Label(rgbCaption(vis), {fontSize: '11px', margin: below ? '4px 0 0 0' : '0'}));
 		legend.style().set('shown', true);
 	}
 
@@ -5675,10 +5873,13 @@ var MonitorEO = (function () {
 	}
 
 	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
-	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image)
-	function downloadWidget(img, e, bands, name) {
+	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image). LABEL: that of the
+	// button (default: Download GeoTIFF); SUFFIX: the end of the name of the file (the true colour: '_RGB', as
+	// services.download_rgb)
+	function downloadWidget(img, e, bands, name, label, suffix) {
 		var panel = ui.Panel();
-		panel.add(button(t('download'), function () {
+		suffix = suffix || '';
+		panel.add(button(label || t('download'), function () {
 			var native = Number(e.m);
 			var pixels = state.info.boundsArea / (native * native);
 			var maxPixels = LIMITS.downloadBytes / (4 * bands.length);
@@ -5686,7 +5887,8 @@ var MonitorEO = (function () {
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
 			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
-				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90), region: state.region.geometry().bounds(1000),
+				name: name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix,
+				region: state.region.geometry().bounds(1000),
 				scale: scale, crs: state.info.crs, format: 'GEO_TIFF', filePerBand: false
 			}, function (url, error) {
 				panel.clear();
@@ -5724,6 +5926,29 @@ var MonitorEO = (function () {
 
 	// Map -----------------------------------------------------------------------------------------------------------
 
+	// Why the map of the variable cannot have the true colour of its images (a key of T), or null if it can: a fixed
+	// layer, a variable whose images have no red, green and blue bands (mo.rgbOf), a comparison of two periods (the map
+	// is their difference) and the metrics that give no colours (sum, std, count, mode: mo.checkRgbMetric)
+	function noRgbReason() {
+		var e = entry();
+		if (e.static) return 'rgbStatic';
+		if (!mo.rgbOf(e)) return 'rgbNone';
+		if (state.compareOn) return 'rgbCompare';
+		try {
+			mo.checkRgbMetric(state.mapMetric);
+			if (state.temporal !== 'period') mo.checkRgbMetric(state.interannual);
+		} catch (err) {
+			return 'rgbMetric';
+		}
+		return null;
+	}
+
+	// The layer of the map chosen: 'index', 'rgb' (the true colour of its images) or 'both' (the true colour, and the
+	// index on top of it); the index when there is no true colour (noRgbReason)
+	function mapLayer() {
+		return noRgbReason() ? 'index' : state.mapLayer;
+	}
+
 	function addMap() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -5731,6 +5956,7 @@ var MonitorEO = (function () {
 		s.temporal = state.temporal;
 		s.interannual = state.interannual;
 		var geom = state.region.geometry();
+		var layer = mapLayer();
 		var img, name;
 		if (e.static) {  // a fixed layer without dates (elevation, slope): no metric, period nor comparison
 			var region = state.region;
@@ -5746,32 +5972,67 @@ var MonitorEO = (function () {
 			img = mo.image(s, geom).clipToCollection(state.region);
 			name = title(e, [metricName(state.mapMetric), s.period.join('/')]);
 		}
+		// the true colour of the same images and pixels, with the same metric (services.rgb_map)
+		var rgb = layer === 'index' ? null : mo.image(s, geom, null, true).clipToCollection(state.region);
+		var rgbName = name + ' \u00b7 ' + t('l_rgb');
 		var id = start();
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
-		mo.percentiles(band, geom, rangeScale(e)).evaluate(function (stats, error) {
+		var scale = rangeScale(e);
+		// the range of each layer in a request of its own (one that fails does not take the other with it), drawn when
+		// both have come
+		var st = {}, failed = {}, pending = 0;
+		function got(what) {
+			return function (value, error) {
+				st[what] = value;
+				failed[what] = Boolean(error);
+				if (--pending === 0) draw();
+			};
+		}
+		if (layer !== 'rgb') pending++;
+		if (rgb) pending++;
+		if (layer !== 'rgb') mo.percentiles(band, geom, scale).evaluate(got('index'));
+		if (rgb) mo.rgbPercentiles(rgb, geom, scale).evaluate(got('rgb'));
+
+		function draw() {
 			if (id !== run) return;
-			var vis;
-			if (error) {  // the range of the catalog
-				var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-				vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
-			} else {
-				vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+			var widgets = [];
+			var rvis = rgb ? mo.rgbVis(failed.rgb ? null : st.rgb) : null;  // 0 to 0.3 if they cannot be computed
+			if (rgb) map.addLayer(rgb, rvis, rgbName);  // first, under the index (Both)
+			if (layer !== 'rgb') {
+				var stats = failed.index ? null : st.index;
+				var vis;
+				if (failed.index) {  // the range of the catalog
+					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
+					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+				} else {
+					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+				}
+				map.addLayer(band, vis, name);
+				var unit = mo.unitOf(e, state.mapMetric);
+				colourBar(vis, name + (unit ? ' ' + unit : ''));
+				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
+				if (failed.index) widgets.push(ui.Label(t('rangeNote'), SMALL));
+				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
 			}
-			map.addLayer(band, vis, name);
-			var unit = mo.unitOf(e, state.mapMetric);
-			colourBar(vis, name + (unit ? ' ' + unit : ''));
-			var widgets = [ui.Label(name, {fontWeight: 'bold'})];
-			if (error) widgets.push(ui.Label(t('rangeNote'), SMALL));
-			widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
+			if (rgb) {
+				rgbLegend(rvis, rgbName, layer === 'both');
+				widgets.push(ui.Label(rgbName, {fontWeight: 'bold'}));
+				widgets.push(ui.Label(rgbCaption(rvis), SMALL));
+				if (failed.rgb) widgets.push(ui.Label(t('rgbRangeNote'), SMALL));
+				widgets.push(downloadWidget(rgb, e, mo.RGB_BANDS, name, t('downloadRgb'), '_RGB'));
+			}
 			show(widgets);
-		});
+		}
 	}
 
 	function mapWidgets() {
 		var w = [header(t('map'))];
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
-		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) { state.mapMetric = v; })));
+		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) {
+			state.mapMetric = v;
+			render();  // the true colour takes only some metrics (the Layer)
+		})));
 		var temporal = mo.TEMPORAL.map(function (x) { return {value: x, label: t('t_' + x)}; });
 		var time = [row(ui.Label(t('temporal')), select(temporal, state.temporal, function (v) {
 			state.temporal = v;
@@ -5780,9 +6041,21 @@ var MonitorEO = (function () {
 		if (state.temporal !== 'period') {
 			time.push(row(ui.Label(t('interannual')), select(metrics, state.interannual, function (v) {
 				state.interannual = v;
+				render();
 			})));
 		}
 		w = w.concat(entry().static ? disable(time) : time);  // a fixed layer: no aggregation in time
+		// the index, the true colour of its images or both; greyed out, with the reason, when there is no true colour
+		var why = noRgbReason();
+		var layers = ['index', 'rgb', 'both'].map(function (x) { return {value: x, label: t('l_' + x)}; });
+		var layer = select(layers, mapLayer(), function (v) {
+			state.mapLayer = v;
+			render();
+		}, '190px');
+		layer.setDisabled(Boolean(why));
+		w.push(row(ui.Label(t('layer')), layer));
+		if (why) w.push(ui.Label(t(why), SMALL));
+		else if (state.mapLayer !== 'index') w.push(ui.Label(t('rgbNote'), SMALL));
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
 	}

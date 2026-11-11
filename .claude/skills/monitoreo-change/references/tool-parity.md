@@ -64,4 +64,5 @@ pixel queries. Decide with the developer, and write the decision in the PR.
 - R: `r/monitoreo/tests/testthat`, run with
   `RETICULATE_PYTHON=<python> PYTHONPATH=$PWD/src Rscript -e 'pkgload::load_all("r/monitoreo"); testthat::test_dir("r/monitoreo/tests/testthat")'`.
   The tests that compute in Earth Engine need `EE_PROJECT`.
-- QGIS: `qgis/test_plugin.py`, with the Python of QGIS. It computes in Earth Engine.
+- QGIS: `qgis/test_plugin.py`, with the Python of QGIS. It computes in Earth Engine. `qgis/test_rgb_offline.py` runs
+  the windows and layers of the plugin in QGIS (offscreen) with the services faked, without Earth Engine, in seconds.

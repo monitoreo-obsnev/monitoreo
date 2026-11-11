@@ -17,7 +17,8 @@ mo_image(
   quality = NULL,
   clip = TRUE,
   collection = NULL,
-  where = NULL
+  where = NULL,
+  rgb = FALSE
 )
 }
 \arguments{
@@ -58,16 +59,25 @@ own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+
+\item{rgb}{the true colour of the images instead of the variable (only the variables with \code{rgb} in
+\code{mo_variables()}).}
 }
 \value{
-A list (image, region, vis, name, references, credits).
+A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
+  (the range of reflectance of the three bands), without palette.
 }
 \description{
-The variable aggregated in time (band \code{"value"}), with its colour ramp: e.g.
+The variable aggregated in time (band \code{"value"}), with its colour ramp, or with \code{rgb = TRUE} the true
+colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
+and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
+between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
 \code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
 }
 \section{References}{
- The result carries its references (with DOI): those of the formula or algorithm of the variable,
+ The result carries its references (with DOI): those of the formula or algorithm of the variable
+  (with \code{rgb = TRUE}, as \code{mo_rgb_map()}: not those of the formula, except with the metric max or min and
+  for the snow cover frequency and the cloud frequency),
   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
@@ -78,6 +88,8 @@ The variable aggregated in time (band \code{"value"}), with its colour ramp: e.g
 \dontrun{
 mo_init()
 x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+rgb <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", rgb = TRUE)
+rgee::Map$addLayer(rgb$image, rgb$vis, rgb$name) + rgee::Map$addLayer(x$image, x$vis, x$name)
 }
 }
 \references{

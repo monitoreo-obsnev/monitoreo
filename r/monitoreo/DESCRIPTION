@@ -18,6 +18,6 @@ License: GPL (>= 3)
 Encoding: UTF-8
 Depends: R (>= 4.0)
 Imports: reticulate (>= 1.30), jsonlite, graphics
-Suggests: rgee, ggplot2, leaflet, sf, testthat (>= 3.0.0)
+Suggests: rgee, ggplot2, leaflet, sf, terra, testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.1.1

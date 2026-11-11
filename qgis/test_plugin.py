@@ -4,9 +4,9 @@
 
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
-areas, a map layer, two time series (map extent, and a layer with two polygons) with the maps of two of their dates,
-trends with their map, a comparison of periods and the burn severity of a fire (dNBR and RBR, only in the theme Fire),
-waiting for their QGIS tasks.
+areas, a map layer (and its true colour under it), two time series (map extent, and a layer with two polygons) with
+the maps of two of their dates (and the true colour of two others), trends with their map, a comparison of periods and
+the burn severity of a fire (dNBR and RBR, only in the theme Fire), waiting for their QGIS tasks.
 """
 
 import os
@@ -165,6 +165,48 @@ layers = list(QgsProject.instance().mapLayers().values())
 assert len(layers) == n_layers + 1, iface.messages
 print('map layer:', layers[-1].name(), '| valid:', layers[-1].isValid(), '| provider:', layers[-1].providerType())
 
+# the list Layer of the map: the true colour only for the variables whose images have it, without Compare with
+kind = dock.map_kind
+assert [kind.itemData(i) for i in range(kind.count())] == ['index', 'rgb', 'both'] and kind.isEnabled()
+selected, metric = dock.variable.currentIndex(), dock.map_metric.currentIndex()  # (the CF fixes the metric)
+for text, enabled in (('NDVI · Modis · 250 m · MOD13Q1', False), ('ELEVATION · Copernicus', False),
+                      ('PRECIP · ERA5-Land', False), ('CF · Modis · 1000 m · MOD09GA', True),
+                      ('NDVI · Landsat', True), ('NDVI · Sentinel-2', True)):
+	dock.variable.setCurrentIndex(dock.variable.findText(text, Qt.MatchFlag.MatchStartsWith))
+	assert dock.variable.currentText().startswith(text), text
+	assert kind.isEnabled() == enabled, (text, kind.toolTip())
+	assert enabled or (kind.currentData() == 'index' and 'true colour' in kind.toolTip()), (text, kind.toolTip())
+dock.variable.setCurrentIndex(selected)
+dock.map_metric.setCurrentIndex(metric)
+kind.setCurrentIndex(kind.findData('both'))
+dock.compare_on.setChecked(True)
+assert not kind.isEnabled() and kind.currentData() == 'index' and 'Compare with' in kind.toolTip()
+dock.compare_on.setChecked(False)
+assert kind.isEnabled()
+
+# the map and its true colour (Both): two layers, the true colour (red, green and blue stretched together) under the
+# map, on the same grid
+kind.setCurrentIndex(kind.findData('both'))
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait(dock)
+kind.setCurrentIndex(kind.findData('index'))
+tree = [n.layer() for n in QgsProject.instance().layerTreeRoot().findLayers()]
+new = [layer for layer in tree if layer.id() not in before]
+assert len(new) == 2, iface.messages[-3:]
+index_layer, rgb_layer = new  # the map on top
+assert index_layer.renderer().type() == 'singlebandpseudocolor' and index_layer.bandCount() == 1
+r = rgb_layer.renderer()
+assert rgb_layer.bandCount() == 3 and r.type() == 'multibandcolor', (rgb_layer.bandCount(), r.type())
+assert (r.redBand(), r.greenBand(), r.blueBand()) == (1, 2, 3)
+stretches = [(e.minimumValue(), e.maximumValue()) for e in (r.redContrastEnhancement(), r.greenContrastEnhancement(),
+                                                           r.blueContrastEnhancement())]
+assert len(set(stretches)) == 1 and stretches[0][0] < stretches[0][1], stretches  # one range for the three
+assert rgb_layer.name().endswith('true colour') and rgb_layer.extent() == index_layer.extent()
+assert (rgb_layer.width(), rgb_layer.height()) == (index_layer.width(), index_layer.height())
+assert 'True colour (red, green, blue): reflectance from' in rgb_layer.serverProperties().abstract()
+print('true colour:', rgb_layer.name(), '| stretch', stretches[0])
+
 # time series over the extent
 dock.step.setCurrentIndex([dock.step.itemData(i) for i in range(dock.step.count())].index('monthly'))
 dock.run_series()
@@ -205,10 +247,14 @@ if chart is not None and os.environ.get('TEST_OUT'):  # chart drawn with Qt (no 
 	print('Qt chart saved')
 
 
-def add_from_window(res, index=0, significant=False):
-	"""Add the map INDEX of res['maps'] with the button of the window of the result RES; the layers of its group."""
+def add_from_window(res, index=0, significant=False, kind=None):
+	"""Add the map INDEX of res['maps'] with the button of the window of the result RES (with KIND, that layer of the
+	list Layer: 'index', 'rgb' or 'both'); the layers of its group."""
 	dlg = dock.series_dialogs[dock.series.index(res)]
-	dlg.findChild(QComboBox).setCurrentIndex(index)
+	dlg.findChild(QComboBox, 'map_choice').setCurrentIndex(index)
+	if kind:
+		layer = dlg.findChild(QComboBox, 'map_kind')
+		layer.setCurrentIndex(layer.findData(kind))
 	if significant:
 		dlg.findChild(QCheckBox).setChecked(True)
 	next(b for b in dlg.findChildren(QPushButton) if b.text() == 'Add to the map').click()
@@ -217,6 +263,11 @@ def add_from_window(res, index=0, significant=False):
 	assert group is not None, iface.messages[-3:]
 	return [n.layer() for n in group.findLayers()]
 
+
+# the window of a series whose images have no true colour (e.g. the NDVI of MODIS): no list Layer
+from monitoreo_qgis.results import SeriesDialog  # noqa: E402
+plain = SeriesDialog(dict(res, rgb=False), None, lambda *args: None)
+assert plain.findChild(QComboBox, 'map_choice') is not None and plain.findChild(QComboBox, 'map_kind') is None
 
 # the maps of two dates of the series (June and July), in the group of the series, with the colours of the first one
 # and their days in the Temporal Controller
@@ -230,6 +281,29 @@ assert all(l.temporalProperties().isActive() for l in (june, july))
 assert [(t.begin().toString('yyyy-MM-dd'), t.end().toString('yyyy-MM-dd')) for t in times] == \
        [('2021-06-01', '2021-07-01'), ('2021-07-01', '2021-08-01')], times
 print('maps of the series:', [l.name() for l in (june, july)], '| colours', ramps[0])
+
+# the true colour of two other dates (August with its index, Both; September alone), under the index, with the same
+# days and stretched as the first true colour of the series, so that they can be compared
+assert res['rgb'] is True and dock.series_dialogs[dock.series.index(res)].findChild(QComboBox, 'map_kind')
+august, august_rgb = add_from_window(res, 8, kind='both')[:2]
+september_rgb = add_from_window(res, 9, kind='rgb')[0]
+assert august.renderer().type() == 'singlebandpseudocolor', august.renderer().type()
+assert (august.renderer().classificationMin(), august.renderer().classificationMax()) == ramps[0]
+for layer, days in ((august, ('2021-08-01', '2021-09-01')), (august_rgb, ('2021-08-01', '2021-09-01')),
+                    (september_rgb, ('2021-09-01', '2021-10-01'))):
+	t = layer.temporalProperties().fixedTemporalRange()
+	assert layer.temporalProperties().isActive() and \
+	       (t.begin().toString('yyyy-MM-dd'), t.end().toString('yyyy-MM-dd')) == days, (layer.name(), t)
+stretches = []
+for layer in (august_rgb, september_rgb):
+	r = layer.renderer()
+	assert r.type() == 'multibandcolor' and layer.bandCount() == 3 and layer.name().endswith('· true colour'), \
+		(layer.name(), r.type())
+	stretches.append((r.redContrastEnhancement().minimumValue(), r.redContrastEnhancement().maximumValue()))
+assert stretches[0] == stretches[1] == res['rgb_stretch'], (stretches, res.get('rgb_stretch'))
+assert (august_rgb.width(), august_rgb.height()) == (august.width(), august.height())
+print('true colour of the series:', [layer.name() for layer in (august_rgb, september_rgb)], '| stretch',
+      stretches[0])
 
 # time series over a layer with two polygons, in UTM
 lyr = QgsVectorLayer('Polygon?crs=EPSG:25830', 'zones', 'memory')
@@ -266,6 +340,7 @@ print('trends:', [(r['key'], r['n'], round(r['tau'], 2), round(r['p_value'], 3),
 assert [m['label'] for m in res['maps']] == ['Annual trend (2014-2021)'], res['maps']  # by years: no parts
 layers = add_from_window(res, 0, significant=True)
 assert len(layers) == 1 and layers[0].bandCount() == 6 and layers[0].name().endswith('(p < 0.05)'), iface.messages[-2:]
+assert dock.series_dialogs[dock.series.index(res)].findChild(QComboBox, 'map_kind') is None  # no true colour of trends
 print('map of the trends:', layers[0].name())
 before = set(QgsProject.instance().mapLayers())
 dock.run_trend_map()

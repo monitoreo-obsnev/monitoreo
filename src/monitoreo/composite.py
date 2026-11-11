@@ -8,6 +8,12 @@ temporal = 'monthly'  the metric of each month, then the interannual metric of e
                       from the start of each year (or season) instead of months, grouped by the month in which
                       they start.
 
+The true colour (RGB) of the images of a variable is aggregated with them (composite with bands): each band with the
+metric (mean, median or pN), or, with max and min, the bands of the image where the variable is highest or lowest on
+each pixel (Earth Engine qualityMosaic), so that the colours are those of one date and not a mix of the brightest
+bands of several (clouds, snow). The metrics that do not give colours (sum, std, count, mode) are refused
+(check_rgb_metric).
+
 The period is [first day, last day] (both included). A season ['MM-DD', 'MM-DD'] keeps only those days of each year;
 it can cross the new year (['11-01', '02-28']), and then it belongs to the year in which it starts.
 """
@@ -20,6 +26,8 @@ import ee
 
 TEMPORAL = ('period', 'annual', 'monthly', '16-day')
 METRICS = 'mean, median, mode, min, max, sum, std, count or pN (percentile N, e.g. p95, p2.5)'
+RGB_METRICS = 'mean, median, min, max or pN'  # the metrics of the true colour (see the docstring)
+MOSAICS = ('max', 'min')  # the metrics of the true colour taken from one image (qualityMosaic)
 
 
 def reducer(metric):
@@ -44,6 +52,15 @@ def check_metric(metric):
 	p = re.fullmatch(r'p(\d+(?:\.\d+)?)', m)
 	if not (p and 0 <= float(p.group(1)) <= 100):
 		raise ValueError(f'unknown metric {metric}: use {METRICS}')
+
+
+def check_rgb_metric(metric):
+	"""Raise ValueError if METRIC does not give the true colour of the images (see the docstring)."""
+	check_metric(metric)
+	m = str(metric).strip().lower()
+	if m not in ('mean', 'median', 'min', 'max') and not m.startswith('p'):
+		raise ValueError(f"the true colour of the images takes the metrics {RGB_METRICS}, not {metric}: the {m} of "
+		                 'the red, green and blue bands is not a colour')
 
 
 def _date(text):
@@ -96,10 +113,20 @@ def _iso(d):
 	return d.isoformat()
 
 
-def _reduce(col, red):
-	"""Single band image 'value' of COL reduced with RED, all masked if COL is empty."""
-	empty = ee.Image.constant(0).toFloat().rename('value').updateMask(0)
-	return ee.Image(ee.Algorithms.If(col.size().gt(0), col.reduce(red).rename('value'), empty))
+def _reduce(col, red, bands=('value',), mosaic=None):
+	"""Image of COL reduced with RED, with the bands BANDS (one, 'value', by default), all masked if COL is empty.
+	With MOSAIC ('max' or 'min'), the bands of the image where the first band is highest or lowest on each pixel
+	instead (the true colour of the date of the maximum or minimum of the variable)."""
+	bands = list(bands)
+	empty = ee.Image.constant([0] * len(bands) if len(bands) > 1 else 0).toFloat().rename(bands).updateMask(0)
+	if mosaic == 'max':
+		out = col.qualityMosaic(bands[0]).select(bands)
+	elif mosaic == 'min':
+		low = col.map(lambda i: ee.Image(i).addBands(ee.Image(i).select(bands[0]).multiply(-1).rename('_low')))
+		out = low.qualityMosaic('_low').select(bands)
+	else:
+		out = col.reduce(red).rename(bands)
+	return ee.Image(ee.Algorithms.If(col.size().gt(0), out, empty))
 
 
 def date_filter(wins):
@@ -108,22 +135,30 @@ def date_filter(wins):
 	return filters[0] if len(filters) == 1 else ee.Filter.Or(*filters)
 
 
-def composite(col, metric, temporal='period', interannual='mean', period=None, season=None):
-	"""One image ('value') of the collection COL of single band images ('value') of PERIOD, aggregated as
-	described in the docstring of the module."""
+def _mosaic(metric, bands):
+	"""The mosaic of METRIC for an image with BANDS (see _reduce): only for the true colour, whose first band is the
+	variable."""
+	m = str(metric).strip().lower()
+	return m if len(bands) > 1 and m in MOSAICS else None
+
+
+def composite(col, metric, temporal='period', interannual='mean', period=None, season=None, bands=('value',)):
+	"""One image of the collection COL of images of PERIOD, aggregated as described in the docstring of the module:
+	images with one band, 'value', or with BANDS, the variable ('value') and its true colour (red, green, blue)."""
 	if temporal not in TEMPORAL:
 		raise ValueError(f"unknown temporal aggregation {temporal}: use {', '.join(TEMPORAL)}")
+	bands = tuple(bands)
 	wins = windows(period, season)
-	red = reducer(metric)
+	red, mosaic = reducer(metric), _mosaic(metric, bands)
 	if temporal == 'period':
-		return _reduce(col.filter(date_filter(wins)), red)
-	red2 = reducer(interannual)
+		return _reduce(col.filter(date_filter(wins)), red, bands, mosaic)
+	red2, mosaic2 = reducer(interannual), _mosaic(interannual, bands)
 	if temporal == 'annual':
-		years = [_reduce(col.filterDate(_iso(ws), _iso(we)), red) for _, ws, we in wins]
-		return _reduce(ee.ImageCollection.fromImages(years), red2)
+		years = [_reduce(col.filterDate(_iso(ws), _iso(we)), red, bands, mosaic) for _, ws, we in wins]
+		return _reduce(ee.ImageCollection.fromImages(years), red2, bands, mosaic2)
 	parts = {}
 	for win in wins:
 		for month, bs, be in bins(win, temporal):
-			parts.setdefault(month, []).append(_reduce(col.filterDate(_iso(bs), _iso(be)), red))
-	months = [_reduce(ee.ImageCollection.fromImages(imgs), red2) for _, imgs in sorted(parts.items())]
-	return _reduce(ee.ImageCollection.fromImages(months), ee.Reducer.mean())
+			parts.setdefault(month, []).append(_reduce(col.filterDate(_iso(bs), _iso(be)), red, bands, mosaic))
+	months = [_reduce(ee.ImageCollection.fromImages(imgs), red2, bands, mosaic2) for _, imgs in sorted(parts.items())]
+	return _reduce(ee.ImageCollection.fromImages(months), ee.Reducer.mean(), bands)

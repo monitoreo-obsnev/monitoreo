@@ -45,7 +45,7 @@ import webbrowser
 import zipfile
 
 from . import __version__, about, areas, engine, manual, report, services
-from .variable import pin_where
+from .variable import check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
@@ -81,13 +81,17 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units')  # their answers go to the model
-RESULTS = ('time_series', 'region_stats', 'map_layer', 'trend_table', 'trend_map', 'compare_series', 'compare_map',
-           'burn_severity', 'download_image', 'download_trend', 'download_comparison',
+RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
+           'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
-HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick')  # arguments the model does not see
+# arguments the model does not see
+HIDDEN = ('collection', 'scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
 ALPHA = 0.05  # the trends whose pixels are kept by «Significant pixels only» (Mann-Kendall p < ALPHA)
 SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
+RGB = '|rgb'  # added to the key of a map for that of the true colour of its images (rgb_map: the select Layer)
+RGB_SPEC = ('variable', 'sensor', 'start', 'end', 'temporal', 'interannual', 'season', 'quality',
+            'collection')  # the arguments of a map that tell whether it has a true colour (see true_colour)
 AREA_KEYS = ('SITE_ID', 'NAME', 'DESIG', 'DESIG_ENG', 'IUCN_CAT', 'ISO3', 'REP_AREA')  # of the protected areas
 _DESIG = (r'(parque (nacional|natural|periurbano)|paraje natural|reserva (natural( concertada)?|de la biosfera)|'
           r'monumento natural|paisaje protegido|espacio natural( protegido)?|zona de especial conservaci[oó]n|zec|zepa|'
@@ -219,6 +223,10 @@ temporal takes no other values. Trend over the years (Mann-Kendall and Sen's slo
 with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
 each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
 compare_series and compare_map. Fire: burn_severity.
+- True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
+colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \
+and download_rgb, with those of download_image, for its GeoTIFF; only variables of Sentinel-2, Landsat and the cloud \
+frequency of MODIS, with metric median, mean, min, max or a percentile.
 - Download as GeoTIFF (for a GIS): a map with download_image, a trend with download_trend and a comparison with \
 download_comparison; for small regions or, in big ones, with resolution (metres of pixel) coarser than that of the \
 data. Several variables on aligned grids (for a model): download_variables, first with dry_run. Big regions at full \
@@ -320,7 +328,9 @@ used by the name of the layer, each one with its own series or row.
 is computed (what was really computed), Download CSV or Download TIF, and In the report.
 - The map: Map chooses the map of a result; Date, the map of each year, month or 16 days of it; Base map and Opacity; \
 Query pixel gives the value of a pixel and its time series (Keep the series as a result); in trend maps, Significant \
-pixels only (p < 0.05); Add this view to the report saves what is seen.
+pixels only (p < 0.05); in maps of variables of Sentinel-2, Landsat or the cloud frequency of MODIS, Layer shows the \
+Index, the True colour (RGB) of the same images and dates, or Both (the index over its true colour); Add this view to \
+the report saves what is seen.
 - Create report (N): a single HTML file, saved in the folder MonitorEO/informes, with the results marked In the \
 report (their sheet, chart or map), to print or save as PDF. New request starts another conversation; the files stay \
 in the folder MonitorEO."""}
@@ -409,6 +419,22 @@ def open_end(args, said, today=None):
 def dated(args):
 	"""Whether a map of ARGS has a period: not those of the fixed layers without dates (elevation, slope)."""
 	return bool(args.get('start') and args.get('end'))
+
+
+def true_colour(m):
+	"""Whether the map M ({'tool', 'args'}) can also show the true colour of its images (rgb_map with its arguments: the
+	select Layer of the page): a map of a variable (map_layer) with dates, of Sentinel-2, Landsat or the cloud
+	frequency of MODIS (see services.has_rgb), with a metric that gives colours; not the fixed layers, the climate, the
+	other products of MODIS, the trends nor the comparisons. Checked as rgb_map does, without Earth Engine."""
+	a = m['args']
+	if m['tool'] != 'map_layer' or not dated(a) or not a.get('variable'):
+		return False
+	try:
+		check_rgb(services.make_spec(**{k: a[k] for k in RGB_SPEC if a.get(k) is not None},
+		                             metric=a.get('metric') or 'median'))
+	except Exception:  # what has no true colour (and an unknown variable) never breaks a map
+		return False
+	return True
 
 
 def main_label(m, args):
@@ -928,6 +954,7 @@ class Assistant:
 
 	def reset(self):
 		self.messages, self.results, self.names, self.question, self.pixels = [], [], {}, None, []
+		self.rgb_locks = {}  # one true colour at a time for each result (see step_map)
 		self.call_id = None  # the id of the call of the model being run (cloud), for the answer of its tool
 		self.waiting = False  # whether the user has to choose or answer before anything is computed (see chat)
 
@@ -1276,38 +1303,53 @@ class Assistant:
 		return {'main': main_label(m, item['args']), 'steps': [{k: s[k] for k in ('key', 'label')} for s in item['steps']],
 		        'steps_label': 'Part of the year' if m['tool'] == 'trend_map' else 'Date'}
 
-	async def step_map(self, rid, key, significant=False):
+	async def step_map(self, rid, key, significant=False, rgb=False):
 		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time
 		with the colours of the map of the result, so that they can be compared; of a trend with SIGNIFICANT, only its
-		pixels with Mann-Kendall p < ALPHA. What the page shows of it, with the key that names it."""
+		pixels with Mann-Kendall p < ALPHA; with RGB, the true colour of its images (rgb_map with the same arguments:
+		the same images, dates and pixels; key with RGB), with the colours of the first true colour of the result. What
+		the page shows of it, with the key that names it."""
 		item, main = self.map_of(rid)
 		maps = item.setdefault('maps', {})
 		significant = significant and main['tool'] == 'trend_map'
-		name = key + (SIGNIFICANT if significant else '')
+		if rgb and not true_colour(main):
+			raise ValueError('that map has no true colour: only the maps of variables of Sentinel-2, Landsat or the cloud '
+			                 'frequency of MODIS, with dates, have it')
+		name = key + (SIGNIFICANT if significant else '') + (RGB if rgb else '')
 		if not name:
 			return {'key': '', **self.map_card(main)}
-		if name not in maps:
-			step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
-			if key and not step:
-				raise ValueError('that map does not exist')
-			a = item['args']
-			if not key:  # the map of the result
-				tool, args = main['tool'], dict(main['args'])
-			elif 'part' in step:  # the trend of a part of the year
-				tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
-			else:
-				tool = 'map_layer'
-				args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
-				args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
-				if a.get('where'):
-					args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
-			if significant:
-				args['alpha'] = ALPHA
-			r = main['result']
-			error, texts, _ = await self.call(tool, {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': True})
-			if error:
-				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
-			maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
+		# the true colours of a result one at a time: the first one computes the range that the others take
+		lock = self.rgb_locks.setdefault(rid, asyncio.Lock()) if rgb else contextlib.nullcontext()
+		async with lock:
+			if name not in maps:
+				step = next((s for s in item.get('steps') or [] if s['key'] == key), None)
+				if key and not step:
+					raise ValueError('that map does not exist')
+				a = item['args']
+				if not key:  # the map of the result
+					tool, args = main['tool'], dict(main['args'])
+				elif 'part' in step:  # the trend of a part of the year
+					tool, args = 'trend_map', {**main['args'], 'step': a.get('step'), 'part': step['part']}
+				else:  # that of the variable, or of the true colour of its images (a result of rgb_map)
+					tool = 'rgb_map' if main['tool'] == 'rgb_map' else 'map_layer'
+					args = {k: a[k] for k in ('region', 'variable', 'sensor', 'quality', 'collection') if a.get(k) is not None}
+					args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
+					if a.get('where'):
+						args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
+				if significant:
+					args['alpha'] = ALPHA
+				r = main['result']
+				quick = True
+				if rgb:  # the same images in true colour, with the colours of the first one, which computes its range
+					tool, r = 'rgb_map', next((m['result'] for k, m in maps.items() if k.endswith(RGB)), {})
+					quick = bool(r)  # its percentiles 2 and 98 (maps.rgb_vis): once per result
+				call = {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': quick}
+				if rgb:
+					call['preview'] = False  # its colours: the page has the tiles
+				error, texts, _ = await self.call(tool, call)
+				if error:
+					raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+				maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
 		return {'key': name, **self.map_card(maps[name])}
 
 	async def ask_manual(self, args):
@@ -1353,16 +1395,20 @@ class Assistant:
 			if style and style.get('classes'):  # the burn severity: the classes of the USGS
 				card['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']}
 				                              for c in style['classes']]}
+			elif style and style.get('text'):  # the true colour of the images: the range of its reflectance
+				card['legend'] = {'text': style['text']}
 			elif style:
 				card['legend'] = {k: style.get(k) for k in ('min', 'max', 'palette')}
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
+			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
+				card['under'] = {'text': report.map_style('rgb_map', args, item['under'])['text']}
 			for k in ('csv', 'file', 'readme'):
 				if isinstance(result.get(k), str):
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
 				shown = self.map_card(item)
-				card.update(map=shown['map'], heading=shown['heading'])
+				card.update(map=shown['map'], heading=shown['heading'], rgb=shown['rgb'])
 				card.update(self.steps_card(item))
 		return card
 
@@ -1378,17 +1424,21 @@ class Assistant:
 		return title.replace(f"{a['variable']} ({sensor})", f"{entry['name']} ({a['variable']}, {sensor})", 1)
 
 	def map_card(self, m):
-		"""What the map of the page shows of the map M (a result with tiles, or the map of the period of one)."""
+		"""What the map of the page shows of the map M (a result with tiles, or the map of the period of one); 'rgb':
+		whether it can also show the true colour of its images (the select Layer, see true_colour)."""
 		result = m['result']
 		out = {'title': m['title'], 'heading': self.heading(m), 'legend': None,
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
 		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
-		               'trend': m['tool'] == 'trend_map'}}  # with «Significant pixels only»
+		               'trend': m['tool'] == 'trend_map'},  # with «Significant pixels only»
+		       'rgb': true_colour(m)}
 		if not dated(m['args']):  # a fixed layer (elevation, slope): the value of a pixel, without its time series
 			out['map']['series'] = False
 		if result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
 			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
+		elif m['tool'] == 'rgb_map':  # the true colour of the images: the range of its reflectance, without colours
+			out['legend'] = {'text': report.map_style(m['tool'], m['args'], result)['text']}
 		return out
 
 	def map_of(self, rid, key=None):
@@ -1463,26 +1513,36 @@ class Assistant:
 		return item['id']
 
 	async def snapshot(self, rid, view):
-		"""Keep the view of the interactive map of the result RID (VIEW: bounds, zoom, base, opacity, marker) as a
-		result, for the report; returns its number."""
-		_, m = self.map_of(rid, view.get('key'))
+		"""Keep the view of the interactive map of the result RID (VIEW: bounds, zoom, base, opacity, marker, the key
+		of its step and layer: 'index', the default; 'rgb', the true colour of its images; or 'both', the map over its
+		true colour, which is drawn without transparency) as a result, for the report; returns its number."""
+		key, layer = view.get('key') or '', view.get('layer') or 'index'
+		_, m = self.map_of(rid, key or None)
+		overlay, opacity, under = m['result']['url'], float(view.get('opacity', 0.85)), None
+		if layer in ('rgb', 'both'):
+			_, colour = self.map_of(rid, key + RGB)
+			if layer == 'rgb':
+				m, overlay = colour, colour['result']['url']
+			else:
+				overlay, opacity, under = [colour['result']['url'], overlay], [1.0, opacity], colour['result']
 		image = await asyncio.to_thread(report.map_view, [float(v) for v in view['bounds']], int(view['zoom']),
-		                                m['result']['url'], view.get('base') or 'osm',
-		                                float(view.get('opacity', 0.85)), view.get('marker'))
+		                                overlay, view.get('base') or 'osm', opacity, view.get('marker'))
 		new = {'id': len(self.results) + 1, 'tool': m['tool'], 'args': m['args'], 'image': image,
 		       'result': {k: v for k, v in m['result'].items() if k != 'thumbnail'},
-		       'title': f"{m['title']} (map view)",
+		       'title': f"{m['title']} (map view{' over the true colour of its images' if under else ''})",
 		       'view': {'bounds': view['bounds'], 'base': view.get('base') or 'osm'}}
+		if under:  # its legend too (see card and report)
+			new['under'] = {k: under.get(k) for k in ('bands', 'min', 'max')}
 		self.results.append(new)
 		self.emit({'type': 'result', **self.card(new)})
 		return new['id']
 
 	async def refresh_map(self, rid, key=None):
 		"""Ask again for the tiles of the map of the result RID, or of its step KEY (those of Earth Engine expire after
-		some hours)."""
+		some hours; with RGB, those of its true colour)."""
 		_, m = self.map_of(rid, key)
 		args, result = m['args'], m['result']
-		if m['tool'] in ('map_layer', 'trend_map'):  # only the tiles, with the same colours
+		if m['tool'] in ('map_layer', 'trend_map', 'rgb_map'):  # only the tiles, with the same colours
 			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max'), 'quick': True}
 		error, texts, _ = await self.call(m['tool'], args)
 		if error:
@@ -1823,7 +1883,7 @@ def make_app(assistant, token, port):
 	async def step_map(request):
 		body = await request.json()
 		return JSONResponse(await assistant.step_map(int(body['id']), str(body.get('key') or ''),
-		                                             bool(body.get('significant'))))
+		                                             bool(body.get('significant')), bool(body.get('rgb'))))
 
 	async def snapshot(request):
 		body = await request.json()

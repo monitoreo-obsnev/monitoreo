@@ -69,7 +69,11 @@ Workflow: list_variables (or describe_variable) to choose variable and sensor; f
 WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an
 administrative unit; then time_series (table, CSV and chart), map_layer (map tiles and preview),
 region_stats (statistics of a map) or the exports to Google Drive (export_image_to_drive,
-export_time_series_to_drive, then task_status). GeoTIFFs on this computer: download_image (one map of a small
+export_time_series_to_drive, then task_status). The true colour (red, green and blue surface reflectance) of the same
+images and pixels as a map, with the same arguments, shows what is on the ground to interpret the map of an index
+(burned areas, bare soil, snow, water, clouds left): rgb_map (tiles and preview) and download_rgb (GeoTIFF), only for
+the variables with rgb in list_variables (Sentinel-2, Landsat and the cloud frequency of MODIS) and the metrics
+median, mean, min, max and pN. GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
@@ -226,17 +230,18 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
                    theme: Optional[str] = None) -> str:
 	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, ERA5-Land,
-	TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit. Filter by sensor, by theme
-	(vegetation, water, snow, fire, energy, atmosphere, climate, terrain) or by text in the name (English or
-	Spanish). lang: en or es."""
+	TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit; rgb (true) when its images have a
+	true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire, energy, atmosphere,
+	climate, terrain) or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang, theme=theme))
 
 
 @tool
 def describe_variable(variable: str, sensor: Optional[str] = None, collection: Optional[str] = None) -> str:
-	"""Formula, collection, scale, unit, resolution, dates, pixel filters and notes of a variable of the catalog, and
-	what to cite with its data: references (the articles of its formula or algorithm and its Earth Engine datasets,
-	as their catalog pages suggest, with DOI) and credits (lines asked by the terms of use of the data)."""
+	"""Formula, collection, scale, unit, resolution, dates, pixel filters and notes of a variable of the catalog,
+	whether its images have a true colour (rgb: see rgb_map), and what to cite with its data: references (the
+	articles of its formula or algorithm and its Earth Engine datasets, as their catalog pages suggest, with DOI) and
+	credits (lines asked by the terms of use of the data)."""
 	return _text(services.describe_variable(variable, sensor, collection))
 
 
@@ -312,6 +317,34 @@ def map_layer(region: dict, variable: str, sensor: str, start: Optional[str] = N
 
 
 @tool
+def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+            temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
+            quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
+            collection: Optional[str] = None,
+            where: Optional[list] = None, quick: bool = False, preview: bool = True):
+	"""True colour of the images of a variable over a region: the red, green and blue surface reflectance of the
+	same images and pixels as its map (map_layer with the same arguments: period, season, pixel filters, where),
+	aggregated in time with the same metric (median, mean and pN band by band; max and min, the colours of the image
+	where the variable is highest or lowest on each pixel; not sum, std, count nor mode). Use it with the map of an
+	index to see what is on the ground: burned areas, bare soil, snow, water or clouds left by the filters. Only the
+	variables with rgb in list_variables (those of Sentinel-2 and Landsat, and the cloud frequency of MODIS); not the
+	fixed layers, the climate nor the other MODIS products. Returns the URL of its Earth Engine map tiles (XYZ,
+	{z}/{x}/{y}, valid for some hours), the bands red, green and blue stretched together from min to max
+	(reflectance: the lowest percentile 2 and the highest percentile 98 of the bands over the region, or vmin and
+	vmax) and a PNG preview with the outline of the region. quick: only the tiles, at once (without the preview, and
+	from 0 to 0.3 instead of the range of the map); preview false: the tiles and their range, without the preview."""
+	_ready()
+	png = None if quick or not preview else _out(f'rgb_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
+	res = services.rgb_map(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
+	out = [_text(res)]
+	if png:
+		with open(png, 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
+
+
+@tool
 def region_stats(region: dict, variable: str, sensor: str, start: Optional[str] = None,
                  end: Optional[str] = None, metric: str = 'median',
                  temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
@@ -358,19 +391,39 @@ def export_time_series_to_drive(region: dict, variable: str, sensor: str, start:
 @tool
 def download_image(region: dict, variable: str, sensor: str, start: Optional[str] = None,
                    end: Optional[str] = None, metric: str = 'median',
-                   temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
-                   resolution: Optional[float] = None, crs: str = 'auto', clip: bool = True,
-                   collection: Optional[str] = None,
+                   temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
+                   quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
+                   clip: bool = True, collection: Optional[str] = None,
                    where: Optional[list] = None) -> str:
 	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
 	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
 	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g.
 	'EPSG:25830'. Returns the path of the file and its grid."""
 	_ready()
-	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, season=season,
+	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, interannual,
+	                                     season=season,
 	                                     quality=quality, resolution=resolution, crs=crs, clip=clip,
 	                                     path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}', 'tif'),
 	                                     collection=collection, where=where))
+
+
+@tool
+def download_rgb(region: dict, variable: str, sensor: str, start: str, end: str, metric: str = 'median',
+                 temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
+                 quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
+                 clip: bool = True, collection: Optional[str] = None,
+                 where: Optional[list] = None) -> str:
+	"""Download the true colour of the images of a variable over a region (see rgb_map: the red, green and blue
+	surface reflectance of the same images and pixels as its map, with the same metric) to a GeoTIFF on this
+	computer with the bands red, green and blue (float32 reflectance, NoData -9999), on the same grid as
+	download_image with the same arguments (resolution, crs): to compare the values of an index with what is on the
+	ground. For small regions. Returns the path of the file, its grid and min and max, the range of reflectance to
+	show the three bands together (the lowest percentile 2 and the highest percentile 98 of the bands)."""
+	_ready()
+	return _text(services.download_rgb(region, variable, sensor, start, end, metric, temporal, interannual,
+	                                   season=season, quality=quality, resolution=resolution, crs=crs, clip=clip,
+	                                   path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}_RGB', 'tif'),
+	                                   collection=collection, where=where))
 
 
 @tool
@@ -547,12 +600,13 @@ def publish_report(title: str, summary: str, files: List[str], question: Optiona
 	"""For the administrators of the viewer of results of MonitorEO: publish an analysis as a report of the static
 	web site in the folder site (default: MONITOREO_SITE or ~/MonitorEO/visor). files: the GeoTIFF and CSV files
 	written by the other tools (download_trend, download_comparison, download_image, burn_severity, time_series,
-	trend_table, compare_series) in the order of the page; their calls are read from the log of this server. Texts in
-	Spanish, the language of the viewer: title (e.g. the question of the analysis), summary (the answer in one or two
-	sentences), question, answer (the result; paragraphs separated by a blank line), method; region: {"name": ...,
-	"wdpa_id": ...}; downloads: other files (PDF, figures). The GeoTIFFs become Cloud Optimized GeoTIFFs and the site
-	gets the report, the viewer and its catalogue. It is public only when an administrator deploys the folder (git
-	push to the repository of the site, or rsync to its server); `monitoreo serve` shows it on this computer."""
+	trend_table, compare_series; not yet the true colour of download_rgb) in the order of the page; their calls are
+	read from the log of this server. Texts in Spanish, the language of the viewer: title (e.g. the question of the
+	analysis), summary (the answer in one or two sentences), question, answer (the result; paragraphs separated by a
+	blank line), method; region: {"name": ..., "wdpa_id": ...}; downloads: other files (PDF, figures). The GeoTIFFs
+	become Cloud Optimized GeoTIFFs and the site gets the report, the viewer and its catalogue. It is public only when
+	an administrator deploys the folder (git push to the repository of the site, or rsync to its server); `monitoreo
+	serve` shows it on this computer."""
 	spec = {'title': title, 'summary': summary, 'question': question, 'answer': answer, 'method': method,
 	        'region': region, 'authors': authors, 'downloads': downloads, 'results': list(files)}
 	if report_id:

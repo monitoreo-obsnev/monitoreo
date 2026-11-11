@@ -96,3 +96,6 @@ Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2
   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
   \doi{10.1016/j.rse.2017.06.031}
 }
+\seealso{
+\code{mo_download_rgb()} (the true colour of the same images, on the same grid)
+}

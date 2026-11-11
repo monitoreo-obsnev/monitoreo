@@ -49,6 +49,20 @@ LANDSAT = [  # collection, bands, last date
 S2 = 'COPERNICUS/S2_SR_HARMONIZED'
 CLOUD_SCORE = 'GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED'
 
+# True colour (RGB) of the images of a variable: the red, green and blue surface reflectance bands of each sensor, with
+# their scale and offset (reflectance = raw value x scale + offset). Sentinel-2 L2A: B4, B3, B2; Landsat Collection 2
+# Level-2: SR_B3, SR_B2, SR_B1 of Landsat 5 and 7 and SR_B4, SR_B3, SR_B2 of Landsat 8 and 9 (named red, green and
+# blue by raw_collection); MODIS daily surface reflectance (MOD09GA, MYD09GA, those of the cloud frequency):
+# sur_refl_b01, b04, b03. The other MODIS products have no green band (MOD13Q1, MYD13Q1) or no reflectance, and the
+# climate data and the fixed layers have no images of the surface: no true colour.
+RGB = {
+	'Sentinel-2': (['B4', 'B3', 'B2'], 0.0001, 0.0),
+	'Landsat': (['red', 'green', 'blue'], 2.75e-05, -0.2),
+	'MODIS/061/MOD09GA': (['sur_refl_b01', 'sur_refl_b04', 'sur_refl_b03'], 0.0001, 0.0),
+	'MODIS/061/MYD09GA': (['sur_refl_b01', 'sur_refl_b04', 'sur_refl_b03'], 0.0001, 0.0),
+}
+RGB_BANDS = ['red', 'green', 'blue']  # the bands of the true colour, in this order
+
 # Scene cloud cover property of each sensor, for quality['scene_clouds']
 SCENE_CLOUDS = {'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'}
 
@@ -113,6 +127,31 @@ def is_scf(entry):
 def is_cf(entry):
 	"""Whether ENTRY is the cloud frequency (formula CF(band of the cloud flags))."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('CF(')
+
+
+def rgb_of(entry):
+	"""(bands, scale, offset) of the true colour of the images of ENTRY (see RGB), or None if they have none (fixed
+	layers, climate, most MODIS products) or the variable compares two periods (RBR: see burn_severity)."""
+	if not entry or entry.get('static') or entry.get('two_periods'):
+		return None
+	return RGB.get(entry.get('sensor')) or RGB.get(entry.get('col'))
+
+
+def _with_rgb(img, value, entry, resample=None):
+	"""VALUE (the image 'value' of the variable of the image IMG) with the true colour of IMG: the bands red, green and
+	blue (surface reflectance), only on the pixels where VALUE has data, so that they are the same pixels as those of
+	the variable (its pixel filters, its own masks and its formula)."""
+	bands, scale, offset = rgb_of(entry)
+	rgb = ee.Image(img).select(bands).multiply(scale).add(offset)
+	if resample:
+		rgb = rgb.resample(resample)
+	return value.addBands(rgb.toFloat().rename(RGB_BANDS).updateMask(value.mask()))
+
+
+def _no_rgb(entry):
+	return ValueError(f"{entry['index']} ({entry['sensor']}) has no true colour: only the variables of Sentinel-2 and "
+	                  'Landsat and the cloud frequency of MODIS (MOD09GA, MYD09GA) have images with red, green and '
+	                  'blue bands')
 
 
 def fixed_filters(entry):
@@ -340,18 +379,21 @@ def raw_collection(entry, region, start, end, quality):
 	return col
 
 
-def collection(entry, region, start, end, quality=None, resample=None):
+def collection(entry, region, start, end, quality=None, resample=None, rgb=False):
 	"""Collection of single band images ('value', float) of the variable of ENTRY over REGION between START and END
 	(dates 'YYYY-MM-DD', END excluded), with the quality masks of QUALITY (see QUALITY) and, if given, the
-	resampling method RESAMPLE ('bilinear' or 'bicubic') of the bands when the output pixels are smaller."""
+	resampling method RESAMPLE ('bilinear' or 'bicubic') of the bands when the output pixels are smaller. With RGB,
+	each image also has the bands red, green and blue of its true colour on the same pixels (see RGB and _with_rgb)."""
+	if rgb and rgb_of(entry) is None:
+		raise _no_rgb(entry)
 	quality = dict(QUALITY, **(quality or {}))
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
 	kind, bands = parse_formula(entry)
 	if kind == 'scf':
-		return scf_collection(entry, region, start, end, quality, resample)
+		return scf_collection(entry, region, start, end, quality, resample, rgb)
 	if kind == 'cf':
-		return cf_collection(entry, region, start, end, quality)
+		return cf_collection(entry, region, start, end, quality, rgb)
 	used = list(bands) if kind == 'nd' else sorted(set(bands.values()))
 
 	def compute(img):
@@ -366,14 +408,18 @@ def collection(entry, region, start, end, quality=None, resample=None):
 			out = data.normalizedDifference(bands)
 		else:
 			out = data.expression(entry['ft'], {name: data.select(b) for name, b in bands.items()})
-		return out.toFloat().rename('value').copyProperties(img, ['system:time_start'])
+		out = out.toFloat().rename('value')
+		if rgb:
+			out = _with_rgb(img, out, entry, resample)
+		return out.copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)
 
 
-def scf_collection(entry, region, start, end, quality, resample=None):
+def scf_collection(entry, region, start, end, quality, resample=None, rgb=False):
 	"""Collection of single band images ('value', float) of the snow of the SCF (see SCF): 100 where a valid
-	observation has snow, 0 where it has none, masked where there is no valid observation."""
+	observation has snow, 0 where it has none, masked where there is no valid observation (with RGB, also its true
+	colour on those pixels)."""
 	_, (green, nir, swir1) = parse_formula(entry)
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
@@ -400,16 +446,20 @@ def scf_collection(entry, region, start, end, quality, resample=None):
 		valid_shade = shade.And(high).And(clear.unmask(0)).And(snow_shade.mask())
 		snow = snow_sun.unmask(0).And(lit).Or(snow_shade.unmask(0).And(shade))
 		valid = valid_sun.unmask(0).Or(valid_shade.unmask(0))
-		return snow.multiply(100).updateMask(valid).toFloat().rename('value').copyProperties(img, ['system:time_start'])
+		out = snow.multiply(100).updateMask(valid).toFloat().rename('value')
+		if rgb:
+			out = _with_rgb(img, out, entry, resample)
+		return out.copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)
 
 
-def cf_collection(entry, region, start, end, quality):
+def cf_collection(entry, region, start, end, quality, rgb=False):
 	"""Collection of single band images ('value', float) of the clouds of the cloud frequency (CF): 100 where the cloud
 	flags of an image say cloud, 0 where they say clear, masked where the image has no data. MODIS: state_1km bits 0-1
 	cloudy (1) or mixed (2); Sentinel-2: Cloud Score+ cs_cdf below CF_CLOUD_SCORE; Landsat: QA_PIXEL bit 3 (cloud) or
-	bit 9 (medium or high cloud confidence), without the fill pixels (bit 0)."""
+	bit 9 (medium or high cloud confidence), without the fill pixels (bit 0). With RGB, also the true colour of each
+	image on those pixels (no pixel filters: the clouds are in it)."""
 	sensor = entry['sensor']
 	if sensor == 'Sentinel-2':
 		col = ee.ImageCollection(entry['col']).filterBounds(region).filterDate(start, end)
@@ -434,5 +484,10 @@ def cf_collection(entry, region, start, end, quality):
 			state = bits(img.select('state_1km'), 0, 1)
 			return state.eq(1).Or(state.eq(2)).multiply(100)
 
-	return col.map(lambda img: compute(img).toFloat().rename('value').copyProperties(ee.Image(img),
-	                                                                                ['system:time_start']))
+	def value(img):
+		out = compute(img).toFloat().rename('value')
+		if rgb:
+			out = _with_rgb(img, out, entry)
+		return out.copyProperties(ee.Image(img), ['system:time_start'])
+
+	return col.map(value)
