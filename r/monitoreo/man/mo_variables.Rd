@@ -20,9 +20,9 @@ of the Earth Engine app).}
 }
 \value{
 A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
-  some, metric: its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without
-  dates). The
-  references of each variable: \code{mo_describe()}.
+  some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
+  dates, and rgb: \code{TRUE} when its images have a true colour, see \code{mo_rgb_map()}; \code{NA} for the
+  others). The references of each variable: \code{mo_describe()}.
 }
 \description{
 Variables of the catalog of MonitorEO

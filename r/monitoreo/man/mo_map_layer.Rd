@@ -94,5 +94,6 @@ Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2
   \doi{10.1016/j.rse.2017.06.031}
 }
 \seealso{
-\code{mo_leaflet()}, \code{mo_image()}, \code{mo_download_image()}
+\code{mo_leaflet()}, \code{mo_image()}, \code{mo_download_image()}, \code{mo_rgb_map()} (the true colour
+  of the same images)
 }

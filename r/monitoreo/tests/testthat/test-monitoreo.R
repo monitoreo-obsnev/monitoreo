@@ -18,6 +18,17 @@ test_that("catalog and regions", {
                "fixed layer, without dates")
   expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
                "only takes the metric 'mean'")
+  # true colour: the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS, refused before Earth Engine
+  expect_true(isTRUE(v$rgb[v$variable == "NDVI"]))
+  expect_true(mo_describe("NDVI", "Sentinel-2")$rgb)
+  expect_false(mo_describe("NDVI", "Modis")$rgb)  # MOD13Q1 has no green band
+  expect_error(mo_rgb_map(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Modis", "2020-01-01", "2020-12-31"),
+               "has no true colour")
+  expect_error(mo_rgb_map(mo_bbox(-3.4, 37.0, -3.3, 37.1), "ELEVATION", "Copernicus"), "fixed layer")
+  expect_error(mo_download_rgb(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Sentinel-2", "2020-06-01", "2020-06-30",
+                               tempfile(fileext = ".tif"), metric = "std"), "is not a colour")
+  expect_error(mo_image(mo_bbox(-3.4, 37.0, -3.3, 37.1), "NDVI", "Modis", "2020-01-01", "2020-12-31", rgb = TRUE),
+               "has no true colour")
   expect_equal(mo_bbox(-3.6, 36.8, -3.5, 36.9)$bbox[[3]], -3.5)
   expect_equal(mo_wdpa(c(1, 2))$wdpa_id, list(1L, 2L))
   expect_equal(mo_country("esp"), list(country = list("ESP")))
@@ -41,6 +52,25 @@ test_that("references", {
   refs <- capture.output(mo_references(d))
   expect_true(any(grepl("^Tucker, C. J. \\(1979\\).*https://doi.org/10.1016/0034-4257\\(79\\)90013-0$", refs)))
   expect_true(any(grepl("Copernicus Sentinel data", refs)))
+})
+
+test_that("leaflet with several maps: the true colour, then the index on top", {
+  skip_if_not_installed("leaflet")
+  rgb <- list(url = "https://ee/rgb/{z}/{x}/{y}", bands = list("red", "green", "blue"), min = 0.0123, max = 0.2876,
+              name = "NDVI Sentinel-2 | 2023-06-01 / 2023-08-31 (median), true colour")
+  ndvi <- list(url = "https://ee/ndvi/{z}/{x}/{y}", min = 0.1, max = 0.8, palette = list("000080", "800000"),
+               name = "NDVI Sentinel-2 | 2023-06-01 / 2023-08-31 (median)")
+  calls <- function(m) vapply(m$x$calls, function(k) k$method, "")
+  one <- mo_leaflet(ndvi)  # as before: one map, without control of layers
+  expect_equal(calls(one), c("addProviderTiles", "addTiles"))
+  expect_equal(one$x$calls[[2]]$args[[1]], ndvi$url)
+  both <- mo_leaflet(rgb, ndvi)
+  expect_equal(calls(both), c("addProviderTiles", "addTiles", "addControl", "addTiles", "addLayersControl"))
+  expect_equal(both$x$calls[[2]]$args[[1]], rgb$url)
+  expect_equal(both$x$calls[[3]]$args[[1]], "True colour (red, green, blue): reflectance from 0.0123 to 0.288")
+  expect_equal(both$x$calls[[4]]$args[[1]], ndvi$url)
+  expect_equal(unlist(both$x$calls[[5]]$args[[2]]), c(rgb$name, ndvi$name))
+  expect_equal(mo_leaflet(list(rgb, ndvi))$x$calls, both$x$calls)  # a list of maps, the same
 })
 
 test_that("time series, statistics and map with Earth Engine", {
@@ -92,6 +122,28 @@ test_that("download of a recipe and of a map", {
                            resolution = 250)
   expect_equal(img$grid$crs, "EPSG:32630")
   expect_true(file.exists(img$file))
+})
+
+test_that("true colour with Earth Engine", {
+  skip_if_no_python()
+  skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
+  mo_init()
+  region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+  x <- mo_download_rgb(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30", tempfile(fileext = ".tif"),
+                       resolution = 60)
+  expect_true(file.exists(x$file))
+  expect_equal(unlist(x$bands), c("red", "green", "blue"))
+  expect_equal(reticulate::import("osgeo.gdal")$Open(x$file)$RasterCount, 3)  # a GeoTIFF of three bands
+  expect_equal(x$grid$crs, "EPSG:32630")
+  expect_true(x$min < x$max)
+  expect_null(x$palette)
+  m <- mo_rgb_map(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30")
+  expect_match(m$url, "^https://.*\\{z\\}")
+  expect_match(m$name, "true colour$")
+  expect_true(m$min < m$max)
+  img <- mo_image(region, "NDVI", "Sentinel-2", "2021-06-01", "2021-06-30", rgb = TRUE)
+  expect_equal(unlist(img$image$bandNames()$getInfo()), c("red", "green", "blue"))
+  expect_equal(unlist(img$vis$bands), c("red", "green", "blue"))
 })
 
 test_that("seasonal trends and comparison of periods", {

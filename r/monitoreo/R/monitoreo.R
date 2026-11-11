@@ -264,9 +264,9 @@ rows_df <- function(rows) {
 #'   \code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
 #'   of the Earth Engine app).
 #' @return A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
-#'   some, metric: its only metric, fixed_filters: its pixel filters always on, and static: a fixed layer without
-#'   dates). The
-#'   references of each variable: \code{mo_describe()}.
+#'   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
+#'   dates, and rgb: \code{TRUE} when its images have a true colour, see \code{mo_rgb_map()}; \code{NA} for the
+#'   others). The references of each variable: \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
@@ -282,9 +282,10 @@ mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) 
 #' Everything about a variable of the catalog, and what to cite with it
 #'
 #' @inheritParams mo_params
-#' @return A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, alternatives (other
-#'   collections), references (the articles of its formula or algorithm, its Earth Engine datasets as their pages of the
-#'   Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and text) and credits.
+#' @return A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, rgb (whether its images
+#'   have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
+#'   formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
+#'   filters, each with citation, doi, url and text) and credits.
 #' @seealso \code{mo_references()}
 #' @examples
 #' \dontrun{
@@ -509,7 +510,8 @@ mo_plot <- function(ts) {
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
-#' @seealso \code{mo_leaflet()}, \code{mo_image()}, \code{mo_download_image()}
+#' @seealso \code{mo_leaflet()}, \code{mo_image()}, \code{mo_download_image()}, \code{mo_rgb_map()} (the true colour
+#'   of the same images)
 #' @examples
 #' \dontrun{
 #' mo_init()
@@ -526,27 +528,106 @@ mo_map_layer <- function(region, variable, sensor, start = NULL, end = NULL, met
                        vmax, thumbnail = thumbnail, collection = collection, where = where)
 }
 
-#' A leaflet map with the tiles of a map
+#' True colour map of the images of a variable over a region, as Earth Engine tiles
 #'
-#' @param layer a map of \code{mo_map_layer()}, \code{mo_trend_map()} or \code{mo_compare_map()}.
+#' The red, green and blue surface reflectance of the same images and pixels as the map of the variable
+#' (\code{mo_map_layer()} with the same arguments: sensor, period, season, pixel filters and \code{where}), aggregated
+#' in time with the same \code{metric}: \code{"median"}, \code{"mean"} and \code{"pN"} band by band; \code{"max"} and
+#' \code{"min"}, the colours of the image where the variable is highest or lowest on each pixel. The URL of its Earth
+#' Engine map tiles (XYZ, valid for some hours), with the three bands stretched together between \code{vmin} and
+#' \code{vmax}, so that the colours keep their balance. Only the variables whose images have red, green and blue bands
+#' (column \code{rgb} of \code{mo_variables()}): those of Sentinel-2 and Landsat and the cloud frequency of MODIS; not
+#' the fixed layers, the climate nor the other MODIS products (MOD13Q1, of the NDVI and the EVI, has no green band).
+#' The metrics \code{"sum"}, \code{"std"}, \code{"count"} and \code{"mode"} give no colours, nor between the years
+#' (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
+#' @inheritParams mo_params
+#' @param vmin,vmax range of the reflectance of the three bands together (default: the lowest percentile 2 and the
+#'   highest percentile 98 of the bands over the region).
+#' @return A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,
+#'   unit, bounds, thumbnail, references, credits), without palette.
+#' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
+#'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
+#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except the algorithms of
+#'   the snow cover frequency and of the cloud frequency, which choose its pixels), and the credits that the terms of
+#'   use of the data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them
+#'   (element \code{readme}): what each band is, with its unit, how it was computed and how to cite it.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_map_layer()}, \code{mo_leaflet()}, \code{mo_download_rgb()}, \code{mo_image()} (with
+#'   \code{rgb = TRUE})
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' rgb <- mo_rgb_map(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' ndvi <- mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' mo_leaflet(rgb, ndvi)  # both: the true colour under the NDVI of the same images
+#' mo_rgb_map(mo_wdpa(389011), "NDVI", "Landsat", "2023-06-01", "2023-08-31", metric = "max")
+#' }
+#' @export
+mo_rgb_map <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
+                       interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
+                       thumbnail = NULL, collection = NULL, where = NULL) {
+  services()$rgb_map(region = region, variable = variable, sensor = sensor, start = start, end = end,
+                     metric = metric, temporal = temporal, interannual = interannual, season = season,
+                     quality = quality, vmin = vmin, vmax = vmax, thumbnail = thumbnail, collection = collection,
+                     where = where)
+}
+
+#' A leaflet map with the tiles of one or several maps
+#'
+#' Each map is a layer of tiles over an orthoimage, in the order given (the last one on top), in a group with its
+#' name; with several, a control turns each one on and off. For both, the true colour under the map of a variable,
+#' give first the map of \code{mo_rgb_map()} and then that of \code{mo_map_layer()} with the same arguments. A true
+#' colour gets the caption "True colour (red, green, blue): reflectance from min to max".
+#' @param layer a map of \code{mo_map_layer()}, \code{mo_rgb_map()}, \code{mo_trend_map()} or
+#'   \code{mo_compare_map()}, or a list of them.
+#' @param ... more maps, on top of \code{layer}.
 #' @return A leaflet map.
 #' @examples
 #' \dontrun{
 #' mo_leaflet(mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"))
+#' # both: the true colour, and the NDVI on top of it
+#' mo_leaflet(mo_rgb_map(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"),
+#'            mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31"))
 #' }
 #' @export
-mo_leaflet <- function(layer) {
-  leaflet::addTiles(leaflet::addProviderTiles(leaflet::leaflet(), "Esri.WorldImagery"), urlTemplate = layer$url,
-                    attribution = "Google Earth Engine, MonitorEO", group = layer$name)
+mo_leaflet <- function(layer, ...) {
+  layers <- c(if (is.null(layer$url)) layer else list(layer), list(...))
+  m <- leaflet::addProviderTiles(leaflet::leaflet(), "Esri.WorldImagery")
+  for (l in layers) {
+    m <- leaflet::addTiles(m, urlTemplate = l$url, attribution = "Google Earth Engine, MonitorEO", group = l$name)
+    if (is_rgb(l)) m <- leaflet::addControl(m, rgb_caption(l), position = "bottomleft")
+  }
+  if (length(layers) > 1) {
+    groups <- vapply(layers, function(l) if (is.null(l$name)) "" else as.character(l$name), "")
+    m <- leaflet::addLayersControl(m, overlayGroups = groups,
+                                   options = leaflet::layersControlOptions(collapsed = FALSE))
+  }
+  m
+}
+
+# Whether the map L is a true colour (mo_rgb_map(): bands red, green and blue, without palette).
+is_rgb <- function(l) identical(as.character(unlist(l$bands)), c("red", "green", "blue"))
+
+# The caption of the true colour L (mo_rgb_map() or mo_download_rgb()): its bands and range of reflectance.
+rgb_caption <- function(l) {
+  sprintf("True colour (red, green, blue): reflectance from %s to %s", sprintf("%.3g", l$min), sprintf("%.3g", l$max))
 }
 
 #' Earth Engine image of a variable over a region, for rgee
 #'
-#' The variable aggregated in time (band \code{"value"}), with its colour ramp: e.g.
+#' The variable aggregated in time (band \code{"value"}), with its colour ramp, or with \code{rgb = TRUE} the true
+#' colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
+#' and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
+#' between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
 #' \code{rgee::Map$addLayer(x$image, x$vis, x$name)}.
 #' @inheritParams mo_params
 #' @param clip clip the image to the region.
-#' @return A list (image, region, vis, name, references, credits).
+#' @param rgb the true colour of the images instead of the variable (only the variables with \code{rgb} in
+#'   \code{mo_variables()}).
+#' @return A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
+#'   (the range of reflectance of the three bands), without palette.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -559,25 +640,34 @@ mo_leaflet <- function(layer) {
 #' \dontrun{
 #' mo_init()
 #' x <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+#' rgb <- mo_image(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", rgb = TRUE)
+#' rgee::Map$addLayer(rgb$image, rgb$vis, rgb$name) + rgee::Map$addLayer(x$image, x$vis, x$name)
 #' }
 #' @export
 mo_image <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                      interannual = "mean", season = NULL, quality = NULL, clip = TRUE, collection = NULL,
-                     where = NULL) {
+                     where = NULL, rgb = FALSE) {
   s <- services()
-  out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                           clip, collection = collection, where = where)
   maps <- reticulate::import("monitoreo.maps", convert = TRUE)
-  # percentiles 5 and 95 on the pixels of the data (without a scale, Earth Engine would take pixels of 1 degree)
+  variables <- reticulate::import("monitoreo.variable", convert = TRUE)
   spec <- s$make_spec(variable, sensor, start, end, metric = metric, temporal = temporal, interannual = interannual,
                       season = season, quality = quality, collection = collection, where = where)
-  res <- reticulate::import("monitoreo.variable", convert = TRUE)$native_scale(spec)
-  vis <- maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
+  # the percentiles on the pixels of the data (without a scale, Earth Engine would take pixels of 1 degree)
+  res <- variables$native_scale(spec)
+  # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none
+  out <- s$composite_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                           clip, collection = collection, where = where, rgb = isTRUE(rgb))
+  vis <- if (isTRUE(rgb)) {
+    maps$rgb_vis(out[[1]], out[[2]]$geometry(), res)  # percentiles 2 and 98 of the three bands together
+  } else {
+    maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)  # percentiles 5 and 95
+  }
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
-    "composite_image", list(region = region, variable = variable, sensor = sensor, start = start, end = end,
-                            quality = quality, collection = collection, where = where))
+    if (isTRUE(rgb)) "rgb_map" else "composite_image",
+    list(region = region, variable = variable, sensor = sensor, start = start, end = end, quality = quality,
+         collection = collection, where = where))
   name <- paste(c(variable, sensor, if (is.null(start)) NULL else c(metric, start, end)), collapse = " ")
-  list(image = out[[1]], region = out[[2]], vis = vis, name = name,
+  list(image = out[[1]], region = out[[2]], vis = vis, name = if (isTRUE(rgb)) paste0(name, ", true colour") else name,
        references = cite$references, credits = cite$credits)
 }
 
@@ -688,6 +778,7 @@ mo_export_time_series <- function(region, variable, sensor, start, end, step = "
 #' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
 #'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_download_rgb()} (the true colour of the same images, on the same grid)
 #' @examples
 #' \dontrun{
 #' mo_init()
@@ -700,6 +791,49 @@ mo_download_image <- function(region, variable, sensor, start = NULL, end = NULL
                               clip = TRUE, collection = NULL, where = NULL) {
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                             resolution, crs, path.expand(path), clip, collection = collection, where = where)
+}
+
+#' Download the true colour of the images of a variable to a GeoTIFF on this computer
+#'
+#' The true colour of the images of a variable (the red, green and blue surface reflectance of the same images and
+#' pixels as its map, aggregated with the same \code{metric}: see \code{mo_rgb_map()}) as a GeoTIFF of three bands,
+#' red, green and blue (float32 reflectance, NoData -9999), computed by Earth Engine in tiles on the same grid as
+#' \code{mo_download_image()} with the same arguments: for small regions. Only the variables with \code{rgb} in
+#' \code{mo_variables()}. The GeoTIFF keeps the references in its metadata (item \code{references}).
+#' @inheritParams mo_params
+#' @param path path of the GeoTIFF.
+#' @param clip clip the map to the region.
+#' @return A list (file, grid, resolution, native_resolution, images, name, unit, bands: red, green and blue, min and
+#'   max: the lowest percentile 2 and the highest percentile 98 of the three bands, the range to show them together,
+#'   references, credits, readme), without palette.
+#' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
+#'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
+#'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except the algorithms of
+#'   the snow cover frequency and of the cloud frequency, which choose its pixels), and the credits that the terms of
+#'   use of the data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them
+#'   (element \code{readme}): what each band is, with its unit, how it was computed and how to cite it.
+#' @references Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth
+#'   Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_rgb_map()}, \code{mo_download_image()}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' region <- mo_bbox(-3.62, 36.86, -3.50, 36.93)
+#' x <- mo_download_rgb(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "rgb.tif")
+#' # the three bands stretched together between the min and the max of the result
+#' terra::plotRGB(terra::rast(x$file), zlim = c(x$min, x$max), zcol = TRUE, stretch = "lin")
+#' # the NDVI of the same images and pixels, on the same grid
+#' ndvi <- mo_download_image(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "ndvi.tif")
+#' }
+#' @export
+mo_download_rgb <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median",
+                            temporal = "period", interannual = "mean", season = NULL, quality = NULL,
+                            resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL) {
+  services()$download_rgb(region = region, variable = variable, sensor = sensor, start = start, end = end,
+                          metric = metric, temporal = temporal, interannual = interannual, season = season,
+                          quality = quality, resolution = resolution, crs = crs, path = path.expand(path),
+                          clip = clip, collection = collection, where = where)
 }
 
 #' Download a recipe of variables as GeoTIFFs on aligned grids
