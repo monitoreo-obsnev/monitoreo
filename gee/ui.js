@@ -1580,7 +1580,9 @@
 		}), mo.RDNBR_COLOURS);
 		addColourBar(vis, t('rdnbrBar'), '8px 0 4px 0');
 		var id = start();
-		ee.Dictionary({hectares: out.hectares, stats: out.stats}).evaluate(guardedAsync(id, function (d) {
+		// one evaluate for each collection: in an ee.Dictionary, a FeatureCollection comes back without its features
+		out.hectares.evaluate(guardedAsync(id, function (hectares) { out.stats.evaluate(guardedAsync(id, function (st) {
+			var d = {hectares: hectares, stats: st};
 			var rows = [];
 			d.hectares.features.forEach(function (f) {
 				rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), state.lang, 'RdNBR'));
@@ -1615,7 +1617,7 @@
 				ui.Chart(statsTable, 'Table'), ui.Label(t('rdnbrNote'), SMALL)], modis ? [ui.Label(t('modisNote'), SMALL)] :
 				[], refs, [ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RDNBR_COLUMNS, name),
 				downloadWidget(out.image, e, ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'], name)]));
-		}));
+		})); }));
 	}
 
 	function burn() {

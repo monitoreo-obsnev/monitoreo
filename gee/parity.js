@@ -168,13 +168,17 @@ var CASES = {
 		setup(entry, regions, function (error, g) {
 			if (error) return done(error);
 			var out = mo.burnSeverity(before, after, regions, Number(entry.m), g.crs, 'RdNBR');
-			ee.Dictionary({hectares: out.hectares, stats: out.stats}).evaluate(function (d, err) {
+			// one evaluate for each collection, as the app: in an ee.Dictionary, a FeatureCollection has no features
+			out.hectares.evaluate(function (hectares, err) {
 				if (err) return done(err);
-				var rows = [];
-				d.hectares.features.forEach(function (f) {
-					rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'en', 'RdNBR'));
+				out.stats.evaluate(function (st, err2) {
+					if (err2) return done(err2);
+					var rows = [];
+					hectares.features.forEach(function (f) {
+						rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'en', 'RdNBR'));
+					});
+					done(null, {classes: rows, burned_ha: mo.burnedHa(rows), stats: mo.rdnbrTable(st.features)});
 				});
-				done(null, {classes: rows, burned_ha: mo.burnedHa(rows), stats: mo.rdnbrTable(d.stats.features)});
 			});
 		});
 	}
