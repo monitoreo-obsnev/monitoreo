@@ -69,7 +69,10 @@ result (or its own \code{period = c(start, end)}) with \code{metric} (default \c
 \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
-sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
+land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
+covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
+\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.}
 
 \item{image}{without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
 mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,

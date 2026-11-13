@@ -417,10 +417,15 @@ def item_table(tool, result, args=None):
 
 def where_text(where):
 	"""The conditions WHERE of the pixels of a study area in English, e.g. «ELEVATION (Copernicus) ≥ 1500 m and PRECIP
-	(TerraClimate, sum of each year, mean between the years) ≤ 600 mm/month»."""
+	(TerraClimate, sum of each year, mean between the years) ≤ 600 mm/month»; a land cover condition, as «the land
+	cover is not water or built-up (CORINE Land Cover 2018)» (see monitoreo.landcover)."""
+	from . import landcover
 	parts = []
 	for c in [where] if isinstance(where, dict) else where or []:
 		if not isinstance(c, dict):
+			continue
+		if landcover.is_landcover(c):
+			parts.append(landcover.text(c))
 			continue
 		e = _entry(c.get('variable'), c.get('sensor')) or {}
 		unit = unit_text(catalog.unit_of(e.get('unit'), c.get('metric') or e.get('metric') or 'mean'))

@@ -318,6 +318,52 @@
     "sayre2019"
    ],
    "credit": "Global Islands (Sayre et al. 2019, USGS and Esri), licence CC BY-SA 4.0"
+  },
+  "ESA/WorldCover/v100": {
+   "references": [
+    "zanaga2021"
+   ]
+  },
+  "GOOGLE/DYNAMICWORLD/V1": {
+   "references": [
+    "brown2022"
+   ],
+   "credit": "Dynamic World: this dataset is produced for the Dynamic World Project by Google in partnership with National Geographic Society and the World Resources Institute; it contains modified Copernicus Sentinel data"
+  },
+  "MODIS/061/MCD12Q1": {
+   "references": [
+    "friedl2022"
+   ]
+  },
+  "COPERNICUS/CORINE/V20/100m/1990": {
+   "references": [
+    "clc1990"
+   ],
+   "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/c89324ef-7729-4477-9f1b-623f5f88eaa1"
+  },
+  "COPERNICUS/CORINE/V20/100m/2000": {
+   "references": [
+    "clc2000"
+   ],
+   "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/ddacbd5e-068f-4e52-a596-d606e8de7f40"
+  },
+  "COPERNICUS/CORINE/V20/100m/2006": {
+   "references": [
+    "clc2006"
+   ],
+   "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/08560441-2fd5-4eb9-bf4c-9ef16725726a"
+  },
+  "COPERNICUS/CORINE/V20/100m/2012": {
+   "references": [
+    "clc2012"
+   ],
+   "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/a84ae124-c5c5-4577-8e10-511bfe55cc0d"
+  },
+  "COPERNICUS/CORINE/V20/100m/2018": {
+   "references": [
+    "clc2018"
+   ],
+   "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/960998c1-1870-4e82-8051-6485205ebbac"
   }
  },
  "methods": {
@@ -647,6 +693,46 @@
   "obpg_terra_chl": {
    "citation": "NASA Goddard Space Flight Center, Ocean Ecology Laboratory, Ocean Biology Processing Group (2018). MODIS-Terra Level 3 Mapped Chlorophyll Data Version R2018.0 [Data set]. NASA Ocean Biology DAAC.",
    "doi": "10.5067/TERRA/MODIS/L3M/CHL/2018"
+  },
+  "zanaga2021": {
+   "citation": "Zanaga, D., Van De Kerchove, R., De Keersmaecker, W., Souverijns, N., Brockmann, C., Quast, R., Wevers, J., Grosu, A., Paccini, A., Vergnaud, S., Cartus, O., Santoro, M., Fritz, S., Georgieva, I., Lesiv, M., Carter, S., Herold, M., Li, L., Tsendbazar, N.-E., Ramoino, F., & Arino, O. (2021). ESA WorldCover 10 m 2020 v100 [Data set]. Zenodo.",
+   "doi": "10.5281/zenodo.5571936"
+  },
+  "brown2022": {
+   "citation": "Brown, C. F., Brumby, S. P., Guzder-Williams, B., Birch, T., Hyde, S. B., Mazzariello, J., Czerwinski, W., Pasquarella, V. J., Haertel, R., Ilyushchenko, S., Schwehr, K., Weisse, M., Stolle, F., Hanson, C., Guinan, O., Moore, R., & Tait, A. M. (2022). Dynamic World, Near real-time global 10 m land use land cover mapping. Scientific Data, 9, 251.",
+   "doi": "10.1038/s41597-022-01307-4"
+  },
+  "friedl2022": {
+   "citation": "Friedl, M., & Sulla-Menashe, D. (2022). MODIS/Terra+Aqua Land Cover Type Yearly L3 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MCD12Q1.061"
+  },
+  "venter2022": {
+   "citation": "Venter, Z. S., Barton, D. N., Chakraborty, T., Simensen, T., & Singh, G. (2022). Global 10 m land use land cover datasets: A comparison of Dynamic World, World Cover and Esri Land Cover. Remote Sensing, 14(16), 4101.",
+   "doi": "10.3390/rs14164101"
+  },
+  "bise2023": {
+   "citation": "Biodiversity Information System for Europe (2023). Correspondence between CORINE Land Cover classes and ecosystem types [Web page]. European Commission and European Environment Agency.",
+   "url": "https://biodiversity.europa.eu/maes/correspondence-between-corine-land-cover-classes-and-ecosystem-types"
+  },
+  "clc1990": {
+   "citation": "European Environment Agency (2019). CORINE Land Cover 1990 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
+   "doi": "10.2909/c89324ef-7729-4477-9f1b-623f5f88eaa1"
+  },
+  "clc2000": {
+   "citation": "European Environment Agency (2019). CORINE Land Cover 2000 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
+   "doi": "10.2909/ddacbd5e-068f-4e52-a596-d606e8de7f40"
+  },
+  "clc2006": {
+   "citation": "European Environment Agency (2019). CORINE Land Cover 2006 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
+   "doi": "10.2909/08560441-2fd5-4eb9-bf4c-9ef16725726a"
+  },
+  "clc2012": {
+   "citation": "European Environment Agency (2019). CORINE Land Cover 2012 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
+   "doi": "10.2909/a84ae124-c5c5-4577-8e10-511bfe55cc0d"
+  },
+  "clc2018": {
+   "citation": "European Environment Agency (2019). CORINE Land Cover 2018 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
+   "doi": "10.2909/960998c1-1870-4e82-8051-6485205ebbac"
   }
  },
  "variables": [
@@ -2952,5 +3038,329 @@
     "QA": "ESTO NO ES POR ESCENA ES POR PIXEL"
    }
   }
- ]
+ ],
+ "landcover": {
+  "classes": [
+   {
+    "key": "water",
+    "en": "Water",
+    "es": "Agua",
+    "help": "permanent water bodies: rivers, lakes, reservoirs, coastal lagoons, estuaries and the sea",
+    "help_es": "masas de agua permanentes: ríos, lagos, embalses, lagunas costeras, estuarios y el mar"
+   },
+   {
+    "key": "trees",
+    "en": "Trees",
+    "es": "Árboles",
+    "help": "forests and other land covered by trees",
+    "help_es": "bosques y otras zonas cubiertas de árboles"
+   },
+   {
+    "key": "grassland",
+    "en": "Grassland",
+    "es": "Pastizal",
+    "help": "natural grasslands and pastures",
+    "help_es": "pastizales naturales y prados"
+   },
+   {
+    "key": "wetland",
+    "en": "Wetlands",
+    "es": "Humedales",
+    "help": "marshes, peat bogs, mangroves and other flooded vegetation",
+    "help_es": "marismas, turberas, manglares y otra vegetación inundada"
+   },
+   {
+    "key": "cropland",
+    "en": "Cropland",
+    "es": "Cultivos",
+    "help": "arable land, permanent crops (vineyards, orchards, olive groves) and mosaics of crops",
+    "help_es": "tierras de labor, cultivos permanentes (viñedos, frutales, olivares) y mosaicos de cultivos"
+   },
+   {
+    "key": "shrubland",
+    "en": "Shrubland",
+    "es": "Matorral",
+    "help": "shrubs and scrub, heathland and sclerophyllous vegetation",
+    "help_es": "matorral, brezales y vegetación esclerófila"
+   },
+   {
+    "key": "built",
+    "en": "Built-up",
+    "es": "Urbano y artificial",
+    "help": "urban areas, industry, roads, mines, dumps and other artificial surfaces",
+    "help_es": "zonas urbanas, industria, carreteras, minas, vertederos y otras superficies artificiales"
+   },
+   {
+    "key": "bare",
+    "en": "Bare ground",
+    "es": "Suelo desnudo",
+    "help": "bare rock and soil, sands and sparsely vegetated areas",
+    "help_es": "roca y suelo desnudos, arenales y zonas con poca vegetación"
+   },
+   {
+    "key": "snow",
+    "en": "Snow and ice",
+    "es": "Nieve y hielo",
+    "help": "glaciers and permanent snow and ice",
+    "help_es": "glaciares y nieve y hielo permanentes"
+   }
+  ],
+  "maps": [
+   {
+    "key": "WorldCover",
+    "name": "ESA WorldCover",
+    "m": 10,
+    "coverage": "the world",
+    "band": "Map",
+    "years": [
+     2020,
+     2021
+    ],
+    "collections": {
+     "2020": "ESA/WorldCover/v100",
+     "2021": "ESA/WorldCover/v200"
+    },
+    "dataset": "ESA/WorldCover/v200",
+    "how": "the map of the year (v100, 2020; v200, 2021)",
+    "crosswalk": "as Venter et al. (2022): bare / sparse vegetation and moss and lichen are bare ground; herbaceous wetland and mangroves, wetlands",
+    "crosswalk_references": [
+     "venter2022"
+    ],
+    "classes": {
+     "10": "trees",
+     "20": "shrubland",
+     "30": "grassland",
+     "40": "cropland",
+     "50": "built",
+     "60": "bare",
+     "70": "snow",
+     "80": "water",
+     "90": "wetland",
+     "95": "wetland",
+     "100": "bare"
+    },
+    "names": {
+     "10": "Tree cover",
+     "20": "Shrubland",
+     "30": "Grassland",
+     "40": "Cropland",
+     "50": "Built-up",
+     "60": "Bare / sparse vegetation",
+     "70": "Snow and ice",
+     "80": "Permanent water bodies",
+     "90": "Herbaceous wetland",
+     "95": "Mangroves",
+     "100": "Moss and lichen"
+    }
+   },
+   {
+    "key": "DynamicWorld",
+    "name": "Dynamic World",
+    "m": 10,
+    "coverage": "the world",
+    "band": "label",
+    "collection": "GOOGLE/DYNAMICWORLD/V1",
+    "dataset": "GOOGLE/DYNAMICWORLD/V1",
+    "first_year": 2016,
+    "last_year": null,
+    "composite": "mode",
+    "how": "the most frequent class (label) of the images of the year over the region",
+    "crosswalk": "its own classes, those of the masks (Brown et al., 2022)",
+    "crosswalk_references": [],
+    "classes": {
+     "0": "water",
+     "1": "trees",
+     "2": "grassland",
+     "3": "wetland",
+     "4": "cropland",
+     "5": "shrubland",
+     "6": "built",
+     "7": "bare",
+     "8": "snow"
+    },
+    "names": {
+     "0": "water",
+     "1": "trees",
+     "2": "grass",
+     "3": "flooded_vegetation",
+     "4": "crops",
+     "5": "shrub_and_scrub",
+     "6": "built",
+     "7": "bare",
+     "8": "snow_and_ice"
+    }
+   },
+   {
+    "key": "CORINE",
+    "name": "CORINE Land Cover",
+    "m": 100,
+    "coverage": "Europe",
+    "band": "landcover",
+    "years": [
+     1990,
+     2000,
+     2006,
+     2012,
+     2018
+    ],
+    "images": {
+     "1990": "COPERNICUS/CORINE/V20/100m/1990",
+     "2000": "COPERNICUS/CORINE/V20/100m/2000",
+     "2006": "COPERNICUS/CORINE/V20/100m/2006",
+     "2012": "COPERNICUS/CORINE/V20/100m/2012",
+     "2018": "COPERNICUS/CORINE/V20/100m/2018"
+    },
+    "dataset": "COPERNICUS/CORINE/V20/100m",
+    "how": "the map of the year (its level 3, 44 classes)",
+    "crosswalk": "as the correspondence of the CORINE classes and the ecosystem types of MAES (BISE, 2023): urban, built-up; cropland; grassland; woodland and forest (also 324, transitional woodland-shrub), trees; heathland and shrub, shrubland; sparsely vegetated areas, bare ground, but the glaciers (335), snow and ice; wetlands, and the maritime wetlands (421 to 423), as CORINE classes them, wetlands; rivers, lakes, lagoons, estuaries and the sea, water",
+    "crosswalk_references": [
+     "bise2023"
+    ],
+    "classes": {
+     "111": "built",
+     "112": "built",
+     "121": "built",
+     "122": "built",
+     "123": "built",
+     "124": "built",
+     "131": "built",
+     "132": "built",
+     "133": "built",
+     "141": "built",
+     "142": "built",
+     "211": "cropland",
+     "212": "cropland",
+     "213": "cropland",
+     "221": "cropland",
+     "222": "cropland",
+     "223": "cropland",
+     "231": "grassland",
+     "241": "cropland",
+     "242": "cropland",
+     "243": "cropland",
+     "244": "cropland",
+     "311": "trees",
+     "312": "trees",
+     "313": "trees",
+     "321": "grassland",
+     "322": "shrubland",
+     "323": "shrubland",
+     "324": "trees",
+     "331": "bare",
+     "332": "bare",
+     "333": "bare",
+     "334": "bare",
+     "335": "snow",
+     "411": "wetland",
+     "412": "wetland",
+     "421": "wetland",
+     "422": "wetland",
+     "423": "wetland",
+     "511": "water",
+     "512": "water",
+     "521": "water",
+     "522": "water",
+     "523": "water"
+    },
+    "names": {
+     "111": "Continuous urban fabric",
+     "112": "Discontinuous urban fabric",
+     "121": "Industrial or commercial units",
+     "122": "Road and rail networks and associated land",
+     "123": "Port areas",
+     "124": "Airports",
+     "131": "Mineral extraction sites",
+     "132": "Dump sites",
+     "133": "Construction sites",
+     "141": "Green urban areas",
+     "142": "Sport and leisure facilities",
+     "211": "Non-irrigated arable land",
+     "212": "Permanently irrigated land",
+     "213": "Rice fields",
+     "221": "Vineyards",
+     "222": "Fruit trees and berry plantations",
+     "223": "Olive groves",
+     "231": "Pastures",
+     "241": "Annual crops associated with permanent crops",
+     "242": "Complex cultivation patterns",
+     "243": "Land principally occupied by agriculture, with significant areas of natural vegetation",
+     "244": "Agro-forestry areas",
+     "311": "Broad-leaved forest",
+     "312": "Coniferous forest",
+     "313": "Mixed forest",
+     "321": "Natural grasslands",
+     "322": "Moors and heathland",
+     "323": "Sclerophyllous vegetation",
+     "324": "Transitional woodland-shrub",
+     "331": "Beaches, dunes, sands",
+     "332": "Bare rocks",
+     "333": "Sparsely vegetated areas",
+     "334": "Burnt areas",
+     "335": "Glaciers and perpetual snow",
+     "411": "Inland marshes",
+     "412": "Peat bogs",
+     "421": "Salt marshes",
+     "422": "Salines",
+     "423": "Intertidal flats",
+     "511": "Water courses",
+     "512": "Water bodies",
+     "521": "Coastal lagoons",
+     "522": "Estuaries",
+     "523": "Sea and ocean"
+    }
+   },
+   {
+    "key": "MODIS",
+    "name": "MODIS MCD12Q1",
+    "m": 500,
+    "coverage": "the world",
+    "band": "LC_Type1",
+    "collection": "MODIS/061/MCD12Q1",
+    "dataset": "MODIS/061/MCD12Q1",
+    "first_year": 2001,
+    "last_year": 2025,
+    "how": "the map of the year, IGBP classification (LC_Type1)",
+    "crosswalk": "by the definitions of the IGBP classes: the forests and the woody savannas (tree cover over 30 %), trees; the savannas (10 to 30 % trees) and the grasslands, grassland; the mosaics of cropland and natural vegetation, cropland",
+    "crosswalk_references": [],
+    "classes": {
+     "1": "trees",
+     "2": "trees",
+     "3": "trees",
+     "4": "trees",
+     "5": "trees",
+     "6": "shrubland",
+     "7": "shrubland",
+     "8": "trees",
+     "9": "grassland",
+     "10": "grassland",
+     "11": "wetland",
+     "12": "cropland",
+     "13": "built",
+     "14": "cropland",
+     "15": "snow",
+     "16": "bare",
+     "17": "water"
+    },
+    "names": {
+     "1": "Evergreen Needleleaf Forests",
+     "2": "Evergreen Broadleaf Forests",
+     "3": "Deciduous Needleleaf Forests",
+     "4": "Deciduous Broadleaf Forests",
+     "5": "Mixed Forests",
+     "6": "Closed Shrublands",
+     "7": "Open Shrublands",
+     "8": "Woody Savannas",
+     "9": "Savannas",
+     "10": "Grasslands",
+     "11": "Permanent Wetlands",
+     "12": "Croplands",
+     "13": "Urban and Built-up Lands",
+     "14": "Cropland/Natural Vegetation Mosaics",
+     "15": "Permanent Snow and Ice",
+     "16": "Barren",
+     "17": "Water Bodies"
+    }
+   }
+  ]
+ }
 }

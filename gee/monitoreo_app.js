@@ -1191,6 +1191,330 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "landcover": {
+  "classes": [
+   {
+    "en": "Water",
+    "es": "Agua",
+    "help": "permanent water bodies: rivers, lakes, reservoirs, coastal lagoons, estuaries and the sea",
+    "help_es": "masas de agua permanentes: r\u00edos, lagos, embalses, lagunas costeras, estuarios y el mar",
+    "key": "water"
+   },
+   {
+    "en": "Trees",
+    "es": "\u00c1rboles",
+    "help": "forests and other land covered by trees",
+    "help_es": "bosques y otras zonas cubiertas de \u00e1rboles",
+    "key": "trees"
+   },
+   {
+    "en": "Grassland",
+    "es": "Pastizal",
+    "help": "natural grasslands and pastures",
+    "help_es": "pastizales naturales y prados",
+    "key": "grassland"
+   },
+   {
+    "en": "Wetlands",
+    "es": "Humedales",
+    "help": "marshes, peat bogs, mangroves and other flooded vegetation",
+    "help_es": "marismas, turberas, manglares y otra vegetaci\u00f3n inundada",
+    "key": "wetland"
+   },
+   {
+    "en": "Cropland",
+    "es": "Cultivos",
+    "help": "arable land, permanent crops (vineyards, orchards, olive groves) and mosaics of crops",
+    "help_es": "tierras de labor, cultivos permanentes (vi\u00f1edos, frutales, olivares) y mosaicos de cultivos",
+    "key": "cropland"
+   },
+   {
+    "en": "Shrubland",
+    "es": "Matorral",
+    "help": "shrubs and scrub, heathland and sclerophyllous vegetation",
+    "help_es": "matorral, brezales y vegetaci\u00f3n escler\u00f3fila",
+    "key": "shrubland"
+   },
+   {
+    "en": "Built-up",
+    "es": "Urbano y artificial",
+    "help": "urban areas, industry, roads, mines, dumps and other artificial surfaces",
+    "help_es": "zonas urbanas, industria, carreteras, minas, vertederos y otras superficies artificiales",
+    "key": "built"
+   },
+   {
+    "en": "Bare ground",
+    "es": "Suelo desnudo",
+    "help": "bare rock and soil, sands and sparsely vegetated areas",
+    "help_es": "roca y suelo desnudos, arenales y zonas con poca vegetaci\u00f3n",
+    "key": "bare"
+   },
+   {
+    "en": "Snow and ice",
+    "es": "Nieve y hielo",
+    "help": "glaciers and permanent snow and ice",
+    "help_es": "glaciares y nieve y hielo permanentes",
+    "key": "snow"
+   }
+  ],
+  "maps": [
+   {
+    "band": "Map",
+    "classes": {
+     "10": "trees",
+     "100": "bare",
+     "20": "shrubland",
+     "30": "grassland",
+     "40": "cropland",
+     "50": "built",
+     "60": "bare",
+     "70": "snow",
+     "80": "water",
+     "90": "wetland",
+     "95": "wetland"
+    },
+    "collections": {
+     "2020": "ESA/WorldCover/v100",
+     "2021": "ESA/WorldCover/v200"
+    },
+    "coverage": "the world",
+    "crosswalk": "as Venter et al. (2022): bare / sparse vegetation and moss and lichen are bare ground; herbaceous wetland and mangroves, wetlands",
+    "crosswalk_references": [
+     "venter2022"
+    ],
+    "dataset": "ESA/WorldCover/v200",
+    "how": "the map of the year (v100, 2020; v200, 2021)",
+    "key": "WorldCover",
+    "m": 10,
+    "name": "ESA WorldCover",
+    "names": {
+     "10": "Tree cover",
+     "100": "Moss and lichen",
+     "20": "Shrubland",
+     "30": "Grassland",
+     "40": "Cropland",
+     "50": "Built-up",
+     "60": "Bare / sparse vegetation",
+     "70": "Snow and ice",
+     "80": "Permanent water bodies",
+     "90": "Herbaceous wetland",
+     "95": "Mangroves"
+    },
+    "years": [
+     2020,
+     2021
+    ]
+   },
+   {
+    "band": "label",
+    "classes": {
+     "0": "water",
+     "1": "trees",
+     "2": "grassland",
+     "3": "wetland",
+     "4": "cropland",
+     "5": "shrubland",
+     "6": "built",
+     "7": "bare",
+     "8": "snow"
+    },
+    "collection": "GOOGLE/DYNAMICWORLD/V1",
+    "composite": "mode",
+    "coverage": "the world",
+    "crosswalk": "its own classes, those of the masks (Brown et al., 2022)",
+    "crosswalk_references": [],
+    "dataset": "GOOGLE/DYNAMICWORLD/V1",
+    "first_year": 2016,
+    "how": "the most frequent class (label) of the images of the year over the region",
+    "key": "DynamicWorld",
+    "last_year": null,
+    "m": 10,
+    "name": "Dynamic World",
+    "names": {
+     "0": "water",
+     "1": "trees",
+     "2": "grass",
+     "3": "flooded_vegetation",
+     "4": "crops",
+     "5": "shrub_and_scrub",
+     "6": "built",
+     "7": "bare",
+     "8": "snow_and_ice"
+    }
+   },
+   {
+    "band": "landcover",
+    "classes": {
+     "111": "built",
+     "112": "built",
+     "121": "built",
+     "122": "built",
+     "123": "built",
+     "124": "built",
+     "131": "built",
+     "132": "built",
+     "133": "built",
+     "141": "built",
+     "142": "built",
+     "211": "cropland",
+     "212": "cropland",
+     "213": "cropland",
+     "221": "cropland",
+     "222": "cropland",
+     "223": "cropland",
+     "231": "grassland",
+     "241": "cropland",
+     "242": "cropland",
+     "243": "cropland",
+     "244": "cropland",
+     "311": "trees",
+     "312": "trees",
+     "313": "trees",
+     "321": "grassland",
+     "322": "shrubland",
+     "323": "shrubland",
+     "324": "trees",
+     "331": "bare",
+     "332": "bare",
+     "333": "bare",
+     "334": "bare",
+     "335": "snow",
+     "411": "wetland",
+     "412": "wetland",
+     "421": "wetland",
+     "422": "wetland",
+     "423": "wetland",
+     "511": "water",
+     "512": "water",
+     "521": "water",
+     "522": "water",
+     "523": "water"
+    },
+    "coverage": "Europe",
+    "crosswalk": "as the correspondence of the CORINE classes and the ecosystem types of MAES (BISE, 2023): urban, built-up; cropland; grassland; woodland and forest (also 324, transitional woodland-shrub), trees; heathland and shrub, shrubland; sparsely vegetated areas, bare ground, but the glaciers (335), snow and ice; wetlands, and the maritime wetlands (421 to 423), as CORINE classes them, wetlands; rivers, lakes, lagoons, estuaries and the sea, water",
+    "crosswalk_references": [
+     "bise2023"
+    ],
+    "dataset": "COPERNICUS/CORINE/V20/100m",
+    "how": "the map of the year (its level 3, 44 classes)",
+    "images": {
+     "1990": "COPERNICUS/CORINE/V20/100m/1990",
+     "2000": "COPERNICUS/CORINE/V20/100m/2000",
+     "2006": "COPERNICUS/CORINE/V20/100m/2006",
+     "2012": "COPERNICUS/CORINE/V20/100m/2012",
+     "2018": "COPERNICUS/CORINE/V20/100m/2018"
+    },
+    "key": "CORINE",
+    "m": 100,
+    "name": "CORINE Land Cover",
+    "names": {
+     "111": "Continuous urban fabric",
+     "112": "Discontinuous urban fabric",
+     "121": "Industrial or commercial units",
+     "122": "Road and rail networks and associated land",
+     "123": "Port areas",
+     "124": "Airports",
+     "131": "Mineral extraction sites",
+     "132": "Dump sites",
+     "133": "Construction sites",
+     "141": "Green urban areas",
+     "142": "Sport and leisure facilities",
+     "211": "Non-irrigated arable land",
+     "212": "Permanently irrigated land",
+     "213": "Rice fields",
+     "221": "Vineyards",
+     "222": "Fruit trees and berry plantations",
+     "223": "Olive groves",
+     "231": "Pastures",
+     "241": "Annual crops associated with permanent crops",
+     "242": "Complex cultivation patterns",
+     "243": "Land principally occupied by agriculture, with significant areas of natural vegetation",
+     "244": "Agro-forestry areas",
+     "311": "Broad-leaved forest",
+     "312": "Coniferous forest",
+     "313": "Mixed forest",
+     "321": "Natural grasslands",
+     "322": "Moors and heathland",
+     "323": "Sclerophyllous vegetation",
+     "324": "Transitional woodland-shrub",
+     "331": "Beaches, dunes, sands",
+     "332": "Bare rocks",
+     "333": "Sparsely vegetated areas",
+     "334": "Burnt areas",
+     "335": "Glaciers and perpetual snow",
+     "411": "Inland marshes",
+     "412": "Peat bogs",
+     "421": "Salt marshes",
+     "422": "Salines",
+     "423": "Intertidal flats",
+     "511": "Water courses",
+     "512": "Water bodies",
+     "521": "Coastal lagoons",
+     "522": "Estuaries",
+     "523": "Sea and ocean"
+    },
+    "years": [
+     1990,
+     2000,
+     2006,
+     2012,
+     2018
+    ]
+   },
+   {
+    "band": "LC_Type1",
+    "classes": {
+     "1": "trees",
+     "10": "grassland",
+     "11": "wetland",
+     "12": "cropland",
+     "13": "built",
+     "14": "cropland",
+     "15": "snow",
+     "16": "bare",
+     "17": "water",
+     "2": "trees",
+     "3": "trees",
+     "4": "trees",
+     "5": "trees",
+     "6": "shrubland",
+     "7": "shrubland",
+     "8": "trees",
+     "9": "grassland"
+    },
+    "collection": "MODIS/061/MCD12Q1",
+    "coverage": "the world",
+    "crosswalk": "by the definitions of the IGBP classes: the forests and the woody savannas (tree cover over 30 %), trees; the savannas (10 to 30 % trees) and the grasslands, grassland; the mosaics of cropland and natural vegetation, cropland",
+    "crosswalk_references": [],
+    "dataset": "MODIS/061/MCD12Q1",
+    "first_year": 2001,
+    "how": "the map of the year, IGBP classification (LC_Type1)",
+    "key": "MODIS",
+    "last_year": 2025,
+    "m": 500,
+    "name": "MODIS MCD12Q1",
+    "names": {
+     "1": "Evergreen Needleleaf Forests",
+     "10": "Grasslands",
+     "11": "Permanent Wetlands",
+     "12": "Croplands",
+     "13": "Urban and Built-up Lands",
+     "14": "Cropland/Natural Vegetation Mosaics",
+     "15": "Permanent Snow and Ice",
+     "16": "Barren",
+     "17": "Water Bodies",
+     "2": "Evergreen Broadleaf Forests",
+     "3": "Deciduous Needleleaf Forests",
+     "4": "Deciduous Broadleaf Forests",
+     "5": "Mixed Forests",
+     "6": "Closed Shrublands",
+     "7": "Open Shrublands",
+     "8": "Woody Savannas",
+     "9": "Savannas"
+    }
+   }
+  ]
+ },
  "other_themes": [
   {
    "en": "Earth Engine data (by its ID)",
@@ -5954,12 +6278,115 @@ var MonitorEO = (function () {
 		return img.toFloat().rename('value');
 	}
 
+	// Land cover masks (landcover.py): the pixels of some broad land covers (water, built...) left out of a result,
+	// after a land cover map of a year and the table of correspondences of its classes (CATALOG.landcover): a
+	// condition of where, {landcover: map, year, exclude: [broad land covers]} ---------------------------------------
+
+	var LANDCOVER_SHARE = 0.5;  // landcover.SHARE: a pixel is left out when the land covers excluded cover this or more
+
+	function landcoverClasses() {
+		return CATALOG.landcover.classes;
+	}
+
+	function landcoverMaps() {
+		return CATALOG.landcover.maps;
+	}
+
+	// landcover.find: the map KEY (its key or its name, in any case, without spaces)
+	function landcoverMap(key) {
+		var low = function (x) { return String(x).toLowerCase().replace(/[ _-]/g, ''); };
+		var maps = landcoverMaps();
+		for (var i = 0; i < maps.length; i++) {
+			if (low(key) === low(maps[i].key) || low(key) === low(maps[i].name)) return maps[i];
+		}
+		throw new Error('unknown land cover map ' + key + ': use one of ' +
+			maps.map(function (m) { return m.key; }).join(', '));
+	}
+
+	// landcover.years: the years of the map M (those of its images, or from its first year to its last or this year)
+	function landcoverYears(m) {
+		if (m.years) return m.years.map(Number);
+		var last = m.last_year || new Date().getFullYear(), out = [];
+		for (var y = Number(m.first_year); y <= last; y++) out.push(y);
+		return out;
+	}
+
+	// landcover.default_year: its last year; for a map of every year until now (Dynamic World), the last whole year
+	function landcoverDefaultYear(m) {
+		if (m.years || m.last_year) return landcoverYears(m).slice(-1)[0];
+		return new Date().getFullYear() - 1;
+	}
+
+	function isLandcover(c) {
+		return Boolean(c) && c.landcover !== undefined && c.landcover !== null;
+	}
+
+	// landcover.check: [map, year, [broad land covers excluded]] of the land cover condition C, or an Error
+	function landcoverCheck(c) {
+		var m = landcoverMap(c.landcover);
+		var year = c.year === undefined || c.year === null || c.year === '' ? landcoverDefaultYear(m) : Number(c.year);
+		if (landcoverYears(m).indexOf(year) < 0) throw new Error(m.name + ' has no map of ' + c.year);
+		var keys = landcoverClasses().map(function (k) { return k.key; });
+		var exclude = [].concat(c.exclude || []);
+		if (!exclude.length) {
+			throw new Error('a land cover condition of where needs exclude: the land covers to leave out, of ' +
+				keys.join(', '));
+		}
+		exclude.forEach(function (k) {
+			if (keys.indexOf(k) < 0) throw new Error('unknown land cover ' + k + ': use ' + keys.join(', '));
+		});
+		return [m, year, exclude];
+	}
+
+	// landcover.codes: the classes (codes) of the map M that are the broad land covers EXCLUDE
+	function landcoverCodes(m, exclude) {
+		return Object.keys(m.classes).filter(function (code) {
+			return exclude.indexOf(m.classes[code]) >= 0;
+		}).map(Number).sort(function (a, b) { return a - b; });
+	}
+
+	// landcover.source: the image of the classes of the map M of YEAR
+	function landcoverSource(m, year, region) {
+		if (m.images) return ee.Image(m.images[String(year)]).select(m.band);
+		if (m.collections) return ee.ImageCollection(m.collections[String(year)]).first().select(m.band);
+		var col = ee.ImageCollection(m.collection).filterDate(year + '-01-01', (year + 1) + '-01-01').select(m.band);
+		if (m.composite === 'mode') {  // the most frequent class of the images of the year (Dynamic World)
+			if (region) col = col.filterBounds(region);
+			return col.mode().setDefaultProjection(col.first().projection());
+		}
+		return ee.Image(col.first());  // the image of the year (MODIS MCD12Q1)
+	}
+
+	// landcover.keep: the image (1) of the pixels of RES metres kept by the land cover condition C, 0 where the land
+	// covers excluded cover LANDCOVER_SHARE of the pixel or more, masked where the map has no data
+	function landcoverKeep(c, region, res) {
+		var x = landcoverCheck(c), m = x[0];
+		var codes = landcoverCodes(m, x[2]);
+		var excluded = landcoverSource(m, x[1], region).remap(codes, codes.map(function () { return 1; }), 0);
+		if (res && res > 2 * Number(m.m)) excluded = excluded.reduceResolution(ee.Reducer.mean(), true, 65535);
+		return ee.Image(1).updateMask(excluded.mask()).and(excluded.lt(LANDCOVER_SHARE));
+	}
+
+	// landcover.text: the land cover condition C in words, in LANG
+	function landcoverText(c, lang) {
+		var x = landcoverCheck(c);
+		var names = x[2].map(function (k) {
+			var cl = landcoverClasses().filter(function (y) { return y.key === k; })[0];
+			return (cl[lang] || cl.en).toLowerCase();
+		});
+		var which = names.length > 1 ? names.slice(0, -1).join(', ') + (lang === 'es' ? ' ni ' : ' or ') +
+			names[names.length - 1] : names[0];
+		return (lang === 'es' ? 'el uso del suelo no es ' : 'the land cover is not ') + which + ' (' + x[0].name + ' ' +
+			x[1] + ')';
+	}
+
 	// variable.pin_where: the conditions WHERE with the period START to END for those without a period of their own
+	// (a land cover condition has its year)
 	function pinWhere(where, start, end) {
 		return (where || []).map(function (c) {
 			var out = {};
 			for (var k in c) out[k] = c[k];
-			if (!out.period && start) out.period = [start, end];
+			if (!out.period && start && !isLandcover(c)) out.period = [start, end];
 			return out;
 		});
 	}
@@ -5968,7 +6395,7 @@ var MonitorEO = (function () {
 	// optionally metric, temporal, interannual, quality, season, period}): the variable aggregated over the period of
 	// S, or its own; the fixed layers have no period
 	function whereSpecs(s) {
-		return (s.where || []).map(function (c) {
+		return (s.where || []).filter(function (c) { return !isLandcover(c); }).map(function (c) {
 			var e = byRef(c.ref);
 			if ((c.min === null || c.min === undefined) && (c.max === null || c.max === undefined)) {
 				throw new Error('the condition on ' + e.index + ' of where needs min, max or both');
@@ -5988,16 +6415,18 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// variable.mask: the image (1) of the pixels of S that pass its conditions (where), masked elsewhere; null without
-	// conditions. A pixel where a condition has no data is left out
+	// variable.mask: the image (1) of the pixels of S that pass its conditions (where, also those of land cover),
+	// masked elsewhere; null without conditions. A pixel where a condition has no data is left out
 	function whereMask(s, region, res) {
-		var masks = whereSpecs(s).map(function (w) {
+		var masks = (s.where || []).filter(isLandcover).map(function (c) {
+			return landcoverKeep(c, region, res);
+		}).concat(whereSpecs(s).map(function (w) {
 			var value = image(w[0], region, res);
 			var m = ee.Image(1).updateMask(value.mask());
 			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
 			if (w[2] !== null && w[2] !== undefined) m = m.and(value.lte(Number(w[2])));
 			return m;
-		});
+		}));
 		if (!masks.length) return null;
 		var out = masks[0];
 		masks.slice(1).forEach(function (m) { out = out.and(m); });
@@ -6922,6 +7351,10 @@ var MonitorEO = (function () {
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
+		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
+		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
+		isLandcover: isLandcover, landcoverCheck: landcoverCheck, landcoverCodes: landcoverCodes,
+		landcoverSource: landcoverSource, landcoverKeep: landcoverKeep, landcoverText: landcoverText,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
@@ -6984,6 +7417,11 @@ var MonitorEO = (function () {
 			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
+			landcoverHeader: 'M\u00e1scara de usos del suelo', landcoverOn: 'Quitar algunos usos del suelo de los resultados',
+			landcoverYear: 'A\u00f1o del mapa', landcoverLeaveOut: 'Quitar los p\u00edxeles de:',
+			landcoverNote: 'Un p\u00edxel se quita cuando esos usos cubren la mitad o m\u00e1s de \u00e9l, y donde el mapa no tiene ' +
+				'datos (CORINE fuera de Europa). Qu\u00e9 clases de cada mapa son cada uso: manual, Conceptos.',
+			noLandcover: 'M\u00e1scara de usos del suelo: marca los usos que quitar (o desmarca la m\u00e1scara).',
 			whereHeader: 'Solo los p\u00edxeles donde', whereOn: 'una variable est\u00e1 entre dos valores', between: 'entre',
 			and: 'y', whereNote: 'M\u00edn. o m\u00e1x. vac\u00edo: sin l\u00edmite. Una variable con fechas es su media en el periodo, la ' +
 			'misma para cada paso y para los dos periodos de una comparaci\u00f3n.',
@@ -7104,6 +7542,11 @@ var MonitorEO = (function () {
 			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
+			landcoverHeader: 'Land cover mask', landcoverOn: 'Leave some land covers out of the results',
+			landcoverYear: 'Year of the map', landcoverLeaveOut: 'Leave out the pixels of:',
+			landcoverNote: 'A pixel is left out when those land covers cover half of it or more, and where the map has ' +
+				'no data (CORINE outside Europe). Which classes of each map are each land cover: manual, Concepts.',
+			noLandcover: 'Land cover mask: check the land covers to leave out (or uncheck the mask).',
 			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
 			and: 'and', whereNote: 'An empty min or max: no limit. A variable with dates is its mean over the period, the ' +
 			'same for every step and for both periods of a comparison.',
@@ -7224,6 +7667,8 @@ var MonitorEO = (function () {
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
+		// the land cover mask, a condition of where: its map, year (null: the default of the map) and land covers left out
+		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
@@ -7859,7 +8304,8 @@ var MonitorEO = (function () {
 	// for a fire, the period before it); null if off
 	function whereArgs(period) {
 		period = period || state.period;
-		if (!state.whereOn) return null;
+		var lc = landcoverArgs();
+		if (!state.whereOn) return lc ? [lc] : null;
 		var c = {ref: whereRef()};
 		[['min', state.whereMin], ['max', state.whereMax]].forEach(function (x) {
 			var text = String(x[1] || '').replace(',', '.');
@@ -7872,17 +8318,67 @@ var MonitorEO = (function () {
 			checkPeriod(period);
 			c.period = period.slice();
 		}
-		return [c];
+		return lc ? [c, lc] : [c];
+	}
+
+	// The year of the land cover map chosen: the one chosen if the map has it, otherwise its default (its last one; for
+	// Dynamic World, the last whole year)
+	function landcoverYear() {
+		var m = mo.landcoverMap(state.landcoverMap);
+		if (mo.landcoverYears(m).indexOf(state.landcoverYear) < 0) state.landcoverYear = mo.landcoverDefaultYear(m);
+		return state.landcoverYear;
+	}
+
+	// The land cover condition of where of the land cover mask (landcover.py), or null if it is off
+	function landcoverArgs() {
+		if (!state.landcoverOn) return null;
+		if (!state.landcoverExclude.length) throw new Error(t('noLandcover'));
+		return {landcover: state.landcoverMap, year: landcoverYear(), exclude: state.landcoverExclude.slice()};
+	}
+
+	// The land cover mask, before the variable: unfolds when checked, with the map, its year and the broad land covers
+	// to leave out of every result (a condition of where, see landcoverArgs)
+	function landcoverWidgets() {
+		var w = [header(t('landcoverHeader')), check(t('landcoverOn'), state.landcoverOn, function (v) {
+			state.landcoverOn = v;
+			render();
+		})];
+		if (!state.landcoverOn) return w;
+		var maps = mo.landcoverMaps().map(function (m) {
+			return {value: m.key, label: [m.name, m.m + ' m', m.coverage].join(' \u00b7 ')};
+		});
+		w.push(select(maps, state.landcoverMap, function (key) {
+			state.landcoverMap = key;
+			render();
+		}, '340px'));
+		var m = mo.landcoverMap(state.landcoverMap);
+		var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
+		w.push(row(ui.Label(t('landcoverYear')), select(years, landcoverYear(), function (y) {
+			state.landcoverYear = Number(y);
+		}, '90px')));
+		w.push(ui.Label(t('landcoverLeaveOut'), SMALL));
+		mo.landcoverClasses().forEach(function (c) {
+			var codes = mo.landcoverCodes(m, [c.key]);  // the classes of the map in it, e.g. \u00abWater (511, 512, ...)\u00bb
+			w.push(check((c[state.lang] || c.en) + (codes.length ? ' (' + codes.join(', ') + ')' : ''),
+				state.landcoverExclude.indexOf(c.key) >= 0, function (v) {
+					state.landcoverExclude = state.landcoverExclude.filter(function (k) { return k !== c.key; });
+					if (v) state.landcoverExclude.push(c.key);
+				}));
+		});
+		w.push(ui.Label(t('landcoverNote'), SMALL, mo.CATALOG.about.manual + (state.lang === 'en' ?
+			'/Concepts#land-cover-mask' : '/Conceptos#m\u00e1scara-de-usos-del-suelo')));
+		return w;
 	}
 
 	// The text of the condition for the titles, e.g. \u00abELEVATION \u2265 1500\u00bb
 	function whereText() {
-		if (!state.whereOn) return null;
+		var lc = state.landcoverOn && state.landcoverExclude.length ? mo.landcoverText(landcoverArgs(), state.lang) : null;
+		if (!state.whereOn) return lc;
 		var e = mo.byRef(whereRef());
 		var parts = [];
 		if (state.whereMin) parts.push('\u2265 ' + state.whereMin);
 		if (state.whereMax) parts.push('\u2264 ' + state.whereMax);
-		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '');
+		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '') + (lc ? ', ' + lc : '');
 	}
 
 	// Checks and specs ----------------------------------------------------------------------------------------------
@@ -8677,7 +9173,7 @@ var MonitorEO = (function () {
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});

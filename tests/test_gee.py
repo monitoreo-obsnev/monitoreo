@@ -45,6 +45,17 @@ CASES = {
 	                                                      'where': [dict(GREEN, sensor='Modis', ref=25)]},
 	                             'other': ['2020-01-01', '2020-12-31']},
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
+	# land cover masks (a condition of where): CORINE at 10 m (the class of each pixel) and Dynamic World under MODIS
+	# (the share of each pixel of 250 m), with a series that keeps the same pixels in every step
+	'map_s2_landcover_corine': {'kind': 'percentiles', 'region': GUAJARES,
+	                            'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
+	                                     'where': [{'landcover': 'CORINE', 'year': 2018,
+	                                                'exclude': ['built', 'cropland']}]}},
+	'series_modis_landcover_dynamic_world': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                                         'stat': 'mean',
+	                                         'spec': {'ref': 25, 'period': ['2021-05-01', '2021-07-31'],
+	                                                  'where': [{'landcover': 'DynamicWorld', 'year': 2021,
+	                                                             'exclude': ['built']}, FLAT]}},
 	# cloud frequency (CF) of MODIS Terra, Sentinel-2 and Landsat; precipitation of ERA5-Land; WorldClim (an image)
 	'series_cf_modis': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                    'spec': {'ref': 108, 'period': ['2023-01-01', '2023-03-31']}},

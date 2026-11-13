@@ -970,12 +970,115 @@ var MonitorEO = (function () {
 		return img.toFloat().rename('value');
 	}
 
+	// Land cover masks (landcover.py): the pixels of some broad land covers (water, built...) left out of a result,
+	// after a land cover map of a year and the table of correspondences of its classes (CATALOG.landcover): a
+	// condition of where, {landcover: map, year, exclude: [broad land covers]} ---------------------------------------
+
+	var LANDCOVER_SHARE = 0.5;  // landcover.SHARE: a pixel is left out when the land covers excluded cover this or more
+
+	function landcoverClasses() {
+		return CATALOG.landcover.classes;
+	}
+
+	function landcoverMaps() {
+		return CATALOG.landcover.maps;
+	}
+
+	// landcover.find: the map KEY (its key or its name, in any case, without spaces)
+	function landcoverMap(key) {
+		var low = function (x) { return String(x).toLowerCase().replace(/[ _-]/g, ''); };
+		var maps = landcoverMaps();
+		for (var i = 0; i < maps.length; i++) {
+			if (low(key) === low(maps[i].key) || low(key) === low(maps[i].name)) return maps[i];
+		}
+		throw new Error('unknown land cover map ' + key + ': use one of ' +
+			maps.map(function (m) { return m.key; }).join(', '));
+	}
+
+	// landcover.years: the years of the map M (those of its images, or from its first year to its last or this year)
+	function landcoverYears(m) {
+		if (m.years) return m.years.map(Number);
+		var last = m.last_year || new Date().getFullYear(), out = [];
+		for (var y = Number(m.first_year); y <= last; y++) out.push(y);
+		return out;
+	}
+
+	// landcover.default_year: its last year; for a map of every year until now (Dynamic World), the last whole year
+	function landcoverDefaultYear(m) {
+		if (m.years || m.last_year) return landcoverYears(m).slice(-1)[0];
+		return new Date().getFullYear() - 1;
+	}
+
+	function isLandcover(c) {
+		return Boolean(c) && c.landcover !== undefined && c.landcover !== null;
+	}
+
+	// landcover.check: [map, year, [broad land covers excluded]] of the land cover condition C, or an Error
+	function landcoverCheck(c) {
+		var m = landcoverMap(c.landcover);
+		var year = c.year === undefined || c.year === null || c.year === '' ? landcoverDefaultYear(m) : Number(c.year);
+		if (landcoverYears(m).indexOf(year) < 0) throw new Error(m.name + ' has no map of ' + c.year);
+		var keys = landcoverClasses().map(function (k) { return k.key; });
+		var exclude = [].concat(c.exclude || []);
+		if (!exclude.length) {
+			throw new Error('a land cover condition of where needs exclude: the land covers to leave out, of ' +
+				keys.join(', '));
+		}
+		exclude.forEach(function (k) {
+			if (keys.indexOf(k) < 0) throw new Error('unknown land cover ' + k + ': use ' + keys.join(', '));
+		});
+		return [m, year, exclude];
+	}
+
+	// landcover.codes: the classes (codes) of the map M that are the broad land covers EXCLUDE
+	function landcoverCodes(m, exclude) {
+		return Object.keys(m.classes).filter(function (code) {
+			return exclude.indexOf(m.classes[code]) >= 0;
+		}).map(Number).sort(function (a, b) { return a - b; });
+	}
+
+	// landcover.source: the image of the classes of the map M of YEAR
+	function landcoverSource(m, year, region) {
+		if (m.images) return ee.Image(m.images[String(year)]).select(m.band);
+		if (m.collections) return ee.ImageCollection(m.collections[String(year)]).first().select(m.band);
+		var col = ee.ImageCollection(m.collection).filterDate(year + '-01-01', (year + 1) + '-01-01').select(m.band);
+		if (m.composite === 'mode') {  // the most frequent class of the images of the year (Dynamic World)
+			if (region) col = col.filterBounds(region);
+			return col.mode().setDefaultProjection(col.first().projection());
+		}
+		return ee.Image(col.first());  // the image of the year (MODIS MCD12Q1)
+	}
+
+	// landcover.keep: the image (1) of the pixels of RES metres kept by the land cover condition C, 0 where the land
+	// covers excluded cover LANDCOVER_SHARE of the pixel or more, masked where the map has no data
+	function landcoverKeep(c, region, res) {
+		var x = landcoverCheck(c), m = x[0];
+		var codes = landcoverCodes(m, x[2]);
+		var excluded = landcoverSource(m, x[1], region).remap(codes, codes.map(function () { return 1; }), 0);
+		if (res && res > 2 * Number(m.m)) excluded = excluded.reduceResolution(ee.Reducer.mean(), true, 65535);
+		return ee.Image(1).updateMask(excluded.mask()).and(excluded.lt(LANDCOVER_SHARE));
+	}
+
+	// landcover.text: the land cover condition C in words, in LANG
+	function landcoverText(c, lang) {
+		var x = landcoverCheck(c);
+		var names = x[2].map(function (k) {
+			var cl = landcoverClasses().filter(function (y) { return y.key === k; })[0];
+			return (cl[lang] || cl.en).toLowerCase();
+		});
+		var which = names.length > 1 ? names.slice(0, -1).join(', ') + (lang === 'es' ? ' ni ' : ' or ') +
+			names[names.length - 1] : names[0];
+		return (lang === 'es' ? 'el uso del suelo no es ' : 'the land cover is not ') + which + ' (' + x[0].name + ' ' +
+			x[1] + ')';
+	}
+
 	// variable.pin_where: the conditions WHERE with the period START to END for those without a period of their own
+	// (a land cover condition has its year)
 	function pinWhere(where, start, end) {
 		return (where || []).map(function (c) {
 			var out = {};
 			for (var k in c) out[k] = c[k];
-			if (!out.period && start) out.period = [start, end];
+			if (!out.period && start && !isLandcover(c)) out.period = [start, end];
 			return out;
 		});
 	}
@@ -984,7 +1087,7 @@ var MonitorEO = (function () {
 	// optionally metric, temporal, interannual, quality, season, period}): the variable aggregated over the period of
 	// S, or its own; the fixed layers have no period
 	function whereSpecs(s) {
-		return (s.where || []).map(function (c) {
+		return (s.where || []).filter(function (c) { return !isLandcover(c); }).map(function (c) {
 			var e = byRef(c.ref);
 			if ((c.min === null || c.min === undefined) && (c.max === null || c.max === undefined)) {
 				throw new Error('the condition on ' + e.index + ' of where needs min, max or both');
@@ -1004,16 +1107,18 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// variable.mask: the image (1) of the pixels of S that pass its conditions (where), masked elsewhere; null without
-	// conditions. A pixel where a condition has no data is left out
+	// variable.mask: the image (1) of the pixels of S that pass its conditions (where, also those of land cover),
+	// masked elsewhere; null without conditions. A pixel where a condition has no data is left out
 	function whereMask(s, region, res) {
-		var masks = whereSpecs(s).map(function (w) {
+		var masks = (s.where || []).filter(isLandcover).map(function (c) {
+			return landcoverKeep(c, region, res);
+		}).concat(whereSpecs(s).map(function (w) {
 			var value = image(w[0], region, res);
 			var m = ee.Image(1).updateMask(value.mask());
 			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
 			if (w[2] !== null && w[2] !== undefined) m = m.and(value.lte(Number(w[2])));
 			return m;
-		});
+		}));
 		if (!masks.length) return null;
 		var out = masks[0];
 		masks.slice(1).forEach(function (m) { out = out.and(m); });
@@ -1938,6 +2043,10 @@ var MonitorEO = (function () {
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
+		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
+		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
+		isLandcover: isLandcover, landcoverCheck: landcoverCheck, landcoverCodes: landcoverCodes,
+		landcoverSource: landcoverSource, landcoverKeep: landcoverKeep, landcoverText: landcoverText,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,

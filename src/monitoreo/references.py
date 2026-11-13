@@ -22,7 +22,7 @@ References:
 import datetime as dt
 import unicodedata
 
-from . import about, areas, catalog, sensors
+from . import about, areas, catalog, landcover, sensors
 
 MONITOREO = 'monitoreo'  # the ID of the citation of MonitorEO (monitoreo.about)
 LANDSAT = 'LANDSAT'  # the collection of the catalog with Landsat 5, 7, 8 and 9 (monitoreo.sensors.LANDSAT)
@@ -230,7 +230,12 @@ def of_spec(var, period=None, formula=True):
 		ids += more
 	conditions = var.get('where') or []
 	for c in [conditions] if isinstance(conditions, dict) else conditions:
-		if isinstance(c, dict) and c.get('variable'):
+		if landcover.is_landcover(c):  # its land cover map and the table of correspondences of its classes
+			maps, crosswalk = landcover.citations(c)
+			more, cred = of_datasets(maps)
+			ids += more + crosswalk
+			credits += [x for x in cred if x not in credits]
+		elif isinstance(c, dict) and c.get('variable'):
 			more, cred = of_spec({'index': c['variable'], 'sensor': c.get('sensor'), 'collection': c.get('collection'),
 			                      'quality': c.get('quality')}, period)
 			ids += more

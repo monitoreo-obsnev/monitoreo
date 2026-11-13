@@ -16,7 +16,7 @@ from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsContrastEnha
                        QgsCoordinateTransform, QgsDataSourceUri, QgsDateTimeRange, QgsMultiBandColorRenderer,
                        QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
                        QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
-from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
+from qgis.gui import QgsCheckableComboBox, QgsCollapsibleGroupBox, QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
@@ -26,7 +26,7 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import assets, catalog, fire, services, steps, trends  # noqa: E402
+from monitoreo import assets, catalog, fire, landcover, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
@@ -436,6 +436,7 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Country', self.country_field)
 		self.country_label = f.labelForField(self.country_field)
 		main.addWidget(box)
+		self.landcover_group(s, main)
 
 		box = QGroupBox('Variable')
 		f = QFormLayout(box)
@@ -846,6 +847,11 @@ class MonitorEODock(QDockWidget):
 		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset), ('asset_unit', self.asset_unit)):
 			s.setValue(SETTINGS + key, w.text().strip())
 		s.setValue(SETTINGS + 'community_theme', self.community_theme.currentData() or '')
+		# the land cover mask: on or off, its map, year and land covers left out
+		s.setValue(SETTINGS + 'landcover_on', 'true' if self.landcover_box.isChecked() else 'false')
+		s.setValue(SETTINGS + 'landcover_map', self.landcover_map.currentData())
+		s.setValue(SETTINGS + 'landcover_year', str(self.landcover_year.currentData() or ''))
+		s.setValue(SETTINGS + 'landcover_exclude', ','.join(self.landcover_classes.checkedItemsData()))
 
 	def region(self):
 		"""Region of the services from the widgets (read in the main thread)."""
@@ -1138,6 +1144,71 @@ class MonitorEODock(QDockWidget):
 		if hasattr(self, 'where'):  # built: the options of the variable chosen
 			self.variable_changed()
 
+	def landcover_group(self, s, main):
+		"""The land cover mask (monitoreo.landcover), before the variable: a group that unfolds when checked, with the
+		land cover map, its year and the broad land covers to leave out of every result (a condition of where)."""
+		box = QgsCollapsibleGroupBox('Land cover mask')
+		box.setCheckable(True)
+		box.setChecked(str(s.value(SETTINGS + 'landcover_on', 'false')).lower() == 'true')
+		box.setCollapsed(not box.isChecked())
+		box.toggled.connect(lambda on: box.setCollapsed(not on))
+		self.landcover_box = box
+		f = QFormLayout(box)
+		self.landcover_map = QComboBox()
+		for m in landcover.maps():
+			self.landcover_map.addItem(f"{m['name']} · {m['m']} m · {m['coverage']}", m['key'])
+		self.landcover_map.setCurrentIndex(max(0, self.landcover_map.findData(s.value(SETTINGS + 'landcover_map',
+		                                                                              'WorldCover'))))
+		f.addRow('Map', info(self.landcover_map, HELP['landcover_map']))
+		self.landcover_year = QComboBox()
+		f.addRow('Year', self.landcover_year)
+		self.landcover_classes = QgsCheckableComboBox()
+		self.landcover_classes.setDefaultText('choose the land covers')
+		chosen = str(s.value(SETTINGS + 'landcover_exclude', 'water,built')).split(',')
+		for c in landcover.classes():
+			self.landcover_classes.addItemWithCheckState(
+				c['en'], Qt.CheckState.Checked if c['key'] in chosen else Qt.CheckState.Unchecked, c['key'])
+			self.landcover_classes.setItemData(self.landcover_classes.count() - 1, c['help'],
+			                                   Qt.ItemDataRole.ToolTipRole)
+		f.addRow('Leave out', info(self.landcover_classes, self.landcover_help))
+		self.fill_landcover_years(s.value(SETTINGS + 'landcover_year', ''))
+		self.landcover_map.currentIndexChanged.connect(lambda i: self.fill_landcover_years())
+		main.addWidget(box)
+
+	def fill_landcover_years(self, year=None):
+		"""The years of the land cover map chosen, keeping YEAR (or the year chosen) if the map has it; otherwise its
+		last one (for Dynamic World, the last whole year)."""
+		m = landcover.find(self.landcover_map.currentData())
+		year = str(year or self.landcover_year.currentData() or '')
+		self.landcover_year.blockSignals(True)
+		self.landcover_year.clear()
+		for y in reversed(landcover.years(m)):
+			self.landcover_year.addItem(str(y), y)
+		i = self.landcover_year.findData(int(year)) if year.isdigit() else -1
+		self.landcover_year.setCurrentIndex(i if i >= 0 else self.landcover_year.findData(landcover.default_year(m)))
+		self.landcover_year.blockSignals(False)
+
+	def landcover_help(self):
+		"""The help of «Leave out»: the classes of the map chosen that are each broad land cover."""
+		m = landcover.find(self.landcover_map.currentData())
+		rows = []
+		for c in landcover.classes():
+			codes = sorted((code for code, k in m['classes'].items() if k == c['key']), key=int)
+			names = ', '.join(f"{code} {m['names'][code]}" for code in codes) or 'none'
+			rows.append(f"<li><b>{esc(c['en'])}</b>: {esc(names)}</li>")
+		return HELP['landcover'] + f"<p>The classes of {esc(m['name'])} in each:</p><ul>{''.join(rows)}</ul>"
+
+	def landcover_args(self):
+		"""The land cover condition of where of the group «Land cover mask» (see monitoreo.landcover), or None if it is
+		off."""
+		if not self.landcover_box.isChecked():
+			return None
+		exclude = [k for k in self.landcover_classes.checkedItemsData()]
+		if not exclude:
+			raise ValueError('Land cover mask: check the land covers to leave out (or uncheck the mask)')
+		return {'landcover': self.landcover_map.currentData(), 'year': self.landcover_year.currentData(),
+		        'exclude': exclude}
+
 	def where_args(self, period=None):
 		"""The checked conditions of «Only the pixels where» (see monitoreo.variable.where_specs), or None. Those of
 		variables with dates are the mean over the period of the panel (or PERIOD: the first and the last day), fixed
@@ -1163,6 +1234,9 @@ class MonitorEODock(QDockWidget):
 				cond['period'] = list(period or (self.start.date().toString('yyyy-MM-dd'),
 				                                 self.end.date().toString('yyyy-MM-dd')))
 			out.append(cond)
+		lc = self.landcover_args()  # the land covers left out: a map of a year, not the period
+		if lc:
+			out.append(lc)
 		return out or None
 
 	def where_changed(self):

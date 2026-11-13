@@ -127,6 +127,7 @@ def main():
 		return
 	services.init(args.project)
 	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
+	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
 	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index()}
 	text = catalog_text(data)
 	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:

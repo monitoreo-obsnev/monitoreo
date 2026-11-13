@@ -26,7 +26,9 @@ interannual over period and season (see composite). Other keys:
                      the catalog aggregated over the period and season of the spec (none for the fixed layers) with
                      min and/or max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
                      {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual",
-                     "max": 600}]; also metric, temporal, interannual, season and quality (see where_specs)
+                     "max": 600}]; also metric, temporal, interannual, season and quality (see where_specs). A
+                     condition can also leave out some land covers after a land cover map of a year (see
+                     monitoreo.landcover), e.g. {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}
 """
 
 import datetime as dt
@@ -34,7 +36,7 @@ import re
 
 import ee
 
-from . import catalog, composite, sensors
+from . import catalog, composite, landcover, sensors
 
 WORLDCOVER = 'ESA/WorldCover/v200'
 SENSOR_ABBR = {'Sentinel-2': 'S2', 'Landsat': 'L', 'Modis': 'MODIS'}
@@ -149,6 +151,7 @@ def specs(var, defaults=None, two_periods=False):
 		composite.windows(base['period'], base['season'])
 	if base.get('where'):
 		where_specs(base)  # check its conditions now, without Earth Engine
+		landcover_conditions(base)
 	out = []
 	for m in metrics:
 		s = dict(base, metric=m)
@@ -169,7 +172,7 @@ def pin_where(where, start, end):
 		return where
 	conditions = [where] if isinstance(where, dict) else where
 	return [dict(c, period=c.get('period') or [str(start), str(end or dt.date.today().isoformat())])
-	        if isinstance(c, dict) else c for c in conditions]
+	        if isinstance(c, dict) and not landcover.is_landcover(c) else c for c in conditions]  # a map has its year
 
 
 def where_specs(spec):
@@ -177,14 +180,15 @@ def where_specs(spec):
 	over the period and season of SPEC (or over the period of the condition, [start, end], if it has one), with the
 	metric, temporal, interannual and quality of the condition (by default the mean, or the only metric of the
 	variable, of the whole period). The fixed layers (elevation, slope, WorldClim) have no period, so they can filter
-	any result; a variable with dates needs a period, of the result or of the condition."""
-	conditions = spec.get('where') or []
-	if isinstance(conditions, dict):
-		conditions = [conditions]
+	any result; a variable with dates needs a period, of the result or of the condition. The land cover conditions
+	(see landcover_conditions) are not variables: they are left out here."""
 	out = []
-	for c in conditions:
+	for c in _conditions(spec):
+		if landcover.is_landcover(c):
+			continue
 		if not isinstance(c, dict) or not c.get('variable'):
-			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max')
+			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max, '
+			                 'or with landcover, year and exclude (the land covers to leave out)')
 		unknown = set(c) - WHERE_KEYS
 		if unknown:
 			raise ValueError(f"a condition of where has unknown keys {', '.join(sorted(unknown))}: use "
@@ -209,11 +213,24 @@ def where_specs(spec):
 	return out
 
 
+def _conditions(spec):
+	conditions = spec.get('where') or []
+	return [conditions] if isinstance(conditions, dict) else conditions
+
+
+def landcover_conditions(spec):
+	"""The land cover conditions of SPEC['where'] (see monitoreo.landcover), checked (ValueError if one is wrong)."""
+	out = [c for c in _conditions(spec) if landcover.is_landcover(c)]
+	for c in out:
+		landcover.check(c)
+	return out
+
+
 def mask(spec, region, res):
 	"""The image (1) of the pixels of SPEC that pass its conditions (where) and are not of the land covers it
-	excludes (exclude_landcover), masked elsewhere; None without conditions. A pixel where a condition has no data is
-	left out."""
-	masks = []
+	excludes (exclude_landcover, and the land cover conditions of where), masked elsewhere; None without conditions. A
+	pixel where a condition has no data is left out."""
+	masks = [landcover.keep(c, region, res) for c in landcover_conditions(spec)]
 	for cs, lo, hi in where_specs(spec):
 		value = image(cs, region, res)
 		m = ee.Image(1).updateMask(value.mask())
