@@ -94,9 +94,25 @@ test_that("the GEE Community Catalog by its themes, without Earth Engine", {
   expect_equal(nrow(mo_community(theme = "Hydrology", text = "no dataset has these words")), 0)
   expect_error(mo_community("mountains"), "unknown theme")
   expect_error(mo_community(kind = "table"), "unknown kind")
-  # the two themes of the menus without variables of the catalog point to these functions
-  expect_error(mo_variables(theme = "community"), "community_datasets")
-  expect_error(mo_variables(theme = "earth_engine"), "describe_asset")
+  # the two themes of the menus without variables of the catalog point to these functions, in the words of R (its
+  # functions and arguments), not those of the services, the MCP server or the command line
+  themes <- list(community = "mo_community_themes() lists its themes and mo_community() their datasets",
+                 earth_engine = "mo_asset(ID) describes it",
+                 " Earth Engine data (by its ID) " = "mo_asset(ID) describes it")
+  # its name in Spanish, in UTF-8 whatever the locale (a literal would not be read in UTF-8 in the locale C)
+  themes[[paste0("Cat", intToUtf8(0xe1), "logo de la comunidad de GEE")]] <- "mo_community_themes() lists its themes"
+  for (theme in names(themes)) {
+    e <- tryCatch(mo_variables(theme = theme), error = identity)
+    expect_s3_class(e, "simpleError")  # an error of R, before the services
+    expect_match(conditionMessage(e), "has no variables of the catalog: ", fixed = TRUE)
+    expect_match(conditionMessage(e), themes[[theme]], fixed = TRUE)
+    expect_match(conditionMessage(e), "then compute it with its ID as collection (or image) and its band",
+                 fixed = TRUE)
+    expect_no_match(conditionMessage(e), "describe_asset|(?<!mo_)community_(themes|datasets)|collection=|--",
+                    perl = TRUE)
+  }
+  expect_error(mo_variables(theme = "mountains"), "unknown theme")
+  expect_true(nrow(mo_variables(theme = "climate")) > 0)
 })
 
 test_that("data of Earth Engine by its ID: the arguments reach the services by name", {
