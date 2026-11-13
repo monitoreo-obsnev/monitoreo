@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.28](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.28) · 2026-11-13 · package 0.3.38
 
 - **Results viewer** (fix): A published burn severity with the RBR shows the statistics of the RBR of each region (mean, median, percentiles 10 and 90, minimum, maximum and hectares) as a table, instead of an empty chart of the severity classes, which the RBR does not have.
 
