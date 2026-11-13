@@ -75,6 +75,15 @@ RDNBR_COLOURS = {0: '0ae042', 1: 'fff70b', 2: 'ff641b', 3: 'a41fd6'}
 # figures of Miller & Thode 2007 is -500 to 1200 (x 1000)
 RDNBR_RANGE = (-1.2, 1.2)
 
+# The statistics of the RBR and the RdNBR over each region (stats_reducer; burnStatsReducer in gee/core.js): Earth
+# Engine computes a percentile, and a median, from a histogram whose buckets, of a width that is a power of 2, span the
+# values with at most so many buckets. With its default, a few outliers widened the buckets: the RdNBR -16 and 4 of
+# the unburned surroundings of the fire of Sierra Bermeja (Sentinel-2, 2021 to 2022) made them 0.125 wide, and gave
+# the same percentile 10 and median (-0.049; -0.120 and -0.037 in the pixels of its GeoTIFF). With 2 ** 16 buckets they
+# are 0.0005 wide there (the percentiles within 0.0002 of those of the pixels), and at most 0.002 over the widest range
+# of the RdNBR (-63 to 63, with |NBR before| at least 0.001).
+PERCENTILE_BUCKETS = 2 ** 16
+
 # The burn indices with classes: their classes, colours, the value from which a pixel is burned (or changed) and the
 # name of the columns of the limits of their classes (dnbr_min and dnbr_max, rdnbr_min and rdnbr_max)
 CLASSES = {
@@ -172,6 +181,14 @@ def rdnbr(dnbr, nbr_before):
 	dNBR (the article multiplies the NBR by 1000: an RdNBR of 0.641 here is 641 there)."""
 	from .catalog import RDNBR_MIN_NBR
 	return dnbr.divide(nbr_before.abs().max(RDNBR_MIN_NBR).sqrt()).rename('rdnbr')
+
+
+def stats_reducer():
+	"""ee.Reducer of the statistics of the RBR or the RdNBR over a region: its mean, median ('median'), percentiles 10
+	and 90 ('p10', 'p90'), minimum and maximum, the percentiles from a histogram of PERCENTILE_BUCKETS buckets, so that
+	a few outliers do not make them coarse."""
+	percentiles = ee.Reducer.percentile([10, 50, 90], ['p10', 'median', 'p90'], PERCENTILE_BUCKETS)
+	return ee.Reducer.mean().combine(percentiles, '', True).combine(ee.Reducer.minMax(), '', True)
 
 
 def table(groups, region, index='dNBR'):

@@ -1438,6 +1438,10 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	p90, min, max, ha}] of the RdNBR, ...}, the table of the classes in CSV and the GeoTIFF bands rdnbr, severity
 	(class 0 to 3), dnbr, nbr_before and nbr_after.
 
+	The median and the percentiles of the statistics of the RBR and the RdNBR come from a histogram of
+	fire.PERCENTILE_BUCKETS buckets (see fire.stats_reducer): within about 0.001 of those of the pixels, even with a
+	few extreme values.
+
 	WHERE: only the pixels that pass these conditions on variables (as in the other tools), computed over the period
 	before the fire."""
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
@@ -1492,6 +1496,25 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	return out
 
 
+BURN_STATS = ('mean', 'median', 'p10', 'p90', 'min', 'max')  # the statistics of the RBR and the RdNBR
+
+
+def _burn_stats(index, band, regions, scale, crs):
+	"""The statistics of the burn index INDEX (an ee.Image of the band BAND, rbr or rdnbr) over each feature of REGIONS,
+	with the percentiles of fire.stats_reducer: [{region, mean, median, p10, p90, min, max, ha (of the pixels with
+	values)}]."""
+	ha = ee.Image.pixelArea().divide(1e4).updateMask(index.mask()).rename('ha')
+	stats = index.addBands(ha).reduceRegions(
+		collection=regions, reducer=fire.stats_reducer().combine(ee.Reducer.sum(), '', True), scale=scale, crs=crs,
+		tileScale=4).getInfo()['features']
+	rows = []
+	for f in stats:
+		p = f['properties']
+		rows.append(dict({'region': str(p.get('name'))}, **{k: p.get(f'{band}_{k}') for k in BURN_STATS},
+		                 ha=p.get('ha_sum') or 0.0))
+	return rows
+
+
 def _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
          max_pixels, tile, workers, progress, where=None):
 	"""burn_severity with the index RBR."""
@@ -1504,17 +1527,7 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 	before, after = img.select('reference'), img.select('other')
 	dnbr = before.subtract(after).rename('dnbr')
 	rbr = fire.rbr(dnbr, before)
-	reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', True) \
-		.combine(ee.Reducer.percentile([10, 90]), '', True).combine(ee.Reducer.minMax(), '', True)
-	stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions(
-		collection=regions, reducer=reducer.combine(ee.Reducer.sum(), '', True), scale=res, crs=grid.crs,
-		tileScale=4).getInfo()['features']
-	rows = []
-	for f in stats:
-		p = f['properties']
-		rows.append({'region': str(p.get('name')), 'mean': p.get('rbr_mean'), 'median': p.get('rbr_median'),
-		             'p10': p.get('rbr_p10'), 'p90': p.get('rbr_p90'), 'min': p.get('rbr_min'), 'max': p.get('rbr_max'),
-		             'ha': p.get('ha_sum') or 0.0})
+	rows = _burn_stats(rbr, 'rbr', regions, res, grid.crs)
 	title = (f"Relativized Burn Ratio (RBR) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
 	         f"after {other_start} / {other_end}")
 	out = {'index': 'RBR', 'stats': rows, 'scale': res, 'title': title, 'csv': None, 'file': None, 'bands': None,
@@ -1558,17 +1571,7 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 	burned = {}
 	for r in classes:
 		burned[r['region']] = burned.get(r['region'], 0.0) + (r['ha'] if r['class'] >= 1 else 0.0)
-	reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', True) \
-		.combine(ee.Reducer.percentile([10, 90]), '', True).combine(ee.Reducer.minMax(), '', True)
-	stats = rdnbr.addBands(ha.rename('ha')).reduceRegions(
-		collection=regions, reducer=reducer.combine(ee.Reducer.sum(), '', True), scale=res, crs=grid.crs,
-		tileScale=4).getInfo()['features']
-	rows = []
-	for f in stats:
-		p = f['properties']
-		rows.append({'region': str(p.get('name')), 'mean': p.get('rdnbr_mean'), 'median': p.get('rdnbr_median'),
-		             'p10': p.get('rdnbr_p10'), 'p90': p.get('rdnbr_p90'), 'min': p.get('rdnbr_min'),
-		             'max': p.get('rdnbr_max'), 'ha': p.get('ha_sum') or 0.0})
+	rows = _burn_stats(rdnbr, 'rdnbr', regions, res, grid.crs)
 	col = variables.entry_of(spec)['col']  # MODIS: its product, so that Terra (MOD09GA) and Aqua (MYD09GA) differ
 	product = f" {col.split('/')[-1]}" if str(sensor).lower() == 'modis' else ''
 	title = (f"Burn severity (RdNBR, Miller & Thode 2007) {sensor}{product} ({metric}) | before {spec['period'][0]} / "

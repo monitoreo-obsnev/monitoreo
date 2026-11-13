@@ -1887,11 +1887,14 @@ var MonitorEO = (function () {
 	var RBR_OFFSET = 1.001;  // catalog.RBR_OFFSET: RBR = dNBR / (NBR before + 1.001)
 	var RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
 
-	// The statistics of services._rbr and services._rdnbr over each region: mean, median, percentiles 10 and 90,
-	// minimum and maximum of the index, and the sum of the hectares with values
+	// The statistics of services._rbr and services._rdnbr over each region (fire.stats_reducer): mean, median,
+	// percentiles 10 and 90, minimum and maximum of the index, and the sum of the hectares with values. The percentiles
+	// from a histogram of PERCENTILE_BUCKETS buckets (fire.PERCENTILE_BUCKETS), so that a few outliers do not make them
+	// coarse: with the default of Earth Engine, the percentile 10 and the median could be the same value
+	var PERCENTILE_BUCKETS = 65536;
 	function burnStatsReducer() {
-		return ee.Reducer.mean().combine(ee.Reducer.median(), '', true)
-			.combine(ee.Reducer.percentile([10, 90]), '', true).combine(ee.Reducer.minMax(), '', true)
+		var percentiles = ee.Reducer.percentile([10, 50, 90], ['p10', 'median', 'p90'], PERCENTILE_BUCKETS);
+		return ee.Reducer.mean().combine(percentiles, '', true).combine(ee.Reducer.minMax(), '', true)
 			.combine(ee.Reducer.sum(), '', true);
 	}
 
