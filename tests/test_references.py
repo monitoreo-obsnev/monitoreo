@@ -22,8 +22,9 @@ def test_bibliography():
 		assert r.get('doi') or r.get('url'), f'{rid} has no DOI nor URL'
 		if r.get('doi'):
 			assert DOI.match(r['doi']) and 'doi.org' not in r['citation'], rid
-	# only Key & Benson 2006, the WDPA and FAO GAUL 2025 have no DOI (cited with their URL, as their pages say)
-	assert sum(1 for r in refs.values() if not r.get('doi')) <= 3
+	# only Key & Benson 2006, the WDPA, FAO GAUL 2025 and the correspondence of the CORINE classes and the ecosystem
+	# types of MAES (BISE 2023, the table of the land cover masks) have no DOI (cited with their URL, as their pages say)
+	assert sum(1 for r in refs.values() if not r.get('doi')) <= 4
 	for name, ids in cat['methods'].items():
 		assert ids and set(ids) <= set(refs), name
 	for col, d in cat['datasets'].items():

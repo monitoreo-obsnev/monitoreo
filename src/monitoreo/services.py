@@ -41,7 +41,7 @@ import warnings
 
 import ee
 
-from . import areas, catalog, charts, composite, drive, fire, maps, references, sensors, timeseries, trends
+from . import areas, catalog, charts, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -572,6 +572,21 @@ def themes(lang='en'):
 		 for t in catalog.OTHER_THEMES]
 
 
+def landcover_maps(lang='en'):
+	"""The land cover maps of the land cover masks (a condition of where that leaves out some land covers, e.g. water
+	bodies and built-up areas: {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}), with their years,
+	pixel size and coverage, and the broad land covers common to all of them, with the classes of each map that are
+	each one (the table of correspondences; see monitoreo.landcover), in LANG ('en' or 'es'): {'classes': [{key, name,
+	help}], 'maps': [{key, name, resolution_m, coverage, years, default_year, dataset, how, crosswalk, classes}],
+	'rule', 'references', 'credits'}."""
+	out = landcover.describe(lang)
+	ids, credits = references.of_datasets([d for m in landcover.maps() for d in landcover.all_datasets(m)])
+	ids += [r for m in landcover.maps() for r in m.get('crosswalk_references') or []]
+	out['references'] = [references.get(i) for i in dict.fromkeys(ids)]
+	out['credits'] = credits
+	return out
+
+
 def _theme(theme):
 	low = str(theme).strip().lower()
 	for t in catalog.THEMES:
@@ -665,7 +680,8 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
 	variables that compare two periods, RBR, for burn_severity). WHERE: the pixels of the study area to keep, a list of
 	conditions on variables (see variable.where_specs), e.g. [{'variable': 'ELEVATION', 'sensor': 'Copernicus',
-	'min': 1500}]; every tool that takes a region takes it.
+	'min': 1500}], or land covers to leave out after a land cover map of a year (see landcover_maps), e.g.
+	{'landcover': 'CORINE', 'year': 2018, 'exclude': ['water', 'built']}; every tool that takes a region takes it.
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see monitoreo.assets and describe_asset):
 	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND and
 	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is

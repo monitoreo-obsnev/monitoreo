@@ -154,7 +154,10 @@ cited <- function(df, res) {
 #'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
 #'   WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 #'   \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
-#'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.
+#'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
+#'   land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
+#'   covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
+#'   \code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.
 #' @param scale pixel size of the statistics in metres (default: automatic).
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
@@ -466,6 +469,48 @@ mo_asset <- function(asset) {
 #' @export
 mo_community_themes <- function(lang = "en") {
   rows_df(services()$community_themes(lang))
+}
+
+#' Land cover maps of the land cover masks
+#'
+#' The land cover maps with which a condition of \code{where} leaves out the pixels of some land covers (e.g. the water
+#' bodies and the built-up areas), their years, and the broad land covers common to all of them with the classes of
+#' each map in each one (the table of correspondences of MonitorEO), without Earth Engine. A pixel of a result is left
+#' out when the land covers excluded cover half of it or more, and where the map has no data (CORINE outside Europe).
+#' @param lang language of the names of the land covers: \code{"en"} or \code{"es"}.
+#' @return A list: \code{classes} (a data.frame: key, for \code{exclude}; name, in \code{lang}; help, what it
+#'   includes), \code{maps} (a list of the maps: key, for \code{landcover}; name; resolution_m; coverage; years;
+#'   default_year, without \code{year}; dataset; how; classes, the classes of the map in each land cover), \code{rule}
+#'   and \code{references} (of the maps and of the table of correspondences).
+#' @references Brown, C. F., Brumby, S. P., Guzder-Williams, B., et al. (2022). Dynamic World, Near real-time global 10 m
+#'   land use land cover mapping. Scientific Data, 9, 251. \doi{10.1038/s41597-022-01307-4}
+#'
+#' Venter, Z. S., Barton, D. N., Chakraborty, T., Simensen, T., & Singh, G. (2022). Global 10 m land use land cover
+#'   datasets: A comparison of Dynamic World, World Cover and Esri Land Cover. Remote Sensing, 14(16), 4101.
+#'   \doi{10.3390/rs14164101}
+#'
+#' Biodiversity Information System for Europe (2023). Correspondence between CORINE Land Cover classes and ecosystem
+#'   types [Web page]. European Commission and European Environment Agency.
+#'   \url{https://biodiversity.europa.eu/maes/correspondence-between-corine-land-cover-classes-and-ecosystem-types}
+#'
+#' The maps: \code{mo_landcover_maps()$references} (ESA WorldCover, Dynamic World, CORINE Land Cover of each year,
+#'   MODIS MCD12Q1).
+#' @seealso \code{where} of \code{mo_map_layer()}, \code{mo_time_series()} and every function with a region
+#' @examplesIf reticulate::py_module_available("monitoreo")
+#' lc <- mo_landcover_maps()
+#' lc$classes
+#' lc$maps[[3]]$classes  # the classes of CORINE Land Cover in each land cover
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2018-01-01", "2018-12-31",
+#'              where = list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built"))))
+#' }
+#' @export
+mo_landcover_maps <- function(lang = "en") {
+  out <- services()$landcover_maps(lang)
+  out$classes <- rows_df(out$classes)
+  out
 }
 
 #' Images and collections of images of the GEE Community Catalog

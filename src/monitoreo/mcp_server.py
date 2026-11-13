@@ -109,7 +109,11 @@ variables pass some conditions, e.g. above 1,500 m and with less than 600 mm of 
 "ELEVATION", "sensor": "Copernicus", "min": 1500}, {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum",
 "temporal": "annual", "max": 600}]. Each condition is its variable aggregated over the period of the result (or its own
 "period": [start, end]; none for the fixed layers), the same mask for every step of a series or a trend and, in the
-comparisons, over the reference period. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
+comparisons, over the reference period. A condition of where can also be a land cover mask, which leaves out the pixels
+of some broad land covers (water, trees, grassland, wetland, cropland, shrubland, built, bare, snow) after a land cover
+map of a year: {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]} (landcover_maps lists the maps,
+ESA WorldCover, Dynamic World, CORINE Land Cover and MODIS MCD12Q1, their years and coverage, and the classes of each
+map in each land cover); choose the map and year closest to the period of the result, and CORINE only in Europe. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
 Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
 Without a project of the user (EE_PROJECT or connect) the tools compute with the shared account of MonitorEO, which
 cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
@@ -136,6 +140,12 @@ WHERE_DOC = """
 	aggregated over the period of the result (or its own "period": [start, end]) with metric (default mean), temporal
 	and interannual, between min and max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
 	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]."""
+
+LANDCOVER_DOC = """ A condition can instead leave out some land covers of a land cover map of a year
+	(landcover_maps lists the maps, their years and the land covers), e.g. {"landcover": "CORINE", "year": 2018,
+	"exclude": ["water", "built"]}."""
+
+WHERE_DOC += LANDCOVER_DOC
 
 SOURCE_DOC = """
 	variable and sensor: a variable of the catalog (list_variables); with them, collection is one of the collections of
@@ -175,7 +185,7 @@ def tool(fn):
 
 
 NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
-                   'community_themes', 'community_datasets')
+                   'community_themes', 'community_datasets', 'landcover_maps')
 
 
 def _eecu_warning(out):
@@ -377,6 +387,17 @@ def community_themes(lang: str = 'en') -> str:
 	shared by the community of Earth Engine as public assets) and how many datasets each has: theme (its name in the
 	catalog, for community_datasets) and name (in lang: en or es). Without Earth Engine."""
 	return _text(services.community_themes(lang))
+
+
+@tool
+def landcover_maps(lang: str = 'en') -> str:
+	"""The land cover maps of the land cover masks (a condition of where of every tool with a region, which leaves out
+	the pixels of some land covers, e.g. water bodies and built-up areas: {"landcover": "CORINE", "year": 2018,
+	"exclude": ["water", "built"]}): for each map its key (for landcover), name, resolution_m, coverage, years,
+	default_year (without year) and, in classes, its own classes in each broad land cover; and the broad land covers
+	(classes: key, for exclude, name in lang, en or es, and what each includes), the rule of the mask and the references
+	of the maps and of the table of correspondences. Without Earth Engine."""
+	return _text(services.landcover_maps(lang))
 
 
 @tool

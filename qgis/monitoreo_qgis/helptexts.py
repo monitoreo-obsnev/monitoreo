@@ -229,6 +229,22 @@ HELP = {
 		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
 		'and exports keep only those pixels, and their README says which.</p>'
 		+ manual('Concepts#filtering-the-study-area'),
+	'landcover_map':
+		'<p>Leaves out of every result (maps, series, trends, comparisons, exports and the burn severity) the pixels '
+		'of some land covers, e.g. water bodies or built-up areas, after a land cover map of a year: '
+		'<b>ESA WorldCover</b> (10 m, the world, 2020 and 2021), <b>Dynamic World</b> (10 m, the world, the most '
+		'frequent class of each year since 2016), <b>CORINE Land Cover</b> (100 m, Europe, 1990 to 2018) or '
+		'<b>MODIS MCD12Q1</b> (500 m, the world, every year since 2001). Choose the map of the year closest to the '
+		'period of the results.</p>'
+		'<p>Each map has its own classes, so the mask takes a few broad land covers, and a table says which classes '
+		'of each map are each one (the ⓘ of <b>Leave out</b> lists them for the map chosen). A pixel of a result is '
+		'left out when those land covers cover half of it or more, and where the map has no data (CORINE outside '
+		'Europe). Check the box of the group to use it; the README of every result says which land covers it left '
+		'out.</p>'
+		+ manual('Concepts#land-cover-mask'),
+	'landcover':
+		'<p>The broad land covers to leave out of the results: water, trees, grassland, wetlands, cropland, '
+		'shrubland, built-up, bare ground, and snow and ice.</p>',
 	'filters':
 		'<p>Removes from each image, before computing, the pixels that its quality bands mark with clouds (and their '
 		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '

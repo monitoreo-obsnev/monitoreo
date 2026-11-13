@@ -90,7 +90,7 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'describe_asset', 'community_themes',
-          'community_datasets')  # their answers go to the model
+          'community_datasets', 'landcover_maps')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables')  # their answers go only to the user and the report
@@ -165,7 +165,8 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'find_admin_units': 'Searching for administrative units named «{text}»',
           'describe_asset': 'Reading the description of {asset} in Earth Engine',
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
-          'community_datasets': 'Looking at the datasets of the GEE Community Catalog'}
+          'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
+          'landcover_maps': 'Looking at the land cover maps of the land cover masks'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
@@ -263,6 +264,13 @@ where, a list of conditions that the pixels must all pass, each a variable betwe
 "ELEVATION", "sensor": "Copernicus", "min": 1500}}, {{"variable": "PRECIP", "sensor": "TerraClimate", "metric": \
 "sum", "temporal": "annual", "max": 600}}]. A variable with dates is aggregated over the period of the result \
 (metric "mean" by default); every tool with a region takes it, and the results say which pixels they kept.
+- Without some land covers («NDVI without the water bodies and the towns», «only the natural areas»): a condition of \
+where that leaves them out after a land cover map of a year, {{"landcover": "CORINE", "year": 2018, "exclude": \
+["water", "built"]}}. The land covers are water, trees, grassland, wetland, cropland, shrubland, built, bare and snow; \
+the maps, ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CORINE Land Cover (Europe only: 1990 to \
+2018) and MODIS MCD12Q1 (every year since 2001): landcover_maps lists their years and which classes of each map are \
+each land cover. Choose the map of the year closest to the period of the result (CORINE only in Europe), and say \
+which map and year you used.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
@@ -480,12 +488,15 @@ def _compact(schema, names=False):
 
 def _description(text):
 	"""The description of a tool for the model, in one paragraph and without the explanation of the data of Earth
-	Engine by their ID that the MCP server adds to each tool that takes them (its SOURCE_DOC): the instructions give it
-	once (PROMPT), and with a variable of the catalog the assistant passes no collection (see fix_args)."""
+	Engine by their ID that the MCP server adds to each tool that takes them (its SOURCE_DOC) and of the land cover
+	masks of where (LANDCOVER_DOC): the instructions give them once (PROMPT), and with a variable of the catalog the
+	assistant passes no collection (see fix_args)."""
 	from . import mcp_server
 	text = ' '.join(str(text or '').split())
-	source = ' '.join(str(getattr(mcp_server, 'SOURCE_DOC', '')).split())
-	return (text.replace(source, '') if source else text).replace('  ', ' ').strip()
+	for doc in ('SOURCE_DOC', 'LANDCOVER_DOC'):  # the land cover masks too: the instructions explain them (PROMPT)
+		said = ' '.join(str(getattr(mcp_server, doc, '')).split())
+		text = text.replace(said, '') if said else text
+	return text.replace('  ', ' ').strip()
 
 
 SINCE = re.compile(r'\b(?:desde\s+(?:el\s+)?(?:año\s+)?(?:(?:\d{1,2}\s+de\s+)?[a-záéíóú]+\s+(?:de|del)\s+)?|'

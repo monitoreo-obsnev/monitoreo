@@ -67,7 +67,34 @@ from . import __version__
 
 WHERE_HELP = ('only the pixels of the region whose variables pass these conditions, a JSON list, e.g. '
               '\'[{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500}]\' (each its variable aggregated '
-              'over the period, between min and max; see the wiki, Concepts)')
+              'over the period, between min and max), or without some land covers of a land cover map of a year, e.g. '
+              '\'[{"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}]\' (monitoreo landcover lists '
+              'the maps and the land covers; see the wiki, Concepts)')
+
+
+def _landcover(args, services):
+	"""monitoreo landcover: the land cover maps and the broad land covers of the masks; with --map, the classes of that
+	map in each broad land cover."""
+	from . import landcover
+	d = services.landcover_maps(args.lang)
+	if args.map:
+		try:
+			key = landcover.find(args.map)['key']
+		except ValueError as e:
+			sys.exit(f'ERROR: {e}')
+		m = next(x for x in d['maps'] if x['key'] == key)
+		print(f"{m['name']} ({m['resolution_m']} m, {m['coverage']}; years {m['years']}, by default "
+		      f"{m['default_year']}): {m['how']}")
+		for c in d['classes']:
+			print(f"  {c['key']:<10} {c['name']}: {'; '.join(m['classes'][c['key']]) or '-'}")
+		return
+	_table([{'key': m['key'], 'map': m['name'], 'resolution_m': m['resolution_m'], 'coverage': m['coverage'],
+	         'years': m['years'], 'default_year': m['default_year']} for m in d['maps']],
+	       ['key', 'map', 'resolution_m', 'coverage', 'years', 'default_year'])
+	print()
+	_table(d['classes'], ['key', 'name', 'help'])
+	print(f"\n{d['rule']} E.g. --where '[{{\"landcover\": \"CORINE\", \"year\": 2018, \"exclude\": "
+	      f"[\"water\", \"built\"]}}]'; monitoreo landcover --map CORINE lists the classes of a map.")
 
 
 def _where(args):
@@ -221,6 +248,11 @@ def main(argv=None):
 	p.add_argument('--kind', choices=('image', 'image_collection'), help='only images or only collections of images')
 	p.add_argument('--limit', type=int, help='at most this number of datasets (default: all)')
 	p.add_argument('--lang', default='en', choices=('en', 'es'), help='language of the names of the themes')
+	p = sub.add_parser('landcover', help='the land cover maps of the land cover masks (--where with landcover, year and '
+	                                     'exclude), their years and the classes of each map in each broad land cover '
+	                                     '(without Earth Engine)')
+	p.add_argument('--map', help='only this map: its classes in each broad land cover')
+	p.add_argument('--lang', default='en', choices=('en', 'es'), help='language of the names of the land covers')
 	computes = {}  # the subcommands of a variable or of data of Earth Engine by its ID, for the errors of _source
 	computes['series'] = p = sub.add_parser('series', help='time series of a variable over a region')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
@@ -389,6 +421,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'community':  # the copy of its index in MonitorEO: without Earth Engine
 		return _community(args, services)
+	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
+		return _landcover(args, services)
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return

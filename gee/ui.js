@@ -37,6 +37,11 @@
 			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada año (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar píxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
+			landcoverHeader: 'Máscara de usos del suelo', landcoverOn: 'Quitar algunos usos del suelo de los resultados',
+			landcoverYear: 'Año del mapa', landcoverLeaveOut: 'Quitar los píxeles de:',
+			landcoverNote: 'Un píxel se quita cuando esos usos cubren la mitad o más de él, y donde el mapa no tiene ' +
+				'datos (CORINE fuera de Europa). Qué clases de cada mapa son cada uso: manual, Conceptos.',
+			noLandcover: 'Máscara de usos del suelo: marca los usos que quitar (o desmarca la máscara).',
 			whereHeader: 'Solo los píxeles donde', whereOn: 'una variable está entre dos valores', between: 'entre',
 			and: 'y', whereNote: 'Mín. o máx. vacío: sin límite. Una variable con fechas es su media en el periodo, la ' +
 			'misma para cada paso y para los dos periodos de una comparación.',
@@ -157,6 +162,11 @@
 			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
+			landcoverHeader: 'Land cover mask', landcoverOn: 'Leave some land covers out of the results',
+			landcoverYear: 'Year of the map', landcoverLeaveOut: 'Leave out the pixels of:',
+			landcoverNote: 'A pixel is left out when those land covers cover half of it or more, and where the map has ' +
+				'no data (CORINE outside Europe). Which classes of each map are each land cover: manual, Concepts.',
+			noLandcover: 'Land cover mask: check the land covers to leave out (or uncheck the mask).',
 			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
 			and: 'and', whereNote: 'An empty min or max: no limit. A variable with dates is its mean over the period, the ' +
 			'same for every step and for both periods of a comparison.',
@@ -277,6 +287,8 @@
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
+		// the land cover mask, a condition of where: its map, year (null: the default of the map) and land covers left out
+		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
@@ -912,7 +924,8 @@
 	// for a fire, the period before it); null if off
 	function whereArgs(period) {
 		period = period || state.period;
-		if (!state.whereOn) return null;
+		var lc = landcoverArgs();
+		if (!state.whereOn) return lc ? [lc] : null;
 		var c = {ref: whereRef()};
 		[['min', state.whereMin], ['max', state.whereMax]].forEach(function (x) {
 			var text = String(x[1] || '').replace(',', '.');
@@ -925,17 +938,67 @@
 			checkPeriod(period);
 			c.period = period.slice();
 		}
-		return [c];
+		return lc ? [c, lc] : [c];
+	}
+
+	// The year of the land cover map chosen: the one chosen if the map has it, otherwise its default (its last one; for
+	// Dynamic World, the last whole year)
+	function landcoverYear() {
+		var m = mo.landcoverMap(state.landcoverMap);
+		if (mo.landcoverYears(m).indexOf(state.landcoverYear) < 0) state.landcoverYear = mo.landcoverDefaultYear(m);
+		return state.landcoverYear;
+	}
+
+	// The land cover condition of where of the land cover mask (landcover.py), or null if it is off
+	function landcoverArgs() {
+		if (!state.landcoverOn) return null;
+		if (!state.landcoverExclude.length) throw new Error(t('noLandcover'));
+		return {landcover: state.landcoverMap, year: landcoverYear(), exclude: state.landcoverExclude.slice()};
+	}
+
+	// The land cover mask, before the variable: unfolds when checked, with the map, its year and the broad land covers
+	// to leave out of every result (a condition of where, see landcoverArgs)
+	function landcoverWidgets() {
+		var w = [header(t('landcoverHeader')), check(t('landcoverOn'), state.landcoverOn, function (v) {
+			state.landcoverOn = v;
+			render();
+		})];
+		if (!state.landcoverOn) return w;
+		var maps = mo.landcoverMaps().map(function (m) {
+			return {value: m.key, label: [m.name, m.m + ' m', m.coverage].join(' · ')};
+		});
+		w.push(select(maps, state.landcoverMap, function (key) {
+			state.landcoverMap = key;
+			render();
+		}, '340px'));
+		var m = mo.landcoverMap(state.landcoverMap);
+		var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
+		w.push(row(ui.Label(t('landcoverYear')), select(years, landcoverYear(), function (y) {
+			state.landcoverYear = Number(y);
+		}, '90px')));
+		w.push(ui.Label(t('landcoverLeaveOut'), SMALL));
+		mo.landcoverClasses().forEach(function (c) {
+			var codes = mo.landcoverCodes(m, [c.key]);  // the classes of the map in it, e.g. «Water (511, 512, ...)»
+			w.push(check((c[state.lang] || c.en) + (codes.length ? ' (' + codes.join(', ') + ')' : ''),
+				state.landcoverExclude.indexOf(c.key) >= 0, function (v) {
+					state.landcoverExclude = state.landcoverExclude.filter(function (k) { return k !== c.key; });
+					if (v) state.landcoverExclude.push(c.key);
+				}));
+		});
+		w.push(ui.Label(t('landcoverNote'), SMALL, mo.CATALOG.about.manual + (state.lang === 'en' ?
+			'/Concepts#land-cover-mask' : '/Conceptos#máscara-de-usos-del-suelo')));
+		return w;
 	}
 
 	// The text of the condition for the titles, e.g. «ELEVATION ≥ 1500»
 	function whereText() {
-		if (!state.whereOn) return null;
+		var lc = state.landcoverOn && state.landcoverExclude.length ? mo.landcoverText(landcoverArgs(), state.lang) : null;
+		if (!state.whereOn) return lc;
 		var e = mo.byRef(whereRef());
 		var parts = [];
 		if (state.whereMin) parts.push('≥ ' + state.whereMin);
 		if (state.whereMax) parts.push('≤ ' + state.whereMax);
-		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '');
+		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '') + (lc ? ', ' + lc : '');
 	}
 
 	// Checks and specs ----------------------------------------------------------------------------------------------
@@ -1730,7 +1793,7 @@
 			controls.add(ui.Label('→ ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('→ ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});

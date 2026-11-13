@@ -73,6 +73,19 @@ test_that("leaflet with several maps: the true colour, then the index on top", {
   expect_equal(mo_leaflet(list(rgb, ndvi))$x$calls, both$x$calls)  # a list of maps, the same
 })
 
+test_that("the land cover maps of the land cover masks, without Earth Engine", {
+  skip_if_no_python()
+  lc <- mo_landcover_maps()
+  expect_s3_class(lc$classes, "data.frame")
+  expect_true(all(c("water", "built", "cropland") %in% lc$classes$key))
+  keys <- vapply(lc$maps, function(m) m$key, "")
+  expect_true(all(c("WorldCover", "DynamicWorld", "CORINE", "MODIS") %in% keys))
+  corine <- lc$maps[[which(keys == "CORINE")]]
+  expect_true(any(grepl("^511 ", corine$classes$water)))
+  expect_match(mo_landcover_maps("es")$classes$name[lc$classes$key == "water"], "Agua")
+  expect_true(length(lc$references) > 0)
+})
+
 test_that("the GEE Community Catalog by its themes, without Earth Engine", {
   skip_if_no_python()
   th <- mo_community_themes()
