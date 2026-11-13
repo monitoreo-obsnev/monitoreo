@@ -775,8 +775,9 @@ function mapButton(id) {  // shows the map of the result ID
   return b;
 }
 
-// The legend of a map: a bar from min to max with its palette, a colour per class (the burn severity of the USGS) or,
-// without colours, its text (the true colour of the images: the range of its reflectance)
+// The legend of a map: a bar from min to max with its palette, a colour per class (the burn severity: the classes of
+// the USGS for the dNBR, those of Miller & Thode 2007 for the RdNBR) or, without colours, its text (the true colour of
+// the images: the range of its reflectance)
 function legendItems(lg) {
   if (lg.classes) {
     return lg.classes.map(c => el('span', {class: 'class'}, el('span', {class: 'swatch', style: `background: ${c.color}`}),

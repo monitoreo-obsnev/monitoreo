@@ -122,19 +122,38 @@ BANDS = {
 	'nbr_before': ('NBR before the fire', ''),
 	'nbr_after': ('NBR after the fire', ''),
 	'rbr': ('RBR (dNBR / (NBR before + 1.001))', ''),
+	'rdnbr': ('RdNBR (dNBR / sqrt(max(|NBR before|, 0.001)))', ''),
 	'red': ('Surface reflectance, red (true colour)', ''),
 	'green': ('Surface reflectance, green (true colour)', ''),
 	'blue': ('Surface reflectance, blue (true colour)', ''),
 }
 TRUE_COLOUR = ('the true colour (download_rgb) cannot be published in the viewer of results yet: leave it out of the '
                'report (its GeoTIFF and README stay on the computer)')
-DIVERGING_BANDS = ('slope', 'tau', 'z', 'difference', 'dnbr', 'rbr')
-MAIN_BANDS = ('slope', 'difference', 'severity', 'rbr')  # shown first when a GeoTIFF has them
+# the band severity of a GeoTIFF of burn_severity, by its burn index (fire.index_of of its bands)
+SEVERITY_BANDS = {'dNBR': BANDS['severity'],
+                  'RdNBR': ('Severity class of Miller & Thode 2007 (0 unchanged, 1 low, 2 moderate, 3 high)', '')}
+DIVERGING_BANDS = ('slope', 'tau', 'z', 'difference', 'dnbr', 'rbr', 'rdnbr')
+REVERSED_BANDS = ('rbr', 'rdnbr')  # with the diverging ramp reversed (burned in red), as fire.map_style
+MAIN_BANDS = ('slope', 'difference', 'severity', 'rbr', 'rdnbr')  # shown first when a GeoTIFF has them
 
 
 def fire_variable(args):
-	"""The variable of the catalog of a call of burn_severity: RBR with index RBR, else NBR."""
-	return 'RBR' if str((args or {}).get('index') or '').upper() == 'RBR' else 'NBR'
+	"""The variable of the catalog of a call of burn_severity: RBR with index RBR, RdNBR with index RdNBR, else NBR."""
+	index = str((args or {}).get('index') or '').lower()
+	return {'rbr': 'RBR', 'rdnbr': 'RdNBR'}.get(index, 'NBR')
+
+
+def burn_index(args):
+	"""The burn index of a call of burn_severity: 'dNBR' (the default), 'RBR' or 'RdNBR'."""
+	return {'NBR': 'dNBR'}.get(fire_variable(args), fire_variable(args))
+
+
+def band_text(name, bands=None):
+	"""(label, unit) of the band NAME of a GeoTIFF of the tools with the bands BANDS (None for an unknown band): the
+	band severity, that of the burn index of the GeoTIFF (the classes of the USGS or those of Miller & Thode 2007)."""
+	if name == 'severity':
+		return SEVERITY_BANDS.get(fire.index_of(bands), BANDS['severity'])
+	return BANDS.get(name, (None, '{u}'))
 
 
 # Reading the reports ------------------------------------------------------------------------------------------------
@@ -327,8 +346,10 @@ def default_title(tool, args):
 		return f'Map of the difference of {var}: {other} minus {period}{season}'
 	if tool == 'burn_severity':
 		sensor = args.get('sensor') or 'Sentinel-2'
-		index = 'RBR' if fire_variable(args) == 'RBR' else 'dNBR'
-		return f'Burn severity ({index} of {SENSORS.get(sensor, sensor)}): before, {period}; after, {other}'
+		name = SENSORS.get(sensor, sensor)
+		if str(sensor).lower() == 'modis':  # the RdNBR of MODIS: Terra (MOD09GA, the default) or Aqua (MYD09GA)
+			name += ' Aqua' if 'MYD' in str(args.get('collection') or '').upper() else ' Terra'
+		return f'Burn severity ({burn_index(args)} of {name}): before, {period}; after, {other}'
 	if tool == 'download_image':
 		return f'Map of {var}' if is_static(args) or not period else f'Map of {var}, {period}{season}'
 	if tool == 'download_rgb':
@@ -437,8 +458,9 @@ def _continuous(lo, hi, palette, symmetric=False):
 	return {'type': 'continuous', 'min': float(lo), 'max': float(hi), 'palette': _hex(palette)}
 
 
-def _severity_legend():
-	return {'type': 'categories', 'classes': fire.legend()}
+def _severity_legend(index='dNBR'):
+	"""The legend of the classes of the burn INDEX ('dNBR' or 'RdNBR') in the viewer."""
+	return {'type': 'categories', 'classes': fire.legend(index if index in fire.CLASSES else 'dNBR')}
 
 
 def _entry(variable, sensor):
@@ -469,7 +491,7 @@ def _bands(tool, args, result, arrays, palette, unit):
 	pair_range = (min(s['p2'] for s in pair), max(s['p98'] for s in pair)) if pair else (None, None)
 	out = []
 	for name, st in stats.items():
-		label, u = BANDS.get(name, (None, '{u}'))
+		label, u = band_text(name, list(arrays))
 		if label is None:  # a single band map (download_image): the variable
 			label = _vname(entry) or _var(args) or name
 		if tool == 'download_comparison' and name in ('reference', 'other', 'difference'):
@@ -479,7 +501,7 @@ def _bands(tool, args, result, arrays, palette, unit):
 		lo, hi = (st['p2'], st['p98']) if st else (None, None)
 		main = name in MAIN_BANDS or len(arrays) == 1
 		if name == 'severity':
-			legend = _severity_legend()
+			legend = _severity_legend(fire.index_of(list(arrays)))
 		elif name == 'p_value':
 			legend = _continuous(0.0, 0.1, trends.P_VALUE)
 		elif name == 'n':
@@ -488,7 +510,8 @@ def _bands(tool, args, result, arrays, palette, unit):
 			if main and result.get('min') is not None and result.get('max') is not None:
 				lo, hi = result['min'], result['max']
 			legend = _continuous(-1.0, 1.0, diverging) if name == 'tau' else \
-				_continuous(lo, hi, list(reversed(trends.DIVERGING)) if name == 'rbr' and not palette else diverging, True)
+				_continuous(lo, hi, list(reversed(trends.DIVERGING)) if name in REVERSED_BANDS and not palette else diverging,
+				            True)
 		elif name in ('reference', 'other', 'nbr_before', 'nbr_after'):
 			legend = _continuous(*pair_range, ramp)
 		elif main and result.get('min') is not None and result.get('max') is not None:
@@ -618,11 +641,16 @@ def _num(x):
 		return None
 
 
+def _columns(path):
+	"""The columns of the header of a CSV file."""
+	with open(path, newline='', encoding='utf-8') as f:
+		return set(next(csv.reader(f), []))
+
+
 def _chart_type(tool, path):
 	if tool in CHARTS:
 		return CHARTS[tool]
-	with open(path, newline='', encoding='utf-8') as f:
-		cols = set(next(csv.reader(f), []))
+	cols = _columns(path)
 	return ('series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
@@ -670,8 +698,13 @@ def _results(item, files, n):
 			                  period_text(args.get('other_start'), args.get('other_end'))] \
 				if args.get('start') and args.get('other_start') else ['Reference period', 'Other period']
 		if chart == 'burn_severity':
-			entry['classes'] = _severity_legend()['classes']
+			# the classes of its index (those of the USGS, or of Miller & Thode 2007: a CSV with rdnbr_min)
+			index = 'RdNBR' if 'rdnbr_min' in _columns(res['csv']) else res.get('index') or burn_index(args)
+			entry['classes'] = _severity_legend(index)['classes']
 			entry['burned_ha'] = res.get('burned_ha')
+			if index in fire.CLASSES:
+				entry['index'] = index
+				entry['burned_min'] = fire.CLASSES[index]['burned']  # the burned area: the index from this value
 			if out:
 				entry['title'] = item.get('chart_title') or 'Area of each severity class'
 		if res.get('chart'):

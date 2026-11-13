@@ -5,20 +5,21 @@
 MO.chart = (() => {
 	const {el} = MO;
 	const NUMERIC = new Set(['value', 'n_pixels', 'n_images', 'n', 'tau', 'z', 'p_value', 'slope', 'intercept', 'first_year',
-		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max', 'ha',
-		'scale_m']);
+		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max',
+		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m']);
 	const COLUMNS = {
 		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
 		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
 		slope: 'Slope', intercept: 'Initial value', first_year: 'First year', last_year: 'Last year',
 		reference: 'Reference', other: 'Other period', difference: 'Difference', n_reference: 'Years (ref.)',
-		n_other: 'Years (other)', class: 'Class', dnbr_min: 'dNBR from', dnbr_max: 'dNBR to', ha: 'Hectares',
+		n_other: 'Years (other)', class: 'Class', dnbr_min: 'dNBR from', dnbr_max: 'dNBR to', rdnbr_min: 'RdNBR from',
+		rdnbr_max: 'RdNBR to', ha: 'Hectares',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
 		trends: ['region', 'label', 'slope', 'p_value', 'significant', 'tau', 'z', 'n', 'intercept', 'first_year', 'last_year'],
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
-		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'ha'],
+		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max', 'ha'],
 	};
 	const LOCALE = {decimal: '.', thousands: ',', grouping: [3], currency: ['$', ''], minus: '−'};
 	const TIME_LOCALE = {
@@ -219,10 +220,17 @@ MO.chart = (() => {
 		};
 	}
 
-	// Burn severity: hectares of each class (without the unburned one, much bigger), and the burned area. The names of
-	// the classes are those of the legend of the result (its CSV may have been written in another language).
+	// The burn index of a result of burn severity with classes: 'RdNBR' (Miller & Thode 2007: its CSV has rdnbr_min) or
+	// 'dNBR' (the classes of the USGS)
+	const burnIndex = (rows, result) => result.index === 'RdNBR' || rows.some((r) => 'rdnbr_min' in r) ? 'RdNBR' : 'dNBR';
+
+	// Burn severity: hectares of each class (without the unburned or unchanged one, much bigger), and the burned area.
+	// The names of the classes are those of the legend of the result (its CSV may have been written in another
+	// language).
 	function burnSpec(rows, result) {
 		const classes = result.classes || [];
+		const index = burnIndex(rows, result);
+		const key = index.toLowerCase();
 		const names = new Map(classes.map((c) => [c.value, c.label]));
 		const data = rows.filter((r) => r.class !== 0).map((r) => ({...r, label: names.get(r.class) ?? r.label}));
 		return {
@@ -235,7 +243,8 @@ MO.chart = (() => {
 						color: {field: 'label', type: 'nominal', legend: null,
 							scale: {domain: classes.map((c) => c.label), range: classes.map((c) => c.color)}},
 						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
-							{field: 'dnbr_min', title: 'dNBR from', format: '.2f'}, {field: 'dnbr_max', title: 'dNBR to', format: '.2f'}]}},
+							{field: `${key}_min`, title: `${index} from`, format: index === 'RdNBR' ? '.3f' : '.2f'},
+							{field: `${key}_max`, title: `${index} to`, format: index === 'RdNBR' ? '.3f' : '.2f'}]}},
 				{mark: {type: 'text', align: 'left', dx: 5, fontSize: 12.5},
 					transform: [{calculate: "datum.ha < 10 ? format(datum.ha, ',.1f') : format(datum.ha, ',.0f')", as: 'text'}],
 					encoding: {y: {field: 'label', type: 'nominal', sort: classes.map((c) => c.label)}, x: {field: 'ha', type: 'quantitative'},
@@ -244,8 +253,17 @@ MO.chart = (() => {
 		};
 	}
 
-	function burnTiles(rows) {
+	function burnTiles(rows, result) {
 		const sum = (f) => rows.filter(f).reduce((s, r) => s + (r.ha || 0), 0);
+		if (burnIndex(rows, result) === 'RdNBR') {  // the classes of Miller & Thode 2007: unchanged, low, moderate, high
+			return el('div', {class: 'stats'},
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, `Changed area (RdNBR ≥ ${result.burned_min ?? 0.069})`),
+					el('div', {class: 'value'}, `${MO.round(sum((r) => r.class >= 1))} ha`)),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Moderate or high severity'),
+					el('div', {class: 'value'}, `${MO.round(sum((r) => r.class >= 2))} ha`)),
+				el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Unchanged'),
+					el('div', {class: 'value'}, `${MO.round(sum((r) => r.class === 0))} ha`)));
+		}
 		return el('div', {class: 'stats'},
 			el('div', {class: 'stat'}, el('div', {class: 'label'}, 'Burned area (dNBR ≥ 0.1)'),
 				el('div', {class: 'value'}, `${MO.round(sum((r) => r.class >= 1))} ha`)),
@@ -281,7 +299,7 @@ MO.chart = (() => {
 			if (kind === 'trends') return box.append(...trendTiles(subset, result));
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'burn_severity') {
-				box.append(burnTiles(subset));
+				box.append(burnTiles(subset, result));
 				const inner = el('div');
 				box.append(inner);
 				return embed(inner, burnSpec(subset, result));

@@ -290,7 +290,7 @@ var MonitorEO = (function () {
 
 	// sensors.rgb_of: [bands, scale, offset] of the true colour of the images of ENTRY (see RGB), or null if they have
 	// none (fixed layers, climate, most MODIS products, the data of Earth Engine outside the catalog) or the variable
-	// compares two periods (RBR: see burnRatio)
+	// compares two periods (RBR and RdNBR: see burnSeverity)
 	function rgbOf(entry) {
 		if (!entry || entry.static || entry.two_periods || entry.custom) return null;
 		return RGB[entry.sensor] || RGB[entry.col] || null;
@@ -330,6 +330,13 @@ var MonitorEO = (function () {
 		return state.eq(0).or(state.eq(3));
 	}
 
+	// sensors._modis_09_clouds: MOD09GA, MYD09GA state_1km: bits 0-1 clear (0) or assumed clear (3), no cloud shadow
+	// (bit 2) and no cloud of the internal algorithm (bit 10)
+	function modis09Clouds(qa) {
+		var state = bits(qa, 0, 1);
+		return state.eq(0).or(state.eq(3)).and(bits(qa, 2).eq(0)).and(bits(qa, 10).eq(0));
+	}
+
 	function viClouds(i) {
 		var qa = i.select('DetailedQA');
 		return i.select('SummaryQA').neq(3).and(bits(qa, 8).eq(0)).and(bits(qa, 10).eq(0)).and(bits(qa, 15).eq(0));
@@ -346,6 +353,15 @@ var MonitorEO = (function () {
 		valid: ['NDSI_Snow_Cover', 100],
 		clouds: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).neq(250); },
 		water: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).remap([237, 239], [0, 0], 1); }
+	};
+	// the daily surface reflectance of MODIS (the RdNBR of MODIS, MOD09GA and MYD09GA), state_1km: bits 0-1 cloud
+	// state (0 clear, 3 assumed clear), 2 cloud shadow, 3-5 land/water (1 land), 6-7 aerosols (3 high), 10 internal
+	// cloud flag, 15 internal snow mask
+	var SURFACE = {
+		clouds: function (i) { return modis09Clouds(i.select('state_1km')); },
+		water: function (i) { return bits(i.select('state_1km'), 3, 5).eq(1); },
+		snow: function (i) { return bits(i.select('state_1km'), 15).eq(0); },
+		aerosols: function (i) { return bits(i.select('state_1km'), 6, 7).neq(3); }
 	};
 	var PRODUCTS = {
 		'MODIS/061/MOD13Q1': VI,
@@ -372,7 +388,9 @@ var MonitorEO = (function () {
 		},
 		'MODIS/061/MCD43A3': {clouds: function (i) {
 			return i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0);
-		}}
+		}},
+		'MODIS/061/MOD09GA': SURFACE,
+		'MODIS/061/MYD09GA': SURFACE
 	};
 
 	function withQuality(quality) {
@@ -1603,20 +1621,150 @@ var MonitorEO = (function () {
 	// fire.COLOURS of the Python package
 	var SEVERITY_COLOURS = ['7a8737', 'acbe4d', '0ae042', 'fff70b', 'ffaf38', 'ff641b', 'a41fd6'];
 
-	function severityLimits(i) {
-		return [SEVERITY[i][1], i + 1 < SEVERITY.length ? SEVERITY[i + 1][1] : null];
+	// fire.RDNBR_SEVERITY: the classes of the RdNBR of Miller & Thode 2007 (their Table 4, without their factor 1000:
+	// unchanged < 69, low 69-315, moderate 316-640, high >= 641 there), [class, lowest RdNBR of the class, name es,
+	// name en]. 'Unchanged', not 'unburned': one year after the fire the area was indistinguishable from before it
+	var RDNBR_SEVERITY = [
+		[0, null, 'Sin cambios', 'Unchanged'],
+		[1, 0.069, 'Severidad baja', 'Low severity'],
+		[2, 0.316, 'Severidad moderada', 'Moderate severity'],
+		[3, 0.641, 'Severidad alta', 'High severity']
+	];
+	var RDNBR_BURNED = 0.069;  // fire.RDNBR_BURNED: the RdNBR from which a pixel changed (class 1, low, and above)
+	// fire.RDNBR_COLOURS, of the classes 0 to 3: the colours of UN-SPIDER of the classes of the dNBR of the same name
+	// (unburned, low, moderate-high, high), so that both maps read alike (the article draws its classes in grey)
+	var RDNBR_COLOURS = ['0ae042', 'fff70b', 'ff641b', 'a41fd6'];
+	// fire.RDNBR_RANGE: the range of the colours of the map of the continuous RdNBR (the reversed diverging ramp, like
+	// the RBR)
+	var RDNBR_RANGE = [-1.2, 1.2];
+	var RDNBR_MIN_NBR = 0.001;  // catalog.RDNBR_MIN_NBR: |NBR before| at least 0.001 (Howe et al. 2022)
+	var RDNBR_COLUMNS = ['region', 'class', 'label', 'rdnbr_min', 'rdnbr_max', 'ha'];  // services.RDNBR_COLUMNS
+	// fire.CLASSES: the burn indices with classes: their classes, colours, the value from which a pixel is burned (or
+	// changed) and the name of the columns of the limits of their classes (dnbr_min and dnbr_max, rdnbr_min and
+	// rdnbr_max)
+	var CLASSES = {
+		dNBR: {classes: SEVERITY, colours: SEVERITY_COLOURS, burned: BURNED, key: 'dnbr'},
+		RdNBR: {classes: RDNBR_SEVERITY, colours: RDNBR_COLOURS, burned: RDNBR_BURNED, key: 'rdnbr'}
+	};
+	// services.BURN_INDICES and services.BURN_SENSORS: the burn indices and the sensors of each (those of its entries
+	// of the catalog: NBR, RBR, RdNBR); RDNBR_MODIS, the collections of MODIS of the RdNBR (COLLECTION of
+	// services.burn_severity: Terra, the default, since 2000-02-24, or Aqua, since 2002-07-04)
+	var BURN_INDICES = ['dNBR', 'RBR', 'RdNBR'];
+	var BURN_SENSORS = {dNBR: ['Sentinel-2', 'Landsat'], RBR: ['Sentinel-2', 'Landsat'],
+		RdNBR: ['Sentinel-2', 'Landsat', 'Modis']};
+	var RDNBR_MODIS = ['MODIS/061/MOD09GA', 'MODIS/061/MYD09GA'];
+
+	// services.burn_severity: the burn index INDEX ('dNBR' by default, any case) checked with SENSOR and COLLECTION, the
+	// same errors without Earth Engine
+	function burnIndex(index, sensor, collection) {
+		var low = String(index || 'dNBR').toLowerCase();
+		var found = BURN_INDICES.filter(function (i) { return i.toLowerCase() === low; })[0];
+		if (!found) {
+			throw new Error('unknown burn index: use ' + BURN_INDICES.slice(0, -1).join(', ') + ' or ' +
+				BURN_INDICES[BURN_INDICES.length - 1]);
+		}
+		var known = BURN_SENSORS[found].map(function (s) { return s.toLowerCase().replace(/ /g, ''); });
+		if (sensor !== null && sensor !== undefined && known.indexOf(String(sensor).toLowerCase().replace(/ /g, '')) < 0) {
+			throw new Error('the burn index ' + found + ' is computed with the sensors ' + BURN_SENSORS[found].join(', ') +
+				', not ' + sensor + (String(sensor).toLowerCase() === 'modis' ? ': MODIS only with index RdNBR' : ''));
+		}
+		if (collection && found !== 'RdNBR') {
+			throw new Error('collection is only for the index RdNBR with sensor Modis (MODIS/061/MOD09GA, Terra, or ' +
+				'MODIS/061/MYD09GA, Aqua)');
+		}
+		return found;
 	}
 
-	// fire.classify
-	function classify(dnbr) {
-		var cls = ee.Image.constant(SEVERITY[0][0]);
-		SEVERITY.slice(1).forEach(function (c) { cls = cls.add(dnbr.gte(c[1])); });
-		return cls.updateMask(dnbr.mask()).toInt8().rename('severity');
+	// The entry of the catalog that services.burn_severity computes for INDEX with SENSOR (and COLLECTION, the MODIS
+	// of the RdNBR: Terra without it), as catalog.find finds it (the first one): the NBR for the dNBR (101 Landsat,
+	// 102 Sentinel-2), the RBR (103 Sentinel-2, 104 Landsat) and the RdNBR (144 Sentinel-2, 145 Landsat, 146 MODIS
+	// Terra, 147 MODIS Aqua)
+	function burnEntry(index, sensor, collection) {
+		index = burnIndex(index, sensor, collection);
+		var name = index === 'dNBR' ? 'NBR' : index;
+		var low = function (s) { return String(s).toLowerCase().replace(/ /g, ''); };
+		var found = variables().filter(function (e) {
+			return low(e.index) === low(name) && (sensor === null || sensor === undefined || low(e.sensor) === low(sensor)) &&
+				(!collection || e.col === collection);
+		});
+		if (!found.length) {
+			throw new Error(name + ' with sensor ' + sensor + (collection ? ' and collection ' + collection : '') +
+				' is not in the catalog of MonitorEO');
+		}
+		return found[0];
+	}
+
+	// fire._classes: the classes of INDEX ('dNBR', the default, or 'RdNBR', any case)
+	function classesOf(index) {
+		var low = String(index || 'dNBR').toLowerCase();
+		for (var k in CLASSES) {
+			if (k.toLowerCase() === low) return CLASSES[k];
+		}
+		throw new Error('the burn index ' + index + ' has no classes: use ' + Object.keys(CLASSES).join(' or '));
+	}
+
+	// fire.limits of the class in the position I of the classes of INDEX (the dNBR by default): [lowest, highest]
+	// value of the index (null at the ends)
+	function severityLimits(i, index) {
+		var classes = classesOf(index).classes;
+		return [classes[i][1], i + 1 < classes.length ? classes[i + 1][1] : null];
+	}
+
+	// fire.legend: the classes of INDEX ('dNBR', the default, or 'RdNBR') with their colours, for the legends of the
+	// maps: [{value, label (in LANG, 'en' by default, or 'es'), color ('#rrggbb'), <key>_min, <key>_max}] (key: dnbr or
+	// rdnbr), from the lowest class to high severity
+	function severityLegend(index, lang) {
+		var c = classesOf(index);
+		return c.classes.map(function (k, i) {
+			var lim = severityLimits(i, index);
+			var out = {value: k[0], label: lang === 'es' ? k[2] : k[3], color: '#' + c.colours[i]};
+			out[c.key + '_min'] = lim[0];
+			out[c.key + '_max'] = lim[1];
+			return out;
+		});
+	}
+
+	// fire.class_label: the label of a class C (one of severityLegend or of severityTable) in a legend, with the values
+	// of its index: «Low severity (dNBR 0.1 to 0.27)», «High severity (RdNBR ≥ 0.641)»; in LANG 'es' with a decimal
+	// comma and «a»: «Severidad baja (RdNBR 0,069 a 0,316)»
+	function classLabel(c, lang) {
+		var es = lang === 'es';
+		function num(v) {  // as '%.4g' of Python, for these values
+			var s = v === 0 ? '0' : String(Number(Number(v).toPrecision(4)));
+			return es ? s.replace('.', ',') : s;
+		}
+		function given(v) {
+			return v !== null && v !== undefined;
+		}
+		var key = 'rdnbr_min' in c || 'rdnbr_max' in c ? 'rdnbr' : 'dnbr';
+		var low = c[key + '_min'], high = c[key + '_max'];
+		var values = !given(low) ? '< ' + num(high) : !given(high) ? '≥ ' + num(low) :
+			num(low) + (es ? ' a ' : ' to ') + num(high);
+		return c.label + ' (' + (key === 'rdnbr' ? 'RdNBR' : 'dNBR') + ' ' + values + ')';
+	}
+
+	// fire.classify: the class of each pixel of the image VALUE of INDEX ('dNBR', the default, classes -2 to 4; or
+	// 'RdNBR', classes 0 to 3), masked as it
+	function classify(value, index) {
+		var classes = classesOf(index).classes;
+		var cls = ee.Image.constant(classes[0][0]);
+		classes.slice(1).forEach(function (c) { cls = cls.add(value.gte(c[1])); });
+		return cls.updateMask(value.mask()).toInt8().rename('severity');
+	}
+
+	// fire.rdnbr: the relative dNBR of Miller & Thode 2007, RdNBR = dNBR / sqrt(|NBR before|), with |NBR before| at
+	// least RDNBR_MIN_NBR, on the scale of the dNBR (the article multiplies the NBR by 1000: 0.641 here is 641 there)
+	function rdnbr(dnbr, nbrBefore) {
+		return dnbr.divide(nbrBefore.abs().max(RDNBR_MIN_NBR).sqrt()).rename('rdnbr');
 	}
 
 	// services.burn_severity: {dnbr, severity, nbr_before, nbr_after (an image with these bands), hectares
-	// (ee.FeatureCollection of the regions with the grouped hectares of each class)}
-	function burnSeverity(before, after, regions, scale, crs) {
+	// (ee.FeatureCollection of the regions with the grouped hectares of each class)}. With INDEX 'RBR', burnRatio;
+	// with 'RdNBR', rdnbrSeverity (BEFORE and AFTER, then, specs of their entries of the catalog: see burnEntry)
+	function burnSeverity(before, after, regions, scale, crs, index) {
+		index = burnIndex(index);
+		if (index === 'RBR') return burnRatio(before, after, regions, scale, crs);
+		if (index === 'RdNBR') return rdnbrSeverity(before, after, regions, scale, crs);
 		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
 		var dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr');
 		var severity = classify(dnbr);
@@ -1634,16 +1782,21 @@ var MonitorEO = (function () {
 	var RBR_OFFSET = 1.001;  // catalog.RBR_OFFSET: RBR = dNBR / (NBR before + 1.001)
 	var RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
 
+	// The statistics of services._rbr and services._rdnbr over each region: mean, median, percentiles 10 and 90,
+	// minimum and maximum of the index, and the sum of the hectares with values
+	function burnStatsReducer() {
+		return ee.Reducer.mean().combine(ee.Reducer.median(), '', true)
+			.combine(ee.Reducer.percentile([10, 90]), '', true).combine(ee.Reducer.minMax(), '', true)
+			.combine(ee.Reducer.sum(), '', true);
+	}
+
 	function burnRatio(before, after, regions, scale, crs) {
 		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
 		var pre = img.select('reference'), post = img.select('other');
 		var dnbr = pre.subtract(post).rename('dnbr');
 		var rbr = dnbr.divide(pre.add(RBR_OFFSET)).rename('rbr');  // fire.rbr
-		var reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', true)
-			.combine(ee.Reducer.percentile([10, 90]), '', true).combine(ee.Reducer.minMax(), '', true)
-			.combine(ee.Reducer.sum(), '', true);
 		var stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions({
-			collection: regions, reducer: reducer, scale: scale, crs: crs, tileScale: 4});
+			collection: regions, reducer: burnStatsReducer(), scale: scale, crs: crs, tileScale: 4});
 		return {image: ee.Image.cat([rbr, dnbr, pre, post]).rename(['rbr', 'dnbr', 'nbr_before', 'nbr_after']),
 			stats: stats};
 	}
@@ -1657,15 +1810,61 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// fire.table: rows of every class of a region from the GROUPS of the grouped sum of hectares
-	function severityTable(groups, region, lang) {
+	// services.burn_severity with index RdNBR (services._rdnbr): {image (bands rdnbr, severity, dnbr, nbr_before,
+	// nbr_after), hectares (ee.FeatureCollection of the regions with the grouped hectares of each class of
+	// RDNBR_SEVERITY: see severityTable and burnedHa), stats (ee.FeatureCollection of the regions with the statistics of
+	// the RdNBR and the hectares with values: see rdnbrTable)}. BEFORE and AFTER are specs of the entry RdNBR of the
+	// catalog (144 Sentinel-2, 145 Landsat, 146 MODIS Terra, 147 MODIS Aqua: see burnEntry). Without the offset of the
+	// article (the dNBR of an unburned area outside the fire), as the dNBR and the RBR
+	function rdnbrSeverity(before, after, regions, scale, crs) {
+		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
+		var pre = img.select('reference'), post = img.select('other');
+		var dnbr = pre.subtract(post).rename('dnbr');
+		var value = rdnbr(dnbr, pre);
+		var severity = classify(value, 'RdNBR');
+		var ha = ee.Image.pixelArea().divide(1e4).updateMask(value.mask());
+		var hectares = ha.addBands(severity).reduceRegions({collection: regions,
+			reducer: ee.Reducer.sum().group(1, 'class'), scale: scale, crs: crs, tileScale: 4});
+		var stats = value.addBands(ha.rename('ha')).reduceRegions({collection: regions, reducer: burnStatsReducer(),
+			scale: scale, crs: crs, tileScale: 4});
+		var bands = ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'];
+		return {image: ee.Image.cat([value, severity.toFloat(), dnbr, pre, post]).rename(bands), hectares: hectares,
+			stats: stats};
+	}
+
+	// the rows of the statistics of services._rdnbr (stats) from the features of the statistics of rdnbrSeverity
+	function rdnbrTable(features) {
+		return features.map(function (f) {
+			var p = f.properties;
+			return {region: String(p.name), mean: p.rdnbr_mean, median: p.rdnbr_median, p10: p.rdnbr_p10,
+				p90: p.rdnbr_p90, min: p.rdnbr_min, max: p.rdnbr_max, ha: p.ha_sum || 0};
+		});
+	}
+
+	// fire.table: rows of every class of INDEX ('dNBR', the default, or 'RdNBR') of a region from the GROUPS of the
+	// grouped sum of hectares: {region, class, label (in LANG), <key>_min, <key>_max, ha} (key: dnbr or rdnbr)
+	function severityTable(groups, region, lang, index) {
+		var c = classesOf(index);
 		var ha = {};
 		(groups || []).forEach(function (g) { ha[Math.round(g['class'])] = g.sum; });
-		return SEVERITY.map(function (c, i) {
-			var lim = severityLimits(i);
-			return {region: region, 'class': c[0], label: lang === 'en' ? c[3] : c[2], dnbr_min: lim[0], dnbr_max: lim[1],
-				ha: ha[c[0]] || 0};
+		return c.classes.map(function (k, i) {
+			var lim = severityLimits(i, index);
+			var row = {region: region, 'class': k[0], label: lang === 'en' ? k[3] : k[2]};
+			row[c.key + '_min'] = lim[0];
+			row[c.key + '_max'] = lim[1];
+			row.ha = ha[k[0]] || 0;
+			return row;
 		});
+	}
+
+	// burned_ha of services.burn_severity (dNBR and RdNBR) from the ROWS of severityTable: {region: hectares of the
+	// classes from 1 up, burned (dNBR ≥ 0.1) or changed (RdNBR ≥ 0.069)}, every region (0 if none)
+	function burnedHa(rows) {
+		var out = {};
+		rows.forEach(function (r) {
+			out[r.region] = (out[r.region] || 0) + (r['class'] >= 1 ? r.ha : 0);
+		});
+		return out;
 	}
 
 	// Maps (maps.py) ------------------------------------------------------------------------------------------------
@@ -1750,6 +1949,11 @@ var MonitorEO = (function () {
 		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
+		RDNBR_SEVERITY: RDNBR_SEVERITY, RDNBR_COLOURS: RDNBR_COLOURS, RDNBR_BURNED: RDNBR_BURNED,
+		RDNBR_RANGE: RDNBR_RANGE, RDNBR_MIN_NBR: RDNBR_MIN_NBR, RDNBR_COLUMNS: RDNBR_COLUMNS, RDNBR_MODIS: RDNBR_MODIS,
+		CLASSES: CLASSES, BURN_INDICES: BURN_INDICES, BURN_SENSORS: BURN_SENSORS, burnIndex: burnIndex,
+		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
+		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
 		ramp: ramp, percentiles: percentiles, visParams: visParams,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,

@@ -314,6 +314,57 @@ def test_texts():
 		'Burn severity (dNBR of Sentinel-2): before, 2001-2005; after, 2020-2024'
 
 
+def test_rdnbr(tmp_path):
+	"""A burn severity with the RdNBR (Miller & Thode 2007) in the viewer: its GeoTIFF with its band severity in the
+	classes of the article (not those of the USGS) and its band rdnbr, and the chart of its classes; the dNBR, as
+	before."""
+	from monitoreo import fire, trends
+	out = tmp_path / 'mcp_out'
+	out.mkdir()
+	bands = ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after']
+	_tif(out / 'burn_RdNBR.tif', bands, [0.4, 2, 0.3, 0.5, 0.2])
+	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 3.0}], 'Fire', 'RdNBR')
+	_csv(out / 'burn_RdNBR.csv', [dict(r, index='RdNBR', sensor='Landsat') for r in rows])
+	args = {'region': {'wdpa_id': 389011}, 'sensor': 'Landsat', 'index': 'RdNBR', 'start': '2022-06-01',
+	        'end': '2022-07-31', 'other_start': '2023-06-01', 'other_end': '2023-07-31'}
+	data = tmp_path / 'data'
+	data.mkdir()
+	(data / 'burn.json').write_text(json.dumps({'call': {'id': 'burn', 'tool': 'burn_severity', 'args': args},
+	                                            'is_error': False, 'text': [{
+		'index': 'RdNBR', 'classes': rows, 'burned_ha': {'Fire': 15.5}, 'bands': bands,
+		'file': '/tmp/does-not-exist/burn_RdNBR.tif', 'csv': '/tmp/does-not-exist/burn_RdNBR.csv'}]}),
+		encoding='utf-8')
+	r = publish.publish(_spec(results=[{'answer': 'data/burn.json'}], downloads=[]), tmp_path / 'site', tmp_path,
+	                    log='')
+	assert publish.check_report(r, str(tmp_path / 'site' / 'reports' / r['id'])) == []
+	m, chart = r['results']
+	assert m['title'] == 'Burn severity (RdNBR of Landsat): before, 1 Jun 2022 - 31 Jul 2022; after, ' \
+	                     '1 Jun 2023 - 31 Jul 2023'
+	assert m['band'] == 'severity'  # shown first: the classes
+	b = {x['name']: x for x in m['bands']}
+	assert b['severity']['label'] == 'Severity class of Miller & Thode 2007 (0 unchanged, 1 low, 2 moderate, 3 high)'
+	assert b['severity']['legend'] == {'type': 'categories', 'classes': fire.legend('RdNBR')}
+	assert [c['color'] for c in b['severity']['legend']['classes']] == ['#' + fire.RDNBR_COLOURS[c] for c in range(4)]
+	assert b['rdnbr']['label'] == 'RdNBR (dNBR / sqrt(max(|NBR before|, 0.001)))'
+	assert b['rdnbr']['legend']['palette'] == [f'#{c}' for c in reversed(trends.DIVERGING)]  # burned in red
+	assert b['rdnbr']['legend']['min'] == -b['rdnbr']['legend']['max']
+	assert (chart['chart'], chart['index'], chart['burned_min']) == ('burn_severity', 'RdNBR', fire.RDNBR_BURNED)
+	assert chart['classes'] == fire.legend('RdNBR') and chart['burned_ha'] == {'Fire': 15.5}
+	assert chart['title'] == 'Area of each severity class'
+	assert r['variables'] == [{'variable': 'RdNBR', 'sensor': 'Landsat',
+	                           'name': 'Relative differenced Normalized Burn Ratio', 'unit': ''}]
+	assert any(c['citation'].startswith('Miller, J. D., & Thode, A. E. (2007)') for c in r['references'])
+	# the dNBR keeps the scale of the USGS
+	dnbr = ['dnbr', 'severity', 'nbr_before', 'nbr_after']
+	assert publish.band_text('severity', dnbr) == ('Severity (USGS scale)', '')
+	assert publish.band_text('severity', bands)[0].startswith('Severity class of Miller & Thode 2007')
+	assert publish._severity_legend(fire.index_of(dnbr)) == {'type': 'categories', 'classes': fire.legend()}
+	assert publish._severity_legend('RBR') == {'type': 'categories', 'classes': fire.legend()}  # as before
+	assert publish.default_title('burn_severity', dict(args, sensor='Modis', collection='MODIS/061/MYD09GA')) == \
+		'Burn severity (RdNBR of MODIS Aqua): before, 1 Jun 2022 - 31 Jul 2022; after, 1 Jun 2023 - 31 Jul 2023'
+	assert publish.default_title('burn_severity', dict(args, index='RBR')).startswith('Burn severity (RBR of Landsat)')
+
+
 def test_server(tmp_path):
 	"""The local server answers range requests, as GitHub Pages: the browser reads the COGs by parts."""
 	(tmp_path / 'a.tif').write_bytes(bytes(range(100)))

@@ -294,10 +294,13 @@ def cite(tool, args=None, date=None, datasets=()):
 		if recipe.get('ecoregion'):
 			cols.append(ECOREGIONS)
 	elif tool == 'burn_severity':
-		rbr = str(args.get('index') or 'dNBR').upper() == 'RBR'
-		more, credits = of_spec({'index': 'RBR' if rbr else 'NBR', 'sensor': args.get('sensor') or 'Sentinel-2',
-		                         'quality': args.get('quality')}, period)
-		ids += more + _methods('rbr' if rbr else 'burn_severity')
+		index = {'rbr': 'RBR', 'rdnbr': 'RdNBR'}.get(str(args.get('index') or 'dNBR').lower(), 'NBR')
+		spec = {'index': index, 'sensor': args.get('sensor') or 'Sentinel-2', 'quality': args.get('quality'),
+		        'where': args.get('where')}
+		if args.get('collection'):  # MODIS Aqua (MYD09GA) for the RdNBR
+			spec['collection'] = args['collection']
+		more, credits = of_spec(spec, period)
+		ids += more + _methods({'RBR': 'rbr', 'RdNBR': 'rdnbr'}.get(index, 'burn_severity'))
 	elif args.get('variable') or args.get('index') or args.get('collection') or args.get('image'):
 		ids, credits = of_spec(args, period, formula=tool not in RGB or _picks(args))
 	if tool in TRENDS:

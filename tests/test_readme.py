@@ -117,6 +117,61 @@ def test_trend_bands(tmp_path):
 	assert readme.band_udunits('slope', 'degC') == 'degC year-1' and readme.band_udunits('value', '') == ''
 
 
+FIRE = {'region': {'wdpa_id': 389011}, 'sensor': 'Landsat', 'start': '2022-06-01', 'end': '2022-07-31',
+        'other_start': '2023-06-01', 'other_end': '2023-07-31'}
+
+
+def _burn_readme(tmp_path, index, bands, columns, rows):
+	"""The README of a result of burn_severity with INDEX: its CSV with the COLUMNS of the ROWS and its GeoTIFF with
+	BANDS, and the GeoTIFF tagged with its call and the unit of its bands."""
+	csv = str(tmp_path / f'burn_{index}.csv')
+	tif = _tif(tmp_path / f'burn_{index}.tif', bands)
+	timeseries.write_csv(rows, csv, {'index': index, 'sensor': 'Landsat'}, columns)
+	args = dict(FIRE, index=index)
+	result = {'index': index, 'classes': rows, 'burned_ha': {'Fire': 15.5}, 'scale': 30, 'csv': csv, 'file': tif,
+	          'bands': bands}
+	readme.tag(tif, 'burn_severity', args, result)
+	return ' '.join(readme.text('burn_severity', args, result).split()), tif
+
+
+def test_rdnbr_readme(tmp_path):
+	"""The README of a burn severity with the RdNBR (Miller & Thode 2007): how it was computed, with its classes, the
+	columns of its table of classes and its bands, with their own texts (not those of the USGS of the dNBR)."""
+	from monitoreo import fire
+	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 3.0}], 'Fire', 'RdNBR')
+	text, tif = _burn_readme(tmp_path, 'RdNBR', ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'],
+	                         services.RDNBR_COLUMNS, rows)
+	assert 'Burn severity (RdNBR of Landsat): before, 1 Jun 2022 - 31 Jul 2022; after, 1 Jun 2023 - 31 Jul 2023' in text
+	assert 'Method: RdNBR (relative dNBR, Miller and Thode, 2007): dNBR / sqrt(|NBR before|)' in text
+	assert 'Unchanged (RdNBR < 0.069); Low severity (RdNBR 0.069 to 0.316); Moderate severity (RdNBR 0.316 to ' \
+	       '0.641); High severity (RdNBR ≥ 0.641)' in text and 'Changed area (RdNBR ≥ 0.069): 15.5 ha' in text
+	assert 'Burned area' not in text  # unchanged is not unburned: the classes low to high are changed
+	columns = text.split('COLUMNS OF burn_RdNBR.csv')[1].split('BANDS OF')[0]
+	assert 'class: severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)' \
+	       in columns and 'USGS' not in columns and 'label: name of the severity class' in columns
+	assert 'rdnbr_min: lowest RdNBR of the class (empty: no limit)' in columns
+	assert 'rdnbr_max: highest RdNBR of the class (empty: no limit)' in columns and 'index: burn index' in columns
+	bands = text.split('BANDS OF burn_RdNBR.tif')[1]
+	assert '1 rdnbr: RdNBR (dNBR / sqrt(max(|NBR before|, 0.001))) (1)' in bands
+	assert '2 severity: Severity class of Miller & Thode 2007 (0 unchanged, 1 low, 2 moderate, 3 high) (1)' in bands
+	assert 'USGS' not in bands
+	assert 'Miller, J. D., & Thode, A. E. (2007)' in text and 'https://doi.org/10.1016/j.rse.2006.12.006' in text
+	assert 'index="RdNBR"' in text  # to reproduce it
+	ds = gdal.Open(tif)
+	assert ds.GetRasterBand(1).GetDescription() == 'rdnbr' and ds.GetRasterBand(1).GetUnitType() == '1'
+
+
+def test_dnbr_readme_keeps_the_usgs(tmp_path):
+	"""The README of the dNBR keeps the classes of the USGS."""
+	from monitoreo import fire
+	rows = fire.table([{'class': 1, 'sum': 12.5}], 'Fire')
+	text, _ = _burn_readme(tmp_path, 'dNBR', ['dnbr', 'severity', 'nbr_before', 'nbr_after'], services.BURN_COLUMNS,
+	                       rows)
+	assert 'class: severity class of the USGS (-2 enhanced regrowth, high' in text
+	assert 'dnbr_min: lowest dNBR of the class' in text and '2 severity: Severity (USGS scale)' in text
+	assert 'Miller' not in text and 'RdNBR' not in text
+
+
 def test_recipe_folder(tmp_path):
 	rec = {'grid': {'crs': 'EPSG:32630', 'resolution': 250.0, 'width': 16, 'height': 14,
 	                'extent': [463750.0, 4099750.0, 467750.0, 4103250.0]},

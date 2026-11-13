@@ -2,7 +2,7 @@
 % Please edit documentation in R/monitoreo.R
 \name{mo_burn_severity}
 \alias{mo_burn_severity}
-\title{Burn severity of a fire (dNBR and RBR)}
+\title{Burn severity of a fire (dNBR, RBR and RdNBR)}
 \usage{
 mo_burn_severity(
   region,
@@ -19,7 +19,8 @@ mo_burn_severity(
   crs = "auto",
   csv = NULL,
   index = "dNBR",
-  where = NULL
+  where = NULL,
+  collection = NULL
 )
 }
 \arguments{
@@ -31,10 +32,10 @@ mo_burn_severity(
 
 \item{other_start, other_end}{the period after the fire.}
 
-\item{sensor}{\code{"Sentinel-2"} or \code{"Landsat"}.}
+\item{sensor}{\code{"Sentinel-2"} or \code{"Landsat"}; with \code{index = "RdNBR"}, also \code{"Modis"} (500 m).}
 
 \item{path}{optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
-rbr, dnbr, nbr_before and nbr_after).}
+rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).}
 
 \item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
 \code{"pN"} (percentile N).}
@@ -48,9 +49,10 @@ only for the variables of the catalog: the data given as \code{collection} or \c
 
 \item{crs}{\code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.}
 
-\item{csv}{optional path of a CSV file with the table.}
+\item{csv}{optional path of a CSV file with the table: that of the classes (dNBR, RdNBR) or of the statistics
+(RBR).}
 
-\item{index}{\code{"dNBR"} or \code{"RBR"}.}
+\item{index}{\code{"dNBR"}, \code{"RBR"} or \code{"RdNBR"}.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
@@ -59,10 +61,18 @@ result (or its own \code{period = c(start, end)}) with \code{metric} (default \c
 WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}.}
+
+\item{collection}{only with \code{index = "RdNBR"} and \code{sensor = "Modis"}: \code{"MODIS/061/MOD09GA"} (Terra,
+the default, since 2000-02-24) or \code{"MODIS/061/MYD09GA"} (Aqua, since 2002-07-04).}
 }
 \value{
-A data.frame (region, class, label, dnbr_min, dnbr_max, ha; RBR: region, mean, median, p10, p90, min, max,
-  ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title, file, references and credits.
+A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
+  region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
+  mean, median, p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
+  the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
+  stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
+  RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
+  of the GeoTIFF), title, file, readme, references and credits.
 }
 \description{
 The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
@@ -70,12 +80,33 @@ Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). With \code{index = "RBR"
 dNBR / (NBR before + 1.001) (Parks et al. 2014), with the NBR of B8A and B12 of Sentinel-2 (Silva-Cardoza et al.
 2022), without phenological correction and on the scale of the dNBR: a continuous index, without classes.
 }
+\details{
+With \code{index = "RdNBR"}, the relative dNBR of Miller and Thode (2007), dNBR / sqrt(|NBR before|), with
+|NBR before| at least 0.001 (Howe et al. 2022), and the severity classes of the article (its Table 4): 0
+"Unchanged" (RdNBR < 0.069), 1 "Low severity" (0.069 to 0.316), 2 "Moderate severity" (0.316 to 0.641) and 3
+"High severity" (>= 0.641). It is computed with Sentinel-2 (B8 and B12, 10 m, as Howe et al. 2022), Landsat (NIR
+and SWIR2, 30 m: Landsat 5, 7 until 2003, 8 and 9) or MODIS (\code{sensor = "Modis"}: bands 2 and 7 of the daily
+surface reflectance, 500 m, as Veraverbeke et al. 2010; of Terra, MOD09GA, since 2000-02-24, or, with
+\code{collection = "MODIS/061/MYD09GA"}, of Aqua, since 2002-07-04). It is on the scale of the dNBR of MonitorEO,
+without the factor 1000 of the article (0.641 here is 641 there), like the RBR, and without the offset of the
+article (the mean dNBR of an unburned area outside the fire), which the dNBR and the RBR of MonitorEO do not apply
+either. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
+California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with the composite burn index
+(CBI) measured in the field one year after the fire (extended assessment): the period
+after should be about one year after the fire, in the same season as the period before. With MODIS (500 m), mixed
+pixels make the RdNBR less extreme, so its classes are approximate. "Unchanged" is not unburned: one year after
+the fire, the area was indistinguishable from before.
+
+The RBR and the RdNBR compare two periods: the other functions refuse them (\code{mo_variables()} gives them
+\code{two_periods = TRUE}).
+}
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,
   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
-  element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
+  element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it. The
+  RdNBR cites Miller and Thode (2007) and Howe et al. (2022) and, with MODIS, Veraverbeke et al. (2010).
 }
 
 \examples{
@@ -83,6 +114,19 @@ dNBR / (NBR before + 1.001) (Parks et al. 2014), with the NBR of B8A and B12 of 
 mo_init()
 mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
                  "2022-10-01", "2022-11-30", path = "fire.tif")
+# the RdNBR and its classes (Miller and Thode 2007), one year after the fire, with MODIS Aqua
+x <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
+                      "2023-06-01", "2023-08-31", sensor = "Modis", index = "RdNBR",
+                      collection = "MODIS/061/MYD09GA", path = "rdnbr.tif")
+x                     # hectares of each class
+attr(x, "burned_ha")  # hectares with RdNBR >= 0.069
+attr(x, "stats")      # mean, median, p10, p90, min and max of the RdNBR
+# the band severity of the GeoTIFF with the colours and labels of the classes
+legend <- attr(x, "legend")
+severity <- terra::as.int(terra::rast("rdnbr.tif")[["severity"]])
+severity <- terra::categories(severity, value = legend[c("value", "label")])
+terra::coltab(severity) <- legend[c("value", "color")]
+terra::plot(severity, all_levels = TRUE)
 }
 }
 \references{
@@ -101,6 +145,18 @@ Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C.
   Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological correction and
   the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and burned area. Remote
   Sensing, 14(13), 3122. \doi{10.3390/rs14133122}
+
+Miller, J. D., & Thode, A. E. (2007). Quantifying burn severity in a heterogeneous landscape with a relative version
+  of the delta Normalized Burn Ratio (dNBR). Remote Sensing of Environment, 109(1), 66--80.
+  \doi{10.1016/j.rse.2006.12.006}
+
+Howe, A. A., Parks, S. A., Harvey, B. J., Saberi, S. J., Lutz, J. A., & Yocom, L. L. (2022). Comparing Sentinel-2
+  and Landsat 8 for burn severity mapping in Western North America. Remote Sensing, 14(20), 5249.
+  \doi{10.3390/rs14205249}
+
+Veraverbeke, S., Lhermitte, S., Verstraeten, W. W., & Goossens, R. (2010). The temporal dimension of differenced
+  Normalized Burn Ratio (dNBR) fire/burn severity studies: The case of the large 2007 Peloponnese wildfires in
+  Greece. Remote Sensing of Environment, 114(11), 2548--2563. \doi{10.1016/j.rse.2010.05.029}
 
 Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.

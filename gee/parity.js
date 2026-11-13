@@ -158,6 +158,29 @@ var CASES = {
 				done(null, {stats: mo.rbrTable(fc.features)});
 			});
 		});
+	},
+	// the RdNBR of Miller & Thode 2007 (services._rdnbr), of the entry of the spec (Sentinel-2, Landsat, MODIS Terra
+	// or Aqua): the hectares of its classes, the changed area and the statistics of the RdNBR of each region
+	burn_rdnbr: function (c, regions, done) {
+		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		after.period = c.after;
+		var entry = mo.entryOf(before);
+		setup(entry, regions, function (error, g) {
+			if (error) return done(error);
+			var out = mo.burnSeverity(before, after, regions, Number(entry.m), g.crs, 'RdNBR');
+			// one evaluate for each collection, as the app: in an ee.Dictionary, a FeatureCollection has no features
+			out.hectares.evaluate(function (hectares, err) {
+				if (err) return done(err);
+				out.stats.evaluate(function (st, err2) {
+					if (err2) return done(err2);
+					var rows = [];
+					hectares.features.forEach(function (f) {
+						rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'en', 'RdNBR'));
+					});
+					done(null, {classes: rows, burned_ha: mo.burnedHa(rows), stats: mo.rdnbrTable(st.features)});
+				});
+			});
+		});
 	}
 };
 

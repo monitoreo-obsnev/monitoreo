@@ -98,8 +98,8 @@ These are the invariants of MonitorEO. Tests check some of them; the rest depend
   what each column or band is, with its unit, how it was computed, how to reproduce it and how to cite it. If you add
   an output or a kind of variable, read the README it produces.
 - **Special variables reach every code path.** Some variables behave differently: fixed layers without dates
-  (ELEVATION, SLOPE), a single metric and fixed pixel filters (SCF), or two periods (RBR). Grep for every place that
-  reads `start`, `end`, `metric` or `quality` and check that it copes. The assistant's `KeyError: 'start'` of
+  (ELEVATION, SLOPE), a single metric and fixed pixel filters (SCF), or two periods (RBR, RdNBR). Grep for every place
+  that reads `start`, `end`, `metric` or `quality` and check that it copes. The assistant's `KeyError: 'start'` of
   2026-11-09 was a single path that did not.
 - **Everything has a theme.** The QGIS plugin and the Earth Engine app show the catalog by themes (`catalog.THEMES`):
   the user chooses a theme (Vegetation, Water, Snow, Fire, Energy and temperature, Atmosphere, Climate, Terrain) and

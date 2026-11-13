@@ -54,6 +54,39 @@ RBR = {
 	               'https://doi.org/10.3390/rs14133122; Parks et al. 2014, https://doi.org/10.3390/rs6031827). It '
 	               'compares two periods: burn_severity with index RBR computes it (a continuous map, no classes).'},
 }
+# RdNBR (Miller & Thode 2007): dNBR / sqrt(|NBR before|), with |NBR before| at least RDNBR_MIN_NBR, the qualifier of
+# Howe et al. 2022 (the smallest |NBR| but 0 of the integer NBR x 1000 of the article), so that an NBR before of 0
+# does not divide by 0
+RDNBR_MIN_NBR = 0.001
+RDNBR = {
+	'vname': 'dNBR relativo', 'vname_en': 'Relative differenced Normalized Burn Ratio',
+	'vname_fr': 'Relative differenced Normalized Burn Ratio', 'vname_de': 'Relative differenced Normalized Burn Ratio',
+	'two_periods': True, 'minp': -0.5, 'maxp': 1.2,
+	'references': ['miller2007', 'howe2022'],
+	'notes': {'f': 'RdNBR = dNBR / sqrt(|NBR before|), with |NBR before| at least 0.001 (Howe et al. 2022), dNBR = NBR '
+	               'before - NBR after the fire (Miller & Thode 2007, https://doi.org/10.1016/j.rse.2006.12.006), '
+	               'without the offset of the dNBR of the unburned area around the fire and without the factor 1000 of '
+	               'the article (0.641 here is 641 there), like the dNBR of MonitorEO. Severity classes of the article '
+	               '(its Table 4, from the composite burn index of 14 fires of the Sierra Nevada of California): '
+	               'unchanged < 0.069, low 0.069 to 0.316, moderate 0.316 to 0.641, high >= 0.641. NBR of B8 and B12 in '
+	               'Sentinel-2 (Howe et al. 2022, https://doi.org/10.3390/rs14205249), NIR and SWIR2 in Landsat (bands 4 '
+	               'and 7 of the Landsat TM of the article), bands 2 and 7 of the daily surface reflectance in MODIS '
+	               '(Veraverbeke et al. 2010, https://doi.org/10.1016/j.rse.2010.05.029). It compares two periods: '
+	               'burn_severity with index RdNBR computes it (a continuous map and its classes).'},
+}
+# The RdNBR of MODIS (see EXTRA): bands 2 (NIR, 841-876 nm) and 7 (SWIR, 2105-2155 nm) of the daily surface
+# reflectance of Terra (MOD09GA) and Aqua (MYD09GA), 500 m, with the pixel filters of their band state_1km
+# (sensors.PRODUCTS)
+RDNBR_MODIS = {
+	'sensor': 'Modis', 'm': 500, 'tr': 'daily', 'unit': '[unitless]', 'scale': 0.0001, 'offset': 0,
+	'ft': 'N(sur_refl_b02,sur_refl_b07)', 'f': '(sur_refl_b02 - sur_refl_b07) / (sur_refl_b02 + sur_refl_b07)',
+	'clouds_bandQA': 'state_1km', 'water_bandQA': 'state_1km', 'snow_bandQA': 'state_1km',
+	'aerosols_bandQA': 'state_1km', 'large_areas': True,
+	'references': ['miller2007', 'howe2022', 'veraverbeke2010'],
+	'notes': dict(RDNBR['notes'], m='500 m: the classes of Miller & Thode 2007 come from Landsat (30 m); a pixel of '
+	                                '500 m mixes burned and unburned land, so its RdNBR is less extreme, the hectares '
+	                                'of each class are approximate and small fires are missed'),
+}
 NBR = {
 	'type': 'Perturbaciones', 'type_en': 'Disturbances', 'type_fr': 'Disturbances', 'type_de': 'Disturbances',
 	'vname': 'Índice Normalizado de Quema', 'vname_en': 'Normalized Burn Ratio',
@@ -236,7 +269,18 @@ for i, (es, en, unit, lo, hi, scale) in enumerate(BIOCLIM, 1):
 	                                 PRECIP_PALETTE if unit == '[mm]' else TEMP_PALETTE, template='WORLDCLIM',
 	                                 band=f'bio{i:02d}', scale=scale))
 
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
+# RdNBR: compares a period before and one after a fire (only burn_severity with index 'RdNBR'), with the severity
+# classes of Miller & Thode 2007 (fire.RDNBR_SEVERITY); the formula is the NBR of each image: B8 and B12 in
+# Sentinel-2 (Howe et al. 2022), NIR and SWIR2 in Landsat, bands 2 and 7 of MODIS Terra and Aqua (Veraverbeke et al.
+# 2010)
+EXTRA.update({
+	144: (4, {'index': 'RdNBR', 'ft': 'N(B8,B12)', 'f': '(B8 - B12) / (B8 + B12)'}),  # Sentinel-2
+	145: (3, {'index': 'RdNBR', 'ft': 'N(nir,swir2)', 'f': '(SR_B5 - SR_B7) / (SR_B5 + SR_B7)'}),  # Landsat
+	146: (None, dict(RDNBR_MODIS, index='RdNBR', col='MODIS/061/MOD09GA', dr='2000/02/24-now')),  # MODIS Terra
+	147: (None, dict(RDNBR_MODIS, index='RdNBR', col='MODIS/061/MYD09GA', dr='2002/07/04-now')),  # MODIS Aqua
+})
+
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
@@ -323,7 +367,7 @@ THEMES = [
 	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI']},
 	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
 	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF']},
-	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR'], 'analyses': ['burn_severity']},
+	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR'], 'analyses': ['burn_severity']},
 	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
 	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},
 	{'key': 'atmosphere', 'en': 'Atmosphere', 'es': 'Atmósfera', 'indices': ['ARSL', 'CF']},

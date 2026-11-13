@@ -24,9 +24,11 @@
     monitoreo community [--theme T] [--text T] [--kind image|image_collection] [--limit N] [--lang es]
                                                      the themes of the GEE Community Catalog or, with --theme, --text
                                                      or --kind, its images and collections of images (ID, type, title)
-    monitoreo burn --sensor S --region JSON --start D --end D --other-start D --other-end D [--index dNBR|RBR]
-                   [--csv F] [--out F.tif]           burn severity of a fire: hectares of the classes of the USGS
-                                                     (dNBR) or statistics of the RBR, before (start to end) and after
+    monitoreo burn --sensor S --region JSON --start D --end D --other-start D --other-end D
+                   [--index dNBR|RBR|RdNBR] [--collection ID] [--csv F] [--out F.tif]
+                                                     burn severity of a fire: hectares of the classes of the USGS
+                                                     (dNBR) or of Miller & Thode 2007 (RdNBR, also with Modis), or
+                                                     statistics of the RBR, before (start to end) and after
                                                      (other-start to other-end) the fire
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
     monitoreo publish REPORT.yaml [...] [--site S]   publish reports in the static viewer of results (administrators)
@@ -70,6 +72,11 @@ WHERE_HELP = ('only the pixels of the region whose variables pass these conditio
 
 def _where(args):
 	return json.loads(args.where) if getattr(args, 'where', None) else None
+
+
+# the collections of the RdNBR of MODIS (monitoreo burn --index RdNBR --sensor Modis --collection; catalog entries 146,
+# Terra, the default, and 147, Aqua)
+BURN_COLLECTIONS = ('MODIS/061/MOD09GA', 'MODIS/061/MYD09GA')
 
 
 SENSOR_HELP = 'the sensor of VARIABLE, e.g. Sentinel-2 (monitoreo list gives those of each variable)'
@@ -269,23 +276,39 @@ def main(argv=None):
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
-	p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, or the RBR')
-	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat'),
-	               help='Sentinel-2 (10 m, 20 m with --index RBR; since 2017) or Landsat (30 m, since 1984)')
+	burn = p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, the RBR, or the '
+	                                       'RdNBR with the classes of Miller & Thode 2007')
+	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat', 'Modis'),
+	               help='Sentinel-2 (10 m, 20 m with --index RBR; since 2017), Landsat (30 m, since 1984) or Modis '
+	                    '(500 m, since 2000; only with --index RdNBR, whose classes are then approximate: a pixel of '
+	                    '500 m mixes burned and unburned land)')
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-5.23, 36.47, -5.10, 36.57]}\'')
 	p.add_argument('--where', help=WHERE_HELP.replace('over the period,', 'over the period before the fire,'))
 	p.add_argument('--start', required=True, help='first day of the period before the fire')
 	p.add_argument('--end', required=True, help='last day of the period before the fire')
 	p.add_argument('--other-start', required=True, help='first day of the period after the fire')
 	p.add_argument('--other-end', required=True, help='last day of the period after the fire')
-	p.add_argument('--index', default='dNBR', choices=('dNBR', 'RBR'),
-	               help='dNBR, with the classes of the USGS (default), or RBR, the Relativized Burn Ratio (continuous, '
-	                    'without classes)')
+	p.add_argument('--index', default='dNBR', choices=('dNBR', 'RBR', 'RdNBR'),
+	               help='dNBR, with the classes of the USGS (default); RBR, the Relativized Burn Ratio (continuous, '
+	                    'without classes); or RdNBR, the relative dNBR of Miller & Thode 2007 (Remote Sensing of '
+	                    'Environment, https://doi.org/10.1016/j.rse.2006.12.006), dNBR / sqrt(|NBR before|) with |NBR '
+	                    'before| at least 0.001 (Howe et al. 2022), for heterogeneous vegetation and to compare fires, '
+	                    'with the classes of the article (unchanged, low, moderate and high severity; unchanged is not '
+	                    'unburned), on the scale of the dNBR, without the factor 1000 of the article (0.641 here is 641 '
+	                    'there) and without its offset (the dNBR of an unburned area outside the fire). Its classes '
+	                    'were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of '
+	                    'California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with field '
+	                    'data one year after the fire: give a period after about one year after the fire, in the '
+	                    'season of the period before')
+	p.add_argument('--collection', choices=BURN_COLLECTIONS, metavar='ID',
+	               help='only with --index RdNBR and --sensor Modis: MODIS/061/MOD09GA (Terra, since 2000-02-24; '
+	                    'default) or MODIS/061/MYD09GA (Aqua, since 2002-07-04)')
 	p.add_argument('--metric', default='median', help='metric of the images of each period (default: median)')
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
-	p.add_argument('--csv', help='CSV file of the hectares of each class (dNBR) or of the statistics (RBR)')
+	p.add_argument('--csv', help='CSV file of the hectares of each class (dNBR, RdNBR) or of the statistics (RBR)')
 	p.add_argument('--out', help='GeoTIFF file, with the bands dnbr, severity, nbr_before and nbr_after (RBR: rbr, '
-	                             'dnbr, nbr_before and nbr_after)')
+	                             'dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity, dnbr, nbr_before and '
+	                             'nbr_after)')
 	p = sub.add_parser('download', help='GeoTIFFs of a recipe of variables over a study area and its ecoregions')
 	p.add_argument('recipe', help='YAML file of the recipe (see monitoreo.recipe)')
 	p.add_argument('--area', required=True, help='vector file of the study area, or a region as JSON')
@@ -333,6 +356,11 @@ def main(argv=None):
 	if args.cmd == 'image' and args.rgb and not args.variable:
 		image.error('--rgb is only for the variables of the catalog with a true colour (rgb in monitoreo info), not for '
 		            'the data of Earth Engine given by its ID')
+	if args.cmd == 'burn' and args.sensor == 'Modis' and args.index != 'RdNBR':
+		burn.error(f'--sensor Modis is only for --index RdNBR: the {args.index} is computed with Sentinel-2 or Landsat')
+	if args.cmd == 'burn' and args.collection and (args.index, args.sensor) != ('RdNBR', 'Modis'):
+		burn.error('--collection is only for --index RdNBR with --sensor Modis: MODIS/061/MOD09GA (Terra, the default) '
+		           'or MODIS/061/MYD09GA (Aqua)')
 
 	if args.cmd == 'about':
 		print(about.text(args.lang))
@@ -520,12 +548,13 @@ def _trend_or_compare(args, services):
 
 def _burn(args, services):
 	"""Burn severity of a fire (services.burn_severity): the hectares of each class of the USGS and the burned area of
-	each region (dNBR) or the statistics of the RBR, and the CSV, GeoTIFF and README written."""
+	each region (dNBR), the statistics of the RBR, or the hectares of each class of Miller & Thode 2007, the changed
+	area of each region and the statistics of the RdNBR, and the CSV, GeoTIFF and README written."""
 	from . import fire
 	try:
 		res = services.burn_severity(json.loads(args.region), args.sensor, args.start, args.end, args.other_start,
 		                             args.other_end, args.metric, resolution=args.resolution, path=args.out,
-		                             csv=args.csv, index=args.index, where=_where(args),
+		                             csv=args.csv, index=args.index, where=_where(args), collection=args.collection,
 		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
 	except ValueError as e:
 		sys.exit(f'ERROR: {e}')
@@ -533,8 +562,17 @@ def _burn(args, services):
 	def cells(rows):  # hectares with a decimal, the rest with 4 digits, and nothing for the open ends of the classes
 		return [{k: '' if v is None else f'{v:.1f}' if k == 'ha' else f'{v:.4g}' if isinstance(v, float) else v
 		         for k, v in r.items()} for r in rows]
+	stats = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
 	if res['index'] == 'RBR':
-		_table(cells(res['stats']), ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'])
+		_table(cells(res['stats']), stats)
+	elif res['index'] == 'RdNBR':
+		_table(cells(res['classes']), ['region', 'class', 'label', 'rdnbr_min', 'rdnbr_max', 'ha'])
+		print()
+		for region, ha in (res.get('burned_ha') or {}).items():  # unchanged is not unburned (Miller & Thode 2007)
+			print(f'{region}: changed area (RdNBR >= {fire.RDNBR_BURNED:g}) {ha:.1f} ha')
+		if res.get('stats'):
+			print()
+			_table(cells(res['stats']), stats)
 	else:
 		_table(cells(res['classes']), ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha'])
 		print()

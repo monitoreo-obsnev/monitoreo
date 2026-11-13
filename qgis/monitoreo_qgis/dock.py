@@ -44,7 +44,19 @@ REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
 FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
-FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)', 'RBR')]
+# MODIS, only for the burn indices that have it (services.BURN_SENSORS: the RdNBR): the daily surface reflectance of
+# Terra or of Aqua (500 m), given to services.burn_severity as the sensor 'Modis' and the collection of each
+FIRE_MODIS = [('MODIS Terra (500 m)', 'MODIS/061/MOD09GA'), ('MODIS Aqua (500 m)', 'MODIS/061/MYD09GA')]
+FIRE_TIPS = {
+	'MODIS/061/MOD09GA': 'Daily surface reflectance of MODIS Terra (MOD09GA, since 2000-02-24), bands 2 and 7, 500 m',
+	'MODIS/061/MYD09GA': 'Daily surface reflectance of MODIS Aqua (MYD09GA, since 2002-07-04), bands 2 and 7, 500 m',
+	'dNBR': 'NBR before minus NBR after the fire, in the 7 classes of the USGS (Key & Benson 2006)',
+	'RBR': 'Relativized Burn Ratio (Parks et al. 2014): a continuous map, without classes',
+	'RdNBR': 'Relative dNBR (Miller & Thode 2007): dNBR / sqrt(|NBR before|), in the 4 classes of the article '
+	         '(unchanged, low, moderate and high severity); also with MODIS Terra and Aqua',
+}
+FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)', 'RBR'),
+                ('RdNBR (Miller & Thode 2007 classes)', 'RdNBR')]
 # the two periods of the burn severity, at first those of the example of the manual: the fire of August 2023 in Teide
 # National Park (Tenerife)
 FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_start': '2023-09-15',
@@ -201,6 +213,16 @@ def data_name(var, sensor=True):
 	if var.get('variable'):
 		return f"{var['variable']} ({var['sensor']})" if sensor else var['variable']
 	return f"{var.get('collection') or var.get('image') or '?'} {var.get('band') or ''}".strip()
+
+
+def burn_label(title, collection=None):
+	"""The name of a burn severity of title TITLE in the list of results and of its layer: TITLE, with the product of
+	MODIS of COLLECTION after the sensor (Modis MYD09GA), so that Terra and Aqua can be told apart, if it does not say
+	it already."""
+	short = str(collection or '').split('/')[-1]
+	if not short or short in title:
+		return title
+	return title.replace(' Modis ', f' Modis {short} ', 1)
 
 
 def number(value):
@@ -428,8 +450,8 @@ class MonitorEODock(QDockWidget):
 		self.data_themes = {t['key']: t['data'] for t in themes if t.get('data')}
 		f.addRow('Theme', info(self.theme, HELP['theme']))
 		f.addRow(self.data_block(s))
-		# the English names of the catalog (vname_en, type_en); RBR: only the burn severity of the Python package, the
-		# MCP server and the app
+		# the English names of the catalog (vname_en, type_en); RBR and RdNBR, which compare two periods: only the burn
+		# severity (Burn severity of a fire, below)
 		self.all_variables = [v for v in services.list_variables(lang='en') if not v.get('two_periods')]
 		self.catalog_choice = None  # the variable chosen before a theme of other data, chosen again when back
 		self.variable = QComboBox()
@@ -614,14 +636,18 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 
 		# the analyses of a theme (catalog.THEMES): only in the themes that have them, and with «All the variables»
-		box = QGroupBox('Burn severity of a fire (dNBR or RBR)')
+		box = QGroupBox('Burn severity of a fire (dNBR, RBR or RdNBR)')
 		self.fire_box = box
 		f = QFormLayout(box)
-		sensor = s.value(SETTINGS + 'fire_sensor', 'Sentinel-2')
-		self.fire_sensor = combo(FIRE_SENSORS, sensor if sensor in dict(FIRE_SENSORS).values() else 'Sentinel-2')
-		f.addRow('Sensor', info(self.fire_sensor, HELP['fire_sensor']))
+		# first the index, as its sensors depend on it (MODIS only for the RdNBR)
 		self.fire_index = combo(FIRE_INDICES, 'dNBR')
+		for i, (_, value) in enumerate(FIRE_INDICES):
+			self.fire_index.setItemData(i, FIRE_TIPS[value], Qt.ItemDataRole.ToolTipRole)
 		f.addRow('Index', info(self.fire_index, HELP['fire_index']))
+		self.fire_sensor = QComboBox()
+		self.fill_fire_sensors(s.value(SETTINGS + 'fire_sensor', 'Sentinel-2'))
+		self.fire_index.currentIndexChanged.connect(lambda i: self.fill_fire_sensors())
+		f.addRow('Sensor', info(self.fire_sensor, HELP['fire_sensor']))
 		self.fire_dates = {}
 		for when, label in (('before', 'Before the fire'), ('after', 'After the fire')):
 			row = QHBoxLayout()
@@ -635,8 +661,9 @@ class MonitorEODock(QDockWidget):
 				row.addWidget(d)
 			f.addRow(label, info(row, HELP['fire_' + when]))
 		b = QPushButton('Compute the severity')
-		b.setToolTip('Hectares of each class of the USGS (dNBR) or statistics of the RBR over each feature of the region, '
-		             'in a window, and a temporary GeoTIFF with its colours (queryable with the Identify Features tool)')
+		b.setToolTip('Hectares of each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, also its statistics), '
+		             'or statistics of the RBR, over each feature of the region, in a window, and a temporary GeoTIFF '
+		             'with its colours (queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_burn)
 		f.addRow(b)
 		main.addWidget(box)
@@ -1724,6 +1751,34 @@ class MonitorEODock(QDockWidget):
 		"""The groups of the analyses of a theme, shown only in that theme (and with «All the variables»)."""
 		self.fire_box.setVisible(self.theme_has('burn_severity'))
 
+	def fill_fire_sensors(self, choose=None):
+		"""The sensors of the burn index chosen (services.BURN_SENSORS): Sentinel-2 and Landsat, and MODIS Terra and
+		Aqua only for the RdNBR. Keeps the sensor chosen (at first, CHOOSE) if the index has it; going back to the dNBR
+		or the RBR with MODIS chosen chooses Landsat (as the Earth Engine app: a big region), never MODIS; else,
+		Sentinel-2."""
+		index = self.fire_index.currentData()
+		current = self.fire_sensor.currentData() if self.fire_sensor.count() else choose
+		items = FIRE_SENSORS + (FIRE_MODIS if 'Modis' in services.BURN_SENSORS.get(index, ()) else [])
+		values = [v for _, v in items]
+		if current not in values:
+			current = 'Landsat' if current in [v for _, v in FIRE_MODIS] else 'Sentinel-2'
+		self.fire_sensor.blockSignals(True)
+		self.fire_sensor.clear()
+		for i, (label, value) in enumerate(items):
+			self.fire_sensor.addItem(label, value)
+			if value in FIRE_TIPS:
+				self.fire_sensor.setItemData(i, FIRE_TIPS[value], Qt.ItemDataRole.ToolTipRole)
+		self.fire_sensor.setCurrentIndex(values.index(current))
+		self.fire_sensor.blockSignals(False)
+
+	def fire_source(self):
+		"""The sensor and the collection of the burn severity (services.burn_severity): MODIS is the sensor 'Modis'
+		with the collection of Terra (MOD09GA) or Aqua (MYD09GA); Sentinel-2 and Landsat go without a collection."""
+		value = self.fire_sensor.currentData()
+		if value in [v for _, v in FIRE_MODIS]:
+			return 'Modis', value
+		return value, None
+
 	def fire_periods(self):
 		"""The periods before and after the fire ([first day, last day] each), checked."""
 		day = lambda key: self.fire_dates[key].date().toString('yyyy-MM-dd')  # noqa: E731
@@ -1737,7 +1792,8 @@ class MonitorEODock(QDockWidget):
 	def run_burn(self):
 		"""Burn severity of a fire over the region (services.burn_severity), with the pixel filters and the conditions
 		of «Only the pixels where» of the panel (over the period before the fire): the window of its table (hectares
-		of each class of the USGS and burned area, or statistics of the RBR) and its GeoTIFF, in colours."""
+		of each class of the USGS and burned area, statistics of the RBR, or hectares of each class of Miller & Thode
+		2007, changed area and statistics of the RdNBR) and its GeoTIFF, in colours."""
 		try:
 			region = self.region()
 			before, after = self.fire_periods()
@@ -1746,33 +1802,36 @@ class MonitorEODock(QDockWidget):
 			self.message(str(e), 'Warning')
 			return
 		quality = self.quality_args(own=True)  # the NBR, whatever the variable selected
-		sensor, index = self.fire_sensor.currentData(), self.fire_index.currentData()
-		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'burn_severity' + ('_rbr' if index == 'RBR' else ''))
+		(sensor, collection), index = self.fire_source(), self.fire_index.currentData()
+		source = self.fire_sensor.currentText().split(' (')[0]  # Sentinel-2, Landsat, MODIS Terra or MODIS Aqua
+		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'),
+		                    'burn_severity' + {'RBR': '_rbr', 'RdNBR': '_rdnbr'}.get(index, ''))
+		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
 
 		def work():
 			return services.burn_severity(region, sensor, before[0], before[1], after[0], after[1], quality=quality,
 			                              path=stem + '.tif', csv=stem + '.csv', max_pixels=MAP_PIXELS, index=index,
-			                              where=where)
+			                              where=where, **more)
 
 		def done(res):
 			if not any((r.get('ha') or 0) > 0 for r in res.get('classes') or res.get('stats') or []):
 				self.message(f"{res['title'].split(' | ')[0]}: no values in the region (no images in a period, or all "
 				             'filtered out)', 'Warning', 15)
 				return
-			res['label'] = res['title']
+			res['label'] = burn_label(res['title'], collection)
 			res['kind'] = 'burn'
-			res['args'] = {'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],
-			               'other_start': after[0], 'other_end': after[1], 'index': index}
+			res['args'] = dict({'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],
+			                    'other_start': after[0], 'other_end': after[1], 'index': index}, **more)
 			self.add_burn_layer(res)
 			self.add_result(res)
 
-		self.run_task(f'Burn severity ({index}, {sensor})', work, done)
+		self.run_task(f'Burn severity ({index}, {source})', work, done)
 
 	def add_burn_layer(self, res):
 		"""Add the GeoTIFF of the burn severity RES coloured as in the other tools (fire.map_style, as the assistant):
-		the classes of the USGS of its band severity, with their names and dNBR in the legend, or the RBR from red
-		(burned) to green (regrowth)."""
-		name = res['title']
+		the classes of its band severity, with their names and values in the legend (those of the USGS for the dNBR,
+		those of Miller & Thode 2007 for the RdNBR), or the RBR from red (burned) to green (regrowth)."""
+		name = res.get('label') or res['title']
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS could not open {res['file']}")

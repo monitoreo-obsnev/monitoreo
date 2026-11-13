@@ -306,8 +306,15 @@ for the climate of a region, not of a plot; no clouds or filters.
 - MonitorEO discards the pixels with clouds, water, snow or aerosols, depending on the variable. In high mountains \
 snow leaves few valid pixels in winter for the vegetation indices.
 - Burn severity of a fire: burn_severity with Sentinel-2 or Landsat; period before, the 3 months before the fire; \
-period after, the 2-3 months after it ends. It gives the dNBR and its classes; only if the user asks for the RBR \
-(Relativized Burn Ratio), index "RBR": a continuous index, without classes.
+period after, the 2-3 months after it ends. It gives the dNBR and its classes of the USGS. Only if the user asks for \
+them, the other indices: the RBR (Relativized Burn Ratio), index "RBR", a continuous index without classes; or the \
+RdNBR (relative dNBR, Miller & Thode 2007), index "RdNBR", the dNBR divided by the square root of the NBR before the \
+fire, with the classes of the article (unchanged, low, moderate and high severity). The RdNBR suits fires over \
+vegetation of very different cover (sparse shrubs and dense forest), where the dNBR underestimates the severity of the \
+sparse one. It is the only index with MODIS (sensor "Modis", pixel of 500 m: Terra since 2000; with collection \
+"MODIS/061/MYD09GA", Aqua since 2002), for big fires; its mixed pixels make its classes approximate. Its classes were \
+calibrated one year after the fire: for them, take the period after about one year after the fire, in the same season \
+as the period before. «Unchanged» is not «unburned»: one year after the fire the area was as before it.
 
 Variables of the catalog (sensors, pixel and first year):
 {variables}{guide}"""
@@ -425,7 +432,8 @@ def variables_text():
 		sensors = '; '.join(f"{'MODIS' if name == 'Modis' else name} {s['m']:g} m since {s['first'] or '?'}"
 		                    + ('' if s['now'] or not s['last'] else f" until {s['last']}")
 		                    for name, s in var['sensors'].items())
-		only = ' Only burn_severity with index "RBR" (two periods).' if var.get('two_periods') else ''
+		# the two-period indices (RBR, RdNBR) are the index of burn_severity of their own name
+		only = f' Only burn_severity with index "{code}" (two periods).' if var.get('two_periods') else ''
 		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; theme {var['theme']}. {sensors}.{only}")
 	return '\n'.join(lines)
 
@@ -566,6 +574,12 @@ def fix_args(name, args, tools):
 		out = {k: v for k, v in out.items() if k not in ('variable', 'sensor')}  # an ID as variable: no variable has '/'
 	if out.get('variable'):  # with its own collection, band and unit (the collection was hidden before the data by ID)
 		out = {k: v for k, v in out.items() if k not in SOURCE}
+	elif name == 'burn_severity':  # a collection only for the RdNBR of MODIS (Terra or Aqua), with its sensor
+		rdnbr = str(out.get('index') or '').lower() == 'rdnbr'
+		if rdnbr and str(out.get('collection') or '').upper() in ('MODIS/061/MOD09GA', 'MODIS/061/MYD09GA'):
+			out['sensor'] = 'Modis'  # the collection of MODIS says the sensor, whatever the model wrote («MODIS Aqua»)
+		modis = rdnbr and str(out.get('sensor') or '').lower() == 'modis'
+		out = {k: v for k, v in out.items() if k not in SOURCE or (k == 'collection' and modis)}
 	elif out.get('collection') or out.get('image'):  # the sensor is that of a variable of the catalog
 		out.pop('sensor', None)
 	return out
@@ -1581,7 +1595,7 @@ class Assistant:
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
 		if isinstance(result, dict):
 			style = report.map_style(tool, args, result)
-			if style and style.get('classes'):  # the burn severity: the classes of the USGS
+			if style and style.get('classes'):  # the burn severity: the classes of the USGS or of Miller & Thode 2007
 				card['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']}
 				                              for c in style['classes']]}
 			elif style and style.get('text'):  # the true colour of the images: the range of its reflectance

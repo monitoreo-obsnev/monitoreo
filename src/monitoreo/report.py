@@ -73,6 +73,20 @@ METHODS = {
 	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
 	                     '(2022), without phenological correction and without the factor 1000 of the articles. A '
 	                     'continuous index, without classes.',
+	'burn_severity_rdnbr': 'RdNBR (relative dNBR, Miller and Thode, 2007): dNBR / sqrt(|NBR before|), with |NBR before| '
+	                       'at least 0.001 (Howe et al., 2022), with the NBR of the bands B8 and B12 of Sentinel-2 (NIR '
+	                       'and SWIR2 of Landsat; bands 2 and 7 of the daily surface reflectance of MODIS), on the scale '
+	                       'of the dNBR, without the factor 1000 of the article (0.641 here is 641 there), and without '
+	                       'its offset (the mean dNBR of an unburned area outside the fire). Severity classes of the '
+	                       'article (its Table 4): ' + '; '.join(fire.class_label(c) for c in fire.legend('RdNBR')) +
+	                       f'. Changed area: RdNBR ≥ {fire.RDNBR_BURNED:g} (low to high severity). The classes were '
+	                       'calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of '
+	                       'California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with the '
+	                       'composite burn index (CBI) measured in the field one year after the fire: the period '
+	                       'after should be about one year after the fire, in the same season as the period before. With '
+	                       'MODIS (500 m), mixed pixels make the RdNBR less extreme, and its classes approximate. '
+	                       'Unchanged is not unburned: one year after the fire, the area was indistinguishable from '
+	                       'before it.',
 }
 
 FILTERS = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
@@ -96,7 +110,8 @@ TABLES = {
 	                           ('n_pixels', 'Pixels')]),
 	'download_variables': (('files',), [('file', 'File'), ('images', 'Images'), ('pixel_filters', 'Discarded pixels')]),
 	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
-	                                          ('dnbr_max', 'dNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
+	                                          ('dnbr_max', 'dNBR to'), ('rdnbr_min', 'RdNBR from'),
+	                                          ('rdnbr_max', 'RdNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
 	                                          ('p10', 'RBR percentile 10'), ('p90', 'RBR percentile 90'),
 	                                          ('min', 'RBR minimum'), ('max', 'RBR maximum'), ('ha', 'Hectares')]),
 }
@@ -245,7 +260,8 @@ def item_facts(tool, args, result=None, names=None):
 	if args.get('where'):
 		facts.append(('Pixels of the region', 'only where ' + where_text(args['where'])))
 	entry = _entry(args.get('variable') or (fire_variable(args) if tool == 'burn_severity' else None), args.get('sensor') or
-	               ('Sentinel-2' if tool == 'burn_severity' else None))
+	               ('Sentinel-2' if tool == 'burn_severity' else None),
+	               args.get('collection') if tool == 'burn_severity' else None)  # the RdNBR of MODIS Terra or Aqua
 	if entry:
 		facts.append(('Variable', f"{entry.get('name', '')} ({entry.get('index', '')})"))
 		facts.append(('Sensor', f"{SENSORS.get(entry['sensor'], entry['sensor'])}, pixel of {entry.get('m', '?')} m, "
@@ -306,8 +322,16 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Pixels', f"only those with a significant trend (Mann-Kendall, p < {_num(args['alpha'])})"))
 	if tool == 'burn_severity' and result.get('burned_ha'):
 		burned = result['burned_ha']
-		facts.append(('Burned area', '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
+		# the RdNBR: the area of the classes low to high is changed, not burned (unchanged is not unburned)
+		label = f'Changed area (RdNBR ≥ {fire.RDNBR_BURNED:g})' if fire_variable(args) == 'RdNBR' else 'Burned area'
+		facts.append((label, '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
 		              else f'{_num(next(iter(burned.values())))} ha'))
+	if tool == 'burn_severity' and fire_variable(args) == 'RdNBR' and isinstance(result.get('stats'), list):
+		stats = [r for r in result['stats'] if isinstance(r, dict) and r.get('median') is not None]
+		text = [f"{_num(r['median'])} ({_num(r.get('p10'))} to {_num(r.get('p90'))})" for r in stats]
+		if stats:
+			facts.append(('RdNBR, median (percentiles 10 to 90)', text[0] if len(stats) == 1 else '; '.join(
+				f"{r.get('region')}: {t}" for r, t in zip(stats, text))))
 	grid = result.get('grid')
 	if isinstance(grid, dict) and grid.get('width'):
 		native = result.get('native_resolution')
@@ -327,8 +351,9 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Colours', f"red, green and blue reflectance stretched from {_num(result['min'])} to "
 		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
-		rbr = tool == 'burn_severity' and fire_variable(args) == 'RBR'
-		facts.append(('Method', METHODS['static'] if static else METHODS['burn_severity_rbr' if rbr else tool]))
+		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
+		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else tool]
+		facts.append(('Method', METHODS['static'] if static else method))
 	return facts
 
 
@@ -614,8 +639,9 @@ def _pixel(lon, lat, zoom):
 
 def map_style(tool, args, result):
 	"""How the map of the GeoTIFF of a result is drawn, as in the other tools of MonitorEO: {'band' (its number),
-	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}])} for the burn severity, its band severity with
-	the colours of the classes of the USGS; {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
+	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}], or rdnbr_min and rdnbr_max)} for the burn severity,
+	its band severity with the colours of the classes of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, see
+	fire.map_style); {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
 	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); {'band'
 	([1, 2, 3]: red, green and blue), 'min', 'max', 'text' (its legend)} for the true colour of the images (rgb_map,
 	download_rgb: the three bands stretched together from min to max, without a palette); None for those without
@@ -635,8 +661,8 @@ def map_style(tool, args, result):
 
 
 def class_label(c):
-	"""The label of a class of the burn severity in a legend, with its dNBR: «Low severity (dNBR 0.1 to 0.27)», as in
-	the QGIS plugin (fire.class_label)."""
+	"""The label of a class of the burn severity in a legend, with the values of its index: «Low severity (dNBR 0.1 to
+	0.27)», «Low severity (RdNBR 0.069 to 0.316)», as in the QGIS plugin (fire.class_label)."""
 	return fire.class_label(c)
 
 
@@ -732,11 +758,11 @@ def _table(labels, rows):
 	return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
-def _entry(variable, sensor):
+def _entry(variable, sensor, collection=None):
 	if not variable:
 		return None
 	try:
-		return services.describe_variable(variable, sensor)  # with its name and pixel filters
+		return services.describe_variable(variable, sensor, collection)  # with its name and pixel filters
 	except (KeyError, ValueError):
 		return None
 

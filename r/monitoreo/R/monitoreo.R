@@ -61,9 +61,9 @@ mo_about <- function(lang = "en") {
 #' Every result of MonitorEO carries its references: those of the formula or algorithm of the variable (e.g. Tucker
 #' 1979 for the NDVI), of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest, e.g. the
 #' DOI of the MODIS product), of the pixel filters, of the method (Mann-Kendall and Sen for the trends, Key and Benson
-#' for the burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of MonitorEO, and the
-#' credits that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). Cite them when the results go
-#' into a report, a paper or a map.
+#' for the burn severity, Miller and Thode for its RdNBR), of the region (WDPA, RESOLVE ecoregions), of Google Earth
+#' Engine and of MonitorEO, and the credits that the terms of use of the data ask for (Copernicus Sentinel, USGS
+#' Landsat). Cite them when the results go into a report, a paper or a map.
 #' @param x a result of MonitorEO: a data.frame (\code{mo_time_series()}, \code{mo_trend_table()}, ...) or a
 #'   list (\code{mo_map_layer()}, \code{mo_download_image()}, \code{mo_describe()}, \code{mo_asset()}, ...).
 #'   \code{NULL}: the citations of MonitorEO and of Google Earth Engine.
@@ -339,8 +339,10 @@ rows_df <- function(rows) {
 #'   \code{mo_community()}.
 #' @return A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
 #'   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
-#'   dates, and rgb: \code{TRUE} when its images have a true colour, see \code{mo_rgb_map()}; \code{NA} for the
-#'   others). The references of each variable: \code{mo_describe()}.
+#'   dates, two_periods: \code{TRUE} for the burn indices that compare a period before and a period after a fire,
+#'   RBR and RdNBR, computed only by \code{mo_burn_severity()}, and rgb: \code{TRUE} when its images have a true
+#'   colour, see \code{mo_rgb_map()}; \code{NA} for the others). The references of each variable:
+#'   \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
@@ -1391,26 +1393,55 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
                                  band = band, band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
-#' Burn severity of a fire (dNBR and RBR)
+#' Burn severity of a fire (dNBR, RBR and RdNBR)
 #'
 #' The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
 #' Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). With \code{index = "RBR"}, the Relativized Burn Ratio,
 #' dNBR / (NBR before + 1.001) (Parks et al. 2014), with the NBR of B8A and B12 of Sentinel-2 (Silva-Cardoza et al.
 #' 2022), without phenological correction and on the scale of the dNBR: a continuous index, without classes.
+#'
+#' With \code{index = "RdNBR"}, the relative dNBR of Miller and Thode (2007), dNBR / sqrt(|NBR before|), with
+#' |NBR before| at least 0.001 (Howe et al. 2022), and the severity classes of the article (its Table 4): 0
+#' "Unchanged" (RdNBR < 0.069), 1 "Low severity" (0.069 to 0.316), 2 "Moderate severity" (0.316 to 0.641) and 3
+#' "High severity" (>= 0.641). It is computed with Sentinel-2 (B8 and B12, 10 m, as Howe et al. 2022), Landsat (NIR
+#' and SWIR2, 30 m: Landsat 5, 7 until 2003, 8 and 9) or MODIS (\code{sensor = "Modis"}: bands 2 and 7 of the daily
+#' surface reflectance, 500 m, as Veraverbeke et al. 2010; of Terra, MOD09GA, since 2000-02-24, or, with
+#' \code{collection = "MODIS/061/MYD09GA"}, of Aqua, since 2002-07-04). It is on the scale of the dNBR of MonitorEO,
+#' without the factor 1000 of the article (0.641 here is 641 there), like the RBR, and without the offset of the
+#' article (the mean dNBR of an unburned area outside the fire), which the dNBR and the RBR of MonitorEO do not apply
+#' either. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
+#' California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with the composite burn index
+#' (CBI) measured in the field one year after the fire (extended assessment): the period
+#' after should be about one year after the fire, in the same season as the period before. With MODIS (500 m), mixed
+#' pixels make the RdNBR less extreme, so its classes are approximate. "Unchanged" is not unburned: one year after
+#' the fire, the area was indistinguishable from before.
+#'
+#' The RBR and the RdNBR compare two periods: the other functions refuse them (\code{mo_variables()} gives them
+#' \code{two_periods = TRUE}).
 #' @inheritParams mo_params
 #' @param start,end the period before the fire.
 #' @param other_start,other_end the period after the fire.
-#' @param sensor \code{"Sentinel-2"} or \code{"Landsat"}.
+#' @param sensor \code{"Sentinel-2"} or \code{"Landsat"}; with \code{index = "RdNBR"}, also \code{"Modis"} (500 m).
 #' @param path optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
-#'   rbr, dnbr, nbr_before and nbr_after).
-#' @param index \code{"dNBR"} or \code{"RBR"}.
-#' @return A data.frame (region, class, label, dnbr_min, dnbr_max, ha; RBR: region, mean, median, p10, p90, min, max,
-#'   ha) with the attributes burned_ha (hectares with dNBR >= 0.1 by region), title, file, references and credits.
+#'   rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).
+#' @param csv optional path of a CSV file with the table: that of the classes (dNBR, RdNBR) or of the statistics
+#'   (RBR).
+#' @param index \code{"dNBR"}, \code{"RBR"} or \code{"RdNBR"}.
+#' @param collection only with \code{index = "RdNBR"} and \code{sensor = "Modis"}: \code{"MODIS/061/MOD09GA"} (Terra,
+#'   the default, since 2000-02-24) or \code{"MODIS/061/MYD09GA"} (Aqua, since 2002-07-04).
+#' @return A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
+#'   region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
+#'   mean, median, p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
+#'   the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
+#'   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
+#'   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
+#'   of the GeoTIFF), title, file, readme, references and credits.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
 #'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
-#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it.
+#'   element \code{readme}): what each column or band is, with its unit, how it was computed and how to cite it. The
+#'   RdNBR cites Miller and Thode (2007) and Howe et al. (2022) and, with MODIS, Veraverbeke et al. (2010).
 #' @references García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper
 #'   data. Geocarto International, 6(1), 31--37. \doi{10.1080/10106049109354290}
 #'
@@ -1427,6 +1458,18 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'   the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and burned area. Remote
 #'   Sensing, 14(13), 3122. \doi{10.3390/rs14133122}
 #'
+#' Miller, J. D., & Thode, A. E. (2007). Quantifying burn severity in a heterogeneous landscape with a relative version
+#'   of the delta Normalized Burn Ratio (dNBR). Remote Sensing of Environment, 109(1), 66--80.
+#'   \doi{10.1016/j.rse.2006.12.006}
+#'
+#' Howe, A. A., Parks, S. A., Harvey, B. J., Saberi, S. J., Lutz, J. A., & Yocom, L. L. (2022). Comparing Sentinel-2
+#'   and Landsat 8 for burn severity mapping in Western North America. Remote Sensing, 14(20), 5249.
+#'   \doi{10.3390/rs14205249}
+#'
+#' Veraverbeke, S., Lhermitte, S., Verstraeten, W. W., & Goossens, R. (2010). The temporal dimension of differenced
+#'   Normalized Burn Ratio (dNBR) fire/burn severity studies: The case of the large 2007 Peloponnese wildfires in
+#'   Greece. Remote Sensing of Environment, 114(11), 2548--2563. \doi{10.1016/j.rse.2010.05.029}
+#'
 #' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
 #'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -1435,20 +1478,42 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' mo_init()
 #' mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
 #'                  "2022-10-01", "2022-11-30", path = "fire.tif")
+#' # the RdNBR and its classes (Miller and Thode 2007), one year after the fire, with MODIS Aqua
+#' x <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
+#'                       "2023-06-01", "2023-08-31", sensor = "Modis", index = "RdNBR",
+#'                       collection = "MODIS/061/MYD09GA", path = "rdnbr.tif")
+#' x                     # hectares of each class
+#' attr(x, "burned_ha")  # hectares with RdNBR >= 0.069
+#' attr(x, "stats")      # mean, median, p10, p90, min and max of the RdNBR
+#' # the band severity of the GeoTIFF with the colours and labels of the classes
+#' legend <- attr(x, "legend")
+#' severity <- terra::as.int(terra::rast("rdnbr.tif")[["severity"]])
+#' severity <- terra::categories(severity, value = legend[c("value", "label")])
+#' terra::coltab(severity) <- legend[c("value", "color")]
+#' terra::plot(severity, all_levels = TRUE)
 #' }
 #' @export
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                             csv = NULL, index = "dNBR", where = NULL) {
+                             csv = NULL, index = "dNBR", where = NULL, collection = NULL) {
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
                                   path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index,
-                                  where = where)
+                                  where = where, collection = collection)
   df <- rows_df(if (identical(res$index, "RBR")) res$stats else res$classes)
   attr(df, "burned_ha") <- unlist(res$burned_ha)
+  if (!is.null(res$classes) && !is.null(res$stats)) attr(df, "stats") <- rows_df(res$stats)  # RdNBR: both
+  if (!is.null(res$classes)) attr(df, "legend") <- burn_legend(res$index)
   attr(df, "title") <- res$title
   attr(df, "file") <- res$file
   cited(df, res)
+}
+
+# The classes of the burn INDEX ("dNBR" or "RdNBR") with the colours of their maps, the same as in the other tools
+# (legend() of monitoreo.fire): a data.frame (value, label, color and the limits of each class, dnbr_min and dnbr_max
+# or rdnbr_min and rdnbr_max), from the lowest class to "High severity".
+burn_legend <- function(index) {
+  rows_df(reticulate::import("monitoreo.fire", convert = TRUE)$legend(index))
 }
 
 #' State of an export task
