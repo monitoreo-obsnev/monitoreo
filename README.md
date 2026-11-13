@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.27](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.27) · 2026-11-13 · package 0.3.37
 
 - **Assistant**: The installers of macOS, Windows and Linux no longer say that the assistant downloads a language model of 5 GB the first time it opens: the model of MonitorEO, in the cloud, downloads nothing, and a model on the computer (Ollama) is optional.
 - **Assistant** (fix): The installer of macOS says at once when the Terminal may not access the Desktop, and where to allow it, instead of stopping after the downloads with "Check the internet connection".
