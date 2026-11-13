@@ -365,6 +365,45 @@ def test_rdnbr(tmp_path):
 	assert publish.default_title('burn_severity', dict(args, index='RBR')).startswith('Burn severity (RBR of Landsat)')
 
 
+def test_rbr_table(tmp_path):
+	"""A burn severity with the RBR in the viewer: its CSV has the statistics of the RBR of each region (no classes), so
+	it is a table, not the chart of the severity classes; the dNBR keeps the chart of its classes."""
+	from monitoreo import fire
+	out = tmp_path / 'mcp_out'
+	out.mkdir()
+	bands = ['rbr', 'dnbr', 'nbr_before', 'nbr_after']
+	_tif(out / 'burn_RBR.tif', bands, [0.3, 0.3, 0.5, 0.2])
+	stats = {'region': 'Fire', 'mean': 0.21, 'median': 0.18, 'p10': 0.02, 'p90': 0.45, 'min': -0.1, 'max': 0.7,
+	         'ha': 120.5}
+	assert list(stats) == services.RBR_COLUMNS
+	_csv(out / 'burn_RBR.csv', [dict(stats, index='RBR', sensor='Sentinel-2', before='2022-06-01/2022-07-31',
+	                                 after='2023-06-01/2023-07-31', metric='median', scale_m=20)])
+	_csv(out / 'burn_dNBR.csv', fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 3.0}], 'Fire'))
+	args = {'region': {'wdpa_id': 389011}, 'sensor': 'Sentinel-2', 'index': 'RBR', 'start': '2022-06-01',
+	        'end': '2022-07-31', 'other_start': '2023-06-01', 'other_end': '2023-07-31'}
+	data = tmp_path / 'data'
+	data.mkdir()
+	gone = '/tmp/does-not-exist/'
+	(data / 'rbr.json').write_text(json.dumps({'call': {'id': 'rbr', 'tool': 'burn_severity', 'args': args},
+	                                           'is_error': False, 'text': [{
+		'index': 'RBR', 'stats': [stats], 'bands': bands, 'file': gone + 'burn_RBR.tif',
+		'csv': gone + 'burn_RBR.csv'}]}), encoding='utf-8')
+	dnbr = dict(args, index='dNBR')
+	(data / 'dnbr.json').write_text(json.dumps({'call': {'id': 'dnbr', 'tool': 'burn_severity', 'args': dnbr},
+	                                            'is_error': False, 'text': [{
+		'classes': [], 'burned_ha': {'Fire': 15.5}, 'csv': gone + 'burn_dNBR.csv'}]}), encoding='utf-8')
+	r = publish.publish(_spec(results=[{'answer': 'data/rbr.json'}, {'answer': 'data/dnbr.json'}], downloads=[]),
+	                    tmp_path / 'site', tmp_path, log='')
+	assert publish.check_report(r, str(tmp_path / 'site' / 'reports' / r['id'])) == []
+	m, table, classes = r['results']
+	assert m['kind'] == 'map' and m['band'] == 'rbr'
+	assert (table['kind'], table['chart']) == ('chart', 'table')  # not the chart of the severity classes
+	assert 'classes' not in table and 'burned_ha' not in table
+	assert table['title'] == 'Statistics of the RBR in each region'
+	assert (classes['chart'], classes['index']) == ('burn_severity', 'dNBR')
+	assert classes['classes'] == fire.legend() and classes['burned_ha'] == {'Fire': 15.5}
+
+
 def test_server(tmp_path):
 	"""The local server answers range requests, as GitHub Pages: the browser reads the COGs by parts."""
 	(tmp_path / 'a.tif').write_bytes(bytes(range(100)))
