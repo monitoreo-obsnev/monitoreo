@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools** (fix): The median and the percentiles 10 and 90 of the RBR and the RdNBR of the burn severity are no longer coarse when a region has a few extreme values: in the unburned surroundings of a fire the percentile 10 and the median came out as the same value (-0.049, where its pixels give -0.120 and -0.037); now they are within about 0.001 of those of the pixels.
+
 ### [v0.3.30](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.30) · 2026-11-13 · package 0.3.40
 
 - **All tools**: A land cover mask leaves out of any result the pixels of some land covers (water, built-up, cropland, trees, grassland, shrubland, wetlands, bare ground, snow and ice) after a land cover map of a year: ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CORINE Land Cover (Europe, 1990 to 2018) or MODIS MCD12Q1 (every year since 2001), with a table that says which classes of each map are each land cover. It is a condition of `where` (`{"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}`), so it reaches maps, series, trends, comparisons, exports and the burn severity, and the README of each result says which land covers it left out and cites the map.
