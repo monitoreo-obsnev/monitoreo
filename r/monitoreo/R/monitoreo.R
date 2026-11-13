@@ -326,6 +326,28 @@ rows_df <- function(rows) {
   df
 }
 
+# The themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), which have no variables of it, with
+# the functions and arguments of R: the services say what to do in the words of every tool, and the command line
+# names its own commands (cli.OTHER_THEMES), so R names its functions.
+other_themes <- c(
+  earth_engine = paste("any image or collection of images of Earth Engine by its ID: mo_asset(ID) describes it (its",
+                       "bands, units and dates, and the arguments to compute it); then compute it with its ID as",
+                       "collection (or image) and its band"),
+  community = paste("the datasets of the GEE Community Catalog by its own themes: mo_community_themes() lists its",
+                    "themes and mo_community() their datasets; mo_asset(ID) describes one; then compute it with its",
+                    "ID as collection (or image) and its band"))
+
+# The theme of catalog.OTHER_THEMES named THEME (its key, or its name in English or Spanish, as the services read
+# them), or NULL.
+other_theme <- function(theme) {
+  if (is.null(theme)) return(NULL)
+  low <- tolower(trimws(theme))
+  for (t in reticulate::import("monitoreo.catalog", convert = TRUE)$OTHER_THEMES) {
+    if (nzchar(low) && low %in% tolower(c(t$key, t$en, t$es))) return(t)
+  }
+  NULL
+}
+
 #' Variables of the catalog of MonitorEO
 #'
 #' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
@@ -352,7 +374,10 @@ rows_df <- function(rows) {
 #' }
 #' @export
 mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) {
-  rows_df(services()$list_variables(sensor, text, lang, theme = theme))
+  s <- services()
+  other <- other_theme(theme)
+  if (!is.null(other)) stop(other$en, " has no variables of the catalog: ", other_themes[[other$key]], call. = FALSE)
+  rows_df(s$list_variables(sensor, text, lang, theme = theme))
 }
 
 #' Everything about a variable of the catalog, and what to cite with it
