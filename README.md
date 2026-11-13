@@ -94,11 +94,14 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
+- **Results viewer** (fix): A published burn severity with the RBR shows the statistics of the RBR of each region (mean, median, percentiles 10 and 90, minimum, maximum and hectares) as a table, instead of an empty chart of the severity classes, which the RBR does not have.
+
+### [v0.3.27](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.27) · 2026-11-13 · package 0.3.37
+
 - **Assistant**: The installers of macOS, Windows and Linux no longer say that the assistant downloads a language model of 5 GB the first time it opens: the model of MonitorEO, in the cloud, downloads nothing, and a model on the computer (Ollama) is optional.
 - **Assistant** (fix): The installer of macOS says at once when the Terminal may not access the Desktop, and where to allow it, instead of stopping after the downloads with "Check the internet connection".
 - **All tools**: Burn severity with the RdNBR, the relative dNBR of Miller & Thode (2007) (`index = "RdNBR"`), for fires over heterogeneous vegetation and to compare fires: the hectares of each severity class of the article (unchanged, low, moderate and high), the changed area (RdNBR of 0.069 or more) and the statistics of the RdNBR of each region, with Sentinel-2 and Landsat, a CSV of the classes and a GeoTIFF whose map shows them in their colours. Its classes were calibrated one year after the fire: give a period after about one year after it, in the season of the period before.
 - **All tools**: The burn severity with the RdNBR also with MODIS Terra and Aqua (500 m, daily images since 2000 and 2002), for large fires: sensor `Modis`, and `collection = "MODIS/061/MYD09GA"` for Aqua (in the QGIS plugin and the Earth Engine app, "MODIS Terra (500 m)" and "MODIS Aqua (500 m)"); its classes are approximate.
-- **Results viewer** (fix): A published burn severity with the RBR shows the statistics of the RBR of each region (mean, median, percentiles 10 and 90, minimum, maximum and hectares) as a table, instead of an empty chart of the severity classes, which the RBR does not have.
 
 ### [v0.3.26](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.26) · 2026-11-12 · package 0.3.36
 
