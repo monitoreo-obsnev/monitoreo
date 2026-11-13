@@ -80,7 +80,8 @@ pixel size, over its ecoregions: the input variables of a model). Seasonal trend
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
 pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
 severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
-Burn Ratio, a continuous index): burn_severity. Only for the
+Burn Ratio, a continuous index; or, with index "RdNBR", the relative dNBR of Miller & Thode 2007 with the classes of
+the article, also with MODIS): burn_severity. Only for the
 administrators of the public viewer of results: publish_report, with the files written by those tools.
 
 Other data of Earth Engine: besides the variables of the catalog, the tools compute any image or collection of images
@@ -768,7 +769,7 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
 def burn_severity(region: dict, start: str, end: str, other_start: str, other_end: str, sensor: str = 'Sentinel-2',
                   metric: str = 'median', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                   resolution: Optional[float] = None, crs: str = 'auto', index: str = 'dNBR',
-                  where: Optional[list] = None) -> str:
+                  where: Optional[list] = None, collection: Optional[str] = None) -> str:
 	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
 	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
 	Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
@@ -779,13 +780,29 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (20 m; Landsat:
 	NIR and SWIR2), without phenological correction and on the scale of the dNBR (articles multiply it by 1000): a
 	continuous index without classes; returns its mean, median, p10, p90, min and max and the hectares with values
-	over each feature, and a GeoTIFF with the bands rbr, dnbr, nbr_before and nbr_after."""
+	over each feature, and a GeoTIFF with the bands rbr, dnbr, nbr_before and nbr_after.
+	index "RdNBR" (when the user asks for it or for the classes of Miller & Thode, for a fire over heterogeneous
+	vegetation, e.g. shrubs and forest, or to compare fires): the relative dNBR of Miller & Thode 2007, dNBR /
+	sqrt(|NBR before|) with |NBR before| at least 0.001 (Howe et al. 2022), the change relative to the vegetation
+	before the fire, with the classes of the article (unchanged < 0.069, low 0.069 to 0.316, moderate 0.316 to 0.641,
+	high >= 0.641), on the scale of the dNBR, without the factor 1000 of the article (0.641 here is 641 there) and
+	without its offset (the dNBR of an unburned area outside the fire). Sensors: Sentinel-2 (B8 and B12, 10 m),
+	Landsat (30 m) or "Modis" (500 m, only with this index: the daily surface reflectance of Terra, since 2000, or of
+	Aqua, since 2002-07-04, with collection "MODIS/061/MYD09GA"; its classes are approximate, as a pixel of 500 m
+	mixes burned and unburned land, and small fires are missed). Its classes were calibrated with Landsat TM (30 m)
+	and field plots of 14 fires of the Sierra Nevada of California, mostly in conifer and live oak forests (also
+	pinyon pine and sagebrush), with field data one year after the fire: give a period after about
+	one year after the fire, in the season of the period before. Returns the hectares of each class (classes),
+	the changed area (burned_ha, RdNBR >= 0.069; unchanged is not unburned) and the mean, median, p10, p90, min and max
+	of the RdNBR (stats) over each feature, a CSV of the classes and a GeoTIFF with the bands rdnbr, severity (class 0
+	to 3), dnbr, nbr_before and nbr_after. collection: only for index "RdNBR" with sensor "Modis"."""
 	_ready()
-	rbr = str(index).upper() == 'RBR'
-	stem = f"burn_severity_{'RBR_' if rbr else ''}{sensor}_{start}_{end}_{other_start}_{other_end}"
+	name = {i.lower(): i for i in services.BURN_INDICES}.get(str(index or 'dNBR').lower())
+	prefix = f'{name}_' if name and name != 'dNBR' else ''  # burn_severity_RBR_..., burn_severity_RdNBR_...
+	stem = f"burn_severity_{prefix}{sensor}_{start}_{end}_{other_start}_{other_end}"
 	return _text(services.burn_severity(region, sensor, start, end, other_start, other_end, metric, season=season,
 	                                    quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'),
-	                                    csv=_out(stem, 'csv'), index=index, where=where))
+	                                    csv=_out(stem, 'csv'), index=index, where=where, collection=collection))
 
 
 @tool

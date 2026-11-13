@@ -3,10 +3,10 @@ PNG of monitoreo (matplotlib), made in the main thread, or, when QGIS has no mat
 the trends and of the comparison of periods are only the PNG (without matplotlib, the window has only the table).
 Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year
 (of a series, also the true colour of its images, under it or alone). That of a burn severity has the hectares of
-each class of the USGS, with its colour, or the statistics of the RBR. The results of the data of Earth Engine outside
-the catalog (given by their ID) are those of a variable, named by their ID and band, with the unit given (if any) and
-without true colour. Each window ends with the references of its result (monitoreo.references), with the links of
-their DOIs."""
+each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, and under them its statistics), with its colour, or the
+statistics of the RBR. The results of the data of Earth Engine outside the catalog (given by their ID) are those of a
+variable, named by their ID and band, with the unit given (if any) and without true colour. Each window ends with the
+references of its result (monitoreo.references), with the links of their DOIs."""
 
 import datetime as dt
 import math
@@ -31,6 +31,9 @@ BURN_COLUMNS = [('region', 'Region'), ('label', 'Class (USGS)'), ('dnbr_min', 'd
                 ('ha', 'Hectares')]
 RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('p10', 'Percentile 10'),
                ('p90', 'Percentile 90'), ('min', 'Minimum'), ('max', 'Maximum'), ('ha', 'Hectares with values')]
+# the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
+RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
+                 ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
 MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
 KINDS_TIP = ('Index: the map of the variable. True colour (RGB): the red, green and blue surface reflectance of the '
@@ -159,8 +162,8 @@ def references_box(res):
 
 
 def burn_text(res):
-	"""What the window of the burn severity RES says over its table: the burned area of each region (dNBR), or how the
-	RBR is computed."""
+	"""What the window of the burn severity RES says over its table: the burned area of each region (dNBR), how the
+	RBR is computed, or how the RdNBR is computed and the changed area of each region (RdNBR)."""
 	from monitoreo import fire
 	if res.get('index') == 'RBR':
 		return (' · RBR = dNBR / (NBR before + 1.001), without phenological correction and without the factor 1000; '
@@ -168,7 +171,27 @@ def burn_text(res):
 	burned = res.get('burned_ha') or {}
 	areas = ', '.join(f'{region}: {ha:,.1f} ha' for region, ha in burned.items()) if len(burned) > 1 else \
 		f'{next(iter(burned.values())):,.1f} ha' if burned else ''
+	if res.get('index') == 'RdNBR':
+		return (' · RdNBR = dNBR / sqrt(|NBR before|), |NBR before| at least 0.001, without the offset and without the '
+		        'factor 1000 of Miller & Thode 2007; classes of their Table 4'
+		        + (f' · changed area (RdNBR ≥ {fire.RDNBR_BURNED:g}): {areas}' if areas else ''))
 	return f' · burned area (dNBR ≥ {fire.BURNED:g}): {areas}' if areas else ''
+
+
+def table_of(rows, columns, colours=None):
+	"""A table of the rows ROWS of a result with the COLUMNS [(key, title)] and, in those of a burn severity with
+	classes, the colour of its class (COLOURS: {class: '#rrggbb'}) beside the label of each row."""
+	colours = colours or {}
+	table = QTableWidget(len(rows), len(columns))
+	table.setHorizontalHeaderLabels([c[1] for c in columns])
+	for i, r in enumerate(rows):
+		for j, (key, _) in enumerate(columns):
+			item = QTableWidgetItem(_cell(r.get(key)))
+			if key == 'label' and r.get('class') in colours:
+				item.setIcon(swatch(colours[r['class']]))
+			table.setItem(i, j, item)
+	table.resizeColumnsToContents()
+	return table
 
 
 def swatch(color):
@@ -188,8 +211,10 @@ class ResultDialog(QDialog):
 		kind = res.get('kind')
 		trends = kind == 'trends'
 		if kind == 'burn':
-			rbr = res.get('index') == 'RBR'
-			rows, columns = (res['stats'], RBR_COLUMNS) if rbr else (res['classes'], BURN_COLUMNS)
+			index = res.get('index')
+			rbr = index == 'RBR'
+			rows, columns = (res['stats'], RBR_COLUMNS) if rbr else \
+				(res['classes'], RDNBR_COLUMNS if index == 'RdNBR' else BURN_COLUMNS)
 		else:
 			rows = res['rows'] if trends else res['profile']
 			columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
@@ -210,19 +235,17 @@ class ResultDialog(QDialog):
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
 			lay.addWidget(label)
 		colours = {}
-		if kind == 'burn' and not rbr:  # the colour of each class, as in its layer
+		if kind == 'burn' and not rbr:  # the colour of each class, as in its layer (USGS or Miller & Thode 2007)
 			from monitoreo import fire
-			colours = {c['value']: c['color'] for c in fire.legend()}
-		table = QTableWidget(len(rows), len(columns))
-		table.setHorizontalHeaderLabels([c[1] for c in columns])
-		for i, r in enumerate(rows):
-			for j, (key, _) in enumerate(columns):
-				item = QTableWidgetItem(_cell(r.get(key)))
-				if key == 'label' and r.get('class') in colours:
-					item.setIcon(swatch(colours[r['class']]))
-				table.setItem(i, j, item)
-		table.resizeColumnsToContents()
-		lay.addWidget(table, 1)
+			colours = {c['value']: c['color'] for c in fire.legend('RdNBR' if index == 'RdNBR' else 'dNBR')}
+		lay.addWidget(table_of(rows, columns, colours), 1)
+		if kind == 'burn' and index == 'RdNBR' and res.get('stats'):  # and under them, its statistics, as the RBR
+			lay.addWidget(QLabel('RdNBR over each feature of the region'))
+			stats = table_of(res['stats'], RBR_COLUMNS)
+			stats.setObjectName('rdnbr_stats')
+			stats.setMaximumHeight(min(200, stats.horizontalHeader().sizeHint().height() + 2 * stats.frameWidth() + 2
+			                           + stats.verticalHeader().defaultSectionSize() * len(res['stats'])))
+			lay.addWidget(stats)
 		maps = map_row(res, add_map)
 		if maps:
 			lay.addLayout(maps)

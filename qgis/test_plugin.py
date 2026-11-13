@@ -6,9 +6,9 @@
 loads the plugin as QGIS does, opens its panel, checks the help of its buttons ⓘ and runs a search of protected
 areas, a map layer (and its true colour under it), two time series (map extent, and a layer with two polygons) with
 the maps of two of their dates (and the true colour of two others), trends with their map, a comparison of periods,
-the burn severity of a fire (dNBR and RBR, only in the theme Fire) and data of Earth Engine given by their ID instead
-of a variable (a collection with dates, a fixed image and a dataset of the GEE Community Catalog chosen by its themes),
-waiting for their QGIS tasks.
+the burn severity of a fire (dNBR, RBR and RdNBR, also the RdNBR of MODIS Aqua, only in the theme Fire) and data of
+Earth Engine given by their ID instead of a variable (a collection with dates, a fixed image and a dataset of the GEE
+Community Catalog chosen by its themes), waiting for their QGIS tasks.
 """
 
 import os
@@ -385,8 +385,9 @@ layer = new[0]
 print('comparison map:', layer.name(), '| bands', [layer.bandName(i) for i in range(1, 4)])
 dock.compare_on.setChecked(False)
 
-# burn severity of a fire, only in the theme Fire (as in the Earth Engine app): the classes of the USGS (dNBR) and the
-# RBR over a part of the fire of Sierra Bermeja (September 2021), their layers coloured as in the other tools
+# burn severity of a fire, only in the theme Fire (as in the Earth Engine app): the classes of the USGS (dNBR), the RBR
+# and the classes of Miller & Thode 2007 (RdNBR, with Sentinel-2 and with MODIS Aqua) over a part of the fire of Sierra
+# Bermeja (September 2021), their layers coloured as in the other tools
 from monitoreo import fire, trends  # noqa: E402
 assert dock.theme.currentData() is None and dock.fire_box.isVisibleTo(dock)  # all the variables: every analysis
 # it computes the NBR with the filters the user chose, also while a variable with fixed filters greys them out
@@ -401,32 +402,54 @@ canvas.setExtent(QgsRectangle(-5.20, 36.50, -5.15, 36.54))
 for key, day in (('before_start', '2021-07-15'), ('before_end', '2021-08-31'), ('after_start', '2021-09-20'),
                  ('after_end', '2021-10-31')):
 	dock.fire_dates[key].setDate(QDate.fromString(day, 'yyyy-MM-dd'))
-for index in ('dNBR', 'RBR'):
+MODIS = ['MODIS/061/MOD09GA', 'MODIS/061/MYD09GA']  # Terra and Aqua, only for the RdNBR
+sensors = lambda: [dock.fire_sensor.itemData(i) for i in range(dock.fire_sensor.count())]  # noqa: E731
+for index, sensor in (('dNBR', 'Sentinel-2'), ('RBR', 'Sentinel-2'), ('RdNBR', 'Sentinel-2'),
+                      ('RdNBR', 'MODIS/061/MYD09GA')):
 	dock.fire_index.setCurrentIndex(dock.fire_index.findData(index))
+	assert [s for s in sensors() if s in MODIS] == (MODIS if index == 'RdNBR' else []), (index, sensors())
+	dock.fire_sensor.setCurrentIndex(dock.fire_sensor.findData(sensor))
 	before = set(QgsProject.instance().mapLayers())
 	dock.run_burn()
 	wait(dock)
 	new = [l for k, l in QgsProject.instance().mapLayers().items() if k not in before]
-	assert len(new) == 1 and new[0].bandCount() == 4, iface.messages[-2:]
+	assert len(new) == 1 and new[0].bandCount() == (5 if index == 'RdNBR' else 4), iface.messages[-2:]
 	res = dock.series[-1]
 	assert res['kind'] == 'burn' and res['index'] == index and res['readme'], res
+	if sensor in MODIS:  # the sensor Modis with the collection of Aqua, in pixels of 500 m
+		assert res['args']['sensor'] == 'Modis' and res['args']['collection'] == sensor, res['args']
+		assert res['resolution'] >= 500 and 'MYD09GA' in new[0].name(), (res['resolution'], new[0].name())
 	r = new[0].renderer()
 	band = r.inputBand() if hasattr(r, 'inputBand') else r.band()
-	if index == 'dNBR':
+	if index in ('dNBR', 'RdNBR'):
+		legend = fire.legend(index)  # the classes of the USGS or those of Miller & Thode 2007
 		assert r.type() == 'paletted' and band == 2, (r.type(), band)  # the band severity
-		assert [c.color.name() for c in r.classes()] == [c['color'] for c in fire.legend()]
-		assert [c.value for c in r.classes()] == [c['value'] for c in fire.legend()]
+		assert [c.color.name() for c in r.classes()] == [c['color'] for c in legend]
+		assert [c.value for c in r.classes()] == [c['value'] for c in legend]
+		assert [c.label for c in r.classes()] == [fire.class_label(c) for c in legend]
 		burned = sum(res['burned_ha'].values())
 		assert burned > 0, res['classes']
-		print('burn severity:', new[0].name(), '| burned', round(burned), 'ha |',
-		      [(c['class'], round(c['ha'])) for c in res['classes']])
+		if index == 'RdNBR':
+			assert len(res['classes']) == len(fire.RDNBR_SEVERITY) * len(res['stats']) and res['stats'][0]['ha'] > 0
+			assert r.classes()[-1].label == 'High severity (RdNBR ≥ 0.641)', r.classes()[-1].label
+		print(f'burn severity ({index}):', new[0].name(), '| burned' if index == 'dNBR' else '| changed', round(burned),
+		      'ha |', [(c['class'], round(c['ha'])) for c in res['classes']])
 	else:
 		items = r.shader().rasterShaderFunction().colorRampItemList()
 		assert r.type() == 'singlebandpseudocolor' and band == 1, (r.type(), band)  # the band rbr
 		assert (r.classificationMin(), r.classificationMax()) == fire.RBR_RANGE
 		assert items[0].color.name() == '#' + trends.DIVERGING[-1] and items[-1].color.name() == '#' + trends.DIVERGING[0]
 		print('RBR:', new[0].name(), '|', {k: round(v, 3) for k, v in res['stats'][0].items() if k != 'region'})
-dock.show_series_button.click()  # the window of the last one
+dock.show_series_button.click()  # the window of the last one (the RdNBR of MODIS Aqua: its classes and statistics)
+from monitoreo_qgis.results import ResultDialog  # noqa: E402
+from qgis.PyQt.QtWidgets import QTableWidget  # noqa: E402
+window = dock.series_dialogs[len(dock.series) - 1]
+assert isinstance(window, ResultDialog) and window.findChild(QTableWidget, 'rdnbr_stats') is not None
+# back to the dNBR from MODIS: MODIS is no longer offered, and Landsat is chosen (as in the Earth Engine app)
+dock.fire_index.setCurrentIndex(dock.fire_index.findData('dNBR'))
+assert dock.fire_sensor.currentData() == 'Landsat' and not [s for s in sensors() if s in MODIS], sensors()
+assert dock.fire_source() == ('Landsat', None)
+dock.fire_sensor.setCurrentIndex(dock.fire_sensor.findData('Sentinel-2'))
 
 # data of Earth Engine given by their ID instead of a variable (theme Earth Engine data): a collection with dates (the
 # precipitation of TerraClimate: a monthly series, the map of one of its months from its window, trends and the map of

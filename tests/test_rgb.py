@@ -20,7 +20,8 @@ def test_which_variables_have_true_colour():
 	assert ('NDVI', 'Sentinel-2', sensors.S2) in rgb and ('SCF', 'Landsat', 'LANDSAT') in rgb
 	assert ('LST', 'Landsat', 'LANDSAT') in rgb  # the same scenes as its thermal band
 	for index, sensor in [('NDVI', 'Modis'), ('LST', 'Modis'), ('ELEVATION', 'Copernicus'), ('PRECIP', 'TerraClimate'),
-	                      ('PRECIP', 'ERA5-Land'), ('BIO01', 'WorldClim'), ('RBR', 'Sentinel-2'), ('RBR', 'Landsat')]:
+	                      ('PRECIP', 'ERA5-Land'), ('BIO01', 'WorldClim'), ('RBR', 'Sentinel-2'), ('RBR', 'Landsat'),
+	                      ('RdNBR', 'Sentinel-2'), ('RdNBR', 'Landsat'), ('RdNBR', 'Modis')]:
 		assert not services.has_rgb(index, sensor), (index, sensor)
 	assert services.has_rgb('NDVI', 'Sentinel-2') and services.has_rgb('NBR', 'Landsat')
 	assert services.has_rgb('CF', 'Modis', 'MODIS/061/MYD09GA') and not services.has_rgb('NOPE', 'Sentinel-2')
@@ -43,6 +44,8 @@ def test_which_variables_have_true_colour():
 	({'variable': 'PRECIP', 'sensor': 'TerraClimate', 'metric': 'mean'}, 'has no true colour'),
 	({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'start': None, 'end': None}, 'fixed layer'),
 	({'variable': 'RBR', 'sensor': 'Sentinel-2'}, 'burn_severity'),
+	({'variable': 'RdNBR', 'sensor': 'Landsat'}, "burn_severity and index 'RdNBR'"),
+	({'variable': 'RdNBR', 'sensor': 'Modis', 'collection': 'MODIS/061/MYD09GA'}, "burn_severity and index 'RdNBR'"),
 	({'variable': 'NDVI', 'sensor': 'Sentinel-2', 'metric': 'sum'}, 'not a colour'),
 	({'variable': 'NDVI', 'sensor': 'Sentinel-2', 'metric': 'std'}, 'not a colour'),
 	({'variable': 'NDVI', 'sensor': 'Sentinel-2', 'metric': 'count'}, 'not a colour'),

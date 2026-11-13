@@ -158,6 +158,25 @@ var CASES = {
 				done(null, {stats: mo.rbrTable(fc.features)});
 			});
 		});
+	},
+	// the RdNBR of Miller & Thode 2007 (services._rdnbr), of the entry of the spec (Sentinel-2, Landsat, MODIS Terra
+	// or Aqua): the hectares of its classes, the changed area and the statistics of the RdNBR of each region
+	burn_rdnbr: function (c, regions, done) {
+		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		after.period = c.after;
+		var entry = mo.entryOf(before);
+		setup(entry, regions, function (error, g) {
+			if (error) return done(error);
+			var out = mo.burnSeverity(before, after, regions, Number(entry.m), g.crs, 'RdNBR');
+			ee.Dictionary({hectares: out.hectares, stats: out.stats}).evaluate(function (d, err) {
+				if (err) return done(err);
+				var rows = [];
+				d.hectares.features.forEach(function (f) {
+					rows = rows.concat(mo.severityTable(f.properties.groups, String(f.properties.name), 'en', 'RdNBR'));
+				});
+				done(null, {classes: rows, burned_ha: mo.burnedHa(rows), stats: mo.rdnbrTable(d.stats.features)});
+			});
+		});
 	}
 };
 

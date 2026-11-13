@@ -18,9 +18,9 @@ The references (and then the credits) as a character vector, invisibly; it print
 Every result of MonitorEO carries its references: those of the formula or algorithm of the variable (e.g. Tucker
 1979 for the NDVI), of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest, e.g. the
 DOI of the MODIS product), of the pixel filters, of the method (Mann-Kendall and Sen for the trends, Key and Benson
-for the burn severity), of the region (WDPA, RESOLVE ecoregions), of Google Earth Engine and of MonitorEO, and the
-credits that the terms of use of the data ask for (Copernicus Sentinel, USGS Landsat). Cite them when the results go
-into a report, a paper or a map.
+for the burn severity, Miller and Thode for its RdNBR), of the region (WDPA, RESOLVE ecoregions), of Google Earth
+Engine and of MonitorEO, and the credits that the terms of use of the data ask for (Copernicus Sentinel, USGS
+Landsat). Cite them when the results go into a report, a paper or a map.
 }
 \examples{
 mo_references()

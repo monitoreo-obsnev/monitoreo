@@ -175,6 +175,13 @@ def _modis_cloud_state(qa):
 	return state.eq(0).Or(state.eq(3))
 
 
+def _modis_09_clouds(qa):
+	# MOD09GA, MYD09GA state_1km: bits 0-1 clear (0) or assumed clear (3), no cloud shadow (bit 2) and no cloud of the
+	# internal algorithm (bit 10)
+	state = bits(qa, 0, 1)
+	return state.eq(0).Or(state.eq(3)).And(bits(qa, 2).eq(0)).And(bits(qa, 10).eq(0))
+
+
 def _vi_clouds(i):
 	# MOD13Q1: SummaryQA 3 = cloudy; DetailedQA bit 8 adjacent cloud, 10 mixed clouds, 15 shadow
 	qa = i.select('DetailedQA')
@@ -213,10 +220,19 @@ PRODUCTS = {
 	},
 	# 0 = full BRDF inversion, 1 = magnitude inversion (too few clear observations)
 	'MODIS/061/MCD43A3': {'clouds': lambda i: i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0)},
+	# daily surface reflectance (the RdNBR of MODIS), state_1km: bits 0-1 cloud state (0 clear, 3 assumed clear), 2
+	# cloud shadow, 3-5 land/water (1 land), 6-7 aerosols (3 high), 10 internal cloud flag, 15 internal snow mask
+	'MODIS/061/MOD09GA': {
+		'clouds': lambda i: _modis_09_clouds(i.select('state_1km')),
+		'water': lambda i: bits(i.select('state_1km'), 3, 5).eq(1),
+		'snow': lambda i: bits(i.select('state_1km'), 15).eq(0),
+		'aerosols': lambda i: bits(i.select('state_1km'), 6, 7).neq(3),
+	},
 }
 PRODUCTS['MODIS/061/MYD13Q1'] = PRODUCTS['MODIS/061/MOD13Q1']
 PRODUCTS['MODIS/061/MYD11A1'] = PRODUCTS['MODIS/061/MOD11A1']
 PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
+PRODUCTS['MODIS/061/MYD09GA'] = PRODUCTS['MODIS/061/MOD09GA']
 
 
 def filters(entry, quality=None):

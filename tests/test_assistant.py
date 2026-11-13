@@ -682,6 +682,138 @@ def test_rbr_with_the_colours_of_the_earth_engine_app():
 		'band': 1, 'min': 0, 'max': 1, 'palette': ['000000', 'ffffff']}  # the others, as before
 
 
+RDNBR_BANDS = ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after']
+
+
+def _rdnbr_tif(path):
+	"""A GeoTIFF of burn_severity with the index RdNBR: bands rdnbr, severity (a column of each class of Miller & Thode
+	2007, 0 to 3), dnbr, nbr_before and nbr_after."""
+	import numpy as np
+	from osgeo import gdal, osr
+	gdal.UseExceptions()
+	ds = gdal.GetDriverByName('GTiff').Create(path, 40, 10, 5, gdal.GDT_Float32)
+	srs = osr.SpatialReference()
+	srs.ImportFromEPSG(32630)
+	ds.SetProjection(srs.ExportToWkt())
+	ds.SetGeoTransform([450000, 30, 0, 4090000, 0, -30])
+	classes = np.repeat(np.arange(0, 4, dtype='float32'), 10)[None, :].repeat(10, axis=0)
+	rdnbr = np.linspace(-0.2, 1.2, 400, dtype='float32').reshape(10, 40)
+	for i, a in enumerate((rdnbr, classes, rdnbr * 0.5, rdnbr * 0 + 0.5, rdnbr * 0 + 0.2), 1):
+		b = ds.GetRasterBand(i)
+		b.SetNoDataValue(-9999)
+		b.SetDescription(RDNBR_BANDS[i - 1])
+		b.WriteArray(a)
+	ds = None
+
+
+def test_rdnbr_with_the_classes_of_miller_and_thode(tmp_path, monkeypatch):
+	# the result of burn_severity with the index RdNBR: its card shows the band severity with the colour of each class
+	# of Miller & Thode 2007, a legend with those classes and their RdNBR, the table of their hectares, and the method
+	pytest.importorskip('osgeo')
+	pytest.importorskip('matplotlib')
+	from monitoreo import fire
+	path = str(tmp_path / 'rdnbr.tif')
+	_rdnbr_tif(path)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	rows = fire.table([{'class': 1, 'sum': 12.5}, {'class': 3, 'sum': 3.0}], 'region', 'RdNBR')
+	stats = [{'region': 'region', 'mean': 0.3, 'median': 0.25, 'p10': 0.01, 'p90': 0.7, 'min': -0.2, 'max': 1.1,
+	          'ha': 20.0}]
+
+	class Fire(FakeAssistant):
+		async def call(self, name, args):
+			return None, [json.dumps({'index': 'RdNBR', 'classes': rows, 'burned_ha': {'region': 15.5}, 'stats': stats,
+			                          'scale': 30, 'file': path, 'bands': RDNBR_BANDS,
+			                          'grid': {'crs': 'EPSG:32630', 'width': 40, 'height': 10}, 'resolution': 30})], []
+
+	a = Fire({**assistant.DEFAULTS, 'project': 'p'})
+	a.tools = assistant.model_tools(TOOLS + [{'name': 'burn_severity', 'description': '', 'inputSchema': {
+		'type': 'object', 'properties': {k: {'type': 'string'} for k in ('start', 'end', 'other_start', 'other_end',
+		                                                                  'sensor', 'index')}}}])
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'burn_severity', 'arguments': {
+			'region': {'bbox': [-3.62, 36.86, -3.5, 36.93]}, 'sensor': 'Landsat', 'index': 'RdNBR',
+			'start': '2022-06-01', 'end': '2022-07-31', 'other_start': '2023-06-01', 'other_end': '2023-07-31'}})]
+
+	result = next(e for e in asyncio.run(run()) if e['type'] == 'result')
+	colours = _png_colours(result['image'])
+	miller = ['#' + fire.RDNBR_COLOURS[c] for c, _, _ in fire.RDNBR_SEVERITY]
+	assert [colours[i * len(colours) // 4 + len(colours) // 8] for i in range(4)] == miller  # each class, its colour
+	legend = result['legend']['classes']
+	assert [c['color'] for c in legend] == miller
+	assert [c['label'] for c in legend] == ['Unchanged (RdNBR < 0.069)', 'Low severity (RdNBR 0.069 to 0.316)',
+	                                        'Moderate severity (RdNBR 0.316 to 0.641)', 'High severity (RdNBR ≥ 0.641)']
+	assert result['title'] == 'Burn severity (RdNBR of Landsat): before, 1 Jun 2022 - 31 Jul 2022; after, ' \
+	                          '1 Jun 2023 - 31 Jul 2023'
+	assert result['table']['labels'] == ['Severity class', 'RdNBR from', 'RdNBR to', 'Hectares']
+	assert [r[0] for r in result['table']['rows']] == ['Unchanged', 'Low severity', 'Moderate severity', 'High severity']
+	facts = dict(result['facts'])
+	assert facts['Variable'] == 'Relative differenced Normalized Burn Ratio (RdNBR)'
+	assert facts['Changed area (RdNBR ≥ 0.069)'] == '15.5 ha' and 'Burned area' not in facts
+	assert facts['RdNBR, median (percentiles 10 to 90)'] == '0.25 (0.01 to 0.7)'
+	assert facts['Method'].startswith('RdNBR (relative dNBR, Miller and Thode, 2007): dNBR / sqrt(|NBR before|)')
+	for words in ('at least 0.001 (Howe et al., 2022)', 'without the factor 1000', 'without its offset',
+	              'High severity (RdNBR ≥ 0.641)', 'one year after the fire', 'Unchanged is not unburned'):
+		assert words in facts['Method'], words
+	assert 'USGS' not in facts['Method']
+	# and the report, with the legend of its classes and the table of their hectares
+	html = open(a.write_report('Fire', tables=(result['id'],)), encoding='utf-8').read()
+	assert all(f'background: {c}' in html for c in miller) and 'Moderate severity (RdNBR 0.316 to 0.641)' in html
+	assert '<th>RdNBR from</th>' in html and '<th>dNBR from</th>' not in html
+
+
+def test_rdnbr_map_style_and_title():
+	# the GeoTIFF of the RdNBR is drawn as in the QGIS plugin (fire.map_style): its band severity with the classes of
+	# Miller & Thode 2007; the dNBR and the RBR, as before
+	from monitoreo import fire, publish
+	style = report.map_style('burn_severity', {'index': 'RdNBR'}, {'index': 'RdNBR', 'bands': RDNBR_BANDS})
+	assert style == {'band': 2, 'classes': fire.legend('RdNBR')}
+	assert [c['color'] for c in style['classes']] == ['#' + fire.RDNBR_COLOURS[c] for c in range(4)]
+	assert [report.class_label(c) for c in style['classes']][1] == 'Low severity (RdNBR 0.069 to 0.316)'
+	dnbr = report.map_style('burn_severity', {}, {'bands': ['dnbr', 'severity', 'nbr_before', 'nbr_after']})
+	assert dnbr == {'band': 2, 'classes': fire.legend()}
+	assert report.map_style('burn_severity', {'index': 'RdNBR'}, {'index': 'RdNBR', 'classes': []}) is None
+	args = {'sensor': 'Modis', 'index': 'RdNBR', 'start': '2022-06-01', 'end': '2022-07-31',
+	        'other_start': '2023-06-01', 'other_end': '2023-07-31'}
+	assert report.item_title('burn_severity', args).startswith('Burn severity (RdNBR of MODIS Terra): before')
+	aqua = dict(args, collection='MODIS/061/MYD09GA')
+	assert report.item_title('burn_severity', aqua).startswith('Burn severity (RdNBR of MODIS Aqua): before')
+	facts = dict(report.item_facts('burn_severity', aqua, {'index': 'RdNBR'}))
+	assert facts['Sensor'] == 'MODIS, pixel of 500 m, collection MODIS/061/MYD09GA'  # its own collection
+	assert publish.fire_variable(args) == 'RdNBR' and publish.fire_variable(dict(args, index='rdnbr')) == 'RdNBR'
+	assert publish.fire_variable(dict(args, index='RBR')) == 'RBR' and publish.fire_variable({}) == 'NBR'
+	rbr = dict(report.item_facts('burn_severity', dict(args, sensor='Landsat', index='RBR'), {}))
+	assert rbr['Method'] == report.METHODS['burn_severity_rbr']  # the RBR and the dNBR, as before
+	assert dict(report.item_facts('burn_severity', dict(args, sensor='Landsat', index='dNBR'), {}))['Method'] == \
+		report.METHODS['burn_severity']
+
+
+def test_two_periods_and_the_rdnbr_in_the_instructions():
+	# the RdNBR said 'Only burn_severity with index "RBR"': each two-period entry says its own index
+	lines = {line.split(':')[0]: line for line in assistant.variables_text().splitlines()}
+	assert lines['- RBR'].endswith('Only burn_severity with index "RBR" (two periods).')
+	assert lines['- RdNBR'].endswith('Only burn_severity with index "RdNBR" (two periods).')
+	assert 'MODIS 500 m since 2000' in lines['- RdNBR'] and 'two periods' not in lines['- NBR']
+	text = ' '.join(assistant.instructions().split())
+	assert 'index "RdNBR"' in text and 'Miller & Thode 2007' in text and '"MODIS/061/MYD09GA"' in text
+	assert 'unchanged, low, moderate and high severity' in text and 'one year after the fire' in text
+
+
+def test_fix_args_of_the_rdnbr_of_modis():
+	# the collection of MODIS Aqua of the RdNBR reaches burn_severity with its sensor; not a collection of the others
+	tools = assistant.model_tools(TOOLS + [{'name': 'burn_severity', 'description': '', 'inputSchema': {
+		'type': 'object', 'properties': {k: {'type': 'string'} for k in ('sensor', 'index', 'collection', 'start')}}}])
+	aqua = {'sensor': 'Modis', 'index': 'RdNBR', 'collection': 'MODIS/061/MYD09GA', 'start': '2022-06-01'}
+	assert assistant.fix_args('burn_severity', aqua, tools) == aqua
+	filled = {'sensor': 'Landsat', 'index': 'dNBR', 'collection': 'LANDSAT/LC09/C02/T1_L2', 'start': '2022-06-01'}
+	assert assistant.fix_args('burn_severity', filled, tools) == {'sensor': 'Landsat', 'index': 'dNBR',
+	                                                              'start': '2022-06-01'}
+	# the collection of MODIS says the sensor, whatever the model wrote (none, «MODIS Aqua», another sensor)
+	for sensor in (None, 'MODIS Aqua', 'Sentinel-2'):
+		given = dict(aqua, sensor=sensor) if sensor else {k: v for k, v in aqua.items() if k != 'sensor'}
+		assert assistant.fix_args('burn_severity', given, tools) == aqua
+
+
 def test_default_model():
 	assert [m['name'] for m in assistant.RECOMMENDED][0] == assistant.DEFAULTS['model'] == 'qwen3:8b'
 	assert assistant.default_model('qwen3:8b', ['qwen3:8b', 'gpt-oss:20b']) == 'qwen3:8b'  # the chosen one, installed

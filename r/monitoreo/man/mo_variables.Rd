@@ -23,8 +23,10 @@ of the Earth Engine app). Their two other themes, \code{"earth_engine"} (Earth E
 \value{
 A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
-  dates, and rgb: \code{TRUE} when its images have a true colour, see \code{mo_rgb_map()}; \code{NA} for the
-  others). The references of each variable: \code{mo_describe()}.
+  dates, two_periods: \code{TRUE} for the burn indices that compare a period before and a period after a fire,
+  RBR and RdNBR, computed only by \code{mo_burn_severity()}, and rgb: \code{TRUE} when its images have a true
+  colour, see \code{mo_rgb_map()}; \code{NA} for the others). The references of each variable:
+  \code{mo_describe()}.
 }
 \description{
 Variables of the catalog of MonitorEO

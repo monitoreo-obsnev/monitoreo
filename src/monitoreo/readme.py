@@ -52,6 +52,8 @@ COLUMNS = {
 	         '2 moderate-low; 3 moderate-high; 4 high)',
 	'dnbr_min': 'lowest dNBR of the class',
 	'dnbr_max': 'highest dNBR of the class (empty: no limit)',
+	'rdnbr_min': 'lowest RdNBR of the class (empty: no limit)',
+	'rdnbr_max': 'highest RdNBR of the class (empty: no limit)',
 	'ha': 'hectares',
 	'mean': 'mean{u}', 'median': 'median{u}', 'std': 'standard deviation{u}', 'min': 'minimum{u}', 'max': 'maximum{u}',
 	'p5': 'percentile 5{u}', 'p10': 'percentile 10{u}', 'p50': 'percentile 50{u}', 'p90': 'percentile 90{u}',
@@ -65,6 +67,11 @@ COLUMNS = {
 	'reference_period': 'reference period (first/last day)', 'other_period': 'other period (first/last day)',
 	'before': 'period before the fire (first/last day)', 'after': 'period after the fire (first/last day)',
 	'index': 'burn index',
+}
+# the columns of the CSV of the RdNBR (burn_severity with index RdNBR, a CSV with the column rdnbr_min) that differ
+COLUMNS_RDNBR = {
+	'class': 'severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)',
+	'label': 'name of the severity class',
 }
 BANDS = dict({'value': ('Value of the variable', '{u}')}, **publish.BANDS)
 # the unit of each band in UDUNITS ({u}: that of the variable); the others are dimensionless ('1')
@@ -207,15 +214,18 @@ def text(tool, args, result, computed=None):
 		ext = os.path.splitext(f)[1].lower()
 		if ext == '.csv':
 			out += _section('Columns of', os.path.basename(f))
-			out += [_wrap(f'{c}: {COLUMNS.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in _csv_header(f)]
+			header = _csv_header(f)
+			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else COLUMNS
+			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):
 			bands, grid = _bands(f)
 			out += _section('Bands of', os.path.basename(f))
 			out.append(_wrap(f"{grid['width']} x {grid['height']} pixels of {grid['resolution']:g} m in {grid['crs']}; "
 			                 f'NoData {NODATA}. Its metadata repeat the call, the version and the references.'))
+			names = [b for _, b, _ in bands]
 			for i, b, bu in bands:
-				label = BANDS.get(b, ('', ''))[0]
+				label = publish.band_text(b, names)[0] if b == 'severity' else BANDS.get(b, ('', ''))[0]
 				out.append(_wrap(f'{i} {b}: {label}' + (f' ({bu})' if bu else '')))
 	call = publish.python_call(tool, given)
 	if call:

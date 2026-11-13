@@ -83,6 +83,18 @@ def test_cite():
 	rbr = _ids(references.cite('burn_severity', {'start': '2022-05-01', 'end': '2022-07-01', 'index': 'rbr'}))
 	assert {'garcia1991', 'key2006'} <= set(dnbr) and 'parks2014' not in dnbr
 	assert {'parks2014', 'silvacardoza2022'} <= set(rbr) and 'key2006' not in rbr
+	# the RdNBR (Miller & Thode 2007, with the qualifier of Howe et al. 2022): its NBR of Sentinel-2, of Landsat and of
+	# the daily surface reflectance of MODIS (Veraverbeke et al. 2010), Terra or, with its collection, Aqua
+	fire = {'start': '2021-07-15', 'end': '2021-08-31', 'other_start': '2022-07-15', 'other_end': '2022-08-31',
+	        'index': 'RdNBR'}
+	rdnbr = _ids(references.cite('burn_severity', fire))
+	assert {'miller2007', 'howe2022', 'esa_s2_l2a'} <= set(rdnbr) and not {'key2006', 'parks2014'} & set(rdnbr)
+	assert {'miller2007', 'howe2022', 'usgs_landsat89'} <= set(_ids(references.cite('burn_severity', dict(
+		fire, index='rdnbr', sensor='Landsat'))))
+	terra = _ids(references.cite('burn_severity', dict(fire, sensor='Modis')))
+	aqua = _ids(references.cite('burn_severity', dict(fire, sensor='Modis', collection='MODIS/061/MYD09GA')))
+	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'mod09ga061'} <= set(terra) and 'myd09ga061' not in terra
+	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'myd09ga061'} <= set(aqua) and 'mod09ga061' not in aqua
 
 	modis = _ids(references.cite('map_layer', {'variable': 'EVI', 'sensor': 'Modis',
 	                                           'collection': 'MODIS/061/MYD13Q1', 'region': {'ecoregion_id': 793}}))

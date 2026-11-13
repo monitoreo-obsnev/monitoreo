@@ -245,6 +245,8 @@ def test_the_refusals_reach_the_mcp_client(mcp, tmp_path):
 		mcp.download_rgb(REGION, 'NDVI', 'Sentinel-2', *JUNE, metric='sum')
 	with pytest.raises(mcp.ToolError, match='burn_severity'):
 		mcp.download_rgb(REGION, 'RBR', 'Sentinel-2', *JUNE)
+	with pytest.raises(mcp.ToolError, match="burn_severity and index 'RdNBR'"):
+		mcp.rgb_map(REGION, 'RdNBR', 'Modis', *JUNE)
 	args = {'region': REGION, 'variable': 'PRECIP', 'sensor': 'TerraClimate', 'start': JUNE[0], 'end': JUNE[1],
 	        'metric': 'mean'}
 	with pytest.raises(mcp.ToolError, match=r'PRECIP \(TerraClimate\) has no true colour'):
@@ -267,8 +269,11 @@ def test_the_mcp_server_tells_which_variables_have_true_colour(mcp):
 	assert sum(1 for r in rows if r.get('rgb')) == sum(1 for r in services.list_variables() if r.get('rgb')) > 0
 	have = {(r['variable'], r['sensor']) for r in rows if r.get('rgb')}
 	assert {('NDVI', 'Sentinel-2'), ('NBR', 'Landsat'), ('CF', 'Modis')} <= have
-	assert not have & {('NDVI', 'Modis'), ('RBR', 'Sentinel-2'), ('ELEVATION', 'Copernicus'), ('PRECIP', 'ERA5-Land')}
-	assert all(r.get('rgb') for r in json.loads(mcp.list_variables(sensor='Landsat')) if r['variable'] != 'RBR')
+	assert not have & {('NDVI', 'Modis'), ('RBR', 'Sentinel-2'), ('RdNBR', 'Sentinel-2'), ('RdNBR', 'Modis'),
+	                   ('ELEVATION', 'Copernicus'), ('PRECIP', 'ERA5-Land')}
+	# every variable of Landsat has true colour but those that compare two periods (RBR, RdNBR: burn_severity)
+	assert all(r.get('rgb') for r in json.loads(mcp.list_variables(sensor='Landsat'))
+	           if r['variable'] not in ('RBR', 'RdNBR'))
 	assert json.loads(mcp.describe_variable('NDVI', 'Sentinel-2'))['rgb'] is True
 	assert json.loads(mcp.describe_variable('NDVI', 'Modis'))['rgb'] is False
 	assert 'rgb' in mcp.list_variables.__doc__ and 'rgb' in mcp.describe_variable.__doc__

@@ -93,6 +93,17 @@ CASES = {
 	                  'spec': {'ref': 102, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
 	'burn_rbr': {'kind': 'burn_rbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
 	             'spec': {'ref': 103, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	# the RdNBR of Miller & Thode 2007 with its classes: Sentinel-2 (144, B8 and B12) and the daily surface reflectance
+	# of MODIS Terra (146, MOD09GA, the default collection) and Aqua (147, MYD09GA, given as collection), 500 m
+	'burn_rdnbr': {'kind': 'burn_rdnbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	               'sensor': 'Sentinel-2',
+	               'spec': {'ref': 144, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	'burn_rdnbr_modis_terra': {'kind': 'burn_rdnbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	                           'sensor': 'Modis',
+	                           'spec': {'ref': 146, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	'burn_rdnbr_modis_aqua': {'kind': 'burn_rdnbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	                          'sensor': 'Modis', 'collection': 'MODIS/061/MYD09GA',
+	                          'spec': {'ref': 147, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
 	# snow cover frequency: Landsat 8 and 9 in winter (shadow of the relief) and Landsat 5 (TOA bands B2 and B5)
 	'series_scf_winter': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                      'spec': {'ref': 105, 'period': ['2021-11-01', '2022-03-31']}},
@@ -169,6 +180,10 @@ def python(c):
 		out = services.burn_severity(region, 'Sentinel-2', start=start, end=end, other_start=c['after'][0],
 		                             other_end=c['after'][1], index='RBR')
 		return {'stats': out['stats']}
+	if c['kind'] == 'burn_rdnbr':
+		out = services.burn_severity(region, c['sensor'], start=start, end=end, other_start=c['after'][0],
+		                             other_end=c['after'][1], index='RdNBR', collection=c.get('collection'))
+		return {'classes': out['classes'], 'burned_ha': out['burned_ha'], 'stats': out['stats']}
 	args = _spec_args(s)
 	spec = services.make_spec(start=start, end=end, temporal=s.get('temporal', 'period'),
 	                          interannual=s.get('interannual', 'mean'), **args)

@@ -336,6 +336,10 @@
    "parks2014",
    "silvacardoza2022"
   ],
+  "rdnbr": [
+   "miller2007",
+   "howe2022"
+  ],
   "landsat_qa": [
    "foga2017"
   ],
@@ -471,6 +475,18 @@
   "silvacardoza2022": {
    "citation": "Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C. I., López-Serrano, P. M., Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological correction and the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and burned area. Remote Sensing, 14(13), 3122.",
    "doi": "10.3390/rs14133122"
+  },
+  "miller2007": {
+   "citation": "Miller, J. D., & Thode, A. E. (2007). Quantifying burn severity in a heterogeneous landscape with a relative version of the delta Normalized Burn Ratio (dNBR). Remote Sensing of Environment, 109(1), 66–80.",
+   "doi": "10.1016/j.rse.2006.12.006"
+  },
+  "howe2022": {
+   "citation": "Howe, A. A., Parks, S. A., Harvey, B. J., Saberi, S. J., Lutz, J. A., & Yocom, L. L. (2022). Comparing Sentinel-2 and Landsat 8 for burn severity mapping in Western North America. Remote Sensing, 14(20), 5249.",
+   "doi": "10.3390/rs14205249"
+  },
+  "veraverbeke2010": {
+   "citation": "Veraverbeke, S., Lhermitte, S., Verstraeten, W. W., & Goossens, R. (2010). The temporal dimension of differenced Normalized Burn Ratio (dNBR) fire/burn severity studies: The case of the large 2007 Peloponnese wildfires in Greece. Remote Sensing of Environment, 114(11), 2548–2563.",
+   "doi": "10.1016/j.rse.2010.05.029"
   },
   "key2006": {
    "citation": "Key, C. H., & Benson, N. C. (2006). Landscape assessment (LA): Sampling and analysis methods. In D. C. Lutes, R. E. Keane, J. F. Caratti, C. H. Key, N. C. Benson, S. Sutherland, & L. J. Gangi (Eds.), FIREMON: Fire effects monitoring and inventory system (Gen. Tech. Rep. RMRS-GTR-164-CD, pp. LA-1–LA-55). USDA Forest Service, Rocky Mountain Research Station.",

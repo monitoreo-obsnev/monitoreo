@@ -140,7 +140,8 @@ HELP = {
 		+ manual('Concepts#period-and-season'),
 	'theme':
 		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI), <b>Water</b> (NDWI, LSWI, '
-		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR, and the burn severity of a fire), '
+		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR, and the burn severity of a fire: '
+		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
 		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
@@ -338,11 +339,18 @@ HELP = {
 		+ manual('QGIS-plugin#8-export-to-google-drive'),
 	'fire_sensor':
 		'<p>The images of the burn severity: <b>Sentinel-2</b> (10 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
-		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m.</p>'
+		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m; with the dNBR and the '
+		'RdNBR, B8 and B12 (the RdNBR as in Howe et al. 2022).</p>'
+		'<p>Only with the index <b>RdNBR</b>, also <b>MODIS Terra</b> (since 2000) or <b>MODIS Aqua</b> (since '
+		'2002): bands 2 and 7 of their daily surface reflectance (MOD09GA, MYD09GA), of 500 m (Veraverbeke et al. '
+		'2010), for big fires or when the other images are too cloudy. The classes of the RdNBR come from Landsat (30 '
+		'm): a pixel of 500 m mixes burned and unburned land, so its RdNBR is less extreme, the hectares of each class '
+		'are approximate and small fires are missed.</p>'
 		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
 		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
 		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
+		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010')])
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':
 		'<ul><li><b>dNBR</b>: NBR before the fire minus NBR after it, in the 7 classes of the USGS (Key &amp; Benson '
@@ -352,10 +360,25 @@ HELP = {
 		'<li><b>RBR</b> (Relativized Burn Ratio, Parks et al. 2014): dNBR / (NBR before + 1.001), a continuous index '
 		'without classes, also for vegetation that was sparse before the fire; without phenological correction and '
 		'without the factor 1000 of the articles. The window gives its mean, median, percentiles 10 and 90, minimum and '
-		'maximum; the layer, from red (burned) to green (regrowth), from -0.5 to 0.5.</li></ul>'
-		'<p>The GeoTIFF also has the bands dnbr, nbr_before and nbr_after (query them with <b>Identify '
-		'Features</b>).</p>'
-		+ cite_html(method_references('burn_severity') + method_references('rbr'))
+		'maximum; the layer, from red (burned) to green (regrowth), from -0.5 to 0.5.</li>'
+		'<li><b>RdNBR</b> (relative dNBR, Miller &amp; Thode 2007): dNBR / sqrt(|NBR before|), with |NBR before| at '
+		'least 0.001 (Howe et al. 2022): the change relative to the vegetation before the fire, so that a fire that '
+		'kills sparse vegetation is as severe as one that kills dense vegetation. In the 4 classes of the article (its '
+		'Table 4): <i>unchanged</i> (RdNBR &lt; 0.069), <i>low severity</i> '
+		'(0.069 to 0.316), <i>moderate severity</i> (0.316 to 0.641) and <i>high severity</i> (≥ 0.641). '
+		'<i>Unchanged</i> is not <i>unburned</i>: one year after the fire the area could not be told from before it. '
+		'The window gives the hectares of each class over each feature of the region, the changed area (RdNBR ≥ '
+		'0.069, the classes low to high) and the mean, median, percentiles 10 and 90, minimum and maximum of the RdNBR; '
+		'the layer, the band <i>severity</i> with the colour of each class. On the scale of the dNBR of MonitorEO, '
+		'without the factor 1000 of the article (0.641 here is 641 there), and without its offset (the mean dNBR of '
+		'unburned land outside the fire), as the dNBR and the RBR. The classes were calibrated with Landsat TM (30 m) '
+		'and field plots (composite burn index) of 14 fires of the Sierra Nevada of California, mostly in conifer '
+		'and live oak forests (also pinyon pine and sagebrush), measured one year after the fire: they fit best a period after the fire about one year later, in '
+		'the same season as the period before, and other vegetation may need other thresholds. With MODIS (500 m) they '
+		'are approximate.</li></ul>'
+		'<p>The GeoTIFF also has the bands dnbr, nbr_before and nbr_after (and rdnbr, with the RdNBR; query them with '
+		'<b>Identify Features</b>).</p>'
+		+ cite_html(method_references('burn_severity') + method_references('rbr') + method_references('rdnbr'))
 		+ manual('Concepts#burn-severity-dnbr'),
 	'fire_before':
 		'<p>A period <b>before the fire</b>, without it: the median of its images on each pixel is the NBR before. A '
@@ -365,6 +388,9 @@ HELP = {
 	'fire_after':
 		'<p>A period <b>after the fire</b>, once it is out: the median of its images is the NBR after. The 1 or 2 '
 		'months after it ends measure the first effects; a year later (the same season), the effects that last.</p>'
+		'<p>For the classes of the <b>RdNBR</b>, about one year after the fire, in the same season as the period '
+		'before it, as in Miller &amp; Thode 2007, whose classes come from field plots measured one year after the '
+		'fire.</p>'
 		'<p>At first, those of the example of the manual: the fire of August 2023 in Teide National Park.</p>'
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 }

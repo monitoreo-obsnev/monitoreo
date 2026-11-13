@@ -1386,13 +1386,17 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 
 BURN_COLUMNS = ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha']
 RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
-BURN_INDICES = ('dNBR', 'RBR')
+RDNBR_COLUMNS = ['region', 'class', 'label', 'rdnbr_min', 'rdnbr_max', 'ha']
+BURN_INDICES = ('dNBR', 'RBR', 'RdNBR')
+# the sensors of each burn index (those of its entries of the catalog: NBR, RBR, RdNBR)
+BURN_SENSORS = {'dNBR': ('Sentinel-2', 'Landsat'), 'RBR': ('Sentinel-2', 'Landsat'),
+                'RdNBR': ('Sentinel-2', 'Landsat', 'Modis')}
 
 
 @_cited
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
-                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None):
+                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None, collection=None):
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
@@ -1407,14 +1411,35 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	map, without classes: {'index': 'RBR', 'stats': [{region, mean, median, p10, p90, min, max, ha (of the pixels with
 	values)}], ...} and the GeoTIFF bands rbr, dnbr, nbr_before and nbr_after.
 
+	With INDEX 'RdNBR', the relative dNBR of Miller & Thode 2007: RdNBR = dNBR / sqrt(|NBR before|), with |NBR
+	before| at least 0.001 (Howe et al. 2022), with the NBR of the catalog entry RdNBR (B8 and B12 in Sentinel-2, as
+	Howe et al. 2022; NIR and SWIR2 in Landsat; bands 2 and 7 of the daily surface reflectance of MODIS, SENSOR
+	'Modis': Terra, MOD09GA, or, with COLLECTION 'MODIS/061/MYD09GA', Aqua), without the offset of the dNBR of the
+	unburned area around the fire and on the scale of the dNBR (the article multiplies it by 1000), and its classes
+	of the article (its Table 4: 0 unchanged, RdNBR < 0.069; 1 low, 0.069 to 0.316; 2 moderate, 0.316 to 0.641; 3
+	high, >= 0.641): {'index': 'RdNBR', 'classes': [{region, class, label, rdnbr_min, rdnbr_max, ha}], 'burned_ha':
+	{region: hectares with RdNBR >= 0.069, those of the classes low to high}, 'stats': [{region, mean, median, p10,
+	p90, min, max, ha}] of the RdNBR, ...}, the table of the classes in CSV and the GeoTIFF bands rdnbr, severity
+	(class 0 to 3), dnbr, nbr_before and nbr_after.
+
 	WHERE: only the pixels that pass these conditions on variables (as in the other tools), computed over the period
 	before the fire."""
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
 	if index is None:
-		raise ValueError(f"unknown burn index: use {' or '.join(BURN_INDICES)}")
+		raise ValueError(f"unknown burn index: use {', '.join(BURN_INDICES[:-1])} or {BURN_INDICES[-1]}")
+	known = {s.lower().replace(' ', ''): s for s in BURN_SENSORS[index]}
+	if sensor is not None and str(sensor).lower().replace(' ', '') not in known:
+		raise ValueError(f"the burn index {index} is computed with the sensors {', '.join(BURN_SENSORS[index])}, not "
+		                 f"{sensor}" + (': MODIS only with index RdNBR' if str(sensor).lower() == 'modis' else ''))
+	if collection and (index != 'RdNBR' or str(sensor or '').lower().replace(' ', '') != 'modis'):
+		raise ValueError('collection is only for the index RdNBR with sensor Modis (MODIS/061/MOD09GA, Terra, or '
+		                 'MODIS/061/MYD09GA, Aqua)')
 	if index == 'RBR':
 		return _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path,
 		            csv, max_pixels, tile, workers, progress, where)
+	if index == 'RdNBR':
+		return _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs,
+		              path, csv, max_pixels, tile, workers, progress, where, collection)
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
@@ -1489,6 +1514,64 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
 		             index='RBR = dNBR / (NBR before + 1.001)'), default=str)})
+		out.update(file=path, bands=bands)
+	return out
+
+
+def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
+           max_pixels, tile, workers, progress, where=None, collection=None):
+	"""burn_severity with the index RdNBR (Miller & Thode 2007), with the classes of the article."""
+	regions_ = areas.region(region)
+	source = dict({'where': where} if where else {}, **({'collection': collection} if collection else {}))
+	spec0 = make_spec('RdNBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True,
+	                  collection=collection)
+	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	spec, regions, img, native, name = _comparison(regions_, 'RdNBR', sensor, start, end, other_start, other_end,
+	                                               metric, 'period', 'mean', season, quality, res, source,
+	                                               two_periods=True)
+	before, after = img.select('reference'), img.select('other')
+	dnbr = before.subtract(after).rename('dnbr')
+	rdnbr = fire.rdnbr(dnbr, before)
+	severity = fire.classify(rdnbr, 'RdNBR')
+	ha = ee.Image.pixelArea().divide(1e4).updateMask(rdnbr.mask())
+	groups = ha.addBands(severity).reduceRegions(collection=regions, reducer=ee.Reducer.sum().group(1, 'class'),
+	                                              scale=res, crs=grid.crs, tileScale=4).getInfo()['features']
+	classes = []
+	for f in groups:
+		classes += fire.table(f['properties'].get('groups'), str(f['properties'].get('name')), 'RdNBR')
+	burned = {}
+	for r in classes:
+		burned[r['region']] = burned.get(r['region'], 0.0) + (r['ha'] if r['class'] >= 1 else 0.0)
+	reducer = ee.Reducer.mean().combine(ee.Reducer.median(), '', True) \
+		.combine(ee.Reducer.percentile([10, 90]), '', True).combine(ee.Reducer.minMax(), '', True)
+	stats = rdnbr.addBands(ha.rename('ha')).reduceRegions(
+		collection=regions, reducer=reducer.combine(ee.Reducer.sum(), '', True), scale=res, crs=grid.crs,
+		tileScale=4).getInfo()['features']
+	rows = []
+	for f in stats:
+		p = f['properties']
+		rows.append({'region': str(p.get('name')), 'mean': p.get('rdnbr_mean'), 'median': p.get('rdnbr_median'),
+		             'p10': p.get('rdnbr_p10'), 'p90': p.get('rdnbr_p90'), 'min': p.get('rdnbr_min'),
+		             'max': p.get('rdnbr_max'), 'ha': p.get('ha_sum') or 0.0})
+	col = variables.entry_of(spec)['col']  # MODIS: its product, so that Terra (MOD09GA) and Aqua (MYD09GA) differ
+	product = f" {col.split('/')[-1]}" if str(sensor).lower() == 'modis' else ''
+	title = (f"Burn severity (RdNBR, Miller & Thode 2007) {sensor}{product} ({metric}) | before {spec['period'][0]} / "
+	         f"{spec['period'][1]}, after {other_start} / {other_end}")
+	out = {'index': 'RdNBR', 'classes': classes, 'burned_ha': burned, 'stats': rows, 'scale': res, 'title': title,
+	       'csv': None, 'file': None, 'bands': None, 'grid': grid.describe(), 'resolution': res,
+	       'native_resolution': native}
+	if csv:
+		meta = {'index': 'RdNBR', 'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}',
+		        'metric': metric, 'scale_m': res}
+		out['csv'] = timeseries.write_csv(classes, csv, meta, RDNBR_COLUMNS)
+	if path:
+		bands = ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after']
+		image = ee.Image.cat([rdnbr, severity.toFloat(), dnbr, before, after]).rename(bands)
+		download(image, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
+		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
+		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
+		             index='RdNBR = dNBR / sqrt(max(|NBR before|, 0.001))',
+		             severity='Miller & Thode 2007 (Table 4)'), default=str)})
 		out.update(file=path, bands=bands)
 	return out
 

@@ -23,8 +23,8 @@ var CATALOG = {
     "issue": "En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.34",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.34"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.36",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.36"
    }
   },
   "logos": [
@@ -1241,7 +1241,8 @@ var CATALOG = {
    "es": "Incendios",
    "indices": [
     "NBR",
-    "RBR"
+    "RBR",
+    "RdNBR"
    ],
    "key": "fire"
   },
@@ -4798,6 +4799,182 @@ var CATALOG = {
    "unit": "[mm]",
    "vname": "Precipitación del trimestre más frío",
    "vname_en": "Precipitation of the coldest quarter"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": [
+    "B8",
+    "B12"
+   ],
+   "fk": "nd",
+   "ft": "N(B8,B12)",
+   "image_asset": null,
+   "index": "RdNBR",
+   "large_areas": false,
+   "m": 10,
+   "maxp": 1.2,
+   "metric": null,
+   "minp": -0.5,
+   "offset": 0,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 144,
+   "scale": 0.0001,
+   "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "5-days",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "dNBR relativo",
+   "vname_en": "Relative differenced Normalized Burn Ratio"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "nir",
+    "swir2"
+   ],
+   "fk": "nd",
+   "ft": "N(nir,swir2)",
+   "image_asset": null,
+   "index": "RdNBR",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 1.2,
+   "metric": null,
+   "minp": -0.5,
+   "offset": -0.2,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 145,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "16-days",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "dNBR relativo",
+   "vname_en": "Relative differenced Normalized Burn Ratio"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "col": "MODIS/061/MOD09GA",
+   "dr": "2000/02/24-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b07"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b07)",
+   "image_asset": null,
+   "index": "RdNBR",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 1.2,
+   "metric": null,
+   "minp": -0.5,
+   "offset": 0,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 146,
+   "scale": 0.0001,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "daily",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "dNBR relativo",
+   "vname_en": "Relative differenced Normalized Burn Ratio"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "col": "MODIS/061/MYD09GA",
+   "dr": "2002/07/04-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b07"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b07)",
+   "image_asset": null,
+   "index": "RdNBR",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 1.2,
+   "metric": null,
+   "minp": -0.5,
+   "offset": 0,
+   "pm": [
+    "7a0403",
+    "c0392b",
+    "e67e22",
+    "f5cba7",
+    "f2efe6",
+    "b8e186",
+    "7fbc41",
+    "4d9221",
+    "276419"
+   ],
+   "ref": 147,
+   "scale": 0.0001,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "daily",
+   "two_periods": true,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[unitless]",
+   "vname": "dNBR relativo",
+   "vname_en": "Relative differenced Normalized Burn Ratio"
   }
  ]
 };

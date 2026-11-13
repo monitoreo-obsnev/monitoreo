@@ -34,7 +34,8 @@ step 3 of `SKILL.md`).
   - `references`.
 - **A variant of an existing entry** (another index from the same bands, a fixed layer, a template shared by several
   sensors) goes in `catalog.EXTRA`, with its fields in `catalog.TEMPLATES`, as NBR, RBR, SCF, ELEVATION and SLOPE do
-  (refs 101 to 107). `EXTRA` copies the base entry, then applies the template, then the changes.
+  (refs 101 to 107), and the RdNBR (refs 144 to 147, two periods like the RBR, also of MODIS). `EXTRA` copies the base
+  entry, then applies the template, then the changes.
 - **A new kind of formula** (anything `sensors.parse_formula` cannot read, like `SCF(green,nir,swir1)`) needs its code
   in `sensors.py`, its port in `gee/core.js`, and a test of both in `tests/test_gee.py` (that test computes in Earth
   Engine).

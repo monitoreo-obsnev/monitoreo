@@ -39,7 +39,7 @@ def test_the_analyses_of_a_theme_are_tools():
 
 def test_list_variables_by_theme():
 	fire = services.list_variables(theme='fire')
-	assert {v['variable'] for v in fire} == {'NBR', 'RBR'} and fire[0]['theme'] == 'Fire'
+	assert {v['variable'] for v in fire} == {'NBR', 'RBR', 'RdNBR'} and fire[0]['theme'] == 'Fire'
 	assert services.list_variables(theme='Nieve', lang='es')[0]['theme'] == 'Nieve'
 	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE'}
 	with pytest.raises(ValueError, match='unknown theme'):

@@ -14,9 +14,10 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 75  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 79  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
-	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS and the 19 of WorldClim
+	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim and the RdNBR of
+	# Sentinel-2, Landsat and MODIS (Terra and Aqua)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -62,7 +63,7 @@ def test_rbr_in_the_catalog():
 	rows = services.list_variables(text='RBR')
 	assert [r['ref'] for r in rows] == [103, 104] and all(r['two_periods'] for r in rows)
 	assert 'two_periods' not in services.list_variables(text='NDVI')[0]
-	with pytest.raises(ValueError, match='dNBR or RBR'):
+	with pytest.raises(ValueError, match='unknown burn index: use dNBR, RBR or RdNBR'):
 		services.burn_severity({'bbox': [0, 0, 1, 1]}, index='NDVI')
 
 

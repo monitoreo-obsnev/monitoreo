@@ -55,6 +55,9 @@ def test_wrong_conditions(condition, message):
 def test_two_periods_and_nested_conditions_are_refused():
 	with pytest.raises((ValueError, KeyError)):
 		variable.where_specs(spec({'variable': 'RBR', 'sensor': 'Sentinel-2', 'min': 0.1}))
+	for sensor in ('Sentinel-2', 'Landsat', 'Modis'):  # the RdNBR too: only burn_severity compares two periods
+		with pytest.raises(ValueError, match="burn_severity and index 'RdNBR'"):
+			variable.where_specs(spec({'variable': 'RdNBR', 'sensor': sensor, 'min': 0.069}))
 	with pytest.raises(ValueError, match='unknown keys where'):
 		variable.where_specs(spec(dict(ABOVE, where=[ABOVE])))
 

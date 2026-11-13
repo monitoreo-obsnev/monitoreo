@@ -248,6 +248,91 @@ test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {
                         rgb = TRUE), "only the variables of the catalog")
 })
 
+test_that("burn severity with the RdNBR: its arguments reach the services, its classes and statistics come back", {
+  args <- formals(mo_burn_severity)
+  expect_true(all(c("index", "collection") %in% names(args)))
+  expect_equal(args$index, "dNBR")  # as before
+  expect_null(args$collection)
+  sent <- NULL
+  cls <- function(c, label, low, high, ha) list(region = "fire", class = c, label = label, rdnbr_min = low,
+                                                rdnbr_max = high, ha = ha)
+  answer <- list(
+    index = "RdNBR",
+    classes = list(cls(0L, "Unchanged", NULL, 0.069, 10), cls(1L, "Low severity", 0.069, 0.316, 5),
+                   cls(2L, "Moderate severity", 0.316, 0.641, 4), cls(3L, "High severity", 0.641, NULL, 1)),
+    burned_ha = list(fire = 10),
+    stats = list(list(region = "fire", mean = 0.21, median = 0.18, p10 = -0.02, p90 = 0.55, min = -0.3, max = 1.1,
+                      ha = 20)),
+    title = "Burn severity (RdNBR, Miller & Thode 2007) Modis (median) | before 2022-06-01 / 2022-08-31, after ...",
+    file = "rdnbr.tif", readme = "rdnbr.README.md",
+    references = list(list(text = "Miller, J. D., & Thode, A. E. (2007). https://doi.org/10.1016/j.rse.2006.12.006")),
+    credits = list())
+  legend_of <- NULL
+  local_mocked_bindings(services = function() list(burn_severity = function(...) {
+    sent <<- list(...)
+    answer
+  }), burn_legend = function(index) {
+    legend_of <<- index
+    data.frame(value = 0:3, label = c("Unchanged", "Low severity", "Moderate severity", "High severity"))
+  }, .package = "monitoreo")
+  region <- mo_bbox(-3.0, 36.9, -2.9, 37.0)
+  x <- mo_burn_severity(region, "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31", sensor = "Modis",
+                        index = "RdNBR", collection = "MODIS/061/MYD09GA")
+  expect_equal(unname(sent[1:7]), list(region, "Modis", "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31",
+                                       "median"))
+  expect_equal(sent$index, "RdNBR")
+  expect_equal(sent$collection, "MODIS/061/MYD09GA")
+  expect_equal(names(x), c("region", "class", "label", "rdnbr_min", "rdnbr_max", "ha"))  # the classes
+  expect_equal(x$label, c("Unchanged", "Low severity", "Moderate severity", "High severity"))
+  expect_equal(x$rdnbr_min, c(NA, 0.069, 0.316, 0.641))
+  expect_equal(attr(x, "burned_ha"), c(fire = 10))
+  expect_equal(attr(x, "stats")$median, 0.18)  # and the statistics of the RdNBR
+  expect_equal(legend_of, "RdNBR")
+  expect_equal(nrow(attr(x, "legend")), 4)
+  expect_match(attr(x, "title"), "RdNBR, Miller & Thode 2007", fixed = TRUE)
+  expect_equal(attr(x, "file"), "rdnbr.tif")
+  expect_match(attr(x, "references"), "10.1016/j.rse.2006.12.006", fixed = TRUE)
+  # the dNBR and the RBR as before: no collection sent unless given, the RBR without classes, legend or stats
+  answer <- list(index = "RBR", stats = answer$stats, title = "Relativized Burn Ratio (RBR)", references = list(),
+                 credits = list())
+  legend_of <- NULL
+  rbr <- mo_burn_severity(region, "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31", index = "RBR")
+  expect_null(sent$collection)
+  expect_equal(sent[[2]], "Sentinel-2")
+  expect_equal(names(rbr), c("region", "mean", "median", "p10", "p90", "min", "max", "ha"))
+  expect_null(attr(rbr, "stats"))
+  expect_null(attr(rbr, "legend"))
+  expect_null(attr(rbr, "burned_ha"))
+  expect_null(legend_of)
+})
+
+test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
+  skip_if_no_python()
+  # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools
+  leg <- monitoreo:::burn_legend("RdNBR")
+  expect_equal(leg$value, 0:3)
+  expect_equal(leg$label, c("Unchanged", "Low severity", "Moderate severity", "High severity"))
+  expect_equal(leg$color, c("#0ae042", "#fff70b", "#ff641b", "#a41fd6"))
+  expect_equal(leg$rdnbr_min, c(NA, 0.069, 0.316, 0.641))
+  expect_equal(leg$rdnbr_max, c(0.069, 0.316, 0.641, NA))
+  expect_true("dnbr_min" %in% names(monitoreo:::burn_legend("dNBR")))
+  # its variables: Sentinel-2, Landsat and MODIS (Terra and Aqua), only for mo_burn_severity
+  v <- mo_variables(text = "RdNBR")
+  expect_setequal(unique(v$sensor), c("Sentinel-2", "Landsat", "Modis"))
+  expect_setequal(v$collection[v$sensor == "Modis"], c("MODIS/061/MOD09GA", "MODIS/061/MYD09GA"))
+  expect_true(all(v$two_periods))
+  region <- mo_bbox(-3.0, 36.9, -2.9, 37.0)
+  expect_error(mo_time_series(region, "RdNBR", "Modis", "2022-06-01", "2022-08-31"),
+               "compute it with burn_severity and index 'RdNBR'", fixed = TRUE)
+  # refused before Earth Engine: MODIS and collection only for the RdNBR, and an unknown index
+  expect_error(mo_burn_severity(region, "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31", sensor = "Modis"),
+               "MODIS only with index RdNBR")
+  expect_error(mo_burn_severity(region, "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31", index = "RBR",
+                                collection = "MODIS/061/MYD09GA"), "collection is only for the index RdNBR")
+  expect_error(mo_burn_severity(region, "2022-06-01", "2022-08-31", "2023-06-01", "2023-08-31", index = "dNDVI"),
+               "unknown burn index: use dNBR, RBR or RdNBR")
+})
+
 test_that("time series, statistics and map with Earth Engine", {
   skip_if_no_python()
   skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
