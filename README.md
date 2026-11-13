@@ -92,10 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.30](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.30) · 2026-11-13 · package 0.3.40
 
-- **All tools**: a land cover mask leaves out of any result the pixels of some land covers (water, built-up, cropland, trees, grassland, shrubland, wetlands, bare ground, snow and ice) after a land cover map of a year: ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CORINE Land Cover (Europe, 1990 to 2018) or MODIS MCD12Q1 (every year since 2001), with a table that says which classes of each map are each land cover. It is a condition of `where` (`{"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}`), so it reaches maps, series, trends, comparisons, exports and the burn severity, and the README of each result says which land covers it left out and cites the map.
-- **QGIS plugin, Earth Engine app**: the group «Land cover mask», before the variable, unfolds with the map, its year and the land covers to leave out.
+- **All tools**: A land cover mask leaves out of any result the pixels of some land covers (water, built-up, cropland, trees, grassland, shrubland, wetlands, bare ground, snow and ice) after a land cover map of a year: ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CORINE Land Cover (Europe, 1990 to 2018) or MODIS MCD12Q1 (every year since 2001), with a table that says which classes of each map are each land cover. It is a condition of `where` (`{"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}`), so it reaches maps, series, trends, comparisons, exports and the burn severity, and the README of each result says which land covers it left out and cites the map.
+- **QGIS plugin, Earth Engine app**: The group «Land cover mask», before the variable, unfolds with the map, its year and the land covers to leave out.
 - **Command line, MCP server, Assistant, R package**: `monitoreo landcover`, `landcover_maps` and `mo_landcover_maps()` list the land cover maps, their years and the classes of each map in each land cover.
 
 ### [v0.3.29](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.29) · 2026-11-13 · package 0.3.39
