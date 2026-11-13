@@ -81,7 +81,8 @@
 				});
 			}).catch((e) => content.append(el('p', {class: 'map-error'}, `Cannot draw the chart: ${e.message}`))));
 			content.append(tableBox);
-			tools.append(...[toggle, link(r.csv, 'Download the CSV'), r.png && link(r.png, 'Chart (PNG)')].filter(Boolean));
+			// a result that is only a table (the RBR) is shown already: no button to show it again
+			tools.append(...[r.chart !== 'table' && toggle, link(r.csv, 'Download the CSV'), r.png && link(r.png, 'Chart (PNG)')].filter(Boolean));
 		}
 		section.append(tools);
 		if (r.references?.length && report.references?.length) {

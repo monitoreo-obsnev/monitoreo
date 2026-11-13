@@ -96,6 +96,10 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 - **R package** (fix): `mo_variables(theme = "community")` and `theme = "earth_engine"` name the functions of R that give those data (`mo_community_themes()`, `mo_community()`, `mo_asset()`) and their arguments `collection`, `image` and `band`, as the command line names its commands, instead of a text without them.
 
+### [v0.3.28](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.28) · 2026-11-13 · package 0.3.38
+
+- **Results viewer** (fix): A published burn severity with the RBR shows the statistics of the RBR of each region (mean, median, percentiles 10 and 90, minimum, maximum and hectares) as a table, instead of an empty chart of the severity classes, which the RBR does not have.
+
 ### [v0.3.27](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.27) · 2026-11-13 · package 0.3.37
 
 - **Assistant**: The installers of macOS, Windows and Linux no longer say that the assistant downloads a language model of 5 GB the first time it opens: the model of MonitorEO, in the cloud, downloads nothing, and a model on the computer (Ollama) is optional.

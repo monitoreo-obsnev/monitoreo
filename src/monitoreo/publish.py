@@ -95,8 +95,9 @@ ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': '
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map'}
-CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison',
-          'burn_severity': 'burn_severity'}
+# the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
+# with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
+CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison'}
 CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
@@ -707,6 +708,8 @@ def _results(item, files, n):
 				entry['burned_min'] = fire.CLASSES[index]['burned']  # the burned area: the index from this value
 			if out:
 				entry['title'] = item.get('chart_title') or 'Area of each severity class'
+		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
+			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):
 			entry['png'] = files.add(res['chart'], 'files', f'Chart (PNG): {title}', 'PNG')
 		out.append(entry)
