@@ -1626,7 +1626,9 @@
 		var panel = ui.Panel();
 		var out = ui.Panel();
 		var classes = mo.CLASSES[index];
-		var low = ui.Textbox({placeholder: classes ? index + ' ' + num(classes.burned) : 'RBR', style: {width: '80px'}});
+		// the value of the classes as fire.CLASSES writes it (dNBR 0.1, not 0.1000), with the decimal comma in Spanish
+		var hint = classes ? String(classes.burned).replace('.', state.lang === 'es' ? ',' : '.') : '';
+		var low = ui.Textbox({placeholder: classes ? index + ' ' + hint : 'RBR', style: {width: '80px'}});
 		var smallest = ui.Textbox({value: num(mo.PERIMETER_MIN_HA), style: {width: '50px'}});
 		panel.add(ui.Label(t('perimeter'), {fontWeight: 'bold', fontSize: '12px', margin: '10px 8px 0 8px'}));
 		panel.add(ui.Label(t('perimeterHelp'), SMALL));
@@ -1663,7 +1665,9 @@
 					out.add(ui.Label((found.length > 1 ? f.properties.name + ': ' : '') +
 						fmt(t('perimeterHa'), num(f.properties.ha, 5), f.properties.patches), {fontSize: '12px'}));
 				});
-				var fields = ['region', 'ha', 'patches', 'index', 'burned_min', 'min_ha', 'sensor', 'before', 'after'];
+				// with .geo: without it, Earth Engine writes the GeoJSON without the polygons (the KML has them anyway)
+				var fields = ['region', 'ha', 'patches', 'index', 'burned_min', 'min_ha', 'sensor', 'before', 'after',
+					'.geo'];
 				var links = ui.Panel([], ui.Panel.Layout.flow('horizontal'));
 				out.add(links);
 				[['geojson', 'geojson'], ['kml', 'kml']].forEach(function (k) {
