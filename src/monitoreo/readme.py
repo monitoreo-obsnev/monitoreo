@@ -98,7 +98,6 @@ COLUMNS_AREAS = {
 	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
 	'label': 'name of the class', 'year': 'year of the land cover map',
 	'ha': 'hectares of the class in the feature (true area of its pixels)',
-	'year': 'year of the land cover map',
 }
 # the columns of the CSV of the changes of a land cover map (area_by_class with other_year) that differ from those of
 # COLUMNS_AREAS

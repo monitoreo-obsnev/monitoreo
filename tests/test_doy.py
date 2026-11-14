@@ -73,7 +73,8 @@ def test_the_readme_of_the_areas_keeps_the_year_of_the_map(tmp_path):
 		csv.write_text(','.join(classes.COLUMNS[mode]) + '\n', encoding='utf-8')
 		result = {'rows': [], 'mode': mode, 'scale': 100.0, 'unit': '', 'csv': str(csv), 'title': 'Areas'}
 		text = ' '.join(readme.text('area_by_class', args, result, computed='2026-11-14T10:00:00+01:00').split())
-		assert 'year: year of the land cover map' in text and 'first day of the step' not in text, mode
+		year = 'year: first year of the land cover map' if mode == 'transitions' else 'year: year of the land cover map'
+		assert year in text and 'first day of the step' not in text, mode
 
 
 @pytest.fixture
