@@ -314,7 +314,7 @@ def main(argv=None):
 	                                             'with --out too, on its grid. Only the variables of Sentinel-2 and '
 	                                             'Landsat and the cloud frequency of MODIS (rgb in monitoreo info), '
 	                                             'with metric median, mean, min, max or pN')
-	from .catalog import REGION_STATS
+	from .catalog import REGION_STATS, REGION_STATS_ZONES
 	computes['stats'] = p = sub.add_parser('stats', help='statistics of the map of a variable over each feature of a '
 	                                                     'region (also the fixed layers)')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
@@ -328,10 +328,9 @@ def main(argv=None):
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
-	p.add_argument('--stats', default=','.join(REGION_STATS),
-	               help='the statistics over each feature, separated by commas: mean, median, min, max, std (standard '
-	                    'deviation), cv (coefficient of variation, in %%) and pN (percentile N) (default: '
-	                    f"{','.join(REGION_STATS)})")
+	p.add_argument('--stats', help='the statistics over each feature, separated by commas: mean, median, min, max, std '
+	                               '(standard deviation), cv (coefficient of variation, in %%) and pN (percentile N) '
+	                               f"(default: {','.join(REGION_STATS)}; with --zones, {','.join(REGION_STATS_ZONES)})")
 	p.add_argument('--scale', type=float, help='pixel size of the statistics in metres (default: that of the data, or '
 	                                           'bigger over big regions)')
 	p.add_argument('--zones', help='the statistics of each band of another variable instead, a JSON dictionary, e.g. '
@@ -351,7 +350,8 @@ def main(argv=None):
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
-	p.add_argument('--spacing', type=float, help='length of the segments in metres (default: the line / --points)')
+	p.add_argument('--spacing', type=float, help='length of the segments in metres (default: the line / --points, at '
+	                                             'least a pixel of the data)')
 	p.add_argument('--points', type=int, default=100, help='segments of the line (default 100)')
 	p.add_argument('--csv')
 	p.add_argument('--png')
@@ -416,7 +416,8 @@ def main(argv=None):
 	p.add_argument('--step', default='annual', choices=('annual', 'monthly', '16-day', 'daily'),
 	               help='a frame per year (default), month, 16 days or day with images (at most 120 frames)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
-	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the period)')
+	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the '
+	                                         'period; with --metric sum or count, of the median of the frames)')
 	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
 	p.add_argument('--fps', type=float, default=2, help='frames per second (default: 2)')
 	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
@@ -700,7 +701,7 @@ def _image(args, services):
 def _stats(args, services):
 	"""Statistics of the map of a variable over each feature of the region (services.region_stats): any of mean,
 	median, min, max, std, cv (coefficient of variation, %) and pN, for any variable, also the fixed layers."""
-	stats = [s.strip() for s in str(args.stats).split(',') if s.strip()]
+	stats = [s.strip() for s in str(args.stats).split(',') if s.strip()] if args.stats else None  # those of the service
 	try:
 		res = services.region_stats(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
 		                            temporal=args.temporal, interannual=args.interannual, stats=stats, scale=args.scale,
@@ -708,9 +709,9 @@ def _stats(args, services):
 		                            csv=args.csv, chart=args.png, **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
-	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + list(res.get('stats') or stats)
+	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + list(res.get('stats') or stats or [])
 	       + ['n_pixels'])
-	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats) else ''
+	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats or []) else ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
 
 

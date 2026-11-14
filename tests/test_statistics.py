@@ -323,7 +323,7 @@ def test_the_command_line_computes_the_statistics_of_a_region(stats_calls, capsy
 	assert '| unit [%] | cv in %' in out
 	# a fixed layer, without dates, with the statistics by default
 	cli.main(['stats', 'ELEVATION', '--sensor', 'Copernicus', '--region', json.dumps(REGION)])
-	assert stats_calls[-1]['stats'] == list(services.REGION_STATS) and stats_calls[-1]['start'] is None
+	assert stats_calls[-1]['stats'] is None and stats_calls[-1]['start'] is None  # those of services.region_stats
 	assert 'monitoreo stats VARIABLE' in cli.__doc__
 
 

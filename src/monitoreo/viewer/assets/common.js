@@ -7,7 +7,7 @@ const MO = (() => {
 	// the names of the analyses of monitoreo.publish by their id (a report published by an older version has them in
 	// Spanish)
 	const ANALYSES = {series: 'Time series', trend: 'Trend', comparison: 'Comparison of periods',
-		burn_severity: 'Burn severity', map: 'Map'};
+		burn_severity: 'Burn severity', map: 'Map', gradients: 'Gradients'};
 
 	async function json(url) {
 		const r = await fetch(url, {cache: 'no-cache'});

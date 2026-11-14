@@ -59,7 +59,8 @@ which only have maps and their statistics.}
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
-\item{spacing, points}{the length of the segments in metres, or their number.}
+\item{spacing, points}{the length of the segments in metres, or their number (segments at least a pixel of the
+data long: fewer on a line shorter than \code{points} pixels).}
 
 \item{csv}{optional path of a CSV file with the table.}
 
@@ -109,8 +110,9 @@ A data.frame (distance_m, value, elevation, lon, lat) with the attributes title,
 }
 \description{
 The map of \code{mo_map_layer()} with the same arguments (also the fixed layers) along a line: the line is cut in
-segments of \code{spacing} metres (default: its length / \code{points}), and each segment gets the mean of the
-pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of geemap (Wu, 2020).
+segments of \code{spacing} metres (default: its length / \code{points}, at least a pixel of the data), and each
+segment gets the mean of the pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of
+geemap (Wu, 2020).
 }
 \examples{
 \dontrun{
