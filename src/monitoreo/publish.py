@@ -219,7 +219,8 @@ def log_call(tool, args, result, folder=None):
 
 
 def _logged_call(path, log):
-	"""The last call of the log LOG that wrote a file of the name of PATH: {tool, args, result}, or None."""
+	"""The last call of the log LOG that wrote a file of the name of PATH (any of its files: also the GIF of an
+	animation made as a video, whose file is the MP4): {tool, args, result}, or None."""
 	if not log or not os.path.isfile(log):
 		return None
 	name, found = os.path.basename(path), None
@@ -230,7 +231,8 @@ def _logged_call(path, log):
 			except ValueError:
 				continue
 			res = c.get('result') or {}
-			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name for k in ('file', 'csv', 'chart')):
+			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name
+			       for k in ('file', 'gif', 'csv', 'chart')):
 				found = c
 	return found
 
@@ -386,8 +388,14 @@ def _py(v):
 
 
 def python_call(tool, args):
-	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool."""
-	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})" if tool else None
+	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool: the video of the tool
+	timelapse of the MCP server is the path of an MP4 of services.timelapse."""
+	if not tool:
+		return None
+	args = dict(args)
+	if tool == 'timelapse' and args.pop('video', None):
+		args.setdefault('path', 'animation.mp4')
+	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})"
 
 
 # Files --------------------------------------------------------------------------------------------------------------

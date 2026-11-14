@@ -850,6 +850,9 @@ out.fixedRate = legendTitle();
 // SCF (Snow) takes only the mean: the data of Earth Engine let the metrics change, and back in Snow they are the mean
 theme('snow');
 selectWith(105).opts.onChange(105);
+answer = {value_p5: 0, value_p95: 100};
+button('Make the animation').opts.onClick();  // the variable chosen: its frames are the mean too
+out.scfAnimation = last();
 theme('earth_engine');
 read('IDAHO_EPSCOR/TERRACLIMATE', {bands: ['aet', 'pr'], scales: {aet: 4638.3, pr: 4638.3}, dated: true});
 out.scf = {enabled: metricSelects().map(function (w) { return !w.disabled; })};
@@ -867,6 +870,9 @@ out.scf.series = last();
 answer = 'rows';
 button('Trend table').opts.onClick();
 out.scf.trends = last();
+answer = {value_p5: 0, value_p95: 100};
+button('Make the animation').opts.onClick();
+out.scf.animation = last();
 out.files = files;
 process.stdout.write(JSON.stringify(out));
 """
@@ -971,3 +977,7 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	assert scf['series']['charts'][0]['title'] == 'SCF Landsat · Map view · Mean monthly · mean'
 	assert 'Trends (Mann-Kendall and Sen) · mean' in ' '.join(scf['trends']['texts'] +
 	                                                           [c.get('title') or '' for c in scf['trends']['charts']])
+	# its animation too, a frame per year of the mean (the select of the animation, greyed out, cannot change it)
+	assert out['scfAnimation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
+	assert scf['animation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
+	assert scf['animation']['texts'][1].startswith('11 frames, with the same colours (from 0 to 100): 2015, 2016')

@@ -6678,6 +6678,7 @@ var MonitorEO = (function () {
 	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
 	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
 	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
 	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
 	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
 		'October', 'November', 'December'];
@@ -6724,6 +6725,18 @@ var MonitorEO = (function () {
 			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
 				.set('system:time_start', date(b[0]).getTime());
 		}));
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
 	}
 
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
@@ -7555,7 +7568,8 @@ var MonitorEO = (function () {
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
-		animationSteps: animationSteps, animationFrames: animationFrames,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
@@ -8388,7 +8402,7 @@ var MonitorEO = (function () {
 		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
 		// data of Earth Engine let the metrics change meanwhile
 		var only = mo.byRef(state.ref).metric;
-		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = only;
 		render();
 	}
 
@@ -8406,7 +8420,8 @@ var MonitorEO = (function () {
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
-		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
+		// its only metric (SCF), also of each frame of the animation
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
 		render();
 	}
 
@@ -8896,8 +8911,9 @@ var MonitorEO = (function () {
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
-	// map of the whole period (its percentiles 5 and 95, as services.timelapse), as a thumbnail that plays them, its
-	// dates and its colour bar; and the GIF to download
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
+	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
+	// download
 	function timelapse() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -8909,7 +8925,8 @@ var MonitorEO = (function () {
 		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
 		var ramped = mo.rampEntry(e, state.animMetric, 'period');
 		var id = start();
-		mo.percentiles(mo.image(s, geom).clipToCollection(region), geom, rangeScale(e)).evaluate(function (st, error) {
+		var range = mo.animationRange(s, region, steps, state.animMetric);
+		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
 			if (id !== run) return;
 			var vis = mo.visParams(error ? null : st, ramped);
 			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);
