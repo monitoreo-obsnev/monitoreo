@@ -16,6 +16,11 @@ After changing only core.js or ui.js, monitoreo_app.js can be written from the c
 Engine:
 
   python gee/build.py --app-only
+
+At each release (a new version and date, see __released__), the about of catalog.js (version, date of the release and
+the version in the links of suggestions) and monitoreo_app.js are written again, also without Earth Engine:
+
+  python gee/build.py --about-only
 """
 
 import argparse
@@ -92,12 +97,30 @@ def catalog_text(data):
 	return text.replace('"@COMMUNITY@"', head[:-1] + ',"datasets":[\n' + rows + '\n]}', 1)
 
 
-def about_texts():
-	return {'name': 'MonitorEO-OBSNEV', 'description': about.DESCRIPTION, 'acknowledgements': about.ACKNOWLEDGEMENTS,
-	        'citation': about.CITATION, 'doi': about.DOI, 'manual': about.MANUAL, 'repository': about.REPOSITORY,
-	        'feedback': dict(about.FEEDBACK, links=about.feedback('gee', __version__)),
-	        'version': __version__, 'released': __released__,  # shown under the subtitle
-	        'logos': [logo(p, w) for p, w in zip(about.LOGOS, LOGO_WIDTHS)]}
+def about_texts(logos=True):
+	"""The texts of about.py for the app, with the version of the package and the date of its release; with LOGOS,
+	the logos as data URLs (they need PIL)."""
+	texts = {'name': 'MonitorEO-OBSNEV', 'description': about.DESCRIPTION, 'acknowledgements': about.ACKNOWLEDGEMENTS,
+	         'citation': about.CITATION, 'doi': about.DOI, 'manual': about.MANUAL, 'repository': about.REPOSITORY,
+	         'feedback': dict(about.FEEDBACK, links=about.feedback('gee', __version__)),
+	         'version': __version__, 'released': __released__}  # shown under the subtitle
+	if logos:
+		texts['logos'] = [logo(p, w) for p, w in zip(about.LOGOS, LOGO_WIDTHS)]
+	return texts
+
+
+def read_catalog():
+	"""The data of the catalog.js there is."""
+	with open(os.path.join(HERE, 'catalog.js'), encoding='utf-8') as f:
+		text = f.read()
+	return json.loads(text[text.index('{'):text.rstrip().rindex('}') + 1])
+
+
+def write_catalog(data):
+	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:
+		f.write('// Written by build.py from src/monitoreo (catalog.json, catalog.py, about.py, community.json.gz): do not '
+		        'edit.\n')
+		f.write(f'var CATALOG = {catalog_text(data)};\n')
 
 
 def app():
@@ -121,20 +144,26 @@ def main():
 	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
 	parser.add_argument('--app-only', action='store_true',
 	                    help='only write monitoreo_app.js, from the catalog.js there is (without Earth Engine)')
+	parser.add_argument('--about-only', action='store_true',
+	                    help='write the about of catalog.js again (version, date of the release, links of suggestions; '
+	                         'its logos as they were) and monitoreo_app.js, without Earth Engine: at each release')
 	args = parser.parse_args()
 	if args.app_only:
 		app()
 		print('wrote monitoreo_app.js (catalog.js as it was)')
 		return
+	if args.about_only:
+		data = read_catalog()
+		data['about'] = dict(about_texts(logos=False), logos=data['about'].get('logos', []))
+		write_catalog(data)
+		app()
+		print(f'wrote the about of catalog.js (MonitorEO {__version__}, released {__released__}) and monitoreo_app.js')
+		return
 	services.init(args.project)
 	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
 	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
 	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index()}
-	text = catalog_text(data)
-	with open(os.path.join(HERE, 'catalog.js'), 'w', encoding='utf-8') as f:
-		f.write('// Written by build.py from src/monitoreo (catalog.json, catalog.py, about.py, community.json.gz): do not '
-		        'edit.\n')
-		f.write(f'var CATALOG = {text};\n')
+	write_catalog(data)
 	app()
 	print(f"{len(data['variables'])} variables and {len(data['community']['datasets'])} datasets of the GEE Community "
 	      'Catalog; wrote catalog.js and monitoreo_app.js')
