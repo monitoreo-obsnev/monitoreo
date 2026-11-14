@@ -162,7 +162,8 @@ cited <- function(df, res) {
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
 #' @param vmin,vmax range of the colour ramp (default: percentiles 5 and 95 of the map).
-#' @param thumbnail optional path of a PNG preview.
+#' @param thumbnail optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
+#'   it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).
 #' @param csv optional path of a CSV file with the table.
 #' @param chart optional path of a PNG chart.
 #' @name mo_params

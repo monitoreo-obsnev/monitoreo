@@ -84,7 +84,8 @@ covers), e.g. without the water bodies and the built-up areas of CORINE Land Cov
 
 \item{vmin, vmax}{range of the colour ramp (default: percentiles 5 and 95 of the map).}
 
-\item{thumbnail}{optional path of a PNG preview.}
+\item{thumbnail}{optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
+it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).}
 
 \item{csv}{optional path of a CSV file with the table.}
 

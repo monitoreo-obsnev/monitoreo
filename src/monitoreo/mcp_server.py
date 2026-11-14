@@ -74,7 +74,8 @@ export_time_series_to_drive, then task_status). The true colour (red, green and 
 images and pixels as a map, with the same arguments, shows what is on the ground to interpret the map of an index
 (burned areas, bare soil, snow, water, clouds left): rgb_map (tiles and preview) and download_rgb (GeoTIFF), only for
 the variables with rgb in list_variables (Sentinel-2, Landsat and the cloud frequency of MODIS) and the metrics
-median, mean, min, max and pN. GeoTIFFs on this computer: download_image (one map of a small
+median, mean, min, max and pN. A map whose preview Earth Engine cannot make in some minutes comes without it
+(thumbnail_error says why): its tiles are the map, so do not ask for it again. GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
@@ -306,6 +307,15 @@ def _text(obj):
 	return json.dumps(obj, ensure_ascii=False, indent=1, default=str)
 
 
+def _preview(res):
+	"""The PNG preview of the map RES as an image, if Earth Engine made it (else its reason is in thumbnail_error of
+	RES, and the map has its tiles anyway)."""
+	if not res.get('thumbnail'):
+		return []
+	with open(res['thumbnail'], 'rb') as f:
+		return [Image(data=f.read(), format='png')]
+
+
 @tool
 def about(lang: str = 'en'):
 	"""What MonitorEO-OBSNEV is, who funds it and how to cite it (description, acknowledgements, citation and DOI, and
@@ -484,11 +494,7 @@ def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	                                    *(() if image else (metric, start, end))), 'png')
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                         vmin, vmax, thumbnail=png, quick=quick, where=where, **source)
-	out = [_text(res)]
-	if png:
-		with open(png, 'rb') as f:
-			out.append(Image(data=f.read(), format='png'))
-	return out
+	return [_text(res)] + _preview(res)
 
 
 @tool
@@ -512,11 +518,7 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 	png = None if quick or not preview else _out(f'rgb_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
 	res = services.rgb_map(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
-	out = [_text(res)]
-	if png:
-		with open(png, 'rb') as f:
-			out.append(Image(data=f.read(), format='png'))
-	return out
+	return [_text(res)] + _preview(res)
 
 
 @tool
@@ -693,7 +695,7 @@ def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
 	                         quality=quality, alpha=alpha, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
 	                         where=where, **source)
-	return [_text(res)] + ([Image(path=res['thumbnail'])] if thumb else [])
+	return [_text(res)] + _preview(res)
 
 
 @tool
@@ -762,7 +764,7 @@ def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	thumb = _out(_stem('comparison', _data(variable, sensor, source), metric), 'png')
 	res = services.compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
 	                           season=season, quality=quality, thumbnail=thumb, where=where, **source)
-	return [_text(res), Image(path=res['thumbnail'])]
+	return [_text(res)] + _preview(res)
 
 
 @tool

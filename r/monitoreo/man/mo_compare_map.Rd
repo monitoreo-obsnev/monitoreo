@@ -56,7 +56,8 @@ which only have maps and their statistics.}
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
-\item{thumbnail}{optional path of a PNG preview.}
+\item{thumbnail}{optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
+it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).}
 
 \item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
 e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
