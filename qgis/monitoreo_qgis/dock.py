@@ -150,6 +150,7 @@ def dated(layer, first, last):
 
 
 CREDITS_HEADING = 'Credits of the data:'  # in the abstract of a layer, before its credits (see figure_layout)
+REFERENCES_HEADING = 'References (cite them with this layer):'  # before its references (and its credits, earlier)
 
 
 def references_text(res):
@@ -157,21 +158,28 @@ def references_text(res):
 	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
 	refs = [r['text'] for r in res.get('references') or []]
 	credits = [c for c in res.get('credits') or [] if c]
-	return ((('\n\nReferences (cite them with this layer):\n' + '\n'.join(refs)) if refs else '') +
+	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
 	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
 
 
 def layer_credits(text):
 	"""The credits of the data in the abstract TEXT of a layer of the plugin (references_text): the lines under
-	CREDITS_HEADING until a blank line."""
-	lines = str(text or '').splitlines()
-	if CREDITS_HEADING not in lines:
+	CREDITS_HEADING until a blank line. A layer of an earlier version of the plugin has them at the end of its
+	references, without that heading: of the lines under REFERENCES_HEADING, those that are the credit of a dataset of
+	catalog.json (Copernicus Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL...), whatever its years."""
+	lines = [line.strip() for line in str(text or '').splitlines()]
+	heading = CREDITS_HEADING if CREDITS_HEADING in lines else REFERENCES_HEADING
+	if heading not in lines:
 		return []
 	out = []
-	for line in lines[lines.index(CREDITS_HEADING) + 1:]:
-		if not line.strip():
+	for line in lines[lines.index(heading) + 1:]:
+		if not line:
 			break
-		out.append(line.strip())
+		out.append(line)
+	if heading == REFERENCES_HEADING:
+		known = [re.compile(re.sub(r'\\\{(year|month_year|data_years)\\\}', '.+', re.escape(d['credit'])))
+		         for d in catalog.load()['datasets'].values() if d.get('credit')]
+		out = [line for line in out if any(k.fullmatch(line) for k in known)]
 	return out
 
 

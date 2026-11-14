@@ -106,12 +106,15 @@ def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=3
 		axis.set_major_formatter(FuncFormatter(lambda v, _, name=name, digits=digits: degrees(v, name, digits)))
 	ax.tick_params(labelsize=7)
 	ax.grid(color='#555', linestyle=':', linewidth=0.5, alpha=0.7, zorder=2)
-	# the north arrow, top right, of the same size whatever the map (points): the N, and the arrow under it
-	ax.annotate('N', xy=(0.95, 1), xycoords='axes fraction', xytext=(0, -3), textcoords='offset points', ha='center',
-	            va='top', fontsize=10, fontweight='bold', zorder=5)
-	ax.annotate('', xy=(0.95, 1), xycoords=offset_copy(ax.transAxes, fig, y=-15, units='points'), xytext=(0, -18),
-	            textcoords='offset points', zorder=5,
-	            arrowprops={'facecolor': 'black', 'edgecolor': 'black', 'width': 2.5, 'headwidth': 9, 'headlength': 9})
+	# the north arrow, top right, of the same size whatever the map (33 points with its N), smaller in a map lower than
+	# it (a strip of 20:1), to fit in it: the N, and the arrow under it
+	k = max(0.1, min(1.0, (ax.get_position().height * height * 72 - 2) / 33))
+	ax.annotate('N', xy=(0.95, 1), xycoords='axes fraction', xytext=(0, -3 * k), textcoords='offset points',
+	            ha='center', va='top', fontsize=10 * k, fontweight='bold', zorder=5)
+	ax.annotate('', xy=(0.95, 1), xycoords=offset_copy(ax.transAxes, fig, y=-15 * k, units='points'),
+	            xytext=(0, -18 * k), textcoords='offset points', zorder=5,
+	            arrowprops={'facecolor': 'black', 'edgecolor': 'black', 'width': 2.5 * k, 'headwidth': 9 * k,
+	                        'headlength': 9 * k})
 	# the scale bar, bottom left: two halves, black and white
 	km, deg = scale_bar(bounds)
 	x0, y0, h = w + (e - w) * 0.04, s + (n - s) * 0.05, (n - s) * 0.012

@@ -310,7 +310,7 @@ print('figure:', layout.name(), len(items), 'items')
 # canvas in it, the scale bar on it and the credits under it in the page; the labels of its grid have the decimals of
 # its step; and the credits are all those of the data of the layers (USGS, FAO GAUL...), not only those of Copernicus
 from monitoreo import references  # noqa: E402
-from monitoreo_qgis.dock import figure_layout, references_text  # noqa: E402
+from monitoreo_qgis.dock import figure_layout, layer_credits, references_text  # noqa: E402
 
 
 class Canvas:
@@ -348,5 +348,17 @@ for box, decimals in ((QgsRectangle(-3.5, 36.9, -3.4, 37.3), 2), (QgsRectangle(-
 	assert y + h <= top and top + note.sizeWithUnits().height() <= 210, top  # under the map, in the A4 page
 	assert all(c in note.text().split('\n') for c in cited['credits']), note.text()
 print('figure of a tall, a wide and a small canvas: the map 205 x 160 mm, credits', len(cited['credits']))
+
+# a layer of an earlier version of the plugin has its credits at the end of its references, without their heading:
+# those of the data of the catalog (Copernicus Sentinel, USGS, Copernicus DEM, FAO GAUL) are found among them
+for args in ({'variable': 'NDVI', 'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'},
+             {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2023-06-01', 'end': '2023-08-31'},
+             {'variable': 'ELEVATION', 'sensor': 'Copernicus'}):
+	old = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, **args})
+	text = 'MonitorEO: NDVI.\n\nReferences (cite them with this layer):\n' + '\n'.join(references.texts(old))
+	assert old['credits'] and layer_credits(text) == old['credits'], (layer_credits(text), old['credits'])
+	assert layer_credits('MonitorEO: NDVI.' + references_text(old)) == old['credits']
+assert layer_credits('A layer of my own') == [] and layer_credits(None) == []
+print('credits of the layers of an earlier plugin, without their heading:', len(old['credits']))
 plugin.unload()
 print('OK')

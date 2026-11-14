@@ -26,9 +26,9 @@ def test_the_scale_bar_and_the_coordinates():
 	assert figures.padded([0, 0, 10, 10]) == pytest.approx([-0.4, -0.4, 10.4, 10.4])
 
 
-def _drawn(monkeypatch, tmp_path, bounds, credits=('Contains modified Copernicus Sentinel data 2023',)):
+def _drawn(monkeypatch, tmp_path, bounds, credits=('Contains modified Copernicus Sentinel data 2023',), width=7.0):
 	"""The figure (of matplotlib, drawn) of a synthetic map of BOUNDS (with their margin, as services.map_figure) with
-	CREDITS."""
+	CREDITS, WIDTH inches wide."""
 	pytest.importorskip('matplotlib')
 	Image = pytest.importorskip('PIL.Image')
 	from matplotlib.figure import Figure
@@ -38,7 +38,7 @@ def _drawn(monkeypatch, tmp_path, bounds, credits=('Contains modified Copernicus
 	Image.new('RGB', (200, 120), (90, 160, 60)).save(buf, 'PNG')
 	vis = {'min': 0.1, 'max': 0.8, 'palette': ['ff0000', '00ff00']}
 	figures.map_figure(buf.getvalue(), figures.padded(bounds), vis, 'NDVI', 'NDVI', list(credits),
-	                   str(tmp_path / 'map.png'), dpi=100)
+	                   str(tmp_path / 'map.png'), dpi=100, width=width)
 	return drawn[-1]
 
 
@@ -90,6 +90,19 @@ def test_the_north_arrow_of_a_very_wide_map(monkeypatch, tmp_path):
 		assert n.y0 >= arrow.y1 - 1 and frame.y0 <= arrow.y0 and n.y1 <= frame.y1, (n, arrow, frame)
 		sizes.append((round(arrow.height), round(arrow.width), round(n.height)))
 	assert sizes[0] == sizes[1] and sizes[0][0] >= 20, sizes
+
+
+@pytest.mark.parametrize('bounds, width', [([-10, 36, 10, 37], 7.0), ([-10, 36, 20, 37], 7.0), ([-10, 36, 0, 37], 3.5)])
+def test_the_north_arrow_of_a_map_lower_than_it(monkeypatch, tmp_path, bounds, width):
+	# a strip of 20:1 or 30:1 (or of 8:1 in a figure 3.5 in wide) is lower than the north arrow with its N (33 points):
+	# both smaller, the N above the arrow, inside the map, not over the labels under it
+	fig = _drawn(monkeypatch, tmp_path, bounds, width=width)
+	renderer, ax = fig.canvas.get_renderer(), fig.axes[0]
+	n = next(t for t in ax.texts if t.get_text() == 'N').get_window_extent(renderer)
+	arrow = next(t.arrow_patch for t in ax.texts if t.get_text() == '' and t.arrow_patch).get_window_extent(renderer)
+	frame = ax.get_window_extent(renderer)
+	assert frame.height * 72 / fig.dpi < 33, frame
+	assert n.y0 >= arrow.y1 - 1 and frame.y0 <= arrow.y0 and n.y1 <= frame.y1 and arrow.height > 0, (n, arrow, frame)
 
 
 def test_the_errors_before_earth_engine():

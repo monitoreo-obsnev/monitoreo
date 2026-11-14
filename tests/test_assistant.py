@@ -1010,7 +1010,8 @@ def test_other_tool():
 	assert assistant.other_tool('Is there an R package?')[0] == 'the R package'
 	assert assistant.other_tool('I want to edit my layer')[2] == assistant.WIKI + 'QGIS-plugin'
 	assert assistant.other_tool('Can I make a map to print?') is None  # the assistant makes it: map_layer with figure
-	assert assistant.other_tool('A print layout of the map with my layers')[0] == 'the QGIS plugin'
+	for text in ('A print layout of the map with my layers', 'A map layout with my layers'):  # of ArcGIS Pro too
+		assert assistant.other_tool(text)[0] == 'the QGIS plugin', text
 	assert assistant.other_tool('Can I use it on my phone without installing anything?')[0] == 'the Earth Engine app'
 	assert assistant.other_tool('How do I publish a report for anyone to see?')[0] == 'the results viewer'
 	assert assistant.other_tool('Monthly NDVI series of 2024 in Doñana') is None

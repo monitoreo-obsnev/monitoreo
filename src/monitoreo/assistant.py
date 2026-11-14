@@ -157,7 +157,7 @@ OTHER_TOOLS = [  # what the assistant does not do, by the words of the request (
 	(r'\ben r\b|\bdesde r\b|paquete de r\b|\bin r\b|\bfrom r\b|\bwith r\b|\br package|rstudio|\bterra\b|ggplot',
 	 'the R package', 'doing the computations in R', WIKI + 'R-package'),
 	(r'qgis|edit(ar|o) (la |una |mi |mis |las |esta )?capa|digitaliz|maquet|composicion|'
-	 r'edit(ing)? (the |a |my |this |these |those )?layers?\b|digiti[sz]|print layout',  # not the maps to print: figure
+	 r'edit(ing)? (the |a |my |this |these |those )?layers?\b|digiti[sz]|(map|print) layout',  # not the maps to print: figure
 	 'the QGIS plugin', 'working next to your layers in QGIS, editing them and composing print layouts',
 	 WIKI + 'QGIS-plugin'),
 	(r'sin instalar|en el navegador sin|desde (el|mi) movil|tablet|without install|in the browser without|'
