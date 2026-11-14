@@ -93,11 +93,35 @@ except ImportError:
 	assert movie.isValid() and movie.frameCount() == 3, movie.frameCount()
 	movie.jumpToFrame(0)
 	frame = movie.currentImage()
-	big, small, top, bar, bottom = animation.layout(160)
-	assert (frame.width(), frame.height()) == (160, top + 120 + bottom)
-	assert QColor(frame.pixel(80, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
+	from qgis.PyQt.QtGui import QFont, QFontMetrics
+	fw = max(160, animation.MIN_WIDTH)  # a map narrower than MIN_WIDTH, centred on a frame of MIN_WIDTH
+	big, small, top, bar, bottom = animation.layout(fw)
+	font = QFont()
+	font.setPixelSize(small)
+	width = QFontMetrics(font).horizontalAdvance  # the credits in as many lines as they need
+	bottom = animation.layout(fw, len(animation._wrap(width, 'MonitorEO; Google Earth Engine', fw - 16)))[4]
+	assert (frame.width(), frame.height()) == (fw, top + 120 + bottom)
+	assert QColor(frame.pixel(fw // 2, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
 	assert any(QColor(frame.pixel(x, y)).getRgb()[:3] != (255, 255, 255) for x in range(8, 60) for y in range(6, 20))
 	print('GIF without Pillow:', movie.frameCount(), 'frames', frame.width(), 'x', frame.height())
+	# long credits: all of them, in as many lines as they need (the band below grows), not cut
+	credits = ('MonitorEO; Google Earth Engine; Contains modified Copernicus Climate Change Service information '
+	           '2021-2023; Source: FAO GAUL 2025 (CC BY 4.0)')
+	lines = animation._wrap(width, credits, fw - 16)
+	assert len(lines) > 2 and ' '.join(lines) == credits, lines
+	out = animation.annotate(pictures[0], 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'], 'unit', credits)
+	b, s, top, bar, bottom = animation.layout(fw, len(lines))
+	assert out.shape == (top + 120 + bottom, fw, 3) and bottom > animation.layout(fw)[4], out.shape
+	last = top + 120 + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+	assert (out[last:last + s, 8:fw - 8] != 255).any()  # its last line written
+	print('credits drawn with Qt in', len(lines), 'lines')
+	# a narrow map (a strip of land, 18 x 65 pixels): centred on a frame of MIN_WIDTH, its credits in a few lines
+	out = animation.annotate(np.full((65, 18, 3), 200, np.uint8), 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'],
+	                         'unit', credits)
+	x = (animation.MIN_WIDTH - 18) // 2
+	assert out.shape == (top + 65 + bottom, animation.MIN_WIDTH, 3), out.shape
+	assert (out[top:top + 61, x:x + 18] == 200).all() and (out[top:top + 61, :x] == 255).all()
+	print('a map 18 pixels wide on a frame of', out.shape[1], 'x', out.shape[0])
 
 calls = []
 

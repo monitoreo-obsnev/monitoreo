@@ -804,19 +804,24 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #'
 #' A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
 #' temporal metric of the images of the step on each pixel, coloured with one colour ramp for every frame (from
-#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period) and, written
-#' on it, its date, the title, the colour ramp with its unit and the credits of the data; the pixels of the region
-#' without data in a step are light grey. Earth Engine makes each frame as a PNG thumbnail and Python (Pillow) joins
-#' them in a GIF, as the timelapses of geemap (Wu, 2020). At most 120 frames. Not for the fixed layers (elevation,
-#' slope, an image), which have no dates. Instead of a variable of the catalog, any collection of images of Earth
-#' Engine with dates, by its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
+#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period or, for the
+#' metrics \code{"sum"} and \code{"count"}, which grow with the images, of the median of the frames) and, written on
+#' it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+#' lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
+#' colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
+#' not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the
+#' QGIS plugin does without it, with Qt and its own GIF encoder), and the MP4 with ffmpeg, as the timelapses of geemap
+#' (Wu, 2020). At most 120 frames. Not for the fixed layers (elevation, slope, an image), which have no dates. Instead
+#' of a variable of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and
+#' \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param path the GIF (\code{.gif}) or video (\code{.mp4}, it needs ffmpeg) of the animation.
 #' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
 #' @param fps frames per second.
 #' @param dimensions width or height of the map in pixels (64 to 1200).
 #' @return A list (file, gif, frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
-#'   palette, name, unit, bounds, scale, readme, references, credits).
+#'   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
+#'   or, if bigger, that of the data; readme, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the

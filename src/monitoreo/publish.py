@@ -220,7 +220,8 @@ def log_call(tool, args, result, folder=None):
 
 
 def _logged_call(path, log):
-	"""The last call of the log LOG that wrote a file of the name of PATH: {tool, args, result}, or None."""
+	"""The last call of the log LOG that wrote a file of the name of PATH (any of its files: also the GIF of an
+	animation made as a video, whose file is the MP4): {tool, args, result}, or None."""
 	if not log or not os.path.isfile(log):
 		return None
 	name, found = os.path.basename(path), None
@@ -231,13 +232,15 @@ def _logged_call(path, log):
 			except ValueError:
 				continue
 			res = c.get('result') or {}
-			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name for k in ('file', 'csv', 'chart')):
+			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name
+			       for k in ('file', 'gif', 'csv', 'chart')):
 				found = c
 	return found
 
 
 def _items(spec, base, folders, log):
-	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved."""
+	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved (the MP4
+	of an animation that is no longer there is left out: its GIF is the animation)."""
 	for item in _list(spec.get('results')):
 		item = {'file': item} if isinstance(item, str) else dict(item)
 		if 'answer' in item:
@@ -260,6 +263,11 @@ def _items(spec, base, folders, log):
 			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
 			                                     else 'csv': path}
 		res = dict(item.get('result') or {})
+		if isinstance(res.get('gif'), str) and str(res.get('file') or '').lower().endswith('.mp4'):
+			try:
+				_find(res['file'], base, folders)
+			except FileNotFoundError:  # the video deleted or moved: the GIF, without it
+				res['file'] = res['gif']
 		for k in ('file', 'gif', 'csv', 'chart'):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
@@ -402,8 +410,14 @@ def _py(v):
 
 
 def python_call(tool, args):
-	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool."""
-	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})" if tool else None
+	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool: the video of the tool
+	timelapse of the MCP server is the path of an MP4 of services.timelapse."""
+	if not tool:
+		return None
+	args = dict(args)
+	if tool == 'timelapse' and args.pop('video', None):
+		args.setdefault('path', 'animation.mp4')
+	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})"
 
 
 # Files --------------------------------------------------------------------------------------------------------------

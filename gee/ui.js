@@ -825,7 +825,7 @@
 		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
 		// data of Earth Engine let the metrics change meanwhile
 		var only = mo.byRef(state.ref).metric;
-		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = only;
 		render();
 	}
 
@@ -843,7 +843,8 @@
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
-		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
+		// its only metric (SCF), also of each frame of the animation
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
 		render();
 	}
 
@@ -1432,8 +1433,9 @@
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
-	// map of the whole period (its percentiles 5 and 95, as services.timelapse), as a thumbnail that plays them, its
-	// dates and its colour bar; and the GIF to download
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
+	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
+	// download
 	function timelapse() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -1445,7 +1447,8 @@
 		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
 		var ramped = mo.rampEntry(e, state.animMetric, 'period');
 		var id = start();
-		mo.percentiles(mo.image(s, geom).clipToCollection(region), geom, rangeScale(e)).evaluate(function (st, error) {
+		var range = mo.animationRange(s, region, steps, state.animMetric);
+		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
 			if (id !== run) return;
 			var vis = mo.visParams(error ? null : st, ramped);
 			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);

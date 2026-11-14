@@ -5,6 +5,7 @@ the command line and the MCP server. tests/test_ee.py makes one in Earth Engine.
 
 import json
 import os
+import types
 
 import numpy as np
 import pytest
@@ -81,12 +82,67 @@ def test_the_texts_of_the_frames(tmp_path):
 	assert ramp_row[0][0] > 240 > ramp_row[0][1] and ramp_row[-1][1] > 240 > ramp_row[-1][0]  # the colour ramp
 
 
+def test_every_credit_is_written_on_the_frames():
+	"""The credits of the data are written whole, in as many lines as they need (the band below grows), not cut with an
+	ellipsis: those of ERA5-Land and of FAO GAUL are long."""
+	pytest.importorskip('PIL')
+	from PIL import Image, ImageDraw
+	credits = ('MonitorEO; Google Earth Engine; Contains modified Copernicus Climate Change Service information '
+	           '2021-2023. Neither the European Commission nor ECMWF is responsible for any use that may be made of '
+	           'the Copernicus information or data it contains; Source: FAO GAUL 2025 (CC BY 4.0). The designations '
+	           'employed and the presentation of material in the map do not imply the expression of any opinion.')
+	small = animation._font(animation.layout(600)[1])
+	measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+	width = lambda t: measure.textlength(t, font=small)  # noqa: E731
+	lines = animation._wrap(width, credits, 600 - 16)
+	assert len(lines) > 2 and ' '.join(lines) == credits and all(width(x) <= 600 - 16 for x in lines)
+	assert '…' not in ''.join(lines)
+	assert animation._wrap(width, 'a ' + 'x' * 400, 100)[0] == 'a'  # a word longer than a line: at its letters
+	assert ''.join(animation._wrap(width, 'x' * 400, 100)) == 'x' * 400
+	out = animation.annotate(np.full((300, 600, 3), 200, np.uint8), 0, ['2021'], 'PRECIP ERA5-Land', 0, 100,
+	                         ['ffffff', '0000ff'], 'mm', credits)
+	big, s, top, bar, bottom = animation.layout(600, len(lines))
+	assert bottom > animation.layout(600)[4] and out.shape == (top + 300 + bottom, 600, 3)
+	last = top + 300 + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+	assert (out[last:last + s, 8:592] != 255).any()  # its last line written
+
+
+def test_a_narrow_map_on_a_frame_where_its_texts_fit():
+	"""A narrow map (a strip of land: 18 x 65 pixels at dimensions=64, 17 x 601 at 600) is centred on a frame
+	animation.MIN_WIDTH pixels wide, white around it: its credits, all of them, in a few lines, not a letter or two a
+	line in a band below many times the height of the map; and one narrower than its margins can be drawn."""
+	pytest.importorskip('PIL')
+	from PIL import Image, ImageDraw
+	credits = ('MonitorEO; Google Earth Engine; Contains modified USGS Landsat data 2021-2023; Source: FAO GAUL 2025 '
+	           '(CC BY 4.0)')
+	small = animation._font(animation.layout(animation.MIN_WIDTH)[1])
+	measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+	lines = animation._wrap(lambda t: measure.textlength(t, font=small), credits, animation.MIN_WIDTH - 16)
+	assert ' '.join(lines) == credits and len(lines) <= 5
+	big, s, top, bar, bottom = animation.layout(animation.MIN_WIDTH, len(lines))
+	for h, w in ((65, 18), (601, 17), (40, 5), (200, 54)):
+		out = animation.annotate(np.full((h, w, 3), 200, np.uint8), 0, ['2021-01-01 to 2021-01-16'], 'NDVI', 0.1, 0.8,
+		                         ['ff0000', '00ff00'], '1', credits)
+		assert out.shape == (top + h + bottom, animation.MIN_WIDTH, 3), (h, w, out.shape)
+		x = (animation.MIN_WIDTH - w) // 2
+		assert (out[top:top + h - 4, x:x + w] == 200).all()  # the map, in the middle, above its progress bar
+		assert (out[top:top + h - 4, :x] == 255).all() and (out[top:top + h - 4, x + w:] == 255).all()
+		last = top + h + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+		assert (out[last:last + s, 8:animation.MIN_WIDTH - 8] != 255).any()  # the last line of its credits
+	wide = animation.annotate(np.full((50, 300, 3), 200, np.uint8), 0, ['2021'], 'NDVI', 0.1, 0.8,
+	                          ['ff0000', '00ff00'], '1', credits)
+	assert wide.shape[1] == 300 and (wide[animation.layout(300)[2]:][:46] == 200).all()  # a wider map: as it was
+
+
 def test_write_joins_the_frames(tmp_path):
 	Image = pytest.importorskip('PIL.Image')
 	path = animation.write(_frames(3, 80, 100), str(tmp_path / 'a.gif'), ['2021', '2022', '2023'], 'title', 0, 1,
 	                       ['000000', 'ffffff'], '', 'credits', fps=4)
 	gif = Image.open(path)
-	assert gif.n_frames == 3 and gif.info['duration'] == 250 and gif.size[0] == 100
+	assert gif.n_frames == 3 and gif.info['duration'] == 250 and gif.size[0] == max(100, animation.MIN_WIDTH)
+	path = animation.write(_frames(2, 80, 300), str(tmp_path / 'b.gif'), ['2021', '2022'], 'title', 0, 1,
+	                       ['000000', 'ffffff'], '', 'credits', fps=4)
+	assert Image.open(path).size[0] == 300
 
 
 ANSWER = {'file': 'ndvi.gif', 'gif': 'ndvi.gif', 'step': 'annual', 'fps': 2.0, 'dimensions': 600, 'n_frames': 3,
@@ -137,6 +193,92 @@ def test_an_animation_in_the_viewer_of_results(tmp_path):
 	assert publish.default_title('timelapse', ARGS) == 'Animation of NDVI (Sentinel-2), annual frames, 2021-2023'
 
 
+class _EE:
+	"""An object of Earth Engine that only says how it was made (WHAT), for services.timelapse without it."""
+
+	def __init__(self, what):
+		self.what = what
+
+	def __getattr__(self, name):
+		return lambda *args, **kw: _EE(f"{self.what}.{name}({', '.join(map(repr, args))})")
+
+	def __repr__(self):
+		return self.what
+
+
+@pytest.fixture
+def offline(monkeypatch, tmp_path):
+	"""services.timelapse without Earth Engine: what reaches the colour ramp (maps.vis_params, 'range') and the texts of
+	the frames (animation.write, 'credits')."""
+	from monitoreo import areas, composite, maps, variable
+	seen = {}
+
+	def vis_params(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True):
+		seen['range'] = repr(image)
+		return {'min': 0, 'max': 1, 'palette': ['000000', 'ffffff']}
+
+	def write(pictures, path, labels, title, vmin, vmax, palette, unit='', credits='', fps=2):
+		seen['credits'] = credits
+		return path
+
+	monkeypatch.setattr(animation, 'can_draw', lambda: None)
+	monkeypatch.setattr(areas, 'region', lambda region: _EE('regions'))
+	monkeypatch.setattr(services, '_bounds', lambda regions: seen.get('bounds', REGION['bbox']))
+	monkeypatch.setattr(variable, 'image', lambda spec, geom, res: _EE('the map of the period'))
+	monkeypatch.setattr(variable, 'collection', lambda spec, geom, res: _EE('images'))
+	monkeypatch.setattr(composite, '_reduce', lambda col, metric: _EE(f'{metric} of {col!r}'))
+	monkeypatch.setattr(animation, 'ee', types.SimpleNamespace(ImageCollection=types.SimpleNamespace(
+		fromImages=lambda images: _EE(f'the collection {images!r}'))))
+	monkeypatch.setattr(services, 'ee', types.SimpleNamespace(List=lambda xs: types.SimpleNamespace(
+		getInfo=lambda: [1] * len(xs))))
+	monkeypatch.setattr(maps, 'vis_params', vis_params)
+	monkeypatch.setattr(animation, 'frames', lambda col, regions, steps, *a, **k: [None] * len(steps))
+	monkeypatch.setattr(animation, 'fetch_frames', lambda frames, grid, progress=None: frames)
+	monkeypatch.setattr(animation, 'write', write)
+	monkeypatch.chdir(tmp_path)
+	return seen
+
+
+def test_the_colours_of_a_sum_or_a_count_are_those_of_a_frame(offline):
+	"""The colours of every frame come from the map of the whole period, but those of a sum or a count, which grow with
+	the images, from the median of the frames: the sum of 3 years of precipitation would be 3 times that of each frame,
+	all of them painted with the first colour."""
+	services.timelapse(REGION, 'PRECIP', 'TerraClimate', '2001-01-01', '2003-12-31', metric='sum')
+	years = ', '.join(f"sum of images.filterDate('{y}-01-01', '{y + 1}-01-01')" for y in (2001, 2002, 2003))
+	assert offline['range'] == f"the collection [{years}].median().rename('value').clipToCollection(regions)"
+	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', step='monthly', metric='count')
+	assert offline['range'].startswith("the collection [count of images.filterDate('2001-01-01', '2001-02-01'), ")
+	assert offline['range'].count('count of images') == 36
+	for metric in ('median', 'mean', 'p90', 'cv'):  # on the scale of a frame: the map of the whole period
+		services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric=metric)
+		assert offline['range'] == 'the map of the period.clipToCollection(regions)', metric
+
+
+def test_the_credits_of_the_region_are_written_on_the_frames(offline):
+	"""The frames have the outline of the region: the credits of its data (FAO GAUL, Global Islands) are written on
+	them, as they are in the result and the README."""
+	region = {'admin1': 'Andalucía', 'country': 'Spain'}
+	res = services.timelapse(region, 'NDVI', 'Modis', '2020-01-01', '2022-12-31')
+	assert 'FAO GAUL' in offline['credits'] and all(c in offline['credits'] for c in res['credits'])
+	services.timelapse({'island_at': [-16.5, 28.3]}, 'NDVI', 'Modis', '2020-01-01', '2022-12-31')
+	assert 'CC BY-SA' in offline['credits']
+
+
+def test_the_pixel_size_of_an_animation_is_that_of_its_frames(offline):
+	"""Earth Engine computes the frames on their own pixels (web Mercator, DIMENSIONS on the longest side), not on those
+	of the data when they are finer: the README says the size of those pixels, those of the data only when bigger."""
+	offline['bounds'] = [-3.65, 36.9, -2.55, 37.25]  # 98 km wide: pixels of 163 m on the ground
+	res = services.timelapse({'bbox': offline['bounds']}, 'NDVI', 'Sentinel-2', '2021-01-01', '2023-12-31')
+	grid = animation.frame_grid(offline['bounds'], 600)
+	assert (grid.width, grid.height) == (601, 241) and grid.res == pytest.approx(204.1, abs=0.1)
+	assert res['scale'] == pytest.approx(162.8, abs=0.5)
+	assert 'Pixel size of the computation: 162.8 m' in readme.text('timelapse', ARGS, res)
+	assert animation.pixel_size(offline['bounds'], 1200, 10) == pytest.approx(res['scale'] / 2, rel=0.01)
+	offline['bounds'] = REGION['bbox']  # 13 km: the pixels of MODIS (250 m) are bigger than those of the frames
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2021-01-01', '2023-12-31')
+	assert res['scale'] == 250
+
+
 @pytest.fixture
 def calls(monkeypatch):
 	out = []
@@ -174,6 +316,49 @@ def test_the_mcp_server_makes_an_animation(calls, monkeypatch, tmp_path):
 	with pytest.raises(Exception, match='fixed layer'):
 		mcp_server.timelapse(REGION, 'ELEVATION', 'Copernicus', start='2021-01-01', end='2023-12-31')
 	assert 'timelapse' in mcp_server.INSTRUCTIONS
+
+
+def test_a_video_animation_is_published_with_its_call(tmp_path):
+	"""The GIF of an animation made as a video by the MCP server (its file is the MP4) finds its call in the log: the
+	report has its title, frames, video, references and a call of Python that works (a path .mp4, not video)."""
+	from monitoreo import publish
+	PIL = pytest.importorskip('PIL.Image')
+	out = tmp_path / 'mcp'
+	out.mkdir()
+	gif, mp4 = out / 'ndvi.gif', out / 'ndvi.mp4'
+	frames = [PIL.new('RGB', (40, 30), c) for c in ('red', 'blue', 'green')]
+	frames[0].save(gif, save_all=True, append_images=frames[1:], duration=500, loop=0)
+	mp4.write_bytes(b'\x00\x00\x00\x18ftypmp42')
+	args = dict(ARGS, video=True)
+	publish.log_call('timelapse', args, dict(ANSWER, file=str(mp4), gif=str(gif)), str(out))
+	log = publish.calls_log(str(out))
+	assert publish._logged_call(str(gif), log)['tool'] == 'timelapse'
+	assert publish._logged_call(str(mp4), log)['tool'] == 'timelapse'
+	folder = tmp_path / 'report'
+	folder.mkdir()
+	rep = publish.build({'title': 'A video', 'summary': 'Frames', 'results': [str(gif)]}, 'a-video', str(out), [], log,
+	                    str(folder))
+	r = rep['results'][0]
+	assert r['kind'] == 'animation' and r['title'] == 'Animation of NDVI (Sentinel-2), annual frames, 2021-2023'
+	assert r['frames'] == ['2021', '2022', '2023'] and r['mp4'].endswith('.mp4') and r['call']['tool'] == 'timelapse'
+	assert 'video' not in r['call']['python'] and 'path="animation.mp4"' in r['call']['python']
+	cites = ' '.join(x['citation'] for x in rep['references'])
+	assert 'Wu, Q. (2020)' in cites and 'Gorelick, N.' in cites and 'Tucker' in cites
+	assert publish.check_report(rep, str(folder)) == []
+	# its MP4 deleted (or moved): the GIF is published with its call, without the video
+	mp4.unlink()
+	folder = tmp_path / 'report2'
+	folder.mkdir()
+	rep = publish.build({'title': 'A video', 'summary': 'Frames', 'results': [str(gif)]}, 'a-video', str(out), [], log,
+	                    str(folder))
+	r = rep['results'][0]
+	assert r['kind'] == 'animation' and r['call']['tool'] == 'timelapse' and r['frames'] == ['2021', '2022', '2023']
+	assert 'mp4' not in r and not any(f.endswith('.mp4') for f in os.listdir(folder / 'files'))
+	assert publish.check_report(rep, str(folder)) == []
+	# the call of Python of a timelapse of the MCP server: services.timelapse has no video
+	assert publish.python_call('timelapse', dict(ARGS, video=False)) == publish.python_call('timelapse', ARGS)
+	call = publish.python_call('timelapse', ARGS)
+	assert call.startswith('mo.timelapse(region=') and 'video' not in call and 'path' not in call
 
 
 def test_the_assistant_shows_the_animation(tmp_path, monkeypatch):
@@ -233,6 +418,60 @@ def test_the_app_has_the_same_frames():
 		assert got == [list(b) for b in timeseries.bins(spec, step)], step
 	assert out['steps'][3].startswith('ERROR 192 frames: an animation has at most 120')
 	assert out['steps'][4].startswith('ERROR unknown step daily')  # the days with images: only in Python
+
+
+RANGE = r"""
+var fs = require('fs'), path = require('path'), vm = require('vm');
+var input = JSON.parse(fs.readFileSync(0, 'utf8'));
+function made(what) {  // an ee that computes nothing: each of its objects says how it was made
+	return new Proxy(function () {}, {
+		get: function (t, p) {
+			if (p === 'what') return what;
+			return typeof p === 'symbol' || p === 'then' || p === 'toJSON' ? undefined : made(what + '.' + p);
+		},
+		apply: function (t, self, args) { return made(what + '(' + args.map(shown).join(', ') + ')'); }
+	});
+}
+function shown(a) {
+	if (a && a.what) return a.what;
+	if (Array.isArray(a)) return '[' + a.map(shown).join(', ') + ']';
+	return typeof a === 'function' ? 'function' : JSON.stringify(a);
+}
+global.ee = made('ee');
+['catalog.js', 'core.js'].forEach(function (f) {
+	vm.runInThisContext(fs.readFileSync(path.join(process.argv[1], f), 'utf8'), {filename: f});
+});
+var mo = global.MonitorEO;
+process.stdout.write(JSON.stringify(input.map(function (x) {
+	var s = mo.spec({ref: x[0], period: x[1], metric: x[2]});
+	return mo.animationRange(s, made('regions'), mo.animationSteps(s, 'annual'), x[2]).what;
+})));
+"""
+
+
+def test_the_app_colours_a_count_as_its_frames():
+	"""The app (gee/core.js, in node) takes the colours of an animation of a count, as Python those of a sum or a count,
+	from the median of its frames, and those of the other metrics from the map of the whole period."""
+	import shutil
+	import subprocess
+	from monitoreo import catalog
+	if not shutil.which('node'):
+		pytest.skip('no node')
+	ndvi, precip = catalog.find('NDVI', 'Modis')['ref'], catalog.find('PRECIP', 'TerraClimate')['ref']
+	runs = [(ndvi, ['2001-01-01', '2003-12-31'], 'count'), (precip, ['2001-01-01', '2003-12-31'], 'sum'),
+	        (ndvi, ['2001-01-01', '2003-12-31'], 'median')]
+	gee = os.path.join(os.path.dirname(__file__), '..', 'gee')
+	run = subprocess.run(['node', '-e', RANGE, gee], input=json.dumps(runs), capture_output=True, text=True,
+	                     timeout=120)
+	assert run.returncode == 0, run.stderr
+	count, total, median = json.loads(run.stdout)
+	for got, metric in ((count, 'count'), (total, 'sum')):
+		assert got.startswith('ee.ImageCollection.fromImages(') and got.endswith(
+			'.median().rename("value").clipToCollection(regions)'), metric
+		assert all(f'.filterDate("{y}-01-01", "{y + 1}-01-01").reduce(ee.Reducer.{metric}())' in got
+		           for y in (2001, 2002, 2003)), metric
+	assert 'fromImages' not in median and median.endswith('.clipToCollection(regions)')
+	assert 'ee.Reducer.median()' in median and '2001-01-01' in median and '2004-01-01' in median
 
 
 def test_the_same_palette_with_and_without_pillow(tmp_path, monkeypatch):

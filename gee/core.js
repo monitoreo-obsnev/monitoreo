@@ -1368,6 +1368,7 @@ var MonitorEO = (function () {
 	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
 	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
 	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
 	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
 	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
 		'October', 'November', 'December'];
@@ -1506,6 +1507,18 @@ var MonitorEO = (function () {
 			});
 		});
 		return out;
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
 	}
 
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
@@ -2340,7 +2353,8 @@ var MonitorEO = (function () {
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
-		animationSteps: animationSteps, animationFrames: animationFrames,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
