@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.36](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.36) · 2026-11-14 · package 0.3.46
 
 - **All tools**: Any variable of the catalog, also the fixed layers, has its coefficient of variation (100 × standard deviation / mean, in %, Pearson 1896) besides its mean, median, minimum, maximum, standard deviation and percentiles: of the images of each pixel (the metric of a map, a time series or a trend), between the years (e.g. how much the annual precipitation changes from year to year) and over the pixels of the region (the statistic of the time series, trends and comparisons, and the statistics of a map). The QGIS plugin also offers the standard deviation as a metric, the percentiles 25 and 75, the percentiles as the statistic of the region and every metric between the years; the burn severity gives the standard deviation and the coefficient of variation of the RBR and the RdNBR.
 - **Command line**: `monitoreo stats` gives the statistics of the map of a variable over each feature of a region (`--stats mean,cv,p90`), also of the fixed layers.
