@@ -1090,18 +1090,19 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
 	With a land cover map and OTHER_YEAR, its changes from YEAR to OTHER_YEAR instead (see monitoreo.classes): the
 	hectares of each pair of classes (mode 'transitions'), 'by_landcover' (those of each pair of broad land covers),
-	'changed_ha' and 'unchanged_ha' of each region, and a Sankey diagram of the broad land covers in CHART.
+	'changed_ha' and 'unchanged_ha' of each region, and a Sankey diagram of the broad land covers in CHART (of the
+	first feature of the region, named in its title, when it has several).
 	Returns {'rows': [{region, class, label, ..., ha, percent}], 'mode', 'classes': [{class, label, colour}], 'scale',
 	'unit', 'title', 'csv', 'chart'} and, for a land cover map, 'by_landcover' (the hectares of each broad land
 	cover)."""
 	mode = classes.mode_of(landcover, breaks, trend)
+	if mode == 'landcover' and (variable or sensor or source.get('collection') or source.get('image')):
+		raise ValueError('a land cover map has its own classes: give landcover and year, without a variable nor sensor')
 	if other_year not in (None, ''):
 		if mode != 'landcover':
 			raise ValueError('other_year is for the changes of a land cover map between two years (with landcover)')
 		return _transitions(region, landcover, year, other_year, scale, csv, chart, source)  # the map, by its key
 	if mode == 'landcover':
-		if variable or source.get('collection') or source.get('image'):
-			raise ValueError('a land cover map has its own classes: give landcover and year, without a variable')
 		if source.get('where') or source.get('exclude_landcover'):
 			raise ValueError('where is for the classes of a variable (breaks, trend), not for those of a land cover map')
 		m, year = classes.landcover_map(landcover, year)
@@ -1183,7 +1184,7 @@ def _transitions(region, key, year, other_year, scale, csv, chart, source):
 	       'classes': [{'class': k, 'label': labels[k], 'colour': classes.LANDCOVER_COLOURS.get(k)} for k in labels]}
 	if csv:
 		out['csv'] = timeseries.write_csv(rows, csv, {'scale_m': res}, classes.COLUMNS['transitions'])
-	first = broad[0]['region'] if broad else None
+	first = next(iter(change), None)  # the first feature of the region with data (the first rows of the CSV)
 	if chart and first is not None:
 		try:
 			charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in broad if r['region'] == first],

@@ -338,10 +338,11 @@ MO.chart = (() => {
 			if (kind === 'trends') return box.append(...trendTiles(subset, result));
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
-			if (kind === 'transitions') {  // its Sankey diagram, drawn by Python, and the pairs of classes
-				if (result.png && MO.safePath(result.png)) {
+			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
+				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
 					box.append(el('img', {class: 'sankey', src: base + result.png, loading: 'lazy',
-						alt: `${result.title}: Sankey diagram of the changes of the broad land covers`}));
+						alt: `${result.title}: Sankey diagram of the changes of the broad land covers` +
+							(regions.length > 1 ? ` (${regions[0]})` : '')}));
 				}
 				return box.append(table(subset.filter((r) => r.ha > 0), kind));
 			}

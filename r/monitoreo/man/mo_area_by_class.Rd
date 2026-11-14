@@ -124,7 +124,8 @@ band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments
 \item{other_year}{with \code{landcover}, its changes from \code{year} to this year instead: the hectares of each
 pair of classes (from_class, from_label, from_landcover, to_class, to_label, to_landcover, ha, percent), the
 attributes by_landcover (each pair of broad land covers), changed_ha and unchanged_ha, and with \code{chart} a
-Sankey diagram of the broad land covers.}
+Sankey diagram of the broad land covers (of the first feature of the region, named in its title, when it has
+several).}
 }
 \value{
 A data.frame (region, class, label and, for a land cover map, map, year and landcover; for breaks,

@@ -1077,7 +1077,8 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 #' @param other_year with \code{landcover}, its changes from \code{year} to this year instead: the hectares of each
 #'   pair of classes (from_class, from_label, from_landcover, to_class, to_label, to_landcover, ha, percent), the
 #'   attributes by_landcover (each pair of broad land covers), changed_ha and unchanged_ha, and with \code{chart} a
-#'   Sankey diagram of the broad land covers.
+#'   Sankey diagram of the broad land covers (of the first feature of the region, named in its title, when it has
+#'   several).
 #' @param breaks the values where to cut the map of the variable, e.g. \code{c(0.2, 0.4, 0.6)}.
 #' @param trend \code{TRUE}: the classes of the trend of the variable on each pixel.
 #' @param step,part,alpha with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or

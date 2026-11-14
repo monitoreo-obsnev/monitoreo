@@ -254,6 +254,64 @@ def test_the_changes_before_earth_engine():
 		services.area_by_class(REGION, landcover='CORINE', year=2018, other_year=2018)
 	with pytest.raises(ValueError, match='has no map of 2017'):
 		services.area_by_class(REGION, landcover='CORINE', year=2012, other_year=2017)
+	for variable, sensor in (('NDVI', 'Modis'), (None, 'Modis')):  # a land cover map has its own classes, as one year
+		for other_year in (None, 2018):
+			with pytest.raises(ValueError, match='own classes'):
+				services.area_by_class(REGION, variable, sensor, landcover='CORINE', year=2006, other_year=other_year)
+
+
+@pytest.fixture
+def changes(monkeypatch):
+	"""services.area_by_class of the changes of CORINE without Earth Engine: two features, Sierra Nevada and then
+	Doñana (the order of the region, not that of the alphabet); the Sankey diagrams it draws."""
+	class Regions:
+		def geometry(self):
+			return None
+	monkeypatch.setattr(services.areas, 'region', lambda region: Regions())
+	monkeypatch.setattr(services.classes, 'source', lambda m, year, geom: year)
+	monkeypatch.setattr(services.classes, 'pairs', lambda first, other: (first, other))
+	monkeypatch.setattr(services.classes, 'hectares', lambda img, regions, scale, crs: {
+		'Sierra Nevada': {311311: 80.0, 311324: 15.0, 324311: 5.0}, 'Doñana': {512512: 30.0, 311311: 10.0}})
+	monkeypatch.setattr(services.timeseries, 'region_crs', lambda regions: 'EPSG:3035')
+	drawn = []
+
+	def sankey(flows, colours=None, path=None, title=None, names=('', '')):
+		drawn.append({'flows': flows, 'title': title, 'names': names})
+		with open(path, 'wb') as f:
+			f.write(b'png')
+	monkeypatch.setattr(services.charts, 'sankey_png', sankey)
+	return drawn
+
+
+def test_the_sankey_diagram_is_of_the_first_feature(changes, tmp_path):
+	"""With several features, the Sankey diagram is of the first one of the region (that of the first rows of the CSV,
+	which the viewer of results shows first), named in its title and in the README."""
+	res = services.area_by_class(REGION, landcover='CORINE', year=2006, other_year=2018, scale=100.0,
+	                             csv=str(tmp_path / 'changes.csv'), chart=str(tmp_path / 'changes.png'))
+	assert res['rows'][0]['region'] == 'Sierra Nevada' and list(res['changed_ha']) == ['Sierra Nevada', 'Doñana']
+	drawn, = changes
+	assert drawn['title'].endswith(': broad land covers (Sierra Nevada)') and drawn['names'] == ('2006', '2018')
+	assert sum(h for _, _, h in drawn['flows']) == 100.0 and 'Water' not in {a for a, _, _ in drawn['flows']}  # Doñana
+	with open(res['readme'], encoding='utf-8') as f:
+		text = ' '.join(f.read().split())
+	assert 'changes.png: Sankey diagram (PNG) of the changes of the broad land covers of Sierra Nevada, the first ' \
+	       'feature of the region' in text
+
+
+def test_the_readme_of_the_changes(changes, tmp_path):
+	"""The README of the CSV of the changes says what its columns are: the hectares of each pair of classes, its % of
+	the area with a class in both years, and both years."""
+	res = services.area_by_class(REGION, landcover='CORINE', year=2006, other_year=2018, scale=100.0,
+	                             csv=str(tmp_path / 'changes.csv'))
+	with open(res['readme'], encoding='utf-8') as f:
+		text = ' '.join(f.read().split())
+	assert 'year: first year of the land cover map (that of from_class)' in text
+	assert 'other_year: other year of the land cover map (that of to_class)' in text
+	assert 'ha: hectares of the pixels of the feature with from_class in year and to_class in other_year (true area ' \
+	       'of its pixels)' in text
+	assert 'percent: % of the area of the feature with a class in both years (the pixels without data in either ' \
+	       'year are not counted)' in text
+	assert 'hectares of the class in the feature' not in text and 'Sankey diagram (PNG)' not in text  # no chart
 
 
 def test_the_sankey_diagram(tmp_path):
@@ -263,6 +321,34 @@ def test_the_sankey_diagram(tmp_path):
 	                        {'Water': '419bdf', 'Trees': '397d49', 'Shrubland': 'dfc35a'}, str(tmp_path / 's.png'),
 	                        'Changes', ('2006', '2018'))
 	assert png[:8] == b'\x89PNG\r\n\x1a\n' and (tmp_path / 's.png').exists()
+
+
+def test_the_bands_of_the_sankey_diagram_fill_their_classes(monkeypatch):
+	"""Each band of the Sankey diagram ends in the classes it joins, which it fills with the others, with the same
+	height per hectare in both columns, also when the two years have a different number of broad land covers (one
+	appears or disappears): no band wider than its class nor below the plot."""
+	pytest.importorskip('matplotlib')
+	from matplotlib.patches import PathPatch, Rectangle
+	from monitoreo import charts
+	figs = []
+	monkeypatch.setattr(charts, '_png', lambda fig, path=None: figs.append(fig) or b'')
+	flows = [('Trees', 'Trees', 50.0), ('Trees', 'Shrubland', 10.0), ('Water', 'Water', 20.0)] + \
+		[('Trees', k, 5.0) for k in ('Built', 'Bare', 'Grassland', 'Cropland')]
+	for case in (flows, [(b, a, h) for a, b, h in flows]):  # 2 classes to 7, and 7 to 2
+		charts.sankey_png(case)
+		ax = figs[-1].axes[0]
+		nodes = {(r.get_x() < 0.5, r.get_y(), r.get_y() + r.get_height()): 0.0 for r in ax.patches
+		         if isinstance(r, Rectangle)}
+		for band in (p for p in ax.patches if isinstance(p, PathPatch)):
+			v = band.get_path().vertices
+			for left, (hi, lo) in ((True, (v[0][1], v[7][1])), (False, (v[3][1], v[4][1]))):
+				assert lo >= -1e-9, case
+				node = [n for n in nodes if n[0] == left and n[1] - 1e-9 <= lo and hi <= n[2] + 1e-9]
+				assert len(node) == 1, (case, left, lo, hi)
+				nodes[node[0]] += hi - lo
+		assert all(abs(filled - (hi - lo)) < 1e-9 for (_, lo, hi), filled in nodes.items()), case
+		left, right = (sum(hi - lo for (on_left, lo, hi) in nodes if on_left == side) for side in (True, False))
+		assert abs(left - right) < 1e-9, case  # the same hectares, the same height
 
 
 CHANGES = dict(LANDCOVER, year=2006, other_year=2018)
@@ -294,6 +380,139 @@ def test_the_changes_are_cited_described_and_published(tmp_path):
 	rep = publish.build(spec, 'changes', str(tmp_path), [], None, str(folder))
 	r = rep['results'][0]
 	assert r['chart'] == 'transitions' and r['png'].endswith('.png') and publish.check_report(rep, str(folder)) == []
+
+
+# The viewer of results (src/monitoreo/viewer/assets/charts.js) in Node: a document that draws nothing, each element
+# with its attributes and children; the CSV of input.csv; the images of the chart of each region chosen
+VIEWER = r"""
+var fs = require('fs'), path = require('path'), vm = require('vm');
+var input = JSON.parse(fs.readFileSync(0, 'utf8'));
+function el(tag, attrs) {
+	var node = {tag: tag, attrs: attrs || {}, children: [], clientWidth: 800};
+	node.append = function () {
+		Array.prototype.slice.call(arguments).forEach(function (c) {
+			(Array.isArray(c) ? c : [c]).forEach(function (x) { node.children.push(x); });
+		});
+	};
+	node.replaceChildren = function () { node.children = []; node.append.apply(node, arguments); };
+	node.append.apply(node, Array.prototype.slice.call(arguments, 2));
+	return node;
+}
+global.MO = {el: el, text: function () { return Promise.resolve(input.csv); },
+	safePath: function (p) { return Boolean(p); }, round: String, num: String, pValue: String,
+	css: function () { return ''; }};
+global.vega = {read: function (text) {
+	var lines = text.trim().split('\n').map(function (l) { return l.split(','); });
+	return lines.slice(1).map(function (l) {
+		var r = {};
+		lines[0].forEach(function (k, i) { r[k] = l[i]; });
+		return r;
+	});
+}};
+global.window = {matchMedia: function () { return {addEventListener: function () {}}; }};
+vm.runInThisContext(fs.readFileSync(path.join(process.argv[process.argv.length - 1], 'charts.js'), 'utf8'));
+function all(node, out) {
+	out = out || [];
+	if (node && typeof node === 'object') {
+		out.push(node);
+		node.children.forEach(function (c) { all(c, out); });
+	}
+	return out;
+}
+function images(container) {
+	return all(container).filter(function (n) { return n.tag === 'img'; }).map(function (n) { return n.attrs.alt; });
+}
+(async function () {
+	var result = {id: 'r1', chart: 'transitions', title: 'Changes', csv: 'files/changes.csv', png: 'files/sankey.png'};
+	var out = {};
+	var container = el('div');
+	await MO.chart.render(container, result, '');
+	var select = all(container).filter(function (n) { return n.tag === 'select'; })[0];
+	out.regions = select.children.map(function (o) { return o.attrs.value; });
+	out.first = images(container);
+	select.attrs.onchange({target: {value: out.regions[1]}});
+	out.second = images(container);
+	select.attrs.onchange({target: {value: out.regions[0]}});
+	out.back = images(container);
+	input.csv = input.csv.split('\n').filter(function (l) { return l.indexOf('Doñana') < 0; }).join('\n');
+	container = el('div');
+	await MO.chart.render(container, result, '');
+	out.one = images(container);
+	process.stdout.write(JSON.stringify(out));
+})();
+"""
+
+
+def test_the_viewer_shows_the_sankey_diagram_with_its_region():
+	"""The viewer of results shows the Sankey diagram (of the first feature, as services.area_by_class draws it) with
+	the table of that feature only, named in its text, and alone with one feature."""
+	if not shutil.which('node'):
+		pytest.skip('no node')
+	csv = ('region,from_label,to_label,ha,percent\nSierra Nevada,311 Broad-leaved forest,324 Transitional,15,15\n'
+	       'Doñana,512 Water bodies,512 Water bodies,30,100\n')
+	assets = os.path.join(os.path.dirname(__file__), '..', 'src', 'monitoreo', 'viewer', 'assets')
+	run = subprocess.run(['node', '-e', VIEWER, assets], input=json.dumps({'csv': csv}), capture_output=True,
+	                     text=True, timeout=60)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['regions'] == ['Sierra Nevada', 'Doñana']  # as the CSV
+	sankey = 'Changes: Sankey diagram of the changes of the broad land covers'
+	assert out['first'] == out['back'] == [f'{sankey} (Sierra Nevada)'] and out['second'] == []
+	assert out['one'] == [sankey]
+
+
+# The group Area by class of the app (gee/ui.js) with «Its changes to», driven as a user would (the ui and ee of
+# tests/test_themes.py, which compute nothing): the two years of each map, ticked before or after choosing the map
+APP_CHANGES = r"""
+var out = {};
+answer = {info: {area: 8e7, centroid: [-3.56, 36.9], total: 8e7, boundsArea: 9e7}, n: 1};
+selectWith('view').opts.onChange('view');
+button('Use the map view').opts.onClick();
+function years() {  // the values of the selects of the first year and of the other
+	return find(controls, 'Select', function (w) {
+		return (w.opts.items || []).some(function (i) { return i.value === input.oldest; });
+	}).map(function (w) { return w.opts.value; });
+}
+function compute() {
+	answer = {features: []};
+	button('Compute the areas').opts.onClick();
+	return last().texts;
+}
+selectWith('DynamicWorld').opts.onChange('DynamicWorld');
+input.oldest = 2016;
+out.before = years();
+check('Its changes to').opts.onChange(true);
+out.dynamic = {years: years(), texts: compute()};
+input.oldest = 1990;
+selectWith('CORINE').opts.onChange('CORINE');  // ticked, then another map
+out.corine = {years: years(), texts: compute()};
+CATALOG.landcover.maps.forEach(function (m) { if (m.key === 'WorldCover') m.years = [2021]; });  // a map of one year
+input.oldest = 2021;
+selectWith('WorldCover').opts.onChange('WorldCover');
+out.one = {years: years(), controls: texts(controls)};
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_the_app_compares_two_different_years():
+	"""«Its changes to» of the app gives two different years, the first one the year before the other (as the QGIS
+	plugin), when it is ticked and when the map changes; with a map of a single year, it says so."""
+	if not shutil.which('node'):
+		pytest.skip('no node')
+	from test_themes import GEE, PANEL, _build
+	from monitoreo import catalog
+	script = PANEL[:PANEL.index('var out = {};')] + APP_CHANGES
+	data = {'community': _build().community_index(), 'other_themes': catalog.OTHER_THEMES, 'assets': {}}
+	run = subprocess.run(['node', '-e', script, GEE], input=json.dumps(data), capture_output=True, text=True,
+	                     timeout=120)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['before'] == [2025, 2025]  # the last whole year of Dynamic World, before ticking
+	assert out['dynamic']['years'] == [2024, 2025] and out['corine']['years'] == [2012, 2018]
+	for case in ('dynamic', 'corine'):
+		assert not any('choose two different years' in t for t in out[case]['texts']), out[case]
+	assert out['one']['years'] == [2021, 2021]
+	assert 'ESA WorldCover has a map of a single year: there are no changes to compute.' in out['one']['controls']
 
 
 def test_the_command_line_and_the_mcp_server_compare_two_years(calls, monkeypatch, tmp_path, capsys):

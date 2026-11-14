@@ -1763,10 +1763,11 @@ class MonitorEODock(QDockWidget):
 			path = os.path.join(tmp, 'areas.png')
 			colours = {c['label']: c['colour'] for c in res['classes']}
 			try:  # in the main thread; without matplotlib, the table only
-				if res['mode'] == 'transitions':
-					first = res['by_landcover'][0]['region'] if res['by_landcover'] else None
+				if res['mode'] == 'transitions':  # the Sankey diagram of the first feature, named if there are several
+					first = res['rows'][0]['region'] if res['rows'] else None
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
-					                   if r['region'] == first], colours, path, res['title'],
+					                   if r['region'] == first], colours, path,
+					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
 					                  (str(res['year']), str(res['other_year'])))
 				else:
 					charts.areas_png(res['rows'], colours, path, res['title'])

@@ -324,7 +324,7 @@ HELP = {
 		'<li><b>Land cover map</b>: the classes of a land cover map of a year (ESA WorldCover, Dynamic World, CORINE '
 		'Land Cover, MODIS), each with its broad land cover. No variable. With <b>changes to</b> another year, its '
 		'changes: the hectares of each pair of classes (from the first year to the other) and a Sankey diagram of the '
-		'broad land covers.</li>'
+		'broad land covers (of the first feature of the region, named in its title, when it has several).</li>'
 		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
 		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
 		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '

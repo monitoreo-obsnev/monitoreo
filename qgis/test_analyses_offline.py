@@ -9,7 +9,8 @@ has no Pillow: it checks that monitoreo.animation draws the texts of the frames 
 (greyed out for the fixed layers without dates, its metric fixed for the snow cover frequency), the arguments sent,
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
-each kind and the window of the result (its table, with the colour of each class).
+each kind (for the changes of a land cover map, the Sankey diagram of the first feature, named in its title) and the
+window of the result (its table, with the colour of each class).
 """
 
 import os
@@ -77,7 +78,7 @@ import monitoreo_qgis  # noqa: E402
 from monitoreo_qgis import deps  # noqa: E402
 
 deps.setup_path()  # earthengine-api from the ext/ of the plugin (build_plugin.py), or from PYTHONPATH
-from monitoreo import animation, services  # noqa: E402
+from monitoreo import animation, charts, services  # noqa: E402
 from qgis.PyQt.QtGui import QMovie  # noqa: E402
 
 # without Pillow: the texts with Qt, the GIF by monitoreo.animation
@@ -127,6 +128,18 @@ services.timelapse = timelapse
 
 def area_by_class(region, csv=None, **opts):
 	calls.append(dict(opts, region=region, csv=csv, tool='area_by_class'))
+	if opts.get('other_year'):  # the changes of a land cover map over two features: Sierra Nevada, then Doñana
+		rows = [{'region': g, 'from_label': a, 'to_label': b, 'ha': ha, 'percent': p} for g, a, b, ha, p in
+		        (('Sierra Nevada', '311 Broad-leaved forest', '324 Transitional woodland-shrub', 15.0, 15.0),
+		         ('Doñana', '512 Water bodies', '512 Water bodies', 30.0, 100.0))]
+		with open(csv, 'w') as f:
+			f.write('region,from_label,to_label,ha,percent\n')
+		return {'rows': rows, 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
+		        'year': opts['year'], 'other_year': opts['other_year'], 'classes': [], 'references': [], 'credits': [],
+		        'changed_ha': {'Sierra Nevada': 15.0, 'Doñana': 0.0},
+		        'unchanged_ha': {'Sierra Nevada': 0.0, 'Doñana': 30.0},
+		        'by_landcover': [{'region': 'Doñana', 'from_label': 'Water', 'to_label': 'Water', 'ha': 30.0},
+		                         {'region': 'Sierra Nevada', 'from_label': 'Trees', 'to_label': 'Trees', 'ha': 15.0}]}
 	rows = [{'region': 'extent', 'class': c, 'label': label, 'ha': ha, 'percent': p}
 	        for c, label, ha, p in ((-1, 'significant decrease', 10.0, 10.0), (0, 'no significant trend', 80.0, 80.0),
 	                                (1, 'significant increase', 10.0, 10.0))]
@@ -138,6 +151,8 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
+sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
+charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
 
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
@@ -221,6 +236,7 @@ assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (20
 dock.run_areas()
 wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
+assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
 dock.area_change.setChecked(False)
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')

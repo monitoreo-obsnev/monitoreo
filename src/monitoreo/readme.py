@@ -89,6 +89,17 @@ COLUMNS_AREAS = {
 	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
 	'label': 'name of the class',
 	'ha': 'hectares of the class in the feature (true area of its pixels)',
+	'year': 'year of the land cover map',
+}
+# the columns of the CSV of the changes of a land cover map (area_by_class with other_year) that differ from those of
+# COLUMNS_AREAS
+COLUMNS_TRANSITIONS = {
+	'year': 'first year of the land cover map (that of from_class)',
+	'other_year': 'other year of the land cover map (that of to_class)',
+	'ha': 'hectares of the pixels of the feature with from_class in year and to_class in other_year (true area of its '
+	      'pixels)',
+	'percent': '% of the area of the feature with a class in both years (the pixels without data in either year are '
+	           'not counted)',
 }
 # the fields of the vector file of the perimeter of the burned area (burn_severity with perimeter: fire.PERIMETER_TYPES)
 FIELDS = {
@@ -249,6 +260,10 @@ def text(tool, args, result, computed=None):
 	kinds = {'.csv': 'table (CSV, UTF-8, comma-separated, a header row)',
 	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS,
 	         **ANIMATION_KINDS}
+	if result.get('mode') == 'transitions':  # the changes of a land cover map: the Sankey diagram of its first feature
+		regions = list(result.get('changed_ha') or {})
+		kinds['.png'] = 'Sankey diagram (PNG) of the changes of the broad land covers' + \
+			(f' of {regions[0]}, the first feature of the region' if len(regions) > 1 else '')
 	out += [_wrap(f'{os.path.basename(f)}: {kinds.get(os.path.splitext(f)[1].lower(), "")}') for f in files]
 	out += _section('How it was computed')
 	out += [_wrap(f'{k}: {v}') for k, v in report.item_facts(tool, given, result)]
@@ -270,7 +285,8 @@ def text(tool, args, result, computed=None):
 			out += _section('Columns of', os.path.basename(f))
 			header = _csv_header(f)
 			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
-				dict(COLUMNS, **COLUMNS_AREAS) if tool == 'area_by_class' else COLUMNS
+				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
+				if tool == 'area_by_class' else COLUMNS
 			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):

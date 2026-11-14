@@ -172,13 +172,16 @@ def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=1
 	right = sorted(dict.fromkeys(b for _, b, _ in flows), key=pos)
 	total = sum(h for _, _, h in flows) or 1.0
 	gap = 0.02
+	# the height of all the classes, without the gaps of the longest column: the same hectares, the same height in both
+	# columns and in the bands
+	k = 1 - gap * (max(len(left), len(right), 1) - 1)
 	fig = Figure(figsize=(9, 5.5), dpi=dpi)
 	ax = fig.add_subplot()
 
 	def column(nodes, side):
 		out, y = {}, 1.0
 		for n in nodes:
-			h = sum(f[2] for f in flows if f[side] == n) / total * (1 - gap * max(len(nodes) - 1, 0))
+			h = sum(f[2] for f in flows if f[side] == n) / total * k
 			out[n] = [y - h, y]
 			y -= h + gap
 		return out
@@ -187,7 +190,7 @@ def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=1
 	colour = lambda n: f"#{(colours or {}).get(n, '9e9e9e')}"
 	lpos, rpos = {n: v[1] for n, v in ly.items()}, {n: v[1] for n, v in ry.items()}
 	for a, b, h in sorted(flows, key=lambda f: (left.index(f[0]), right.index(f[1]))):
-		w = h / total * (1 - gap * max(len(left) - 1, 0))
+		w = h / total * k
 		y0, y1 = lpos[a], rpos[b]
 		lpos[a] -= w
 		rpos[b] -= w

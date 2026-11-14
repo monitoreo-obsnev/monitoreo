@@ -72,6 +72,7 @@
 			areaChange: 'Sus cambios hasta', areaChanges: 'Cambios de las clases de %s de %s a %s',
 			areaChanged: '%s: cambiaron %s ha y no cambiaron %s ha (por clase del mapa).', areaFrom: 'De', areaTo: 'A',
 			areaBroad: 'Por usos del suelo generales; cada par de clases, en el CSV.', badYears: 'elige dos años distintos.',
+			areaOneYear: '%s tiene un mapa de un solo año: no hay cambios que calcular.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: 'Índice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas imágenes y píxeles que la ' +
@@ -223,6 +224,7 @@
 			areaChange: 'Its changes to', areaChanges: 'Changes of the classes of %s from %s to %s',
 			areaChanged: '%s: %s ha changed and %s ha did not (by class of the map).', areaFrom: 'From', areaTo: 'To',
 			areaBroad: 'By broad land cover; each pair of classes, in the CSV.', badYears: 'choose two different years.',
+			areaOneYear: '%s has a map of a single year: there are no changes to compute.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -1449,20 +1451,25 @@
 			var m = mo.landcoverMap(state.areaMap);
 			var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
 			if (!state.areaYear || mo.landcoverYears(m).indexOf(state.areaYear) < 0) state.areaYear = mo.landcoverDefaultYear(m);
+			if (!state.areaOther || mo.landcoverYears(m).indexOf(state.areaOther) < 0) state.areaOther = mo.landcoverDefaultYear(m);
+			if (state.areaChangeOn && state.areaYear === state.areaOther && years.length > 1) {
+				// two different years (ticked, or another map): the first one, the year before the other, as in QGIS
+				var i = years.map(function (y) { return y.value; }).indexOf(state.areaOther);
+				state.areaYear = years[i + 1 < years.length ? i + 1 : i - 1].value;
+			}
 			w.push(row(ui.Label(t('areaMap')), select(maps, state.areaMap, function (v) {
 				state.areaMap = v;
 				state.areaYear = null;
 				state.areaOther = null;
 				render();
 			}, '150px'), select(years, state.areaYear, function (v) { state.areaYear = v; }, '80px')));
-			if (!state.areaOther || mo.landcoverYears(m).indexOf(state.areaOther) < 0) state.areaOther = mo.landcoverDefaultYear(m);
 			var other = select(years, state.areaOther, function (v) { state.areaOther = v; }, '80px');
 			other.setDisabled(!state.areaChangeOn);
 			w.push(row(check(t('areaChange'), state.areaChangeOn, function (v) {
 				state.areaChangeOn = v;
-				if (v && state.areaYear === state.areaOther && years.length > 1) state.areaYear = years[1].value;
 				render();
 			}), other));
+			if (state.areaChangeOn && years.length < 2) w.push(ui.Label(fmt(t('areaOneYear'), m.name), SMALL));
 		} else if (state.areaKind === 'breaks') {
 			w.push(row(ui.Label(t('areaBreaks')), ui.Textbox({placeholder: t('breaksHint'), value: state.areaBreaks,
 				onChange: function (v) { state.areaBreaks = v; }, style: {width: '190px'}})));
