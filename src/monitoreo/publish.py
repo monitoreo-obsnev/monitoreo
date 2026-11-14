@@ -92,9 +92,11 @@ LICENSE = 'CC-BY-4.0'
 
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
-            'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map'}
+            'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
+            'timelapse': 'animation'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
-                  'burn_severity': 'Burn severity', 'map': 'Map'}
+                  'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation'}
+ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison'}
@@ -254,9 +256,10 @@ def _items(spec, base, folders, log):
 			c = _logged_call(path, log) or {}
 			item.setdefault('tool', c.get('tool'))
 			item.setdefault('args', c.get('args'))
-			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff')) else 'csv': path}
+			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
+			                                     else 'csv': path}
 		res = dict(item.get('result') or {})
-		for k in ('file', 'csv', 'chart'):
+		for k in ('file', 'gif', 'csv', 'chart'):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
 		item['result'] = res
@@ -328,7 +331,7 @@ def default_title(tool, args):
 	period = period_text(args['start'], args['end']) if args.get('start') and args.get('end') else ''
 	other = period_text(args['other_start'], args['other_end']) \
 		if args.get('other_start') and args.get('other_end') else ''
-	step = args.get('step') or ('annual' if tool in ('trend_table', 'download_trend') else 'monthly')
+	step = args.get('step') or ('annual' if tool in ('trend_table', 'download_trend', 'timelapse') else 'monthly')
 	if tool == 'time_series':
 		return f'{STEPS.get(step, step).capitalize()} time series of {var}, {period}{season}'
 	if tool == 'trend_table':
@@ -355,6 +358,8 @@ def default_title(tool, args):
 		return f'Map of {var}' if is_static(args) or not period else f'Map of {var}, {period}{season}'
 	if tool == 'download_rgb':
 		return f'True colour of the images of {var}, {period}{season}'
+	if tool == 'timelapse':
+		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
 	return var or 'Result'
 
 
@@ -667,6 +672,15 @@ def _results(item, files, n):
 	if unit.endswith('/ year'):
 		unit = unit[:-len('/ year')].strip()
 	out = []
+	gif = res.get('gif') or (res.get('file') if str(res.get('file') or '').lower().endswith('.gif') else None)
+	if gif:  # an animation (services.timelapse): its GIF, and its MP4 to download
+		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'animation', 'title': title, 'caption': item.get('caption'),
+		         'tool': tool, 'gif': files.add(gif, 'files', f'Animation (GIF): {title}', 'GIF'),
+		         'frames': [f.get('label') for f in res.get('frames') or [] if isinstance(f, dict)],
+		         'unit': unit_text(unit), 'call': call}
+		if str(res.get('file') or '').lower().endswith('.mp4'):
+			entry['mp4'] = files.add(res['file'], 'files', f'Animation (MP4 video): {title}', 'MP4')
+		out.append(entry)
 	if res.get('file') and str(res['file']).lower().endswith(('.tif', '.tiff')):
 		cog = files.add(res['file'], 'maps', f'Map (GeoTIFF): {title}', 'GeoTIFF', convert=to_cog)
 		ds, arrays = _read_map(os.path.join(files.folder, cog))
@@ -716,7 +730,7 @@ def _results(item, files, n):
 	elif res.get('chart'):
 		files.add(res['chart'], 'files', f'Chart (PNG): {title}', 'PNG')
 	if not out:
-		raise ValueError(f'the result of {tool or "a file"} has no GeoTIFF nor CSV to publish: {sorted(res)}')
+		raise ValueError(f'the result of {tool or "a file"} has no GeoTIFF, CSV nor animation to publish: {sorted(res)}')
 	return out
 
 
@@ -834,12 +848,13 @@ def build(spec, rid, base, folders, log, folder):
 	dst = os.path.join(folder, thumbnail)
 	maps_ = [r for r in results if r['kind'] == 'map']
 	pngs = [r['png'] for r in results if r.get('png')]
+	gifs = [r['gif'] for r in results if r.get('gif')]
 	if spec.get('thumbnail'):
 		_thumbnail_of_image(_find(spec['thumbnail'], base, folders), dst)
 	elif maps_:
 		_thumbnail_of_map(os.path.join(folder, maps_[0]['cog']), maps_[0], dst)
-	elif pngs:
-		_thumbnail_of_image(os.path.join(folder, pngs[0]), dst)
+	elif pngs or gifs:  # a chart, or the first frame of an animation
+		_thumbnail_of_image(os.path.join(folder, (pngs or gifs)[0]), dst)
 	else:
 		thumbnail = None
 	region = _region(spec, items)
@@ -1082,6 +1097,11 @@ def check_report(report, folder=None):
 			w, s, e, n = r['bounds']
 			if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
 				p.append(f'{where}: bounds are [west, south, east, north] in degrees')
+		elif r.get('kind') == 'animation':
+			if r.get('gif') not in paths:
+				p.append(f'{where}: its GIF is not in files')
+			if r.get('mp4') and r['mp4'] not in paths:
+				p.append(f'{where}: its MP4 is not in files')
 		elif r.get('kind') == 'chart':
 			if r.get('chart') not in CHART_TYPES:
 				p.append(f"{where}: chart is one of {', '.join(CHART_TYPES)}")
@@ -1090,7 +1110,7 @@ def check_report(report, folder=None):
 			if r.get('png') and r['png'] not in paths:
 				p.append(f'{where}: its PNG is not in files')
 		else:
-			p.append(f'{where}: kind is map or chart')
+			p.append(f'{where}: kind is map, chart or animation')
 	for f in report['files']:
 		if not _rel_ok(f.get('path')) or not f.get('title') or not isinstance(f.get('bytes'), int):
 			p.append(f"file {f.get('path')}: a relative path, a title and its bytes")

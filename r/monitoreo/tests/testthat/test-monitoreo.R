@@ -388,6 +388,27 @@ test_that("burn severity with the perimeter: its arguments reach the services, i
   expect_null(attr(y, "perimeter"))
 })
 
+test_that("the animation of a variable: its arguments reach the services, its frames come back", {
+  sent <- NULL
+  answer <- list(file = "ndvi.gif", gif = "ndvi.gif", n_frames = 2L, step = "annual",
+                 frames = list(list(date = "2020-01-01", end = "2021-01-01", label = "2020", images = 12L),
+                               list(date = "2021-01-01", end = "2022-01-01", label = "2021", images = 0L)),
+                 references = list(), credits = list())
+  local_mocked_bindings(services = function() list(timelapse = function(...) {
+    sent <<- list(...)
+    answer
+  }), .package = "monitoreo")
+  x <- mo_timelapse(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", "Sentinel-2", "2020-01-01", "2021-12-31",
+                    "ndvi.gif", step = "annual", fps = 3, dimensions = 400)
+  expect_equal(sent$fps, 3)
+  expect_identical(sent$dimensions, 400L)
+  expect_equal(sent$path, "ndvi.gif")
+  expect_equal(x$n_frames, 2L)
+  expect_equal(x$frames[[2]]$images, 0L)
+  expect_error(mo_timelapse(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", start = "2020-01-01", end = "2021-12-31",
+                            path = "ndvi.gif"), "sensor")
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

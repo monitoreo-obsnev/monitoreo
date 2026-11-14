@@ -87,6 +87,9 @@ FIELDS = {
 # the files of polygons that the tools write (areas.VECTOR_DRIVERS)
 VECTOR_KINDS = {'.gpkg': 'polygons (GeoPackage, EPSG:4326, layer perimeter)', '.geojson': 'polygons (GeoJSON, EPSG:4326)',
                 '.shp': 'polygons (Shapefile, EPSG:4326, with its .shx, .dbf and .prj)'}
+# the animations (services.timelapse)
+ANIMATION_KINDS = {'.gif': 'animation (GIF), a frame per time step', '.mp4': 'animation (MP4 video, H.264), a frame '
+                                                                          'per time step'}
 # the columns of the CSV of the RdNBR (burn_severity with index RdNBR, a CSV with the column rdnbr_min) that differ
 COLUMNS_RDNBR = {
 	'class': 'severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)',
@@ -219,15 +222,15 @@ def text(tool, args, result, computed=None):
 	from . import report
 	result = result if isinstance(result, dict) else {}
 	given = call_args(args)
-	files = [result[k] for k in ('file', 'csv', 'chart', 'perimeter') if isinstance(result.get(k), str) and
-	         os.path.exists(result[k])]
+	files = _files(result, ('file', 'gif', 'csv', 'chart', 'perimeter'))
 	name = os.path.basename(files[0]) if files else tool
 	title = report.item_title(tool, given, result)
 	out = [f'README of {name}', '=' * min(WIDTH, len(f'README of {name}')), '', title,
 	       _wrap(f'Computed with MonitorEO {__version__} in Google Earth Engine on {computed or _now()}.', '', '')]
 	out += _section('Files')
 	kinds = {'.csv': 'table (CSV, UTF-8, comma-separated, a header row)',
-	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS}
+	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS,
+	         **ANIMATION_KINDS}
 	out += [_wrap(f'{os.path.basename(f)}: {kinds.get(os.path.splitext(f)[1].lower(), "")}') for f in files]
 	out += _section('How it was computed')
 	out += [_wrap(f'{k}: {v}') for k, v in report.item_facts(tool, given, result)]
@@ -239,9 +242,10 @@ def text(tool, args, result, computed=None):
 		from . import catalog
 		what = 'The values are coefficients of variation (100 × standard deviation / mean), in %' \
 			if catalog.is_cv(*_metrics(given)) else f"The variable is {'in ' + unit if unit else 'dimensionless'}"
-		out.append(_wrap(f"{what}: in UDUNITS (the units of the CF conventions), {ud}{per_year}. The columns unit and "
-		                 'slope_unit of the CSV and the units of the bands of the GeoTIFF are in UDUNITS (1 is '
-		                 'dimensionless).'))
+		where = 'The colour ramp of the animation is in this unit.' if tool == 'timelapse' else \
+			'The columns unit and slope_unit of the CSV and the units of the bands of the GeoTIFF are in UDUNITS (1 is ' \
+			'dimensionless).'
+		out.append(_wrap(f"{what}: in UDUNITS (the units of the CF conventions), {ud}{per_year}. {where}"))
 	for f in files:
 		ext = os.path.splitext(f)[1].lower()
 		if ext == '.csv':
@@ -259,6 +263,13 @@ def text(tool, args, result, computed=None):
 			for i, b, bu in bands:
 				label = publish.band_text(b, names)[0] if b == 'severity' else BANDS.get(b, ('', ''))[0]
 				out.append(_wrap(f'{i} {b}: {label}' + (f' ({bu})' if bu else '')))
+		elif ext in ANIMATION_KINDS and result.get('frames'):
+			out += _section('Frames of', os.path.basename(f))
+			out.append(_wrap('Each frame is a time step: its date (first and last day), its title and the number of '
+			                 'images of the step (0: no images, the region in grey).'))
+			out += [_wrap(f"{i} {fr.get('label', '')}: {fr.get('date', '')} to the day before {fr.get('end', '')}, "
+			              f"{fr.get('images') if fr.get('images') is not None else '?'} images")
+			        for i, fr in enumerate(result['frames'], 1)]
 		elif ext in VECTOR_KINDS:
 			out += _section('Fields of', os.path.basename(f))
 			out.append(_wrap('The perimeter of the burned area: a feature for each feature of the region, a MultiPolygon '
@@ -280,6 +291,16 @@ def text(tool, args, result, computed=None):
 	return '\n'.join(out) + '\n'
 
 
+def _files(result, keys):
+	"""The files of RESULT that exist, under KEYS, each once (the GIF of an animation is also its file)."""
+	out = []
+	for k in keys:
+		f = result.get(k)
+		if isinstance(f, str) and os.path.exists(f) and f not in out:
+			out.append(f)
+	return out
+
+
 def readme_path(path):
 	"""The README of the file PATH: <file without extension>.README.txt."""
 	return os.path.splitext(path)[0] + '.README.txt'
@@ -295,8 +316,7 @@ def document(tool, args, result, computed=None):
 		folders = result.get('folders') or {}
 		paths = [recipe_folder(d, result) for d in (folders.values() if isinstance(folders, dict) else folders)]
 		return [p for p in paths if p] or None
-	files = [result[k] for k in ('file', 'csv', 'perimeter') if isinstance(result.get(k), str) and
-	         os.path.exists(result[k])]
+	files = _files(result, ('file', 'gif', 'csv', 'perimeter'))
 	if not files:
 		return None
 	for f in files:

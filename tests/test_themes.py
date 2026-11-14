@@ -965,7 +965,8 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	                                         metric='sum')) == 'mm month-1'
 	# SCF takes only the mean again after the data of Earth Engine changed the metrics
 	scf = out['scf']
-	assert scf['enabled'] == [True] * 3 and scf['selects'] == [['mean', True]] * 3
+	# the metric of the map, of the animation, of the time series and of the trends
+	assert scf['enabled'] == [True] * 4 and scf['selects'] == [['mean', True]] * 4
 	assert scf['map']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
 	assert scf['series']['charts'][0]['title'] == 'SCF Landsat · Map view · Mean monthly · mean'
 	assert 'Trends (Mann-Kendall and Sen) · mean' in ' '.join(scf['trends']['texts'] +

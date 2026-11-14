@@ -33,7 +33,8 @@ TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 
           'rgb_map': 'True colour of the images of {var}, {period}{season}',
           'download_rgb': 'True colour of the images of {var}, {period}{season} (GeoTIFF)',
           'trend_map': 'Map of the trend of {var}, {period}{season}',
-          'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}'}
+          'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}',
+          'timelapse': 'Animation of {var}, {period}{season}'}
 
 METHODS = {
 	'time_series': 'For each time step, the temporal metric of the images of the step on each pixel and, over the '
@@ -68,6 +69,10 @@ METHODS = {
 	                      'of the study area and, if the recipe asks for it, of its ecoregions.',
 	'burn_severity': 'dNBR: NBR of the period before the fire minus NBR of the period after it, with the severity '
 	                 'classes of the USGS (Key and Benson, 2006). Burned area: dNBR ≥ 0.1.',
+	'timelapse': 'An animation (a timelapse, as those of geemap): a frame per time step, each the temporal metric of '
+	             'the images of the step on each pixel, coloured with the same colour ramp in every frame (Colours) so '
+	             'that they can be compared, with its date; the pixels of the region without data in a step are light '
+	             'grey.',
 	'static': 'A fixed layer, without dates: its value on each pixel (no period, temporal metric or pixel filters).',
 	'burn_severity_rbr': 'RBR (Relativized Burn Ratio, Parks et al., 2014): dNBR / (NBR before + 1.001), with the NBR '
 	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
@@ -290,15 +295,15 @@ def item_facts(tool, args, result=None, names=None):
 	if args.get('other_start') and args.get('other_end'):
 		label = 'After the fire' if tool == 'burn_severity' else 'Other period'
 		facts.append((label, period_text(args['other_start'], args['other_end']) + season_text(args.get('season'))))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend'):
-		step = args.get('step') or ('annual' if 'trend' in tool else 'monthly')
+	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse'):
+		step = args.get('step') or ('annual' if 'trend' in tool or tool == 'timelapse' else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
 	if tool in ('trend_map', 'download_trend') and args.get('part'):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison', 'rgb_map',
-	                                                      'download_rgb') else 'mean')
+	                                                      'download_rgb', 'timelapse') else 'mean')
 	if not static:
 		facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
@@ -351,6 +356,14 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	if tool == 'timelapse' and result.get('n_frames'):
+		empty = sum(1 for f in result.get('frames') or [] if not f.get('images'))
+		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 2)} per second"
+		                        + (f'; {_num(empty)} without images (grey)' if empty else '')))
+	if tool == 'timelapse' and result.get('min') is not None:
+		unit = unit_text(result.get('unit'))
+		facts.append(('Colours', f"from {_num(result['min'])} to {_num(result['max'])}" + (f' {unit}' if unit else '')
+		                         + ', the same in every frame'))
 	if tool in ('rgb_map', 'download_rgb') and result.get('min') is not None:
 		facts.append(('Colours', f"red, green and blue reflectance stretched from {_num(result['min'])} to "
 		                         f"{_num(result['max'])}"))

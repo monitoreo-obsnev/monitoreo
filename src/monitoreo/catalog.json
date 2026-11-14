@@ -394,6 +394,9 @@
   ],
   "cv": [
    "pearson1896"
+  ],
+  "timelapse": [
+   "wu2020"
   ]
  },
  "references": {
@@ -740,6 +743,10 @@
   "clc2018": {
    "citation": "European Environment Agency (2019). CORINE Land Cover 2018 (raster 100 m), Europe, 6-yearly [Data set]. Copernicus Land Monitoring Service.",
    "doi": "10.2909/960998c1-1870-4e82-8051-6485205ebbac"
+  },
+  "wu2020": {
+   "citation": "Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of Open Source Software, 5(51), 2305.",
+   "doi": "10.21105/joss.02305"
   }
  },
  "variables": [

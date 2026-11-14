@@ -4,7 +4,8 @@ the trends and of the comparison of periods are only the PNG (without matplotlib
 Those of a series and of trends add to the map that of its whole period or of each of its dates or parts of the year
 (of a series, also the true colour of its images, under it or alone). That of a burn severity has the hectares of
 each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, and under them its statistics), with its colour, or the
-statistics of the RBR. The results of the data of Earth Engine outside the catalog (given by their ID) are those of a
+statistics of the RBR. That of an animation (services.timelapse) plays its GIF, with the date and the images of each
+frame. The results of the data of Earth Engine outside the catalog (given by their ID) are those of a
 variable, named by their ID and band, with the unit given (if any) and without true colour. Each window ends with the
 references of its result (monitoreo.references), with the links of their DOIs."""
 
@@ -14,7 +15,7 @@ import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
-from qgis.PyQt.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from qgis.PyQt.QtGui import QColor, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
                                  QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -35,6 +36,7 @@ RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('s
 # the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
 RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
                  ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]
+FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
 MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
 KINDS_TIP = ('Index: the map of the variable. True colour (RGB): the red, green and blue surface reflectance of the '
@@ -146,7 +148,7 @@ def save_file(src, path, res):
 	to cite it."""
 	shutil.copyfile(src, path)
 	readme = res.get('readme')
-	if src in (res.get('csv'), res.get('file'), res.get('perimeter')) and isinstance(readme, str) and \
+	if src in (res.get('csv'), res.get('file'), res.get('gif'), res.get('perimeter')) and isinstance(readme, str) and \
 			os.path.exists(readme):
 		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
 
@@ -276,6 +278,54 @@ class ResultDialog(QDialog):
 		                         ('Save chart…', res.get('chart'), 'PNG (*.png)'),
 		                         ('Save GeoTIFF…', res.get('file'), 'GeoTIFF (*.tif)'),
 		                         ('Save perimeter…', res.get('perimeter'), 'GeoPackage (*.gpkg)')):
+			if path:
+				b = QPushButton(text)
+				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
+				row.addWidget(b)
+		b = QPushButton('Close')
+		b.clicked.connect(self.close)
+		row.addWidget(b)
+		lay.addLayout(row)
+
+	def save(self, src, filt):
+		path, _ = QFileDialog.getSaveFileName(self, 'Save', src.replace('\\', '/').rsplit('/', 1)[-1], filt)
+		if path:
+			save_file(src, path, self.res)
+
+
+class AnimationDialog(QDialog):
+	"""Window of an animation (services.timelapse): its GIF playing, the date and the images of each frame, and buttons to
+	save it."""
+
+	def __init__(self, res, parent=None, add_map=None):
+		super().__init__(parent)
+		self.res = res
+		self.setWindowTitle(f"MonitorEO: {res['label']}")
+		self.resize(760, 900)
+		lay = QVBoxLayout(self)
+		empty = sum(1 for f in res.get('frames') or [] if not f.get('images'))
+		info = QLabel(f"{res['name']} · {res['n_frames']} frames, {res['fps']:g} per second · colours from "
+		              f"{res['min']:.4g} to {res['max']:.4g} {unit_label(res)}".rstrip()
+		              + (f' · {empty} frames without images (grey)' if empty else ''))
+		info.setWordWrap(True)
+		lay.addWidget(info)
+		self.picture = QLabel()
+		self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		self.movie = QMovie(res['gif'])
+		self.movie.setCacheMode(QMovie.CacheMode.CacheAll)
+		self.picture.setMovie(self.movie)
+		lay.addWidget(self.picture, 3)
+		self.movie.start()
+		rows = [dict(f, frame=i) for i, f in enumerate(res.get('frames') or [], 1)]
+		lay.addWidget(table_of(rows, FRAME_COLUMNS), 1)
+		refs = references_box(res)
+		if refs:
+			lay.addWidget(refs)
+		row = QHBoxLayout()
+		row.addStretch()
+		for text, path, filt in (('Save GIF…', res.get('gif'), 'GIF (*.gif)'),
+		                         ('Save video…', res['file'] if str(res.get('file')).lower().endswith('.mp4') else None,
+		                          'MP4 (*.mp4)')):
 			if path:
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))

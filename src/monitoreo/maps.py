@@ -43,8 +43,10 @@ def vis_params(image, region_geom, entry=None, scale=None, vmin=None, vmax=None,
 		st = {}
 		if compute:
 			try:
+				# tileScale 4, as the Earth Engine app (gee/core.js): without it, the median of some years of
+				# Sentinel-2 over a few km runs out of memory, and the ramp was that of the catalog
 				st = ee.Image(image).reduceRegion(ee.Reducer.percentile([5, 95]), region_geom, scale, bestEffort=True,
-				                                  maxPixels=int(1e6)).getInfo()
+				                                  maxPixels=int(1e6), tileScale=4).getInfo()
 			except ee.EEException:
 				st = {}
 		lo, hi = st.get('value_p5'), st.get('value_p95')
@@ -134,21 +136,27 @@ def thumbnail(image, region_geom, vis=None, dimensions=PREVIEW_PIXELS, path=None
 	the message of Earth Engine if it cannot make it, or does not in PREVIEW_TIMEOUT seconds."""
 	img = ee.Image(image).visualize(**vis) if vis else ee.Image(image)
 	url = img.getThumbURL({'region': region_geom, 'dimensions': int(dimensions), 'format': 'png'})
-	if not url.startswith('https://'):
-		raise ValueError(f'Earth Engine gave a thumbnail URL that is not https: {url}')
-	try:
-		# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
-		with urllib.request.urlopen(url, timeout=PREVIEW_TIMEOUT) as r:  # nosec B310
-			png = r.read()
-	except urllib.error.HTTPError as e:  # before OSError (an HTTPError is one): its body says why
-		raise ee.EEException(f'Earth Engine could not make the PNG preview: {earth_engine_error(e)}') from e
-	except http.client.HTTPException as e:  # the connection cut while the PNG came (IncompleteRead, BadStatusLine)
-		raise ee.EEException(f'Earth Engine could not send the PNG preview: {e!r}') from e
-	except (TimeoutError, urllib.error.URLError) as e:
-		if isinstance(e, TimeoutError) or isinstance(getattr(e, 'reason', None), TimeoutError):
-			raise ee.EEException(f'Earth Engine did not make the PNG preview in {PREVIEW_TIMEOUT // 60} minutes') from e
-		raise
+	png = fetch(url, 'the PNG preview')
 	if path:
 		with open(path, 'wb') as f:
 			f.write(png)
 	return png
+
+
+def fetch(url, what='the PNG preview', timeout=PREVIEW_TIMEOUT):
+	"""The bytes of a picture that Earth Engine makes at URL (a thumbnail, or the GIF of an animation: WHAT, for the
+	messages). ee.EEException with the message of Earth Engine if it cannot make it, or does not in TIMEOUT seconds."""
+	if not url.startswith('https://'):
+		raise ValueError(f'Earth Engine gave a thumbnail URL that is not https: {url}')
+	try:
+		# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+		with urllib.request.urlopen(url, timeout=timeout) as r:  # nosec B310
+			return r.read()
+	except urllib.error.HTTPError as e:  # before OSError (an HTTPError is one): its body says why
+		raise ee.EEException(f'Earth Engine could not make {what}: {earth_engine_error(e)}') from e
+	except http.client.HTTPException as e:  # the connection cut while the picture came (IncompleteRead, BadStatusLine)
+		raise ee.EEException(f'Earth Engine could not send {what}: {e!r}') from e
+	except (TimeoutError, urllib.error.URLError) as e:
+		if isinstance(e, TimeoutError) or isinstance(getattr(e, 'reason', None), TimeoutError):
+			raise ee.EEException(f'Earth Engine did not make {what} in {timeout // 60} minutes') from e
+		raise

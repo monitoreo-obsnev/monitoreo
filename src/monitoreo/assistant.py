@@ -103,7 +103,7 @@ ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'community_datasets', 'landcover_maps')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
-           'download_variables')  # their answers go only to the user and the report
+           'download_variables', 'timelapse')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 # arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
@@ -293,7 +293,8 @@ zero and positive values (precipitation, NDVI of vegetation), not with a mean ne
 around 0). Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
 with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
 each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
-compare_series and compare_map. Fire: burn_severity.
+compare_series and compare_map. Animation of the change, a frame per year (or month) with its date: timelapse \
+(step "annual" or "monthly", at most 120 frames; it takes some minutes). Fire: burn_severity.
 - True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
 colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \
 and download_rgb, with those of download_image, for its GeoTIFF; only variables of Sentinel-2, Landsat and the cloud \
@@ -508,12 +509,13 @@ def _compact(schema, names=False):
 
 def _description(text):
 	"""The description of a tool for the model, in one paragraph and without the explanation of the data of Earth
-	Engine by their ID that the MCP server adds to each tool that takes them (its SOURCE_DOC) and of the land cover
-	masks of where (LANDCOVER_DOC): the instructions give them once (PROMPT), and with a variable of the catalog the
-	assistant passes no collection (see fix_args)."""
+	Engine by their ID that the MCP server adds to each tool that takes them (its SOURCE_DOC), of where (WHERE_DOC)
+	and of its land cover masks (LANDCOVER_DOC): the instructions give them once (PROMPT), and with a variable of the
+	catalog the assistant passes no collection (see fix_args)."""
 	from . import mcp_server
 	text = ' '.join(str(text or '').split())
-	for doc in ('SOURCE_DOC', 'LANDCOVER_DOC'):  # the land cover masks too: the instructions explain them (PROMPT)
+	# where and its land cover masks too: the instructions explain them (PROMPT); WHERE_DOC ends with LANDCOVER_DOC
+	for doc in ('SOURCE_DOC', 'WHERE_DOC', 'LANDCOVER_DOC'):
 		said = ' '.join(str(getattr(mcp_server, doc, '')).split())
 		text = text.replace(said, '') if said else text
 	return text.replace('  ', ' ').strip()
@@ -1837,8 +1839,12 @@ class Assistant:
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
 			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
 				card['under'] = {'text': report.map_style('rgb_map', args, item['under'])['text']}
-			for k in ('csv', 'file', 'perimeter', 'readme'):  # perimeter: the polygons of the burned area
-				if isinstance(result.get(k), str):
+			if tool == 'timelapse' and isinstance(result.get('gif'), str):  # the animation itself, not its last frame
+				card['image'] = _file_url(result['gif']) or card['image']
+			shown = set()
+			for k in ('csv', 'file', 'gif', 'perimeter', 'readme'):  # perimeter: the polygons of the burned area
+				if isinstance(result.get(k), str) and result[k] not in shown:
+					shown.add(result[k])
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map

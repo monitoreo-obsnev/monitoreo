@@ -57,6 +57,12 @@
 			map: 'Mapa', metric: 'Métrica', temporal: 'Agregación temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada año y entre años', t_monthly: 'Cada mes y entre años', 't_16-day': 'Cada 16 días y entre años',
 			interannual: 'Métrica entre años', addMap: 'Añadir al mapa', download: 'Descargar GeoTIFF',
+			animation: 'Animación (timelapse)', animStep: 'Un fotograma por', a_annual: 'Año', a_monthly: 'Mes',
+			'a_16-day': '16 días', animMetric: 'Métrica de cada fotograma', makeAnimation: 'Hacer la animación',
+			animFrames: '%s fotogramas, con los mismos colores (de %s a %s): %s.',
+			animNote: 'Los píxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
+				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
+			animGif: 'Descargar el GIF',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: 'Índice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas imágenes y píxeles que la ' +
@@ -193,6 +199,12 @@
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
+			animation: 'Animation (timelapse)', animStep: 'A frame per', a_annual: 'Year', a_monthly: 'Month',
+			'a_16-day': '16 days', animMetric: 'Metric of each frame', makeAnimation: 'Make the animation',
+			animFrames: '%s frames, with the same colours (from %s to %s): %s.',
+			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
+				'with the Python package, QGIS or the assistant (timelapse).',
+			animGif: 'Download the GIF',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -314,6 +326,7 @@
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
+		animStep: 'annual', animMetric: 'median',
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
@@ -1300,6 +1313,55 @@
 		return w;
 	}
 
+	// Animation (services.timelapse) -------------------------------------------------------------------------------
+
+	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse), as a thumbnail that plays them, its
+	// dates and its colour bar; and the GIF to download
+	function timelapse() {
+		var e = entry();
+		if (!ready(e)) return;
+		var s = specOf(null, state.animMetric);
+		var step = state.animStep;
+		var steps = mo.animationSteps(s, step);  // its errors before Earth Engine
+		var geom = state.region.geometry();
+		var region = state.region;
+		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
+		var ramped = mo.rampEntry(e, state.animMetric, 'period');
+		var id = start();
+		mo.percentiles(mo.image(s, geom).clipToCollection(region), geom, rangeScale(e)).evaluate(function (st, error) {
+			if (id !== run) return;
+			var vis = mo.visParams(error ? null : st, ramped);
+			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);
+			var params = {dimensions: 600, region: geom.bounds(1000), framesPerSecond: 2, crs: 'EPSG:3857'};
+			var labels = steps.map(function (b) { return mo.frameLabel(step, b[0], b[1], state.lang); });
+			var unit = unitText(e, state.animMetric, null);
+			colourBar(vis, name + (unit ? ' ' + unit : ''));
+			var gif = ui.Panel();
+			gif.add(button(t('animGif'), function () {
+				gif.clear();
+				gif.add(ui.Label(t('computing'), SMALL));
+				frames.getVideoThumbURL(params, function (url, err) {
+					gif.clear();
+					if (err) return gif.add(ui.Label(t('error') + err, {color: '#b00020'}));
+					gif.add(ui.Label(t('animGif'), {fontSize: '12px'}, url));
+				});
+			}));
+			show([ui.Label(name, {fontWeight: 'bold'}), ui.Thumbnail({image: frames, params: params}),
+				ui.Label(fmt(t('animFrames'), steps.length, num(vis.min), num(vis.max), labels.join(', ')), SMALL),
+				ui.Label(t('animNote'), SMALL), gif]);
+		});
+	}
+
+	function animationWidgets() {
+		var w = [header(t('animation'))];
+		var steps = mo.ANIMATION_STEPS.map(function (x) { return {value: x, label: t('a_' + x)}; });
+		w.push(row(ui.Label(t('animStep')), select(steps, state.animStep, function (v) { state.animStep = v; })));
+		w.push(row(ui.Label(t('animMetric')), metricSelect(state.animMetric, function (v) { state.animMetric = v; })));
+		w.push(button(t('makeAnimation'), guarded(timelapse)));
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no animation
+	}
+
 	// Time series and comparison of periods -------------------------------------------------------------------------
 
 	function dateCell(d) {
@@ -1898,7 +1960,8 @@
 			controls.add(ui.Label('→ ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('→ ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), animationWidgets(), seriesWidgets(),
+			trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});
