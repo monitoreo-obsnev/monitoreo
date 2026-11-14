@@ -1623,7 +1623,8 @@ var MonitorEO = (function () {
 
 	// The search of the Earth Engine data catalog (services.find_datasets, monitoreo.eecatalog), in its slim copy of
 	// catalog.js (build.py: eecatalogIndex): the words of TEXT, at least half of them, in the title or ID (3 points
-	// each) or the keywords (1), those with most words first; with data in the years FIRST to LAST; at most LIMIT
+	// each) or the keywords (1), those with most words first; the collections of images with data in the years FIRST
+	// to LAST (the images, fixed layers without dates, whatever their dates); at most LIMIT
 	function catalogLow(text) {
 		return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 			.replace(/[^a-z0-9.\-_/]+/g, ' ').trim();
@@ -1633,8 +1634,8 @@ var MonitorEO = (function () {
 		var words = catalogLow(text).split(' ').filter(Boolean);
 		var found = [];
 		((CATALOG.eecatalog || {}).datasets || []).forEach(function (d, i) {
-			if (first && d[4] !== null && d[4] !== undefined && d[4] < first) return;
-			if (last && d[3] !== null && d[3] !== undefined && d[3] > last) return;
+			if (d[2] && first && d[4] !== null && d[4] !== undefined && d[4] < first) return;
+			if (d[2] && last && d[3] !== null && d[3] !== undefined && d[3] > last) return;
 			var head = catalogLow(d[1] + ' ' + d[0]), tail = catalogLow(d[5]), n = 0, score = 0;
 			words.forEach(function (w) {
 				if (head.indexOf(w) >= 0) { n++; score += 3; } else if (tail.indexOf(w) >= 0) { n++; score += 1; }

@@ -1533,7 +1533,7 @@ var CATALOG = {
     "Multi Observation Global Ocean Sea Surface Salinity and Sea Surface Density : Daily, Near Real Time",
     1,
     2023,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1541,7 +1541,7 @@ var CATALOG = {
     "Multi Observation Global Ocean Sea Surface Salinity and Sea Surface Density : Daily, Near Real Time V2",
     1,
     2024,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1557,7 +1557,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Optics, Multi-Sensor 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1565,7 +1565,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Plankton, Multi-Sensor, 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1573,7 +1573,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Plankton, OLCI, 300M",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1581,7 +1581,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Primary Production, Multi-Sensor 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1589,7 +1589,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Reflectance, Multi-Sensor 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1597,7 +1597,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Reflectance, OLCI 300M",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1605,7 +1605,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Transparency, Multi-Sensor, 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1613,7 +1613,7 @@ var CATALOG = {
     "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Transparency, OLCI, 4KM",
     1,
     2025,
-    2026,
+    null,
     "copernicus oceans"
    ],
    [
@@ -1621,7 +1621,7 @@ var CATALOG = {
     "Copernicus Satellite Ocean Color Daily Data",
     1,
     1997,
-    2026,
+    null,
     "chlorophyll-a copernicus daily oceans"
    ],
    [
@@ -1645,7 +1645,7 @@ var CATALOG = {
     "Sentinel-1 SAR GRD: C-band Synthetic Aperture Radar Ground Range Detected, log scaling",
     1,
     2014,
-    2026,
+    null,
     "backscatter copernicus esa eu polarization radar sar satellite-imagery sentinel"
    ],
    [
@@ -1653,7 +1653,7 @@ var CATALOG = {
     "Sentinel-2: Cloud Probability",
     1,
     2015,
-    2026,
+    null,
     "cloud copernicus esa eu msi radiance satellite-imagery sentinel sentinelhub"
    ],
    [
@@ -1661,7 +1661,7 @@ var CATALOG = {
     "Harmonized Sentinel-2 MSI: MultiSpectral Instrument, Level-1C (TOA)",
     1,
     2015,
-    2026,
+    null,
     "copernicus esa eu msi radiance satellite-imagery sentinel"
    ],
    [
@@ -1669,7 +1669,7 @@ var CATALOG = {
     "Harmonized Sentinel-2 MSI: MultiSpectral Instrument, Level-2A (SR)",
     1,
     2017,
-    2026,
+    null,
     "copernicus esa eu msi reflectance satellite-imagery sentinel sr"
    ],
    [
@@ -1677,7 +1677,7 @@ var CATALOG = {
     "Sentinel-3 OLCI EFR: Ocean and Land Color Instrument Earth Observation Full Resolution",
     1,
     2016,
-    2026,
+    null,
     "copernicus esa eu olci radiance satellite-imagery sentinel toa"
    ],
    [
@@ -1685,7 +1685,7 @@ var CATALOG = {
     "Sentinel-5P NRTI AER AI: Near Real-Time UV Aerosol Index",
     1,
     2018,
-    2026,
+    null,
     "aai aerosol air-quality atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
    ],
    [
@@ -1693,7 +1693,7 @@ var CATALOG = {
     "Sentinel-5P NRTI AER LH: Near Real-Time UV Aerosol Layer Height",
     1,
     2018,
-    2026,
+    null,
     "aerosol air-quality alh atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
    ],
    [
@@ -1701,7 +1701,7 @@ var CATALOG = {
     "Sentinel-5P NRTI CLOUD: Near Real-Time Cloud Properties",
     1,
     2018,
-    2026,
+    null,
     "atmosphere cloud copernicus dlr esa eu s5p sentinel tropomi"
    ],
    [
@@ -1709,7 +1709,7 @@ var CATALOG = {
     "Sentinel-5P NRTI CO: Near Real-Time Carbon Monoxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere carbon-monoxide copernicus esa eu knmi pollution s5p sentinel sron tropomi"
    ],
    [
@@ -1717,7 +1717,7 @@ var CATALOG = {
     "Sentinel-5P NRTI HCHO: Near Real-Time Formaldehyde",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere bira copernicus dlr esa eu formaldehyde hcho pollution s5p sentinel"
    ],
    [
@@ -1725,7 +1725,7 @@ var CATALOG = {
     "Sentinel-5P NRTI NO2: Near Real-Time Nitrogen Dioxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere copernicus esa eu knmi nitrogen-dioxide no2 pollution s5p sentinel tropomi"
    ],
    [
@@ -1733,7 +1733,7 @@ var CATALOG = {
     "Sentinel-5P NRTI O3: Near Real-Time Ozone",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
    ],
    [
@@ -1741,7 +1741,7 @@ var CATALOG = {
     "Sentinel-5P NRTI SO2: Near Real-Time Sulfur Dioxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere bira copernicus dlr esa eu pollution s5p sentinel so2 sulfur-dioxide"
    ],
    [
@@ -1749,7 +1749,7 @@ var CATALOG = {
     "Sentinel-5P OFFL AER AI: Offline UV Aerosol Index",
     1,
     2018,
-    2026,
+    null,
     "aai aerosol air-quality atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
    ],
    [
@@ -1757,7 +1757,7 @@ var CATALOG = {
     "Sentinel-5P OFFL AER LH: Offline UV Aerosol Layer Height",
     1,
     2018,
-    2026,
+    null,
     "aerosol air-quality alh atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
    ],
    [
@@ -1765,7 +1765,7 @@ var CATALOG = {
     "Sentinel-5P OFFL CH4: Offline Methane",
     1,
     2019,
-    2026,
+    null,
     "atmosphere climate copernicus esa eu knmi methane s5p sentinel sron tropomi"
    ],
    [
@@ -1773,7 +1773,7 @@ var CATALOG = {
     "Sentinel-5P OFFL CLOUD: Offline Cloud Properties",
     1,
     2018,
-    2026,
+    null,
     "atmosphere cloud copernicus dlr esa eu s5p sentinel tropomi"
    ],
    [
@@ -1781,7 +1781,7 @@ var CATALOG = {
     "Sentinel-5P OFFL CO: Offline Carbon Monoxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere carbon-monoxide copernicus esa eu knmi pollution s5p sentinel sron tropomi"
    ],
    [
@@ -1789,7 +1789,7 @@ var CATALOG = {
     "Sentinel-5P OFFL HCHO: Offline Formaldehyde",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere bira copernicus dlr esa eu formaldehyde hcho pollution s5p sentinel"
    ],
    [
@@ -1797,7 +1797,7 @@ var CATALOG = {
     "Sentinel-5P OFFL NO2: Offline Nitrogen Dioxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere copernicus esa eu knmi nitrogen-dioxide no2 pollution s5p sentinel tropomi"
    ],
    [
@@ -1805,7 +1805,7 @@ var CATALOG = {
     "Sentinel-5P OFFL O3: Offline Ozone",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
    ],
    [
@@ -1813,7 +1813,7 @@ var CATALOG = {
     "Sentinel-5P OFFL O3 TCL: Offline Tropospheric Ozone",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
    ],
    [
@@ -1821,7 +1821,7 @@ var CATALOG = {
     "Sentinel-5P OFFL SO2: Offline Sulfur Dioxide",
     1,
     2018,
-    2026,
+    null,
     "air-quality atmosphere bira copernicus dlr esa eu pollution s5p sentinel so2 sulfur-dioxide"
    ],
    [
@@ -2021,7 +2021,7 @@ var CATALOG = {
     "ERA5 Hourly - ECMWF Climate Reanalysis",
     1,
     1940,
-    2026,
+    null,
     "atmosphere climate copernicus ecmwf era5 hourly precipitation pressure radiation reanalysis temperature weather"
    ],
    [
@@ -2029,7 +2029,7 @@ var CATALOG = {
     "ERA5 Hourly Pressure Levels - ECMWF Climate Reanalysis",
     1,
     1940,
-    2026,
+    null,
     "atmosphere climate copernicus ecmwf era5 hourly pressure reanalysis temperature weather weather-and-climate wind"
    ],
    [
@@ -2045,7 +2045,7 @@ var CATALOG = {
     "ERA5-Land Daily Aggregated - ECMWF Climate Reanalysis",
     1,
     1950,
-    2026,
+    null,
     "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
    ],
    [
@@ -2053,7 +2053,7 @@ var CATALOG = {
     "ERA5-Land Hourly - ECMWF Climate Reanalysis",
     1,
     1950,
-    2026,
+    null,
     "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
    ],
    [
@@ -2061,7 +2061,7 @@ var CATALOG = {
     "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis",
     1,
     1950,
-    2026,
+    null,
     "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
    ],
    [
@@ -2069,7 +2069,7 @@ var CATALOG = {
     "ERA5-Land Monthly Averaged by Hour of Day - ECMWF Climate Reanalysis",
     1,
     1950,
-    2026,
+    null,
     "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
    ],
    [
@@ -2085,7 +2085,7 @@ var CATALOG = {
     "ECMWF Near-Realtime IFS Atmospheric Forecasts",
     1,
     2024,
-    2026,
+    null,
     "dewpoint ecmwf forecast global humidity precipitation pressure radiation rainfall snow soil-moisture soil-temperature"
    ],
    [
@@ -2093,7 +2093,7 @@ var CATALOG = {
     "ECMWF Near-Realtime IFS Wave (Short-Cutoff) Forecasts",
     1,
     2024,
-    2026,
+    null,
     "ecmwf forecast global oceans weather-and-climate"
    ],
    [
@@ -2101,7 +2101,7 @@ var CATALOG = {
     "ECMWF Near-Realtime IFS Wave Forecasts",
     1,
     2024,
-    2026,
+    null,
     "ecmwf forecast global oceans weather-and-climate"
    ],
    [
@@ -2341,7 +2341,7 @@ var CATALOG = {
     "WAPOR Actual Evapotranspiration and Interception 3.0",
     1,
     2018,
-    2026,
+    null,
     "agriculture fao wapor water water-vapor"
    ],
    [
@@ -2349,7 +2349,7 @@ var CATALOG = {
     "WAPOR Dekadal Evaporation 3.0",
     1,
     2018,
-    2026,
+    null,
     "agriculture fao wapor water water-vapor"
    ],
    [
@@ -2357,7 +2357,7 @@ var CATALOG = {
     "WAPOR Dekadal Interception 3.0",
     1,
     2009,
-    2026,
+    null,
     "agriculture fao wapor water water-vapor"
    ],
    [
@@ -2365,7 +2365,7 @@ var CATALOG = {
     "WAPOR Dekadal Reference Evapotranspiration 3.0",
     1,
     2018,
-    2026,
+    null,
     "agriculture fao wapor water water-vapor"
    ],
    [
@@ -2373,7 +2373,7 @@ var CATALOG = {
     "WAPOR Daily Reference Evapotranspiration 3.0",
     1,
     2018,
-    2026,
+    null,
     "agriculture fao wapor water water-vapor"
    ],
    [
@@ -2381,7 +2381,7 @@ var CATALOG = {
     "WAPOR Dekadal Transpiration 3.0",
     1,
     2009,
-    2026,
+    null,
     "agriculture fao global wapor water water-vapor"
    ],
    [
@@ -2389,7 +2389,7 @@ var CATALOG = {
     "FIRMS: Fire Information for Resource Management System",
     1,
     2000,
-    2026,
+    null,
     "eosdis fire firms geophysical hotspot lance modis nasa thermal"
    ],
    [
@@ -2469,7 +2469,7 @@ var CATALOG = {
     "Cloud Score+ S2_HARMONIZED V1",
     1,
     2015,
-    2026,
+    null,
     "cloud google satellite-imagery sentinel2-derived"
    ],
    [
@@ -2477,7 +2477,7 @@ var CATALOG = {
     "Dynamic World V1",
     1,
     2015,
-    2026,
+    null,
     "global google landcover landuse landuse-landcover nrt sentinel2-derived"
    ],
    [
@@ -2509,7 +2509,7 @@ var CATALOG = {
     "GRIDMET DROUGHT: CONUS Drought Indices",
     1,
     1980,
-    2026,
+    null,
     "climate climatic-water-balance conus crop drought eddi evapotranspiration geophysical gridmet merced metdata palmer"
    ],
    [
@@ -2557,7 +2557,7 @@ var CATALOG = {
     "GRIDMET: University of Idaho Gridded Surface Meteorological Dataset",
     1,
     1979,
-    2026,
+    null,
     "climate fireburning gridmet humidity merced metdata nfdrs precipitation radiation temperature water-vapor weather-and-climate"
    ],
    [
@@ -2805,7 +2805,7 @@ var CATALOG = {
     "PALSAR-2 ScanSAR Level 2.2",
     1,
     2014,
-    2026,
+    null,
     "alos2 eroc jaxa palsar2 radar sar satellite-imagery"
    ],
    [
@@ -2861,7 +2861,7 @@ var CATALOG = {
     "GCOM-C/SGLI L3 Leaf Area Index (V3)",
     1,
     2021,
-    2026,
+    null,
     "g-portal gcom gcom-c jaxa lai land leaf-area-index vegetation-indices"
    ],
    [
@@ -2885,7 +2885,7 @@ var CATALOG = {
     "GCOM-C/SGLI L3 Land Surface Temperature (V3)",
     1,
     2021,
-    2026,
+    null,
     "climate g-portal gcom gcom-c jaxa land land-surface-temperature lst weather-and-climate"
    ],
    [
@@ -2909,7 +2909,7 @@ var CATALOG = {
     "GCOM-C/SGLI L3 Chlorophyll-a Concentration (V3)",
     1,
     2021,
-    2026,
+    null,
     "chla chlorophyll-a g-portal gcom gcom-c jaxa ocean-color oceans"
    ],
    [
@@ -2933,7 +2933,7 @@ var CATALOG = {
     "GCOM-C/SGLI L3 Sea Surface Temperature (V3)",
     1,
     2018,
-    2026,
+    null,
     "climate g-portal gcom gcom-c jaxa oceans sea-surface-temperature sst"
    ],
    [
@@ -2941,7 +2941,7 @@ var CATALOG = {
     "GSMaP Operational: Global Satellite Mapping of Precipitation - V6",
     1,
     2014,
-    2026,
+    null,
     "climate geophysical gpm hourly jaxa precipitation weather"
    ],
    [
@@ -2965,7 +2965,7 @@ var CATALOG = {
     "GSMaP Operational: Global Satellite Mapping of Precipitation - V8",
     1,
     1998,
-    2026,
+    null,
     "climate geophysical gpm hourly jaxa precipitation weather"
    ],
    [
@@ -3237,7 +3237,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite satellite-imagery sr usgs"
    ],
    [
@@ -3245,7 +3245,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day BAI Composite",
     1,
     1984,
-    2026,
+    null,
     "bai fire landsat landsat-composite usgs vegetation-indices"
    ],
    [
@@ -3253,7 +3253,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day EVI Composite",
     1,
     1984,
-    2026,
+    null,
     "evi landsat landsat-composite usgs vegetation vegetation-indices"
    ],
    [
@@ -3261,7 +3261,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day NBR Composite",
     1,
     1984,
-    2026,
+    null,
     "fire landsat landsat-composite nbrt usgs vegetation-indices"
    ],
    [
@@ -3269,7 +3269,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day NDVI Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -3277,7 +3277,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 32-Day NDWI Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite ndwi surface-ground-water usgs"
    ],
    [
@@ -3285,7 +3285,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite satellite-imagery sr usgs"
    ],
    [
@@ -3293,7 +3293,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day BAI Composite",
     1,
     1984,
-    2026,
+    null,
     "bai fire landsat landsat-composite usgs vegetation-indices"
    ],
    [
@@ -3301,7 +3301,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day EVI Composite",
     1,
     1984,
-    2026,
+    null,
     "evi landsat landsat-composite usgs vegetation vegetation-indices"
    ],
    [
@@ -3309,7 +3309,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day NBR Composite",
     1,
     1984,
-    2026,
+    null,
     "fire landsat landsat-composite nbrt usgs vegetation-indices"
    ],
    [
@@ -3317,7 +3317,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day NDVI Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -3325,7 +3325,7 @@ var CATALOG = {
     "Landsat Collection 2 Tier 1 Level 2 8-Day NDWI Composite",
     1,
     1984,
-    2026,
+    null,
     "landsat landsat-composite ndwi surface-ground-water usgs"
    ],
    [
@@ -3421,7 +3421,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 1 Raw Scenes",
     1,
     2013,
-    2026,
+    null,
     "c2 global l8 landsat lc8 oli-tirs radiance satellite-imagery t1 tier1 usgs"
    ],
    [
@@ -3429,7 +3429,7 @@ var CATALOG = {
     "USGS Landsat 8 Level 2, Collection 2, Tier 1",
     1,
     2013,
-    2026,
+    null,
     "cfmask cloud fmask global l8sr landsat lasrc lc08 lst reflectance satellite-imagery sr"
    ],
    [
@@ -3437,7 +3437,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 1 and Real-Time data Raw Scenes",
     1,
     2013,
-    2026,
+    null,
     "c2 global l8 landsat lc8 nrt oli-tirs radiance rt satellite-imagery t1 tier1"
    ],
    [
@@ -3445,7 +3445,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 1 and Real-Time data TOA Reflectance",
     1,
     2013,
-    2026,
+    null,
     "c2 global l8 landsat lc8 satellite-imagery toa usgs"
    ],
    [
@@ -3453,7 +3453,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 1 TOA Reflectance",
     1,
     2013,
-    2026,
+    null,
     "c2 global landsat satellite-imagery toa usgs"
    ],
    [
@@ -3461,7 +3461,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 2 Raw Scenes",
     1,
     2021,
-    2026,
+    null,
     "c2 global l8 landsat lc8 oli-tirs radiance satellite-imagery t2 tier2 usgs"
    ],
    [
@@ -3469,7 +3469,7 @@ var CATALOG = {
     "USGS Landsat 8 Level 2, Collection 2, Tier 2",
     1,
     2013,
-    2026,
+    null,
     "cfmask cloud fmask global l8sr landsat lasrc lc08 lst reflectance satellite-imagery sr"
    ],
    [
@@ -3477,7 +3477,7 @@ var CATALOG = {
     "USGS Landsat 8 Collection 2 Tier 2 TOA Reflectance",
     1,
     2021,
-    2026,
+    null,
     "c2 global landsat satellite-imagery toa usgs"
    ],
    [
@@ -3485,7 +3485,7 @@ var CATALOG = {
     "USGS Landsat 9 Collection 2 Tier 1 Raw Scenes",
     1,
     2021,
-    2026,
+    null,
     "c2 global l9 landsat lc9 oli-tirs radiance satellite-imagery t1 tier1 usgs"
    ],
    [
@@ -3493,7 +3493,7 @@ var CATALOG = {
     "USGS Landsat 9 Level 2, Collection 2, Tier 1",
     1,
     2021,
-    2026,
+    null,
     "cfmask cloud fmask global l9sr landsat lasrc lc09 lst reflectance satellite-imagery sr"
    ],
    [
@@ -3501,7 +3501,7 @@ var CATALOG = {
     "USGS Landsat 9 Collection 2 Tier 1 TOA Reflectance",
     1,
     2021,
-    2026,
+    null,
     "c2 global landsat satellite-imagery toa usgs"
    ],
    [
@@ -3509,7 +3509,7 @@ var CATALOG = {
     "USGS Landsat 9 Collection 2 Tier 2 Raw Scenes",
     1,
     2021,
-    2026,
+    null,
     "c2 global l9 landsat lc9 oli-tirs radiance satellite-imagery t2 tier2 usgs"
    ],
    [
@@ -3517,7 +3517,7 @@ var CATALOG = {
     "USGS Landsat 9 Level 2, Collection 2, Tier 2",
     1,
     2021,
-    2026,
+    null,
     "cfmask cloud fmask global l9sr landsat lasrc lc09 lst reflectance satellite-imagery sr"
    ],
    [
@@ -3525,7 +3525,7 @@ var CATALOG = {
     "USGS Landsat 9 Collection 2 Tier 2 TOA Reflectance",
     1,
     2021,
-    2026,
+    null,
     "c2 global l9 landsat lc9 satellite-imagery toa usgs"
    ],
    [
@@ -3957,7 +3957,7 @@ var CATALOG = {
     "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m",
     1,
     2002,
-    2026,
+    null,
     "4-day fpar global lai mcd15a3h modis nasa plant-productivity usgs vegetation"
    ],
    [
@@ -3965,7 +3965,7 @@ var CATALOG = {
     "MCD19A1.061: Land Surface BRF Daily L2G Global 500m and 1km",
     1,
     2000,
-    2026,
+    null,
     "aerosol aod aqua daily global maiac modis nasa satellite-imagery terra usgs"
    ],
    [
@@ -3973,7 +3973,7 @@ var CATALOG = {
     "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km",
     1,
     2000,
-    2026,
+    null,
     "aerosol aod aqua atmosphere daily global maiac mcd19a2 modis nasa terra usgs"
    ],
    [
@@ -3981,7 +3981,7 @@ var CATALOG = {
     "MCD43A1.061 MODIS BRDF-Albedo Model Parameters Daily 500m",
     1,
     2000,
-    2026,
+    null,
     "albedo brdf daily global mcd43a1 modis nasa reflectance satellite-imagery usgs"
    ],
    [
@@ -3989,7 +3989,7 @@ var CATALOG = {
     "MCD43A2.061 MODIS BRDF-Albedo Quality Daily 500m",
     1,
     2000,
-    2026,
+    null,
     "albedo brdf daily global modis nasa quality reflectance satellite-imagery usgs"
    ],
    [
@@ -3997,7 +3997,7 @@ var CATALOG = {
     "MCD43A3.061 MODIS Albedo Daily 500m",
     1,
     2000,
-    2026,
+    null,
     "albedo black-sky daily global modis nasa satellite-imagery usgs white-sky"
    ],
    [
@@ -4005,7 +4005,7 @@ var CATALOG = {
     "MCD43A4.061 MODIS Nadir BRDF-Adjusted Reflectance Daily 500m",
     1,
     2000,
-    2026,
+    null,
     "albedo brdf daily global modis nasa reflectance satellite-imagery usgs"
    ],
    [
@@ -4013,7 +4013,7 @@ var CATALOG = {
     "MCD43C3.061 BRDF/Albedo Daily L3 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "albedo black-sky brdf daily global modis nasa satellite-imagery usgs white-sky"
    ],
    [
@@ -4021,7 +4021,7 @@ var CATALOG = {
     "MCD64A1.061 MODIS Burned Area Monthly Global 500m",
     1,
     2000,
-    2026,
+    null,
     "burn change-detection fire geophysical global mcd64a1 modis monthly nasa usgs"
    ],
    [
@@ -4029,7 +4029,7 @@ var CATALOG = {
     "MOD08_M3.061 Terra Atmosphere Monthly Global Product",
     1,
     2000,
-    2026,
+    null,
     "atmosphere climate geophysical global mod08 mod08-m3 modis monthly nasa temperature terra usgs"
    ],
    [
@@ -4037,7 +4037,7 @@ var CATALOG = {
     "MOD09A1.061 Terra Surface Reflectance 8-Day Global 500m",
     1,
     2000,
-    2026,
+    null,
     "8-day global mod09a1 modis nasa satellite-imagery sr surface-reflectance terra usgs"
    ],
    [
@@ -4045,7 +4045,7 @@ var CATALOG = {
     "MOD09CMG.061 Terra Surface Reflectance Daily L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "brightness-temperature ozone satellite-imagery surface-reflectance terra"
    ],
    [
@@ -4053,7 +4053,7 @@ var CATALOG = {
     "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m",
     1,
     2000,
-    2026,
+    null,
     "daily global mod09ga modis nasa satellite-imagery sr surface-reflectance terra usgs"
    ],
    [
@@ -4061,7 +4061,7 @@ var CATALOG = {
     "MOD09GQ.061 Terra Surface Reflectance Daily Global 250m",
     1,
     2000,
-    2026,
+    null,
     "daily global mod09gq modis nasa satellite-imagery sr surface-reflectance terra usgs"
    ],
    [
@@ -4069,7 +4069,7 @@ var CATALOG = {
     "MOD09Q1.061 Terra Surface Reflectance 8-Day Global 250m",
     1,
     2000,
-    2026,
+    null,
     "8-day global mod09q1 modis nasa satellite-imagery sr surface-reflectance terra usgs"
    ],
    [
@@ -4077,7 +4077,7 @@ var CATALOG = {
     "MOD10A1.061 Terra Snow Cover Daily Global 500m",
     1,
     2000,
-    2026,
+    null,
     "albedo cryosphere daily geophysical global mod10a1 modis nasa nsidc snow terra"
    ],
    [
@@ -4085,7 +4085,7 @@ var CATALOG = {
     "MOD10A2.061 Terra Snow Cover 8-Day L3 Global 500m",
     1,
     2000,
-    2026,
+    null,
     "8-day cryosphere geophysical global modis nasa nsidc snow terra"
    ],
    [
@@ -4093,7 +4093,7 @@ var CATALOG = {
     "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "daily emissivity global lst mod11a1 modis nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4101,7 +4101,7 @@ var CATALOG = {
     "MOD11A2.061 Terra Land Surface Temperature and Emissivity 8-Day Global 1km",
     1,
     2000,
-    2026,
+    null,
     "8-day emissivity global lst mod11a2 modis nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4109,7 +4109,7 @@ var CATALOG = {
     "MOD13A1.061 Terra Vegetation Indices 16-Day Global 500m",
     1,
     2000,
-    2026,
+    null,
     "16-day evi global mod13a1 modis nasa ndvi terra usgs vegetation vegetation-indices"
    ],
    [
@@ -4117,7 +4117,7 @@ var CATALOG = {
     "MOD13A2.061 Terra Vegetation Indices 16-Day Global 1km",
     1,
     2000,
-    2026,
+    null,
     "16-day evi global mod13a2 modis nasa ndvi terra usgs vegetation vegetation-indices"
    ],
    [
@@ -4125,7 +4125,7 @@ var CATALOG = {
     "MOD13A3.061 Vegetation Indices Monthly L3 Global 1 km SIN Grid",
     1,
     2000,
-    2026,
+    null,
     "evi global modis monthly nasa ndvi terra usgs vegetation vegetation-indices"
    ],
    [
@@ -4133,7 +4133,7 @@ var CATALOG = {
     "MOD13C1.061: Terra Vegetation Indices 16-Day L3 Global 0.05 Deg Climate Modeling Grid",
     1,
     2000,
-    2026,
+    null,
     "16-day global nasa terra usgs vegetation vegetation-indices"
    ],
    [
@@ -4141,7 +4141,7 @@ var CATALOG = {
     "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m",
     1,
     2000,
-    2026,
+    null,
     "16-day evi global mod13q1 modis nasa ndvi terra usgs vegetation vegetation-indices"
    ],
    [
@@ -4149,7 +4149,7 @@ var CATALOG = {
     "MOD14A1.061: Terra Thermal Anomalies & Fire Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "daily fire global mod14a1 modis nasa terra usgs"
    ],
    [
@@ -4157,7 +4157,7 @@ var CATALOG = {
     "MOD14A2.061: Terra Thermal Anomalies & Fire 8-Day Global 1km",
     1,
     2000,
-    2026,
+    null,
     "8-day fire global mod14a2 modis nasa terra usgs"
    ],
    [
@@ -4165,7 +4165,7 @@ var CATALOG = {
     "MOD15A2H.061: Terra Leaf Area Index/FPAR 8-Day Global 500m",
     1,
     2000,
-    2026,
+    null,
     "8-day fpar global lai mod15a2h modis nasa plant-productivity terra usgs"
    ],
    [
@@ -4173,7 +4173,7 @@ var CATALOG = {
     "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m",
     1,
     2021,
-    2026,
+    null,
     "8-day evapotranspiration global mod16a2 modis nasa water-vapor"
    ],
    [
@@ -4189,7 +4189,7 @@ var CATALOG = {
     "MOD17A2H.061: Terra Gross Primary Productivity 8-Day Global 500m",
     1,
     2021,
-    2026,
+    null,
     "8-day global gpp mod17a2 modis nasa photosynthesis plant-productivity productivity psn terra usgs"
    ],
    [
@@ -4213,7 +4213,7 @@ var CATALOG = {
     "MOD21A1D.061 Terra Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4221,7 +4221,7 @@ var CATALOG = {
     "MOD21A1N.061 Terra Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4229,7 +4229,7 @@ var CATALOG = {
     "MOD21C1.061 Terra Land Surface Temperature and 3-Band Emissivity Daily L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4237,7 +4237,7 @@ var CATALOG = {
     "MOD21C2.061 Terra Land Surface Temperature and 3-Band Emissivity 8-Day L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4245,7 +4245,7 @@ var CATALOG = {
     "MOD21C3.061 Terra Land Surface Temperature and 3-Band Emissivity Monthly L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "emissivity global lst monthly nasa surface-temperature terra usgs weather-and-climate"
    ],
    [
@@ -4261,7 +4261,7 @@ var CATALOG = {
     "MYD08_M3.061 Aqua Atmosphere Monthly Global Product",
     1,
     2002,
-    2026,
+    null,
     "aqua atmosphere climate geophysical global modis monthly myd08 myd08-m3 nasa temperature usgs"
    ],
    [
@@ -4269,7 +4269,7 @@ var CATALOG = {
     "MYD09A1.061 Aqua Surface Reflectance 8-Day Global 500m",
     1,
     2002,
-    2026,
+    null,
     "8-day aqua global modis myd09a1 nasa satellite-imagery sr surface-reflectance usgs"
    ],
    [
@@ -4277,7 +4277,7 @@ var CATALOG = {
     "MYD09CMG.061 Aqua Surface Reflectance Daily L3 Global 0.05 Deg CMG",
     1,
     2002,
-    2026,
+    null,
     "aqua brightness-temperature ozone satellite-imagery surface-reflectance"
    ],
    [
@@ -4285,7 +4285,7 @@ var CATALOG = {
     "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m",
     1,
     2002,
-    2026,
+    null,
     "aqua daily global modis myd09ga nasa satellite-imagery sr surface-reflectance usgs"
    ],
    [
@@ -4293,7 +4293,7 @@ var CATALOG = {
     "MYD09GQ.061 Aqua Surface Reflectance Daily Global 250m",
     1,
     2002,
-    2026,
+    null,
     "aqua daily global modis myd09gq nasa satellite-imagery sr surface-reflectance usgs"
    ],
    [
@@ -4301,7 +4301,7 @@ var CATALOG = {
     "MYD09Q1.061 Aqua Surface Reflectance 8-Day Global 250m",
     1,
     2002,
-    2026,
+    null,
     "8-day aqua global modis myd09q1 nasa satellite-imagery sr surface-reflectance usgs"
    ],
    [
@@ -4309,7 +4309,7 @@ var CATALOG = {
     "MYD10A1.061 Aqua Snow Cover Daily Global 500m",
     1,
     2002,
-    2026,
+    null,
     "albedo aqua cryosphere daily geophysical global modis myd10a1 nasa nsidc snow"
    ],
    [
@@ -4317,7 +4317,7 @@ var CATALOG = {
     "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km",
     1,
     2002,
-    2026,
+    null,
     "aqua daily emissivity global lst modis myd11a1 nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4325,7 +4325,7 @@ var CATALOG = {
     "MYD11A2.061 Aqua Land Surface Temperature and Emissivity 8-Day Global 1km",
     1,
     2002,
-    2026,
+    null,
     "8-day aqua emissivity global lst modis myd11a2 nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4333,7 +4333,7 @@ var CATALOG = {
     "MYD13A1.061 Aqua Vegetation Indices 16-Day Global 500m",
     1,
     2002,
-    2026,
+    null,
     "16-day aqua evi global modis myd13a1 nasa ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -4341,7 +4341,7 @@ var CATALOG = {
     "MYD13A2.061 Aqua Vegetation Indices 16-Day Global 1km",
     1,
     2002,
-    2026,
+    null,
     "16-day aqua evi global modis myd13a2 nasa ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -4349,7 +4349,7 @@ var CATALOG = {
     "MYD13A3.061 Aqua Vegetation Indices Monthly L3 Global 1 km SIN Grid",
     1,
     2002,
-    2026,
+    null,
     "aqua evi global modis monthly nasa ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -4357,7 +4357,7 @@ var CATALOG = {
     "MYD13C1.061: Aqua Vegetation Indices 16-Day L3 Global 0.05 Deg CMG",
     1,
     2002,
-    2026,
+    null,
     "16-day aqua global nasa usgs vegetation vegetation-indices"
    ],
    [
@@ -4365,7 +4365,7 @@ var CATALOG = {
     "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m",
     1,
     2002,
-    2026,
+    null,
     "16-day aqua evi global modis myd13q1 nasa ndvi usgs vegetation vegetation-indices"
    ],
    [
@@ -4373,7 +4373,7 @@ var CATALOG = {
     "MYD14A1.061: Aqua Thermal Anomalies & Fire Daily Global 1km",
     1,
     2002,
-    2026,
+    null,
     "aqua daily fire global modis myd14a1 nasa usgs"
    ],
    [
@@ -4381,7 +4381,7 @@ var CATALOG = {
     "MYD14A2.061: Aqua Thermal Anomalies & Fire 8-Day Global 1km",
     1,
     2002,
-    2026,
+    null,
     "8-day aqua fire global modis myd14a2 nasa usgs"
    ],
    [
@@ -4389,7 +4389,7 @@ var CATALOG = {
     "MYD15A2H.061: Aqua Leaf Area Index/FPAR 8-Day Global 500m",
     1,
     2002,
-    2026,
+    null,
     "8-day aqua fpar global lai modis myd15a2h nasa plant-productivity usgs"
    ],
    [
@@ -4397,7 +4397,7 @@ var CATALOG = {
     "MYD16A2.061: Aqua Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061",
     1,
     2021,
-    2026,
+    null,
     "8-day evapotranspiration global modis nasa water-vapor"
    ],
    [
@@ -4405,7 +4405,7 @@ var CATALOG = {
     "MYD17A2H.061: Aqua Gross Primary Productivity 8-Day Global 500m",
     1,
     2021,
-    2026,
+    null,
     "8-day aqua global gpp modis myd17a2 nasa photosynthesis plant-productivity productivity psn usgs"
    ],
    [
@@ -4421,7 +4421,7 @@ var CATALOG = {
     "MYD21A1D.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4429,7 +4429,7 @@ var CATALOG = {
     "MYD21A1N.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
     1,
     2000,
-    2026,
+    null,
     "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4437,7 +4437,7 @@ var CATALOG = {
     "MYD21C1.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4445,7 +4445,7 @@ var CATALOG = {
     "MYD21C2.061 Aqua Land Surface Temperature and 3-Band Emissivity 8-Day L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "aqua emissivity global lst nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4453,7 +4453,7 @@ var CATALOG = {
     "MYD21C3.061 Aqua Land Surface Temperature and 3-Band Emissivity Monthly L3 Global 0.05 Deg CMG",
     1,
     2000,
-    2026,
+    null,
     "aqua emissivity global lst monthly nasa surface-temperature usgs weather-and-climate"
    ],
    [
@@ -4461,7 +4461,7 @@ var CATALOG = {
     "MCD18A1.062 Surface Radiation Daily/3-Hour",
     1,
     2000,
-    2026,
+    null,
     "par radiation weather-and-climate"
    ],
    [
@@ -4469,7 +4469,7 @@ var CATALOG = {
     "MCD18C2.062 Photosynthetically Active Radiation Daily 3-Hour",
     1,
     2000,
-    2026,
+    null,
     "par radiation weather-and-climate"
    ],
    [
@@ -4621,7 +4621,7 @@ var CATALOG = {
     "ECOSTRESS Land Surface Temperature and Emissivity L2 Global 70 m V002",
     1,
     2018,
-    2026,
+    null,
     "ecostress emissivity land lst plant-productivity temperature"
    ],
    [
@@ -4629,7 +4629,7 @@ var CATALOG = {
     "ECOSTRESS Tiled Ancillary NDVI and Albedo L2 Global 70 m V002",
     1,
     2018,
-    2026,
+    null,
     "albedo ecostress land ndvi plant-productivity"
    ],
    [
@@ -4637,7 +4637,7 @@ var CATALOG = {
     "EMIT L1B At-Sensor Calibrated Radiance and Geolocation Data 60 m",
     1,
     2022,
-    2026,
+    null,
     "daily emit nasa radiance satellite-imagery"
    ],
    [
@@ -4645,7 +4645,7 @@ var CATALOG = {
     "EMIT L2A Estimated Surface Reflectance and Uncertainty and Masks 60 m",
     1,
     2022,
-    2026,
+    null,
     "daily emit nasa reflectance satellite-imagery"
    ],
    [
@@ -4669,7 +4669,7 @@ var CATALOG = {
     "FLDAS: Famine Early Warning Systems Network (FEWS NET) Land Data Assimilation System",
     1,
     1982,
-    2026,
+    null,
     "climate cryosphere evapotranspiration famine fldas humidity ldas monthly nasa precipitation runoff snow"
    ],
    [
@@ -4717,7 +4717,7 @@ var CATALOG = {
     "GEOS-CF Ana htf v2: Goddard Earth Observing System Composition Forecast",
     1,
     2025,
-    2026,
+    null,
     "atmosphere composition forecast geos geos-cf gmao nasa"
    ],
    [
@@ -4725,7 +4725,7 @@ var CATALOG = {
     "GEOS-CF ana tavg1hr v2: Goddard Earth Observing System Composition Forecast",
     1,
     2025,
-    2026,
+    null,
     "atmosphere composition forecast geos geos-cf gmao nasa"
    ],
    [
@@ -4733,7 +4733,7 @@ var CATALOG = {
     "GEOS-CF fcst htf v2: Goddard Earth Observing System Composition Forecast",
     1,
     2025,
-    2026,
+    null,
     "atmosphere composition forecast geos geos-cf gmao nasa"
    ],
    [
@@ -4741,7 +4741,7 @@ var CATALOG = {
     "GEOS-CF fcst tavg1hr v2: Goddard Earth Observing System Composition Forecast",
     1,
     2025,
-    2026,
+    null,
     "atmosphere composition forecast geos geos-cf gmao nasa"
    ],
    [
@@ -4757,7 +4757,7 @@ var CATALOG = {
     "GLDAS-2.1: Global Land Data Assimilation System",
     1,
     2000,
-    2026,
+    null,
     "3-hourly climate cryosphere evaporation forcing geophysical gldas humidity ldas nasa precipitation pressure"
    ],
    [
@@ -4765,7 +4765,7 @@ var CATALOG = {
     "GLDAS-2.2: Global Land Data Assimilation System",
     1,
     2003,
-    2026,
+    null,
     "3-hourly climate cryosphere evaporation forcing geophysical gldas humidity ldas nasa precipitation pressure"
    ],
    [
@@ -4797,7 +4797,7 @@ var CATALOG = {
     "GPM: Global Precipitation Measurement (GPM) Release 07",
     1,
     1998,
-    2026,
+    null,
     "climate geophysical gpm half-hourly imerg jaxa nasa precipitation weather"
    ],
    [
@@ -4845,7 +4845,7 @@ var CATALOG = {
     "MERRA-2 M2T1NXAER: Aerosol Diagnostics V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "aerosol atmosphere carbon dust mass merra nasa sea-salt so2 so4"
    ],
    [
@@ -4853,7 +4853,7 @@ var CATALOG = {
     "MERRA-2 M2I3NVAER: Aerosol Mixing Ratio V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "aerosol atmosphere dust mass merra nasa sea-salt so2 so4"
    ],
    [
@@ -4861,7 +4861,7 @@ var CATALOG = {
     "MERRA-2 M2T1NXFLX: Surface Flux Diagnostics V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "climate merra precipitation sea-salt so2 so4 soil-moisture weather-and-climate"
    ],
    [
@@ -4869,7 +4869,7 @@ var CATALOG = {
     "MERRA-2 M2T1NXLND: Land Surface Diagnostics V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "climate cryosphere evaporation ice merra precipitation soil temperature water-vapor weather-and-climate"
    ],
    [
@@ -4877,7 +4877,7 @@ var CATALOG = {
     "MERRA-2 M2T1NXRAD: Radiation Diagnostics V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "albedo atmosphere climate emissivity merra shortwave temperature weather-and-climate"
    ],
    [
@@ -4885,7 +4885,7 @@ var CATALOG = {
     "MERRA-2 M2T1NXSLV: Single-Level Diagnostics V5.12.4",
     1,
     1980,
-    2026,
+    null,
     "atmosphere climate condensation humidity merra nasa omega pressure slv temperature vapor water"
    ],
    [
@@ -4893,7 +4893,7 @@ var CATALOG = {
     "HLSL30: HLS-2 Landsat Operational Land Imager Surface Reflectance and TOA Brightness Daily Global 30m",
     1,
     2013,
-    2026,
+    null,
     "landsat nasa satellite-imagery sentinel usgs"
    ],
    [
@@ -4901,7 +4901,7 @@ var CATALOG = {
     "HLSS30: HLS Sentinel-2 Multi-spectral Instrument Surface Reflectance Daily Global 30m",
     1,
     2015,
-    2026,
+    null,
     "landsat nasa satellite-imagery sentinel usgs"
    ],
    [
@@ -4917,7 +4917,7 @@ var CATALOG = {
     "VJ114IMGTDL_NRT Daily Raster: VIIRS (NOAA-20) Band 375m Active Fire",
     1,
     2023,
-    2026,
+    null,
     "eosdis fire firms geophysical hotspot lance modis nasa thermal viirs"
    ],
    [
@@ -4925,7 +4925,7 @@ var CATALOG = {
     "VNP14IMGTDL_NRT Daily Raster: VIIRS (S-NPP) Band 375m Active Fire",
     1,
     2023,
-    2026,
+    null,
     "eosdis fire firms geophysical hotspot lance modis nasa thermal viirs"
    ],
    [
@@ -4973,7 +4973,7 @@ var CATALOG = {
     "NLDAS-2: North American Land Data Assimilation System Forcing Fields",
     1,
     1979,
-    2026,
+    null,
     "climate evaporation forcing geophysical hourly humidity ldas nasa nldas precipitation pressure radiation"
    ],
    [
@@ -5037,7 +5037,7 @@ var CATALOG = {
     "SPL3SMP_E.006 SMAP L3 Radiometer Global Daily 9 km Soil Moisture",
     1,
     2023,
-    2026,
+    null,
     "drought nasa smap soil soil-moisture surface weather"
    ],
    [
@@ -5045,7 +5045,7 @@ var CATALOG = {
     "SPL4SMGP.008 SMAP L4 Global 3-hourly 9-km Surface and Root Zone Soil Moisture",
     1,
     2015,
-    2026,
+    null,
     "drought nasa smap soil soil-moisture surface weather"
    ],
    [
@@ -5053,7 +5053,7 @@ var CATALOG = {
     "TEMPO gridded cloud fraction and pressure (O2-O2 dimer) V04 (PROVISIONAL)",
     1,
     2023,
-    2026,
+    null,
     "air-quality cloud nasa pollution satellite-imagery tempo"
    ],
    [
@@ -5061,7 +5061,7 @@ var CATALOG = {
     "TEMPO gridded HCHO vertical columns V04",
     1,
     2023,
-    2026,
+    null,
     "air-quality formaldehyde nasa pollution satellite-imagery tempo tropomi"
    ],
    [
@@ -5069,7 +5069,7 @@ var CATALOG = {
     "TEMPO gridded HCHO (QA filtered) vertical columns V04",
     1,
     2023,
-    2026,
+    null,
     "air-quality formaldehyde nasa pollution satellite-imagery tempo tropomi"
    ],
    [
@@ -5077,7 +5077,7 @@ var CATALOG = {
     "TEMPO gridded NO2 tropospheric and stratospheric columns V04",
     1,
     2023,
-    2026,
+    null,
     "air-quality nasa nitrogen-dioxide pollution satellite-imagery tempo tropomi"
    ],
    [
@@ -5085,7 +5085,7 @@ var CATALOG = {
     "TEMPO gridded NO2 (QA filtered) tropospheric and stratospheric columns V04",
     1,
     2023,
-    2026,
+    null,
     "air-quality nasa nitrogen-dioxide pollution satellite-imagery tempo tropomi"
    ],
    [
@@ -5093,7 +5093,7 @@ var CATALOG = {
     "TEMPO gridded ozone profile V04 (PROVISIONAL)",
     1,
     2023,
-    2026,
+    null,
     "air-quality nasa ozone pollution satellite-imagery tempo"
    ],
    [
@@ -5101,7 +5101,7 @@ var CATALOG = {
     "TEMPO gridded ozone total column V04 (PROVISIONAL)",
     1,
     2023,
-    2026,
+    null,
     "air-quality nasa ozone pollution satellite-imagery tempo tropomi"
    ],
    [
@@ -5109,7 +5109,7 @@ var CATALOG = {
     "AERDB_D3_VIIRS_NOAA20.002: VIIRS/NOAA-20 Deep Blue Aerosol Optical Depth Daily L3 Global 1.0 Deg Grid",
     1,
     2018,
-    2026,
+    null,
     "aerosol aot atmosphere daily nasa noaa viirs"
    ],
    [
@@ -5117,7 +5117,7 @@ var CATALOG = {
     "AERDB_D3_VIIRS_SNPP.002: VIIRS/SNPP Deep Blue Aerosol Optical Depth Daily L3 Global 1.0 Deg Grid",
     1,
     2012,
-    2026,
+    null,
     "aerosol aot atmosphere daily nasa noaa npp viirs"
    ],
    [
@@ -5125,7 +5125,7 @@ var CATALOG = {
     "VJ146A2: VIIRS Lunar Gap-Filled BRDF Nighttime Lights Daily L3 Global 500m",
     1,
     2018,
-    2026,
+    null,
     "brdf daily nasa nighttime noaa population viirs"
    ],
    [
@@ -5133,7 +5133,7 @@ var CATALOG = {
     "VJ209GA: VIIRS Surface Reflectance Daily 500m and 1km",
     1,
     2023,
-    2026,
+    null,
     "daily nasa noaa noaa21 reflectance satellite-imagery sr viirs vj209ga"
    ],
    [
@@ -5141,7 +5141,7 @@ var CATALOG = {
     "VJ209H1: VIIRS Surface Reflectance 8-Day L3 Global 500m",
     1,
     2023,
-    2026,
+    null,
     "8-day nasa noaa noaa21 reflectance satellite-imagery sr viirs vj209h1"
    ],
    [
@@ -5149,7 +5149,7 @@ var CATALOG = {
     "VJ213A1: VIIRS Vegetation Indices 16-Day 500m",
     1,
     2023,
-    2026,
+    null,
     "16-day evi nasa ndvi noaa noaa21 vegetation vegetation-indices viirs vj213a1"
    ],
    [
@@ -5157,7 +5157,7 @@ var CATALOG = {
     "VJ214A1.002: Thermal Anomalies/Fire Daily L3 Global 1km SIN Grid",
     1,
     2023,
-    2026,
+    null,
     "fire land nasa noaa surface viirs"
    ],
    [
@@ -5165,7 +5165,7 @@ var CATALOG = {
     "VJ215A2H.002: LAI/FPAR 8-Day L4 Global 500m SIN Grid",
     1,
     2023,
-    2026,
+    null,
     "land nasa noaa surface vegetation-indices viirs"
    ],
    [
@@ -5173,7 +5173,7 @@ var CATALOG = {
     "VJ221A1D.002: Day Land Surface Temperature and Emissivity Daily 1km",
     1,
     2023,
-    2026,
+    null,
     "daily day land nasa noaa surface temperature viirs weather-and-climate"
    ],
    [
@@ -5181,7 +5181,7 @@ var CATALOG = {
     "VJ221A1N.002: Night Land Surface Temperature and Emissivity Daily 1km",
     1,
     2023,
-    2026,
+    null,
     "daily land nasa night noaa surface temperature viirs weather-and-climate"
    ],
    [
@@ -5189,7 +5189,7 @@ var CATALOG = {
     "VJ243IA3: BRDF/Albedo Daily L3 Global 500m SIN Grid",
     1,
     2023,
-    2026,
+    null,
     "albedo brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5197,7 +5197,7 @@ var CATALOG = {
     "VJ243IA4: Nadir BRDF-Adjusted Reflectance Daily L3 Global 500m SIN Grid",
     1,
     2023,
-    2026,
+    null,
     "brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5205,7 +5205,7 @@ var CATALOG = {
     "VJ243MA3: BRDF/Albedo Daily L3 Global 1km SIN Grid",
     1,
     2023,
-    2026,
+    null,
     "albedo brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5213,7 +5213,7 @@ var CATALOG = {
     "VNP09GA: VIIRS Surface Reflectance Daily 500m and 1km",
     1,
     2012,
-    2026,
+    null,
     "daily nasa noaa npp reflectance satellite-imagery sr viirs vnp09ga"
    ],
    [
@@ -5221,7 +5221,7 @@ var CATALOG = {
     "VNP09H1: VIIRS Surface Reflectance 8-Day L3 Global 500m",
     1,
     2012,
-    2026,
+    null,
     "daily nasa noaa npp reflectance satellite-imagery sr viirs"
    ],
    [
@@ -5229,7 +5229,7 @@ var CATALOG = {
     "VNP13A1.002: VIIRS Vegetation Indices 16-Day 500m",
     1,
     2012,
-    2026,
+    null,
     "16-day evi nasa ndvi noaa npp vegetation vegetation-indices viirs vnp13a1"
    ],
    [
@@ -5237,7 +5237,7 @@ var CATALOG = {
     "VNP14A1.002: Thermal Anomalies/Fire Daily L3 Global 1km SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "fire land nasa noaa surface viirs"
    ],
    [
@@ -5245,7 +5245,7 @@ var CATALOG = {
     "VNP15A2H: LAI/FPAR 8-Day L4 Global 500m SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "land nasa noaa surface vegetation-indices viirs"
    ],
    [
@@ -5253,7 +5253,7 @@ var CATALOG = {
     "VNP21A1D.002: Day Land Surface Temperature and Emissivity Daily 1km",
     1,
     2012,
-    2026,
+    null,
     "daily day land nasa noaa surface temperature viirs weather-and-climate"
    ],
    [
@@ -5261,7 +5261,7 @@ var CATALOG = {
     "VNP21A1N.002: Night Land Surface Temperature and Emissivity Daily 1km",
     1,
     2012,
-    2026,
+    null,
     "daily land nasa night noaa surface temperature viirs weather-and-climate"
    ],
    [
@@ -5277,7 +5277,7 @@ var CATALOG = {
     "VNP43IA3: BRDF/Albedo Daily L3 Global 500m SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "albedo brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5285,7 +5285,7 @@ var CATALOG = {
     "VNP43IA4: BRDF/Albedo Quality Daily L3 Global 500m SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5293,7 +5293,7 @@ var CATALOG = {
     "VNP43MA3: BRDF/Albedo Daily L3 Global 1km SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "albedo brdf land nasa noaa satellite-imagery surface viirs"
    ],
    [
@@ -5301,7 +5301,7 @@ var CATALOG = {
     "VNP46A2: VIIRS Lunar Gap-Filled BRDF Nighttime Lights Daily L3 Global 500m",
     1,
     2012,
-    2026,
+    null,
     "brdf daily nasa nighttime noaa population viirs"
    ],
    [
@@ -5309,7 +5309,7 @@ var CATALOG = {
     "VNP64A1.002: Burned Area Monthly L4 Global 500m SIN Grid",
     1,
     2012,
-    2026,
+    null,
     "burn change-detection fire land nasa surface viirs"
    ],
    [
@@ -5325,7 +5325,7 @@ var CATALOG = {
     "NOAA CDR AVHRR AOT: Daily Aerosol Optical Thickness Over Global Oceans, v04",
     1,
     1981,
-    2026,
+    null,
     "aerosol aot atmosphere atmospheric avhrr cdr daily noaa optical pollution"
    ],
    [
@@ -5373,7 +5373,7 @@ var CATALOG = {
     "NOAA CDR OISST v02r01: Optimum Interpolation Sea Surface Temperature",
     1,
     1981,
-    2026,
+    null,
     "avhrr cdr daily ice noaa oceans oisst real-time sst temperature"
    ],
    [
@@ -5405,7 +5405,7 @@ var CATALOG = {
     "NOAA CDR VIIRS LAI FAPAR: Leaf Area Index and Fraction of Absorbed Photosynthetically Active Radiation, Version 1",
     1,
     2014,
-    2026,
+    null,
     "cdr daily fapar lai land noaa plant-productivity viirs"
    ],
    [
@@ -5413,7 +5413,7 @@ var CATALOG = {
     "NOAA CDR VIIRS NDVI: Normalized Difference Vegetation Index, Version 1",
     1,
     2014,
-    2026,
+    null,
     "cdr daily land ndvi noaa vegetation-indices viirs"
    ],
    [
@@ -5421,7 +5421,7 @@ var CATALOG = {
     "CFSR: Climate Forecast System Reanalysis Harmonized",
     1,
     2018,
-    2026,
+    null,
     "climate daylight flux forecast geophysical ncep noaa nws precipitation radiation snow temperature"
    ],
    [
@@ -5429,7 +5429,7 @@ var CATALOG = {
     "CFSV2: NCEP Climate Forecast System Version 2, 6-Hourly Products Harmonized",
     1,
     1979,
-    2026,
+    null,
     "climate daylight flux forecast geophysical ncep noaa nws precipitation radiation snow temperature"
    ],
    [
@@ -5437,7 +5437,7 @@ var CATALOG = {
     "CPC Global Unified Gauge-Based Analysis of Daily Precipitation",
     1,
     2006,
-    2026,
+    null,
     "daily noaa precipitation weather"
    ],
    [
@@ -5445,7 +5445,7 @@ var CATALOG = {
     "CPC Global Unified Temperature",
     1,
     1979,
-    2026,
+    null,
     "climate daily noaa precipitation weather weather-and-climate"
    ],
    [
@@ -5469,7 +5469,7 @@ var CATALOG = {
     "GFS: Global Forecast System 384-Hour Predicted Atmosphere Data",
     1,
     2015,
-    2026,
+    null,
     "climate cloud emc flux forecast geophysical gfs humidity ncep noaa precipitation radiation"
    ],
    [
@@ -5557,7 +5557,7 @@ var CATALOG = {
     "GOES-18 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
     1,
     2022,
-    2026,
+    null,
     "abi fdc fire goes goes-18 goes-t goes-west hotspot nesdis noaa ospo wildfire"
    ],
    [
@@ -5565,7 +5565,7 @@ var CATALOG = {
     "GOES-18 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
     1,
     2022,
-    2026,
+    null,
     "abi fdc fire goes goes-18 goes-t goes-west hotspot nesdis noaa ospo wildfire"
    ],
    [
@@ -5573,7 +5573,7 @@ var CATALOG = {
     "GOES-18 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
     1,
     2018,
-    2026,
+    null,
     "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5581,7 +5581,7 @@ var CATALOG = {
     "GOES-18 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
     1,
     2018,
-    2026,
+    null,
     "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5589,7 +5589,7 @@ var CATALOG = {
     "GOES-18 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
     1,
     2022,
-    2026,
+    null,
     "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5597,7 +5597,7 @@ var CATALOG = {
     "GOES-19 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
     1,
     2025,
-    2026,
+    null,
     "abi fdc fire goes goes-19 goes-east goes-u hotspot nesdis noaa ospo wildfire"
    ],
    [
@@ -5605,7 +5605,7 @@ var CATALOG = {
     "GOES-19 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
     1,
     2025,
-    2026,
+    null,
     "abi fdc fire goes goes-19 goes-east goes-u hotspot nesdis noaa ospo wildfire"
    ],
    [
@@ -5613,7 +5613,7 @@ var CATALOG = {
     "GOES-19 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
     1,
     2025,
-    2026,
+    null,
     "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5621,7 +5621,7 @@ var CATALOG = {
     "GOES-19 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
     1,
     2025,
-    2026,
+    null,
     "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5629,7 +5629,7 @@ var CATALOG = {
     "GOES-19 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
     1,
     2025,
-    2026,
+    null,
     "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
    ],
    [
@@ -5653,7 +5653,7 @@ var CATALOG = {
     "RTMA: Real-Time Mesoscale Analysis",
     1,
     2011,
-    2026,
+    null,
     "atmosphere climate cloud geophysical humidity noaa nws precipitation pressure rtma surface temperature"
    ],
    [
@@ -5661,7 +5661,7 @@ var CATALOG = {
     "PERSIANN-CDR: Precipitation Estimation From Remotely Sensed Information Using Artificial Neural Networks-Climate Data Record",
     1,
     1983,
-    2026,
+    null,
     "cdr climate geophysical ncdc noaa persiann precipitation weather"
    ],
    [
@@ -5693,7 +5693,7 @@ var CATALOG = {
     "VIIRS Aerosol Optical Depth and Aerosol Particle Size EDRs V3",
     1,
     2022,
-    2026,
+    null,
     "aerosol aod atmosphere noaa viirs"
    ],
    [
@@ -5717,7 +5717,7 @@ var CATALOG = {
     "VIIRS Nighttime Day/Night Band Composites Version 1",
     1,
     2012,
-    2026,
+    null,
     "dnb eog lights monthly nighttime noaa population viirs visible"
    ],
    [
@@ -5725,7 +5725,7 @@ var CATALOG = {
     "VIIRS Stray Light Corrected Nighttime Day/Night Band Composites Version 1",
     1,
     2014,
-    2026,
+    null,
     "dnb eog lights monthly nighttime noaa population stray-light viirs visible"
    ],
    [
@@ -5757,7 +5757,7 @@ var CATALOG = {
     "Dynamic Surface Water Extent from Harmonized Landsat Sentinel-2 (DSWx-HLS) V1",
     1,
     2023,
-    2026,
+    null,
     "geophysical landsat-derived nasa opera sentinel2-derived surface surface-ground-water water"
    ],
    [
@@ -5765,7 +5765,7 @@ var CATALOG = {
     "Dynamic Surface Water Extent from Sentinel-1 (DSWx-S1) V1",
     1,
     2024,
-    2026,
+    null,
     "geophysical nasa opera sentinel1-derived surface surface-ground-water water"
    ],
    [
@@ -5773,7 +5773,7 @@ var CATALOG = {
     "OPERA Radiometric Terrain-Corrected SAR Backscatter from Sentinel-1 V1.0",
     1,
     2016,
-    2026,
+    null,
     "backscatter jpl nasa opera polarization radar sar satellite-imagery sentinel1-derived"
    ],
    [
@@ -5789,7 +5789,7 @@ var CATALOG = {
     "PRISM Daily Spatial Dataset ANd",
     1,
     1981,
-    2026,
+    null,
     "daily geophysical oregonstate precipitation pressure prism temperature vapor weather weather-and-climate"
    ],
    [
@@ -5797,7 +5797,7 @@ var CATALOG = {
     "PRISM Monthly Spatial Dataset ANm",
     1,
     1895,
-    2026,
+    null,
     "geophysical monthly oregonstate precipitation pressure prism temperature vapor weather weather-and-climate"
    ],
    [
@@ -6029,7 +6029,7 @@ var CATALOG = {
     "Actual Evapotranspiration for Australia (CMRSET Landsat V2.2)",
     1,
     2000,
-    2026,
+    null,
     "agriculture australia csiro evaporation evapotranspiration landsat-derived tern viirs-derived water-vapor"
    ],
    [
@@ -6053,7 +6053,7 @@ var CATALOG = {
     "TOMS and OMI Merged Ozone Data v4",
     1,
     1978,
-    2026,
+    null,
     "atmosphere aura climate geophysical ges-disc goddard nasa omi ozone toms weather-and-climate"
    ],
    [
@@ -6101,7 +6101,7 @@ var CATALOG = {
     "CHIRPS Precipitation Daily Reanalysis: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0, ERA5-based)",
     1,
     1981,
-    2026,
+    null,
     "chc climate geophysical precipitation ucsb weather"
    ],
    [
@@ -6109,7 +6109,7 @@ var CATALOG = {
     "CHIRPS Precipitation Daily Near-Real-Time: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0, IMERG-based)",
     1,
     1981,
-    2026,
+    null,
     "chc climate geophysical precipitation ucsb weather"
    ],
    [
@@ -6117,7 +6117,7 @@ var CATALOG = {
     "CHIRPS Precipitation Pentad: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0)",
     1,
     1981,
-    2026,
+    null,
     "chc chg climate geophysical precipitation ucsb weather"
    ],
    [
@@ -6125,7 +6125,7 @@ var CATALOG = {
     "CHIRPS Precipitation Daily: Climate Hazards Center InfraRed Precipitation With Station Data (Version 2.0 Final)",
     1,
     1981,
-    2026,
+    null,
     "chg climate geophysical precipitation ucsb weather"
    ],
    [
@@ -6133,7 +6133,7 @@ var CATALOG = {
     "CHIRPS Precipitation Pentad: Climate Hazards Center InfraRed Precipitation With Station Data (Version 2.0 Final)",
     1,
     1981,
-    2026,
+    null,
     "chg climate geophysical precipitation ucsb weather"
    ],
    [
@@ -6469,7 +6469,7 @@ var CATALOG = {
     "KBDI: Keetch-Byram Drought Index",
     1,
     2007,
-    2026,
+    null,
     "drought fire kbdi lst-derived rainfall utokyo wtlab"
    ],
    [
@@ -6877,7 +6877,7 @@ var CATALOG = {
     "PARDIG NRT (Near-Real-Time)",
     1,
     2016,
-    2026,
+    null,
     "climate flood gpm hydrology meteorology pardig precipitation radar rain rainfall satellite satweave"
    ],
    [
@@ -6885,7 +6885,7 @@ var CATALOG = {
     "WeatherNext 2",
     1,
     2022,
-    2026,
+    null,
     "cyclones fgn forecast precipitation temperature weather weather-and-climate weathernext wind"
    ],
    [
@@ -6893,7 +6893,7 @@ var CATALOG = {
     "WeatherNext 2 Mean",
     1,
     2022,
-    2026,
+    null,
     "forecast precipitation temperature weather weather-and-climate weathernext wind"
    ],
    [
@@ -6901,7 +6901,7 @@ var CATALOG = {
     "WeatherNext 3 (0.05&deg;)",
     1,
     2024,
-    2026,
+    null,
     "flood forecast humidity precipitation temperature weather weather-and-climate weathernext wind"
    ],
    [
@@ -6909,7 +6909,7 @@ var CATALOG = {
     "WeatherNext 3 (0.1&deg;)",
     1,
     2024,
-    2026,
+    null,
     "flood forecast humidity precipitation temperature weather weather-and-climate weathernext wind"
    ],
    [
@@ -7301,7 +7301,7 @@ var CATALOG = {
     "NEON Surface Bidirectional Reflectance",
     1,
     2013,
-    2026,
+    null,
     "airborne forest highres hyperspectral neon satellite-imagery surface-reflectance vegetation"
    ],
    [
@@ -7333,7 +7333,7 @@ var CATALOG = {
     "OpenET DisALEXI Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7357,7 +7357,7 @@ var CATALOG = {
     "OpenET eeMETRIC Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7381,7 +7381,7 @@ var CATALOG = {
     "OpenET Ensemble Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7405,7 +7405,7 @@ var CATALOG = {
     "OpenET geeSEBAL Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7429,7 +7429,7 @@ var CATALOG = {
     "OpenET PT-JPL Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7453,7 +7453,7 @@ var CATALOG = {
     "OpenET SIMS Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7477,7 +7477,7 @@ var CATALOG = {
     "OpenET SSEBop Monthly Evapotranspiration v2.1",
     1,
     2015,
-    2026,
+    null,
     "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
    ],
    [
@@ -7485,7 +7485,7 @@ var CATALOG = {
     "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Africa",
     1,
     2015,
-    2026,
+    null,
     "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
    ],
    [
@@ -7493,7 +7493,7 @@ var CATALOG = {
     "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Americas",
     1,
     2015,
-    2026,
+    null,
     "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
    ],
    [
@@ -7501,7 +7501,7 @@ var CATALOG = {
     "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Asia",
     1,
     2015,
-    2026,
+    null,
     "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
    ],
    [
@@ -7541,7 +7541,7 @@ var CATALOG = {
     "United States Drought Monitor",
     1,
     2000,
-    2026,
+    null,
     "drought ndmc noaa precipitation usda"
    ]
   ],

@@ -952,7 +952,8 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.catalog_text, 1)
 		b = QPushButton('Search')
 		b.setToolTip('Searches the Earth Engine data catalog (the copy of its index in MonitorEO: without Earth '
-		             'Engine) with data in the period and over the region, when there is one')
+		             'Engine): the collections with data in the period, the images (fixed) of any date, over the map '
+		             'view when it is the region')
 		b.clicked.connect(lambda checked=False: self.search_catalog())
 		row.addWidget(b)
 		sf.addRow('Search the catalog', info(row, HELP['catalog_search']))
@@ -1359,15 +1360,17 @@ class MonitorEODock(QDockWidget):
 		self.community_dataset.setCurrentIndex(-1)
 
 	def search_catalog(self):
-		"""The datasets of the Earth Engine data catalog with the words written (services.find_datasets), with data in
-		the period (and over the region of the map view, when it is the region), in the list Dataset."""
+		"""The datasets of the Earth Engine data catalog with the words written (services.find_datasets): the
+		collections of images with data in the period and the images (fixed) whatever their dates, over the region of
+		the map view when it is the region (within the world: a view zoomed out goes beyond it), in the list Dataset."""
 		bbox = None
 		if self.region_kind.currentData() == 'extent':
 			canvas = self.iface.mapCanvas()
 			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem('EPSG:4326'),
 			                            QgsProject.instance())
 			r = tr.transformBoundingBox(canvas.extent())
-			bbox = [r.xMinimum(), r.yMinimum(), r.xMaximum(), r.yMaximum()]
+			w, s, e, n = max(r.xMinimum(), -180), max(r.yMinimum(), -90), min(r.xMaximum(), 180), min(r.yMaximum(), 90)
+			bbox = [w, s, e, n] if w < e and s < n else None  # a view outside the world: all of it
 		try:
 			found = services.find_datasets(self.catalog_text.text(), self.start.date().toString('yyyy-MM-dd'),
 			                               self.end.date().toString('yyyy-MM-dd'), bbox, limit=50)

@@ -65,7 +65,8 @@
 			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
 			doy: 'Una línea por año, sobre los días del año', dayOfYear: 'Día del año',
 			catalogSearch: 'Buscar en el catálogo de Earth Engine', catalogHint: 'palabras en inglés, p. ej. snow cover',
-			catalogFound: '%s conjuntos con datos en el periodo: elige uno', catalogNone: 'Ninguno: prueba otras palabras en inglés.',
+			catalogFound: '%s conjuntos (colecciones con datos en el periodo, imágenes fijas de cualquier fecha): elige uno',
+			catalogNone: 'Ninguno: prueba otras palabras en inglés.',
 			swipe: 'Cortina: los dos periodos lado a lado', oneMap: 'Volver a un mapa',
 			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
@@ -226,7 +227,8 @@
 			animGif: 'Download the GIF', animSlider: 'Frame on the map',
 			doy: 'A line per year, over the days of the year', dayOfYear: 'Day of the year',
 			catalogSearch: 'Search the Earth Engine data catalog', catalogHint: 'words in English, e.g. snow cover',
-			catalogFound: '%s datasets with data in the period: choose one', catalogNone: 'None: try other words in English.',
+			catalogFound: '%s datasets (collections with data in the period, fixed images of any date): choose one',
+			catalogNone: 'None: try other words in English.',
 			swipe: 'Swipe: the two periods side by side', oneMap: 'Back to one map',
 			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
@@ -787,8 +789,8 @@
 
 	// The data of Earth Engine by its ID: the ID and Read, then what it is (title, source, licence and page), its band,
 	// its use (images with dates or a fixed image), the scale and offset of its stored values and their unit
-	// The search of the Earth Engine data catalog (its copy in catalog.js: without Earth Engine), with data in the years
-	// of the period; the dataset chosen is read as an ID written
+	// The search of the Earth Engine data catalog (its copy in catalog.js: without Earth Engine): the collections with
+	// data in the years of the period, the images (fixed) whatever their dates; the dataset chosen is read as an ID written
 	function catalogWidgets() {
 		var w = [header(t('catalogSearch'))];
 		var box = ui.Textbox({placeholder: t('catalogHint'), value: state.catalogText,

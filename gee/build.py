@@ -65,8 +65,8 @@ def logo(path, width):
 def eecatalog_index():
 	"""The copy of the index of the Earth Engine data catalog (monitoreo.eecatalog) for the app, slim: each image or
 	collection of images as [id, title, 1 if a collection of images (0: an image), first year, last year (None: it
-	goes on), keywords (with spaces)], in the order of the index (see searchCatalog in core.js). Without their
-	descriptions, which the app does not search."""
+	goes on, its last image at most eecatalog.OPEN days older than the copy), keywords (with spaces)], in the order of
+	the index (see searchCatalog in core.js). Without their descriptions, which the app does not search."""
 	rows = []
 	for d in eecatalog.load()['datasets']:
 		rows.append([d['id'], d['title'], 1 if d['type'] == 'image_collection' else 0,

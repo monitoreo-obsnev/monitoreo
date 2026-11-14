@@ -476,6 +476,11 @@ test_that("the search of the Earth Engine data catalog, without Earth Engine", {
   expect_equal(x$id[1], "MODIS/061/MOD10A1")
   expect_true(all(c("title", "type", "start", "page") %in% names(x)))
   expect_type(x$keywords, "character")
+  # the images (fixed layers) whatever the dates; the collections that go on, without end
+  x <- mo_find_datasets("worldclim", start = "2020-01-01", end = "2021-12-31")
+  expect_true("WORLDCLIM/V1/BIO" %in% x$id)
+  x <- mo_find_datasets("sentinel-2 surface reflectance", limit = 5)  # all of them go on
+  expect_true("end" %in% names(x) && is.na(x$end[x$id == "NASA/HLS/HLSS30/v002"]))
 })
 
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {

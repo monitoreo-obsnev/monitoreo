@@ -261,8 +261,9 @@ Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-19
 without dates, like the elevation.
 - Other data of Earth Engine, outside the catalog: any image or collection of images of Earth Engine by its ID (the \
 path of its asset), instead of variable and sensor, when the user asks for it or no variable of the catalog fits. \
-Never make up an ID: the user gives it, or community_themes and community_datasets find those of the GEE Community \
-Catalog by theme or word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
+Never make up an ID: the user gives it, find_datasets finds those of the Earth Engine data catalog (by words in \
+English, dates and area), and community_themes and community_datasets those of the GEE Community Catalog by theme or \
+word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
 maps, series, trends and comparisons) or as image (a fixed layer without dates, like the elevation: maps, their \
 statistics and downloads only, without start and end), its bands with their scale, offset and unit, and the arguments \
 to pass (band, one; band_scale, band_offset, unit in UDUNITS). With terrain, "slope" or "aspect" of the band of an \

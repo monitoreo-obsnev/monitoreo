@@ -16,7 +16,8 @@ mo_find_datasets(
 \arguments{
 \item{text}{words, e.g. \code{"snow cover"}.}
 
-\item{start, end}{with data between these days (\code{"YYYY-MM-DD"}).}
+\item{start, end}{collections of images with data between these days (\code{"YYYY-MM-DD"}); the images, whatever
+their dates.}
 
 \item{bbox}{with data over \code{c(west, south, east, north)} (degrees).}
 
@@ -25,14 +26,16 @@ mo_find_datasets(
 \item{limit}{at most this number of datasets (100).}
 }
 \value{
-A data.frame (id, title, type, start, end, provider, keywords, gsd, description, page).
+A data.frame (id, title, type, start, end (\code{NA}: it goes on), provider, keywords, gsd, description,
+  page).
 }
 \description{
 The images and collections of images of the Earth Engine data catalog (from the copy of its index in MonitorEO,
 without Earth Engine), as the dataset search of geemap (Wu, 2020): with the words of \code{text} (in English; at
-least half of them) in their title, ID, keywords, provider or description, with data between \code{start} and
-\code{end} and over \code{bbox}, the best first. \code{mo_asset()} describes one; then compute it with
-\code{collection} or \code{image} and \code{band}.
+least half of them) in their title, ID, keywords, provider or description, the collections of images with data
+between \code{start} and \code{end} (the images, fixed layers without dates, whatever their dates), over
+\code{bbox}, the best first. \code{mo_asset()} describes one; then compute it with \code{collection} or
+\code{image} and \code{band}.
 }
 \examples{
 \dontshow{if (reticulate::py_module_available("monitoreo")) withAutoprint(\{ # examplesIf}

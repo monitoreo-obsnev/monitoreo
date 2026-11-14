@@ -10,10 +10,11 @@ community.json.gz, for the scan of plugins.qgis.org. Its maintainers refresh it 
     python -m monitoreo.eecatalog
 
 Each record has id (the ID of its Earth Engine asset), title, type (image or image_collection), start and end (the
-first and last day of its data; end empty if it goes on), bbox ([west, south, east, north], degrees), provider,
-keywords, gsd (the smallest pixel of its bands, in metres, when its record says it), the start of its description
-and its page in the catalog. The search ranks by the words found in its title and ID first, then in its keywords,
-provider and description; describe_asset reads its bands, units and how to cite it.
+first and last day of its data; end empty if it goes on: a collection of images whose last image is at most OPEN days
+older than the copy, as its record does not say it), bbox ([west, south, east, north], degrees), provider, keywords,
+gsd (the smallest pixel of its bands, in metres, when its record says it), the start of its description and its page
+in the catalog. The search ranks by the words found in its title and ID first, then in its keywords, provider and
+description; describe_asset reads its bands, units and how to cite it.
 """
 
 import concurrent.futures
@@ -31,6 +32,7 @@ PAGE = 'https://developers.google.com/earth-engine/datasets/catalog/{}'
 RASTERS = ('image', 'image_collection')
 FIELDS = ('id', 'title', 'type', 'start', 'end', 'bbox', 'provider', 'keywords', 'gsd', 'description')
 DESCRIPTION = 240  # characters of the description kept (its first sentences), to search it
+OPEN = 120  # days: a collection whose last image is at most this older than the copy goes on (e.g. ERA5-Land, 2 months)
 MAX_LIMIT = 100
 
 _snapshot = None
@@ -87,9 +89,10 @@ def _score(d, words):
 
 def search(text=None, start=None, end=None, bbox=None, kind=None, limit=20):
 	"""The images and collections of images of the catalog with the words of TEXT (at least half of them) in their
-	title, ID, keywords, provider or description (those with most words first, and in their title or ID), with data between START and END (any part of the period) and over BBOX ([w, s, e, n],
-	degrees; any part of it), of one KIND ('image' or 'image_collection'), at most LIMIT (100): [{id, title, type,
-	start, end, bbox, provider, keywords, gsd, page}]."""
+	title, ID, keywords, provider or description (those with most words first, and in their title or ID), the
+	collections of images with data between START and END (any part of the period; the images, fixed layers without
+	dates, whatever their dates), over BBOX ([w, s, e, n], degrees; any part of it), of one KIND ('image' or
+	'image_collection'), at most LIMIT (100): [{id, title, type, start, end, bbox, provider, keywords, gsd, page}]."""
 	if kind and kind not in RASTERS:
 		raise ValueError('unknown kind {}: use image or image_collection'.format(kind))
 	a, b, box = _day(start, 'start'), _day(end, 'end'), _bbox(bbox)
@@ -100,9 +103,10 @@ def search(text=None, start=None, end=None, bbox=None, kind=None, limit=20):
 	for i, d in enumerate(load()['datasets']):
 		if kind and d['type'] != kind:
 			continue
-		if a and d.get('end') and _day(d['end'], 'end') < a:
+		dated = d['type'] == 'image_collection'  # an image is a fixed layer: computed without dates
+		if a and dated and d.get('end') and _day(d['end'], 'end') < a:
 			continue
-		if b and d.get('start') and _day(d['start'], 'start') > b:
+		if b and dated and d.get('start') and _day(d['start'], 'start') > b:
 			continue
 		if box and d.get('bbox'):
 			w, s, e, n = d['bbox']
@@ -126,8 +130,10 @@ def _get(url, timeout=30):
 		return json.load(r)
 
 
-def _record(c):
-	"""The record of the copy of a STAC collection C, or None (a table, or deprecated)."""
+def _record(c, day=None):
+	"""The record of the copy of a STAC collection C, or None (a table, or deprecated). Its record says the day of its
+	last image, also for a collection that goes on: without end if it is a collection of images whose last image is at
+	most OPEN days older than DAY (the day of the copy)."""
 	kind = c.get('gee:type')
 	if kind not in RASTERS or c.get('deprecated') or c.get('gee:status') == 'deprecated':
 		return None
@@ -143,25 +149,28 @@ def _record(c):
 	       'provider': providers[0] if providers else None, 'keywords': list(c.get('keywords') or [])[:12],
 	       'gsd': min(gsd) if gsd else None,
 	       'description': text[:DESCRIPTION].rsplit(' ', 1)[0] + '…' if len(text) > DESCRIPTION else text}
+	if day and kind == 'image_collection' and out['end'] and 0 <= (day - dt.date.fromisoformat(out['end'])).days <= OPEN:
+		out['end'] = None  # it goes on (an end after the copy, as the projections to 2100, is kept)
 	return {k: out[k] for k in FIELDS if out.get(k) not in (None, '', [])}
 
 
 def update(path=SNAPSHOT, workers=16):
 	"""Read the STAC catalog of Earth Engine and write the copy of MonitorEO to PATH: its images and collections of
-	images, without the tables and the deprecated ones. Returns how many it kept."""
+	images, without the tables and the deprecated ones (the collections that go on without end). Returns how many it
+	kept."""
 	children = [lk['href'] for lk in _get(ROOT)['links'] if lk.get('rel') == 'child']
 	with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
 		catalogs = list(pool.map(_get, children))
 		links = [lk['href'] for cat in catalogs for lk in cat.get('links') or [] if lk.get('rel') == 'child']
 		collections = list(pool.map(_get, links))
-	seen, kept = set(), []
+	seen, kept, today = set(), [], dt.date.today()
 	for c in collections:
-		rec = _record(c)
+		rec = _record(c, today)
 		if rec and rec['id'] not in seen:
 			seen.add(rec['id'])
 			kept.append(rec)
 	kept.sort(key=lambda d: d['id'])
-	data = {'source': ROOT, 'downloaded': dt.date.today().isoformat(),
+	data = {'source': ROOT, 'downloaded': today.isoformat(),
 	        'note': 'The images and collections of images of the STAC catalog of Earth Engine, without its tables and '
 	                'deprecated datasets, as MonitorEO searches them (monitoreo.eecatalog).', 'datasets': kept}
 	with gzip.GzipFile(path, 'wb', mtime=0) as gz:  # mtime 0: the same index, the same file

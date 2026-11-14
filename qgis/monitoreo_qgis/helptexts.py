@@ -344,9 +344,10 @@ HELP = {
 		'summit, across a fire or along a river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'catalog_search':
 		'<p>Searches the <b>Earth Engine data catalog</b> by words in English (in the title, ID, keywords or description '
-		'of each dataset: at least half of them), with data in the <b>Period</b> and, when the region is the map view, '
-		'over it. The copy of its index in MonitorEO is searched, without Earth Engine. Choose a dataset in <b>Dataset</b>: '
-		'its ID goes to <b>Earth Engine ID</b> and it is read (its bands, units and how to cite it).</p>'
+		'of each dataset: at least half of them): the collections of images with data in the <b>Period</b> and the '
+		'images, fixed layers without dates (a DEM, the climate of WorldClim), whatever their dates; when the region is '
+		'the map view, over it. The copy of its index in MonitorEO is searched, without Earth Engine. Choose a dataset in '
+		'<b>Dataset</b>: its ID goes to <b>Earth Engine ID</b> and it is read (its bands, units and how to cite it).</p>'
 		+ manual('Concepts#earth-engine-data-by-its-id'),
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '

@@ -556,15 +556,18 @@ mo_community <- function(theme = NULL, text = NULL, kind = NULL, limit = NULL) {
 #'
 #' The images and collections of images of the Earth Engine data catalog (from the copy of its index in MonitorEO,
 #' without Earth Engine), as the dataset search of geemap (Wu, 2020): with the words of \code{text} (in English; at
-#' least half of them) in their title, ID, keywords, provider or description, with data between \code{start} and
-#' \code{end} and over \code{bbox}, the best first. \code{mo_asset()} describes one; then compute it with
-#' \code{collection} or \code{image} and \code{band}.
+#' least half of them) in their title, ID, keywords, provider or description, the collections of images with data
+#' between \code{start} and \code{end} (the images, fixed layers without dates, whatever their dates), over
+#' \code{bbox}, the best first. \code{mo_asset()} describes one; then compute it with \code{collection} or
+#' \code{image} and \code{band}.
 #' @param text words, e.g. \code{"snow cover"}.
-#' @param start,end with data between these days (\code{"YYYY-MM-DD"}).
+#' @param start,end collections of images with data between these days (\code{"YYYY-MM-DD"}); the images, whatever
+#'   their dates.
 #' @param bbox with data over \code{c(west, south, east, north)} (degrees).
 #' @param kind \code{"image"} or \code{"image_collection"}.
 #' @param limit at most this number of datasets (100).
-#' @return A data.frame (id, title, type, start, end, provider, keywords, gsd, description, page).
+#' @return A data.frame (id, title, type, start, end (\code{NA}: it goes on), provider, keywords, gsd, description,
+#'   page).
 #' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
 #'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
 #' @seealso \code{mo_asset()}, \code{mo_community()}
@@ -577,6 +580,7 @@ mo_find_datasets <- function(text = NULL, start = NULL, end = NULL, bbox = NULL,
   rows <- lapply(rows, function(r) {
     r$bbox <- NULL
     r$keywords <- paste(unlist(r$keywords), collapse = ", ")
+    if (is.null(r$end)) r["end"] <- list(NA_character_)  # it goes on (a column end even if all of them go on)
     r
   })
   rows_df(rows)
