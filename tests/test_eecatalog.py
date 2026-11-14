@@ -58,7 +58,8 @@ def test_the_images_whatever_their_dates():
 
 def test_the_collections_that_go_on():
 	"""The record of a collection says the day of its last image, also when it goes on: in the copy, a collection whose
-	last image is at most OPEN days older than the copy has no end, so it is found after the copy and goes 'to now'."""
+	last image is at most OPEN days older than the copy, or at most AHEAD days after it (a forecast), has no end, so it is
+	found after the copy and goes 'to now'."""
 	day = dt.date(2026, 11, 14)
 
 	def record(kind, end):
@@ -67,21 +68,28 @@ def test_the_collections_that_go_on():
 
 	assert 'end' not in record('image_collection', '2026-11-14T09:48:16Z')  # the day of the copy
 	assert 'end' not in record('image_collection', '2026-10-01T00:00:00Z')  # a delay of some weeks (ERA5-Land)
+	assert 'end' not in record('image_collection', '2026-11-22T00:00:00Z')  # forecasts of some days (CAMS)
 	assert record('image_collection', '2012-05-05T00:00:00Z')['end'] == '2012-05-05'  # ended
 	assert record('image_collection', '2100-12-31T00:00:00Z')['end'] == '2100-12-31'  # projections: after the copy
+	assert record('image_collection', '2030-12-31T00:00:00Z')['end'] == '2030-12-31'  # also the nearest (GHSL)
 	assert record('image', '2026-11-01T00:00:00Z')['end'] == '2026-11-01'  # an image does not go on
 	assert eecatalog._record({'id': 'X', 'gee:type': 'image_collection', 'extent': {'temporal': {'interval': [
 		['2000-01-01', '2026-11-14']]}}})['end'] == '2026-11-14'  # without the day of the copy, as it is
 	data = {d['id']: d for d in eecatalog.load()['datasets']}
 	for asset in ('COPERNICUS/S2_SR_HARMONIZED', 'LANDSAT/LC08/C02/T1_L2', 'MODIS/061/MOD13Q1',
-	              'ECMWF/ERA5_LAND/MONTHLY_AGGR'):
+	              'ECMWF/ERA5_LAND/MONTHLY_AGGR', 'ECMWF/CAMS/NRT', 'COPERNICUS/MARINE/WAV/ANFC_0_083DEG_PT3H',
+	              'COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_PHY_DAILY'):
 		assert 'end' not in data[asset], asset
 	assert data['NASA/GDDP-CMIP6']['end'] == '2100-12-31' and data['LANDSAT/LT05/C02/T1_L2']['end'] == '2012-05-05'
+	assert data['JRC/GHSL/P2023A/GHS_POP']['end'] == '2030-12-31'
 	after = [d['id'] for d in eecatalog.search('sentinel-2', start='2027-01-01', end='2027-06-30', limit=100)]
 	assert 'COPERNICUS/S2_SR_HARMONIZED' in after
+	assert 'ECMWF/CAMS/NRT' in [d['id'] for d in eecatalog.search('cams', start='2027-01-01', limit=100)]
 	from monitoreo import assistant
 	text = assistant.data_text('find_datasets', json.dumps(services.find_datasets('sentinel-2 surface reflectance')))
 	assert '- NASA/HLS/HLSS30/v002 (image collection, 2015-11-28 to now' in text
+	text = assistant.data_text('find_datasets', json.dumps(services.find_datasets('cams', limit=100)))
+	assert '- ECMWF/CAMS/NRT (image collection, 2016-06-22 to now' in text
 
 
 def test_the_tools(monkeypatch, tmp_path, capsys):
@@ -135,12 +143,14 @@ def test_the_app_searches_the_same(monkeypatch):
 	assert json.loads(text[text.index('{'):text.rstrip().rindex('}') + 1])['eecatalog'] == build.eecatalog_index(), \
 		'run gee/build.py --indexes-only: the app has another index of the Earth Engine data catalog'
 	queries = [('snow cover', None, None), ('land surface temperature modis', 2010, 2015), ('burned area', None, 2019),
-	           ('sentinel-2', 2018, 2020), ('worldclim', 2025, 2025), ('srtm', 2020, 2021), ('sentinel-2', 2027, 2027)]
+	           ('sentinel-2', 2018, 2020), ('worldclim', 2025, 2025), ('srtm', 2020, 2021), ('sentinel-2', 2027, 2027),
+	           ('cams', 2027, 2027)]
 	run = subprocess.run(['node', '-e', APP, GEE], input=json.dumps({'queries': queries}), capture_output=True, text=True,
 	                     timeout=120)
 	assert run.returncode == 0, run.stderr
 	got = json.loads(run.stdout)
 	assert 'WORLDCLIM/V1/BIO' in got[4] and 'COPERNICUS/S2_SR_HARMONIZED' in got[6]  # the images; what goes on
+	assert 'ECMWF/CAMS/NRT' in got[7]  # a forecast goes on too
 	data = eecatalog.load()
 	slim = dict(data, datasets=[{k: v for k, v in d.items() if k not in ('provider', 'description')}
 	                            for d in data['datasets']])

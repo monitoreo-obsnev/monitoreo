@@ -11,10 +11,10 @@ community.json.gz, for the scan of plugins.qgis.org. Its maintainers refresh it 
 
 Each record has id (the ID of its Earth Engine asset), title, type (image or image_collection), start and end (the
 first and last day of its data; end empty if it goes on: a collection of images whose last image is at most OPEN days
-older than the copy, as its record does not say it), bbox ([west, south, east, north], degrees), provider, keywords,
-gsd (the smallest pixel of its bands, in metres, when its record says it), the start of its description and its page
-in the catalog. The search ranks by the words found in its title and ID first, then in its keywords, provider and
-description; describe_asset reads its bands, units and how to cite it.
+older than the copy or at most AHEAD days after it (a forecast), as its record does not say it), bbox ([west, south,
+east, north], degrees), provider, keywords, gsd (the smallest pixel of its bands, in metres, when its record says it),
+the start of its description and its page in the catalog. The search ranks by the words found in its title and ID
+first, then in its keywords, provider and description; describe_asset reads its bands, units and how to cite it.
 """
 
 import concurrent.futures
@@ -33,6 +33,7 @@ RASTERS = ('image', 'image_collection')
 FIELDS = ('id', 'title', 'type', 'start', 'end', 'bbox', 'provider', 'keywords', 'gsd', 'description')
 DESCRIPTION = 240  # characters of the description kept (its first sentences), to search it
 OPEN = 120  # days: a collection whose last image is at most this older than the copy goes on (e.g. ERA5-Land, 2 months)
+AHEAD = 30  # days: or at most this after it, a forecast (e.g. CAMS, 5 days); projections to 2030 keep their end
 MAX_LIMIT = 100
 
 _snapshot = None
@@ -133,7 +134,7 @@ def _get(url, timeout=30):
 def _record(c, day=None):
 	"""The record of the copy of a STAC collection C, or None (a table, or deprecated). Its record says the day of its
 	last image, also for a collection that goes on: without end if it is a collection of images whose last image is at
-	most OPEN days older than DAY (the day of the copy)."""
+	most OPEN days older than DAY (the day of the copy) or at most AHEAD days after it (a forecast)."""
 	kind = c.get('gee:type')
 	if kind not in RASTERS or c.get('deprecated') or c.get('gee:status') == 'deprecated':
 		return None
@@ -149,8 +150,9 @@ def _record(c, day=None):
 	       'provider': providers[0] if providers else None, 'keywords': list(c.get('keywords') or [])[:12],
 	       'gsd': min(gsd) if gsd else None,
 	       'description': text[:DESCRIPTION].rsplit(' ', 1)[0] + '…' if len(text) > DESCRIPTION else text}
-	if day and kind == 'image_collection' and out['end'] and 0 <= (day - dt.date.fromisoformat(out['end'])).days <= OPEN:
-		out['end'] = None  # it goes on (an end after the copy, as the projections to 2100, is kept)
+	if day and kind == 'image_collection' and out['end'] and \
+			-AHEAD <= (day - dt.date.fromisoformat(out['end'])).days <= OPEN:
+		out['end'] = None  # it goes on (an end long after the copy, as the projections to 2030 or 2100, is kept)
 	return {k: out[k] for k in FIELDS if out.get(k) not in (None, '', [])}
 
 

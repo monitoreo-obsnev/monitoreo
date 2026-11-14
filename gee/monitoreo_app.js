@@ -1528,7 +1528,7 @@ var CATALOG = {
     "Global Ocean Physics Analysis and Forecast Daily",
     1,
     2022,
-    2026,
+    null,
     "copernicus daily forecast oceans"
    ],
    [
@@ -1632,7 +1632,7 @@ var CATALOG = {
     "Global Ocean Waves Analysis and Forecast",
     1,
     2022,
-    2026,
+    null,
     "copernicus forecast hourly oceans"
    ],
    [
@@ -2008,7 +2008,7 @@ var CATALOG = {
     "Copernicus Atmosphere Monitoring Service (CAMS) Global Near-Real-Time",
     1,
     2016,
-    2026,
+    null,
     "aerosol atmosphere climate copernicus ecmwf forecast particulate-matter"
    ],
    [
