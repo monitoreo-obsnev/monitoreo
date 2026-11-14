@@ -1368,6 +1368,7 @@ var MonitorEO = (function () {
 	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
 	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
 	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
 	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
 	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
 		'October', 'November', 'December'];
@@ -1538,18 +1539,20 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres
+	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres, none within a
+	// millionth of a step of its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH)
 	function transectCuts(length, step) {
 		var out = [];
-		for (var i = 1; i * step < length; i++) out.push(i * step);
+		for (var i = 1; i * step < length - step * 1e-6; i++) out.push(i * step);
 		return out;
 	}
 
 	// The mean of VALUE and of the elevation DEM over each segment of LINE cut at CUTS (each within half a pixel of
-	// SCALE), with the centre of each segment, to evaluate
+	// SCALE), with the centre of each segment, to evaluate: the segments that Earth Engine gives (one fewer if it
+	// measures the line a hair shorter: transectRows leaves the last row empty)
 	function transectStats(value, dem, line, cuts, scale, crs) {
 		var segments = ee.List(ee.Geometry(line).cutLines(cuts, 1).geometries());
-		var fc = ee.FeatureCollection(ee.List.sequence(0, cuts.length).map(function (i) {
+		var fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(function (i) {
 			var g = ee.Geometry(segments.get(i));
 			return ee.Feature(g.buffer(scale / 2, 1), {i: i, centre: g.centroid(1).coordinates()});
 		}));
@@ -1579,14 +1582,17 @@ var MonitorEO = (function () {
 	}
 
 	function transitionRows(features, m, year, otherYear) {
-		var out = [];
+		var out = [], seen = {};
 		features.forEach(function (f) {
+			var name = String(f.properties.name);  // classes.numbered: those of the same name, 'Sierra Nevada (2)'
+			seen[name] = (seen[name] || 0) + 1;
+			var region = seen[name] > 1 ? name + ' (' + seen[name] + ')' : name;
 			var by = (f.properties.groups || []).map(function (g) { return [Math.round(g['class']), g.sum]; });
 			var total = by.reduce(function (a, g) { return a + g[1]; }, 0);
 			by.sort(function (a, b) { return b[1] - a[1]; });
 			by.forEach(function (g) {
 				var a = Math.floor(g[0] / PAIR), b = g[0] % PAIR;
-				out.push({region: String(f.properties.name), map: m.name, year: year, other_year: otherYear,
+				out.push({region: region, map: m.name, year: year, other_year: otherYear,
 					from_class: a, from_label: a + ' ' + (m.names[String(a)] || ''), from_landcover: m.classes[String(a)] || null,
 					to_class: b, to_label: b + ' ' + (m.names[String(b)] || ''), to_landcover: m.classes[String(b)] || null,
 					ha: g[1], percent: total ? 100 * g[1] / total : null});
@@ -1648,6 +1654,18 @@ var MonitorEO = (function () {
 			var d = f[3];
 			return {id: d[0], title: d[1], type: d[2] ? 'image_collection' : 'image', first: d[3], last: d[4]};
 		});
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
 	}
 
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
@@ -2485,13 +2503,14 @@ var MonitorEO = (function () {
 		transectCuts: transectCuts, transectStats: transectStats, transectRows: transectRows,
 		searchCatalog: searchCatalog,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
-		animationSteps: animationSteps, animationFrames: animationFrames,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
-		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
+		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
 		RDNBR_SEVERITY: RDNBR_SEVERITY, RDNBR_COLOURS: RDNBR_COLOURS, RDNBR_BURNED: RDNBR_BURNED,

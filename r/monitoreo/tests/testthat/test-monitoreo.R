@@ -483,6 +483,38 @@ test_that("the search of the Earth Engine data catalog, without Earth Engine", {
   expect_true("end" %in% names(x) && is.na(x$end[x$id == "NASA/HLS/HLSS30/v002"]))
 })
 
+test_that("the time series by day of the year: doy reaches the services, mo_plot draws a line per year", {
+  sent <- NULL
+  rows <- list()
+  for (g in c("park", "buffer")) for (y in 2023:2024) for (d in c(1, 182)) {
+    date <- format(as.Date(sprintf("%d-01-01", y)) + d - 1)
+    rows[[length(rows) + 1]] <- list(region = g, date = date, value = d / 100 + (y - 2023), n_pixels = 4L,
+                                     n_images = 1L, year = y, doy = as.integer(format(as.Date(date), "%j")))
+  }
+  local_mocked_bindings(services = function() list(time_series = function(...) {
+    sent <<- list(...)
+    list(rows = rows, title = "16-day NDSI (MODIS), mean | by day of the year", unit = "1", ylabel = "NDSI",
+         scale = 500, references = list(), credits = list())
+  }), .package = "monitoreo")
+  ts <- mo_time_series(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDSI", "Modis", "2023-01-01", "2024-12-31",
+                       step = "16-day", doy = TRUE)
+  expect_true(sent$doy)
+  expect_equal(ts$doy[1:2], c(1, 182))
+  skip_if_not_installed("ggplot2")
+  p <- mo_plot(ts)
+  expect_s3_class(p, "ggplot")
+  expect_equal(rlang::as_label(p$mapping$x), "doy")  # over the days of the year, not over the dates
+  expect_equal(rlang::as_label(p$mapping$colour), "year")
+  expect_s3_class(p$facet, "FacetWrap")  # a panel per region
+  expect_equal(rlang::as_label(mo_plot(ts[ts$region == "park", ])$mapping$x), "doy")
+  # with base graphics (without ggplot2): a line per year too
+  base <- mo_plot
+  environment(base) <- list2env(list(requireNamespace = function(...) FALSE), parent = environment(mo_plot))
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_identical(base(ts), ts)
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

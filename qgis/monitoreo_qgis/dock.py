@@ -149,11 +149,38 @@ def dated(layer, first, last):
 	props.setIsActive(True)
 
 
+CREDITS_HEADING = 'Credits of the data:'  # in the abstract of a layer, before its credits (see figure_layout)
+REFERENCES_HEADING = 'References (cite them with this layer):'  # before its references (and its credits, earlier)
+
+
 def references_text(res):
-	"""The references and credits of a result (monitoreo.references), for the abstract of its layer."""
-	from monitoreo import references
-	lines = references.texts(res) if res.get('references') else []
-	return ('\n\nReferences (cite them with this layer):\n' + '\n'.join(lines)) if lines else ''
+	"""The references and credits of a result (monitoreo.references), for the abstract of its layer: the credits under
+	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
+	refs = [r['text'] for r in res.get('references') or []]
+	credits = [c for c in res.get('credits') or [] if c]
+	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
+	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
+
+
+def layer_credits(text):
+	"""The credits of the data in the abstract TEXT of a layer of the plugin (references_text): the lines under
+	CREDITS_HEADING until a blank line. A layer of an earlier version of the plugin has them at the end of its
+	references, without that heading: of the lines under REFERENCES_HEADING, those that are the credit of a dataset of
+	catalog.json (Copernicus Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL...), whatever its years."""
+	lines = [line.strip() for line in str(text or '').splitlines()]
+	heading = CREDITS_HEADING if CREDITS_HEADING in lines else REFERENCES_HEADING
+	if heading not in lines:
+		return []
+	out = []
+	for line in lines[lines.index(heading) + 1:]:
+		if not line:
+			break
+		out.append(line)
+	if heading == REFERENCES_HEADING:
+		known = [re.compile(re.sub(r'\\\{(year|month_year|data_years)\\\}', '.+', re.escape(d['credit'])))
+		         for d in catalog.load()['datasets'].values() if d.get('credit')]
+		out = [line for line in out if any(k.fullmatch(line) for k in known)]
+	return out
 
 
 def add_layer(layer, group=None):
@@ -222,6 +249,7 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	                       QgsLayoutItemPicture, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLayoutSize, QgsPrintLayout)
 	from qgis.PyQt.QtCore import QRectF
 	from qgis.PyQt.QtGui import QFont
+	from monitoreo.figures import decimals
 	project = QgsProject.instance()
 	manager = project.layoutManager()
 	title = name
@@ -246,17 +274,18 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	item = QgsLayoutItemMap(layout)
 	item.attemptSetSceneRect(QRectF(12, 18, 205, 160))
 	item.setCrs(canvas.mapSettings().destinationCrs())
-	item.setExtent(canvas.extent())
+	item.zoomToExtent(canvas.extent())  # the map keeps its 205 x 160 mm, with all the extent of the canvas in it
 	layout.addLayoutItem(item)
 	grid = item.grid()
 	grid.setEnabled(True)
-	extent = canvas.extent()
+	extent = item.extent()
 	step = _nice(max(extent.width(), extent.height()) / 5)
 	grid.setIntervalX(step)
 	grid.setIntervalY(step)
 	grid.setStyle(QgsLayoutItemMapGrid.GridStyle.Cross)
 	grid.setAnnotationEnabled(True)
-	grid.setAnnotationPrecision(2 if canvas.mapSettings().destinationCrs().isGeographic() else 0)
+	# the decimals that tell apart the lines of the grid (at least 2 in degrees, as the figures of monitoreo)
+	grid.setAnnotationPrecision(decimals(step, 2 if canvas.mapSettings().destinationCrs().isGeographic() else 0))
 	legend = QgsLayoutItemLegend(layout)
 	legend.setLinkedMap(item)
 	legend.setTitle('Legend')
@@ -275,9 +304,8 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	north.attemptMove(QgsLayoutPoint(200, 20))
 	north.attemptResize(QgsLayoutSize(12, 12))
 	credits = []
-	for layer in visible:  # the references and credits that the plugin writes in the metadata of its layers
-		text = layer.serverProperties().abstract() if hasattr(layer, 'serverProperties') else ''
-		credits += [line.strip() for line in str(text).splitlines() if line.strip().startswith('Contains')]
+	for layer in visible:  # the credits of the data that the plugin writes in the metadata of its layers
+		credits += layer_credits(layer.serverProperties().abstract() if hasattr(layer, 'serverProperties') else '')
 	from monitoreo import about
 	note = QgsLayoutItemLabel(layout)
 	note.setText('\n'.join(list(dict.fromkeys(credits)) + [f'Computed with MonitorEO in Google Earth Engine. '
@@ -798,7 +826,7 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Line', info(self.line_layer, HELP['transect']))
 		b = QPushButton('Profile along the line')
 		b.setToolTip('The map of the variable (with the options of the group Map) and the elevation along the selected '
-		             'line of the layer (or its first one), every 1 % of its length')
+		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
 		b.clicked.connect(self.run_transect)
 		f.addRow(b)
 		main.addWidget(box)
@@ -1910,10 +1938,14 @@ class MonitorEODock(QDockWidget):
 
 	def run_areas(self):
 		"""Hectares and % of each class over each feature of the region (services.area_by_class): of a land cover map
-		of a year, of the variable cut at the breaks, or of its trend (with the options of the group Trends), in a window
-		with its chart and table."""
+		of a year (refused with the land cover mask or «Only the pixels where», as services), of the variable cut at the
+		breaks, or of its trend (with the options of the group Trends), in a window with its chart and table."""
 		kind = self.area_kind.currentData()
 		if kind == 'landcover':
+			if self.landcover_box.isChecked() or any(c['on'].isChecked() for c in self.where):  # as services
+				self.message('The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, '
+				             'trend), not for those of a land cover map: uncheck them', 'Warning')
+				return
 			try:
 				region = self.region()
 			except Exception as e:
@@ -1948,10 +1980,11 @@ class MonitorEODock(QDockWidget):
 			path = os.path.join(tmp, 'areas.png')
 			colours = {c['label']: c['colour'] for c in res['classes']}
 			try:  # in the main thread; without matplotlib, the table only
-				if res['mode'] == 'transitions':
-					first = res['by_landcover'][0]['region'] if res['by_landcover'] else None
+				if res['mode'] == 'transitions':  # the Sankey diagram of the first feature, named if there are several
+					first = res['rows'][0]['region'] if res['rows'] else None
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
-					                   if r['region'] == first], colours, path, res['title'],
+					                   if r['region'] == first], colours, path,
+					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
 					                  (str(res['year']), str(res['other_year'])))
 				else:
 					charts.areas_png(res['rows'], colours, path, res['title'])

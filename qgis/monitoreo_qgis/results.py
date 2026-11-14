@@ -21,6 +21,7 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHB
 
 COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+YEARS = ['#fde725', '#5ec962', '#21918c', '#3b528b', '#440154']  # the years: from the oldest (light) to the newest
 TREND_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Years'), ('tau', "Kendall's τ"),
                  ('z', 'Z'), ('p_value', 'p-value'), ('significant', 'Significant'),
                  ('slope', "Sen's slope (per year)"), ('intercept', 'Initial value (Sen)'), ('first_year', 'First year'),
@@ -376,20 +377,33 @@ def nice_ticks(lo, hi, n=5):
 	return [first + i * step for i in range(int((hi - first) / step) + 1)]
 
 
+def year_colour(k, n):
+	"""Colour of the year K of N, from the oldest (light) to the newest (dark), as charts.doy_png (viridis reversed)."""
+	x = (0.15 + 0.85 * k / max(n - 1, 1)) * (len(YEARS) - 1)
+	i = min(int(x), len(YEARS) - 2)
+	a, b, w = QColor(YEARS[i]), QColor(YEARS[i + 1]), x - i
+	return QColor(round(a.red() + (b.red() - a.red()) * w), round(a.green() + (b.green() - a.green()) * w),
+	              round(a.blue() + (b.blue() - a.blue()) * w))
+
+
 class ChartWidget(QWidget):
 	"""Line chart of the rows (a line per region), drawn with QPainter; with the day of the year in the rows (doy), a line
-	per year (and region) over the days of one year."""
+	per year (and region) over the days of one year, from the oldest year (light) to the newest (dark, thicker), a dash
+	for each region."""
 
 	def __init__(self, rows, title='', unit='', parent=None):
 		super().__init__(parent)
 		self.title, self.unit = title, unit
 		self.doy = bool(rows) and 'doy' in rows[0]
-		regions = len({r['region'] for r in rows}) > 1
+		regions = list(dict.fromkeys(r['region'] for r in rows))
+		self.years = sorted({r['year'] for r in rows}) if self.doy else []
+		self.keys = {}  # with doy, the region and the year of each line
 		self.series = {}
 		for r in rows:
 			d = dt.date.fromisoformat(r['date'])
 			if self.doy:  # every year on the days of 2000 (a leap year: 366 days)
-				key = f"{r['region']} {d.year}" if regions else str(d.year)
+				key = f"{r['region']} {d.year}" if len(regions) > 1 else str(d.year)
+				self.keys[key] = (regions.index(r['region']), r['year'])
 				self.series.setdefault(key, []).append((dt.date(2000, 1, 1) + dt.timedelta(days=r['doy'] - 1),
 				                                        r.get('value')))
 			else:
@@ -397,6 +411,18 @@ class ChartWidget(QWidget):
 		for v in self.series.values():
 			v.sort()
 		self.setMinimumHeight(320)
+
+	def pen(self, i, name):
+		"""Pen of the line I (NAME): a colour of COLORS or, with doy, that of its year (the newest thicker) and a dash for
+		each region."""
+		if not self.doy:
+			return QPen(QColor(COLORS[i % len(COLORS)]), 1.8)
+		region, year = self.keys[name]
+		k = self.years.index(year)
+		pen = QPen(year_colour(k, len(self.years)), 2.2 if k == len(self.years) - 1 else 1.0)
+		pen.setStyle((Qt.PenStyle.SolidLine, Qt.PenStyle.DashLine, Qt.PenStyle.DotLine,
+		              Qt.PenStyle.DashDotLine)[region % 4])
+		return pen
 
 	def paintEvent(self, event):
 		p = QPainter(self)
@@ -446,8 +472,9 @@ class ChartWidget(QWidget):
 			p.drawText(QRectF(-100, -8, 200, 16), Qt.AlignmentFlag.AlignCenter, self.unit)
 			p.restore()
 		for i, (name, s) in enumerate(self.series.items()):
-			color = QColor(COLORS[i % len(COLORS)])
-			p.setPen(QPen(color, 1.8))
+			pen = self.pen(i, name)
+			color = pen.color()
+			p.setPen(pen)
 			path, drawing = QPainterPath(), False
 			for d, v in s:
 				if v is None:

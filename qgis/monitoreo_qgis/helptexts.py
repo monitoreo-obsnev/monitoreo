@@ -322,9 +322,10 @@ HELP = {
 		'<p><b>Compute the areas</b> gives the <b>hectares</b> and the <b>%</b> of each class over each feature of the '
 		'region, in a window with its chart and table (CSV with its README):</p><ul>'
 		'<li><b>Land cover map</b>: the classes of a land cover map of a year (ESA WorldCover, Dynamic World, CORINE '
-		'Land Cover, MODIS), each with its broad land cover. No variable. With <b>changes to</b> another year, its '
-		'changes: the hectares of each pair of classes (from the first year to the other) and a Sankey diagram of the '
-		'broad land covers.</li>'
+		'Land Cover, MODIS), each with its broad land cover. No variable, nor <b>Land cover mask</b> or <b>Only the '
+		'pixels where</b> (they are for the classes of a variable: uncheck them). With <b>changes to</b> another year, '
+		'its changes: the hectares of each pair of classes (from the first year to the other) and a Sankey diagram of '
+		'the broad land covers (of the first feature of the region, named in its title, when it has several).</li>'
 		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
 		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
 		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '
@@ -339,9 +340,10 @@ HELP = {
 		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'transect':
 		'<p><b>Profile along the line</b>: the map of the variable (with the options of the group <b>Map</b>) and the '
-		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments: the mean '
-		'of the pixels that each segment crosses. Draw it in a new temporary layer of lines, from the valley to the '
-		'summit, across a fire or along a river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments (at least '
+		'a pixel of the data long, so fewer on lines shorter than 100 pixels): the mean of the pixels that each segment '
+		'crosses. Draw it in a new temporary layer of lines, from the valley to the summit, across a fire or along a '
+		'river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'catalog_search':
 		'<p>Searches the <b>Earth Engine data catalog</b> by words in English (in the title, ID, keywords or description '
 		'of each dataset: at least half of them): the collections of images with data in the <b>Period</b> and the '
