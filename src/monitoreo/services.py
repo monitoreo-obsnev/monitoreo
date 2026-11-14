@@ -41,7 +41,7 @@ import warnings
 
 import ee
 
-from . import areas, catalog, charts, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, charts, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -987,6 +987,65 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 	                      palette)
 	img = maps.coarse(whole, res, _bounds(regions), dimensions).clipToCollection(regions)  # see maps.coarse
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
+
+
+@_cited
+def timelapse(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='median', season=None,
+              quality=None, vmin=None, vmax=None, palette=None, dimensions=animation.DIMENSIONS, fps=animation.FPS,
+              path=None, progress=None, **source):
+	"""Animation of a variable over REGION (a timelapse, GIF or MP4 video): a frame per STEP ('annual', 'monthly',
+	'16-day' or 'daily') of the period (and SEASON), each the METRIC of the images of the step on each pixel, coloured
+	with one colour ramp for every frame (VMIN to VMAX; by default from the percentiles 5 and 95 of the map of the whole
+	period, as map_layer, or, for the sum and the count, which grow with the images, of the median of the frames: see
+	animation.range_image) and with its date, the title, the ramp with its unit and the credits of the data (also
+	those of the region) written on it; the pixels of the region without data in a step are light grey. At most
+	animation.MAX_FRAMES frames of DIMENSIONS pixels (width or height of the map), FPS frames per second. PATH ends in
+	.gif (default) or .mp4 (with ffmpeg). Earth Engine computes the colours of each frame on the same grid of web
+	Mercator, several at a time (PROGRESS(done, total) after each), and they are joined in a GIF with their texts (see
+	monitoreo.animation). Not for the fixed layers (elevation, slope, an image), which have no dates.
+	Returns {'file' (the GIF or the MP4), 'gif', 'frames': [{'date', 'end', 'label', 'images'}], 'n_frames', 'step',
+	'fps', 'dimensions', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale' (m: the pixels on which the frames
+	are computed, those of the frames or, if bigger, those of the data; see animation.pixel_size)}."""
+	animation.check(step, dimensions=dimensions, fps=fps, path=path)
+	animation.can_draw()
+	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'animations')
+	composite.check_metric(metric)
+	steps = None if step == 'daily' else timeseries.bins(spec, step)  # the days with images need Earth Engine
+	if steps is not None:
+		animation.check(step, len(steps))
+	regions = areas.region(region)
+	geom = regions.geometry()
+	if steps is None:
+		steps = timeseries.bins(spec, step, geom)
+		animation.check(step, len(steps))
+	res = variables.native_scale(spec)
+	bounds = _bounds(regions)
+	col = variables.collection(spec, geom, res)
+	whole = animation.range_image(col, steps, metric, variables.image(spec, geom, res)).clipToCollection(regions)
+	vis = maps.vis_params(whole, geom, ramp_entry(spec), res, vmin, vmax, palette)
+	frames = animation.frames(col, regions, steps, metric, vis, res, bounds, dimensions)
+	pictures = animation.fetch_frames(frames, animation.frame_grid(bounds, dimensions), progress=progress)
+	unmasked = variables.collection(dict(spec, resample='nearest', where=None, exclude_landcover=None), geom, 1e9)
+	counts = ee.List([unmasked.filterDate(a, b).size() for a, b in steps]).getInfo()
+	labels = [animation.label(step, a, b) + ('' if n else ' · no images') for (a, b), n in zip(steps, counts)]
+	path = path or _slug(f"animation_{_file_stem(variable, sensor, metric, start, end, source)}_{step}") + '.gif'
+	unit = _unit(spec)
+	name = _named(spec, metric)
+	from .publish import unit_text
+	cited = references.cite('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start,
+	                                          end=end, quality=quality))
+	credits = '; '.join(['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
+	gif = animation.write(pictures, path, labels, f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'],
+	                      vis['palette'], unit_text(unit), credits, fps)
+	return dict(vis, file=path, gif=gif, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
+	            bounds=bounds, scale=animation.pixel_size(bounds, dimensions, res), n_frames=len(steps),
+	            frames=[{'date': a, 'end': b, 'label': animation.label(step, a, b), 'images': n}
+	                    for (a, b), n in zip(steps, counts)])
+
+
+STEP_NAMES = {'annual': 'a frame per year', 'monthly': 'a frame per month', '16-day': 'a frame per 16 days',
+              'daily': 'a frame per day with images'}
 
 
 REGION_STATS = catalog.REGION_STATS  # the statistics of region_stats by default

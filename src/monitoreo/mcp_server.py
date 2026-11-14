@@ -84,7 +84,8 @@ median, mean, min, max and pN. A map whose preview Earth Engine cannot make in s
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
-pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
+pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Animations
+(timelapses) of a variable, a frame per year, month, 16 days or day with its date: timelapse (a GIF, or an MP4). Burn
 severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
 Burn Ratio, a continuous index; or, with index "RdNBR", the relative dNBR of Miller & Thode 2007 with the classes of
 the article, also with MODIS): burn_severity; with perimeter true, also the polygons of the burned area in a
@@ -502,6 +503,52 @@ def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                         vmin, vmax, thumbnail=png, quick=quick, where=where, **source)
 	return [_text(res)] + _preview(res)
+
+
+@tool
+def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+              step: str = 'annual', metric: str = 'median', season: Optional[List[str]] = None,
+              quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
+              fps: float = 2, dimensions: int = 600, video: bool = False, collection: Optional[str] = None,
+              band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+              unit: Optional[str] = None, where: Optional[list] = None):
+	"""Animation of a variable over a region (a timelapse): a frame per step ('annual', 'monthly', '16-day' or 'daily')
+	of the period (and season), each the METRIC of the images of the step on each pixel, with one colour ramp for every
+	frame (vmin to vmax; by default from the percentiles 5 and 95 of the map of the whole period or, for the metrics
+	sum and count, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit
+	and the credits of the data and of the region; the pixels without data in a step are light grey. At most 120
+	frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an MP4 too; it needs ffmpeg) and
+	returns its last frame as a picture, the date and the number of images of each frame, and the colour ramp. It
+	takes some minutes (Earth Engine makes each frame). fps: frames per second; dimensions: width or height of the map
+	in pixels (64 to 1200). Not for the fixed layers, which have no dates. Required: region, start and end, and
+	variable and sensor or collection and band."""
+	source = _source(variable, sensor, collection, None, band, band_scale, band_offset, unit)
+	_dates(variable, sensor, source, 'animations', start=start, end=end)
+	_ready()
+	path = _out(_stem('animation', _data(variable, sensor, source), step, metric, start, end), 'mp4' if video else 'gif')
+	res = services.timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
+	                         fps=fps, dimensions=dimensions, path=path, where=where, **source)
+	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'file',
+	                                    'gif', 'readme', 'references', 'credits')}
+	summary['frames'] = res.get('frames') or []
+	return [_text(summary)] + _last_frame(res.get('gif'))
+
+
+def _last_frame(gif):
+	"""The last frame of the GIF of an animation as a PNG picture (the GIF itself would be too big for the model),
+	or nothing without it."""
+	if not gif or not os.path.exists(gif):
+		return []
+	try:
+		import io
+		from PIL import Image as Picture
+		pic = Picture.open(gif)
+		pic.seek(pic.n_frames - 1)
+		buf = io.BytesIO()
+		pic.convert('RGB').save(buf, 'PNG')
+		return [Image(data=buf.getvalue(), format='png')]
+	except Exception:  # the animation is in its file anyway
+		return []
 
 
 @tool

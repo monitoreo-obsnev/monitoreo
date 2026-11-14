@@ -1363,6 +1363,72 @@ var MonitorEO = (function () {
 		return out.map(function (b) { return [iso(b[0]), iso(b[1])]; });
 	}
 
+	// Animations (services.timelapse, monitoreo.animation): a frame per step of the period, the metric of its images
+	// coloured with one colour ramp for every frame, on a light grey region (no data) over white, with its outline. The
+	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
+	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
+	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
+	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
+	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+		'October', 'November', 'December'];
+	var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
+		'noviembre', 'diciembre'];
+
+	// animation.label: the date of a frame of STEP from FIRST to the day before AFTER
+	function frameLabel(step, first, after, lang) {
+		var a = date(first), last = addDays(date(after), -1);
+		if (step === 'annual') {
+			return a.getUTCFullYear() === last.getUTCFullYear() ? String(a.getUTCFullYear()) :
+				a.getUTCFullYear() + '-' + last.getUTCFullYear();
+		}
+		if (step === 'monthly') {
+			return (lang === 'es' ? MESES : MONTH_NAMES)[a.getUTCMonth()] + (lang === 'es' ? ' de ' : ' ') +
+				a.getUTCFullYear();
+		}
+		return iso(a) === iso(last) ? iso(a) : iso(a) + (lang === 'es' ? ' a ' : ' to ') + iso(last);
+	}
+
+	// The steps of the frames of S ([first day, day after the last]), at most MAX_FRAMES (animation.check)
+	function animationSteps(s, step) {
+		if (ANIMATION_STEPS.indexOf(step) < 0) {
+			throw new Error('unknown step ' + step + ': use ' + ANIMATION_STEPS.join(', '));
+		}
+		var steps = seriesBins(s, step);
+		if (steps.length > MAX_FRAMES) {
+			throw new Error(steps.length + ' frames: an animation has at most ' + MAX_FRAMES + '; use a longer step ' +
+				'(annual, monthly) or a shorter period');
+		}
+		if (!steps.length) throw new Error('the period (and season) has no time step');
+		return steps;
+	}
+
+	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
+	// METRIC of its images coloured with VIS
+	function animationFrames(s, regions, steps, metric, vis) {
+		var col = collection(s, regions.geometry());
+		var outside = ee.Image.constant(0).visualize({palette: [FRAME_COLOURS.outside]});
+		var inside = ee.Image.constant(0).clipToCollection(regions).visualize({palette: [FRAME_COLOURS.noData]});
+		var outline = ee.Image().byte().paint(regions, 1, 2).visualize({palette: [FRAME_COLOURS.outline]});
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			var value = reduce(col.filterDate(b[0], b[1]), metric).clipToCollection(regions);
+			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
+				.set('system:time_start', date(b[0]).getTime());
+		}));
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
+	}
+
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
 	function dailyDays(s, region) {
 		var wins = windows(s.period, s.season);
@@ -2191,6 +2257,9 @@ var MonitorEO = (function () {
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
+		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,

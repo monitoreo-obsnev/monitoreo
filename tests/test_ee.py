@@ -307,3 +307,16 @@ def test_true_colour_metrics_and_sensors(tmp_path):
 	assert m['url'].startswith('https://') and open(m['thumbnail'], 'rb').read(4) == b'\x89PNG'
 	quick = services.rgb_map(GUAJARES, 'NDVI', 'Sentinel-2', '2021-06-01', '2021-08-31', quick=True)
 	assert (quick['min'], quick['max']) == (0.0, 0.3)
+
+
+def test_animation(tmp_path):
+	"""An animation of three years: a frame per year with its images, the colours of the map of the period, a GIF
+	with its texts and its README."""
+	PIL = pytest.importorskip('PIL.Image')
+	res = services.timelapse(GUAJARES, 'NDVI', 'Sentinel-2', '2021-01-01', '2023-12-31', step='annual',
+	                         dimensions=300, path=str(tmp_path / 'ndvi.gif'))
+	assert [f['label'] for f in res['frames']] == ['2021', '2022', '2023'] and all(f['images'] > 0 for f in
+	                                                                               res['frames'])
+	assert 0 <= res['min'] < res['max'] <= 1 and (res['min'], res['max']) != (0.0, 1.0)  # those of the map
+	gif = PIL.open(res['gif'])
+	assert gif.n_frames == 3 and gif.size[0] in (300, 301) and os.path.exists(res['readme'])

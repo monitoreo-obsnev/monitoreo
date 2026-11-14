@@ -59,7 +59,13 @@
 		const content = el('div', {class: 'result-body'});
 		section.append(content);
 		const tools = el('div', {class: 'result-tools'});
-		if (r.kind === 'map' && MO.safePath(r.cog)) {
+		if (r.kind === 'animation' && MO.safePath(r.gif)) {
+			// an animation (a timelapse): the GIF of Earth Engine with its dates, title, colour ramp and credits on it
+			content.append(el('figure', {class: 'animation'},
+				el('img', {src: base + r.gif, alt: `${r.title}: a frame per time step` +
+					(r.frames?.length ? ` (${r.frames[0]} to ${r.frames[r.frames.length - 1]})` : ''), loading: 'lazy'})));
+			tools.append(...[link(r.gif, 'Download the GIF'), r.mp4 && link(r.mp4, 'Video (MP4)')].filter(Boolean));
+		} else if (r.kind === 'map' && MO.safePath(r.cog)) {
 			try {
 				MO.map.render(content, r, base);
 			} catch (e) {

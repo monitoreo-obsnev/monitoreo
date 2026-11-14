@@ -318,6 +318,21 @@ HELP = {
 		'left with no data. Unchecked, it shows all of them.</p>'
 		'<p>A high p-value does not prove that there is no change: with few years or much variability, the test has no '
 		'power to see it.</p>' + manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
+	'anim_step':
+		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
+		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '
+		'unit and the credits of the data. Every frame has the same colours (from the percentiles 5 and 95 of the map '
+		'of the whole period), so that they can be compared; the pixels without data in a step are light grey.</p>'
+		'<p>At most 120 frames: for long periods, a frame per year. Earth Engine makes each frame, so it takes some '
+		'minutes. The window plays the GIF, with the date and the number of images of each frame, and saves it with '
+		'its README.</p>' + manual('QGIS-plugin#10-animation-timelapse'),
+	'anim_metric':
+		'<p>How the images of each frame are joined on each pixel: the median (by default), the mean, the minimum, the '
+		'maximum, a percentile, the standard deviation or the coefficient of variation (%).</p>'
+		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
+	'anim_fps':
+		'<p>Frames per second of the GIF: 2 shows each year for half a second.</p>'
+		+ manual('QGIS-plugin#10-animation-timelapse'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
 		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>' + SPREAD_HELP +

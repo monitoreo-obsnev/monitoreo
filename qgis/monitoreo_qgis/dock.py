@@ -45,6 +45,7 @@ STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum',
 TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
             ('Each month, then between years', 'monthly')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
+ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
@@ -635,6 +636,26 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
+		box = QGroupBox('Animation (timelapse)')
+		self.animation_box = box  # greyed out for the fixed layers without dates (elevation, slope)
+		f = QFormLayout(box)
+		self.anim_step = combo(ANIMATION_STEPS, s.value(SETTINGS + 'anim_step', 'annual'))
+		self.anim_metric = combo(METRICS, 'median')
+		self.anim_fps = QDoubleSpinBox()
+		self.anim_fps.setRange(0.5, 30)
+		self.anim_fps.setDecimals(1)
+		self.anim_fps.setValue(2)
+		self.anim_fps.setSuffix(' frames per second')
+		f.addRow('A frame per', info(self.anim_step, HELP['anim_step']))
+		f.addRow('Metric of each frame', info(self.anim_metric, HELP['anim_metric']))
+		f.addRow('Speed', info(self.anim_fps, HELP['anim_fps']))
+		b = QPushButton('Make the animation')
+		b.setToolTip('A GIF with a frame per step of the period, each with its date, in a window (it takes some '
+		             'minutes: Earth Engine makes each frame)')
+		b.clicked.connect(self.run_timelapse)
+		f.addRow(b)
+		main.addWidget(box)
+
 		box = QGroupBox('Export to Google Drive')
 		f = QFormLayout(box)
 		self.resolution = QDoubleSpinBox()
@@ -892,6 +913,7 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'other_start', self.other_start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'other_end', self.other_end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'folder', self.folder.text().strip())
+		s.setValue(SETTINGS + 'anim_step', self.anim_step.currentData())
 		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
 		s.setValue(SETTINGS + 'fire_perimeter', 'true' if self.fire_perimeter.isChecked() else 'false')
 		for key, d in self.fire_dates.items():
@@ -1517,13 +1539,14 @@ class MonitorEODock(QDockWidget):
 		v = self.variable.currentData() or {}
 		only = v.get('metric')
 		static = bool(v.get('static'))
-		for w in (self.ts_metric, self.trend_metric, self.map_metric):
+		for w in (self.ts_metric, self.trend_metric, self.map_metric, self.anim_metric):
 			if only:
 				w.setCurrentIndex(max(0, w.findData(only)))
 			w.setEnabled(not only and not static)
 			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
 		for w in (self.compare_on, self.season_on, self.season_start, self.season_end,
-		          self.temporal, self.interannual, self.series_box, self.trends_box, self.export_series_button):
+		          self.temporal, self.interannual, self.series_box, self.trends_box, self.animation_box,
+		          self.export_series_button):
 			w.setEnabled(not static)
 		dated = any(c['on'].isChecked() and not (c['variable'].currentData() or {}).get('static')
 		            for c in getattr(self, 'where', []))  # the period of a condition with dates
@@ -1628,6 +1651,25 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Trend map of {data_name(var)}", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
+	def run_timelapse(self):
+		"""Animation of the variable over the region (services.timelapse): a GIF with a frame per step, in its window
+		and in the list of the results of the session."""
+		args = self.prepare()
+		if not args:
+			return
+		region, var = args
+		step, metric, fps = self.anim_step.currentData(), self.anim_metric.currentData(), self.anim_fps.value()
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'animation.gif')
+
+		def work():
+			return services.timelapse(region, step=step, metric=metric, fps=fps, path=path, **var)
+
+		def done(res):
+			res.update(kind='animation', label=f"Animation of {data_name(var)} ({step})")
+			self.add_result(res)
+
+		self.run_task(f"Animation of {data_name(var)}", work, done)
+
 	def update_series_list(self):
 		self.series_list.clear()
 		for i, res in enumerate(self.series):
@@ -1638,14 +1680,15 @@ class MonitorEODock(QDockWidget):
 	def show_series(self):
 		"""Open the window of the chosen series, trends, comparison or burn severity (or bring it to the front if it
 		is open)."""
-		from .results import ResultDialog, SeriesDialog
+		from .results import AnimationDialog, ResultDialog, SeriesDialog
 		i = self.series_list.currentData()
 		if i is None:
 			return
 		dlg = self.series_dialogs.get(i)
 		if dlg is None:
 			res = self.series[i]
-			cls = SeriesDialog if res.get('kind', 'series') == 'series' else ResultDialog
+			kind = res.get('kind', 'series')
+			cls = SeriesDialog if kind == 'series' else AnimationDialog if kind == 'animation' else ResultDialog
 			dlg = self.series_dialogs[i] = cls(res, self.iface.mainWindow(), self.add_result_map)
 		dlg.show()
 		dlg.raise_()

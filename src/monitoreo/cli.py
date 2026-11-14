@@ -17,6 +17,9 @@
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
+    monitoreo timelapse VARIABLE --sensor S --region JSON --start D --end D --out F.gif|F.mp4
+                        [--step annual|monthly|16-day|daily] [--metric median] [--fps 2]
+                                                     animation of a variable: a frame per step with its date
     monitoreo series --collection ID --band B [--band-scale F] [--band-offset F] [--unit U] --region JSON ...
                                                      the same with any collection of images of Earth Engine by its ID,
                                                      instead of VARIABLE and --sensor (also image, stats, trend and
@@ -342,6 +345,24 @@ def main(argv=None):
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
+	computes['timelapse'] = p = sub.add_parser('timelapse', help='animation of a variable over a region (a timelapse): '
+	                                                             'a frame per step of the period, with its date')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', required=True)
+	p.add_argument('--end', required=True)
+	p.add_argument('--step', default='annual', choices=('annual', 'monthly', '16-day', 'daily'),
+	               help='a frame per year (default), month, 16 days or day with images (at most 120 frames)')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
+	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the '
+	                                         'period; with --metric sum or count, of the median of the frames)')
+	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
+	p.add_argument('--fps', type=float, default=2, help='frames per second (default: 2)')
+	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
+	p.add_argument('--out', required=True, help='GIF (.gif) or video (.mp4, needs ffmpeg) of the animation')
 	burn = p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, the RBR, or the '
 	                                       'RdNBR with the classes of Miller & Thode 2007')
 	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat', 'Modis'),
@@ -557,6 +578,9 @@ def _compute(args, services):
 	if args.cmd == 'burn':
 		_burn(args, services)
 		return
+	if args.cmd == 'timelapse':
+		_timelapse(args, services)
+		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
 		_image(args, services)
@@ -618,6 +642,22 @@ def _stats(args, services):
 	_table(_fmt(res['rows']), ['region'] + list(res.get('stats') or stats) + ['n_pixels'])
 	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats) else ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
+
+
+def _timelapse(args, services):
+	"""Animation of a variable over the region (services.timelapse): the GIF or the MP4, its frames and its colours."""
+	try:
+		res = services.timelapse(json.loads(args.region), start=args.start, end=args.end, step=args.step,
+		                         metric=args.metric, vmin=args.vmin, vmax=args.vmax, fps=args.fps,
+		                         dimensions=args.dimensions, path=args.out, where=_where(args),
+		                         progress=lambda d, t: print(f'  {d}/{t} frames', file=sys.stderr), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	_table([{'frame': i, 'label': f['label'], 'images': f['images']} for i, f in enumerate(res['frames'], 1)],
+	       ['frame', 'label', 'images'])
+	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
+	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
+	      + (f" | README {res['readme']}" if res.get('readme') else ''))
 
 
 def _fmt(rows, digits=4):

@@ -800,6 +800,58 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
                        terrain = terrain)
 }
 
+#' Animation of a variable over a region (a timelapse)
+#'
+#' A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
+#' temporal metric of the images of the step on each pixel, coloured with one colour ramp for every frame (from
+#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period or, for the
+#' metrics \code{"sum"} and \code{"count"}, which grow with the images, of the median of the frames) and, written on
+#' it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+#' lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
+#' colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
+#' not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the
+#' QGIS plugin does without it, with Qt and its own GIF encoder), and the MP4 with ffmpeg, as the timelapses of geemap
+#' (Wu, 2020). At most 120 frames. Not for the fixed layers (elevation, slope, an image), which have no dates. Instead
+#' of a variable of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and
+#' \code{band} (see \code{mo_asset()}).
+#' @inheritParams mo_params
+#' @param path the GIF (\code{.gif}) or video (\code{.mp4}, it needs ffmpeg) of the animation.
+#' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
+#' @param fps frames per second.
+#' @param dimensions width or height of the map in pixels (64 to 1200).
+#' @return A list (file, gif, frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
+#'   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
+#'   or, if bigger, that of the data; readme, references, credits).
+#' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
+#'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
+#'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them. The files that it writes have a README next to them (attribute or
+#'   element \code{readme}): what each frame is, how it was computed and how to cite it.
+#' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
+#'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @seealso \code{mo_map_layer()} (the map of the whole period), \code{mo_time_series()}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' a <- mo_timelapse(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", "ndvi.gif")
+#' a$frames
+#' }
+#' @export
+mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", metric = "median",
+                         season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 2, dimensions = 600L,
+                         collection = NULL, where = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
+                         unit = NULL) {
+  check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit)
+  services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
+                       dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
+                       collection = collection, where = where, band = band, band_scale = band_scale,
+                       band_offset = band_offset, unit = unit)
+}
+
 #' True colour map of the images of a variable over a region, as Earth Engine tiles
 #'
 #' The red, green and blue surface reflectance of the same images and pixels as the map of the variable

@@ -6673,6 +6673,72 @@ var MonitorEO = (function () {
 		return out.map(function (b) { return [iso(b[0]), iso(b[1])]; });
 	}
 
+	// Animations (services.timelapse, monitoreo.animation): a frame per step of the period, the metric of its images
+	// coloured with one colour ramp for every frame, on a light grey region (no data) over white, with its outline. The
+	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
+	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
+	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
+	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
+	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+		'October', 'November', 'December'];
+	var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
+		'noviembre', 'diciembre'];
+
+	// animation.label: the date of a frame of STEP from FIRST to the day before AFTER
+	function frameLabel(step, first, after, lang) {
+		var a = date(first), last = addDays(date(after), -1);
+		if (step === 'annual') {
+			return a.getUTCFullYear() === last.getUTCFullYear() ? String(a.getUTCFullYear()) :
+				a.getUTCFullYear() + '-' + last.getUTCFullYear();
+		}
+		if (step === 'monthly') {
+			return (lang === 'es' ? MESES : MONTH_NAMES)[a.getUTCMonth()] + (lang === 'es' ? ' de ' : ' ') +
+				a.getUTCFullYear();
+		}
+		return iso(a) === iso(last) ? iso(a) : iso(a) + (lang === 'es' ? ' a ' : ' to ') + iso(last);
+	}
+
+	// The steps of the frames of S ([first day, day after the last]), at most MAX_FRAMES (animation.check)
+	function animationSteps(s, step) {
+		if (ANIMATION_STEPS.indexOf(step) < 0) {
+			throw new Error('unknown step ' + step + ': use ' + ANIMATION_STEPS.join(', '));
+		}
+		var steps = seriesBins(s, step);
+		if (steps.length > MAX_FRAMES) {
+			throw new Error(steps.length + ' frames: an animation has at most ' + MAX_FRAMES + '; use a longer step ' +
+				'(annual, monthly) or a shorter period');
+		}
+		if (!steps.length) throw new Error('the period (and season) has no time step');
+		return steps;
+	}
+
+	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
+	// METRIC of its images coloured with VIS
+	function animationFrames(s, regions, steps, metric, vis) {
+		var col = collection(s, regions.geometry());
+		var outside = ee.Image.constant(0).visualize({palette: [FRAME_COLOURS.outside]});
+		var inside = ee.Image.constant(0).clipToCollection(regions).visualize({palette: [FRAME_COLOURS.noData]});
+		var outline = ee.Image().byte().paint(regions, 1, 2).visualize({palette: [FRAME_COLOURS.outline]});
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			var value = reduce(col.filterDate(b[0], b[1]), metric).clipToCollection(regions);
+			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
+				.set('system:time_start', date(b[0]).getTime());
+		}));
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
+	}
+
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
 	function dailyDays(s, region) {
 		var wins = windows(s.period, s.season);
@@ -7501,6 +7567,9 @@ var MonitorEO = (function () {
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
+		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
@@ -7582,6 +7651,12 @@ var MonitorEO = (function () {
 			map: 'Mapa', metric: 'M\u00e9trica', temporal: 'Agregaci\u00f3n temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada a\u00f1o y entre a\u00f1os', t_monthly: 'Cada mes y entre a\u00f1os', 't_16-day': 'Cada 16 d\u00edas y entre a\u00f1os',
 			interannual: 'M\u00e9trica entre a\u00f1os', addMap: 'A\u00f1adir al mapa', download: 'Descargar GeoTIFF',
+			animation: 'Animaci\u00f3n (timelapse)', animStep: 'Un fotograma por', a_annual: 'A\u00f1o', a_monthly: 'Mes',
+			'a_16-day': '16 d\u00edas', animMetric: 'M\u00e9trica de cada fotograma', makeAnimation: 'Hacer la animaci\u00f3n',
+			animFrames: '%s fotogramas, con los mismos colores (de %s a %s): %s.',
+			animNote: 'Los p\u00edxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
+				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
+			animGif: 'Descargar el GIF',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: '\u00cdndice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas im\u00e1genes y p\u00edxeles que la ' +
@@ -7718,6 +7793,12 @@ var MonitorEO = (function () {
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
+			animation: 'Animation (timelapse)', animStep: 'A frame per', a_annual: 'Year', a_monthly: 'Month',
+			'a_16-day': '16 days', animMetric: 'Metric of each frame', makeAnimation: 'Make the animation',
+			animFrames: '%s frames, with the same colours (from %s to %s): %s.',
+			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
+				'with the Python package, QGIS or the assistant (timelapse).',
+			animGif: 'Download the GIF',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -7839,6 +7920,7 @@ var MonitorEO = (function () {
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
+		animStep: 'annual', animMetric: 'median',
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
@@ -8320,7 +8402,7 @@ var MonitorEO = (function () {
 		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
 		// data of Earth Engine let the metrics change meanwhile
 		var only = mo.byRef(state.ref).metric;
-		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = only;
 		render();
 	}
 
@@ -8338,7 +8420,8 @@ var MonitorEO = (function () {
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
-		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
+		// its only metric (SCF), also of each frame of the animation
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
 		render();
 	}
 
@@ -8823,6 +8906,57 @@ var MonitorEO = (function () {
 		else if (state.mapLayer !== 'index') w.push(ui.Label(t('rgbNote'), SMALL));
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
+	}
+
+	// Animation (services.timelapse) -------------------------------------------------------------------------------
+
+	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
+	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
+	// download
+	function timelapse() {
+		var e = entry();
+		if (!ready(e)) return;
+		var s = specOf(null, state.animMetric);
+		var step = state.animStep;
+		var steps = mo.animationSteps(s, step);  // its errors before Earth Engine
+		var geom = state.region.geometry();
+		var region = state.region;
+		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
+		var ramped = mo.rampEntry(e, state.animMetric, 'period');
+		var id = start();
+		var range = mo.animationRange(s, region, steps, state.animMetric);
+		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
+			if (id !== run) return;
+			var vis = mo.visParams(error ? null : st, ramped);
+			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);
+			var params = {dimensions: 600, region: geom.bounds(1000), framesPerSecond: 2, crs: 'EPSG:3857'};
+			var labels = steps.map(function (b) { return mo.frameLabel(step, b[0], b[1], state.lang); });
+			var unit = unitText(e, state.animMetric, null);
+			colourBar(vis, name + (unit ? ' ' + unit : ''));
+			var gif = ui.Panel();
+			gif.add(button(t('animGif'), function () {
+				gif.clear();
+				gif.add(ui.Label(t('computing'), SMALL));
+				frames.getVideoThumbURL(params, function (url, err) {
+					gif.clear();
+					if (err) return gif.add(ui.Label(t('error') + err, {color: '#b00020'}));
+					gif.add(ui.Label(t('animGif'), {fontSize: '12px'}, url));
+				});
+			}));
+			show([ui.Label(name, {fontWeight: 'bold'}), ui.Thumbnail({image: frames, params: params}),
+				ui.Label(fmt(t('animFrames'), steps.length, num(vis.min), num(vis.max), labels.join(', ')), SMALL),
+				ui.Label(t('animNote'), SMALL), gif]);
+		});
+	}
+
+	function animationWidgets() {
+		var w = [header(t('animation'))];
+		var steps = mo.ANIMATION_STEPS.map(function (x) { return {value: x, label: t('a_' + x)}; });
+		w.push(row(ui.Label(t('animStep')), select(steps, state.animStep, function (v) { state.animStep = v; })));
+		w.push(row(ui.Label(t('animMetric')), metricSelect(state.animMetric, function (v) { state.animMetric = v; })));
+		w.push(button(t('makeAnimation'), guarded(timelapse)));
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no animation
 	}
 
 	// Time series and comparison of periods -------------------------------------------------------------------------
@@ -9423,7 +9557,8 @@ var MonitorEO = (function () {
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), seriesWidgets(), trendWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), animationWidgets(), seriesWidgets(),
+			trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});

@@ -92,6 +92,11 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: Animations (timelapses) of any variable with dates over a region: a frame per year, month or 16 days of the period (also a day with images, but in the Earth Engine app), each the metric of its images on each pixel, with the same colours in every frame and the pixels without data in light grey, as the timelapses of geemap (Wu 2020). The GIF has the date of each frame, the title, the colour ramp with its unit and the credits of the data written on it, and a README with the date and the images of each frame (`monitoreo timelapse`, `timelapse` of the MCP server, `mo_timelapse()` of R, the group Animation of the QGIS plugin, which plays it in a window, and of the Earth Engine app, which plays its frames and downloads them as a GIF); with ffmpeg, also an MP4 video. The viewer of results publishes them.
+- **QGIS plugin, MCP server, Assistant, Python package, Command line, R package** (fix): The colour ramp of the maps over long periods of Sentinel-2 is that of the map again (its percentiles 5 and 95): Earth Engine ran out of memory computing them, and the map took the range of the catalog (0 to 1 for the NDVI). The Earth Engine app already had it.
+
 ### [v0.3.36](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.36) · 2026-11-14 · package 0.3.46
 
 - **All tools**: Any variable of the catalog, also the fixed layers, has its coefficient of variation (100 × standard deviation / mean, in %, Pearson 1896) besides its mean, median, minimum, maximum, standard deviation and percentiles: of the images of each pixel (the metric of a map, a time series or a trend), between the years (e.g. how much the annual precipitation changes from year to year) and over the pixels of the region (the statistic of the time series, trends and comparisons, and the statistics of a map). The QGIS plugin also offers the standard deviation as a metric, the percentiles 25 and 75, the percentiles as the statistic of the region and every metric between the years; the burn severity gives the standard deviation and the coefficient of variation of the RBR and the RdNBR.
