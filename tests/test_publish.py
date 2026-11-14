@@ -373,8 +373,8 @@ def test_rbr_table(tmp_path):
 	out.mkdir()
 	bands = ['rbr', 'dnbr', 'nbr_before', 'nbr_after']
 	_tif(out / 'burn_RBR.tif', bands, [0.3, 0.3, 0.5, 0.2])
-	stats = {'region': 'Fire', 'mean': 0.21, 'median': 0.18, 'p10': 0.02, 'p90': 0.45, 'min': -0.1, 'max': 0.7,
-	         'ha': 120.5}
+	stats = {'region': 'Fire', 'mean': 0.21, 'median': 0.18, 'std': 0.15, 'cv': 71.43, 'p10': 0.02, 'p90': 0.45,
+	         'min': -0.1, 'max': 0.7, 'ha': 120.5}
 	assert list(stats) == services.RBR_COLUMNS
 	_csv(out / 'burn_RBR.csv', [dict(stats, index='RBR', sensor='Sentinel-2', before='2022-06-01/2022-07-31',
 	                                 after='2023-06-01/2023-07-31', metric='median', scale_m=20)])

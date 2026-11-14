@@ -5376,19 +5376,34 @@ var MonitorEO = (function () {
 	// Temporal aggregation (composite.py) ---------------------------------------------------------------------------
 
 	var TEMPORAL = ['period', 'annual', 'monthly', '16-day'];
-	var METRICS = 'mean, median, mode, min, max, sum, std, count or pN (percentile N, e.g. p95, p2.5)';
+	var METRICS = 'mean, median, mode, min, max, sum, std (standard deviation), cv (coefficient of variation, %), ' +
+		'count or pN (percentile N, e.g. p95, p2.5)';
+	var SIMPLE = ['mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'cv', 'count'];
+	// composite.CV: the coefficient of variation, 100 \u00d7 the standard deviation / the mean, in % (Pearson 1896), of the
+	// images of each pixel or of the pixels of a region, computed from the reducers of the mean and of the standard
+	// deviation (population), without a value where the mean is 0; composite.SPREAD: the metrics whose values are not in
+	// the range of the variable (their colour ramp comes from the map, see rampEntry)
+	var CV = 'cv';
+	var SPREAD = ['std', 'cv'];
 	// composite.RGB_METRICS: the metrics of the true colour (RGB) of the images of a variable: each band with the
 	// metric (mean, median or pN), or, with max and min, the bands of the image where the variable is highest or lowest
 	// on each pixel (composite.MOSAICS: Earth Engine qualityMosaic), so that the colours are those of one date
 	var RGB_METRICS = 'mean, median, min, max or pN';
 	var MOSAICS = ['max', 'min'];
 
-	// composite.reducer
+	// composite.is_cv
+	function isCv(metric) {
+		return String(metric || '').trim().toLowerCase() === CV;
+	}
+
+	// composite.reducer (that of the coefficient of variation: of the mean and the standard deviation, outputs mean and
+	// stdDev, from which cv and cvValue compute it)
 	function reducer(metric) {
 		var m = String(metric).trim().toLowerCase();
 		var simple = {mean: 'mean', median: 'median', mode: 'mode', min: 'min', max: 'max', sum: 'sum', std: 'stdDev',
 			count: 'count'};
 		if (simple[m]) return ee.Reducer[simple[m]]();
+		if (m === CV) return ee.Reducer.mean().combine(ee.Reducer.stdDev(), '', true);
 		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
 		if (p && Number(p[1]) <= 100) return ee.Reducer.percentile([Number(p[1])]);
 		throw new Error('unknown metric ' + metric + ': use ' + METRICS);
@@ -5397,9 +5412,32 @@ var MonitorEO = (function () {
 	// composite.check_metric: error if METRIC is not valid (without Earth Engine)
 	function checkMetric(metric) {
 		var m = String(metric).trim().toLowerCase();
-		if (['mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'count'].indexOf(m) >= 0) return;
+		if (SIMPLE.indexOf(m) >= 0) return;
 		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
 		if (!(p && Number(p[1]) <= 100)) throw new Error('unknown metric ' + metric + ': use ' + METRICS);
+	}
+
+	// composite.cv: image of the coefficient of variation (%) from the images of the mean and of the standard
+	// deviation, masked where the mean is 0 (Earth Engine would give 0 there)
+	function cv(mean, std) {
+		mean = ee.Image(mean);
+		return ee.Image(std).divide(mean).multiply(100).updateMask(mean.neq(0));
+	}
+
+	// composite.ee_value_of: the statistic STAT of a region from the feature F of the result of reducer(STAT) over it:
+	// the output OUT, or, for the coefficient of variation, 100 \u00d7 stdDev / mean (null without them or with a mean of 0)
+	function statValue(f, stat, out, prefix) {
+		f = ee.Feature(f);
+		prefix = prefix || '';
+		if (!isCv(stat)) return f.get(ee.String(prefix).cat(out));
+		var mean = f.get(prefix + 'mean'), std = f.get(prefix + 'stdDev');
+		return ee.Algorithms.If(mean, ee.Algorithms.If(std, ee.Number(std).multiply(100).divide(mean), 0), null);
+	}
+
+	// composite.cv_number: the coefficient of variation (%) of the evaluated MEAN and STD, or null
+	function cvNumber(mean, std) {
+		if (mean === null || mean === undefined || std === null || std === undefined || mean === 0) return null;
+		return 100 * std / mean;
 	}
 
 	// composite.check_rgb_metric: error if METRIC does not give the true colour of the images (see RGB_METRICS)
@@ -5454,14 +5492,19 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// composite._reduce: image of COL reduced with RED, with the bands BANDS (one, 'value', by default), all masked if
-	// COL is empty. With MOSAIC ('max' or 'min'), the bands of the image where the first band is highest or lowest on
-	// each pixel instead (the true colour of the date of the maximum or minimum of the variable)
+	// composite._reduce: image of COL reduced with RED (a metric, or an ee.Reducer), with the bands BANDS (one, 'value',
+	// by default), all masked if COL is empty. With MOSAIC ('max' or 'min'), the bands of the image where the first band
+	// is highest or lowest on each pixel instead (the true colour of the date of the maximum or minimum of the variable)
 	function reduce(col, red, bands, mosaic) {
 		bands = bands || ['value'];
 		var empty = ee.Image.constant(bands.length > 1 ? bands.map(function () { return 0; }) : 0).toFloat()
 			.rename(bands).updateMask(0);
 		var out;
+		if (typeof red === 'string' && isCv(red)) {  // one band: the true colour refuses it (checkRgbMetric)
+			var both = col.reduce(reducer(CV));  // bands <band>_mean and <band>_stdDev
+			return ee.Image(ee.Algorithms.If(col.size().gt(0), cv(both.select(0), both.select(1)).rename(bands), empty));
+		}
+		if (typeof red === 'string') red = reducer(red);
 		if (mosaic === 'max') {
 			out = col.qualityMosaic(bands[0]).select(bands);
 		} else if (mosaic === 'min') {
@@ -5495,9 +5538,11 @@ var MonitorEO = (function () {
 	function composite(col, metric, temporal, interannual, period, season, bands) {
 		bands = bands || ['value'];
 		var wins = windows(period, season);
-		var red = reducer(metric), mos = mosaic(metric, bands);
+		checkMetric(metric);
+		var red = metric, mos = mosaic(metric, bands);
 		if (temporal === 'period') return reduce(col.filter(dateFilter(wins)), red, bands, mos);
-		var red2 = reducer(interannual), mos2 = mosaic(interannual, bands);
+		checkMetric(interannual);
+		var red2 = interannual, mos2 = mosaic(interannual, bands);
 		if (temporal === 'annual') {
 			var years = wins.map(function (w) {
 				return reduce(col.filterDate(iso(w[1]), iso(w[2])), red, bands, mos);
@@ -5516,7 +5561,7 @@ var MonitorEO = (function () {
 		var months = Object.keys(parts).map(Number).sort(function (a, b) { return a - b; }).map(function (m) {
 			return reduce(ee.ImageCollection.fromImages(parts[m]), red2, bands, mos2);
 		});
-		return reduce(ee.ImageCollection.fromImages(months), ee.Reducer.mean(), bands);
+		return reduce(ee.ImageCollection.fromImages(months), 'mean', bands);
 	}
 
 	// Sensors: quality masks, scale and offset, formula (sensors.py) ------------------------------------------------
@@ -5580,10 +5625,13 @@ var MonitorEO = (function () {
 	var RATE = /^(\[)(.+?)(?:\/(?:month|day)| (?:month|day)-1)(\])$/;
 	var RATE_UDUNITS = /^()(.+?)(?:\/(?:month|day|d|\d+ ?days?|\(\d+ ?days?\))| (?:month|day|d|\(\d+ ?days?\))-1)()$/;
 
-	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC; the sum of a rate (RATE, RATE_UDUNITS:
-	// '[mm/month]', e.g. the annual precipitation; 'mm month-1', 'mm (5 day)-1') is a total ('[mm]', 'mm')
-	function unitOf(entry, metric) {
+	// catalog.unit_of: the unit of the values of ENTRY aggregated with METRIC (and between the years with INTERANNUAL,
+	// if they are), then over a region with STAT: the coefficient of variation of any of them is in % ('[%]', '%' in
+	// UDUNITS); the sum of a rate (RATE, RATE_UDUNITS: '[mm/month]', e.g. the annual precipitation; 'mm month-1',
+	// 'mm (5 day)-1') is a total ('[mm]', 'mm')
+	function unitOf(entry, metric, interannual, stat) {
 		var text = String(entry.unit || '');
+		if (isCv(metric) || isCv(interannual) || isCv(stat)) return text.charAt(0) === '[' ? '[%]' : '%';
 		var m = (text.charAt(0) === '[' ? RATE : RATE_UDUNITS).exec(text);
 		return m && String(metric || '').toLowerCase() === 'sum' ? m[1] + m[2] + m[3] : entry.unit;
 	}
@@ -6665,7 +6713,8 @@ var MonitorEO = (function () {
 	// and region of REGIONS, computed on pixels of SCALE metres in CRS
 	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale) {
 		var col = collection(s, regions.geometry(), scale);
-		var red = reducer(metric);
+		checkMetric(metric);
+		var red = metric;
 		var sred = reducer(stat).combine(ee.Reducer.count(), '', true);
 		var out = ee.String(reducer(stat).getOutputs().get(0));
 		var bands = steps.map(function (st, i) { return 's' + i; });
@@ -6679,7 +6728,7 @@ var MonitorEO = (function () {
 		return stats.map(function (f) {
 			f = ee.Feature(f);
 			return ee.FeatureCollection(steps.map(function (st, i) {
-				return ee.Feature(null, {region: f.get('name'), date: st[0], value: f.get(ee.String(prefix[i]).cat(out)),
+				return ee.Feature(null, {region: f.get('name'), date: st[0], value: statValue(f, stat, out, prefix[i]),
 					n_pixels: f.get(prefix[i] + 'count'), n_images: nImages.get(i)});
 			}));
 		}).flatten();
@@ -6816,7 +6865,8 @@ var MonitorEO = (function () {
 	function yearlyCollection(s, region, step, part, metric) {
 		onlyMetric(entryOf(s), metric || 'mean');
 		var col = collection(s, region);
-		var red = reducer(metric || 'mean');
+		var red = metric || 'mean';
+		checkMetric(red);
 		var imgs = [];
 		seasonalBins(s, step).forEach(function (b) {
 			if (b[0] !== part) return;
@@ -7195,17 +7245,18 @@ var MonitorEO = (function () {
 	// (ee.FeatureCollection of the regions with the statistics of the RBR and the hectares with values)}. BEFORE and
 	// AFTER are specs of the entry RBR of the catalog (103 Sentinel-2, 104 Landsat)
 	var RBR_OFFSET = 1.001;  // catalog.RBR_OFFSET: RBR = dNBR / (NBR before + 1.001)
-	var RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
+	var RBR_COLUMNS = ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha'];
 
-	// The statistics of services._rbr and services._rdnbr over each region (fire.stats_reducer): mean, median,
-	// percentiles 10 and 90, minimum and maximum of the index, and the sum of the hectares with values. The percentiles
+	// The statistics of services._rbr and services._rdnbr over each region (fire.stats_reducer): mean, median, standard
+	// deviation (and from it the coefficient of variation), percentiles 10 and 90, minimum and maximum of the index, and
+	// the sum of the hectares with values. The percentiles
 	// from a histogram of PERCENTILE_BUCKETS buckets (fire.PERCENTILE_BUCKETS), so that a few outliers do not make them
 	// coarse: with the default of Earth Engine, the percentile 10 and the median could be the same value
 	var PERCENTILE_BUCKETS = 65536;
 	function burnStatsReducer() {
 		var percentiles = ee.Reducer.percentile([10, 50, 90], ['p10', 'median', 'p90'], PERCENTILE_BUCKETS);
-		return ee.Reducer.mean().combine(percentiles, '', true).combine(ee.Reducer.minMax(), '', true)
-			.combine(ee.Reducer.sum(), '', true);
+		return ee.Reducer.mean().combine(percentiles, '', true).combine(ee.Reducer.stdDev(), '', true)
+			.combine(ee.Reducer.minMax(), '', true).combine(ee.Reducer.sum(), '', true);
 	}
 
 	function burnRatio(before, after, regions, scale, crs) {
@@ -7223,8 +7274,9 @@ var MonitorEO = (function () {
 	function rbrTable(features) {
 		return features.map(function (f) {
 			var p = f.properties;
-			return {region: String(p.name), mean: p.rbr_mean, median: p.rbr_median, p10: p.rbr_p10, p90: p.rbr_p90,
-				min: p.rbr_min, max: p.rbr_max, ha: p.ha_sum || 0};
+			return {region: String(p.name), mean: p.rbr_mean, median: p.rbr_median, std: p.rbr_stdDev,
+				cv: cvNumber(p.rbr_mean, p.rbr_stdDev), p10: p.rbr_p10, p90: p.rbr_p90, min: p.rbr_min, max: p.rbr_max,
+				ha: p.ha_sum || 0};
 		});
 	}
 
@@ -7254,8 +7306,9 @@ var MonitorEO = (function () {
 	function rdnbrTable(features) {
 		return features.map(function (f) {
 			var p = f.properties;
-			return {region: String(p.name), mean: p.rdnbr_mean, median: p.rdnbr_median, p10: p.rdnbr_p10,
-				p90: p.rdnbr_p90, min: p.rdnbr_min, max: p.rdnbr_max, ha: p.ha_sum || 0};
+			return {region: String(p.name), mean: p.rdnbr_mean, median: p.rdnbr_median, std: p.rdnbr_stdDev,
+				cv: cvNumber(p.rdnbr_mean, p.rdnbr_stdDev), p10: p.rdnbr_p10, p90: p.rdnbr_p90, min: p.rdnbr_min,
+				max: p.rdnbr_max, ha: p.ha_sum || 0};
 		});
 	}
 
@@ -7369,6 +7422,30 @@ var MonitorEO = (function () {
 		return {min: lo, max: hi, palette: ramp(entry, palette)};
 	}
 
+	// services.spread: whether the values of a map with METRIC (and INTERANNUAL between the years, unless TEMPORAL is
+	// 'period') are a spread (SPREAD: standard deviation, coefficient of variation), not in the range of the variable
+	function spread(metric, temporal, interannual) {
+		var ms = [metric].concat(temporal && temporal !== 'period' ? [interannual] : []);
+		return ms.some(function (m) { return SPREAD.indexOf(String(m || '').trim().toLowerCase()) >= 0; });
+	}
+
+	// services.ramp_entry: the entry E for the colour ramp of its map: its palette, and the range of its values when
+	// Earth Engine cannot compute it, that of the variable or, for a spread, 0 to 100 % for the coefficient of variation
+	// and 0 to half the range of the variable for the standard deviation
+	function rampEntry(e, metric, temporal, interannual) {
+		if (!e || !spread(metric, temporal, interannual)) return e;
+		var out = {};
+		for (var k in e) out[k] = e[k];
+		if (isCv(metric) || (temporal && temporal !== 'period' && isCv(interannual))) {
+			out.minp = 0;
+			out.maxp = 100;
+		} else {
+			out.minp = 0;
+			out.maxp = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 2 : 1;
+		}
+		return out;
+	}
+
 	// maps.RGB_STRETCH: percentiles of the reflectance of the true colour between which it is stretched; maps.RGB_RANGE:
 	// the reflectance of the true colour when they cannot be computed
 	var RGB_STRETCH = [2, 98];
@@ -7435,7 +7512,8 @@ var MonitorEO = (function () {
 		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
 		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
 		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter,
-		ramp: ramp, percentiles: percentiles, visParams: visParams,
+		ramp: ramp, percentiles: percentiles, visParams: visParams, spread: spread, rampEntry: rampEntry,
+		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
 		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
@@ -7518,6 +7596,7 @@ var MonitorEO = (function () {
 			downloadRgb: 'Descargar GeoTIFF del color verdadero (bandas red, green, blue)',
 			series: 'Serie temporal', step: 'Paso', s_daily: 'Diario (d\u00edas con im\u00e1genes)', 's_16-day': '16 d\u00edas',
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'M\u00e9trica de cada paso', stat: 'Estad\u00edstico de la regi\u00f3n',
+			cvAxis: 'Coeficiente de variaci\u00f3n',
 			computeSeries: 'Calcular la serie temporal',
 			trends: 'Tendencias (Mann-Kendall y Sen)', parts: 'Partes del a\u00f1o', p_monthly: 'Meses', 'p_16-day': '16 d\u00edas',
 			p_annual: 'El a\u00f1o', yearMetric: 'M\u00e9trica de cada a\u00f1o', trendTable: 'Tabla de tendencias',
@@ -7653,6 +7732,7 @@ var MonitorEO = (function () {
 			downloadRgb: 'Download GeoTIFF of the true colour (bands red, green, blue)',
 			series: 'Time series', step: 'Step', s_daily: 'Daily (days with images)', 's_16-day': '16 days',
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
+			cvAxis: 'Coefficient of variation',
 			computeSeries: 'Compute the time series',
 			trends: 'Trends (Mann-Kendall and Sen)', parts: 'Parts of the year', p_monthly: 'Months', 'p_16-day': '16 days',
 			p_annual: 'The year', yearMetric: 'Metric of each year', trendTable: 'Trend table',
@@ -7734,13 +7814,13 @@ var MonitorEO = (function () {
 		}
 	};
 
-	var METRICS = ['mean', 'median', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'std', 'count'];
-	var STATS = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
+	var METRICS = ['mean', 'median', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'std', 'cv', 'count'];
+	var STATS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
 	var METRIC_NAMES = {
-		es: {mean: 'Media', median: 'Mediana', min: 'M\u00ednimo', max: 'M\u00e1ximo', std: 'Desviaci\u00f3n t\u00edpica', count: 'N\u00famero',
-			sum: 'Suma'},
-		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation', count: 'Count',
-			sum: 'Sum'}
+		es: {mean: 'Media', median: 'Mediana', min: 'M\u00ednimo', max: 'M\u00e1ximo', std: 'Desviaci\u00f3n t\u00edpica',
+			cv: 'Coeficiente de variaci\u00f3n (%)', count: 'N\u00famero', sum: 'Suma'},
+		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation',
+			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum'}
 	};
 
 	var state = {
@@ -8259,10 +8339,12 @@ var MonitorEO = (function () {
 		render();
 	}
 
-	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
-	// (e.g. 'Snow Cover Frequency (SCF) [%]')
-	function axisTitle(e, metric) {
-		var unit = unitText(e, metric);
+	// services._ylabel: title of the y axis of the charts of the entry E (with the statistic STAT of the region), the
+	// unit after its axis title if it has one (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation,
+	// after its name
+	function axisTitle(e, metric, stat) {
+		var unit = unitText(e, metric, null, stat);
+		if ((!e.static && mo.isCv(metric)) || mo.isCv(stat)) return (t('cvAxis') + ' ' + (unit || '')).trim();
 		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
 	}
 
@@ -8270,8 +8352,8 @@ var MonitorEO = (function () {
 	// given for the data of Earth Engine, in UDUNITS, between brackets as those of the catalog ('[mm]', services._ylabel).
 	// A fixed layer has no metric (services.make_spec: none for an image), whatever the select greyed out holds: the
 	// mosaic of a collection of rates per month is still a rate, not their sum
-	function unitText(e, metric) {
-		var unit = mo.unitOf(e, e.static ? null : metric);
+	function unitText(e, metric, interannual, stat) {
+		var unit = mo.unitOf(e, e.static ? null : metric, e.static ? null : interannual, stat);
 		return e.custom && unit && unit.charAt(0) !== '[' ? '[' + unit + ']' : unit;
 	}
 
@@ -8655,6 +8737,9 @@ var MonitorEO = (function () {
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
 		var scale = rangeScale(e);
+		// the entry for the colour ramp: the range of a spread (standard deviation, coefficient of variation) is not
+		// that of the variable (services.ramp_entry)
+		var ramped = e.static ? e : mo.rampEntry(e, state.mapMetric, state.temporal, state.interannual);
 		// the range of each layer in a request of its own (one that fails does not take the other with it), drawn when
 		// both have come
 		var st = {}, failed = {}, pending = 0;
@@ -8679,13 +8764,14 @@ var MonitorEO = (function () {
 				var stats = failed.index ? null : st.index;
 				var vis;
 				if (failed.index) {  // the range of the catalog (0 to 1 for the data outside it)
-					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+					var span = typeof ramped.minp === 'number' && typeof ramped.maxp === 'number' ?
+						(ramped.maxp - ramped.minp) / 4 : 0.1;
+					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, ramped);
 				} else {
-					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, ramped);
 				}
 				map.addLayer(band, vis, name);
-				var unit = unitText(e, state.mapMetric);
+				var unit = unitText(e, state.mapMetric, state.temporal === 'period' ? null : state.interannual);
 				colourBar(vis, name + (unit ? ' ' + unit : ''));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
 				if (failed.index) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
@@ -8767,7 +8853,8 @@ var MonitorEO = (function () {
 				return {v: v === undefined ? null : v};
 			}))};
 		});
-		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)}, lineWidth: 1.5,
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
+			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}, lineWidth: 1.5,
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -8873,7 +8960,8 @@ var MonitorEO = (function () {
 					series[2 * i + 1] = {color: regions.length > 1 ? undefined : '#d62728', lineDashStyle: [6, 3],
 						pointShape: 'square'};
 				});
-				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)},
+				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
+					vAxis: {title: axisTitle(e, state.stepMetric, state.stat)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
 					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name, e)]);
@@ -8925,7 +9013,8 @@ var MonitorEO = (function () {
 			return {c: c};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: t('seeChart') + ' ' +
-			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric)}, hAxis: {format: '####'}, series: series,
+			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric, state.stat)},
+			hAxis: {format: '####'}, series: series,
 			legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -8940,7 +9029,7 @@ var MonitorEO = (function () {
 		var id = start();
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
 			var rows = mo.trendRows(yearly, step, first, state.lang);
-			var unit = unitText(e, state.trendMetric);
+			var unit = unitText(e, state.trendMetric, null, state.stat);
 			var cols = [t('part'), 'n', '\u03c4', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
 				(state.lang === 'es' ? 'a\u00f1o' : 'year') + ')' : 'Sen'];
 			var regions = regionsOf(rows);
@@ -8999,7 +9088,7 @@ var MonitorEO = (function () {
 		var fixed = mo.trendVis(output);
 		if (fixed && output !== 'slope' && output !== 'z' && output !== 'n') return add(fixed);
 		mo.percentiles(band, geom, rangeScale(e)).evaluate(guardedAsync(id, function (stats) {
-			var auto = mo.visParams(stats, e);
+			var auto = mo.visParams(stats, mo.rampEntry(e, state.trendMetric));
 			add(mo.trendVis(output, auto.min, auto.max) || auto);
 		}));
 	}
@@ -9049,7 +9138,7 @@ var MonitorEO = (function () {
 		var id = start();
 		out.stats.evaluate(guardedAsync(id, function (fc) {
 			var rows = mo.rbrTable(fc.features);
-			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var stats = ['mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max'];
 			var table = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(rows.map(function (r) {
 				return [r.region].concat(stats.map(function (k) { return r[k] === null ? '' : num(r[k], 3); }),
 					[num(r.ha, 4)]);
@@ -9197,7 +9286,7 @@ var MonitorEO = (function () {
 					'\u2265 ' + limit(r.rdnbr_min) : limit(r.rdnbr_min) + ' \u2013 ' + limit(r.rdnbr_max));
 				return [(regions.length > 1 ? r.region + ': ' : '') + r.label, range, num(r.ha, 4)];
 			}));
-			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var stats = ['mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max'];
 			var statsRows = mo.rdnbrTable(d.stats.features);
 			var statsTable = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(statsRows.map(
 				function (r) {

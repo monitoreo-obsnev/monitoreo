@@ -91,7 +91,7 @@ METHODS = {
 
 FILTERS = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 STATS = {'mean': 'mean', 'median': 'median', 'min': 'minimum', 'max': 'maximum', 'std': 'standard deviation',
-         'sum': 'sum', 'count': 'count'}
+         'cv': 'coefficient of variation (%)', 'sum': 'sum', 'count': 'count', 'mode': 'mode'}
 
 # the table of each tool: its key in the answer (the first one found), and its columns (key, label); in the labels,
 # {u} is the unit of the variable and {uy} that unit per year
@@ -105,13 +105,15 @@ TABLES = {
 	                                               ('reference', 'Reference period{u}'), ('other', 'Other period{u}'),
 	                                               ('difference', 'Difference{u}'), ('n_reference', 'Years (reference)'),
 	                                               ('n_other', 'Years (other)')]),
-	'region_stats': (('rows',), [('region', 'Region'), ('mean', 'Mean{u}'), ('std', 'Std. dev.'), ('min', 'Min.'),
-	                           ('p5', 'P5'), ('p50', 'Median'), ('p95', 'P95'), ('max', 'Max.'),
+	'region_stats': (('rows',), [('region', 'Region'), ('mean', 'Mean{u}'), ('median', 'Median'), ('std', 'Std. dev.'),
+	                           ('cv', 'CV (%)'), ('min', 'Min.'), ('p5', 'P5'), ('p10', 'P10'), ('p25', 'P25'),
+	                           ('p50', 'Median'), ('p75', 'P75'), ('p90', 'P90'), ('p95', 'P95'), ('max', 'Max.'),
 	                           ('n_pixels', 'Pixels')]),
 	'download_variables': (('files',), [('file', 'File'), ('images', 'Images'), ('pixel_filters', 'Discarded pixels')]),
 	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
 	                                          ('dnbr_max', 'dNBR to'), ('rdnbr_min', 'RdNBR from'),
 	                                          ('rdnbr_max', 'RdNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
+	                                          ('std', 'RBR std. dev.'), ('cv', 'RBR CV (%)'),
 	                                          ('p10', 'RBR percentile 10'), ('p90', 'RBR percentile 90'),
 	                                          ('min', 'RBR minimum'), ('max', 'RBR maximum'), ('ha', 'Hectares')]),
 }

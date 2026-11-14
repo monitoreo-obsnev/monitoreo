@@ -46,6 +46,14 @@ def manual(page):
 CLASSES = ('Bands with classes or bit flags (land cover, quality) are codes, not quantities: their mean or median mean '
            'nothing; use the <b>Minimum</b> or the <b>Maximum</b>.')
 
+# the standard deviation and the coefficient of variation as metrics of the images (of any variable: composite.METRICS)
+SPREAD_HELP = ('<p>The <b>Standard deviation</b> (in the unit of the variable) and the <b>Coefficient of variation</b> '
+               '(100 × standard deviation / mean, in %) measure how much the images of each pixel vary over time. The '
+               'coefficient of variation compares the variability of places or variables with different means; it '
+               'has a meaning for variables with a true zero and positive values (precipitation, NDVI of vegetation, '
+               'albedo), not with a mean near 0 (an index around 0, a temperature in °C), and none where the mean is '
+               '0.</p>' + cite_html(method_references('cv')))
+
 HELP = {
 	'project':
 		'<p><b>Empty</b>: the computations run in Earth Engine with the <b>shared account of MonitorEO</b>, with no '
@@ -264,11 +272,13 @@ HELP = {
 	'ts_metric':
 		'<p>How the images of each step are summarized on each pixel: with the step Monthly and <b>Mean</b>, the mean '
 		'of the images of each month. The median and the percentiles resist outliers better, such as clouds that '
-		'escape the filters.</p>'
+		'escape the filters.</p>' + SPREAD_HELP
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'stat':
 		'<p>How the pixels of the region (of each polygon) are summarized in one value per step, after the metric of '
-		'each step. The <b>Standard deviation</b> measures how different the pixels are from each other.</p>'
+		'each step: their mean, median, minimum, maximum or a percentile, or how different they are from each other, '
+		'the <b>Standard deviation</b> (in the unit of the variable) or the <b>Coefficient of variation</b> (100 × '
+		'standard deviation / mean, in %, to compare regions or variables with different means).</p>'
 		'<p>It is also the statistic of the <b>Trend table of the region</b> and of the comparison of periods.</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'series_list':
@@ -310,7 +320,7 @@ HELP = {
 		'power to see it.</p>' + manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
-		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>'
+		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>' + SPREAD_HELP +
 		'<p>With <b>Compare with</b> checked, it is computed in the two periods and the layer is their difference.</p>'
 		+ manual('Concepts#maps-aggregation-over-time'),
 	'temporal':
@@ -323,6 +333,9 @@ HELP = {
 	'interannual':
 		'<p>Only with <b>Each year, then between years</b> or <b>Each month, then between years</b>: how the values of '
 		'the different years are combined. With <b>Whole period</b> it is not used.</p>'
+		'<p>The <b>Standard deviation</b> and the <b>Coefficient of variation</b> between years give the variability '
+		'from one year to another: e.g. with <b>Each year</b>, metric <b>Mean</b> and coefficient of variation between '
+		'years, how much the annual mean changes from year to year, in %.</p>'
 		+ manual('Concepts#maps-aggregation-over-time'),
 	'map_kind':
 		'<p>What <b>Add the layer to the map</b> adds:</p><ul>'
@@ -376,8 +389,9 @@ HELP = {
 		'of each class.</li>'
 		'<li><b>RBR</b> (Relativized Burn Ratio, Parks et al. 2014): dNBR / (NBR before + 1.001), a continuous index '
 		'without classes, also for vegetation that was sparse before the fire; without phenological correction and '
-		'without the factor 1000 of the articles. The window gives its mean, median, percentiles 10 and 90, minimum and '
-		'maximum; the layer, from red (burned) to green (regrowth), from -0.5 to 0.5.</li>'
+		'without the factor 1000 of the articles. The window gives its mean, median, standard deviation, coefficient of '
+		'variation (%), percentiles 10 and 90, minimum and maximum; the layer, from red (burned) to green (regrowth), '
+		'from -0.5 to 0.5.</li>'
 		'<li><b>RdNBR</b> (relative dNBR, Miller &amp; Thode 2007): dNBR / sqrt(|NBR before|), with |NBR before| at '
 		'least 0.001 (Howe et al. 2022): the change relative to the vegetation before the fire, so that a fire that '
 		'kills sparse vegetation is as severe as one that kills dense vegetation. In the 4 classes of the article (its '
@@ -385,7 +399,8 @@ HELP = {
 		'(0.069 to 0.316), <i>moderate severity</i> (0.316 to 0.641) and <i>high severity</i> (≥ 0.641). '
 		'<i>Unchanged</i> is not <i>unburned</i>: one year after the fire the area could not be told from before it. '
 		'The window gives the hectares of each class over each feature of the region, the changed area (RdNBR ≥ '
-		'0.069, the classes low to high) and the mean, median, percentiles 10 and 90, minimum and maximum of the RdNBR; '
+		'0.069, the classes low to high) and the mean, median, standard deviation, coefficient of variation (%), '
+		'percentiles 10 and 90, minimum and maximum of the RdNBR; '
 		'the layer, the band <i>severity</i> with the colour of each class. On the scale of the dNBR of MonitorEO, '
 		'without the factor 1000 of the article (0.641 here is 641 there), and without its offset (the mean dNBR of '
 		'unburned land outside the fire), as the dNBR and the RBR. The classes were calibrated with Landsat TM (30 m) '

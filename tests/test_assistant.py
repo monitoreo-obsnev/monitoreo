@@ -1235,7 +1235,8 @@ def test_map_and_pixel():
 	assert px['value'] == 0.42 and px['image'].startswith('data:image/png') and px['n'] == 12
 	assert calls[0] == ('region_stats', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'season': ['06-01', '08-31'],
 	                                     'region': {'point': [-3.55, 36.95]}, 'start': '2024-06-01',
-	                                     'end': '2024-08-31', 'metric': 'median', 'temporal': 'period'})
+	                                     'end': '2024-08-31', 'metric': 'median', 'temporal': 'period',
+	                                     'interannual': 'mean', 'stats': ['mean']})
 	assert calls[1][0] == 'time_series' and calls[1][1]['step'] == '16-day'  # a period of months: by 16 days
 	assert rid == 2 and a.results[1]['tool'] == 'time_series' and a.events[-1]['type'] == 'result'
 	assert px['title'] == '16-day time series of NDVI at the pixel 36.95000, -3.55000' and px['label'] == 'value'
@@ -1280,6 +1281,8 @@ def test_map_and_pixel():
 	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'vmin': None,
 	                                  'vmax': None, 'quick': True})
 	assert calls[1][0] == 'region_stats' and calls[1][1]['start'] == '2019-03-01' and calls[2][0] == 'time_series'
+	# the value of the map at the pixel: with its metric between the years, and only the mean
+	assert (calls[1][1]['interannual'], calls[1][1]['stats']) == ('mean', ['mean'])
 	with pytest.raises(ValueError, match='does not exist'):
 		asyncio.run(a.step_map(1, '1990-01-01/1990-01-31'))
 
@@ -1369,7 +1372,7 @@ def test_fixed_layers():
 	assert card['main'] == 'Fixed layer, without dates' and card['steps'] == [] and card['map']['series'] is False
 	assert px == {'lon': -3.3, 'lat': 37.05, 'value': 2950.0, 'unit': 'm', 'label': 'value'}  # no key: no series
 	assert calls[0] == ('region_stats', {'variable': 'ELEVATION', 'sensor': 'Copernicus',
-	                                     'region': {'point': [-3.3, 37.05]}})
+	                                     'region': {'point': [-3.3, 37.05]}, 'stats': ['mean']})
 	assert shown['main'] == 'Fixed layer, without dates' and shown['map']['series'] is False
 	assert calls[1] == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'SLOPE', 'sensor': 'Copernicus',
 	                                  'quick': True})
@@ -1482,7 +1485,8 @@ def test_data_of_earth_engine_by_its_id(monkeypatch):
 	# its pixel: the value of the map and the series of the pixel, with the same data
 	same = {k: v for k, v in mapped.items() if k in assistant.SOURCE}
 	assert a.calls[3] == ('region_stats', {**same, 'region': {'point': [-3.25, 37.1]}, 'start': '2015-01-01',
-	                                       'end': '2020-12-31', 'metric': 'sum', 'temporal': 'annual'})
+	                                       'end': '2020-12-31', 'metric': 'sum', 'temporal': 'annual',
+	                                       'interannual': 'mean', 'stats': ['mean']})
 	assert a.calls[4] == ('time_series', {**same, 'region': {'point': [-3.25, 37.1]}, 'start': '2015-01-01',
 	                                      'end': '2020-12-31', 'step': 'annual'})
 	assert px['value'] == 512.5 and px['unit'] == 'mm'
@@ -1532,7 +1536,7 @@ def test_series_and_fixed_image_of_earth_engine(tmp_path):
 	assert 'Period' not in facts and 'Discarded pixels' not in facts
 	assert any(r['citation'].startswith('Hijmans') for r in card['references'])  # WorldClim
 	assert a.calls == [('region_stats', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01', 'band_scale': 0.1,
-	                                     'unit': 'degC', 'region': {'point': [-3.25, 37.1]}})]  # no series
+	                                     'unit': 'degC', 'region': {'point': [-3.25, 37.1]}, 'stats': ['mean']})]  # no series
 	assert px == {'lon': -3.25, 'lat': 37.1, 'value': 512.5, 'unit': 'degC', 'label': 'value'}
 	# the report of both
 	html = open(report.write(a.results, str(tmp_path / 'report.html'), title='WorldClim'), encoding='utf-8').read()
@@ -1554,7 +1558,8 @@ def test_series_and_fixed_image_of_earth_engine(tmp_path):
 	assert card['main'] == 'Fixed layer, without dates' and card['steps'] == [] and card['map']['series'] is False
 	assert 'key' not in px and a.calls[0] == ('region_stats', {'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01',
 	                                                           'band_scale': 0.1, 'unit': 'degC',
-	                                                           'region': {'point': [-3.25, 37.1]}})  # no series
+	                                                           'region': {'point': [-3.25, 37.1]},
+	                                                           'stats': ['mean']})  # no series
 	assert shown['main'] == 'Fixed layer, without dates' and shown['steps'] == [] and shown['map']['series'] is False
 	assert assistant.dated({'start': '2015-01-01', 'end': '2020-12-31', **TERRACLIMATE})  # a collection has dates
 	assert not assistant.dated({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'start': '2015-01-01',

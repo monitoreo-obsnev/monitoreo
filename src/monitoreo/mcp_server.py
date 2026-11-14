@@ -60,7 +60,12 @@ snow cover frequency (SCF, Landsat) is the % of the clear observations of each p
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
 series, trends or comparisons.
 The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
-with clouds: always with metric "mean" and no pixel filters (pass no quality). Climate: precipitation (PRECIP of
+with clouds: always with metric "mean" and no pixel filters (pass no quality). Metrics (of the images of each pixel,
+metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
+stats of region_stats), for any variable: mean, median, min, max, std (standard deviation), cv (coefficient of
+variation: 100 * std / mean, in %; meaningful for variables with a true zero and positive values, not with a mean
+near 0, e.g. a temperature in °C), and pN (percentile N, e.g. p90); the metrics also sum, count and mode. E.g. the
+year-to-year variability of the annual precipitation: temporal "annual", metric "sum", interannual "cv". Climate: precipitation (PRECIP of
 ERA5-Land and TerraClimate, monthly; of CHIRPS, daily), air temperature (TMEAN, TMIN, TMAX of ERA5-Land; TMIN, TMAX
 of TerraClimate) and water balance of TerraClimate (PET, AET, CWD, SOILM, VPD): the totals of a period (e.g. the
 annual precipitation) are the metric "sum" (step "annual" for each year); the 19 bioclimatic variables of WorldClim
@@ -450,8 +455,9 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
-	feature of the region, reduced in time with METRIC (mean, median, min, max, pN) and over the region with STAT
-	(mean, median, min, max, std, pN), with the number of images and of valid pixels of each value. Writes a CSV
+	feature of the region, reduced in time with METRIC (mean, median, min, max, std, cv, pN) and over the region with
+	STAT (mean, median, min, max, std, cv, pN; cv: coefficient of variation, 100 * std / mean, in %), with the number
+	of images and of valid pixels of each value. Writes a CSV
 	table and a PNG chart (paths in the answer) and returns the chart. Required: region, start and end, and variable
 	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
 	clouds); scale: pixel size of the statistics in metres."""
@@ -528,14 +534,17 @@ def region_stats(region: dict, variable: Optional[str] = None, sensor: Optional[
                  temporal: str = 'period', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                  scale: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
                  band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
-                 unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None) -> str:
-	"""Statistics (mean, std, min, p5, p50, p95, max, number of pixels) over each feature of a region of the map of
-	a variable aggregated in time. Required: region, and variable and sensor or collection or image and band; start
-	and end, except for the fixed layers."""
+                 unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None,
+                 interannual: str = 'mean', stats: Optional[List[str]] = None) -> str:
+	"""Statistics over each feature of a region of the map of a variable aggregated in time (METRIC; with temporal
+	'annual', 'monthly' or '16-day', then INTERANNUAL between the years), with the number of pixels. stats: any of
+	mean, median, min, max, std (standard deviation), cv (coefficient of variation: 100 * std / mean, in %) and pN
+	(percentile N), for any variable; by default mean, std, cv, min, p5, p50, p95 and max. Required: region, and
+	variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
-	return _text(services.region_stats(region, variable, sensor, start, end, metric, temporal, season=season,
-	                                   quality=quality, scale=scale, where=where, **source))
+	return _text(services.region_stats(region, variable, sensor, start, end, metric, temporal, interannual,
+	                                   season=season, quality=quality, stats=stats, scale=scale, where=where, **source))
 
 
 @tool
@@ -804,7 +813,8 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	ends. For small regions (bigger ones: lower resolution). index "RBR" (only when the user asks for it): the
 	Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (20 m; Landsat:
 	NIR and SWIR2), without phenological correction and on the scale of the dNBR (articles multiply it by 1000): a
-	continuous index without classes; returns its mean, median, p10, p90, min and max and the hectares with values
+	continuous index without classes; returns its mean, median, std, cv (coefficient of variation, %), p10, p90, min
+	and max and the hectares with values
 	over each feature, and a GeoTIFF with the bands rbr, dnbr, nbr_before and nbr_after.
 	index "RdNBR" (when the user asks for it or for the classes of Miller & Thode, for a fire over heterogeneous
 	vegetation, e.g. shrubs and forest, or to compare fires): the relative dNBR of Miller & Thode 2007, dNBR /
@@ -818,8 +828,8 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	and field plots of 14 fires of the Sierra Nevada of California, mostly in conifer and live oak forests (also
 	pinyon pine and sagebrush), with field data one year after the fire: give a period after about
 	one year after the fire, in the season of the period before. Returns the hectares of each class (classes),
-	the changed area (burned_ha, RdNBR >= 0.069; unchanged is not unburned) and the mean, median, p10, p90, min and max
-	of the RdNBR (stats) over each feature, a CSV of the classes and a GeoTIFF with the bands rdnbr, severity (class 0
+	the changed area (burned_ha, RdNBR >= 0.069; unchanged is not unburned) and the mean, median, std, cv (%), p10,
+	p90, min and max of the RdNBR (stats) over each feature, a CSV of the classes and a GeoTIFF with the bands rdnbr, severity (class 0
 	to 3), dnbr, nbr_before and nbr_after. collection: only for index "RdNBR" with sensor "Modis".
 	perimeter true (when the user wants the perimeter, outline or polygons of the burned area, e.g. to study it
 	afterwards): also a GeoPackage (perimeter) with a MultiPolygon of the burned pixels of each feature of the region

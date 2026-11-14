@@ -746,12 +746,22 @@ def _named(spec, metric):
 	return _title(spec) + ('' if variables.is_static(spec) else f' ({metric})')
 
 
-def _unit(spec):
-	"""The unit of the values of SPEC (that of the catalog, or a total for the sums: see catalog.unit_of; for the data
-	of Earth Engine outside the catalog, the unit given, in UDUNITS, see catalog.custom_unit; '' if none was given)."""
-	if variables.kind(spec) == 'catalog':
-		return catalog.unit_of(variables.entry_of(spec)['unit'], spec.get('metric'))
-	return catalog.unit_of(catalog.custom_unit(spec.get('unit')), spec.get('metric'))
+def _between(spec):
+	"""The metric between the years of SPEC, if its images are aggregated by years (None for the whole period and the
+	fixed layers, which have no images)."""
+	if spec.get('temporal', 'period') == 'period' or variables.kind(spec) == 'image' or variables.is_static(spec):
+		return None
+	return spec.get('interannual')
+
+
+def _unit(spec, stat=None):
+	"""The unit of the values of SPEC (that of the catalog, or a total for the sums, or % for the coefficient of
+	variation, of the images or between the years: see catalog.unit_of; for the data of Earth Engine outside the
+	catalog, the unit given, in UDUNITS, see catalog.custom_unit; '' if none was given), and of their statistic STAT
+	over a region (% for the coefficient of variation)."""
+	unit = variables.entry_of(spec)['unit'] if variables.kind(spec) == 'catalog' else \
+		catalog.custom_unit(spec.get('unit'))
+	return catalog.unit_of(unit, spec.get('metric'), _between(spec), stat)
 
 
 def _source_name(variable, source):
@@ -765,12 +775,17 @@ def _source_name(variable, source):
 	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'terrain')})
 
 
-def _ylabel(spec):
-	"""Title of the y axis of the charts of SPEC: the unit, after the axis title of the catalog if it has one (e.g.
-	'Snow Cover Frequency (SCF) [%]')."""
-	unit = _unit(spec)
+def _ylabel(spec, stat=None):
+	"""Title of the y axis of the charts of SPEC (and of the statistic STAT of the regions): the unit, after the axis
+	title of the catalog if it has one (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation, after
+	its name."""
+	unit = _unit(spec, stat)
 	if variables.kind(spec) != 'catalog':  # in UDUNITS, without brackets: shown as those of the catalog
-		return f'[{unit}]' if unit and not unit.startswith('[') else unit
+		unit = f'[{unit}]' if unit and not unit.startswith('[') else unit
+	if catalog.is_cv(spec.get('metric'), _between(spec), stat):
+		return f'Coefficient of variation {unit}'
+	if variables.kind(spec) != 'catalog':
+		return unit
 	axis = variables.entry_of(spec).get('axis')
 	return f'{axis} {unit}'.strip() if axis else unit
 
@@ -792,9 +807,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
-	unit = _unit(spec)
+	unit = _unit(spec, stat)
 	title = _title(spec, step, metric, stat)
-	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec),
+	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec, stat),
 	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
@@ -866,9 +881,11 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	img = whole.clipToCollection(regions) if clip else whole
-	entry = variable_entry(spec)
-	# the data of Earth Engine outside the catalog have no range in it: always from the map
-	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick or entry is None)
+	entry = ramp_entry(spec)
+	# the data of Earth Engine outside the catalog have no range in it, nor the standard deviation and the coefficient
+	# of variation in that of the variable: always from the map
+	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette,
+	                      compute=not quick or entry is None or spread(spec))
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, res, thumbnail, clip)
@@ -940,42 +957,65 @@ def variable_entry(spec):
 	return variables.entry_of(spec) if variables.kind(spec) == 'catalog' else None
 
 
+def spread(spec):
+	"""Whether the values of the map of SPEC are a spread (standard deviation, coefficient of variation: see
+	composite.SPREAD), of the images or between the years, not in the range of the variable."""
+	return any(str(m or '').strip().lower() in composite.SPREAD for m in (spec.get('metric'), _between(spec)))
+
+
+def ramp_entry(spec):
+	"""The catalog entry of SPEC for the colour ramp of its map (None outside the catalog): its palette, and the
+	range of its values when Earth Engine cannot compute it, that of the variable or, for a spread (see spread), 0 to
+	100 % for the coefficient of variation and 0 to half the range of the variable for the standard deviation."""
+	entry = variable_entry(spec)
+	if entry is None or not spread(spec):
+		return entry
+	if catalog.is_cv(spec.get('metric'), _between(spec)):
+		return dict(entry, minp=0, maxp=100)
+	lo, hi = entry.get('minp'), entry.get('maxp')
+	half = (hi - lo) / 2 if isinstance(lo, (int, float)) and isinstance(hi, (int, float)) else 1
+	return dict(entry, minp=0, maxp=half)
+
+
 def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, dimensions=768,
               path=None, **source):
 	"""PNG (bytes) of the map of a variable over REGION, with the outline of the region."""
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
-	vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), variable_entry(spec), res, vmin, vmax,
+	vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), ramp_entry(spec), res, vmin, vmax,
 	                      palette)
 	img = maps.coarse(whole, res, _bounds(regions), dimensions).clipToCollection(regions)  # see maps.coarse
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
 
+REGION_STATS = catalog.REGION_STATS  # the statistics of region_stats by default
+
+
 @_cited
 def region_stats(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
-                 interannual='mean', season=None, quality=None, stats=('mean', 'std', 'min', 'p5', 'p50', 'p95', 'max'),
-                 scale=None, **source):
-	"""Statistics over each feature of REGION of the map of a variable aggregated in time:
-	{'rows': [{region, mean, std, min, p5, p50, p95, max, n_pixels}], 'scale', 'unit', 'title'}."""
+                 interannual='mean', season=None, quality=None, stats=REGION_STATS, scale=None, **source):
+	"""Statistics over each feature of REGION of the map of a variable aggregated in time: STATS, any of mean,
+	median, min, max, std (standard deviation), cv (coefficient of variation, in %: 100 × std / mean) and pN
+	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim).
+	{'rows': [{region, mean, std, cv, min, p5, p50, p95, max, n_pixels}], 'stats', 'scale', 'unit' (of the map: that of
+	cv is %), 'title'}."""
+	stats = [stats] if isinstance(stats, str) else list(stats or REGION_STATS)
+	for s in stats:
+		composite.check_metric(s)  # before Earth Engine
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, False, None, source)
 	scale = scale or timeseries.auto_scale(spec, regions)
-	red = ee.Reducer.count()
-	names = {}
-	for s in stats:
-		r = composite.reducer(s)
-		names[s] = r.getOutputs().getInfo()[0]
-		red = red.combine(r, '', True)
+	red, names = composite.region_reducer(stats)
 	fc = img.reduceRegions(collection=regions, reducer=red, scale=scale, crs=timeseries.region_crs(regions), tileScale=4)
 	rows = []
 	for f in fc.getInfo()['features']:
 		p = f['properties']
 		row = {'region': str(p.get('name'))}
-		row.update({s: p.get(n) for s, n in names.items()})
+		row.update({s: composite.value_of(p, s, names) for s in stats})
 		row['n_pixels'] = p.get('count')
 		rows.append(row)
-	return {'rows': rows, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
+	return {'rows': rows, 'stats': stats, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
 
 
 # Exports -----------------------------------------------------------------------------------------------------------
@@ -1185,10 +1225,10 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
 	first = composite.windows(spec['period'], spec['season'])[0][0]
 	rows = trends.trend_rows(yearly, step, first, alpha=alpha)
-	unit = _unit(spec)
+	unit = _unit(spec, stat)
 	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}'
 	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
-	       'ylabel': _ylabel(spec), 'title': title}
+	       'ylabel': _ylabel(spec, stat), 'title': title}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit),
@@ -1238,14 +1278,14 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	vis = trends.vis(output)
 	quick = quick and variable_entry(spec) is not None  # the data outside the catalog have no range in it
 	if quick and (vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None))):
-		entry = variable_entry(spec) or {}
+		entry = ramp_entry(spec) or {}  # the range of the yearly values (0 to 100 % for the coefficient of variation)
 		span = entry.get('maxp', 1) - entry.get('minp', 0) if all(
 			isinstance(entry.get(k), (int, float)) for k in ('minp', 'maxp')) else 1
 		years = int(str(end)[:4]) - int(str(start)[:4]) + 1
 		lo, hi = {'slope': (-0.02 * span, 0.02 * span), 'n': (0, years)}.get(output, (None, None))
 		vis = trends.vis(output, lo, hi) or maps.vis_params(band.rename('value'), None, entry, native, compute=False)
 	elif vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None)):
-		auto = maps.vis_params(band.rename('value'), regions.geometry(), variable_entry(spec), native)
+		auto = maps.vis_params(band.rename('value'), regions.geometry(), ramp_entry(spec), native)
 		vis = trends.vis(output, auto['min'], auto['max']) or auto
 	vis = dict(vis, **({'min': vmin} if vmin is not None else {}), **({'max': vmax} if vmax is not None else {}))
 	if palette:
@@ -1311,12 +1351,12 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	profile = trends.profile(ref_rows, oth_rows)
 	for r in profile:
 		r['key'], r['label'] = trends.part_key(step, r['part']), trends.part_label(step, r['part'])
-	unit = _unit(ref)
+	unit = _unit(ref, stat)
 	title = (f"{_title(dict(ref, period=None))} | {ref['period'][0]} / {ref['period'][1]} vs "
 	         f"{oth['period'][0]} / {oth['period'][1]} | {step} {metric}, spatial {stat}")
 	names = tuple(a[:4] if a[:4] == b[:4] else f'{a[:4]}-{b[:4]}' for a, b in (ref['period'], oth['period']))
 	out = {'profile': profile, 'rows': ref_rows + oth_rows, 'csv': None, 'chart': None, 'scale': scale, 'unit': unit,
-	       'ylabel': _ylabel(ref), 'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']},
+	       'ylabel': _ylabel(ref, stat), 'title': title, 'periods': {'reference': ref['period'], 'other': oth['period']},
 	       'names': names}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
@@ -1418,7 +1458,7 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 
 
 BURN_COLUMNS = ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha']
-RBR_COLUMNS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
+RBR_COLUMNS = ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha']
 RDNBR_COLUMNS = ['region', 'class', 'label', 'rdnbr_min', 'rdnbr_max', 'ha']
 BURN_INDICES = ('dNBR', 'RBR', 'RdNBR')
 # the sensors of each burn index (those of its entries of the catalog: NBR, RBR, RdNBR)
@@ -1442,8 +1482,9 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	With INDEX 'RBR', the Relativized Burn Ratio instead: RBR = dNBR / (NBR before + 1.001), with the NBR of the
 	catalog entry RBR (bands B8A and B12 in Sentinel-2, as Silva-Cardoza et al. 2022; NIR and SWIR2 in Landsat),
 	without phenological correction and on the scale of the dNBR (the articles multiply it by 1000). A continuous
-	map, without classes: {'index': 'RBR', 'stats': [{region, mean, median, p10, p90, min, max, ha (of the pixels with
-	values)}], ...} and the GeoTIFF bands rbr, dnbr, nbr_before and nbr_after.
+	map, without classes: {'index': 'RBR', 'stats': [{region, mean, median, std (standard deviation), cv (coefficient
+	of variation, %), p10, p90, min, max, ha (of the pixels with values)}], ...} and the GeoTIFF bands rbr, dnbr,
+	nbr_before and nbr_after.
 
 	With INDEX 'RdNBR', the relative dNBR of Miller & Thode 2007: RdNBR = dNBR / sqrt(|NBR before|), with |NBR
 	before| at least 0.001 (Howe et al. 2022), with the NBR of the catalog entry RdNBR (B8 and B12 in Sentinel-2, as
@@ -1527,13 +1568,16 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	return out
 
 
-BURN_STATS = ('mean', 'median', 'p10', 'p90', 'min', 'max')  # the statistics of the RBR and the RdNBR
+# the statistics of the RBR and the RdNBR: the standard deviation and the coefficient of variation (%) too
+BURN_STATS = ('mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max')
+_BURN_OUTPUTS = {'mean': 'mean', 'median': 'median', 'std': 'stdDev', 'p10': 'p10', 'p90': 'p90', 'min': 'min',
+                 'max': 'max'}  # the outputs of fire.stats_reducer
 
 
 def _burn_stats(index, band, regions, scale, crs):
 	"""The statistics of the burn index INDEX (an ee.Image of the band BAND, rbr or rdnbr) over each feature of REGIONS,
-	with the percentiles of fire.stats_reducer: [{region, mean, median, p10, p90, min, max, ha (of the pixels with
-	values)}]."""
+	with the percentiles of fire.stats_reducer: [{region, mean, median, std, cv, p10, p90, min, max, ha (of the pixels
+	with values)}]."""
 	ha = ee.Image.pixelArea().divide(1e4).updateMask(index.mask()).rename('ha')
 	stats = index.addBands(ha).reduceRegions(
 		collection=regions, reducer=fire.stats_reducer().combine(ee.Reducer.sum(), '', True), scale=scale, crs=crs,
@@ -1541,7 +1585,8 @@ def _burn_stats(index, band, regions, scale, crs):
 	rows = []
 	for f in stats:
 		p = f['properties']
-		rows.append(dict({'region': str(p.get('name'))}, **{k: p.get(f'{band}_{k}') for k in BURN_STATS},
+		rows.append(dict({'region': str(p.get('name'))},
+		                 **{k: composite.value_of(p, k, _BURN_OUTPUTS, f'{band}_') for k in BURN_STATS},
 		                 ha=p.get('ha_sum') or 0.0))
 	return rows
 

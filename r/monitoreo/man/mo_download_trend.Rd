@@ -52,8 +52,9 @@ which only have maps and their statistics.}
 \item{part}{the month (1-12) with step \code{"monthly"}, 1-23 with \code{"16-day"}, \code{NULL} with
 \code{"annual"}.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-\code{"pN"} (percentile N).}
+\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
+\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 

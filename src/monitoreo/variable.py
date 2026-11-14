@@ -505,16 +505,16 @@ def describe(spec, rgb=False):
 		d.update({'variable': data_name(spec), k: spec[k], 'band': spec.get('band'),
 		          'scale': spec.get('scale'), 'offset': spec.get('offset'), 'terrain': spec.get('terrain'),
 		          'pixel_filters': {}})
-		if spec.get('unit'):
-			unit = catalog.unit_of(catalog.custom_unit(spec['unit']), d.get('metric'))
+		if spec.get('unit') or catalog.is_cv(d.get('metric'), d.get('interannual')):
+			unit = catalog.unit_of(catalog.custom_unit(spec.get('unit')), d.get('metric'), d.get('interannual'))
 			d.update({'unit': unit, 'udunits': catalog.udunits(unit)})
 		d = {key: v for key, v in d.items() if v is not None}
 	if k == 'catalog':
 		e = entry_of(spec)
 		d.update({'monitoreo_ref': e['ref'], 'variable': e['vname_en'], 'collection': e['col'],
 		          'formula': e['ft'], 'scale': e.get('scale'), 'offset': e.get('offset'),
-		          'unit': catalog.unit_of(e['unit'], d.get('metric')),
-		          'udunits': catalog.udunits(catalog.unit_of(e['unit'], d.get('metric'))),
+		          'unit': catalog.unit_of(e['unit'], d.get('metric'), d.get('interannual')),
+		          'udunits': catalog.udunits(catalog.unit_of(e['unit'], d.get('metric'), d.get('interannual'))),
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]

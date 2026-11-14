@@ -59,8 +59,9 @@ COLUMNS = {
 	'rdnbr_max': 'highest RdNBR of the class (empty: no limit)',
 	'ha': 'hectares',
 	'mean': 'mean{u}', 'median': 'median{u}', 'std': 'standard deviation{u}', 'min': 'minimum{u}', 'max': 'maximum{u}',
-	'p5': 'percentile 5{u}', 'p10': 'percentile 10{u}', 'p50': 'percentile 50{u}', 'p90': 'percentile 90{u}',
-	'p95': 'percentile 95{u}',
+	'cv': 'coefficient of variation (%): 100 × standard deviation / mean; empty where the mean is 0',
+	'p5': 'percentile 5{u}', 'p10': 'percentile 10{u}', 'p25': 'percentile 25{u}', 'p50': 'percentile 50{u}',
+	'p75': 'percentile 75{u}', 'p90': 'percentile 90{u}', 'p95': 'percentile 95{u}',
 	# what each row was made with
 	'variable': 'variable of the catalog of MonitorEO (or the Earth Engine source)',
 	'sensor': 'sensor',
@@ -114,10 +115,17 @@ def _catalog_unit(result, args):
 		try:
 			from . import catalog
 			unit = catalog.unit_of(catalog.find(args['variable'], args.get('sensor'), args.get('collection'))['unit'],
-			                       args.get('metric'))
+			                       *_metrics(args))
 		except (KeyError, ValueError):
 			unit = ''
 	return unit
+
+
+def _metrics(args):
+	"""The metric of the images, the metric between the years (if the images are aggregated by years) and the
+	statistic over the region of a call (see catalog.unit_of)."""
+	between = args.get('interannual') if (args.get('temporal') or 'period') != 'period' else None
+	return args.get('metric'), between, args.get('stat')
 
 
 def _unit(result, args):
@@ -225,9 +233,12 @@ def text(tool, args, result, computed=None):
 	if ud:
 		out += _section('Units')
 		per_year = f"; its change per year, {band_udunits('slope', ud)}" if 'trend' in tool else ''
-		out.append(_wrap(f"The variable is {'in ' + unit if unit else 'dimensionless'}: in UDUNITS (the units of the CF "
-		                 f'conventions), {ud}{per_year}. The columns unit and slope_unit of the CSV and the units of '
-		                 'the bands of the GeoTIFF are in UDUNITS (1 is dimensionless).'))
+		from . import catalog
+		what = 'The values are coefficients of variation (100 × standard deviation / mean), in %' \
+			if catalog.is_cv(*_metrics(given)) else f"The variable is {'in ' + unit if unit else 'dimensionless'}"
+		out.append(_wrap(f"{what}: in UDUNITS (the units of the CF conventions), {ud}{per_year}. The columns unit and "
+		                 'slope_unit of the CSV and the units of the bands of the GeoTIFF are in UDUNITS (1 is '
+		                 'dimensionless).'))
 	for f in files:
 		ext = os.path.splitext(f)[1].lower()
 		if ext == '.csv':

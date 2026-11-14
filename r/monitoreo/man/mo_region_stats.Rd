@@ -22,7 +22,9 @@ mo_region_stats(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  terrain = NULL
+  terrain = NULL,
+  interannual = "mean",
+  stats = NULL
 )
 }
 \arguments{
@@ -42,8 +44,9 @@ or \code{image} instead of \code{variable}.}
 without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
 which only have maps and their statistics.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-\code{"pN"} (percentile N).}
+\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
+\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
 
 \item{temporal}{\code{"period"} (the metric over all the images of the period), \code{"annual"},
 \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).}
@@ -92,10 +95,19 @@ aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 \item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
 values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
 band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+
+\item{interannual}{statistic between the years when \code{temporal} is not \code{"period"}: any of those of
+\code{metric} (e.g. \code{"cv"}, how much the values change from year to year, in \%).}
+
+\item{stats}{the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
+\code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
+p5, p50, p95 and max.}
 }
 \value{
-A data.frame (region, mean, std, min, p5, p50, p95, max, n_pixels) with the attributes title, unit, scale,
-  csv, references and credits (see \code{mo_references()}).
+A data.frame (region, the columns of \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and
+  n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
+  \code{mo_references()}).
 }
 \description{
 The statistics of the map of \code{mo_map_layer()} with the same arguments over each feature of the region. Instead
@@ -114,6 +126,10 @@ of a variable of the catalog, any data of Earth Engine by its ID: \code{collecti
 \dontrun{
 mo_init()
 mo_region_stats(mo_wdpa(389011), "LST", "Modis", "2023-07-01", "2023-08-31")
+# how much the annual precipitation changes from year to year on each pixel (coefficient of variation between the
+# years, in \%), and its mean, median and percentile 90 over the protected area
+mo_region_stats(mo_wdpa(389011), "PRECIP", "TerraClimate", "2001-01-01", "2020-12-31", metric = "sum",
+                temporal = "annual", interannual = "cv", stats = c("mean", "median", "p90"))
 # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
 mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
 }

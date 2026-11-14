@@ -47,13 +47,14 @@ def burn(monkeypatch):
 			return dict(out, index='RdNBR', scale=500.0,
 			            title=title.replace('(dNBR, USGS)', '(RdNBR, Miller & Thode 2007)'), classes=classes,
 			            burned_ha={'bbox': 2100.25},
-			            stats=[{'region': 'bbox', 'mean': 0.51234, 'median': 0.48, 'p10': 0.03, 'p90': 1.1, 'min': -0.4,
-			                    'max': 1.9, 'ha': 2150.25}],
+			            stats=[{'region': 'bbox', 'mean': 0.51234, 'median': 0.48, 'std': 0.35, 'cv': 68.31, 'p10': 0.03,
+			                    'p90': 1.1, 'min': -0.4, 'max': 1.9, 'ha': 2150.25}],
 			            bands=['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'] if kw.get('path') else None)
 		if str(kw.get('index')).upper() == 'RBR':
 			return dict(out, index='RBR', title=title.replace('Burn severity (dNBR, USGS)', 'Relativized Burn Ratio (RBR)'),
-			            stats=[{'region': 'bbox', 'mean': 0.31234, 'median': 0.29, 'p10': 0.02, 'p90': 0.6, 'min': -0.2,
-			                    'max': 0.9, 'ha': 1234.56}], bands=['rbr', 'dnbr', 'nbr_before', 'nbr_after'])
+			            stats=[{'region': 'bbox', 'mean': 0.31234, 'median': 0.29, 'std': 0.2, 'cv': 64.03, 'p10': 0.02,
+			                    'p90': 0.6, 'min': -0.2, 'max': 0.9, 'ha': 1234.56}],
+			            bands=['rbr', 'dnbr', 'nbr_before', 'nbr_after'])
 		classes = fire.table([{'class': 1, 'sum': 600.25}, {'class': 4, 'sum': 1500.0}, {'class': 0, 'sum': 50.0}],
 		                     'bbox')
 		return dict(out, index='dNBR', title=title, classes=classes, burned_ha={'bbox': 2100.25},
@@ -125,8 +126,10 @@ def test_the_command_line_computes_the_rbr(burn, capsys):
 	assert call['index'] == 'RBR' and call['sensor'] == 'Landsat' and call['resolution'] == 30.0
 	assert call['where'] == where and call['path'] is None and call['csv'] is None  # no files unless asked
 	out = capsys.readouterr().out
-	assert out.splitlines()[0].split() == ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
-	assert out.splitlines()[1].split() == ['bbox', '0.3123', '0.29', '0.02', '0.6', '-0.2', '0.9', '1234.6']
+	# with the standard deviation and the coefficient of variation (%)
+	assert out.splitlines()[0].split() == ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha']
+	assert out.splitlines()[1].split() == ['bbox', '0.3123', '0.29', '0.2', '64.03', '0.02', '0.6', '-0.2', '0.9',
+	                                       '1234.6']
 	assert 'burned area' not in out and 'Relativized Burn Ratio (RBR) Landsat' in out
 
 
@@ -169,8 +172,9 @@ def test_the_command_line_computes_the_rdnbr(burn, capsys, tmp_path):
 	assert f'bbox: changed area (RdNBR >= {fire.RDNBR_BURNED:g}) 2100.2 ha' in out
 	assert 'bbox: changed area (RdNBR >= 0.069) 2100.2 ha' in out and 'burned area' not in out
 	stats = lines.index(next(x for x in lines if x.split()[:2] == ['region', 'mean']))
-	assert lines[stats].split() == ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
-	assert lines[stats + 1].split() == ['bbox', '0.5123', '0.48', '0.03', '1.1', '-0.4', '1.9', '2150.2']
+	assert lines[stats].split() == ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha']
+	assert lines[stats + 1].split() == ['bbox', '0.5123', '0.48', '0.35', '68.31', '0.03', '1.1', '-0.4', '1.9',
+	                                    '2150.2']
 	assert f'| CSV {csv} | GeoTIFF {tif} | README /tmp/fire.README.txt' in out
 	assert lines[-1].startswith('Burn severity (RdNBR, Miller & Thode 2007) Modis (median) | before 2021-07-15')
 	assert '| pixels of 500 m' in lines[-1]

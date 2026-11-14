@@ -326,12 +326,26 @@ RATE_UDUNITS = re.compile(r'^()(.+?)(?:/(?:month|day|d|\d+ ?days?|\(\d+ ?days?\)
                           r'(?:month|day|d|\(\d+ ?days?\))-1)()$')
 
 
-def unit_of(unit, metric=None):
+CV_UNIT = '[%]'  # the coefficient of variation (composite.CV): 100 × the standard deviation / the mean
+# the statistics over each feature of a region of services.region_stats by default (any metric of composite.METRICS)
+REGION_STATS = ('mean', 'std', 'cv', 'min', 'p5', 'p50', 'p95', 'max')
+
+
+def is_cv(*metrics):
+	"""Whether any of METRICS (a metric of the images, between the years or over a region) is the coefficient of
+	variation, whose values are in %."""
+	return any(str(m or '').strip().lower() == 'cv' for m in metrics)
+
+
+def unit_of(unit, metric=None, interannual=None, stat=None):
 	"""The unit of a variable whose unit is UNIT (of the catalog, or in UDUNITS of the data of Earth Engine outside it)
-	when its images are aggregated with METRIC: the sum of a rate per month or per day ('[mm/month]', e.g. the annual
-	precipitation; 'mm month-1' in UDUNITS) or per the days of each image ('mm (5 day)-1') is a total ('[mm]', 'mm');
-	the other metrics keep it."""
+	when its images are aggregated with METRIC (and between the years with INTERANNUAL, if they are), and then over a
+	region with STAT: the coefficient of variation ('cv') of any of them is in % ('[%]'; '%' in UDUNITS); the sum of a
+	rate per month or per day ('[mm/month]', e.g. the annual precipitation; 'mm month-1' in UDUNITS) or per the days of
+	each image ('mm (5 day)-1') is a total ('[mm]', 'mm'); the other metrics keep it."""
 	text = str(unit or '')
+	if is_cv(metric, interannual, stat):
+		return CV_UNIT if text.startswith('[') else '%'
 	m = (RATE if text.startswith('[') else RATE_UDUNITS).match(text)
 	return f'{m.group(1)}{m.group(2)}{m.group(3)}' if m and str(metric or '').lower() == 'sum' else unit
 

@@ -1,5 +1,5 @@
-"""The statistics of the RBR and the RdNBR of burn_severity over each region (mean, median, percentiles 10 and 90,
-minimum, maximum and hectares): percentiles from a histogram of fire.PERCENTILE_BUCKETS buckets, so that a few
+"""The statistics of the RBR and the RdNBR of burn_severity over each region (mean, median, standard deviation,
+coefficient of variation, percentiles 10 and 90, minimum, maximum and hectares): percentiles from a histogram of fire.PERCENTILE_BUCKETS buckets, so that a few
 outliers do not make them coarse. With the default of Earth Engine, the RdNBR -16 and 4 of the unburned surroundings
 of the fire of Sierra Bermeja (Sentinel-2, 2021 to 2022) gave the same percentile 10 and median (-0.049), whereas the
 pixels of its GeoTIFF give -0.120 and -0.037. Without Earth Engine (a fake ee) but the last test, which computes a
@@ -58,7 +58,7 @@ class _Image:
 @pytest.fixture
 def fake_ee(monkeypatch):
 	reducer = types.SimpleNamespace(**{name: (lambda name: lambda *a: _Reducer(name, *a))(name)
-	                                   for name in ('mean', 'median', 'percentile', 'minMax', 'sum')})
+	                                   for name in ('mean', 'median', 'percentile', 'stdDev', 'minMax', 'sum')})
 	fake = types.SimpleNamespace(Reducer=reducer, Image=types.SimpleNamespace(pixelArea=_Image))
 	monkeypatch.setattr(fire, 'ee', fake)
 	monkeypatch.setattr(services, 'ee', fake)
@@ -70,7 +70,7 @@ def test_the_percentiles_come_from_a_fine_histogram(fake_ee):
 	assert fire.PERCENTILE_BUCKETS >= 2 ** 16
 	parts = fire.stats_reducer().parts
 	assert parts == [('mean', ()), ('percentile', ([10, 50, 90], ['p10', 'median', 'p90'], fire.PERCENTILE_BUCKETS)),
-	                 ('minMax', ())]
+	                 ('stdDev', ()), ('minMax', ())]
 	assert not [p for p in parts if p[0] == 'median']  # ee.Reducer.median() with its default histogram
 	width = 2.0 ** -20
 	while (4 - -16) / width > fire.PERCENTILE_BUCKETS:  # the width of the buckets: a power of 2
@@ -81,19 +81,27 @@ def test_the_percentiles_come_from_a_fine_histogram(fake_ee):
 @pytest.mark.parametrize('band', ['rbr', 'rdnbr'])
 def test_the_rows_of_the_statistics(fake_ee, band):
 	"""services._burn_stats, of services._rbr and services._rdnbr: the answer of Earth Engine (<band>_<statistic> and
-	ha_sum) in the rows of the answer, with the keys and order of before (those of the CSV of the RBR)."""
-	answer = {f'{band}_mean': -0.047, f'{band}_median': -0.037, f'{band}_p10': -0.120, f'{band}_p90': 0.022,
-	          f'{band}_min': -15.95, f'{band}_max': 3.80, 'ha_sum': 3708.1, 'ha_mean': 0.01, 'ha_p10': 0.01}
+	ha_sum) in the rows of the answer, with the keys and order of the CSV of the RBR: also the standard deviation
+	(stdDev) and the coefficient of variation, 100 × stdDev / mean (none where the mean is 0)."""
+	answer = {f'{band}_mean': -0.047, f'{band}_median': -0.037, f'{band}_stdDev': 0.94, f'{band}_p10': -0.120,
+	          f'{band}_p90': 0.022, f'{band}_min': -15.95, f'{band}_max': 3.80, 'ha_sum': 3708.1, 'ha_mean': 0.01,
+	          'ha_p10': 0.01}
+	zero = {f'{band}_mean': 0, f'{band}_median': 0, f'{band}_stdDev': 0.1, f'{band}_p10': -0.1, f'{band}_p90': 0.1,
+	        f'{band}_min': -0.2, f'{band}_max': 0.2, 'ha_sum': 1.0}
 	image = _Image([{'properties': dict(answer, name='Unburned surroundings (1-3 km)')},
-	                {'properties': {'name': 'No data', 'ha_sum': None}}])
+	                {'properties': {'name': 'No data', 'ha_sum': None}},
+	                {'properties': dict(zero, name='Mean of 0')}])
 	rows = services._burn_stats(image, band, 'regions', 10.0, 'EPSG:32630')
 	assert rows == [
-		{'region': 'Unburned surroundings (1-3 km)', 'mean': -0.047, 'median': -0.037, 'p10': -0.120, 'p90': 0.022,
-		 'min': -15.95, 'max': 3.80, 'ha': 3708.1},
-		{'region': 'No data', 'mean': None, 'median': None, 'p10': None, 'p90': None, 'min': None, 'max': None,
-		 'ha': 0.0},
+		{'region': 'Unburned surroundings (1-3 km)', 'mean': -0.047, 'median': -0.037, 'std': 0.94,
+		 'cv': pytest.approx(100 * 0.94 / -0.047), 'p10': -0.120, 'p90': 0.022, 'min': -15.95, 'max': 3.80,
+		 'ha': 3708.1},
+		{'region': 'No data', 'mean': None, 'median': None, 'std': None, 'cv': None, 'p10': None, 'p90': None,
+		 'min': None, 'max': None, 'ha': 0.0},
+		{'region': 'Mean of 0', 'mean': 0, 'median': 0, 'std': 0.1, 'cv': None, 'p10': -0.1, 'p90': 0.1, 'min': -0.2,
+		 'max': 0.2, 'ha': 1.0},
 	]
-	assert [list(r) for r in rows] == [services.RBR_COLUMNS] * 2
+	assert [list(r) for r in rows] == [services.RBR_COLUMNS] * 3
 	args = dict(image.args)
 	reducer = args.pop('reducer')
 	assert args == {'collection': 'regions', 'scale': 10.0, 'crs': 'EPSG:32630', 'tileScale': 4}
@@ -108,6 +116,8 @@ def test_the_app_has_the_same_percentiles():
 	assert ("ee.Reducer.percentile([10, 50, 90], ['p10', 'median', 'p90'], PERCENTILE_BUCKETS)" in
 	        core.split('function burnStatsReducer')[1].split('function ')[0])
 	assert 'ee.Reducer.median()' not in core.split('function burnStatsReducer')[1].split('function ')[0]
+	assert 'ee.Reducer.stdDev()' in core.split('function burnStatsReducer')[1].split('function ')[0]
+	assert _js_value(core, 'RBR_COLUMNS') == services.RBR_COLUMNS  # the columns of its CSV
 
 
 # With Earth Engine --------------------------------------------------------------------------------------------------

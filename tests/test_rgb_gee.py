@@ -56,6 +56,7 @@ def _cases():
 		                                      ('p25', 'annual', 'min'), ('std', 'period', 'mean'),
 		                                      ('count', 'period', 'mean'), ('sum', 'period', 'mean'),
 		                                      ('mode', 'period', 'mean'), ('mean', 'annual', 'std'),
+		                                      ('cv', 'period', 'mean'), ('mean', 'annual', 'cv'),
 		                                      ('mean', 'monthly', 'p101')]:
 			out.append({'ref': e['ref'], 'only': e.get('metric'), 'metric': metric, 'temporal': temporal,
 			            'interannual': interannual})

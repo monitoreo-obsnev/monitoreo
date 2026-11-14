@@ -45,11 +45,12 @@ which only have maps and their statistics.}
 
 \item{step}{\code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-\code{"pN"} (percentile N).}
+\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
+\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
 
 \item{stat}{spatial statistic over each feature of the region: \code{"mean"}, \code{"median"}, \code{"min"},
-\code{"max"}, \code{"std"} or \code{"pN"}.}
+\code{"max"}, \code{"std"}, \code{"cv"} (coefficient of variation, in \%) or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
