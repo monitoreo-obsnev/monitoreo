@@ -62,7 +62,9 @@
 			animFrames: '%s fotogramas, con los mismos colores (de %s a %s): %s.',
 			animNote: 'Los píxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
-			animGif: 'Descargar el GIF',
+			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
+			swipe: 'Cortina: los dos periodos lado a lado', oneMap: 'Volver a un mapa',
+			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
 			k_breaks: 'La variable, cortada en unos valores', k_trend: 'La tendencia de la variable',
 			areaMap: 'Mapa y año', areaBreaks: 'Cortes', breaksHint: 'p. ej. 1500, 2000, 2500',
@@ -218,7 +220,9 @@
 			animFrames: '%s frames, with the same colours (from %s to %s): %s.',
 			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
 				'with the Python package, QGIS or the assistant (timelapse).',
-			animGif: 'Download the GIF',
+			animGif: 'Download the GIF', animSlider: 'Frame on the map',
+			swipe: 'Swipe: the two periods side by side', oneMap: 'Back to one map',
+			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
 			k_breaks: 'The variable, cut at some values', k_trend: 'The trend of the variable',
 			areaMap: 'Map and year', areaBreaks: 'Breaks', breaksHint: 'e.g. 1500, 2000, 2500',
@@ -1305,6 +1309,7 @@
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
 				if (failed.index) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
 				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
+				if (compare) widgets.push(button(t('swipe'), function () { swipePeriods(img, e, ramped, s, o); }));
 			}
 			if (rgb) {
 				rgbLegend(rvis, rgbName, layer === 'both');
@@ -1315,6 +1320,36 @@
 			}
 			show(widgets);
 		}
+	}
+
+	// The swipe of a comparison (as the split maps of geemap): the reference period on the left and the other one on the
+	// right, in two maps that move together, with the same colours (from the percentiles of both)
+	var single = null;  // the map of the app while the two maps are shown
+	function swipePeriods(img, e, ramped, s, o) {
+		var geom = state.region.geometry();
+		var both = img.select('reference').addBands(img.select('other'));
+		var id = start();
+		both.reduceRegion({reducer: ee.Reducer.percentile([5, 95]), geometry: geom, scale: rangeScale(e), bestEffort: true,
+			maxPixels: 1e6, tileScale: 4}).evaluate(guardedAsync(id, function (st) {
+			var lo = Math.min(st.reference_p5, st.other_p5), hi = Math.max(st.reference_p95, st.other_p95);
+			var vis = mo.visParams(isFinite(lo) && isFinite(hi) ? {value_p5: lo, value_p95: hi} : null, ramped);
+			var left = ui.Map(), right = ui.Map();
+			[left, right].forEach(function (m) { m.setOptions('HYBRID'); m.setControlVisibility({layerList: false}); });
+			left.addLayer(img.select('reference'), vis, s.period.join('/'));
+			right.addLayer(img.select('other'), vis, o.period.join('/'));
+			ui.Map.Linker([left, right]);
+			left.centerObject(geom);
+			var split = ui.SplitPanel({firstPanel: left, secondPanel: right, wipe: true, style: {stretch: 'both'}});
+			single = single || map;
+			ui.root.widgets().set(1, split);
+			show([ui.Label(t('swipe'), {fontWeight: 'bold'}),
+				ui.Label(fmt(t('swipeNote'), s.period.join('/'), o.period.join('/')), SMALL),
+				button(t('oneMap'), function () {
+					ui.root.widgets().set(1, single);
+					results.style().set('shown', false);
+				})]);
+			colourBar(vis, title(e, [metricName(state.mapMetric)]));
+		}));
 	}
 
 	function mapWidgets() {
@@ -1629,9 +1664,21 @@
 					gif.add(ui.Label(t('animGif'), {fontSize: '12px'}, url));
 				});
 			}));
+			// the time slider: a frame on the map, chosen with a slider (as the time sliders of geemap)
+			var list = frames.toList(steps.length);
+			var frameLayer = ui.Map.Layer(ee.Image(list.get(0)), {}, labels[0]);
+			map.layers().add(frameLayer);
+			var current = ui.Label(labels[0], {fontSize: '12px'});
+			var slider = ui.Slider({min: 0, max: steps.length - 1, step: 1, value: 0, style: {stretch: 'horizontal'},
+				onChange: function (i) {
+					frameLayer.setEeObject(ee.Image(list.get(i)));
+					frameLayer.setName(labels[i]);
+					current.setValue(labels[i]);
+				}});
 			show([ui.Label(name, {fontWeight: 'bold'}), ui.Thumbnail({image: frames, params: params}),
 				ui.Label(fmt(t('animFrames'), steps.length, num(vis.min), num(vis.max), labels.join(', ')), SMALL),
-				ui.Label(t('animNote'), SMALL), gif]);
+				ui.Label(t('animNote'), SMALL), gif].concat(steps.length > 1 ?
+				[ui.Label(t('animSlider'), {fontWeight: 'bold', fontSize: '12px'}), row(slider, current)] : []));
 		});
 	}
 
