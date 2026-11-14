@@ -10,6 +10,7 @@ and the message bar warns when less than 10 % are left."""
 
 import json
 import os
+import re
 import tempfile
 
 from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsContrastEnhancement, QgsCoordinateReferenceSystem,
@@ -276,6 +277,22 @@ class InfoButton(QToolButton):
 		return super().event(e)
 
 
+def plugin_released():
+	"""The date of the release of the plugin: __released__ of the package monitoreo it carries (ext/, released with
+	it, whatever package Python finds first), or of the package in use when it carries none (from the code); None for a
+	package older than the date."""
+	path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ext', 'monitoreo', '__init__.py')
+	try:
+		with open(path, encoding='utf-8') as f:
+			found = re.search(r"^__released__\s*=\s*['\"]([^'\"]+)", f.read(), re.M)
+		if found:
+			return found.group(1)
+	except OSError:
+		pass
+	import monitoreo
+	return getattr(monitoreo, '__released__', None)
+
+
 def plugin_version():
 	"""The version of the plugin, from its metadata.txt."""
 	import configparser
@@ -318,6 +335,7 @@ class MonitorEODock(QDockWidget):
 		body = QWidget()
 		main = QVBoxLayout(body)
 		row = QHBoxLayout()
+		row.addWidget(self.version_label())
 		row.addStretch()
 		row.addWidget(self.feedback_button())
 		main.addLayout(row)
@@ -772,6 +790,18 @@ class MonitorEODock(QDockWidget):
 
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+
+	def version_label(self):
+		"""The version of the plugin and the date of its release (that of the package monitoreo it carries, released
+		with it), e.g. «MonitorEO 0.3.31 · released 2026-11-13»."""
+		import monitoreo
+		released = plugin_released()  # without a date (a package older than it): the version alone
+		label = QLabel(f'MonitorEO {plugin_version()}' + (f' · released {released}' if released else ''))
+		label.setToolTip(f'QGIS plugin {plugin_version()}, with the package monitoreo {monitoreo.__version__}' +
+		                 (f', released on {released}' if released else ''))
+		label.setStyleSheet('font-size: 11px; color: #666;')
+		self.version_text = label.text()
+		return label
 
 	def feedback_button(self):
 		"""The button to suggest a change or report an error: an issue of GitHub or the anonymous form, filled with

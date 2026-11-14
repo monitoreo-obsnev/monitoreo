@@ -297,7 +297,7 @@ def check_changelog():
 	if found:
 		return
 	log = changelog.parse(text)
-	say('OK', f'the changelog has the release {log["releases"][0]["tag"]} of the versions of the files')
+	say('OK', f'the changelog has the release {log["releases"][0]["tag"]} of the versions and date of the files')
 	users = sorted(changed_since_base(['src/monitoreo', 'qgis/monitoreo_qgis', 'r/monitoreo', 'gee']))
 	base = git('merge-base', 'HEAD', MAIN).stdout.strip()
 	def entries(text):

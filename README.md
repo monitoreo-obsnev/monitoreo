@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant, QGIS plugin, Earth Engine app, Command line**: The version comes with the date it was released, as in «MonitorEO 0.3.41 · released 2026-11-13»: in the header of the assistant, at the top of the panel of the QGIS plugin, under the subtitle of the Earth Engine app and in `monitoreo --version`.
+
 ### [v0.3.32](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.32) · 2026-11-14 · package 0.3.42
 
 - **Assistant**: While an answer runs, the button Send is Stop: it ends the answer and what Earth Engine was computing for it at once (with a model of Ollama, Ollama stops generating it too), so that something else can be asked for in its place (before, nothing could be asked until the computation ended).

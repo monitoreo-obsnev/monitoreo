@@ -362,7 +362,7 @@ async function refresh() {
     return;
   }
   refresh.failed = false;
-  $('version').textContent = 'MonitorEO ' + state.version;
+  $('version').textContent = 'MonitorEO ' + state.version + (state.released ? ' · released ' + state.released : '');
   const own = !!state.project, accountOk = !own || state.signed_in;
   $('account').textContent = !own ? 'the shared account of MonitorEO: no need to sign in' +
       (state.signed_in ? ' (to use yours, write your project)' : '') :
