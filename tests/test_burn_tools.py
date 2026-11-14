@@ -398,6 +398,12 @@ def test_the_perimeter_is_in_every_tool():
 		assert f"perimeterWidget(out.image.select('{band}'), '{index}', scale, e, name, before, after)" in ui, index
 	assert 'function perimeterWidget(' in app and 'function burnPerimeter(' in app  # built (gee/build.py)
 	assert f'var PERIMETER_MIN_HA = {fire.PERIMETER_MIN_HA:g};' in core
+	# the downloads of the app with their polygons: without .geo in the selectors, the GeoJSON had none
+	fields = "var fields = ['region', 'ha', 'patches', 'index', 'burned_min', 'min_ha', 'sensor', 'before', 'after',\n\t\t\t\t\t'.geo'];"
+	assert fields in ui and fields in app
+	assert [f.strip(" '") for f in fields.split('[')[1].split(']')[0].replace('\n', '').replace('\t', '').split(',')] \
+	       == fire.PERIMETER_FIELDS + ['.geo']  # the fields of the file of the package, and the polygons
+	assert "index + ' ' + num(classes.burned)" not in ui  # the hint «dNBR 0.1», not «dNBR 0.1000»
 
 
 def test_the_analyses_of_a_theme_are_in_every_tool():
