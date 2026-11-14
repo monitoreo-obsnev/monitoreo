@@ -493,22 +493,32 @@ out.one = {years: years(), controls: texts(controls)};
 process.stdout.write(JSON.stringify(out));
 """
 
+# The clock of the app, fixed at NOW (local time): the years of Dynamic World, a map of every year until now, follow it
+CLOCK = r"""
+var RealDate = Date;
+global.Date = class extends RealDate {
+	constructor(...a) { if (a.length) super(...a); else super(NOW); }
+	static now() { return new RealDate(NOW).getTime(); }
+};
+"""
 
-def test_the_app_compares_two_different_years():
+
+@pytest.mark.parametrize('now, last', [('2026-11-14T12:00:00', 2025), ('2027-01-01T12:00:00', 2026)])
+def test_the_app_compares_two_different_years(now, last):
 	"""«Its changes to» of the app gives two different years, the first one the year before the other (as the QGIS
 	plugin), when it is ticked and when the map changes; with a map of a single year, it says so."""
 	if not shutil.which('node'):
 		pytest.skip('no node')
 	from test_themes import GEE, PANEL, _build
 	from monitoreo import catalog
-	script = PANEL[:PANEL.index('var out = {};')] + APP_CHANGES
+	script = f'var NOW = {json.dumps(now)};' + CLOCK + PANEL[:PANEL.index('var out = {};')] + APP_CHANGES
 	data = {'community': _build().community_index(), 'other_themes': catalog.OTHER_THEMES, 'assets': {}}
 	run = subprocess.run(['node', '-e', script, GEE], input=json.dumps(data), capture_output=True, text=True,
 	                     timeout=120)
 	assert run.returncode == 0, run.stderr
 	out = json.loads(run.stdout)
-	assert out['before'] == [2025, 2025]  # the last whole year of Dynamic World, before ticking
-	assert out['dynamic']['years'] == [2024, 2025] and out['corine']['years'] == [2012, 2018]
+	assert out['before'] == [last, last]  # the last whole year of Dynamic World, before ticking
+	assert out['dynamic']['years'] == [last - 1, last] and out['corine']['years'] == [2012, 2018]
 	for case in ('dynamic', 'corine'):
 		assert not any('choose two different years' in t for t in out[case]['texts']), out[case]
 	assert out['one']['years'] == [2021, 2021]
