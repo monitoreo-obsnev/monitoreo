@@ -587,11 +587,13 @@ Widget.prototype.style = function () { return {set: function () {}}; };
 Widget.prototype.add = function (w) { this.children.push(w); };
 Widget.prototype.clear = function () { this.children = []; };
 Widget.prototype.setDisabled = function (v) { this.disabled = Boolean(v); };
+Widget.prototype.setValue = function (v) { this.opts.value = v; };
 Widget.prototype.getValue = function () { return this.opts.value; };
 Widget.prototype.setLayout = function () {};
 function widgets() {  // only the panels have widgets (disable in ui.js greys out those of a panel, or the widget)
 	var self = this;
-	return {forEach: function (f) { self.children.forEach(f); }, reset: function () {}, remove: function () {}};
+	return {forEach: function (f) { self.children.forEach(f); }, reset: function () {}, remove: function () {},
+		set: function (i, w) { self.children[i] = w; }};
 }
 var map = new Widget('Map'), layers = [];
 function nothing() {}
@@ -599,13 +601,23 @@ var drawing = {setShown: nothing, setLinked: nothing, setDrawModes: nothing, onD
 	layers: function () { return {reset: nothing}; }};
 map.setOptions = map.setCenter = map.centerObject = map.onClick = function () {};
 map.drawingTools = function () { return drawing; };
-map.layers = function () { return {remove: function () {}}; };
+map.layers = function () { return {remove: function () {}, add: function (l) { layers.push(l.name); }}; };
+map.setControlVisibility = function () {};
 map.addLayer = function (img, vis, name) { layers.push(name); return {}; };
 map.getBounds = function () { return [-3.62, 36.86, -3.50, 36.93]; };
 var root = new Widget('root');
 root.widgets = widgets;
 global.ui = {
-	Map: function () { return map; },
+	Map: Object.assign(function () { return map; }, {
+		Layer: function (img, vis, name) {
+			var l = {name: name};
+			l.setEeObject = nothing;
+			l.setName = function (n) { l.name = n; };
+			return l;
+		},
+		Linker: nothing}),
+	Slider: function (o) { return new Widget('Slider', o); },
+	SplitPanel: function (o) { return new Widget('SplitPanel', o); },
 	Panel: Object.assign(function (items) {
 		var w = new Widget('Panel');
 		w.widgets = widgets;

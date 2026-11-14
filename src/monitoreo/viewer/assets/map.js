@@ -1,6 +1,8 @@
 // Maps of the reports: the Cloud Optimized GeoTIFF of a result drawn by OpenLayers (WebGL) with the legend of one of
 // its bands, over a base map, and the values of every band of a pixel on click, read by geotiff.js at full
-// resolution (the overviews of the COG only serve to draw it).
+// resolution (the overviews of the COG only serve to draw it). A map of several bands can show another band on the
+// left of a line that the reader moves (the swipe, as the split maps of geemap): e.g. the reference period and the
+// other one of a comparison.
 'use strict';
 
 MO.map = (() => {
@@ -113,6 +115,20 @@ MO.map = (() => {
 
 		const id = `m-${result.id}`;
 		const controls = el('div', {class: 'map-controls'});
+		// the swipe: another band of the same file on the left of a line, drawn only there (scissor of WebGL)
+		let left = null;
+		const swipe = el('input', {id: `${id}-swipe`, type: 'range', min: 0, max: 100, step: 1, value: 50, disabled: true,
+			'aria-label': 'Position of the line between the two layers', oninput: () => map && map.render()});
+		const compared = new ol.layer.WebGLTile({source, style: style(result, band, false), opacity: 0.9, visible: false});
+		compared.on('prerender', (e) => {
+			const gl = e.context, size = map.getSize();
+			const bottomLeft = ol.render.getRenderPixel(e, [0, size[1]]);
+			const topRight = ol.render.getRenderPixel(e, [size[0], 0]);
+			gl.enable(gl.SCISSOR_TEST);
+			gl.scissor(bottomLeft[0], bottomLeft[1], Math.round((topRight[0] - bottomLeft[0]) * Number(swipe.value) / 100),
+				topRight[1] - bottomLeft[1]);
+		});
+		compared.on('postrender', (e) => e.context.disable(e.context.SCISSOR_TEST));
 		if (result.bands.length > 1) {
 			controls.append(el('div', {class: 'field grow'}, el('label', {for: `${id}-band`}, 'Layer'),
 				el('select', {id: `${id}-band`, onchange: (e) => {
@@ -120,6 +136,18 @@ MO.map = (() => {
 					layer.setStyle(style(result, band, dim));
 					legend(box, result, band, dim);
 				}}, result.bands.map((b) => el('option', {value: b.name, selected: b.name === band.name}, b.unit ? `${b.label} (${b.unit})` : b.label)))));
+		}
+		if (result.bands.length > 1) {
+			controls.append(el('div', {class: 'field'}, el('label', {for: `${id}-left`}, 'Compare with (left)'),
+				el('select', {id: `${id}-left`, onchange: (e) => {
+					left = result.bands.find((b) => b.name === e.target.value) || null;
+					compared.setVisible(Boolean(left));
+					swipe.disabled = !left;
+					if (left) compared.setStyle(style(result, left, false));
+					map && map.render();
+				}}, [el('option', {value: ''}, '—')].concat(result.bands.map((b) => el('option', {value: b.name},
+					b.unit ? `${b.label} (${b.unit})` : b.label))))),
+				el('div', {class: 'field grow'}, el('label', {for: `${id}-swipe`}, 'Line'), swipe));
 		}
 		if (result.significance) {
 			controls.append(el('label', {class: 'check'}, el('input', {type: 'checkbox', checked: dim, onchange: (e) => {
@@ -137,7 +165,7 @@ MO.map = (() => {
 				}}, BASEMAPS.map(([v, label]) => el('option', {value: v}, label)))),
 			el('div', {class: 'field'}, el('label', {for: `${id}-opacity`}, 'Opacity'),
 				el('input', {id: `${id}-opacity`, type: 'range', min: 0, max: 1, step: 0.05, value: 0.9,
-					oninput: (e) => layer.setOpacity(Number(e.target.value))})));
+					oninput: (e) => { layer.setOpacity(Number(e.target.value)); compared.setOpacity(Number(e.target.value)); }})));
 		container.append(controls, target, box,
 			el('p', {class: 'map-note'}, 'Click on the map to see the values of all the layers at that pixel; zoom in with the buttons or with Ctrl (⌘) and the mouse wheel' +
 				(result.resolution ? ` (pixels of ${MO.num(result.resolution)} m` : '') +
@@ -148,7 +176,7 @@ MO.map = (() => {
 		let map;
 		try {
 			map = new ol.Map({
-				target, layers: [background, layer], overlays: [overlay],
+				target, layers: [background, layer, compared], overlays: [overlay],
 				view: new ol.View({projection: 'EPSG:3857', maxZoom: 19}),
 				// the wheel scrolls the page; with Ctrl or ⌘ it zooms the map
 				interactions: ol.interaction.defaults.defaults({mouseWheelZoom: false}).extend([

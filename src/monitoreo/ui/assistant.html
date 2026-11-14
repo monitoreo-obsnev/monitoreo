@@ -34,7 +34,12 @@ header { width: 100%; max-width: 1600px; margin: 0 auto; padding-left: 16px; pad
 #tabs { display: none; }
 #mapbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
           margin-bottom: 10px; }
-#map { height: 54vh; min-height: 300px; border-radius: 8px; margin-top: 8px; background: var(--soft); }
+#map { height: 54vh; min-height: 300px; border-radius: 8px; margin-top: 8px; background: var(--soft); position: relative; }
+/* the swipe: the map compared, on the left of the line, over the map shown */
+#swipeline { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #fff;
+             box-shadow: 0 0 3px rgba(0, 0, 0, .6); z-index: 450; pointer-events: none; }
+.swipebar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: .85em; margin-top: 6px; }
+.swipebar input[type=range] { flex: 1; min-width: 120px; }
 .maphead { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: .9em; }
 .maphead select { max-width: 100%; }
 #mapsel { max-width: min(520px, 100%); }
@@ -270,7 +275,9 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div id="mapbox" hidden>
     <div class="maphead">
       <label>Map <select id="mapsel"></select></label>
-      <label id="steplabel" hidden title="The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)"><span id="steptitle">Date</span> <select id="mapstep"></select></label>
+      <label id="steplabel" hidden title="The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)"><span id="steptitle">Date</span> <select id="mapstep"></select>
+        <input id="stepslider" type="range" min="0" max="0" step="1" value="0" aria-label="Date of the map" title="Move it to see the map of each date (each one is prepared in Google Earth Engine the first time)">
+        <button id="play" type="button" aria-pressed="false" title="Shows the map of each date, one after another">▶ Play</button></label>
       <label id="siglabel" hidden title="Shows only the pixels whose trend is significant (Mann-Kendall test, p &lt; 0.05)"><input type="checkbox" id="significant"> Significant pixels only (p &lt; 0.05)</label>
       <label id="layerlabel" hidden title="Index: the map of the variable. True colour (RGB): the red, green and blue reflectance of the same images, dates and pixels, to see what the index shows (prepared in Google Earth Engine when you choose it). Both: the index over its true colour (Opacity changes the index). Only in the maps of variables of Sentinel-2, Landsat or the cloud frequency of MODIS: not in fixed layers, the climate, other MODIS products, trends or comparisons.">Layer <select id="layer">
         <option value="index">Index</option>
@@ -288,6 +295,11 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
     </div>
     <h3 id="maptitle"></h3>
     <div id="map"></div>
+    <div class="swipebar" id="swipebar" hidden>
+      <label title="Another map of the results (or of the dates of this one) on the left of a line that you move over the map shown, to compare them">Compare with <select id="swipesel"><option value="">—</option></select></label>
+      <input id="swipe" type="range" min="0" max="100" step="1" value="50" aria-label="Position of the line between the two maps" disabled>
+      <span id="swipenote" class="muted"></span>
+    </div>
     <div id="maplegend" class="legend"></div>
     <p id="maphint" class="muted" style="margin: 6px 0 0"></p>
     <div id="pixel"></div>
@@ -902,6 +914,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => showPan
 // overlay: the map shown (that of the variable, or its true colour), which Opacity changes; under: the true colour
 // under the map of the variable («Both»)
 let leaflet = null, base = null, overlay = null, under = null, marker = null, current = null, refreshed = {};
+let playing = null, swiped = null;  // «Play» of the dates of a map; the map compared on the left of the swipe
 const maps = {};
 const BASES = {
   osm: () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -938,7 +951,10 @@ function clearMaps() {
   if (overlay) { overlay.remove(); overlay = null; }
   if (under) { under.remove(); under = null; }
   if (marker) { marker.remove(); marker = null; }
+  unswipe();
+  playing = null;
   current = null;
+  $('swipebar').hidden = true;
 }
 
 function showMap(id) {  // the map of the result ID, at its main date (and the list of the others)
@@ -948,7 +964,10 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
     leaflet = L.map('map', {zoomControl: true});
     base = BASES[$('basemap').value]().addTo(leaflet);
     leaflet.on('click', ev => { if (querying) pixelAt(ev.latlng); });
+    leaflet.on('move zoom resize', () => clipSwipe());
   }
+  unswipe();
+  $('swipesel').value = '';
   const steps = e.steps || [];
   $('mapstep').replaceChildren(el('option', {value: '', text: e.main || 'Whole period'}),
                                ...steps.map(s => el('option', {value: s.key, text: s.label})));
@@ -956,14 +975,16 @@ function showMap(id) {  // the map of the result ID, at its main date (and the l
   $('steplabel').hidden = !steps.length;
   $('layerlabel').hidden = !e.rgb;  // the true colour of its images, if they have one (the choice stays as it was)
   display(id, '', e, true);
+  syncSlider();
   if (e.map.trend && $('significant').checked) showStep('');  // the box stays as it was
 }
 
 const RGB = '|rgb';  // in the key of the map of the true colour of the images of a map (as the server)
 const layerMode = () => $('layerlabel').hidden ? 'index' : $('layer').value;  // 'index', 'rgb' or 'both'
 
-function tiles(id, name, url, opacity) {  // a layer of tiles of Earth Engine (asked for again if they expire)
-  const layer = L.tileLayer(url, {opacity, maxZoom: 20, attribution: 'MonitorEO · Google Earth Engine'});
+function tiles(id, name, url, opacity, pane = 'tilePane') {  // a layer of tiles of Earth Engine (asked for again if
+  const layer = L.tileLayer(url, {opacity, pane, maxZoom: 20,  // they expire), in PANE (that of the swipe: 'swipe')
+                                  attribution: 'MonitorEO · Google Earth Engine'});
   layer.name = name;
   return layer.on('tileerror', () => refreshTiles(id, name)).addTo(leaflet);
 }
@@ -989,6 +1010,7 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
   if (top.legend) lg.append(...legendItems(top.legend));
   if (under && rgb.legend) lg.append(el('span', {class: 'muted', text: '·'}), ...legendItems(rgb.legend));
   mapHint();
+  swipeOptions();
   if (mode !== 'index' && !rgb) colour(id, key);  // the map of the variable until its true colour is ready
 }
 
@@ -1030,25 +1052,27 @@ const SIGNIFICANT = '|p<0.05';  // in the key of a map with only the significant
 const significant = () => !$('siglabel').hidden && $('significant').checked;
 
 async function showStep(key) {  // the map of a year, month or period of the result shown (with only its significant
-  if (!current) return;         // pixels if the box says so), made the first time
+  if (!current) return false;   // pixels if the box says so), made the first time; false if it could not be prepared
   const id = current.id, e = maps[id], sig = significant(), name = key + (sig ? SIGNIFICANT : '');
   $('pixel').replaceChildren();
-  if (!name) return display(id, '', e, false);
+  if (!name) { display(id, '', e, false); return true; }
   e.cache = e.cache || {};
   if (!e.cache[name]) {
     const label = ($('mapstep').selectedOptions[0]?.textContent || e.main || key) + (sig ? ', significant pixels only' : '');
     $('maphint').replaceChildren(el('span', {class: 'spinner'}), `Preparing the map of ${label} in Google Earth Engine…`);
     try { e.cache[name] = await api('/api/map/step', {id, key, significant: sig}); } catch (err) {
-      notice('That map could not be prepared: ' + err.message, true);
+      notice('That map could not be prepared: ' + err.message + (playing ? ' (Play has stopped)' : ''), true);
+      stopPlay();
       if (current.id === id) {
         $('mapstep').value = current.key.replace(SIGNIFICANT, '');
         $('significant').checked = current.key.endsWith(SIGNIFICANT);
         display(id, current.key, current, false);
       }
-      return;
+      return false;
     }
   }
   if (current.id === id && $('mapstep').value === key && significant() === sig) display(id, name, e.cache[name], false);
+  return true;
 }
 $('significant').onchange = () => showStep($('mapstep').value);
 
@@ -1061,12 +1085,15 @@ async function refreshTiles(id, key) {  // the tiles of Earth Engine expire afte
     const m = key ? maps[id].cache[key] : maps[id];
     m.map.url = r.url;
     if (current && current.id === id) for (const layer of [overlay, under]) if (layer && layer.name === key) layer.setUrl(r.url);
+    if (swiped && swiped.id === id && swiped.key === key) swiped.layer.setUrl(r.url);  // the map compared (swipe)
   } catch (e) { notice('The map has expired and could not be renewed: ' + e.message, true); }
 }
 
 async function pixelAt(latlng) {
   if (!current) return;
-  const e = current, box = $('pixel');
+  // the map under the click: on the left of the line of the swipe, the map compared
+  const left = swiped && leaflet.latLngToContainerPoint(latlng).x < leaflet.getSize().x * Number($('swipe').value) / 100;
+  const e = left ? swiped : current, box = $('pixel'), side = left ? 'the map on the left' : 'this map';
   if (marker) marker.remove();
   marker = L.circleMarker(latlng, {radius: 6, color: '#ff8a00', weight: 3, fillOpacity: 0}).addTo(leaflet);
   box.replaceChildren(el('span', {class: 'spinner'}), 'Computing the pixel in Google Earth Engine…');
@@ -1074,9 +1101,9 @@ async function pixelAt(latlng) {
     const r = await api('/api/pixel', {id: e.id, key: e.key, lon: latlng.lng, lat: latlng.lat});
     const coord = v => v.toLocaleString('en-US', {minimumFractionDigits: 5, maximumFractionDigits: 5});
     const head = el('div', {}, el('b', {text: `Pixel ${coord(r.lat)}, ${coord(r.lon)}`}));
-    if (r.value != null) head.append(` · ${r.label || 'value'} on this map: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
+    if (r.value != null) head.append(` · ${r.label || 'value'} on ${side}: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
                                      (r.p_value != null ? ` (p-value ${fmt(r.p_value)})` : ''));
-    else if (e.map.pixel) head.append(' · no value on this map (pixel without data)');
+    else if (e.map.pixel) head.append(` · no value on ${side} (pixel without data)`);
     if (r.key == null) {  // a fixed layer (elevation, slope): its value, without a time series
       box.replaceChildren(head, el('p', {text: 'A fixed layer, without dates: it has no time series.'}));
       return;
@@ -1093,9 +1120,102 @@ async function pixelAt(latlng) {
 }
 
 $('mapsel').onchange = () => { $('pixel').replaceChildren(); if (marker) { marker.remove(); marker = null; } showMap(Number($('mapsel').value)); };
-$('mapstep').onchange = () => showStep($('mapstep').value);
+$('mapstep').onchange = () => { syncSlider(); showStep($('mapstep').value); };
+
+// The time slider: the dates of the map of a result (its select Date) on a slider, and «Play» to see them one after
+// another (each map is prepared in Google Earth Engine the first time, so Play waits for each one)
+function syncSlider() {
+  const n = $('mapstep').options.length;
+  $('stepslider').max = String(Math.max(n - 1, 0));
+  $('stepslider').value = String(Math.max($('mapstep').selectedIndex, 0));
+}
+$('stepslider').oninput = () => {
+  $('mapstep').selectedIndex = Number($('stepslider').value);
+  showStep($('mapstep').value);
+};
+async function play() {
+  while (playing) {
+    const n = $('mapstep').options.length;
+    if (n < 2) break;
+    $('mapstep').selectedIndex = ($('mapstep').selectedIndex + 1) % n;
+    syncSlider();
+    if (!await showStep($('mapstep').value)) break;  // a map that could not be prepared: Play stops there (showStep)
+    await new Promise(r => setTimeout(r, 1200));
+  }
+}
+function stopPlay() {
+  playing = null;
+  $('play').setAttribute('aria-pressed', 'false');
+  $('play').textContent = '▶ Play';
+}
+$('play').onclick = () => {
+  playing = !playing;
+  $('play').setAttribute('aria-pressed', String(Boolean(playing)));
+  $('play').textContent = playing ? '❚❚ Stop' : '▶ Play';
+  if (playing) play();
+};
+
+// The swipe: another map (of another result, or another date of this one) on the left of a line over the map shown
+function swipeOptions() {
+  const keep = $('swipesel').value;
+  const others = [...$('mapsel').options].filter(o => current && Number(o.value) !== current.id)
+    .map(o => el('option', {value: 'r' + o.value, text: o.textContent}));
+  const dates = [...$('mapstep').options].filter(o => current && o.value !== current.key.replace(SIGNIFICANT, ''))
+    .map(o => el('option', {value: 'd' + o.value, text: 'Date: ' + o.textContent}));
+  $('swipesel').replaceChildren(el('option', {value: '', text: '—'}), ...dates, ...others);
+  $('swipesel').value = [...$('swipesel').options].some(o => o.value === keep) ? keep : '';
+  if (swiped && $('swipesel').value !== swiped.name) unswipe();  // e.g. the date compared is now the one shown
+  $('swipebar').hidden = !current;
+}
+function clipSwipe() {
+  if (!swiped || !leaflet) return;
+  const size = leaflet.getSize(), x = size.x * Number($('swipe').value) / 100;
+  const nw = leaflet.containerPointToLayerPoint([0, 0]), se = leaflet.containerPointToLayerPoint(size);
+  const left = leaflet.containerPointToLayerPoint([x, 0]).x;
+  leaflet.getPane('swipe').style.clip = `rect(${nw.y}px, ${left}px, ${se.y}px, ${nw.x}px)`;
+  $('swipeline').style.left = x + 'px';
+}
+function unswipe() {
+  if (swiped) { swiped.layer.remove(); swiped = null; }
+  const line = $('swipeline');
+  if (line) line.remove();
+  $('swipe').disabled = true;
+  $('swipenote').textContent = '';
+}
+async function swipeWith(value) {
+  unswipe();
+  if (!value || !current || !leaflet) return;
+  let m, id = current.id, key = '';  // the result and the step of the map compared
+  if (value[0] === 'r') m = maps[id = Number(value.slice(1))];
+  else {
+    const e = maps[current.id];
+    key = value.slice(1);
+    e.cache = e.cache || {};
+    if (!key) m = e;
+    else if (e.cache[key]) m = e.cache[key];
+    else {
+      $('swipenote').replaceChildren(el('span', {class: 'spinner'}), 'Preparing the map in Google Earth Engine…');
+      try { m = e.cache[key] = await api('/api/map/step', {id: current.id, key}); }
+      catch (err) { notice('That map could not be prepared: ' + err.message, true); $('swipesel').value = ''; return; }
+    }
+  }
+  if (!m || $('swipesel').value !== value) return;
+  if (!leaflet.getPane('swipe')) leaflet.createPane('swipe').style.zIndex = 420;  // over the map shown (400)
+  const layer = tiles(id, key, m.map.url, Number($('opacity').value), 'swipe');
+  swiped = {layer, name: value, id, key, map: m.map};
+  $('map').append(el('div', {id: 'swipeline'}));
+  $('swipe').disabled = false;
+  $('swipenote').textContent = `Left: ${$('swipesel').selectedOptions[0].textContent.replace(/^Date: /, '')} · right: the map shown`;
+  clipSwipe();
+}
+$('swipesel').onchange = () => swipeWith($('swipesel').value);
+$('swipe').oninput = clipSwipe;
 $('basemap').onchange = () => { if (!leaflet) return; base.remove(); base = BASES[$('basemap').value]().addTo(leaflet); base.bringToBack(); };
-$('opacity').oninput = () => { if (overlay) overlay.setOpacity(Number($('opacity').value)); };
+$('opacity').oninput = () => {  // the map shown and the map compared (swipe), as in the viewer
+  const o = Number($('opacity').value);
+  if (overlay) overlay.setOpacity(o);
+  if (swiped) swiped.layer.setOpacity(o);
+};
 $('snapshot').onclick = async () => {
   if (!current || !leaflet) return;
   const b = leaflet.getBounds(), button = $('snapshot');
