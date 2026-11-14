@@ -123,21 +123,22 @@ def scale_for(native, regions):
 
 
 def hectares(classes_img, regions, scale, crs):
-	"""{region: {class: hectares}} of the image of classes CLASSES_IMG (band 'class') over each feature of REGIONS,
-	on pixels of SCALE metres in CRS (the true area of each pixel)."""
+	"""[(region, {class: hectares})] of the image of classes CLASSES_IMG (band 'class') over each feature of REGIONS,
+	one for each feature in their order (region: its name; features with the same name, e.g. the areas of a wdpa_name,
+	each with its own, as region_stats), on pixels of SCALE metres in CRS (the true area of each pixel)."""
 	img = ee.Image.pixelArea().divide(1e4).updateMask(ee.Image(classes_img).mask()).addBands(classes_img)
 	fc = img.reduceRegions(collection=regions, reducer=ee.Reducer.sum().group(1, 'class'), scale=scale, crs=crs,
 	                       tileScale=4).getInfo()['features']
-	return {str(f['properties'].get('name')): {int(g['class']): g['sum'] for g in f['properties'].get('groups') or []}
-	        for f in fc}
+	return [(str(f['properties'].get('name')), {int(g['class']): g['sum'] for g in f['properties'].get('groups') or []})
+	        for f in fc]
 
 
 def rows(ha, classes, extra=None):
 	"""Rows [{region, class, label, ..., ha, percent}] of every class of CLASSES ([(class, label, {more columns})]) in
-	each region of HA ({region: {class: hectares}}), with the columns of EXTRA in each one; percent of the area with a
-	class of the region (None if it has none)."""
+	each feature of HA ([(region, {class: hectares})], see hectares), with the columns of EXTRA in each one; percent of
+	the area with a class of the feature (None if it has none)."""
 	out = []
-	for region, by in ha.items():
+	for region, by in ha:
 		total = sum(by.get(c, 0.0) for c, _, _ in classes)
 		for c, label, more in classes:
 			h = by.get(c, 0.0)
@@ -146,16 +147,19 @@ def rows(ha, classes, extra=None):
 	return out
 
 
-def by_landcover(table):
-	"""The rows of the classes of a land cover map (TABLE) summed by broad land cover: [{region, landcover, label, ha,
-	percent}]."""
-	acc = {}
-	for r in table:
-		k = (r['region'], r['landcover'])
-		acc.setdefault(k, {'region': r['region'], 'landcover': r['landcover'], 'label': landcover.label(r['landcover']),
-		                   'ha': 0.0, 'percent': 0.0})
-		acc[k]['ha'] += r['ha']
-		acc[k]['percent'] += r['percent'] or 0.0
+def by_landcover(ha, classes):
+	"""The hectares of each feature of HA ([(region, {class: hectares})], see hectares) of the classes of a land cover
+	map (CLASSES: [(class, label, {'landcover': its broad land cover})]) summed by broad land cover: [{region,
+	landcover, label, ha, percent}], in the order of the features and of the broad land covers; percent of the area with
+	a class of the feature (None if it has none)."""
 	order = [c['key'] for c in landcover.classes()]
-	return sorted(acc.values(), key=lambda r: (r['region'], order.index(r['landcover']) if r['landcover'] in order
-	                                           else len(order)))
+	out = []
+	for region, by in ha:
+		total = sum(by.get(c, 0.0) for c, _, _ in classes)
+		acc = {}
+		for c, _, more in classes:
+			acc[more['landcover']] = acc.get(more['landcover'], 0.0) + by.get(c, 0.0)
+		for k in sorted(acc, key=lambda k: order.index(k) if k in order else len(order)):
+			out.append({'region': region, 'landcover': k, 'label': landcover.label(k), 'ha': acc[k],
+			            'percent': 100 * acc[k] / total if total else None})
+	return out

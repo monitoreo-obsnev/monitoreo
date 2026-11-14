@@ -69,6 +69,8 @@
 			computeAreas: 'Calcular las superficies', areaClass: 'Clase', areaPercent: '% de la superficie con clases',
 			areaNote: 'Píxeles de %s m. El % es de la superficie con una clase (no cuentan los píxeles sin datos).',
 			areaTrendNote: 'Con las opciones de Tendencias (partes del año y métrica de cada año); significativa si p < 0,05.',
+			areaNoWhere: 'La máscara de usos del suelo y «Solo los píxeles donde» son para las clases de una variable ' +
+				'(cortes, tendencia), no para las de un mapa de usos del suelo: desmárcalos.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: 'Índice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas imágenes y píxeles que la ' +
@@ -217,6 +219,8 @@
 			computeAreas: 'Compute the areas', areaClass: 'Class', areaPercent: '% of the area with classes',
 			areaNote: 'Pixels of %s m. The % is of the area with a class (the pixels without data are not counted).',
 			areaTrendNote: 'With the options of Trends (parts of the year and metric of each year); significant if p < 0.05.',
+			areaNoWhere: 'The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, ' +
+				'trend), not for those of a land cover map: uncheck them.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -1335,6 +1339,8 @@
 		if (!state.region || !state.info) return message(t('noRegion'), true);
 		var geom = regions.geometry();
 		if (kind === 'landcover') {
+			// as services.area_by_class: the land cover mask and where are for the classes of a variable
+			if (state.landcoverOn || state.whereOn) return message(t('areaNoWhere'), true);
 			var m = mo.landcoverMap(state.areaMap);
 			var year = state.areaYear || mo.landcoverDefaultYear(m);
 			img = mo.landcoverSource(m, year, geom).rename('class');

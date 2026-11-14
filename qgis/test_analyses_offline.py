@@ -9,7 +9,8 @@ has no Pillow: it checks that monitoreo.animation draws the texts of the frames 
 (greyed out for the fixed layers without dates, its metric fixed for the snow cover frequency), the arguments sent,
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
-each kind and the window of the result (its table, with the colour of each class).
+each kind (a land cover map without the land cover mask nor «Only the pixels where») and the window of the result (its
+table, with the colour of each class).
 """
 
 import os
@@ -215,6 +216,14 @@ calls.clear()
 dock.run_areas()
 wait()
 assert calls[-1]['landcover'] == 'CORINE' and calls[-1]['year'] == 2018 and 'variable' not in calls[-1], calls[-1]
+# a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
+for box in (dock.landcover_box, dock.where[0]['on']):
+	box.setChecked(True)
+	dock.run_areas()
+	wait()
+	box.setChecked(False)
+	assert len(calls) == 1 and 'are for the classes of a variable' in messages[-1], messages[-1]
+	assert messages[-1].startswith('Warning: The land cover mask and «Only the pixels where»'), messages[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()

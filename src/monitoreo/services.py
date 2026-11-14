@@ -1088,9 +1088,9 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA). The area of each pixel is
 	its true area, on pixels of SCALE metres (default: those of the data, bigger over big regions); the % is of the
 	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
-	Returns {'rows': [{region, class, label, ..., ha, percent}], 'mode', 'classes': [{class, label, colour}], 'scale',
-	'unit', 'title', 'csv', 'chart'} and, for a land cover map, 'by_landcover' (the hectares of each broad land
-	cover)."""
+	Returns {'rows': [{region, class, label, ..., ha, percent}] (every class in each feature, also in the features with
+	the same name), 'mode', 'classes': [{class, label, colour}], 'scale', 'unit', 'title', 'csv', 'chart'} and, for a
+	land cover map, 'by_landcover' (the hectares of each broad land cover in each feature)."""
 	mode = classes.mode_of(landcover, breaks, trend)
 	if mode == 'landcover':
 		if variable or source.get('collection') or source.get('image'):
@@ -1136,7 +1136,7 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	out = {'rows': rows, 'mode': mode, 'scale': res, 'unit': unit, 'title': title, 'csv': None, 'chart': None,
 	       'classes': [{'class': c, 'label': label, 'colour': colours.get(label)} for c, label, _ in legend]}
 	if mode == 'landcover':
-		out['by_landcover'] = classes.by_landcover(rows)
+		out['by_landcover'] = classes.by_landcover(ha, legend)
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'scale_m': res}
 		if mode != 'landcover' and spec.get('period') and not variables.is_static(spec):
