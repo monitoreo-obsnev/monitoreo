@@ -315,9 +315,9 @@ MO.chart = (() => {
 		};
 	}
 
-	// The statistics of each zone (region_stats with zones: e.g. the elevation bands): the median, or the first
-	// statistic, with the band of the percentiles 25 and 75 (or else 5 and 95) when they are there, in grey; the legend
-	// says which
+	// The statistics of each zone (region_stats with zones: e.g. the elevation bands): the median (or else the mean, or
+	// the first statistic) with the band of the percentiles 25 and 75 (or else 5 and 95) when they are there, in grey;
+	// the legend says which
 	function zonesSpec(rows, result) {
 		const stats = result.stats || [];
 		const mid = ['p50', 'median', 'mean'].find((s) => stats.includes(s)) || stats[0] || 'mean';

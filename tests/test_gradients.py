@@ -59,17 +59,25 @@ def test_the_zones_have_the_percentiles_25_and_75_by_default(monkeypatch):
 
 
 def test_the_chart_of_the_zones_says_its_band(monkeypatch):
-	"""charts.zones_png: the band of the percentiles 25 and 75, or else 5 and 95, named in the legend."""
+	"""charts.zones_png: the median (or else the mean, or the first statistic) with the band of the percentiles 25 and
+	75, or else 5 and 95 if the statistics have them and not those, or no band, named in the legend (as the wiki says)."""
 	axes = pytest.importorskip('matplotlib.axes')
 	from monitoreo import charts
-	labels = []
+	labels, lines = [], []
+	plot = axes.Axes.plot
 	monkeypatch.setattr(axes.Axes, 'fill_between', lambda self, x, lo, hi, **kw: labels.append(kw.get('label')))
+	monkeypatch.setattr(axes.Axes, 'plot', lambda self, *args, **kw: lines.append(kw.get('label')) or
+	                    plot(self, *args, **kw))
 	rows = [{'region': 'bbox', 'zone_label': label, **{s: 0.1 * i for i, s in enumerate(services.REGION_STATS_ZONES)}}
 	        for label in ('below 1500 m', '1500 m or more')]
-	for stats, label in ((services.REGION_STATS_ZONES, 'p25 to p75'), (services.REGION_STATS, 'p5 to p95')):
+	for stats, line, band in ((services.REGION_STATS_ZONES, 'p50', ['p25 to p75']),
+	                          (services.REGION_STATS, 'p50', ['p5 to p95']), (['p50'], 'p50', []),
+	                          (['p5', 'p50'], 'p50', []), (['cv', 'mean'], 'mean', []),
+	                          (['std', 'p5', 'p95'], 'std', ['p5 to p95'])):
 		labels.clear()
+		lines.clear()
 		assert charts.zones_png(rows, list(stats)).startswith(b'\x89PNG')
-		assert labels == [label]
+		assert (lines, labels) == ([line], band), stats
 
 
 def test_the_line_of_a_profile():

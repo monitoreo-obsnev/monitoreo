@@ -112,7 +112,8 @@ p5, p50, p95 and max (with \code{zones}, also p25 and p75).}
 is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).}
 
 \item{csv, chart}{optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
-of each band with its percentiles 25 and 75 (or else 5 and 95, if \code{stats} has them and not those).}
+(or else the mean, or the first statistic) of each band with its percentiles 25 and 75 (or else 5 and 95, if
+\code{stats} has them and not those; with neither, no band).}
 }
 \value{
 A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of

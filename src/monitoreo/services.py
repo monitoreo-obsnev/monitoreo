@@ -1062,8 +1062,9 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 	the elevation bands {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000, 2500]} (also
 	'metric', 'temporal', 'interannual' and 'period' of a variable with dates, by default aggregated over the period of
 	the result, as the conditions of where), with the rows of every zone of every feature (zone, zone_label,
-	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median (or the first statistic) of each
-	zone and its percentiles 25 and 75 (or else 5 and 95, if STATS has them and not those; its legend says which).
+	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median (or else the mean, or the first
+	statistic) of each zone and its percentiles 25 and 75 (or else 5 and 95, if STATS has them and not those; with
+	neither, no band; its legend says which).
 	{'rows': [{region, mean, std, cv, min, p5, p50, p95, max, n_pixels}], 'stats', 'scale', 'unit' (of the map: that of
 	cv is %), 'title', 'csv', 'chart'}."""
 	stats = [stats] if isinstance(stats, str) else list(stats or (REGION_STATS_ZONES if zones else REGION_STATS))
