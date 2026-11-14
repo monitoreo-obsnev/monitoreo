@@ -93,7 +93,7 @@ LICENSE = 'CC-BY-4.0'
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation', 'area_by_class': 'areas'}
+            'timelapse': 'animation', 'area_by_class': 'areas', 'map_figure': 'map'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
                   'areas': 'Area by class'}
@@ -362,6 +362,8 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'map_figure':
+		return f'Figure of the map of {var}' + (f', {period}{season}' if period and not is_static(args) else '')
 	if tool == 'transect':
 		return f'Profile of {var} along a line, {period}{season}' if period and not is_static(args) else \
 			f'Profile of {var} along a line'
@@ -693,6 +695,11 @@ def _results(item, files, n):
 	if unit.endswith('/ year'):
 		unit = unit[:-len('/ year')].strip()
 	out = []
+	if tool == 'map_figure' and res.get('file'):  # a figure of a map: its PNG shown, a PDF or SVG to download
+		kind = os.path.splitext(res['file'])[1].lstrip('.').upper()
+		path = files.add(res['file'], 'files', f'Figure ({kind}): {title}', kind)
+		return [{'id': f'r{n + 1}', 'kind': 'figure', 'title': title, 'caption': item.get('caption'), 'tool': tool,
+		         'image': path if kind == 'PNG' else None, 'file': path, 'call': call}]
 	gif = res.get('gif') or (res.get('file') if str(res.get('file') or '').lower().endswith('.gif') else None)
 	if gif:  # an animation (services.timelapse): its GIF, and its MP4 to download
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'animation', 'title': title, 'caption': item.get('caption'),
@@ -876,7 +883,8 @@ def build(spec, rid, base, folders, log, folder):
 	dst = os.path.join(folder, thumbnail)
 	maps_ = [r for r in results if r['kind'] == 'map']
 	pngs = [r['png'] for r in results if r.get('png')]
-	gifs = [r['gif'] for r in results if r.get('gif')]
+	gifs = [r['gif'] for r in results if r.get('gif')] + [r['image'] for r in results if r.get('kind') == 'figure' and
+	                                                       r.get('image')]
 	if spec.get('thumbnail'):
 		_thumbnail_of_image(_find(spec['thumbnail'], base, folders), dst)
 	elif maps_:
@@ -1125,6 +1133,9 @@ def check_report(report, folder=None):
 			w, s, e, n = r['bounds']
 			if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
 				p.append(f'{where}: bounds are [west, south, east, north] in degrees')
+		elif r.get('kind') == 'figure':
+			if r.get('file') not in paths or (r.get('image') and r['image'] not in paths):
+				p.append(f'{where}: its figure is not in files')
 		elif r.get('kind') == 'animation':
 			if r.get('gif') not in paths:
 				p.append(f'{where}: its GIF is not in files')
@@ -1138,7 +1149,7 @@ def check_report(report, folder=None):
 			if r.get('png') and r['png'] not in paths:
 				p.append(f'{where}: its PNG is not in files')
 		else:
-			p.append(f'{where}: kind is map, chart or animation')
+			p.append(f'{where}: kind is map, chart, animation or figure')
 	for f in report['files']:
 		if not _rel_ok(f.get('path')) or not f.get('title') or not isinstance(f.get('bytes'), int):
 			p.append(f"file {f.get('path')}: a relative path, a title and its bytes")

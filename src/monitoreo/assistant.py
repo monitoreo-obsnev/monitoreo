@@ -297,7 +297,8 @@ compare_series and compare_map. Hectares of each class: area_by_class, of a land
 variable cut at some values (breaks, e.g. elevation bands) or of its trend (trend true); the changes of a land cover \
 map between two years (year and other_year: each pair of classes and a Sankey diagram). Gradients of altitude: \
 region_stats with zones (e.g. the NDVI of each elevation band of 500 m) and transect (a profile along a line with \
-the elevation). Animation of the change, a frame per year (or month) with its date: timelapse \
+the elevation). A figure of a map for a report or a paper (grid, scale bar, north arrow): map_layer with figure \
+true. Animation of the change, a frame per year (or month) with its date: timelapse \
 (step "annual" or "monthly", at most 120 frames; it takes some minutes). Fire: burn_severity.
 - True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
 colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \

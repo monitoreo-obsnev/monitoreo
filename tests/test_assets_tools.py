@@ -523,7 +523,7 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 		params, given = set(inspect.signature(getattr(mcp, name)).parameters), \
 			set(inspect.signature(getattr(services, service)).parameters)
 		assert params - given <= {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain',
-		                          'where'}, name
+		                          'where', 'figure'}, name  # figure: map_layer also calls services.map_figure
 	assert 'ee.ImageCollection' in mcp.describe_asset.__doc__ and 'references and credits' in mcp.describe_asset.__doc__
 	# the slope and the aspect are in degrees, whatever the unit of the band (that describe_asset gives: m for a DEM)
 	assert 'in degrees (its unit is then degree: give no unit, or "degree", not that of the band)' in \

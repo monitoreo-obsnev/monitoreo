@@ -214,6 +214,90 @@ def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=
 	return out
 
 
+def figure_layout(canvas, name='MonitorEO figure'):
+	"""A print layout (A4 landscape) of the map of CANVAS, added to the project with a free NAME: the map with a grid
+	of coordinates, the legend, a scale bar, a north arrow, the title (the name of the top visible layer) and the credits
+	of the layers of MonitorEO (from their metadata) with the citation of MonitorEO."""
+	from qgis.core import (QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemMapGrid,
+	                       QgsLayoutItemPicture, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLayoutSize, QgsPrintLayout)
+	from qgis.PyQt.QtCore import QRectF
+	from qgis.PyQt.QtGui import QFont
+	project = QgsProject.instance()
+	manager = project.layoutManager()
+	title = name
+	k = 1
+	while manager.layoutByName(title):
+		k += 1
+		title = f'{name} {k}'
+	layout = QgsPrintLayout(project)
+	layout.initializeDefaults()  # A4 landscape, 297 x 210 mm
+	layout.setName(title)
+	visible = [n.layer() for n in project.layerTreeRoot().findLayers() if n.isVisible() and n.layer() is not None]
+	top = visible[0].name() if visible else 'MonitorEO'
+	label = QgsLayoutItemLabel(layout)
+	label.setText(top)
+	font = QFont()
+	font.setPointSize(14)
+	font.setBold(True)
+	label.setFont(font)
+	layout.addLayoutItem(label)
+	label.attemptMove(QgsLayoutPoint(12, 6))
+	label.attemptResize(QgsLayoutSize(273, 10))
+	item = QgsLayoutItemMap(layout)
+	item.attemptSetSceneRect(QRectF(12, 18, 205, 160))
+	item.setCrs(canvas.mapSettings().destinationCrs())
+	item.setExtent(canvas.extent())
+	layout.addLayoutItem(item)
+	grid = item.grid()
+	grid.setEnabled(True)
+	extent = canvas.extent()
+	step = _nice(max(extent.width(), extent.height()) / 5)
+	grid.setIntervalX(step)
+	grid.setIntervalY(step)
+	grid.setStyle(QgsLayoutItemMapGrid.GridStyle.Cross)
+	grid.setAnnotationEnabled(True)
+	grid.setAnnotationPrecision(2 if canvas.mapSettings().destinationCrs().isGeographic() else 0)
+	legend = QgsLayoutItemLegend(layout)
+	legend.setLinkedMap(item)
+	legend.setTitle('Legend')
+	layout.addLayoutItem(legend)
+	legend.attemptMove(QgsLayoutPoint(222, 18))
+	scale = QgsLayoutItemScaleBar(layout)
+	scale.setStyle('Single Box')
+	scale.setLinkedMap(item)
+	scale.applyDefaultSize()
+	layout.addLayoutItem(scale)
+	scale.attemptMove(QgsLayoutPoint(14, 166))
+	north = QgsLayoutItemPicture(layout)
+	north.setPicturePath(':/images/north_arrows/layout_default_north_arrow.svg')
+	north.setLinkedMap(item)
+	layout.addLayoutItem(north)
+	north.attemptMove(QgsLayoutPoint(200, 20))
+	north.attemptResize(QgsLayoutSize(12, 12))
+	credits = []
+	for layer in visible:  # the references and credits that the plugin writes in the metadata of its layers
+		text = layer.serverProperties().abstract() if hasattr(layer, 'serverProperties') else ''
+		credits += [line.strip() for line in str(text).splitlines() if line.strip().startswith('Contains')]
+	from monitoreo import about
+	note = QgsLayoutItemLabel(layout)
+	note.setText('\n'.join(list(dict.fromkeys(credits)) + [f'Computed with MonitorEO in Google Earth Engine. '
+	                                                        f'{about.CITATION}']))
+	small = QFont()
+	small.setPointSize(7)
+	note.setFont(small)
+	layout.addLayoutItem(note)
+	note.attemptMove(QgsLayoutPoint(12, 182))
+	note.attemptResize(QgsLayoutSize(273, 22))
+	manager.addLayout(layout)
+	return layout
+
+
+def _nice(x):
+	"""The number 1, 2 or 5 × 10^k closest below X (the step of a grid)."""
+	from monitoreo.figures import nice
+	return nice(x)
+
+
 def data_name(var, sensor=True):
 	"""What the arguments VAR compute, for the titles of the tasks: the variable of the catalog with its sensor (with
 	SENSOR: NDVI (Sentinel-2)), or the ID and band of the data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE
@@ -634,7 +718,14 @@ class MonitorEODock(QDockWidget):
 		             'Identify Features tool) or, with Layer, its true colour, at the resolution of the data or, in '
 		             f'big regions, with bigger pixels (up to {MAP_PIXELS / 1e6:g} million pixels)')
 		b.clicked.connect(self.run_map)
-		f.addRow(b)
+		row = QHBoxLayout()
+		row.addWidget(b, 1)
+		b = QPushButton('Figure (print layout)…')
+		b.setToolTip('A print layout of QGIS with the map as the canvas shows it, its grid, legend, scale bar, north '
+		             'arrow, title and the credits and citation of MonitorEO, to export as PDF, PNG or SVG')
+		b.clicked.connect(self.make_layout)
+		row.addWidget(b)
+		f.addRow(row)
 		main.addWidget(box)
 		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
@@ -1807,6 +1898,14 @@ class MonitorEODock(QDockWidget):
 			self.add_result(res)
 
 		self.run_task(f"Area by class of {what}", work, done)
+
+	def make_layout(self):
+		"""A print layout of the map of the canvas for a report or a paper (as the figures of services.map_figure), opened
+		in the layout designer: the map with a grid of coordinates, the legend of its layers, a scale bar, a north arrow,
+		the title (the top layer) and the credits of the data of its layers and the citation of MonitorEO."""
+		layout = figure_layout(self.iface.mapCanvas())
+		self.iface.openLayoutDesigner(layout)
+		self.message(f'Print layout «{layout.name()}»: export it as PDF, PNG or SVG from its window', 'Info', 8)
 
 	def map_options(self, var):
 		"""VAR with the metric, temporal aggregation and metric between years of the group Map (none for a fixed

@@ -34,7 +34,7 @@ TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 
           'download_rgb': 'True colour of the images of {var}, {period}{season} (GeoTIFF)',
           'trend_map': 'Map of the trend of {var}, {period}{season}',
           'compare_map': 'Map of the difference of {var}: {other} minus {period}{season}',
-          'timelapse': 'Animation of {var}, {period}{season}'}
+          'timelapse': 'Animation of {var}, {period}{season}', 'map_figure': 'Figure of the map of {var}, {period}{season}'}
 
 METHODS = {
 	'time_series': 'For each time step, the temporal metric of the images of the step on each pixel and, over the '
@@ -80,6 +80,10 @@ METHODS = {
 	'transect': 'The line cut in segments of the same length, and the mean of the map of the variable (the temporal '
 	            'metric of the images of the period on each pixel) and of the elevation (Copernicus DEM) over the pixels '
 	            'that each segment crosses (within half a pixel of it), as the transects of geemap.',
+	'map_figure': 'The temporal metric of the images of the period on each pixel, in a figure for reports and papers '
+	              '(as the maps of cartoee of geemap): the map of Earth Engine in geographic coordinates with a grid of '
+	              'longitudes and latitudes, a scale bar and a north arrow at its mean latitude, its colour ramp with '
+	              'its unit and the credits of the data.',
 	'region_stats_zones': 'The temporal metric of the images of the period on each pixel and its statistics over each '
 	                      'zone of each feature: the classes of the variable of the zones (its map over the same '
 	                      'period, or a fixed layer) cut at its breaks, as the zonal statistics by group of geemap.',
@@ -276,7 +280,8 @@ def item_title(tool, args, result=None):
 	if tool in TITLES:
 		v = _var(args) if not args.get('variable') else \
 			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
-		if tool in ('region_stats', 'map_layer') and (is_static(args) or not (args.get('start') and args.get('end'))):
+		if tool in ('region_stats', 'map_layer', 'map_figure') and (is_static(args) or
+		                                                           not (args.get('start') and args.get('end'))):
 			return TITLES[tool].split(',')[0].format(var=v)  # elevation, slope: no period
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
@@ -335,7 +340,7 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison', 'rgb_map',
-	                                                      'download_rgb', 'timelapse', 'transect') or
+	                                                      'download_rgb', 'timelapse', 'transect', 'map_figure') or
 	                                (tool == 'area_by_class' and not args.get('trend')) else 'mean')
 	if tool == 'area_by_class' and args.get('landcover'):  # a land cover map: no variable, period nor metric
 		static = True

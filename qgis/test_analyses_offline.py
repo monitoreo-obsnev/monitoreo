@@ -72,6 +72,9 @@ class Iface:
 	def removePluginWebMenu(self, name, action):
 		pass
 
+	def openLayoutDesigner(self, layout):
+		self.opened = layout
+
 
 import monitoreo_qgis  # noqa: E402
 from monitoreo_qgis import deps  # noqa: E402
@@ -286,5 +289,21 @@ res = dock.series[-1]
 assert res['kind'] == 'transect' and dock.series_dialogs[len(dock.series) - 1].findChild(QTableWidget).rowCount() == 2
 print('gradients:', z['zones'], '| line', t['line'])
 QgsProject.instance().removeMapLayer(lines.id())
+
+# the figure: a print layout of the canvas with its map, grid, legend, scale bar, north arrow, title and credits
+from qgis.core import QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar  # noqa: E402
+lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')
+lines.dataProvider().addFeatures([f])
+QgsProject.instance().addMapLayer(lines)
+dock.make_layout()
+layout = iface.opened
+items = layout.items()
+assert layout.name().startswith('MonitorEO figure') and any(isinstance(i, QgsLayoutItemMap) for i in items)
+assert any(isinstance(i, QgsLayoutItemLegend) for i in items) and any(isinstance(i, QgsLayoutItemScaleBar) for i in items)
+texts = [i.text() for i in items if isinstance(i, QgsLayoutItemLabel)]
+assert any('MonitorEO [Software]' in t for t in texts), texts
+dock.make_layout()
+assert iface.opened.name() == layout.name() + ' 2'  # a free name
+print('figure:', layout.name(), len(items), 'items')
 plugin.unload()
 print('OK')

@@ -847,6 +847,35 @@ mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, pat
                        band_offset = band_offset, unit = unit)
 }
 
+#' Figure of the map of a variable for a report or a paper
+#'
+#' The map of \code{mo_map_layer()} with the same arguments in a figure (PNG, PDF or SVG) with its longitudes and
+#' latitudes, a scale bar, a north arrow, its colour ramp with its unit, a title and the credits of the data and the
+#' citation of MonitorEO, as the maps of cartoee of geemap (Wu, 2020). It needs matplotlib in the Python of MonitorEO.
+#' @inheritParams mo_params
+#' @param path the figure: \code{.png}, \code{.pdf} or \code{.svg}.
+#' @param title its title (default: that of the map).
+#' @param dpi resolution of a PNG (72 to 600).
+#' @return A list (file, min, max, palette, name, unit, bounds, scale, dpi, readme, references, credits).
+#' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
+#'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_map_figure(mo_wdpa(389011), "NDVI", "Modis", "2023-06-01", "2023-08-31", "ndvi.pdf")
+#' }
+#' @export
+mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, path, metric = "median",
+                          temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
+                          vmax = NULL, title = NULL, dpi = 300L, collection = NULL, where = NULL, image = NULL,
+                          band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+  services()$map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
+                        vmax, path = path.expand(path), title = title, dpi = as.integer(dpi), collection = collection,
+                        where = where, image = image, band = band, band_scale = band_scale, band_offset = band_offset,
+                        unit = unit, terrain = terrain)
+}
+
 #' True colour map of the images of a variable over a region, as Earth Engine tiles
 #'
 #' The red, green and blue surface reflectance of the same images and pixels as the map of the variable

@@ -457,6 +457,19 @@ test_that("the gradients: the zones of region_stats and the profile along a line
   expect_equal(attr(p, "length_m"), 1000)
 })
 
+test_that("the figure of a map: its arguments reach the services", {
+  sent <- NULL
+  local_mocked_bindings(services = function() list(map_figure = function(...) {
+    sent <<- list(...)
+    list(file = "ndvi.pdf", min = 0.2, max = 0.7, references = list(), credits = list())
+  }), .package = "monitoreo")
+  x <- mo_map_figure(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", "Modis", "2023-06-01", "2023-08-31", "ndvi.pdf",
+                     dpi = 150)
+  expect_equal(sent$path, "ndvi.pdf")
+  expect_identical(sent$dpi, 150L)
+  expect_equal(x$file, "ndvi.pdf")
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

@@ -358,3 +358,10 @@ def test_gradients(tmp_path):
 	rows = [r for r in p['rows'] if r['value'] is not None]
 	assert len(p['rows']) == 22 and len(rows) > 15  # 21.2 km, every km and rows[0]['elevation'] < rows[-1]['elevation']
 	assert rows[0]['value'] > rows[-1]['value'] and os.path.exists(p['readme'])
+
+
+def test_map_figure(tmp_path):
+	"""A figure of the map of the box: a PDF and a PNG with the range of the map."""
+	pytest.importorskip('matplotlib')
+	res = services.map_figure(GUAJARES, 'NDVI', 'Sentinel-2', '2023-06-01', '2023-08-31', path=str(tmp_path / 'f.pdf'))
+	assert open(res['file'], 'rb').read(4) == b'%PDF' and 0 < res['min'] < res['max'] < 1 and os.path.exists(res['readme'])
