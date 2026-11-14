@@ -217,8 +217,8 @@ def offline(monkeypatch, tmp_path):
 		seen['range'] = repr(image)
 		return {'min': 0, 'max': 1, 'palette': ['000000', 'ffffff']}
 
-	def write(pictures, path, labels, title, vmin, vmax, palette, unit='', credits='', fps=2):
-		seen['credits'] = credits
+	def write(pictures, path, labels, title, vmin, vmax, palette, unit='', credits='', fps=animation.FPS):
+		seen['credits'], seen['gif'], seen['fps'] = credits, path, fps
 		return path
 
 	monkeypatch.setattr(animation, 'can_draw', lambda: None)
@@ -278,6 +278,25 @@ def test_the_pixel_size_of_an_animation_is_that_of_its_frames(offline):
 	res = services.timelapse(REGION, 'NDVI', 'Modis', '2021-01-01', '2023-12-31')
 	assert res['scale'] == 250
 
+
+
+def test_one_frame_per_second_by_default(offline):
+	"""Each frame shows for a second (two frames per second went too fast to read the date)."""
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2021-01-01', '2023-12-31')
+	assert animation.FPS == 1 and offline['fps'] == 1 and res['fps'] == 1.0 and res['note'] is None
+
+
+def test_without_ffmpeg_a_video_is_its_gif(offline, monkeypatch):
+	"""Without ffmpeg the animation asked as a video is its GIF, with a note that says why there is no MP4, and not an
+	error that throws away the frames that Earth Engine computed."""
+	monkeypatch.setattr(animation, '_ffmpegs', lambda: [])
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2021-01-01', '2023-12-31', path='anim.mp4')
+	assert offline['gif'] == 'anim.gif' and res['file'] == res['gif'] == 'anim.gif'
+	assert res['note'].startswith('no MP4 video: an MP4 video needs ffmpeg')
+	made = []
+	monkeypatch.setattr(animation, 'to_mp4', lambda gif, mp4: made.append((gif, mp4)) or mp4)
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2021-01-01', '2023-12-31', path='anim.mp4')
+	assert made == [('anim.gif', 'anim.mp4')] and res['file'] == 'anim.mp4' and res['note'] is None
 
 @pytest.fixture
 def calls(monkeypatch):

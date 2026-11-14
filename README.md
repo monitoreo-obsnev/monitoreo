@@ -92,6 +92,11 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: Animations show each frame for a second by default (it was half a second, too fast to read their date).
+- **Assistant, MCP server, Python package, Command line, R package** (fix): An animation asked as an MP4 video without ffmpeg no longer fails: it gives its GIF, with a note that says why there is no video.
+
 ### [v0.3.37](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.37) · 2026-11-14 · package 0.3.47
 
 - **All tools**: Animations (timelapses) of any variable with dates over a region: a frame per year, month or 16 days of the period (also a day with images, but in the Earth Engine app), each the metric of its images on each pixel, with the same colours in every frame and the pixels without data in light grey, as the timelapses of geemap (Wu 2020). The GIF has the date of each frame, the title, the colour ramp with its unit and the credits of the data written on it, and a README with the date and the images of each frame (`monitoreo timelapse`, `timelapse` of the MCP server, `mo_timelapse()` of R, the group Animation of the QGIS plugin, which plays it in a window, and of the Earth Engine app, which plays its frames and downloads them as a GIF); with ffmpeg, also an MP4 video. The viewer of results publishes them.
