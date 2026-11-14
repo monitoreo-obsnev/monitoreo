@@ -297,13 +297,14 @@ MO.chart = (() => {
 	}
 
 	// A time series with a line per year over the days of the year (time_series with doy), from the oldest year (light)
-	// to the newest (dark)
+	// to the newest (dark, thicker)
 	function doySpec(rows, result) {
 		const data = rows.map((r) => {
 			const d = new Date(`${r.date}T00:00:00Z`);
 			const doy = Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
 			return {...r, year: String(d.getUTCFullYear()), doy, day: new Date(Date.UTC(2000, 0, doy))};
 		});
+		const newest = data.reduce((y, r) => r.year > y ? r.year : y, '');
 		return {
 			data: {values: data}, width: 'container', height: 260,
 			mark: {type: 'line', point: {size: 18}},
@@ -311,6 +312,7 @@ MO.chart = (() => {
 				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
 				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: {zero: false}},
 				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true}},
+				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
 				tooltip: [{field: 'date', title: 'Date'}, {field: 'value', title: 'Value', format: '.4~g'}],
 			},
 		};

@@ -47,6 +47,7 @@ export(mo_trend_table)
 export(mo_variables)
 export(mo_wdpa)
 importFrom(graphics,
+  axis,
   legend,
   lines
 )

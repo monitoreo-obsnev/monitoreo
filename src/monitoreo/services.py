@@ -802,8 +802,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
-	year and the day of the year (1-366) of each step, and the chart has a line per year over the days of the year,
-	to compare the years (phenology, snow seasons; as the day-of-year charts of geemap): not for an annual step.
+	year and the day of the year (1-366) of each step, and the chart has a line per year over the days of the year
+	(a panel for each of the first 4 regions), to compare the years (phenology, snow seasons; as the day-of-year
+	charts of geemap): not for an annual step.
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
 	if doy and step == 'annual':
 		raise ValueError('a line per year over the days of the year (doy) needs a step shorter than a year: daily, '

@@ -1729,17 +1729,26 @@
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
-	// The time series with a line per year over the days of the year (services.time_series with doy): the first region
-	function doyChart(rows, e, name) {
-		var region = regionsOf(rows)[0];
+	// The colour at F (0 to 1) along the ramp COLOURS (hex), between its two nearest colours
+	function rampColour(colours, f) {
+		var x = Math.max(0, Math.min(1, f)) * (colours.length - 1), i = Math.min(Math.floor(x), colours.length - 2);
+		return '#' + [0, 2, 4].map(function (j) {
+			var a = parseInt(colours[i].substr(j, 2), 16), b = parseInt(colours[i + 1].substr(j, 2), 16);
+			var c = Math.round(a + (b - a) * (x - i));
+			return (c < 16 ? '0' : '') + c.toString(16);
+		}).join('');
+	}
+
+	// The time series with a line per year over the days of the year (services.time_series with doy) of the feature
+	// REGION (its rows with year and doy: see computeSeries), from the oldest year (light) to the newest (dark,
+	// thicker), as charts.doy_png
+	function doyChart(rows, e, name, region) {
 		var years = [], values = {}, days = [];
 		rows.forEach(function (r) {
 			if (r.region !== region) return;
-			var d = mo.date(r.date), y = d.getUTCFullYear();
-			var doy = Math.round((d - Date.UTC(y, 0, 1)) / 864e5) + 1;
-			if (years.indexOf(y) < 0) years.push(y);
-			if (days.indexOf(doy) < 0) days.push(doy);
-			values[y + '|' + doy] = r.value;
+			if (years.indexOf(r.year) < 0) years.push(r.year);
+			if (days.indexOf(r.doy) < 0) days.push(r.doy);
+			values[r.year + '|' + r.doy] = r.value;
 		});
 		years.sort();
 		days.sort(function (a, b) { return a - b; });
@@ -1749,8 +1758,14 @@
 				return v === undefined ? null : v;
 			}));
 		}));
-		return ui.Chart(table, 'LineChart', {title: name + ' · ' + region, interpolateNulls: true, pointSize: 2,
-			lineWidth: 1.2, hAxis: {title: t('dayOfYear'), viewWindow: {min: 1, max: 366}},
+		var series = {};
+		years.forEach(function (y, k) {
+			var newest = k === years.length - 1;
+			series[k] = {color: rampColour(mo.YEARS, 0.15 + 0.85 * k / Math.max(years.length - 1, 1)),
+				lineWidth: newest ? 2.2 : 1, pointSize: newest ? 3 : 2};
+		});
+		return ui.Chart(table, 'LineChart', {title: name + ' · ' + region, interpolateNulls: true, series: series,
+			hAxis: {title: t('dayOfYear'), viewWindow: {min: 1, max: 366}},
 			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}});
 	}
 
@@ -1780,9 +1795,16 @@
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
-				show([doy ? doyChart(rows, e, name) : seriesChart(rows, e, name),
+				if (doy) rows.forEach(function (r) {  // the year and the day of the year of each step (as with_doy)
+					var d = mo.date(r.date);
+					r.year = d.getUTCFullYear();
+					r.doy = Math.round((d - Date.UTC(r.year, 0, 1)) / 864e5) + 1;
+				});
+				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
+				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
+					[seriesChart(rows, e, name)]).concat([
 					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
-					csvWidget(rows, ['region', 'date', 'value', 'n_pixels', 'n_images'], name, e)]);
+					csvWidget(rows, columns, name, e)]));
 			});
 		}
 		if (state.step !== 'daily') return go(mo.seriesBins(s, state.step));

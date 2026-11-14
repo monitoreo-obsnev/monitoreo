@@ -97,8 +97,9 @@ UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or 
 reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
 aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 
-\item{doy}{\code{TRUE}: the chart (\code{chart}) with a line per year over the days of the year, and the columns
-year and doy (day of the year), to compare the years; not with \code{step = "annual"}.}
+\item{doy}{\code{TRUE}: the chart (\code{chart}, and that of \code{mo_plot()}) with a line per year over the days
+of the year, and the columns year and doy (day of the year), to compare the years; not with
+\code{step = "annual"}.}
 
 \item{chart}{optional path of a PNG chart.}
 }

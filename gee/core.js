@@ -2461,7 +2461,7 @@ var MonitorEO = (function () {
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
-		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
+		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
 		RDNBR_SEVERITY: RDNBR_SEVERITY, RDNBR_COLOURS: RDNBR_COLOURS, RDNBR_BURNED: RDNBR_BURNED,

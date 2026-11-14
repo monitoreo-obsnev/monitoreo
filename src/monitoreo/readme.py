@@ -74,7 +74,7 @@ COLUMNS = {
 	'percent': '% of the area of the feature with a class (the pixels without data are not counted)',
 	'landcover': 'broad land cover of the class (that of the land cover masks: water, trees, grassland, wetland, '
 	             'cropland, shrubland, built, bare or snow)',
-	'map': 'land cover map', 'year': 'year of the land cover map',
+	'map': 'land cover map',
 	'value_from': 'lowest value of the class{u} (empty: no limit)',
 	'value_to': 'value where the class ends, not in it{u} (empty: no limit)',
 	'period': 'period of the data (first/last day)',
@@ -92,11 +92,11 @@ COLUMNS = {
 	                                                                       '(degrees, WGS 84)',
 	'elevation': 'mean elevation of the segment (m, Copernicus DEM GLO-30)',
 }
-# the columns of the CSV of area_by_class that differ
+# the columns of the CSV of area_by_class that differ (its year is that of the land cover map, not of a step)
 COLUMNS_AREAS = {
 	'class': 'class: its code in the land cover map; for the classes of a variable, its number from 0 (below the first '
 	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
-	'label': 'name of the class',
+	'label': 'name of the class', 'year': 'year of the land cover map',
 	'ha': 'hectares of the class in the feature (true area of its pixels)',
 }
 # the fields of the vector file of the perimeter of the burned area (burn_severity with perimeter: fire.PERIMETER_TYPES)

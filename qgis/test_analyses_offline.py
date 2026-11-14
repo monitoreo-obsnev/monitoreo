@@ -315,8 +315,16 @@ assert calls[-1]['tool'] == 'time_series' and calls[-1]['doy'] is True, calls[-1
 from monitoreo_qgis.results import ChartWidget  # noqa: E402
 chart = ChartWidget(dock.series[-1]['rows'], 'NDVI', 'NDVI')
 assert chart.doy and sorted(chart.series) == ['2022', '2023'] and len(chart.series['2022']) == 12
+old, new = chart.pen(0, '2022'), chart.pen(1, '2023')  # the newest year darker and thicker, as charts.doy_png
+assert new.widthF() > old.widthF() and new.color().lightness() < old.color().lightness()
 chart.resize(600, 320)
 chart.grab()  # it paints
+rows = [dict(r, region=g) for g in ('park', 'buffer') for r in dock.series[-1]['rows']]  # two regions: a dash each
+two = ChartWidget(rows, 'NDVI', 'NDVI')
+assert two.pen(0, 'park 2022').style() != two.pen(2, 'buffer 2022').style()
+assert two.pen(0, 'park 2022').color() == two.pen(2, 'buffer 2022').color()
+two.resize(600, 320)
+two.grab()
 dock.step.setCurrentIndex(dock.step.findData('annual'))
 dock.run_series()
 wait()
