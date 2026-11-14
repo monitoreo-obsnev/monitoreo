@@ -34,7 +34,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "repository": "https://github.com/monitoreo-obsnev/monitoreo"
+  "released": "2026-11-13",
+  "repository": "https://github.com/monitoreo-obsnev/monitoreo",
+  "version": "0.3.41"
  },
  "collections": {
   "COPERNICUS/S2_SR_HARMONIZED": {

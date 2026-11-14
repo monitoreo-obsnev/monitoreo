@@ -37,7 +37,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "repository": "https://github.com/monitoreo-obsnev/monitoreo"
+  "released": "2026-11-13",
+  "repository": "https://github.com/monitoreo-obsnev/monitoreo",
+  "version": "0.3.41"
  },
  "collections": {
   "COPERNICUS/S2_SR_HARMONIZED": {
@@ -7405,7 +7407,7 @@ var MonitorEO = (function () {
 		es: {
 			subtitle: 'Mapas, series y tendencias de variables de sat\u00e9lite (Sentinel-2, Landsat y MODIS) sobre ' +
 				'\u00e1reas protegidas, ecorregiones o tu propia zona. Calcula en Google Earth Engine: no necesitas cuenta.',
-			language: 'English',
+			language: 'English', version: 'MonitorEO %s \u00b7 publicada el %s',
 			region: 'Regi\u00f3n', mode_wdpa: '\u00c1rea protegida (WDPA)', mode_ecoregion: 'Ecorregi\u00f3n', mode_view: 'Vista del mapa',
 			mode_admin: 'Unidad administrativa (FAO GAUL)', mode_island: 'Isla', adminHint: 'Nombre, p. ej. Granada',
 			level1: 'Nivel 1 (regiones, provincias...)', level2: 'Nivel 2 (provincias, municipios...)',
@@ -7530,7 +7532,7 @@ var MonitorEO = (function () {
 		en: {
 			subtitle: 'Maps, time series and trends of satellite variables (Sentinel-2, Landsat and MODIS) over ' +
 				'protected areas, ecoregions or your own area. Computed in Google Earth Engine: no account needed.',
-			language: 'Espa\u00f1ol',
+			language: 'Espa\u00f1ol', version: 'MonitorEO %s \u00b7 released %s',
 			region: 'Region', mode_wdpa: 'Protected area (WDPA)', mode_ecoregion: 'Ecoregion', mode_view: 'Map view',
 			mode_admin: 'Administrative unit (FAO GAUL)', mode_island: 'Island', adminHint: 'Name, e.g. Granada',
 			level1: 'Level 1 (regions, provinces...)', level2: 'Level 2 (provinces, municipalities...)',
@@ -9167,6 +9169,9 @@ var MonitorEO = (function () {
 				render();
 			})));
 		controls.add(ui.Label(t('subtitle'), SMALL));
+		// the version of the package that the app was built from, and the date of its release (build.py)
+		controls.add(ui.Label(fmt(t('version'), mo.CATALOG.about.version, mo.CATALOG.about.released),
+			{fontSize: '11px', color: '#777'}));
 		// suggestions and errors: an issue of GitHub or the anonymous form, filled with the app and its version
 		controls.add(button(fb[state.lang].button, function () {
 			state.feedbackOpen = !state.feedbackOpen;

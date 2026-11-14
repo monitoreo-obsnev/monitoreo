@@ -148,6 +148,10 @@ plugin = monitoreo_qgis.classFactory(iface)
 plugin.initGui()
 plugin.toggle(True)
 dock = plugin.dock
+# the version of the plugin and the date of its release, at the top of the panel
+import monitoreo  # noqa: E402
+from monitoreo_qgis.dock import plugin_version  # noqa: E402
+assert dock.version_text == f'MonitorEO {plugin_version()} · released {monitoreo.__released__}', dock.version_text
 messages = []
 _message = dock.message
 dock.message = lambda text, lvl='Info', duration=6: (messages.append(f'{lvl}: {text}'), _message(text, lvl, duration))

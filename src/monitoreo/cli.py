@@ -62,7 +62,7 @@ import subprocess
 import sys
 import threading
 
-from . import __version__
+from . import __released__, __version__
 
 
 WHERE_HELP = ('only the pixels of the region whose variables pass these conditions, a JSON list, e.g. '
@@ -215,7 +215,7 @@ def main(argv=None):
 	from . import about
 	parser = argparse.ArgumentParser(prog='monitoreo', description=about.DESCRIPTION['en'],
 	                                 epilog=f"{about.ACKNOWLEDGEMENTS['en']} How to cite: {about.CITATION}")
-	parser.add_argument('--version', action='version', version=__version__)
+	parser.add_argument('--version', action='version', version=f'{__version__} (released {__released__})')
 	parser.add_argument('--project', help='Earth Engine project, with your account of `earthengine authenticate` '
 	                    '(default: EE_PROJECT; none: the shared account of MonitorEO)')
 	sub = parser.add_subparsers(dest='cmd', required=True)

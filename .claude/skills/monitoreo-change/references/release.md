@@ -14,13 +14,19 @@ There are two version numbers:
   `r/monitoreo/DESCRIPTION` (`Version:`), always the same.
 - **The QGIS plugin**: `qgis/monitoreo_qgis/metadata.txt` (`version=`).
 
+And one date: **the date of the release**, `__released__` in `src/monitoreo/__init__.py`, the same as in the heading of
+the release in the changelog. The assistant, the QGIS plugin, the Earth Engine app and `monitoreo --version` show it
+next to their version (the plugin and the app take it from the package they carry). `tests/test_changelog.py` and
+`.github/changelog.py check` fail if it is not the date of the heading.
+
 The **tag** of a release is the plugin's version (`v0.3.15`). The workflow `qgis-plugin.yml` fails if they differ.
 Raise both by one patch step unless the developer says otherwise. The last releases are in `git tag --sort=-v:refname`.
 
 ## Steps
 
 1. A branch `release-<plugin version>` from an up-to-date `origin/main`.
-2. One commit that raises the four files and gives the release its entries in the changelog of `README.md`: rename
+2. One commit that raises the four files, sets `__released__` to the date of today, and gives the release its entries
+   in the changelog of `README.md`: rename
    `### Unreleased` to the heading of the release,
    `### [v<plugin version>](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v<plugin version>) · <date of
    today> · package <package version>`. Check the entries against what was merged since the last tag

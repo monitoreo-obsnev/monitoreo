@@ -37,3 +37,4 @@ one, to compute with the shared account of MonitorEO.
 """
 
 __version__ = '0.3.41'
+__released__ = '2026-11-13'  # the date of the release of this version: that of its heading in the changelog

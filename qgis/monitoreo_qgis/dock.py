@@ -318,6 +318,7 @@ class MonitorEODock(QDockWidget):
 		body = QWidget()
 		main = QVBoxLayout(body)
 		row = QHBoxLayout()
+		row.addWidget(self.version_label())
 		row.addStretch()
 		row.addWidget(self.feedback_button())
 		main.addLayout(row)
@@ -772,6 +773,18 @@ class MonitorEODock(QDockWidget):
 
 	def message(self, text, lvl='Info', duration=6):
 		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+
+	def version_label(self):
+		"""The version of the plugin and the date of its release (that of the package monitoreo it carries, released
+		with it), e.g. «MonitorEO 0.3.31 · released 2026-11-13»."""
+		import monitoreo
+		released = getattr(monitoreo, '__released__', None)  # a package older than the date: the version alone
+		label = QLabel(f'MonitorEO {plugin_version()}' + (f' · released {released}' if released else ''))
+		label.setToolTip(f'QGIS plugin {plugin_version()}, with the package monitoreo {monitoreo.__version__}' +
+		                 (f', released on {released}' if released else ''))
+		label.setStyleSheet('font-size: 11px; color: #666;')
+		self.version_text = label.text()
+		return label
 
 	def feedback_button(self):
 		"""The button to suggest a change or report an error: an issue of GitHub or the anonymous form, filled with

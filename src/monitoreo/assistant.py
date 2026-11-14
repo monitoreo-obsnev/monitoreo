@@ -46,7 +46,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __version__, about, areas, documents, engine, manual, report, services
+from . import __released__, __version__, about, areas, documents, engine, manual, report, services
 from .variable import check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
@@ -2307,7 +2307,7 @@ def make_app(assistant, token, port):
 			if chosen != s['model']:
 				s['model'] = chosen
 				save_settings(s)
-		return JSONResponse({'version': __version__, 'signed_in': signed_in(), 'project': s.get('project'),
+		return JSONResponse({'version': __version__, 'released': __released__, 'signed_in': signed_in(), 'project': s.get('project'),
 		                     'provider': 'monitoreo' if cloud else 'ollama', 'model_name': assistant.model_name(),
 		                     'model': s['model'], 'ollama': base or s.get('ollama'), 'models': installed,
 		                     'recommended': RECOMMENDED,

@@ -31,6 +31,14 @@ def test_the_changelog_of_the_readme_is_right():
 	assert all(e['text'][0].isupper() or e['text'][0] in '`"' for r in log['releases'] for e in r['entries'])
 
 
+def test_the_date_of_the_release_that_the_tools_show():
+	"""The tools show their version with the date of its release (__released__): that of its heading in the changelog."""
+	import monitoreo
+	release = next(r for r in changelog.parse(README)['releases'] if r['package'] == monitoreo.__version__)
+	assert monitoreo.__released__ == release['date']
+	assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', monitoreo.__released__)
+
+
 def test_the_readme_links_to_the_changelog():
 	spanish, english = README.split('\n## English\n')
 	assert '](#changelog)' in spanish and '](#changelog)' in english
@@ -53,7 +61,7 @@ def test_parse():
 	release = log['releases'][0]
 	assert (release['tag'], release['date'], release['package']) == ('v0.3.20', '2026-11-11', '0.3.30')
 	assert release['entries'][0]['fix'] and release['entries'][0]['text'] == 'A fix.'
-	assert changelog.problems(text, '0.3.20', '0.3.30') == []
+	assert changelog.problems(text, '0.3.20', '0.3.30', '2026-11-11') == []
 
 
 @pytest.mark.parametrize('text, problem', [
@@ -69,9 +77,10 @@ def test_parse():
 	                  ('v0.3.20', '2026-11-11', '0.3.30', ['- **Assistant**: New.'])]), 'newest first'),
 	(sample(releases=[('v0.3.19', '2026-11-10', '0.3.29', ['- **Assistant**: Only the old one.'])]), 'QGIS plugin is'),
 	(sample(releases=[('v0.3.20', '2026-11-11', '0.3.29', ['- **Assistant**: Old package.'])]), 'pyproject.toml has'),
+	(sample(releases=[('v0.3.20', '2026-11-12', '0.3.30', ['- **Assistant**: Another day.'])]), '__released__'),
 ])
 def test_problems(text, problem):
-	found = changelog.problems(text, '0.3.20', '0.3.30')
+	found = changelog.problems(text, '0.3.20', '0.3.30', '2026-11-11')
 	assert any(problem in p for p in found), found
 
 

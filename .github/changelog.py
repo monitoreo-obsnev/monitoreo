@@ -1,6 +1,6 @@
 """The changelog of MonitorEO: the section "## Changelog" of README.md, what each release brings, newest first.
 
-    python .github/changelog.py check            # its format, and that it has the versions of the files
+    python .github/changelog.py check            # its format, and that it has the versions and date of the files
     python .github/changelog.py notes v0.3.19    # the entries of a release in Markdown (its GitHub release notes)
     python .github/changelog.py qgis             # the changelog of metadata.txt of the QGIS plugin (last releases)
 
@@ -88,11 +88,13 @@ def parse(text):
 	return {'unreleased': unreleased, 'releases': releases}
 
 
-def problems(text, plugin=None, package=None):
-	"""What is wrong with the changelog of README.md, against the version of the QGIS plugin and of the package (by
-	default, those of metadata.txt and pyproject.toml): a list of texts, empty if nothing."""
+def problems(text, plugin=None, package=None, released=None):
+	"""What is wrong with the changelog of README.md, against the version of the QGIS plugin and of the package and
+	the date of their release (by default, those of metadata.txt, pyproject.toml and __released__ of
+	src/monitoreo/__init__.py, which the tools show next to their version): a list of texts, empty if nothing."""
 	plugin = plugin or read_version('qgis/monitoreo_qgis/metadata.txt', r'^version=(\S+)')
 	package = package or read_version('pyproject.toml', r'^version\s*=\s*"([^"]+)"')
+	released = released or read_version('src/monitoreo/__init__.py', r"^__released__\s*=\s*['\"]([^'\"]+)")
 	try:
 		log = parse(text)
 	except ValueError as e:
@@ -121,6 +123,9 @@ def problems(text, plugin=None, package=None):
 	if package and version(last['package']) != version(package):
 		out.append(f'the release {last["tag"]} of the changelog has the package {last["package"]}, but '
 		           f'pyproject.toml has {package}')
+	if released and released != last['date']:
+		out.append(f'the release {last["tag"]} of the changelog is of {last["date"]}, but src/monitoreo/__init__.py has '
+		           f'__released__ = {released!r}: a release sets it to its date')
 	return out
 
 

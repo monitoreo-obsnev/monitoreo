@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant, QGIS plugin, Earth Engine app, Command line**: The version comes with the date it was released, as in «MonitorEO 0.3.41 · released 2026-11-13»: in the header of the assistant, at the top of the panel of the QGIS plugin, under the subtitle of the Earth Engine app and in `monitoreo --version`.
+
 ### [v0.3.31](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.31) · 2026-11-13 · package 0.3.41
 
 - **All tools** (fix): The median and the percentiles 10 and 90 of the RBR and the RdNBR of the burn severity are no longer coarse when a region has a few extreme values: in the unburned surroundings of a fire the percentile 10 and the median came out as the same value (-0.049, where its pixels give -0.120 and -0.037); now they are within about 0.001 of those of the pixels.

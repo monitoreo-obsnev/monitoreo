@@ -28,7 +28,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
-from monitoreo import __version__, about, catalog, community, sensors, services  # noqa: E402
+from monitoreo import __released__, __version__, about, catalog, community, sensors, services  # noqa: E402
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
@@ -96,6 +96,7 @@ def about_texts():
 	return {'name': 'MonitorEO-OBSNEV', 'description': about.DESCRIPTION, 'acknowledgements': about.ACKNOWLEDGEMENTS,
 	        'citation': about.CITATION, 'doi': about.DOI, 'manual': about.MANUAL, 'repository': about.REPOSITORY,
 	        'feedback': dict(about.FEEDBACK, links=about.feedback('gee', __version__)),
+	        'version': __version__, 'released': __released__,  # shown under the subtitle
 	        'logos': [logo(p, w) for p, w in zip(about.LOGOS, LOGO_WIDTHS)]}
 
 
