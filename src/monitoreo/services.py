@@ -854,8 +854,8 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 def composite_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                     interannual='mean', season=None, quality=None, clip=True, resolution=None, rgb=False, **source):
 	"""Earth Engine image (ee.Image, band 'value') of a variable over REGION aggregated in time (for rgee, geemap,
-	...); with RGB, the true colour of its images instead (bands red, green and blue: see rgb_map). Returns (image,
-	regions)."""
+	...: monitoreo.notebook puts it on a map of geemap with its colours); with RGB, the true colour of its images
+	instead (bands red, green and blue: see rgb_map). Returns (image, regions)."""
 	_, regions, img, _ = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                            quality, clip, resolution, source, rgb)
 	return img, regions
