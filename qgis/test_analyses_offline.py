@@ -324,6 +324,20 @@ assert calls[-1]['doy'] is False  # a value per year: no line per year
 dock.doy.setChecked(False)
 print('series by day of the year:', sorted(chart.series))
 
+# the search of the Earth Engine data catalog, in the theme of the data by its ID (the copy of its index)
+dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
+assert dock.search_row.isVisibleTo(dock) and not dock.community_row.isVisibleTo(dock)
+dock.catalog_text.setText('snow cover')
+read = []
+dock.read_asset = lambda asset=None: read.append(asset)
+dock.search_catalog()
+assert dock.catalog_found.count() > 0 and 'MODIS/061/MOD10A1' in [dock.catalog_found.itemData(i)
+                                                                  for i in range(dock.catalog_found.count())]
+dock.catalog_chosen(0)
+assert dock.asset_id.text() == dock.catalog_found.itemData(0) and read == [dock.asset_id.text()]
+print('catalog search:', dock.catalog_found.count(), 'datasets, first', dock.catalog_found.itemData(0))
+dock.theme.setCurrentIndex(dock.theme.count() - 1)
+
 # the figure: a print layout of the canvas with its map, grid, legend, scale bar, north arrow, title and credits
 from qgis.core import QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar  # noqa: E402
 lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')

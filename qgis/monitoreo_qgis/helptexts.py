@@ -342,6 +342,12 @@ HELP = {
 		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments: the mean '
 		'of the pixels that each segment crosses. Draw it in a new temporary layer of lines, from the valley to the '
 		'summit, across a fire or along a river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+	'catalog_search':
+		'<p>Searches the <b>Earth Engine data catalog</b> by words in English (in the title, ID, keywords or description '
+		'of each dataset: at least half of them), with data in the <b>Period</b> and, when the region is the map view, '
+		'over it. The copy of its index in MonitorEO is searched, without Earth Engine. Choose a dataset in <b>Dataset</b>: '
+		'its ID goes to <b>Earth Engine ID</b> and it is read (its bands, units and how to cite it).</p>'
+		+ manual('Concepts#earth-engine-data-by-its-id'),
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
 		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '

@@ -552,6 +552,36 @@ mo_community <- function(theme = NULL, text = NULL, kind = NULL, limit = NULL) {
   rows_df(services()$community_datasets(theme, text, kind, limit))
 }
 
+#' Search the Earth Engine data catalog
+#'
+#' The images and collections of images of the Earth Engine data catalog (from the copy of its index in MonitorEO,
+#' without Earth Engine), as the dataset search of geemap (Wu, 2020): with the words of \code{text} (in English; at
+#' least half of them) in their title, ID, keywords, provider or description, with data between \code{start} and
+#' \code{end} and over \code{bbox}, the best first. \code{mo_asset()} describes one; then compute it with
+#' \code{collection} or \code{image} and \code{band}.
+#' @param text words, e.g. \code{"snow cover"}.
+#' @param start,end with data between these days (\code{"YYYY-MM-DD"}).
+#' @param bbox with data over \code{c(west, south, east, north)} (degrees).
+#' @param kind \code{"image"} or \code{"image_collection"}.
+#' @param limit at most this number of datasets (100).
+#' @return A data.frame (id, title, type, start, end, provider, keywords, gsd, description, page).
+#' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
+#'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
+#' @seealso \code{mo_asset()}, \code{mo_community()}
+#' @examplesIf reticulate::py_module_available("monitoreo")
+#' mo_find_datasets("snow cover", start = "2020-01-01", bbox = c(-3.5, 36.9, -2.6, 37.3))
+#' @export
+mo_find_datasets <- function(text = NULL, start = NULL, end = NULL, bbox = NULL, kind = NULL, limit = 20L) {
+  rows <- services()$find_datasets(text, start, end, if (is.null(bbox)) NULL else as.list(as.numeric(bbox)), kind,
+                                   as.integer(limit))
+  rows <- lapply(rows, function(r) {
+    r$bbox <- NULL
+    r$keywords <- paste(unlist(r$keywords), collapse = ", ")
+    r
+  })
+  rows_df(rows)
+}
+
 #' Protected areas of the World Database on Protected Areas (WDPA)
 #'
 #' @param text text of their name.

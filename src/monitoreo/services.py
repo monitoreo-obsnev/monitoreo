@@ -647,6 +647,18 @@ def community_themes(lang='en'):
 	return community.themes(lang)
 
 
+def find_datasets(text=None, start=None, end=None, bbox=None, kind=None, limit=20):
+	"""The images and collections of images of the Earth Engine data catalog, from the copy of its index in MonitorEO
+	(see monitoreo.eecatalog), as the dataset search of geemap: those with the words of TEXT (in English; at least half
+	of them) in their title, ID, keywords, provider or description, with data between START and END and over BBOX ([w,
+	s, e, n], degrees), of one KIND ('image' or 'image_collection'), at most LIMIT (100): [{'id', 'title', 'type',
+	'start', 'end', 'bbox', 'provider', 'keywords', 'gsd' (m), 'description', 'page'}], those with most words first.
+	describe_asset gives the bands of one; then compute it with collection= or image= and band=. Without Earth
+	Engine."""
+	from . import eecatalog
+	return eecatalog.search(text, start, end, bbox, kind, limit)
+
+
 def community_datasets(theme=None, text=None, kind=None, limit=None):
 	"""The images and collections of images of the GEE Community Catalog (https://gee-community-catalog.org), from the
 	copy of its index in MonitorEO: [{'id' (the ID of its Earth Engine asset, for collection or image), 'title',

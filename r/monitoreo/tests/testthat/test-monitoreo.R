@@ -470,6 +470,14 @@ test_that("the figure of a map: its arguments reach the services", {
   expect_equal(x$file, "ndvi.pdf")
 })
 
+test_that("the search of the Earth Engine data catalog, without Earth Engine", {
+  skip_if_no_python()
+  x <- mo_find_datasets("snow cover", limit = 3)
+  expect_equal(x$id[1], "MODIS/061/MOD10A1")
+  expect_true(all(c("title", "type", "start", "page") %in% names(x)))
+  expect_type(x$keywords, "character")
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

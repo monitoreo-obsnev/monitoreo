@@ -37,6 +37,9 @@
                                                      compare); image and stats also take --image ID (a fixed image,
                                                      without dates) and
                                                      --terrain slope|aspect (in degrees: its unit is then degree)
+    monitoreo datasets [TEXT] [--start D] [--end D] [--bbox W,S,E,N] [--kind image|image_collection] [--limit N]
+                                                     search the Earth Engine data catalog by words (in English), dates
+                                                     and area (without Earth Engine)
     monitoreo asset ID                              what an image or collection of Earth Engine is (type, bands,
                                                      units, scale, dates, how to cite it), to give it with --collection
                                                      or --image and --band
@@ -269,6 +272,14 @@ def main(argv=None):
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
 	                                 'scale, dates and how to cite it (reads its metadata in Earth Engine)')
 	p.add_argument('asset', metavar='ID', help="its ID, as in ee.ImageCollection('ID') (e.g. IDAHO_EPSCOR/TERRACLIMATE)")
+	p = sub.add_parser('datasets', help='search the Earth Engine data catalog by words (in English), dates and area '
+	                                    '(without Earth Engine)')
+	p.add_argument('text', nargs='*', help='words of its title, ID, keywords or description, e.g. snow cover')
+	p.add_argument('--start', help='with data from this day (YYYY-MM-DD)')
+	p.add_argument('--end', help='with data until this day')
+	p.add_argument('--bbox', help='with data over this area: west,south,east,north in degrees')
+	p.add_argument('--kind', choices=('image', 'image_collection'), help='only images or only collections of images')
+	p.add_argument('--limit', type=int, default=20, help='at most this number of datasets (default 20, at most 100)')
 	p = sub.add_parser('community', help='the themes of the GEE Community Catalog, or its images and collections of '
 	                                     'images (without Earth Engine)')
 	p.add_argument('--theme', help='only those of a theme of the catalog (its name in English or Spanish, or part of it)')
@@ -576,6 +587,17 @@ def main(argv=None):
 		return
 	if args.cmd == 'community':  # the copy of its index in MonitorEO: without Earth Engine
 		return _community(args, services)
+	if args.cmd == 'datasets':  # the copy of the index of the Earth Engine data catalog: without Earth Engine
+		try:
+			rows = services.find_datasets(' '.join(args.text), args.start, args.end,
+			                              args.bbox.split(',') if args.bbox else None, args.kind, args.limit)
+		except ValueError as e:
+			sys.exit(f'ERROR: {e}')
+		_table([{k: r.get(k, '') for k in ('id', 'type', 'start', 'end', 'title')} for r in rows],
+		       ['id', 'type', 'start', 'end', 'title'])
+		print(f'\n{len(rows)} datasets of the Earth Engine data catalog | monitoreo asset ID describes one (its bands, '
+		      'units and how to cite it); then compute it with --collection or --image and --band')
+		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
 	if args.cmd == 'mcp':

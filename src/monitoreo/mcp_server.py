@@ -104,8 +104,9 @@ dates, so only maps, their statistics and GeoTIFFs, no time series, trends or co
 scale, offset and unit, and arguments ready to pass. Then call the tools with collection or image, band (one),
 band_scale, band_offset and unit (in UDUNITS) instead of variable and sensor. With terrain, "slope" or "aspect" of the
 band of an image (e.g. of a DEM), the values are in degrees (its unit is then degree: give no unit, not that of the
-band). To find the datasets of the GEE Community Catalog by its themes: community_themes, then community_datasets (by
-theme or text), then describe_asset with the id of one. Never invent an ID: use only those that the user gives or that
+band). To find the datasets of the Earth Engine data catalog by words (in English), dates and area: find_datasets;
+those of the GEE Community Catalog by its themes: community_themes, then community_datasets (by theme or text); then
+describe_asset with the id of one. Never invent an ID: use only those that the user gives or that
 describe_asset, community_datasets or the page of a dataset give. The pixel filters of MonitorEO (quality) are not
 for these data, which keep their own mask; the conditions of where are still variables of the catalog. Cite the dataset
 as describe_asset and the references and credits of the results say.
@@ -196,7 +197,7 @@ def tool(fn):
 
 
 NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
-                   'community_themes', 'community_datasets', 'landcover_maps')
+                   'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets')
 
 
 def _eecu_warning(out):
@@ -418,6 +419,16 @@ def landcover_maps(lang: str = 'en') -> str:
 	(classes: key, for exclude, name in lang, en or es, and what each includes), the rule of the mask and the references
 	of the maps and of the table of correspondences. Without Earth Engine."""
 	return _text(services.landcover_maps(lang))
+
+
+@tool
+def find_datasets(text: str, start: Optional[str] = None, end: Optional[str] = None,
+                  bbox: Optional[List[float]] = None, kind: Optional[str] = None, limit: int = 20) -> str:
+	"""Search the Earth Engine data catalog (the copy of its index in MonitorEO) by words in English (at least half of
+	them in its title, ID, keywords or description), dates (data between start and end) and area (bbox [w, s, e, n]):
+	id, title, type, dates, provider, pixel (gsd, m) and page of each, the best first. Then describe_asset with an id.
+	For data that the catalog of MonitorEO does not have; without Earth Engine."""
+	return _text(services.find_datasets(text, start, end, bbox, kind, limit))
 
 
 @tool
