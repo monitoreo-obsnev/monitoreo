@@ -26,10 +26,12 @@
                                                      or --kind, its images and collections of images (ID, type, title)
     monitoreo burn --sensor S --region JSON --start D --end D --other-start D --other-end D
                    [--index dNBR|RBR|RdNBR] [--collection ID] [--csv F] [--out F.tif]
+                   [--perimeter F.gpkg [--burned-min X] [--min-ha HA]]
                                                      burn severity of a fire: hectares of the classes of the USGS
                                                      (dNBR) or of Miller & Thode 2007 (RdNBR, also with Modis), or
                                                      statistics of the RBR, before (start to end) and after
-                                                     (other-start to other-end) the fire
+                                                     (other-start to other-end) the fire; with --perimeter, the
+                                                     polygons of the burned area, to use as a region
     monitoreo download RECIPE --area FILE|JSON --out FOLDER [--dry-run]   GeoTIFFs of a recipe of variables
     monitoreo publish REPORT.yaml [...] [--site S]   publish reports in the static viewer of results (administrators)
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
@@ -341,6 +343,16 @@ def main(argv=None):
 	p.add_argument('--out', help='GeoTIFF file, with the bands dnbr, severity, nbr_before and nbr_after (RBR: rbr, '
 	                             'dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity, dnbr, nbr_before and '
 	                             'nbr_after)')
+	p.add_argument('--perimeter', metavar='FILE',
+	               help='vector file (.gpkg, .geojson or .shp) of the perimeter of the burned area: a MultiPolygon of '
+	                    'the burned pixels of each feature of the region, to use as the region of other analyses '
+	                    '(--region \'{"file": "FILE", "name_field": "region"}\')')
+	p.add_argument('--burned-min', type=float, metavar='X',
+	               help='with --perimeter: the index from which a pixel is burned (default: dNBR 0.1, RdNBR 0.069; '
+	                    'needed with --index RBR, which has no classes)')
+	p.add_argument('--min-ha', type=float, metavar='HA',
+	               help='with --perimeter: the burned patches of less than HA hectares are left out and the unburned '
+	                    'islands of less than HA inside them filled (default 1; 0: all)')
 	p = sub.add_parser('download', help='GeoTIFFs of a recipe of variables over a study area and its ecoregions')
 	p.add_argument('recipe', help='YAML file of the recipe (see monitoreo.recipe)')
 	p.add_argument('--area', required=True, help='vector file of the study area, or a region as JSON')
@@ -390,6 +402,11 @@ def main(argv=None):
 		            'the data of Earth Engine given by its ID')
 	if args.cmd == 'burn' and args.sensor == 'Modis' and args.index != 'RdNBR':
 		burn.error(f'--sensor Modis is only for --index RdNBR: the {args.index} is computed with Sentinel-2 or Landsat')
+	if args.cmd == 'burn' and (args.burned_min is not None or args.min_ha is not None) and not args.perimeter:
+		burn.error('--burned-min and --min-ha are for the perimeter of the burned area: give also --perimeter FILE')
+	if args.cmd == 'burn' and args.perimeter and args.index == 'RBR' and args.burned_min is None:
+		burn.error('--index RBR has no classes: give --burned-min, the RBR from which a pixel is burned, for the '
+		           'perimeter')
 	if args.cmd == 'burn' and args.collection and (args.index, args.sensor) != ('RdNBR', 'Modis'):
 		burn.error('--collection is only for --index RdNBR with --sensor Modis: MODIS/061/MOD09GA (Terra, the default) '
 		           'or MODIS/061/MYD09GA (Aqua)')
@@ -589,7 +606,8 @@ def _burn(args, services):
 		res = services.burn_severity(json.loads(args.region), args.sensor, args.start, args.end, args.other_start,
 		                             args.other_end, args.metric, resolution=args.resolution, path=args.out,
 		                             csv=args.csv, index=args.index, where=_where(args), collection=args.collection,
-		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr))
+		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr),
+		                             perimeter=args.perimeter, burned_min=args.burned_min, min_ha=args.min_ha)
 	except ValueError as e:
 		sys.exit(f'ERROR: {e}')
 
@@ -612,8 +630,14 @@ def _burn(args, services):
 		print()
 		for region, ha in res['burned_ha'].items():
 			print(f'{region}: burned area (dNBR >= {fire.BURNED:g}) {ha:.1f} ha')
+	if res.get('perimeter'):
+		print()
+		for region, ha in res['perimeter_ha'].items():
+			print(f"{region}: perimeter of the burned area ({res['index']} >= {res['burned_min']:g}, patches and "
+			      f"islands of at least {res['min_ha']:g} ha) {ha:.1f} ha in {res['perimeter_patches'][region]} patches")
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
+	      + (f" | perimeter {res['perimeter']}" if res.get('perimeter') else '')
 	      + (f" | README {res['readme']}" if res.get('readme') else ''))
 
 

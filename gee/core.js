@@ -1975,6 +1975,64 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// fire.PERIMETER_MIN_HA: the burned patches of less than these hectares are left out of the perimeter of the burned
+	// area, and the unburned islands of less than them inside a patch filled (a minimum mapping unit)
+	var PERIMETER_MIN_HA = 1;
+
+	// fire.burned_min: the value of the burn INDEX from which a pixel is in the perimeter: VALUE if given (a number),
+	// else that of its classes (dNBR 0.1, RdNBR 0.069); the RBR, without classes, needs VALUE
+	function burnedMin(index, value) {
+		if (value !== null && value !== undefined && value !== '') return Number(value);
+		index = burnIndex(index);
+		if (!CLASSES[index]) {
+			throw new Error('the ' + index + ' has no classes: give the ' + index + ' from which a pixel is burned, for ' +
+				'the perimeter of the burned area');
+		}
+		return CLASSES[index].burned;
+	}
+
+	// fire._rings: the coordinates of POLYGON (a list of rings in the ee.Projection PIXELS) without its holes of less
+	// than MIN_M2 square metres (in CRS)
+	function perimeterRings(polygon, pixels, crs, minM2) {
+		var rings = ee.List(polygon);
+		var holes = rings.slice(1).map(function (ring) {
+			var area = ee.Geometry.Polygon(ee.List([ring]), pixels, false).area(1, crs);
+			return ee.Algorithms.If(area.gte(minM2), ring, null);
+		}, true);
+		return ee.List([rings.get(0)]).cat(holes);
+	}
+
+	// fire.perimeter: the perimeter of the burned area of each feature of REGIONS, an ee.FeatureCollection of a
+	// MultiPolygon (EPSG:4326) of the connected pixels (eight neighbours) of SCALE metres in CRS of the image VALUE (a
+	// burn index) at least BURNED_MIN, without the patches of less than MIN_HA hectares and with the unburned islands of
+	// less than MIN_HA filled, with the properties name, ha and patches
+	function burnPerimeter(value, burnedMinValue, regions, scale, crs, minHa) {
+		minHa = minHa === null || minHa === undefined ? PERIMETER_MIN_HA : Number(minHa);
+		var burned = ee.Image(value).gte(burnedMinValue).selfMask().rename('burned');
+		var minM2 = minHa * 1e4;
+		var minPixels = minM2 / (scale * scale);
+		// the polygons in the projection of the pixels (geometryInNativeProjection): CRS in units of SCALE metres
+		var pixels = ee.Projection(crs).atScale(scale);
+		function polygons(f) {
+			var g = ee.Feature(f).geometry();
+			var coords = ee.List(ee.Algorithms.If(ee.String(g.type()).equals('Polygon'), ee.List([g.coordinates()]),
+				g.coordinates()));
+			if (!(minM2 > 0)) return coords;  // with 0 ha, every island
+			return coords.map(function (p) { return perimeterRings(p, pixels, crs, minM2); });
+		}
+		return ee.FeatureCollection(regions).map(function (region) {
+			var geom = region.geometry();
+			var patches = burned.clip(geom).reduceToVectors({geometry: geom, scale: scale, crs: crs,
+				geometryType: 'polygon', eightConnected: true, maxPixels: 1e13, tileScale: 4,
+				geometryInNativeProjection: true});
+			var kept = patches.filter(ee.Filter.gte('count', minPixels));
+			var coords = ee.List(kept.iterate(function (f, acc) { return ee.List(acc).cat(polygons(f)); }, ee.List([])));
+			var shape = ee.Geometry.MultiPolygon(coords, pixels, false);
+			return ee.Feature(shape.transform('EPSG:4326', scale / 10), {name: region.get('name'),
+				ha: shape.area(1, crs).divide(1e4), patches: coords.size()});
+		});
+	}
+
 	// Maps (maps.py) ------------------------------------------------------------------------------------------------
 
 	var DEFAULT_PALETTE = ['000080', '0000FF', '0080FF', '00FFFF', '80FFFF', 'FFFFFF', 'FFFF00', 'FF8000', 'FF0000',
@@ -2066,6 +2124,7 @@ var MonitorEO = (function () {
 		CLASSES: CLASSES, BURN_INDICES: BURN_INDICES, BURN_SENSORS: BURN_SENSORS, burnIndex: burnIndex,
 		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
 		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
+		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter,
 		ramp: ramp, percentiles: percentiles, visParams: visParams,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,

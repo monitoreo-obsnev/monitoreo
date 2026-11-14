@@ -23,8 +23,8 @@ import re
 import urllib.request
 
 from . import __version__, assets, catalog, fire, references, services
-from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, data_unit, default_title, fire_variable, \
-	is_static, period_text, python_call, season_text, slug, unit_text
+from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
+	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
@@ -326,6 +326,8 @@ def item_facts(tool, args, result=None, names=None):
 		label = f'Changed area (RdNBR ≥ {fire.RDNBR_BURNED:g})' if fire_variable(args) == 'RdNBR' else 'Burned area'
 		facts.append((label, '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
 		              else f'{_num(next(iter(burned.values())))} ha'))
+	if tool == 'burn_severity' and isinstance(result.get('perimeter_ha'), dict):
+		facts.append(('Perimeter of the burned area', perimeter_text(burn_index(args), result)))
 	if tool == 'burn_severity' and fire_variable(args) == 'RdNBR' and isinstance(result.get('stats'), list):
 		stats = [r for r in result['stats'] if isinstance(r, dict) and r.get('median') is not None]
 		text = [f"{_num(r['median'])} ({_num(r.get('p10'))} to {_num(r.get('p90'))})" for r in stats]
@@ -355,6 +357,22 @@ def item_facts(tool, args, result=None, names=None):
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else tool]
 		facts.append(('Method', METHODS['static'] if static else method))
 	return facts
+
+
+def perimeter_text(index, result):
+	"""How the perimeter of the burned area of a result of burn_severity was drawn, and its hectares: «polygons of the
+	pixels with dNBR ≥ 0.1, without the patches of less than 1 ha and with the unburned islands of less than 1 ha
+	filled: 7166.7 ha in 26 patches»."""
+	ha, patches = result.get('perimeter_ha') or {}, result.get('perimeter_patches') or {}
+	low, small = result.get('burned_min'), result.get('min_ha')
+	how = f'polygons of the pixels with {index} ≥ {_num(low)}' if low is not None else 'polygons of the burned pixels'
+	if small:
+		how += f', without the patches of less than {_num(small)} ha and with the unburned islands of less than ' \
+		       f'{_num(small)} ha filled'
+	each = [f"{_num(v)} ha in {_num(patches.get(k, 0))} patches" for k, v in ha.items()]
+	if not each:
+		return how
+	return how + ': ' + (each[0] if len(each) == 1 else '; '.join(f'{k}: {e}' for k, e in zip(ha, each)))
 
 
 def _recipe_facts(args, result, names):

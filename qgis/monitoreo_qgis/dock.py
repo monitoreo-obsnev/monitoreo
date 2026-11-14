@@ -16,7 +16,7 @@ import tempfile
 from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsContrastEnhancement, QgsCoordinateReferenceSystem,
                        QgsCoordinateTransform, QgsDataSourceUri, QgsDateTimeRange, QgsMultiBandColorRenderer,
                        QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
-                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask)
+                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask, QgsFillSymbol, QgsVectorLayer)
 from qgis.gui import QgsCheckableComboBox, QgsCollapsibleGroupBox, QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
@@ -679,6 +679,27 @@ class MonitorEODock(QDockWidget):
 					row.addWidget(QLabel('to'))
 				row.addWidget(d)
 			f.addRow(label, info(row, HELP['fire_' + when]))
+		# the perimeter of the burned area: its polygons, a layer to choose as the region of other analyses
+		self.fire_perimeter = QCheckBox('polygons of the burned area')
+		self.fire_perimeter.setChecked(s.value(SETTINGS + 'fire_perimeter', 'true') == 'true')
+		f.addRow('Perimeter', info(self.fire_perimeter, HELP['fire_perimeter']))
+		row = QHBoxLayout()
+		self.fire_burned_min = QLineEdit()  # empty: the value of the classes of the index (none for the RBR)
+		self.fire_burned_min.setToolTip('The index from which a pixel is burned; empty: that of its classes')
+		row.addWidget(self.fire_burned_min, 1)
+		row.addWidget(QLabel('smallest'))
+		self.fire_min_ha = QDoubleSpinBox()
+		self.fire_min_ha.setRange(0, 100000)
+		self.fire_min_ha.setDecimals(2)
+		self.fire_min_ha.setValue(fire.PERIMETER_MIN_HA)
+		self.fire_min_ha.setSuffix(' ha')
+		self.fire_min_ha.setToolTip('Burned patches of less than this are left out, and unburned islands of less than '
+		                            'this inside them filled; 0: every pixel')
+		row.addWidget(self.fire_min_ha)
+		f.addRow('Burned from', info(row, HELP['fire_perimeter']))
+		self.fire_perimeter.toggled.connect(lambda on: self.perimeter_changed())
+		self.fire_index.currentIndexChanged.connect(lambda i: self.perimeter_changed())
+		self.perimeter_changed()
 		b = QPushButton('Compute the severity')
 		b.setToolTip('Hectares of each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, also its statistics), '
 		             'or statistics of the RBR, over each feature of the region, in a window, and a temporary GeoTIFF '
@@ -868,6 +889,7 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'other_end', self.other_end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'folder', self.folder.text().strip())
 		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
+		s.setValue(SETTINGS + 'fire_perimeter', 'true' if self.fire_perimeter.isChecked() else 'false')
 		for key, d in self.fire_dates.items():
 			s.setValue(SETTINGS + 'fire_' + key, d.date().toString('yyyy-MM-dd'))
 		# the data of Earth Engine outside the catalog: the last ID, band, use, scale, offset and unit, as written
@@ -1875,6 +1897,34 @@ class MonitorEODock(QDockWidget):
 		self.fire_sensor.setCurrentIndex(values.index(current))
 		self.fire_sensor.blockSignals(False)
 
+	def perimeter_changed(self):
+		"""The options of the perimeter of the burned area, only with it: the index from which a pixel is burned,
+		whose hint is the value of the classes of the index chosen (the RBR has none: it has to be written), and the
+		smallest patch and island."""
+		on = self.fire_perimeter.isChecked()
+		self.fire_burned_min.setEnabled(on)
+		self.fire_min_ha.setEnabled(on)
+		index = self.fire_index.currentData()
+		self.fire_burned_min.setPlaceholderText(f"{index} {fire.CLASSES[index]['burned']:g}" if index in fire.CLASSES
+		                                        else 'write the RBR, e.g. 0.1')
+
+	def perimeter_args(self, index, stem):
+		"""The arguments of the perimeter of the burned area of services.burn_severity (perimeter, burned_min,
+		min_ha), {} without it; ValueError if the value from which a pixel is burned is not a number, or is missing
+		with the RBR."""
+		if not self.fire_perimeter.isChecked():
+			return {}
+		text = self.fire_burned_min.text().strip().replace(',', '.')
+		try:
+			low = float(text) if text else None
+		except ValueError:
+			raise ValueError(f'Burned from: write a number (the {index} from which a pixel is burned), or nothing for '
+			                 'that of its classes') from None
+		if low is None and index not in fire.CLASSES:
+			raise ValueError(f'The {index} has no classes: write in Burned from the {index} from which a pixel is '
+			                 'burned (e.g. 0.1), or uncheck Perimeter')
+		return {'perimeter': stem + '_perimeter.gpkg', 'burned_min': low, 'min_ha': self.fire_min_ha.value()}
+
 	def fire_source(self):
 		"""The sensor and the collection of the burn severity (services.burn_severity): MODIS is the sensor 'Modis'
 		with the collection of Terra (MOD09GA) or Aqua (MYD09GA); Sentinel-2 and Landsat go without a collection."""
@@ -1911,11 +1961,16 @@ class MonitorEODock(QDockWidget):
 		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'),
 		                    'burn_severity' + {'RBR': '_rbr', 'RdNBR': '_rdnbr'}.get(index, ''))
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
+		try:
+			outline = self.perimeter_args(index, stem)  # the polygons of the burned area
+		except ValueError as e:
+			self.message(str(e), 'Warning')
+			return
 
 		def work():
 			return services.burn_severity(region, sensor, before[0], before[1], after[0], after[1], quality=quality,
 			                              path=stem + '.tif', csv=stem + '.csv', max_pixels=MAP_PIXELS, index=index,
-			                              where=where, **more)
+			                              where=where, **more, **outline)
 
 		def done(res):
 			if not any((r.get('ha') or 0) > 0 for r in res.get('classes') or res.get('stats') or []):
@@ -1927,6 +1982,8 @@ class MonitorEODock(QDockWidget):
 			res['args'] = dict({'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],
 			                    'other_start': after[0], 'other_end': after[1], 'index': index}, **more)
 			self.add_burn_layer(res)
+			if res.get('perimeter'):
+				self.add_perimeter_layer(res)
 			self.add_result(res)
 
 		self.run_task(f'Burn severity ({index}, {source})', work, done)
@@ -1952,6 +2009,28 @@ class MonitorEODock(QDockWidget):
 		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
 		             + ('' if native else ' (big region: pixels bigger than those of the data)')
 		             + '. Query the values with the Identify Features tool', 'Success', 10)
+
+	def add_perimeter_layer(self, res):
+		"""Add the perimeter of the burned area of the burn severity RES (its GeoPackage) over its GeoTIFF: its
+		polygons, outlined in black without fill, to choose in Region → Layer for the analyses inside it."""
+		ha = res.get('perimeter_ha') or {}
+		if not any(ha.values()):
+			self.message(f"No burned area for the perimeter ({res['index']} ≥ {res['burned_min']:g}, patches of at "
+			             f"least {res['min_ha']:g} ha)", 'Warning', 10)
+			return
+		name = f"{res.get('label') or res['title']} · perimeter"
+		layer = QgsVectorLayer(f"{res['perimeter']}|layername=perimeter", name, 'ogr')
+		if not layer.isValid():
+			raise RuntimeError(f"QGIS could not open {res['perimeter']}")
+		layer.renderer().setSymbol(QgsFillSymbol.createSimple({'color': '0,0,0,0', 'outline_color': '0,0,0,255',
+		                                                       'outline_width': '0.6'}))
+		layer.setAbstract(f"MonitorEO: perimeter of the burned area of {name}: {res['index']} ≥ {res['burned_min']:g}, "
+		                  f"without the patches nor the unburned islands of less than {res['min_ha']:g} ha. "
+		                  f"Temporary GeoPackage: {res['perimeter']}" + references_text(res))
+		add_layer(layer)
+		total = sum(ha.values())
+		self.message(f'Layer added: {name}, {total:,.1f} ha. Choose it in Region → Layer to analyse inside it',
+		             'Success', 10)
 
 	# Exports ----------------------------------------------------------------------------------------------------
 

@@ -82,7 +82,8 @@ of each month, 16 days or year over the years): trend_table (over regions), tren
 pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Burn
 severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
 Burn Ratio, a continuous index; or, with index "RdNBR", the relative dNBR of Miller & Thode 2007 with the classes of
-the article, also with MODIS): burn_severity. Only for the
+the article, also with MODIS): burn_severity; with perimeter true, also the polygons of the burned area in a
+GeoPackage, to use as the region of other analyses: {"file": <its path>, "name_field": "region"}. Only for the
 administrators of the public viewer of results: publish_report, with the files written by those tools.
 
 Other data of Earth Engine: besides the variables of the catalog, the tools compute any image or collection of images
@@ -792,7 +793,8 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
 def burn_severity(region: dict, start: str, end: str, other_start: str, other_end: str, sensor: str = 'Sentinel-2',
                   metric: str = 'median', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                   resolution: Optional[float] = None, crs: str = 'auto', index: str = 'dNBR',
-                  where: Optional[list] = None, collection: Optional[str] = None) -> str:
+                  where: Optional[list] = None, collection: Optional[str] = None, perimeter: bool = False,
+                  burned_min: Optional[float] = None, min_ha: Optional[float] = None) -> str:
 	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
 	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
 	Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
@@ -818,14 +820,23 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	one year after the fire, in the season of the period before. Returns the hectares of each class (classes),
 	the changed area (burned_ha, RdNBR >= 0.069; unchanged is not unburned) and the mean, median, p10, p90, min and max
 	of the RdNBR (stats) over each feature, a CSV of the classes and a GeoTIFF with the bands rdnbr, severity (class 0
-	to 3), dnbr, nbr_before and nbr_after. collection: only for index "RdNBR" with sensor "Modis"."""
+	to 3), dnbr, nbr_before and nbr_after. collection: only for index "RdNBR" with sensor "Modis".
+	perimeter true (when the user wants the perimeter, outline or polygons of the burned area, e.g. to study it
+	afterwards): also a GeoPackage (perimeter) with a MultiPolygon of the burned pixels of each feature of the region
+	(perimeter_ha, perimeter_patches), to give as the region of the next analyses: {"file": <perimeter>, "name_field":
+	"region"} (e.g. the NDVI after the fire inside it). Burned: index >= burned_min, by default dNBR 0.1 or RdNBR 0.069
+	(the RBR has no classes: ask the user for burned_min, e.g. 0.1); burned patches of less than min_ha hectares
+	(default 1) are left out, and unburned islands of less than min_ha inside them filled (0: every pixel)."""
 	_ready()
 	name = {i.lower(): i for i in services.BURN_INDICES}.get(str(index or 'dNBR').lower())
 	prefix = f'{name}_' if name and name != 'dNBR' else ''  # burn_severity_RBR_..., burn_severity_RdNBR_...
 	stem = f"burn_severity_{prefix}{sensor}_{start}_{end}_{other_start}_{other_end}"
+	tif = _out(stem, 'tif')  # the perimeter next to it, with the same time: <stem>_<time>_perimeter.gpkg
 	return _text(services.burn_severity(region, sensor, start, end, other_start, other_end, metric, season=season,
-	                                    quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'),
-	                                    csv=_out(stem, 'csv'), index=index, where=where, collection=collection))
+	                                    quality=quality, resolution=resolution, crs=crs, path=tif,
+	                                    csv=_out(stem, 'csv'), index=index, where=where, collection=collection,
+	                                    perimeter=tif[:-4] + '_perimeter.gpkg' if perimeter else None,
+	                                    burned_min=burned_min, min_ha=min_ha))
 
 
 @tool

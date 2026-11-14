@@ -269,9 +269,10 @@ def rdnbr(monkeypatch):
 	calls = []
 
 	def fake(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv_,
-	         max_pixels, tile, workers, progress, where=None, collection=None):
+	         max_pixels, tile, workers, progress, where=None, collection=None, outline=None):
 		calls.append({'region': region, 'sensor': sensor, 'start': start, 'end': end, 'other_start': other_start,
-		              'other_end': other_end, 'metric': metric, 'where': where, 'collection': collection})
+		              'other_end': other_end, 'metric': metric, 'where': where, 'collection': collection,
+		              'outline': outline})
 		classes = fire.table([{'class': 1, 'sum': 600.0}, {'class': 3, 'sum': 400.0}, {'class': 0, 'sum': 50.0}],
 		                     'bbox', 'RdNBR')
 		return {'index': 'RdNBR', 'classes': classes, 'burned_ha': {'bbox': 1000.0}, 'scale': 500.0, 'csv': None,
@@ -295,6 +296,16 @@ def test_burn_severity_computes_the_rdnbr_with_every_sensor(rdnbr, index, sensor
 	data = {'sentinel-2': 'esa_s2_l2a', 'landsat': 'usgs_landsat89', 'modis': 'mod09ga061'}[sensor.lower()]
 	assert data in _ids(out)
 	assert ('veraverbeke2010' in _ids(out)) == (sensor.lower() == 'modis')
+
+
+def test_burn_severity_asks_the_rdnbr_for_its_perimeter(rdnbr):
+	"""The perimeter of the RdNBR: from its changed pixels (0.069) by default; none unless asked for."""
+	services.burn_severity(REGION, 'Sentinel-2', *BEFORE, *AFTER, index='RdNBR', perimeter='fire.gpkg')
+	assert rdnbr[-1]['outline'] == {'path': 'fire.gpkg', 'index': 'RdNBR', 'burned_min': fire.RDNBR_BURNED,
+	                                'min_ha': fire.PERIMETER_MIN_HA, 'sensor': 'Sentinel-2',
+	                                'before': '/'.join(BEFORE), 'after': '/'.join(AFTER)}
+	services.burn_severity(REGION, 'Sentinel-2', *BEFORE, *AFTER, index='RdNBR')
+	assert rdnbr[-1]['outline'] is None
 
 
 def test_burn_severity_with_modis_aqua(rdnbr):

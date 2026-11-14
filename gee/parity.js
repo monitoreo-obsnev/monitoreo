@@ -159,6 +159,30 @@ var CASES = {
 			});
 		});
 	},
+	// the perimeter of the burned area (services.burn_severity with perimeter, mo.burnPerimeter) of the index of the
+	// case (dNBR, or the RBR with its burned_min): its hectares and patches in each region
+	burn_perimeter: function (c, regions, done) {
+		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		after.period = c.after;
+		var entry = mo.entryOf(before);
+		setup(entry, regions, function (error, g) {
+			if (error) return done(error);
+			var scale = Number(entry.m), rbr = c.index === 'RBR';
+			var out = rbr ? mo.burnRatio(before, after, regions, scale, g.crs) :
+				mo.burnSeverity(before, after, regions, scale, g.crs);
+			var value = out.image.select(rbr ? 'rbr' : 'dnbr');
+			mo.burnPerimeter(value, mo.burnedMin(c.index, c.burned_min), regions, scale, g.crs, c.min_ha).evaluate(
+				function (fc, err) {
+					if (err) return done(err);
+					var ha = {}, patches = {};
+					fc.features.forEach(function (f) {
+						ha[String(f.properties.name)] = f.properties.ha;
+						patches[String(f.properties.name)] = f.properties.patches;
+					});
+					done(null, {perimeter_ha: ha, perimeter_patches: patches});
+				});
+		});
+	},
 	// the RdNBR of Miller & Thode 2007 (services._rdnbr), of the entry of the spec (Sentinel-2, Landsat, MODIS Terra
 	// or Aqua): the hectares of its classes, the changed area and the statistics of the RdNBR of each region
 	burn_rdnbr: function (c, regions, done) {

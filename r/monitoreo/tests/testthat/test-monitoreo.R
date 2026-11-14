@@ -335,6 +335,36 @@ test_that("burn severity with the RdNBR: its arguments reach the services, its c
   expect_null(legend_of)
 })
 
+test_that("burn severity with the perimeter: its arguments reach the services, its polygons come back", {
+  args <- formals(mo_burn_severity)
+  expect_true(all(c("perimeter", "burned_min", "min_ha") %in% names(args)))
+  expect_null(args$perimeter)  # as before: no perimeter unless asked for
+  sent <- NULL
+  answer <- list(index = "dNBR", classes = list(list(region = "fire", class = 1L, label = "Low severity",
+                                                      dnbr_min = 0.1, dnbr_max = 0.27, ha = 5)),
+                 burned_ha = list(fire = 5), title = "Burn severity (dNBR, USGS)", perimeter = "fire.gpkg",
+                 perimeter_ha = list(fire = 4.5), perimeter_patches = list(fire = 2L), burned_min = 0.27,
+                 min_ha = 2, references = list(), credits = list())
+  local_mocked_bindings(services = function() list(burn_severity = function(...) {
+    sent <<- list(...)
+    answer
+  }), burn_legend = function(index) data.frame(value = 1L, label = "Low severity"), .package = "monitoreo")
+  x <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31", "2022-10-01", "2022-11-30",
+                        perimeter = "fire.gpkg", burned_min = 0.27, min_ha = 2)
+  expect_equal(sent$perimeter, "fire.gpkg")
+  expect_equal(sent$burned_min, 0.27)
+  expect_equal(sent$min_ha, 2)
+  expect_equal(attr(x, "perimeter"), "fire.gpkg")
+  expect_equal(attr(x, "perimeter_ha"), c(fire = 4.5))
+  expect_equal(attr(x, "perimeter_patches"), c(fire = 2L))
+  expect_equal(attr(x, "burned_min"), 0.27)
+  # without it, nothing about it
+  answer[c("perimeter", "perimeter_ha", "perimeter_patches", "burned_min", "min_ha")] <- NULL
+  y <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31", "2022-10-01", "2022-11-30")
+  expect_null(sent$perimeter)
+  expect_null(attr(y, "perimeter"))
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

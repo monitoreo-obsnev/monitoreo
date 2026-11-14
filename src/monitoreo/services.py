@@ -1429,7 +1429,8 @@ BURN_SENSORS = {'dNBR': ('Sentinel-2', 'Landsat'), 'RBR': ('Sentinel-2', 'Landsa
 @_cited
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
-                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None, collection=None):
+                  max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None, collection=None,
+                  perimeter=None, burned_min=None, min_ha=None):
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
@@ -1460,10 +1461,21 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	few extreme values.
 
 	WHERE: only the pixels that pass these conditions on variables (as in the other tools), computed over the period
-	before the fire."""
+	before the fire.
+
+	PERIMETER: the vector file (.gpkg, .geojson or .shp) where to write the perimeter of the burned area, to use
+	it as the region of other analyses ({'file': PERIMETER, 'name_field': 'region'}): a feature for each feature of
+	REGION, a MultiPolygon in EPSG:4326 of its burned pixels (index at least BURNED_MIN: by default the value from
+	which a pixel is burned, dNBR 0.1, or changed, RdNBR 0.069; the RBR, without classes, needs it), joined when they
+	touch, even by a corner, without the patches of less than MIN_HA hectares (default fire.PERIMETER_MIN_HA, 1 ha)
+	and with the unburned islands of less than MIN_HA inside them filled (0: every burned pixel, every island). Its
+	fields are those of fire.PERIMETER_FIELDS: region, ha (its area), patches (its burned patches of 8 connected
+	pixels), index, burned_min, min_ha, sensor, before and after. The answer then has also 'perimeter' (its path),
+	'perimeter_ha' ({region: hectares}), 'perimeter_patches' ({region: patches}), 'burned_min' and 'min_ha'."""
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
 	if index is None:
 		raise ValueError(f"unknown burn index: use {', '.join(BURN_INDICES[:-1])} or {BURN_INDICES[-1]}")
+	outline = _perimeter_args(index, perimeter, burned_min, min_ha, sensor, (start, end), (other_start, other_end))
 	known = {s.lower().replace(' ', ''): s for s in BURN_SENSORS[index]}
 	if sensor is not None and str(sensor).lower().replace(' ', '') not in known:
 		raise ValueError(f"the burn index {index} is computed with the sensors {', '.join(BURN_SENSORS[index])}, not "
@@ -1473,10 +1485,10 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		                 'MODIS/061/MYD09GA, Aqua)')
 	if index == 'RBR':
 		return _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path,
-		            csv, max_pixels, tile, workers, progress, where)
+		            csv, max_pixels, tile, workers, progress, where, outline=outline)
 	if index == 'RdNBR':
 		return _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs,
-		              path, csv, max_pixels, tile, workers, progress, where, collection)
+		              path, csv, max_pixels, tile, workers, progress, where, collection, outline=outline)
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
 	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
@@ -1510,6 +1522,8 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
 		             severity='USGS, Key & Benson 2006'), default=str)})
 		out.update(file=path, bands=bands)
+	if outline:
+		out.update(_burn_perimeter(dnbr, regions, res, grid.crs, outline))
 	return out
 
 
@@ -1533,7 +1547,7 @@ def _burn_stats(index, band, regions, scale, crs):
 
 
 def _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
-         max_pixels, tile, workers, progress, where=None):
+         max_pixels, tile, workers, progress, where=None, outline=None):
 	"""burn_severity with the index RBR."""
 	regions_ = areas.region(region)
 	spec0 = make_spec('RBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True)
@@ -1561,11 +1575,13 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
 		             index='RBR = dNBR / (NBR before + 1.001)'), default=str)})
 		out.update(file=path, bands=bands)
+	if outline:
+		out.update(_burn_perimeter(rbr, regions, res, grid.crs, outline))
 	return out
 
 
 def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
-           max_pixels, tile, workers, progress, where=None, collection=None):
+           max_pixels, tile, workers, progress, where=None, collection=None, outline=None):
 	"""burn_severity with the index RdNBR (Miller & Thode 2007), with the classes of the article."""
 	regions_ = areas.region(region)
 	source = dict({'where': where} if where else {}, **({'collection': collection} if collection else {}))
@@ -1609,7 +1625,38 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 		             index='RdNBR = dNBR / sqrt(max(|NBR before|, 0.001))',
 		             severity='Miller & Thode 2007 (Table 4)'), default=str)})
 		out.update(file=path, bands=bands)
+	if outline:
+		out.update(_burn_perimeter(rdnbr, regions, res, grid.crs, outline))
 	return out
+
+
+def _perimeter_args(index, path, burned_min, min_ha, sensor, before, after):
+	"""What burn_severity needs for the perimeter of the burned area, checked before computing anything: {path,
+	index, burned_min, min_ha, sensor, before, after}, or None without PATH (and then neither BURNED_MIN nor MIN_HA)."""
+	if not path:
+		if burned_min is not None or min_ha is not None:
+			raise ValueError('burned_min and min_ha are for the perimeter of the burned area: give also perimeter, the '
+			                 f"vector file to write ({', '.join(areas.VECTOR_DRIVERS)})")
+		return None
+	areas.vector_driver(path)
+	min_ha = fire.PERIMETER_MIN_HA if min_ha is None else float(min_ha)
+	if min_ha < 0:
+		raise ValueError('min_ha, the smallest burned patch and unburned island of the perimeter, cannot be negative')
+	return {'path': path, 'index': index, 'burned_min': fire.burned_min(index, burned_min), 'min_ha': min_ha,
+	        'sensor': sensor, 'before': '/'.join(map(str, before)), 'after': '/'.join(map(str, after))}
+
+
+def _burn_perimeter(value, regions, scale, crs, outline):
+	"""Write the perimeter of the burned area (fire.perimeter) of the burn index VALUE over each feature of REGIONS,
+	with pixels of SCALE metres in CRS, to the vector file of OUTLINE (see _perimeter_args). Returns {'perimeter',
+	'perimeter_ha', 'perimeter_patches', 'burned_min', 'min_ha'} for the answer of burn_severity."""
+	fc = fire.perimeter(value, outline['burned_min'], regions, scale, crs, outline['min_ha'])
+	rows = fire.perimeter_rows(fc.getInfo()['features'])
+	same = {k: outline[k] for k in ('index', 'burned_min', 'min_ha', 'sensor', 'before', 'after')}
+	areas.save_polygons([dict(r, **same) for r in rows], outline['path'], 'perimeter', fire.PERIMETER_TYPES)
+	return {'perimeter': outline['path'], 'perimeter_ha': {r['region']: r['ha'] for r in rows},
+	        'perimeter_patches': {r['region']: r['patches'] for r in rows}, 'burned_min': outline['burned_min'],
+	        'min_ha': outline['min_ha']}
 
 
 # Publication -------------------------------------------------------------------------------------------------------

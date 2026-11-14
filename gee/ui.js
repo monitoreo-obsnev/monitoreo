@@ -108,6 +108,16 @@
 			severityClasses: 'Clases de severidad', dnbrLegend: 'Severidad del incendio (dNBR, USGS)',
 			rdnbrLegend: 'Severidad del incendio (RdNBR, Miller y Thode 2007)', rdnbrBar: 'RdNBR (capa bajo las clases)',
 			references: 'Referencias',
+			perimeter: 'Perímetro de la superficie quemada',
+			perimeterHelp: 'Los polígonos de los píxeles quemados, para descargarlos o usarlos como región de otros ' +
+				'análisis (p. ej. el NDVI de los años después del incendio). Quemado desde: vacío, el valor de las ' +
+				'clases del índice (dNBR 0,1, RdNBR 0,069); el RBR no tiene clases. Sin los parches de menos de la ' +
+				'superficie mínima, y con las islas sin quemar de menos de ella rellenas (0: todos los píxeles).',
+			burnedFrom: 'Quemado desde', smallest: 'mínimo', perimeterButton: 'Calcular el perímetro',
+			perimeterNumbers: 'Quemado desde y mínimo tienen que ser números (mínimo, 0 o más).',
+			perimeterHa: '%s ha en %s parches', noBurned: 'Ningún píxel quemado (%s ≥ %s) en parches del mínimo.',
+			perimeterLayer: 'perímetro', useRegion: 'Usar como región', burnedArea: 'Superficie quemada',
+			geojson: 'Descargar GeoJSON', kml: 'Descargar KML',
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'Código', cite: 'Cómo citar',
 			computing: 'Calculando…', progress: 'Calculando… %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El botón ⤢ de la gráfica la abre en otra pestaña, desde donde se descarga como imagen.',
@@ -233,6 +243,16 @@
 			changed: 'Changed area (RdNBR ≥ 0.069): %s ha', severityClasses: 'Severity classes',
 			dnbrLegend: 'Burn severity (dNBR, USGS)', rdnbrLegend: 'Burn severity (RdNBR, Miller & Thode 2007)',
 			rdnbrBar: 'RdNBR (layer under the classes)', references: 'References',
+			perimeter: 'Perimeter of the burned area',
+			perimeterHelp: 'The polygons of the burned pixels, to download them or to use them as the region of other ' +
+				'analyses (e.g. the NDVI of the years after the fire). Burned from: empty, the value of the classes of ' +
+				'the index (dNBR 0.1, RdNBR 0.069); the RBR has no classes. Without the patches of less than the ' +
+				'smallest area, and with the unburned islands of less than it filled (0: every pixel).',
+			burnedFrom: 'Burned from', smallest: 'smallest', perimeterButton: 'Compute the perimeter',
+			perimeterNumbers: 'Burned from and smallest have to be numbers (smallest, 0 or more).',
+			perimeterHa: '%s ha in %s patches', noBurned: 'No burned pixel (%s ≥ %s) in patches of the smallest area.',
+			perimeterLayer: 'perimeter', useRegion: 'Use as the region', burnedArea: 'Burned area',
+			geojson: 'Download GeoJSON', kml: 'Download KML',
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing…', progress: 'Computing… %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The ⤢ button of the chart opens it in another tab, where it can be downloaded as an image.',
@@ -1592,8 +1612,73 @@
 			}));
 			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(t('rbrNote'), SMALL), ui.Chart(table, 'Table'),
 				ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RBR_COLUMNS, name),
-				downloadWidget(out.image, e, ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], name)]);
+				downloadWidget(out.image, e, ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], name),
+				perimeterWidget(out.image.select('rbr'), 'RBR', scale, e, name, before, after)]);
 		}));
+	}
+
+	// The perimeter of the burned area (services.burn_severity with perimeter: mo.burnPerimeter) of the burn index
+	// INDEX, whose image is VALUE, of pixels of SCALE m: the value from which a pixel is burned (empty: that of its
+	// classes; the RBR has none) and the smallest patch and island (ha); its polygons on the map, their hectares, their
+	// download (GeoJSON or KML, with the fields of the file of the package) and the button to make them the region of
+	// the next analyses. E: the entry; NAME: the name of the result; BEFORE and AFTER: the specs of the periods
+	function perimeterWidget(value, index, scale, e, name, before, after) {
+		var panel = ui.Panel();
+		var out = ui.Panel();
+		var classes = mo.CLASSES[index];
+		var low = ui.Textbox({placeholder: classes ? index + ' ' + num(classes.burned) : 'RBR', style: {width: '80px'}});
+		var smallest = ui.Textbox({value: num(mo.PERIMETER_MIN_HA), style: {width: '50px'}});
+		panel.add(ui.Label(t('perimeter'), {fontWeight: 'bold', fontSize: '12px', margin: '10px 8px 0 8px'}));
+		panel.add(ui.Label(t('perimeterHelp'), SMALL));
+		panel.add(row(ui.Label(t('burnedFrom'), SMALL), low, ui.Label(t('smallest'), SMALL), smallest,
+			ui.Label('ha', SMALL)));
+		panel.add(button(t('perimeterButton'), function () {
+			out.clear();
+			var threshold, minHa;
+			try {
+				var given = String(low.getValue() || '').trim().replace(',', '.');
+				threshold = mo.burnedMin(index, given === '' ? null : given);
+				minHa = Number(String(smallest.getValue() || '').trim().replace(',', '.') || mo.PERIMETER_MIN_HA);
+				if (isNaN(threshold) || isNaN(minHa) || minHa < 0) throw new Error(t('perimeterNumbers'));
+			} catch (err) {
+				return out.add(ui.Label(err.message || String(err), {color: '#b00020'}));
+			}
+			out.add(ui.Label(t('computing'), SMALL));
+			var regionName = state.regionName;  // that of the severity, whatever the region is when it is used
+			mo.burnPerimeter(value, threshold, state.region, scale, state.info.crs, minHa).evaluate(function (fc, error) {
+				out.clear();
+				if (error) return out.add(ui.Label(t('error') + error, {color: '#b00020'}));
+				var found = fc.features.filter(function (f) { return f.properties.ha > 0; });
+				if (!found.length) return out.add(ui.Label(fmt(t('noBurned'), index, num(threshold)), SMALL));
+				// the polygons as they came, without computing them again in each use (fire.PERIMETER_FIELDS)
+				var polygons = ee.FeatureCollection(found.map(function (f) {
+					var p = f.properties;
+					return ee.Feature(ee.Geometry(f.geometry, null, false), {name: t('burnedArea') + ' · ' + p.name,
+						region: String(p.name), ha: p.ha, patches: p.patches, index: index, burned_min: threshold,
+						min_ha: minHa, sensor: e.sensor, before: before.period.join('/'), after: after.period.join('/')});
+				}));
+				map.addLayer(polygons.style({color: '000000', fillColor: '00000000', width: 2}), {},
+					name + ' · ' + t('perimeterLayer'));
+				found.forEach(function (f) {
+					out.add(ui.Label((found.length > 1 ? f.properties.name + ': ' : '') +
+						fmt(t('perimeterHa'), num(f.properties.ha, 5), f.properties.patches), {fontSize: '12px'}));
+				});
+				var fields = ['region', 'ha', 'patches', 'index', 'burned_min', 'min_ha', 'sensor', 'before', 'after'];
+				var links = ui.Panel([], ui.Panel.Layout.flow('horizontal'));
+				out.add(links);
+				[['geojson', 'geojson'], ['kml', 'kml']].forEach(function (k) {
+					polygons.getDownloadURL(k[0], fields, fileName(name, e, '_perimeter'), function (url, err) {
+						if (url) links.add(ui.Label(t(k[1]) + ' ↓', {fontSize: '12px'}, url));
+						else if (err) links.add(ui.Label(t('error') + err, {color: '#b00020', fontSize: '12px'}));
+					});
+				});
+				out.add(button(t('useRegion'), function () {
+					setRegion(polygons, t('burnedArea') + ' · ' + regionName);
+				}));
+			});
+		}));
+		panel.add(out);
+		return panel;
 	}
 
 	// The references of the RdNBR shown with its results, as catalog.json cites them (methods.rdnbr: miller2007 and
@@ -1679,7 +1764,8 @@
 			show([ui.Label(name, {fontWeight: 'bold'})].concat(areas, [ui.Chart(table, 'Table'),
 				ui.Chart(statsTable, 'Table'), ui.Label(t('rdnbrNote'), SMALL)], modis ? [ui.Label(t('modisNote'), SMALL)] :
 				[], refs, [ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RDNBR_COLUMNS, name),
-				downloadWidget(out.image, e, ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'], name)]));
+				downloadWidget(out.image, e, ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'], name),
+				perimeterWidget(out.image.select('rdnbr'), 'RdNBR', scale, e, name, before, after)]));
 		})); }));
 	}
 
@@ -1717,7 +1803,8 @@
 			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(fmt(t('burned'), num(burned, 4))),
 				ui.Chart(table, 'Table'), ui.Label(fmt(t('scaleNote'), num(scale)), SMALL),
 				csvWidget(rows, ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha'], name),
-				downloadWidget(out.image, e, ['dnbr', 'severity', 'nbr_before', 'nbr_after'], name)]);
+				downloadWidget(out.image, e, ['dnbr', 'severity', 'nbr_before', 'nbr_after'], name),
+				perimeterWidget(out.image.select('dnbr'), 'dNBR', scale, e, name, before, after)]);
 		}));
 	}
 

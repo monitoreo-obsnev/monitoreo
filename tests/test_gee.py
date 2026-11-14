@@ -115,6 +115,13 @@ CASES = {
 	'burn_rdnbr_modis_aqua': {'kind': 'burn_rdnbr', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
 	                          'sensor': 'Modis', 'collection': 'MODIS/061/MYD09GA',
 	                          'spec': {'ref': 147, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	# the perimeter of the burned area: the dNBR from its classes (0.1) with the smallest patch of 1 ha, and the RBR
+	# from a value given, with 2 ha
+	'burn_perimeter': {'kind': 'burn_perimeter', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	                   'index': 'dNBR', 'spec': {'ref': 102, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
+	'burn_perimeter_rbr': {'kind': 'burn_perimeter', 'region': SIERRA_BERMEJA, 'after': ['2021-09-20', '2021-10-31'],
+	                       'index': 'RBR', 'burned_min': 0.1, 'min_ha': 2,
+	                       'spec': {'ref': 103, 'period': ['2021-07-15', '2021-08-31'], 'metric': 'median'}},
 	# snow cover frequency: Landsat 8 and 9 in winter (shadow of the relief) and Landsat 5 (TOA bands B2 and B5)
 	'series_scf_winter': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                      'spec': {'ref': 105, 'period': ['2021-11-01', '2022-03-31']}},
@@ -191,6 +198,14 @@ def python(c):
 		out = services.burn_severity(region, 'Sentinel-2', start=start, end=end, other_start=c['after'][0],
 		                             other_end=c['after'][1], index='RBR')
 		return {'stats': out['stats']}
+	if c['kind'] == 'burn_perimeter':
+		import tempfile
+		with tempfile.TemporaryDirectory() as folder:
+			out = services.burn_severity(region, 'Sentinel-2', start=start, end=end, other_start=c['after'][0],
+			                             other_end=c['after'][1], index=c['index'],
+			                             perimeter=os.path.join(folder, 'perimeter.gpkg'),
+			                             burned_min=c.get('burned_min'), min_ha=c.get('min_ha'))
+		return {'perimeter_ha': out['perimeter_ha'], 'perimeter_patches': out['perimeter_patches']}
 	if c['kind'] == 'burn_rdnbr':
 		out = services.burn_severity(region, c['sensor'], start=start, end=end, other_start=c['after'][0],
 		                             other_end=c['after'][1], index='RdNBR', collection=c.get('collection'))
