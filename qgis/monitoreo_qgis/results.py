@@ -39,6 +39,10 @@ RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'),
 AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('from_label', 'From (first year)'),
                 ('to_label', 'To (other year)'), ('landcover', 'Land cover'), ('value_from', 'From'),
                 ('value_to', 'To'), ('ha', 'Hectares'), ('percent', '% of the area with classes')]
+ZONE_COLUMNS = [('region', 'Region'), ('zone_label', 'Band'), ('p25', 'Percentile 25'), ('p50', 'Median'),
+                ('p75', 'Percentile 75'), ('mean', 'Mean'), ('n_pixels', 'Pixels')]
+TRANSECT_COLUMNS = [('distance_m', 'Distance (m)'), ('value', 'Value'), ('elevation', 'Elevation (m)'),
+                    ('lon', 'Longitude'), ('lat', 'Latitude')]
 FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
 MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
@@ -241,6 +245,9 @@ class ResultDialog(QDialog):
 		elif kind == 'areas':  # the columns of its kind of classes (a land cover map, breaks or a trend)
 			rows = res['rows']
 			columns = [c for c in AREA_COLUMNS if any(c[0] in r for r in rows)]
+		elif kind in ('zones', 'transect'):  # the bands of the elevation, or a profile along a line
+			rows = res['rows']
+			columns = [c for c in (ZONE_COLUMNS if kind == 'zones' else TRANSECT_COLUMNS) if any(c[0] in r for r in rows)]
 		else:
 			rows = res['rows'] if trends else res['profile']
 			columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
@@ -249,6 +256,9 @@ class ResultDialog(QDialog):
 		lay = QVBoxLayout(self)
 		if kind == 'burn':
 			text = f"{res['title']} · pixels of {res['scale']:g} m" + burn_text(res)
+		elif kind in ('zones', 'transect'):
+			text = f"{res['title']} · {unit_label(res)} · pixels of {res['scale']:g} m" + (
+				f" · segments of {res['spacing']:.4g} m, elevation in m" if kind == 'transect' else '')
 		elif kind == 'areas':
 			text = f"{res['title']} · pixels of {res['scale']:g} m · % of the area with classes"
 			for region, ha in (res.get('changed_ha') or {}).items():  # the changes of a land cover map

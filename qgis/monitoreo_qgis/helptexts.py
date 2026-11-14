@@ -332,6 +332,18 @@ HELP = {
 		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li></ul>'
 		'<p>The area of each pixel is its true area; the % is of the area with a class.</p>'
 		+ manual('Concepts#area-by-class'),
+	'zones':
+		'<p><b>Statistics of each band</b>: the percentiles 25, 50 and 75 and the mean of the map of the variable (with '
+		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, or of a variable of '
+		'WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: below 1500 m, 1500 to 2000 m, ... '
+		'They show how the variable changes with the altitude, e.g. the snow or the greenness from the valley to the '
+		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+	'transect':
+		'<p><b>Profile along the line</b>: the map of the variable (with the options of the group <b>Map</b>) and the '
+		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments (at least '
+		'a pixel of the data long, so fewer on lines shorter than 100 pixels): the mean of the pixels that each segment '
+		'crosses. Draw it in a new temporary layer of lines, from the valley to the summit, across a fire or along a '
+		'river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
 		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '
@@ -339,14 +351,14 @@ HELP = {
 		'of the whole period), so that they can be compared; the pixels without data in a step are light grey.</p>'
 		'<p>At most 120 frames: for long periods, a frame per year. Earth Engine makes each frame, so it takes some '
 		'minutes. The window plays the GIF, with the date and the number of images of each frame, and saves it with '
-		'its README.</p>' + manual('QGIS-plugin#11-animation-timelapse'),
+		'its README.</p>' + manual('QGIS-plugin#12-animation-timelapse'),
 	'anim_metric':
 		'<p>How the images of each frame are joined on each pixel: the median (by default), the mean, the minimum, the '
 		'maximum, a percentile, the standard deviation or the coefficient of variation (%).</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'anim_fps':
 		'<p>Frames per second of the GIF: 2 shows each year for half a second.</p>'
-		+ manual('QGIS-plugin#11-animation-timelapse'),
+		+ manual('QGIS-plugin#12-animation-timelapse'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
 		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>' + SPREAD_HELP +

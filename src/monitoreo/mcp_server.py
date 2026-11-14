@@ -86,7 +86,8 @@ pixel size, over its ecoregions: the input variables of a model). Seasonal trend
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
 pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Hectares and %
 of each class of a land cover map of a year, of the map of a variable cut at some values, or of the trend on each
-pixel (significant decrease, no trend, increase): area_by_class. Animations
+pixel (significant decrease, no trend, increase): area_by_class. Gradients: the statistics of a map by elevation band
+(region_stats with zones) and its profile along a line, with the elevation (transect). Animations
 (timelapses) of a variable, a frame per year, month, 16 days or day with its date: timelapse (a GIF, or an MP4). Burn
 severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
 Burn Ratio, a continuous index; or, with index "RdNBR", the relative dNBR of Miller & Thode 2007 with the classes of
@@ -627,16 +628,52 @@ def region_stats(region: dict, variable: Optional[str] = None, sensor: Optional[
                  scale: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
                  band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
                  unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None,
-                 interannual: str = 'mean', stats: Optional[List[str]] = None) -> str:
+                 interannual: str = 'mean', stats: Optional[List[str]] = None, zones: Optional[dict] = None):
 	"""Statistics over each feature of a region of the map of a variable aggregated in time (METRIC; with temporal
 	'annual', 'monthly' or '16-day', then INTERANNUAL between the years), with the number of pixels. stats: any of
 	mean, median, min, max, std (standard deviation), cv (coefficient of variation: 100 * std / mean, in %) and pN
-	(percentile N), for any variable; by default mean, std, cv, min, p5, p50, p95 and max. Required: region, and
+	(percentile N), for any variable; by default mean, std, cv, min, p5, p50, p95 and max (with zones, also p25 and
+	p75). zones: those of each band of another variable instead, e.g. {"variable": "ELEVATION", "sensor":
+	"Copernicus", "breaks": [1500, 2000, 2500]} (elevation bands), with a CSV and a chart. Required: region, and
 	variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
-	return _text(services.region_stats(region, variable, sensor, start, end, metric, temporal, interannual,
-	                                   season=season, quality=quality, stats=stats, scale=scale, where=where, **source))
+	files = {}
+	if zones:
+		stem = _stem('zones', _data(variable, sensor, source), *(() if image else (metric, start, end)))
+		files = {'csv': _out(stem, 'csv'), 'chart': _out(stem, 'png')}
+	res = services.region_stats(region, variable, sensor, start, end, metric, temporal, interannual, season=season,
+	                            quality=quality, stats=stats, scale=scale, where=where, zones=zones, **files, **source)
+	if not zones:
+		return _text(res)
+	out = [_text(res)]
+	if res.get('chart'):
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
+
+
+@tool
+def transect(line: list, variable: Optional[str] = None, sensor: Optional[str] = None, start: Optional[str] = None,
+             end: Optional[str] = None, metric: str = 'median', temporal: str = 'period', interannual: str = 'mean',
+             season: Optional[List[str]] = None, quality: Optional[dict] = None, spacing: Optional[float] = None,
+             points: int = 100, collection: Optional[str] = None, image: Optional[str] = None,
+             band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
+             unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None):
+	"""Profile of the map of a variable (as map_layer, also the fixed layers) along a line ([[lon, lat], ...], two
+	points or more), with the elevation: the mean of each segment of spacing metres (default: the length / points, at
+	least a pixel), e.g. the NDVI from the valley to the summit. Writes a CSV and returns the chart. Required: line,
+	and variable and sensor or collection or image and band; start and end, except for the fixed layers."""
+	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+	_ready()
+	stem = _stem('transect', _data(variable, sensor, source), *(() if image else (metric, start, end)))
+	res = services.transect(line, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+	                        spacing, points, csv=_out(stem, 'csv'), chart=_out(stem, 'png'), where=where, **source)
+	out = [_text(res)]
+	if res.get('chart'):
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
 
 
 @tool

@@ -679,6 +679,35 @@ class MonitorEODock(QDockWidget):
 		self.area_kind_changed()
 		main.addWidget(box)
 
+		box = QGroupBox('Gradients (elevation bands and profiles)')
+		f = QFormLayout(box)
+		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim
+		for v in self.all_variables:
+			if v.get('static'):
+				self.zone_variable.addItem(f"{v['variable']} · {v['sensor']}", v)
+		self.zone_variable.setCurrentIndex(max(0, self.zone_variable.findText('ELEVATION', Qt.MatchFlag.MatchStartsWith)))
+		self.zone_breaks = QLineEdit(s.value(SETTINGS + 'zone_breaks', '1500, 2000, 2500, 3000'))
+		self.zone_breaks.setPlaceholderText('e.g. 1500, 2000, 2500')
+		row = QHBoxLayout()
+		row.addWidget(self.zone_variable, 1)
+		row.addWidget(self.zone_breaks, 1)
+		f.addRow('Bands of', info(row, HELP['zones']))
+		b = QPushButton('Statistics of each band')
+		b.setToolTip('The percentiles 25, 50 and 75 and the mean of the map of the variable (with the options of the group '
+		             'Map) in each band of the elevation (or of another fixed layer), over each feature of the region')
+		b.clicked.connect(self.run_zones)
+		f.addRow(b)
+		self.line_layer = QgsMapLayerComboBox()
+		self.line_layer.setFilters(Qgis.LayerFilter.LineLayer)
+		self.line_layer.setAllowEmptyLayer(True)
+		f.addRow('Line', info(self.line_layer, HELP['transect']))
+		b = QPushButton('Profile along the line')
+		b.setToolTip('The map of the variable (with the options of the group Map) and the elevation along the selected '
+		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
+		b.clicked.connect(self.run_transect)
+		f.addRow(b)
+		main.addWidget(box)
+
 		box = QGroupBox('Animation (timelapse)')
 		self.animation_box = box  # greyed out for the fixed layers without dates (elevation, slope)
 		f = QFormLayout(box)
@@ -960,6 +989,7 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'area_kind', self.area_kind.currentData())
 		s.setValue(SETTINGS + 'area_map', self.area_map.currentData())
 		s.setValue(SETTINGS + 'area_breaks', self.area_breaks.text().strip())
+		s.setValue(SETTINGS + 'zone_breaks', self.zone_breaks.text().strip())
 		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
 		s.setValue(SETTINGS + 'fire_perimeter', 'true' if self.fire_perimeter.isChecked() else 'false')
 		for key, d in self.fire_dates.items():
@@ -1782,6 +1812,87 @@ class MonitorEODock(QDockWidget):
 			self.add_result(res)
 
 		self.run_task(f"Area by class of {what}", work, done)
+
+	def map_options(self, var):
+		"""VAR with the metric, temporal aggregation and metric between years of the group Map (none for a fixed
+		layer)."""
+		if (self.variable.currentData() or {}).get('static'):
+			return dict(var)
+		return dict(var, metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
+		            interannual=self.interannual.currentData())
+
+	def run_zones(self):
+		"""The statistics of the map of the variable in each band of a fixed layer (services.region_stats with zones),
+		in a window with its table (and chart, with matplotlib)."""
+		args = self.prepare()
+		if not args:
+			return
+		region, var = args
+		z = self.zone_variable.currentData() or {}
+		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor'), 'breaks': self.zone_breaks.text()}
+		stats = ['p25', 'p50', 'p75', 'mean']
+		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+
+		def work():
+			return services.region_stats(region, stats=stats, zones=zones, csv=os.path.join(tmp, 'zones.csv'),
+			                             **self.map_options(var))
+
+		def done(res):
+			from monitoreo import charts
+			path = os.path.join(tmp, 'zones.png')
+			try:  # in the main thread; without matplotlib, the table only
+				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
+				res['chart'] = path
+			except ImportError:
+				res['chart'] = None
+			res.update(kind='zones', label=f"Bands of {zones['variable']}: {data_name(var)}")
+			self.add_result(res)
+
+		self.run_task(f"Statistics by band of {data_name(var)}", work, done)
+
+	def line_points(self):
+		"""[[lon, lat], ...] of the selected line of the layer of Line (or its first one), in WGS 84, or ValueError."""
+		layer = self.line_layer.currentLayer()
+		if layer is None:
+			raise ValueError('choose a layer of lines in Line (add one, or draw a line in a new temporary layer)')
+		feats = list(layer.getSelectedFeatures()) or list(layer.getFeatures())
+		if not feats:
+			raise ValueError(f'the layer {layer.name()} has no lines')
+		tr = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326'), QgsProject.instance())
+		geom = feats[0].geometry()
+		geom.transform(tr)
+		parts = geom.asMultiPolyline() if geom.isMultipart() else [geom.asPolyline()]
+		points = [[p.x(), p.y()] for p in (parts[0] if parts else [])]
+		if len(points) < 2:
+			raise ValueError(f'the first line of {layer.name()} has fewer than two points')
+		return points
+
+	def run_transect(self):
+		"""The profile of the map of the variable along a line (services.transect), with the elevation, in a window
+		with its table (and chart, with matplotlib)."""
+		try:
+			line = self.line_points()
+			var = self.variable_args()
+		except Exception as e:
+			self.message(str(e), 'Warning')
+			return
+		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+
+		def work():
+			return services.transect(line, csv=os.path.join(tmp, 'profile.csv'), **self.map_options(var))
+
+		def done(res):
+			from monitoreo import charts
+			path = os.path.join(tmp, 'profile.png')
+			try:  # in the main thread; without matplotlib, the table only
+				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'))
+				res['chart'] = path
+			except ImportError:
+				res['chart'] = None
+			res.update(kind='transect', label=f"Profile of {data_name(var)}")
+			self.add_result(res)
+
+		self.run_task(f"Profile of {data_name(var)}", work, done)
 
 	def run_timelapse(self):
 		"""Animation of the variable over the region (services.timelapse): a GIF with a frame per step, in its window

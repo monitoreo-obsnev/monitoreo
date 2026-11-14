@@ -90,18 +90,19 @@ LICENSES = {
 }
 LICENSE = 'CC-BY-4.0'
 
-# type of analysis of each tool, and its name in the viewer
+# type of analysis of each tool (region_stats with zones too: gradients, see _analysis), and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation', 'area_by_class': 'areas'}
+            'timelapse': 'animation', 'area_by_class': 'areas', 'transect': 'gradients'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
-                  'areas': 'Area by class'}
+                  'areas': 'Area by class', 'gradients': 'Gradients'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
-CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'table')
+CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
+          'transect': 'transect'}
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -369,6 +370,13 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'transect':
+		return f'Profile of {var} along a line, {period}{season}' if period and not is_static(args) else \
+			f'Profile of {var} along a line'
+	if tool == 'region_stats' and isinstance(args.get('zones'), dict):
+		from .services import zone_name
+		what = f"Statistics of {var} by {zone_name(args['zones'])}"
+		return what + (f', {period}{season}' if period and not is_static(args) else '')
 	if tool == 'area_by_class':
 		if args.get('landcover'):
 			from . import landcover
@@ -689,7 +697,7 @@ def _chart_type(tool, path):
 	if tool in CHARTS:
 		return CHARTS[tool]
 	cols = _columns(path)
-	return ('series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
+	return ('zones' if 'zone_label' in cols else 'series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
 
@@ -758,6 +766,10 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart in ('transect', 'zones'):  # the title of the y axis, and the statistics of the zones
+			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
+			if chart == 'zones':
+				entry['stats'] = list(res.get('stats') or [])
 		if chart == 'trends':
 			entry['slope_unit'] = unit_text(unit, per_year=True)
 			entry['alpha'] = float(args.get('alpha') or 0.05)
@@ -856,6 +868,13 @@ def _variables(items):
 	return list(out.values())
 
 
+def _analysis(item):
+	"""The type of analysis of a result ITEM of a report (see ANALYSES)."""
+	if item.get('tool') == 'region_stats' and isinstance((item.get('args') or {}).get('zones'), dict):
+		return 'gradients'  # the statistics of each elevation band, as the profiles along a line
+	return ANALYSES.get(item.get('tool'), 'map')
+
+
 def _periods(items):
 	out = []
 	for it in items:
@@ -918,7 +937,7 @@ def build(spec, rid, base, folders, log, folder):
 		bs = [r['bounds'] for r in maps_]
 		region['bounds'] = [min(b[0] for b in bs), min(b[1] for b in bs), max(b[2] for b in bs), max(b[3] for b in bs)]
 	periods = _periods(items)
-	analyses = list(dict.fromkeys(ANALYSES.get(it.get('tool'), 'map') for it in items))
+	analyses = list(dict.fromkeys(_analysis(it) for it in items))
 	sections = [{'title': str(s['title']), 'text': _paragraphs(s.get('text'))} for s in _list(spec.get('sections'))]
 	return {
 		'schema': SCHEMA, 'id': rid, 'title': str(spec['title']).strip(),

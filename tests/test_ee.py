@@ -344,3 +344,17 @@ def test_changes_of_a_land_cover_map(tmp_path):
 	assert 7500 < total < 8800 and abs(res['changed_ha']['bbox'] + res['unchanged_ha']['bbox'] - total) < 1e-6
 	assert abs(sum(r['ha'] for r in res['by_landcover']) - total) < 1e-6
 	assert res.get('chart') is None or os.path.getsize(res['chart']) > 0
+
+
+def test_gradients(tmp_path):
+	"""The NDVI of each elevation band of the box, and the profile of the LST along a line up the Sierra Nevada with the
+	elevation: higher, cooler."""
+	z = services.region_stats(GUAJARES, 'NDVI', 'Modis', '2023-06-01', '2023-08-31', stats=['p50'],
+	                          zones={'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [500, 1000]})
+	assert [r['zone_label'] for r in z['rows']] == ['below 500 m', '500 to 1000 m', '1000 m or more']
+	assert all(r['n_pixels'] > 0 and 0 < r['p50'] < 1 for r in z['rows'])
+	p = services.transect([[-3.60, 37.15], [-3.39, 37.06]], 'LST', 'Modis', '2023-07-01', '2023-08-31',
+	                      csv=str(tmp_path / 'p.csv'))
+	rows = [r for r in p['rows'] if r['value'] is not None]
+	assert len(p['rows']) == 22 and len(rows) > 15  # 21.2 km, every km and rows[0]['elevation'] < rows[-1]['elevation']
+	assert rows[0]['value'] > rows[-1]['value'] and os.path.exists(p['readme'])

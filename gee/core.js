@@ -1509,6 +1509,71 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// Gradients (services.region_stats with zones, services.transect): the statistics of a map in each band of another
+	// variable, and its profile along a line with the elevation
+	var ZONE_STATS = ['p25', 'p50', 'p75', 'mean'];
+
+	// The grouped statistics (ZONE_STATS and the count) of the image VALUE in each zone of ZONE over each feature, to
+	// evaluate
+	function zoneStats(value, zone, regions, scale, crs) {
+		var red = ee.Reducer.percentile([25, 50, 75]).combine(ee.Reducer.mean(), '', true)
+			.combine(ee.Reducer.count(), '', true);
+		return ee.Image(value).rename('value').addBands(zone).reduceRegions({collection: regions,
+			reducer: red.group(1, 'zone'), scale: scale, crs: crs, tileScale: 4});
+	}
+
+	// The rows of the evaluated FEATURES of zoneStats for the zones of LEGEND (breakClasses)
+	function zoneRows(features, legend) {
+		var out = [];
+		features.forEach(function (f) {
+			var by = {};
+			(f.properties.groups || []).forEach(function (g) { by[Math.round(g.zone)] = g; });
+			legend.forEach(function (z) {
+				var g = by[z[0]] || {};
+				var row = {region: String(f.properties.name), zone: z[0], zone_label: z[1], zone_from: z[2], zone_to: z[3]};
+				ZONE_STATS.forEach(function (s) { row[s] = g[s] === undefined ? null : g[s]; });
+				row.n_pixels = g.count || 0;
+				out.push(row);
+			});
+		});
+		return out;
+	}
+
+	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres, none within a
+	// millionth of a step of its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH)
+	function transectCuts(length, step) {
+		var out = [];
+		for (var i = 1; i * step < length - step * 1e-6; i++) out.push(i * step);
+		return out;
+	}
+
+	// The mean of VALUE and of the elevation DEM over each segment of LINE cut at CUTS (each within half a pixel of
+	// SCALE), with the centre of each segment, to evaluate: the segments that Earth Engine gives (one fewer if it
+	// measures the line a hair shorter: transectRows leaves the last row empty)
+	function transectStats(value, dem, line, cuts, scale, crs) {
+		var segments = ee.List(ee.Geometry(line).cutLines(cuts, 1).geometries());
+		var fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(function (i) {
+			var g = ee.Geometry(segments.get(i));
+			return ee.Feature(g.buffer(scale / 2, 1), {i: i, centre: g.centroid(1).coordinates()});
+		}));
+		return ee.Image.cat([ee.Image(value).rename('value'), ee.Image(dem).rename('elevation')]).reduceRegions({
+			collection: fc, reducer: ee.Reducer.mean(), scale: scale, crs: crs, tileScale: 4});
+	}
+
+	// The rows {distance_m, lon, lat, value, elevation} of the evaluated FEATURES of transectStats
+	function transectRows(features, cuts, length) {
+		var by = {};
+		features.forEach(function (f) { by[Math.round(f.properties.i)] = f.properties; });
+		var out = [];
+		for (var i = 0; i <= cuts.length; i++) {
+			var p = by[i] || {}, a = i ? cuts[i - 1] : 0, b = i < cuts.length ? cuts[i] : length;
+			var c = p.centre || [null, null];
+			out.push({distance_m: (a + b) / 2, lon: c[0], lat: c[1], value: p.value === undefined ? null : p.value,
+				elevation: p.elevation === undefined ? null : p.elevation});
+		}
+		return out;
+	}
+
 	// The changes of a land cover map between two years (classes.pairs, transition_rows, broad_transitions)
 	var PAIR = 1000;
 
@@ -2405,7 +2470,8 @@ var MonitorEO = (function () {
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
-		broadTransitions: broadTransitions,
+		broadTransitions: broadTransitions, ZONE_STATS: ZONE_STATS, zoneStats: zoneStats, zoneRows: zoneRows,
+		transectCuts: transectCuts, transectStats: transectStats, transectRows: transectRows,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
 		animationRange: animationRange,

@@ -1027,8 +1027,15 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' @param stats the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 #'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
 #'   \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
-#'   p5, p50, p95 and max.
-#' @return A data.frame (region, the columns of \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and
+#'   p5, p50, p95 and max (with \code{zones}, also p25 and p75).
+#' @param zones the statistics of each band of another variable instead, e.g. the elevation bands
+#'   \code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
+#'   is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).
+#' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
+#'   (or else the mean, or the first statistic) of each band with its percentiles 25 and 75 (or else 5 and 95, if
+#'   \code{stats} has them and not those; with neither, no band).
+#' @return A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of
+#'   \code{stats}: by default mean, std, cv, min, p5, p50, p95, max, and with \code{zones} p25 and p75 too; and
 #'   n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
 #'   \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -1049,21 +1056,66 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #'                 temporal = "annual", interannual = "cv", stats = c("mean", "median", "p90"))
 #' # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
 #' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+#' # the NDVI of each elevation band of 500 m
+#' mo_region_stats(mo_wdpa(389011), "NDVI", "Modis", "2023-06-01", "2023-08-31", stats = c("p25", "p50", "p75"),
+#'                 zones = list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500, 3000)))
 #' }
 #' @export
 mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                             temporal = "period", season = NULL, quality = NULL, scale = NULL, collection = NULL,
                             where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                            terrain = NULL, interannual = "mean", stats = NULL) {
+                            terrain = NULL, interannual = "mean", stats = NULL, zones = NULL, csv = NULL,
+                            chart = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+  if (!is.null(zones$breaks)) zones$breaks <- as.list(as.numeric(zones$breaks))
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, interannual = interannual,
                                  season = season, quality = quality, stats = if (is.null(stats)) NULL else as.list(stats),
                                  scale = scale, collection = collection, where = where, image = image, band = band,
-                                 band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
+                                 band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain,
+                                 zones = zones, csv = if (is.null(csv)) NULL else path.expand(csv),
+                                 chart = if (is.null(chart)) NULL else path.expand(chart))
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
   attr(df, "scale") <- res$scale
+  cited(df, res)
+}
+
+#' Profile of a variable along a line, with the elevation
+#'
+#' The map of \code{mo_map_layer()} with the same arguments (also the fixed layers) along a line: the line is cut in
+#' segments of \code{spacing} metres (default: its length / \code{points}, at least a pixel of the data), and each
+#' segment gets the mean of the pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of
+#' geemap (Wu, 2020).
+#' @inheritParams mo_params
+#' @param line the line: a matrix or list of points \code{list(c(lon, lat), ...)}, or a GeoJSON LineString.
+#' @param spacing,points the length of the segments in metres, or their number (segments at least a pixel of the
+#'   data long: fewer on a line shorter than \code{points} pixels).
+#' @return A data.frame (distance_m, value, elevation, lon, lat) with the attributes title, unit, length_m, spacing,
+#'   csv, chart, references and credits (see \code{mo_references()}).
+#' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
+#'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' p <- mo_transect(list(c(-3.60, 37.15), c(-3.45, 37.10), c(-3.39, 37.06)), "LST", "Modis", "2023-07-01",
+#'                  "2023-08-31", chart = "profile.png")
+#' plot(p$distance_m, p$value, type = "l")
+#' }
+#' @export
+mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
+                        temporal = "period", interannual = "mean", season = NULL, quality = NULL, spacing = NULL,
+                        points = 100L, csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL,
+                        band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+  if (is.matrix(line)) line <- lapply(seq_len(nrow(line)), function(i) as.numeric(line[i, ]))
+  res <- services()$transect(line, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                             spacing, as.integer(points), csv = if (is.null(csv)) NULL else path.expand(csv),
+                             chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
+                             where = where, image = image, band = band, band_scale = band_scale,
+                             band_offset = band_offset, unit = unit, terrain = terrain)
+  df <- rows_df(res$rows)
+  for (k in c("title", "unit", "length_m", "spacing", "csv", "chart")) attr(df, k) <- res[[k]]
   cited(df, res)
 }
 

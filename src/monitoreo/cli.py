@@ -21,6 +21,10 @@
     monitoreo areas VARIABLE --sensor S --region JSON [--start D --end D] --breaks 0.2,0.4,0.6 | --trend
                                                      hectares and % of each class of a land cover map, of the map of a
                                                      variable cut at some values, or of the trend on each pixel
+    monitoreo stats VARIABLE ... --zones '{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000]}'
+                                                     the statistics of each band of another variable (elevation)
+    monitoreo transect VARIABLE --sensor S --line '[[lon, lat], ...]' [--start D --end D] [--csv F] [--png F]
+                                                     profile of a variable along a line, with the elevation
     monitoreo timelapse VARIABLE --sensor S --region JSON --start D --end D --out F.gif|F.mp4
                         [--step annual|monthly|16-day|daily] [--metric median] [--fps 2]
                                                      animation of a variable: a frame per step with its date
@@ -310,7 +314,7 @@ def main(argv=None):
 	                                             'with --out too, on its grid. Only the variables of Sentinel-2 and '
 	                                             'Landsat and the cloud frequency of MODIS (rgb in monitoreo info), '
 	                                             'with metric median, mean, min, max or pN')
-	from .catalog import REGION_STATS
+	from .catalog import REGION_STATS, REGION_STATS_ZONES
 	computes['stats'] = p = sub.add_parser('stats', help='statistics of the map of a variable over each feature of a '
 	                                                     'region (also the fixed layers)')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
@@ -324,12 +328,33 @@ def main(argv=None):
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
-	p.add_argument('--stats', default=','.join(REGION_STATS),
-	               help='the statistics over each feature, separated by commas: mean, median, min, max, std (standard '
-	                    'deviation), cv (coefficient of variation, in %%) and pN (percentile N) (default: '
-	                    f"{','.join(REGION_STATS)})")
+	p.add_argument('--stats', help='the statistics over each feature, separated by commas: mean, median, min, max, std '
+	                               '(standard deviation), cv (coefficient of variation, in %%) and pN (percentile N) '
+	                               f"(default: {','.join(REGION_STATS)}; with --zones, {','.join(REGION_STATS_ZONES)})")
 	p.add_argument('--scale', type=float, help='pixel size of the statistics in metres (default: that of the data, or '
 	                                           'bigger over big regions)')
+	p.add_argument('--zones', help='the statistics of each band of another variable instead, a JSON dictionary, e.g. '
+	                               '\'{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000, 2500]}\'')
+	p.add_argument('--csv', help='CSV file of the statistics')
+	p.add_argument('--png', help='with --zones, chart of the statistics of each zone (PNG)')
+	computes['transect'] = p = sub.add_parser('transect', help='profile of the map of a variable along a line, with the '
+	                                                           'elevation')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p, image=True)
+	p.add_argument('--line', required=True, help='the line, a JSON list of points [[lon, lat], ...] or a GeoJSON '
+	                                             'LineString')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', help='first day (not for the fixed layers)')
+	p.add_argument('--end', help='last day')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
+	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
+	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
+	p.add_argument('--spacing', type=float, help='length of the segments in metres (default: the line / --points, at '
+	                                             'least a pixel of the data)')
+	p.add_argument('--points', type=int, default=100, help='segments of the line (default 100)')
+	p.add_argument('--csv')
+	p.add_argument('--png')
 	for name, help_ in (('trend', 'seasonal trends (Mann-Kendall and Sen) of a variable over a region'),
 	                    ('compare', 'a reference period against another, by part of the year')):
 		computes[name] = p = sub.add_parser(name, help=help_)
@@ -622,6 +647,9 @@ def _compute(args, services):
 	if args.cmd == 'areas':
 		_areas(args, services)
 		return
+	if args.cmd == 'transect':
+		_transect(args, services)
+		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
 		_image(args, services)
@@ -673,15 +701,17 @@ def _image(args, services):
 def _stats(args, services):
 	"""Statistics of the map of a variable over each feature of the region (services.region_stats): any of mean,
 	median, min, max, std, cv (coefficient of variation, %) and pN, for any variable, also the fixed layers."""
-	stats = [s.strip() for s in str(args.stats).split(',') if s.strip()]
+	stats = [s.strip() for s in str(args.stats).split(',') if s.strip()] if args.stats else None  # those of the service
 	try:
 		res = services.region_stats(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
 		                            temporal=args.temporal, interannual=args.interannual, stats=stats, scale=args.scale,
-		                            where=_where(args), **args.source)
+		                            where=_where(args), zones=json.loads(args.zones) if args.zones else None,
+		                            csv=args.csv, chart=args.png, **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
-	_table(_fmt(res['rows']), ['region'] + list(res.get('stats') or stats) + ['n_pixels'])
-	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats) else ''
+	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + list(res.get('stats') or stats or [])
+	       + ['n_pixels'])
+	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats or []) else ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
 
 
@@ -728,6 +758,20 @@ def _timelapse(args, services):
 	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
 	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
 	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+
+
+def _transect(args, services):
+	"""Profile of a variable along a line (services.transect): the value and the elevation of each segment."""
+	try:
+		res = services.transect(args.line, start=args.start, end=args.end, metric=args.metric, temporal=args.temporal,
+		                        interannual=args.interannual, spacing=args.spacing, points=args.points, csv=args.csv,
+		                        chart=args.png, where=_where(args), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	_table(_fmt(res['rows']), ['distance_m', 'value', 'elevation', 'lon', 'lat'])
+	print(f"\n{res['title']} | segments of {res['spacing']:.4g} m | elevation in m"
+	      + (f" | unit {res['unit']}" if res['unit'] else '') + (f" | CSV {res['csv']}" if res.get('csv') else '')
+	      + (f" | chart {res['chart']}" if res.get('chart') else ''))
 
 
 def _fmt(rows, digits=4):

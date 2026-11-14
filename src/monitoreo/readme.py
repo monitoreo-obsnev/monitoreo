@@ -82,6 +82,14 @@ COLUMNS = {
 	'from_label': 'name of the class in the first year', 'from_landcover': 'broad land cover of the class in the first year',
 	'to_class': 'class of the map in the other year (code)', 'to_label': 'name of the class in the other year',
 	'to_landcover': 'broad land cover of the class in the other year',
+	'zone': 'zone: its number from 0 (below the first break of the variable of the zones)',
+	'zone_label': 'name of the zone (its values of the variable of the zones)',
+	'zone_from': 'lowest value of the variable of the zones in the zone{zu} (empty: no limit)',
+	'zone_to': 'value of the variable of the zones where the zone ends, not in it{zu} (empty: no limit)',
+	'distance_m': 'distance along the line to the middle of the segment (m)',
+	'lon': 'longitude of the middle of the segment (degrees, WGS 84)', 'lat': 'latitude of the middle of the segment '
+	                                                                       '(degrees, WGS 84)',
+	'elevation': 'mean elevation of the segment (m, Copernicus DEM GLO-30)',
 }
 # the columns of the CSV of area_by_class that differ
 COLUMNS_AREAS = {
@@ -172,6 +180,19 @@ def _udunits(result, args):
 	"""The unit of the variable of a result in UDUNITS ('degC', '1'), or '' if unknown."""
 	from . import catalog
 	return catalog.udunits(_catalog_unit(result, args))
+
+
+def _zone_unit(args):
+	"""The unit of the variable of the zones of a call of region_stats (zone_from, zone_to), as shown and in UDUNITS,
+	e.g. ' (m; UDUNITS m)', or '' without zones."""
+	z = args.get('zones')
+	if not isinstance(z, dict):
+		return ''
+	zargs = {'variable': z.get('variable') or z.get('index'), 'sensor': z.get('sensor'), 'collection': z.get('collection'),
+	         'metric': z.get('metric') or 'mean', 'temporal': z.get('temporal'),
+	         'interannual': z.get('interannual') or 'mean'}
+	ud = _udunits(None, zargs)
+	return f" ({_unit(None, zargs) or 'dimensionless'}; UDUNITS {ud})" if ud else ''
 
 
 def _wrap(text, indent='  ', hang='    '):
@@ -269,6 +290,7 @@ def text(tool, args, result, computed=None):
 	out += [_wrap(f'{k}: {v}') for k, v in report.item_facts(tool, given, result)]
 	unit, ud = _unit(result, args), _udunits(result, args)
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit + '/year' if unit else 'per year'})"
+	zu = _zone_unit(given) if tool == 'region_stats' else ''
 	if ud:
 		out += _section('Units')
 		per_year = f"; its change per year, {band_udunits('slope', ud)}" if 'trend' in tool else ''
@@ -286,8 +308,10 @@ def text(tool, args, result, computed=None):
 			header = _csv_header(f)
 			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
 				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
-				if tool == 'area_by_class' else COLUMNS
-			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
+				if tool == 'area_by_class' else \
+				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
+				if tool == 'transect' else COLUMNS
+			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy, zu=zu)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):
 			bands, grid = _bands(f)

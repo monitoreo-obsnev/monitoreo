@@ -1049,32 +1049,214 @@ STEP_NAMES = {'annual': 'a frame per year', 'monthly': 'a frame per month', '16-
 
 
 REGION_STATS = catalog.REGION_STATS  # the statistics of region_stats by default
+REGION_STATS_ZONES = catalog.REGION_STATS_ZONES  # and with zones
 
 
 @_cited
 def region_stats(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
-                 interannual='mean', season=None, quality=None, stats=REGION_STATS, scale=None, **source):
+                 interannual='mean', season=None, quality=None, stats=None, scale=None, zones=None, csv=None,
+                 chart=None, **source):
 	"""Statistics over each feature of REGION of the map of a variable aggregated in time: STATS, any of mean,
 	median, min, max, std (standard deviation), cv (coefficient of variation, in %: 100 × std / mean) and pN
-	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim).
+	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim); by
+	default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
+	With ZONES, those of each zone of each feature instead: the classes of another variable cut at some values, e.g.
+	the elevation bands {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000, 2500]} (also
+	'metric', 'temporal', 'interannual' and 'period' of a variable with dates, by default aggregated over the period of
+	the result, as the conditions of where), with the rows of every zone of every feature (zone, zone_label,
+	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median (or else the mean, or the first
+	statistic) of each zone and its percentiles 25 and 75 (or else 5 and 95, if STATS has them and not those; with
+	neither, no band; its legend says which).
 	{'rows': [{region, mean, std, cv, min, p5, p50, p95, max, n_pixels}], 'stats', 'scale', 'unit' (of the map: that of
-	cv is %), 'title'}."""
-	stats = [stats] if isinstance(stats, str) else list(stats or REGION_STATS)
+	cv is %), 'title', 'csv', 'chart'}."""
+	stats = [stats] if isinstance(stats, str) else list(stats or (REGION_STATS_ZONES if zones else REGION_STATS))
 	for s in stats:
 		composite.check_metric(s)  # before Earth Engine
+	zone_cuts = zones_of(zones)
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, False, None, source)
 	scale = scale or timeseries.auto_scale(spec, regions)
 	red, names = composite.region_reducer(stats)
-	fc = img.reduceRegions(collection=regions, reducer=red, scale=scale, crs=timeseries.region_crs(regions), tileScale=4)
+	crs = timeseries.region_crs(regions)
 	rows = []
-	for f in fc.getInfo()['features']:
-		p = f['properties']
-		row = {'region': str(p.get('name'))}
-		row.update({s: composite.value_of(p, s, names) for s in stats})
-		row['n_pixels'] = p.get('count')
-		rows.append(row)
-	return {'rows': rows, 'stats': stats, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
+	if zone_cuts:
+		zspec = _zone_spec(zones, spec)
+		legend = classes.break_classes(zone_cuts, unit_text_of(_unit(zspec)))
+		zone = classes.classify_breaks(variables.image(zspec, regions.geometry(), scale), zone_cuts)
+		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), scale=scale, crs=crs,
+		                                      tileScale=4)
+		for f in fc.getInfo()['features']:
+			p = f['properties']
+			by = {int(g['zone']): g for g in p.get('groups') or []}
+			for z, label, lo, hi in legend:
+				row = {'region': str(p.get('name')), 'zone': z, 'zone_label': label, 'zone_from': lo, 'zone_to': hi}
+				row.update({s: composite.value_of(by.get(z, {}), s, names) for s in stats})
+				row['n_pixels'] = by.get(z, {}).get('count', 0)
+				rows.append(row)
+	else:
+		fc = img.reduceRegions(collection=regions, reducer=red, scale=scale, crs=crs, tileScale=4)
+		for f in fc.getInfo()['features']:
+			p = f['properties']
+			row = {'region': str(p.get('name'))}
+			row.update({s: composite.value_of(p, s, names) for s in stats})
+			row['n_pixels'] = p.get('count')
+			rows.append(row)
+	title = _named(spec, metric) + (f" by {zone_name(zones)}" if zone_cuts else '')
+	out = {'rows': rows, 'stats': stats, 'scale': scale, 'unit': _unit(spec), 'title': title, 'csv': None, 'chart': None}
+	if zone_cuts:
+		out['ylabel'] = _ylabel(spec)
+	if csv:
+		columns = ['region'] + (['zone', 'zone_label', 'zone_from', 'zone_to'] if zone_cuts else []) + stats + \
+			['n_pixels']
+		out['csv'] = timeseries.write_csv(rows, csv, {'variable': _source_name(variable, source),
+		                                              'sensor': sensor or '', 'unit': catalog.udunits(out['unit']),
+		                                              'scale_m': scale}, columns)
+	if chart and zone_cuts and rows:
+		try:
+			charts.zones_png(rows, stats, chart, title, _ylabel(spec), zone_name(zones))
+			out['chart'] = chart
+		except ImportError:
+			pass
+	return out
+
+
+@_cited
+def transect(line, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
+             interannual='mean', season=None, quality=None, spacing=None, points=100, scale=None, csv=None, chart=None,
+             **source):
+	"""Profile of the map of a variable (as map_layer, also the fixed layers) along LINE ([[lon, lat], ...], a GeoJSON
+	LineString, or {'geojson': ...} of one), with the elevation of the Copernicus DEM: the line is cut in segments of
+	SPACING metres (default: its length / POINTS, at least the pixel of the data), and each segment gets the mean of the
+	pixels it crosses (those within half a pixel of it: a segment shorter than a pixel would get none), as the transects
+	of geemap. Writes the table to CSV and a chart of the variable and the elevation
+	along the line to CHART (PNG).
+	Returns {'rows': [{distance_m, lon, lat, value, elevation}], 'length_m', 'spacing', 'scale', 'unit', 'title', 'csv',
+	'chart'}."""
+	coords = transect_line(line)
+	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
+	                 season=season, quality=quality, **source)
+	geom = ee.Geometry.LineString(coords)
+	length = float(geom.length(1).getInfo())
+	native = float(variables.native_scale(spec))
+	step = float(spacing) if spacing else max(native, length / max(int(points), 2))
+	cuts = transect_cuts(length, step)
+	segments = ee.List(geom.cutLines(cuts, 1).geometries())
+	n = len(cuts) + 1  # the segments wanted: the rows (Earth Engine may give one fewer, the last row then empty)
+	half = float(scale or native) / 2
+
+	def segment(i):
+		g = ee.Geometry(segments.get(i))
+		return ee.Feature(g.buffer(half, 1), {'i': i, 'centre': g.centroid(1).coordinates()})
+
+	fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(segment))
+	value = variables.image(spec, geom.buffer(step), scale or native).rename('value')
+	dem = variables.image(make_spec('ELEVATION', 'Copernicus'), geom.buffer(step), 30).rename('elevation')
+	stats = ee.Image.cat([value, dem]).reduceRegions(collection=fc, reducer=ee.Reducer.mean(), scale=scale or native,
+	                                                 crs=areas.utm_of(*coords[len(coords) // 2]), tileScale=4)
+	got = {int(f['properties']['i']): f['properties'] for f in stats.getInfo()['features']}
+	rows = []
+	for i in range(n):
+		p = got.get(i, {})
+		a, b = (cuts[i - 1] if i else 0.0), (cuts[i] if i < len(cuts) else length)
+		lon, lat = (p.get('centre') or [None, None])[:2]
+		rows.append({'distance_m': (a + b) / 2, 'lon': lon, 'lat': lat, 'value': p.get('value'),
+		             'elevation': p.get('elevation')})
+	title = f"{_named(spec, metric)} along a line of {length / 1000:.3g} km"
+	out = {'rows': rows, 'length_m': length, 'spacing': step, 'scale': scale or native, 'unit': _unit(spec),
+	       'ylabel': _ylabel(spec), 'title': title, 'csv': None, 'chart': None}
+	if csv:
+		out['csv'] = timeseries.write_csv(rows, csv, {'variable': _source_name(variable, source), 'sensor': sensor or '',
+		                                              'unit': catalog.udunits(out['unit']), 'scale_m': out['scale']},
+		                                  TRANSECT_COLUMNS)
+	if chart and rows:
+		try:
+			charts.transect_png(rows, chart, title, _ylabel(spec))
+			out['chart'] = chart
+		except ImportError:
+			pass
+	return out
+
+
+TRANSECT_COLUMNS = ['distance_m', 'lon', 'lat', 'value', 'elevation']
+
+
+def transect_cuts(length, step):
+	"""The distances (m) where a line of LENGTH metres is cut every STEP metres: none within a millionth of a step of
+	its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH, and its cut would add a segment of 0 m)."""
+	return [step * i for i in range(1, int(length // step) + 2) if step * i < length - step * 1e-6]
+
+
+def transect_line(line):
+	"""The [[lon, lat], ...] of LINE (a list of points, a GeoJSON LineString, a Feature of one, or {'geojson': ...}),
+	or ValueError before Earth Engine."""
+	if isinstance(line, str):
+		try:
+			line = json.loads(line)
+		except ValueError:
+			raise ValueError('the line is a list of points [[lon, lat], ...] or a GeoJSON LineString') from None
+	if isinstance(line, dict):
+		line = line.get('geojson', line)
+		if isinstance(line, dict) and line.get('type') == 'Feature':
+			line = line.get('geometry')
+		if isinstance(line, dict) and line.get('type') == 'FeatureCollection' and line.get('features'):
+			line = line['features'][0].get('geometry')
+		if not (isinstance(line, dict) and line.get('type') == 'LineString'):
+			raise ValueError('the line is a list of points [[lon, lat], ...] or a GeoJSON LineString')
+		line = line.get('coordinates')
+	try:
+		coords = [[float(p[0]), float(p[1])] for p in line]
+	except (TypeError, ValueError, IndexError):
+		raise ValueError('the line is a list of points [[lon, lat], ...] or a GeoJSON LineString') from None
+	if len(coords) < 2:
+		raise ValueError('a line has two points or more')
+	if any(not (-180 <= x <= 180 and -90 <= y <= 90) for x, y in coords):
+		raise ValueError('the points of the line are [longitude, latitude] in degrees')
+	return coords
+
+
+def zones_of(zones):
+	"""The breaks of ZONES (see region_stats), checked before Earth Engine, or None without zones."""
+	if not zones:
+		return None
+	if not isinstance(zones, dict) or not (zones.get('variable') or zones.get('index')):
+		raise ValueError('zones is a variable of the catalog and its breaks, e.g. {"variable": "ELEVATION", "sensor": '
+		                 '"Copernicus", "breaks": [1500, 2000, 2500]}')
+	unknown = set(zones) - {'variable', 'index', 'sensor', 'collection', 'breaks', 'metric', 'temporal', 'interannual',
+	                        'period', 'quality'}
+	if unknown:
+		raise ValueError(f"zones has unknown keys {', '.join(sorted(unknown))}: give variable, sensor and breaks (and "
+		                 'metric, temporal, interannual or period for a variable with dates)')
+	period = zones.get('period')
+	if period and (not isinstance(period, (list, tuple)) or len(period) != 2):
+		raise ValueError(f"the period of zones on {zones.get('variable') or zones.get('index')} is [start, end]")
+	return classes.check_breaks(zones.get('breaks') or [])
+
+
+def zone_name(zones):
+	"""The zones in words, e.g. «ELEVATION (Copernicus) bands»."""
+	v = zones.get('variable') or zones.get('index')
+	return f"{v} ({zones['sensor']}) bands" if zones.get('sensor') else f'{v} bands'
+
+
+def _zone_spec(zones, spec):
+	"""The spec of the variable of ZONES: aggregated over its own period, or that of the result SPEC (none for the
+	fixed layers), with its metric (by default the mean), as the conditions of where."""
+	period = zones.get('period') or spec.get('period') or [None, None]
+	zspec = make_spec(zones.get('variable') or zones.get('index'), zones.get('sensor'), *period,
+	                  metric=zones.get('metric') or 'mean', temporal=zones.get('temporal') or 'period',
+	                  interannual=zones.get('interannual') or 'mean', quality=zones.get('quality'),
+	                  collection=zones.get('collection'))
+	if not variables.is_static(zspec):
+		if not zspec.get('period'):
+			raise ValueError(f"the zones of {zones.get('variable')} need a period: give one to the result, or "
+			                 '"period" to zones')
+	return zspec
+
+
+def unit_text_of(unit):
+	"""The unit of the catalog as shown ('°C', '' if dimensionless): see monitoreo.publish.unit_text."""
+	from .publish import unit_text
+	return unit_text(unit)
 
 
 @_cited
