@@ -107,12 +107,42 @@ def test_every_credit_is_written_on_the_frames():
 	assert (out[last:last + s, 8:592] != 255).any()  # its last line written
 
 
+def test_a_narrow_map_on_a_frame_where_its_texts_fit():
+	"""A narrow map (a strip of land: 18 x 65 pixels at dimensions=64, 17 x 601 at 600) is centred on a frame
+	animation.MIN_WIDTH pixels wide, white around it: its credits, all of them, in a few lines, not a letter or two a
+	line in a band below many times the height of the map; and one narrower than its margins can be drawn."""
+	pytest.importorskip('PIL')
+	from PIL import Image, ImageDraw
+	credits = ('MonitorEO; Google Earth Engine; Contains modified USGS Landsat data 2021-2023; Source: FAO GAUL 2025 '
+	           '(CC BY 4.0)')
+	small = animation._font(animation.layout(animation.MIN_WIDTH)[1])
+	measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+	lines = animation._wrap(lambda t: measure.textlength(t, font=small), credits, animation.MIN_WIDTH - 16)
+	assert ' '.join(lines) == credits and len(lines) <= 5
+	big, s, top, bar, bottom = animation.layout(animation.MIN_WIDTH, len(lines))
+	for h, w in ((65, 18), (601, 17), (40, 5), (200, 54)):
+		out = animation.annotate(np.full((h, w, 3), 200, np.uint8), 0, ['2021-01-01 to 2021-01-16'], 'NDVI', 0.1, 0.8,
+		                         ['ff0000', '00ff00'], '1', credits)
+		assert out.shape == (top + h + bottom, animation.MIN_WIDTH, 3), (h, w, out.shape)
+		x = (animation.MIN_WIDTH - w) // 2
+		assert (out[top:top + h - 4, x:x + w] == 200).all()  # the map, in the middle, above its progress bar
+		assert (out[top:top + h - 4, :x] == 255).all() and (out[top:top + h - 4, x + w:] == 255).all()
+		last = top + h + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+		assert (out[last:last + s, 8:animation.MIN_WIDTH - 8] != 255).any()  # the last line of its credits
+	wide = animation.annotate(np.full((50, 300, 3), 200, np.uint8), 0, ['2021'], 'NDVI', 0.1, 0.8,
+	                          ['ff0000', '00ff00'], '1', credits)
+	assert wide.shape[1] == 300 and (wide[animation.layout(300)[2]:][:46] == 200).all()  # a wider map: as it was
+
+
 def test_write_joins_the_frames(tmp_path):
 	Image = pytest.importorskip('PIL.Image')
 	path = animation.write(_frames(3, 80, 100), str(tmp_path / 'a.gif'), ['2021', '2022', '2023'], 'title', 0, 1,
 	                       ['000000', 'ffffff'], '', 'credits', fps=4)
 	gif = Image.open(path)
-	assert gif.n_frames == 3 and gif.info['duration'] == 250 and gif.size[0] == 100
+	assert gif.n_frames == 3 and gif.info['duration'] == 250 and gif.size[0] == max(100, animation.MIN_WIDTH)
+	path = animation.write(_frames(2, 80, 300), str(tmp_path / 'b.gif'), ['2021', '2022'], 'title', 0, 1,
+	                       ['000000', 'ffffff'], '', 'credits', fps=4)
+	assert Image.open(path).size[0] == 300
 
 
 ANSWER = {'file': 'ndvi.gif', 'gif': 'ndvi.gif', 'step': 'annual', 'fps': 2.0, 'dimensions': 600, 'n_frames': 3,
@@ -314,6 +344,16 @@ def test_a_video_animation_is_published_with_its_call(tmp_path):
 	assert 'video' not in r['call']['python'] and 'path="animation.mp4"' in r['call']['python']
 	cites = ' '.join(x['citation'] for x in rep['references'])
 	assert 'Wu, Q. (2020)' in cites and 'Gorelick, N.' in cites and 'Tucker' in cites
+	assert publish.check_report(rep, str(folder)) == []
+	# its MP4 deleted (or moved): the GIF is published with its call, without the video
+	mp4.unlink()
+	folder = tmp_path / 'report2'
+	folder.mkdir()
+	rep = publish.build({'title': 'A video', 'summary': 'Frames', 'results': [str(gif)]}, 'a-video', str(out), [], log,
+	                    str(folder))
+	r = rep['results'][0]
+	assert r['kind'] == 'animation' and r['call']['tool'] == 'timelapse' and r['frames'] == ['2021', '2022', '2023']
+	assert 'mp4' not in r and not any(f.endswith('.mp4') for f in os.listdir(folder / 'files'))
 	assert publish.check_report(rep, str(folder)) == []
 	# the call of Python of a timelapse of the MCP server: services.timelapse has no video
 	assert publish.python_call('timelapse', dict(ARGS, video=False)) == publish.python_call('timelapse', ARGS)

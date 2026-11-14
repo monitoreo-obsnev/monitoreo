@@ -32,6 +32,7 @@ STEPS = ('annual', 'monthly', '16-day', 'daily')
 MAX_FRAMES = 120  # frames of an animation
 DIMENSIONS = 600  # width or height of the frames of the map (pixels)
 MAX_DIMENSIONS = 1200
+MIN_WIDTH = 200  # width of the frames of a narrower map (pixels), centred on them, so that their texts fit
 FPS = 2  # frames per second
 WORKERS = 6  # frames computed at the same time
 NO_DATA = 'd9d9d9'  # the pixels of the region without data in a step
@@ -179,7 +180,8 @@ def annotate(frame, i, labels, title, vmin, vmax, palette, unit='', credits=''):
 	"""The frame I (uint8 array, rows x columns x 3) with a band above with its date (LABELS, one per frame) and TITLE,
 	a progress bar, and a band below with the colour ramp of PALETTE from VMIN to VMAX with its UNIT and the CREDITS of
 	the data, all of them, in as many lines as they need (see _wrap): drawn with Pillow or, without it, with Qt (QGIS).
-	ValueError without both."""
+	A map narrower than MIN_WIDTH pixels is centred on a frame of MIN_WIDTH, white around it. ValueError without
+	both."""
 	texts = (labels[i] if i < len(labels) else '', title, _number(vmin), _number(vmax), unit or '', credits or '',
 	         (i + 1) / (len(labels) or 1))
 	try:
@@ -242,14 +244,15 @@ def _wrap(width_of, text, width):
 
 def _annotate_pil(frame, palette, date, title, lo, hi, unit, credits, done):
 	from PIL import Image, ImageDraw
-	h, w = frame.shape[:2]
+	h, m = frame.shape[:2]
+	w = max(m, MIN_WIDTH)  # a narrower map, centred
 	b, s, top, bar_h, bottom = layout(w)
 	big, small = _font(b), _font(s)
 	measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
 	lines = _wrap(lambda t: measure.textlength(t, font=small), credits, w - 16)
 	bottom = layout(w, len(lines))[4]
 	canvas = Image.new('RGB', (w, top + h + bottom), 'white')
-	canvas.paste(Image.fromarray(frame, 'RGB'), (0, top))
+	canvas.paste(Image.fromarray(frame, 'RGB'), ((w - m) // 2, top))
 	d = ImageDraw.Draw(canvas)
 	d.text((8, 6), _cut(lambda t: d.textlength(t, font=big), date, w - 16), fill='black', font=big)
 	d.text((8, 6 + b + 6), _cut(lambda t: d.textlength(t, font=small), title, w - 16), fill=(60, 60, 60), font=small)
@@ -271,7 +274,8 @@ def _annotate_pil(frame, palette, date, title, lo, hi, unit, credits, done):
 def _annotate_qt(frame, palette, date, title, lo, hi, unit, credits, done):
 	from qgis.PyQt.QtCore import QRect, Qt
 	from qgis.PyQt.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
-	h, w = frame.shape[:2]
+	h, m = frame.shape[:2]
+	w = max(m, MIN_WIDTH)  # a narrower map, centred
 	b, s, top, bar_h, bottom = layout(w)
 	big, small = QFont(), QFont()
 	big.setPixelSize(b)
@@ -280,11 +284,11 @@ def _annotate_qt(frame, palette, date, title, lo, hi, unit, credits, done):
 	lines = _wrap(fs.horizontalAdvance, credits, w - 16)
 	bottom = layout(w, len(lines))[4]
 	data = np.ascontiguousarray(frame)
-	picture = QImage(data.data, w, h, 3 * w, QImage.Format.Format_RGB888)
+	picture = QImage(data.data, m, h, 3 * m, QImage.Format.Format_RGB888)
 	canvas = QImage(w, top + h + bottom, QImage.Format.Format_RGB888)
 	canvas.fill(QColor('white'))
 	p = QPainter(canvas)
-	p.drawImage(0, top, picture)
+	p.drawImage((w - m) // 2, top, picture)
 	left = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
 	p.setFont(big)
 	p.setPen(QColor('black'))

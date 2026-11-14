@@ -238,7 +238,8 @@ def _logged_call(path, log):
 
 
 def _items(spec, base, folders, log):
-	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved."""
+	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved (the MP4
+	of an animation that is no longer there is left out: its GIF is the animation)."""
 	for item in _list(spec.get('results')):
 		item = {'file': item} if isinstance(item, str) else dict(item)
 		if 'answer' in item:
@@ -261,6 +262,11 @@ def _items(spec, base, folders, log):
 			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
 			                                     else 'csv': path}
 		res = dict(item.get('result') or {})
+		if isinstance(res.get('gif'), str) and str(res.get('file') or '').lower().endswith('.mp4'):
+			try:
+				_find(res['file'], base, folders)
+			except FileNotFoundError:  # the video deleted or moved: the GIF, without it
+				res['file'] = res['gif']
 		for k in ('file', 'gif', 'csv', 'chart'):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
