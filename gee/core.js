@@ -1508,6 +1508,56 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// The changes of a land cover map between two years (classes.pairs, transition_rows, broad_transitions)
+	var PAIR = 1000;
+
+	function pairs(first, other) {
+		return ee.Image(first).multiply(PAIR).add(ee.Image(other)).toInt().rename('class');
+	}
+
+	function transitionRows(features, m, year, otherYear) {
+		var out = [];
+		features.forEach(function (f) {
+			var by = (f.properties.groups || []).map(function (g) { return [Math.round(g['class']), g.sum]; });
+			var total = by.reduce(function (a, g) { return a + g[1]; }, 0);
+			by.sort(function (a, b) { return b[1] - a[1]; });
+			by.forEach(function (g) {
+				var a = Math.floor(g[0] / PAIR), b = g[0] % PAIR;
+				out.push({region: String(f.properties.name), map: m.name, year: year, other_year: otherYear,
+					from_class: a, from_label: a + ' ' + (m.names[String(a)] || ''), from_landcover: m.classes[String(a)] || null,
+					to_class: b, to_label: b + ' ' + (m.names[String(b)] || ''), to_landcover: m.classes[String(b)] || null,
+					ha: g[1], percent: total ? 100 * g[1] / total : null});
+			});
+		});
+		return out;
+	}
+
+	function broadTransitions(rows, lang) {
+		var acc = {}, keys = [];
+		var order = landcoverClasses().map(function (c) { return c.key; });
+		rows.forEach(function (r) {
+			var k = [r.region, r.from_landcover, r.to_landcover].join('|');
+			if (!acc[k]) {
+				keys.push(k);
+				acc[k] = {region: r.region, from_landcover: r.from_landcover, to_landcover: r.to_landcover,
+					from_label: landcoverName(r.from_landcover, lang), to_label: landcoverName(r.to_landcover, lang),
+					ha: 0, percent: 0};
+			}
+			acc[k].ha += r.ha;
+			acc[k].percent += r.percent || 0;
+		});
+		var pos = function (k) { var i = order.indexOf(k); return i < 0 ? order.length : i; };
+		return keys.map(function (k) { return acc[k]; }).sort(function (a, b) {
+			return a.region < b.region ? -1 : a.region > b.region ? 1 :
+				pos(a.from_landcover) - pos(b.from_landcover) || pos(a.to_landcover) - pos(b.to_landcover);
+		});
+	}
+
+	function landcoverName(key, lang) {
+		var c = landcoverClasses().filter(function (x) { return x.key === key; })[0];
+		return c ? (c[lang] || c.en) : key;
+	}
+
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
 	function dailyDays(s, region) {
 		var wins = windows(s.period, s.season);
@@ -2338,7 +2388,8 @@ var MonitorEO = (function () {
 		islandAt: islandAt,
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
-		classHectares: classHectares, areaRows: areaRows,
+		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
+		broadTransitions: broadTransitions,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,

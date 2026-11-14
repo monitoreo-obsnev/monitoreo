@@ -17,7 +17,7 @@
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
-    monitoreo areas --region JSON --landcover MAP [--year Y] [--csv F] [--png F]
+    monitoreo areas --region JSON --landcover MAP [--year Y] [--other-year Y2] [--csv F] [--png F]
     monitoreo areas VARIABLE --sensor S --region JSON [--start D --end D] --breaks 0.2,0.4,0.6 | --trend
                                                      hectares and % of each class of a land cover map, of the map of a
                                                      variable cut at some values, or of the trend on each pixel
@@ -361,6 +361,9 @@ def main(argv=None):
 	p.add_argument('--landcover', metavar='MAP', help='a land cover map (monitoreo landcover lists them): its classes, '
 	                                                  'with their broad land cover')
 	p.add_argument('--year', type=int, help='with --landcover, the year of the map (default: its last one)')
+	p.add_argument('--other-year', type=int, metavar='YEAR',
+	               help='with --landcover, the changes of the map from --year to this year: the hectares of each pair '
+	                    'of classes and, with --png, a Sankey diagram of the broad land covers')
 	p.add_argument('--breaks', help='the values where to cut the map of the variable, separated by commas, e.g. '
 	                                '1500,2000,2500 for ELEVATION (below 1500, 1500 to 2000, ...)')
 	p.add_argument('--trend', action='store_true', help='the classes of the trend of the variable on each pixel: '
@@ -689,9 +692,19 @@ def _areas(args, services):
 		                             temporal=args.temporal, interannual=args.interannual, landcover=args.landcover,
 		                             year=args.year, breaks=args.breaks, trend=args.trend, step=args.step,
 		                             part=args.part, alpha=args.alpha, scale=args.scale, csv=args.csv, chart=args.png,
-		                             where=_where(args), **args.source)
+		                             where=_where(args), other_year=args.other_year, **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
+	if res['mode'] == 'transitions':
+		_table([{k: (f'{v:.1f}' if k in ('ha', 'percent') and isinstance(v, float) else v) for k, v in r.items()}
+		        for r in res['by_landcover']], ['region', 'from_label', 'to_label', 'ha', 'percent'])
+		print()
+		for region, ha in res['changed_ha'].items():
+			print(f"{region}: changed {ha:.1f} ha, unchanged {res['unchanged_ha'][region]:.1f} ha (by class of the map)")
+		print(f"\n{res['title']} | pixels of {res['scale']:g} m | the broad land covers; every pair of classes in the CSV"
+		      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | Sankey {res['chart']}" if res.get('chart')
+		                                                              else ''))
+		return
 	cols = ['region', 'class', 'label'] + (['landcover'] if res['mode'] == 'landcover' else []) + ['ha', 'percent']
 	_table([{k: (f'{v:.1f}' if k in ('ha', 'percent') and isinstance(v, float) else v) for k, v in r.items()}
 	        for r in res['rows'] if r.get('ha')], cols)

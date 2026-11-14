@@ -215,6 +215,13 @@ calls.clear()
 dock.run_areas()
 wait()
 assert calls[-1]['landcover'] == 'CORINE' and calls[-1]['year'] == 2018 and 'variable' not in calls[-1], calls[-1]
+assert 'other_year' not in calls[-1]
+dock.area_change.setChecked(True)  # the changes of the map: from 2012 to 2018 by default
+assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (2012, 2018)
+dock.run_areas()
+wait()
+assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
+dock.area_change.setChecked(False)
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()

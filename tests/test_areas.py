@@ -122,9 +122,14 @@ def calls(monkeypatch):
 
 	def fake(region, variable=None, sensor=None, start=None, end=None, metric=None, temporal='period',
 	         interannual='mean', season=None, quality=None, landcover=None, year=None, breaks=None, trend=False,
-	         step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, **source):
+	         step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, other_year=None, **source):
 		out.append(dict(source, region=region, variable=variable, sensor=sensor, landcover=landcover, year=year,
-		                breaks=breaks, trend=trend, metric=metric, csv=csv, chart=chart))
+		                breaks=breaks, trend=trend, metric=metric, csv=csv, chart=chart, other_year=other_year))
+		if other_year:
+			return {'rows': [], 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
+			        'chart': None, 'classes': [], 'changed_ha': {'bbox': 1.0}, 'unchanged_ha': {'bbox': 2.0},
+			        'by_landcover': [{'region': 'bbox', 'from_label': 'Trees', 'to_label': 'Shrubland', 'ha': 1.0,
+			                          'percent': 33.3}]}
 		return {'rows': [{'region': 'bbox', 'class': 0, 'label': 'below 1500 m', 'ha': 12.25, 'percent': 100.0}],
 		        'mode': 'landcover' if landcover else 'breaks', 'scale': 30.0, 'unit': 'm', 'title': 'Areas',
 		        'csv': csv, 'chart': None, 'classes': []}
@@ -225,3 +230,79 @@ def test_the_app_has_the_same_classes():
 	                                   [(c, label, {}) for c, label, _ in classes.TREND], {'map': 'x'})
 	assert out['trend'] == [list(c) for c in classes.TREND]
 	assert not math.isnan(out['scales'][0])
+
+
+# The changes of a land cover map between two years --------------------------------------------------------------------
+
+def test_the_pairs_of_classes_and_their_rows():
+	m, _ = classes.landcover_map('CORINE')
+	ha = {'park': {311 * 1000 + 311: 60.0, 311 * 1000 + 324: 30.0, 512 * 1000 + 512: 10.0}}
+	rows = classes.transition_rows(ha, m, 2006, 2018)
+	assert [(r['from_class'], r['to_class'], r['ha'], r['percent']) for r in rows] == \
+		[(311, 311, 60.0, 60.0), (311, 324, 30.0, 30.0), (512, 512, 10.0, 10.0)]
+	assert rows[1]['from_label'] == '311 Broad-leaved forest' and rows[1]['to_landcover'] == 'trees'
+	assert classes.changed(rows) == {'park': (30.0, 70.0)}
+	broad = classes.broad_transitions(rows)
+	assert [(r['from_landcover'], r['to_landcover'], r['ha']) for r in broad] == [('water', 'water', 10.0),
+	                                                                             ('trees', 'trees', 90.0)]
+
+
+def test_the_changes_before_earth_engine():
+	with pytest.raises(ValueError, match='other_year is for the changes of a land cover map'):
+		services.area_by_class(REGION, 'ELEVATION', 'Copernicus', breaks=[1000], other_year=2018)
+	with pytest.raises(ValueError, match='two different years'):
+		services.area_by_class(REGION, landcover='CORINE', year=2018, other_year=2018)
+	with pytest.raises(ValueError, match='has no map of 2017'):
+		services.area_by_class(REGION, landcover='CORINE', year=2012, other_year=2017)
+
+
+def test_the_sankey_diagram(tmp_path):
+	pytest.importorskip('matplotlib')
+	from monitoreo import charts
+	png = charts.sankey_png([('Trees', 'Trees', 90.0), ('Trees', 'Shrubland', 5.0), ('Water', 'Water', 10.0)],
+	                        {'Water': '419bdf', 'Trees': '397d49', 'Shrubland': 'dfc35a'}, str(tmp_path / 's.png'),
+	                        'Changes', ('2006', '2018'))
+	assert png[:8] == b'\x89PNG\r\n\x1a\n' and (tmp_path / 's.png').exists()
+
+
+CHANGES = dict(LANDCOVER, year=2006, other_year=2018)
+
+
+def test_the_changes_are_cited_described_and_published(tmp_path):
+	from monitoreo import publish
+	ids = [r['id'] for r in references.cite('area_by_class', CHANGES)['references']]
+	assert {'clc2006', 'clc2018', 'bise2023'} <= set(ids)
+	assert report.item_title('area_by_class', CHANGES) == 'Changes of the classes of CORINE Land Cover from 2006 to 2018'
+	result = {'mode': 'transitions', 'rows': [{'region': 'park', 'from_label': '311 Broad-leaved forest',
+	                                           'to_label': '324 Transitional woodland-shrub', 'ha': 30.0, 'percent': 30.0}],
+	          'changed_ha': {'park': 30.0}, 'unchanged_ha': {'park': 70.0}, 'scale': 100.0}
+	facts = dict(report.item_facts('area_by_class', CHANGES, result))
+	assert facts['Changed'] == '30 ha; unchanged 70 ha' and facts['Compared with'].startswith('CORINE Land Cover 2018')
+	assert 'Sankey' in facts['Method']
+	labels, body = report.item_table('area_by_class', result, CHANGES)
+	assert labels == ['From', 'To', 'Hectares', '% of the area with classes']
+	csv = tmp_path / 'changes.csv'
+	csv.write_text('region,from_label,to_label,ha,percent\npark,311 Broad-leaved forest,324 Transitional,30,30\n',
+	               encoding='utf-8')
+	png = tmp_path / 'sankey.png'
+	pytest.importorskip('PIL.Image').new('RGB', (40, 20), 'white').save(png)
+	spec = {'title': 'Changes', 'summary': 'Changes', 'region': {'name': 'Sierra Nevada'},
+	        'results': [{'tool': 'area_by_class', 'args': CHANGES,
+	                     'result': dict(result, csv=str(csv), chart=str(png), classes=[])}]}
+	folder = tmp_path / 'report'
+	folder.mkdir()
+	rep = publish.build(spec, 'changes', str(tmp_path), [], None, str(folder))
+	r = rep['results'][0]
+	assert r['chart'] == 'transitions' and r['png'].endswith('.png') and publish.check_report(rep, str(folder)) == []
+
+
+def test_the_command_line_and_the_mcp_server_compare_two_years(calls, monkeypatch, tmp_path, capsys):
+	from monitoreo import cli
+	cli.main(['areas', '--region', json.dumps(REGION), '--landcover', 'CORINE', '--year', '2006', '--other-year',
+	          '2018'])
+	assert (calls[-1]['year'], calls[-1].get('other_year')) == (2006, 2018)
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
+	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
+	mcp_server.area_by_class(REGION, landcover='CORINE', year=2006, other_year=2018)
+	assert calls[-1].get('other_year') == 2018 and '_2006_2018' in calls[-1]['csv']

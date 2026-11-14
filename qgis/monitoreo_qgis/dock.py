@@ -647,9 +647,18 @@ class MonitorEODock(QDockWidget):
 			self.area_map.addItem(f"{m['name']} · {m['m']} m · {m['coverage']}", m['key'])
 		self.area_map.setCurrentIndex(max(0, self.area_map.findData(s.value(SETTINGS + 'area_map', 'WorldCover'))))
 		self.area_year = QComboBox()
+		self.area_change = QCheckBox('changes to')  # the changes of the map from its year to another
+		self.area_change.setToolTip('The changes of the land cover map from the first year to the second: the hectares '
+		                            'of each pair of classes, and a Sankey diagram of the broad land covers')
+		self.area_other_year = QComboBox()
+		self.area_other_year.setEnabled(False)
+		self.area_change.toggled.connect(self.area_other_year.setEnabled)
+		self.area_change.toggled.connect(lambda on: self.area_years_apart())
 		row = QHBoxLayout()
 		row.addWidget(self.area_map, 1)
 		row.addWidget(self.area_year)
+		row.addWidget(self.area_change)
+		row.addWidget(self.area_other_year)
 		self.area_map_row = QWidget()
 		self.area_map_row.setLayout(row)
 		row.setContentsMargins(0, 0, 0, 0)
@@ -1692,10 +1701,18 @@ class MonitorEODock(QDockWidget):
 		"""The years of the land cover map of Area by class, its last one chosen (for Dynamic World, the last whole
 		year)."""
 		m = landcover.find(self.area_map.currentData())
-		self.area_year.clear()
-		for y in reversed(landcover.years(m)):
-			self.area_year.addItem(str(y), y)
-		self.area_year.setCurrentIndex(max(0, self.area_year.findData(landcover.default_year(m))))
+		for box in (self.area_year, self.area_other_year):
+			box.clear()
+			for y in reversed(landcover.years(m)):
+				box.addItem(str(y), y)
+			box.setCurrentIndex(max(0, box.findData(landcover.default_year(m))))
+		self.area_years_apart()
+
+	def area_years_apart(self):
+		"""With «changes to», two different years: the first one, the year before the other (its last one)."""
+		if self.area_change.isChecked() and self.area_year.currentData() == self.area_other_year.currentData() and \
+				self.area_year.count() > 1:
+			self.area_year.setCurrentIndex(min(self.area_year.currentIndex() + 1, self.area_year.count() - 1))
 
 	def area_kind_changed(self):
 		"""The map and year for the classes of a land cover map, the breaks for the classes of the variable; neither
@@ -1719,6 +1736,9 @@ class MonitorEODock(QDockWidget):
 				return
 			opts, what = {'landcover': self.area_map.currentData(), 'year': self.area_year.currentData()}, \
 				f"{self.area_map.currentText().split(' · ')[0]} {self.area_year.currentData()}"
+			if self.area_change.isChecked():  # its changes to another year: the pairs of classes and a Sankey diagram
+				opts['other_year'] = self.area_other_year.currentData()
+				what += f" to {opts['other_year']}"
 		else:
 			args = self.prepare()
 			if not args:
@@ -1741,8 +1761,15 @@ class MonitorEODock(QDockWidget):
 		def done(res):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'areas.png')
+			colours = {c['label']: c['colour'] for c in res['classes']}
 			try:  # in the main thread; without matplotlib, the table only
-				charts.areas_png(res['rows'], {c['label']: c['colour'] for c in res['classes']}, path, res['title'])
+				if res['mode'] == 'transitions':
+					first = res['by_landcover'][0]['region'] if res['by_landcover'] else None
+					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
+					                   if r['region'] == first], colours, path, res['title'],
+					                  (str(res['year']), str(res['other_year'])))
+				else:
+					charts.areas_png(res['rows'], colours, path, res['title'])
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None

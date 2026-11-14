@@ -32,7 +32,8 @@ mo_area_by_class(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  terrain = NULL
+  terrain = NULL,
+  other_year = NULL
 )
 }
 \arguments{
@@ -119,6 +120,11 @@ aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 \item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
 values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
 band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+
+\item{other_year}{with \code{landcover}, its changes from \code{year} to this year instead: the hectares of each
+pair of classes (from_class, from_label, from_landcover, to_class, to_label, to_landcover, ha, percent), the
+attributes by_landcover (each pair of broad land covers), changed_ha and unchanged_ha, and with \code{chart} a
+Sankey diagram of the broad land covers.}
 }
 \value{
 A data.frame (region, class, label and, for a land cover map, map, year and landcover; for breaks,
@@ -145,6 +151,9 @@ is of the area with a class (the pixels without data are not counted), as the zo
 \dontrun{
 mo_init()
 mo_area_by_class(mo_wdpa(389011), landcover = "CORINE", year = 2018)
+# its changes from 2006 to 2018, with a Sankey diagram of the broad land covers
+x <- mo_area_by_class(mo_wdpa(389011), landcover = "CORINE", year = 2006, other_year = 2018, chart = "sankey.png")
+attr(x, "changed_ha")
 # elevation bands
 mo_area_by_class(mo_wdpa(389011), "ELEVATION", "Copernicus", breaks = c(1500, 2000, 2500, 3000))
 # where the NDVI goes up or down

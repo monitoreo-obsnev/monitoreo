@@ -155,3 +155,60 @@ def areas_png(rows, colours=None, path=None, title=None, dpi=120, max_regions=6)
 		fig.suptitle(textwrap.fill(title, 100), fontsize=10)
 	fig.tight_layout()
 	return _png(fig, path)
+
+
+def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=120):
+	"""PNG (bytes) of a Sankey diagram of FLOWS ([(from, to, hectares)]): the classes of the first year on the left and
+	those of the other on the right, each with its colour (COLOURS: {class: 'rrggbb'}), with a band of each flow
+	between them, as wide as its hectares; NAMES, the titles of both columns (the years)."""
+	from matplotlib.figure import Figure
+	from matplotlib.patches import PathPatch, Rectangle
+	from matplotlib.path import Path
+
+	flows = [(a, b, h) for a, b, h in flows if h and h > 0]
+	order = list(colours or {})  # both columns in the order of the classes of COLOURS, then the others
+	pos = lambda n: (order.index(n) if n in order else len(order), str(n))
+	left = sorted(dict.fromkeys(a for a, _, _ in flows), key=pos)
+	right = sorted(dict.fromkeys(b for _, b, _ in flows), key=pos)
+	total = sum(h for _, _, h in flows) or 1.0
+	gap = 0.02
+	fig = Figure(figsize=(9, 5.5), dpi=dpi)
+	ax = fig.add_subplot()
+
+	def column(nodes, side):
+		out, y = {}, 1.0
+		for n in nodes:
+			h = sum(f[2] for f in flows if f[side] == n) / total * (1 - gap * max(len(nodes) - 1, 0))
+			out[n] = [y - h, y]
+			y -= h + gap
+		return out
+
+	ly, ry = column(left, 0), column(right, 1)
+	colour = lambda n: f"#{(colours or {}).get(n, '9e9e9e')}"
+	lpos, rpos = {n: v[1] for n, v in ly.items()}, {n: v[1] for n, v in ry.items()}
+	for a, b, h in sorted(flows, key=lambda f: (left.index(f[0]), right.index(f[1]))):
+		w = h / total * (1 - gap * max(len(left) - 1, 0))
+		y0, y1 = lpos[a], rpos[b]
+		lpos[a] -= w
+		rpos[b] -= w
+		verts = [(0.1, y0), (0.5, y0), (0.5, y1), (0.9, y1), (0.9, y1 - w), (0.5, y1 - w), (0.5, y0 - w), (0.1, y0 - w),
+		         (0.1, y0)]
+		codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+		         Path.CLOSEPOLY]
+		ax.add_patch(PathPatch(Path(verts, codes), facecolor=colour(a), alpha=0.45, edgecolor='none'))
+	for nodes, x, align in ((ly, 0.08, 'right'), (ry, 0.92, 'left')):
+		for n, (lo, hi) in nodes.items():
+			ax.add_patch(Rectangle((0.08 if x < 0.5 else 0.9, lo), 0.02, hi - lo, facecolor=colour(n), edgecolor='#444',
+			                       linewidth=0.4))
+			ha_ = sum(f[2] for f in flows if f[0 if x < 0.5 else 1] == n)
+			ax.text(x - 0.005 if x < 0.5 else x + 0.005, (lo + hi) / 2, f'{n} ({ha_:,.0f} ha)', ha=align, va='center',
+			        fontsize=8)
+	ax.text(0.09, 1.03, names[0], ha='center', fontsize=10, fontweight='bold')
+	ax.text(0.91, 1.03, names[1], ha='center', fontsize=10, fontweight='bold')
+	ax.set_xlim(-0.35, 1.35)
+	ax.set_ylim(-0.02, 1.08)
+	ax.axis('off')
+	if title:
+		ax.set_title(textwrap.fill(title, 100), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)

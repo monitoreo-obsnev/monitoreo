@@ -1074,6 +1074,10 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 #' @inheritParams mo_params
 #' @param landcover a land cover map, e.g. \code{"CORINE"} or \code{"WorldCover"} (without variable).
 #' @param year with \code{landcover}, the year of the map (default: its last one).
+#' @param other_year with \code{landcover}, its changes from \code{year} to this year instead: the hectares of each
+#'   pair of classes (from_class, from_label, from_landcover, to_class, to_label, to_landcover, ha, percent), the
+#'   attributes by_landcover (each pair of broad land covers), changed_ha and unchanged_ha, and with \code{chart} a
+#'   Sankey diagram of the broad land covers.
 #' @param breaks the values where to cut the map of the variable, e.g. \code{c(0.2, 0.4, 0.6)}.
 #' @param trend \code{TRUE}: the classes of the trend of the variable on each pixel.
 #' @param step,part,alpha with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or
@@ -1096,6 +1100,9 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 #' \dontrun{
 #' mo_init()
 #' mo_area_by_class(mo_wdpa(389011), landcover = "CORINE", year = 2018)
+#' # its changes from 2006 to 2018, with a Sankey diagram of the broad land covers
+#' x <- mo_area_by_class(mo_wdpa(389011), landcover = "CORINE", year = 2006, other_year = 2018, chart = "sankey.png")
+#' attr(x, "changed_ha")
 #' # elevation bands
 #' mo_area_by_class(mo_wdpa(389011), "ELEVATION", "Copernicus", breaks = c(1500, 2000, 2500, 3000))
 #' # where the NDVI goes up or down
@@ -1107,7 +1114,7 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
                              interannual = "mean", step = "annual", part = NULL, alpha = 0.05, season = NULL,
                              quality = NULL, scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL,
                              image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                             terrain = NULL) {
+                             terrain = NULL, other_year = NULL) {
   if (is.null(landcover)) check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
   res <- services()$area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                                   landcover, if (is.null(year)) NULL else as.integer(year),
@@ -1116,10 +1123,12 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
                                   csv = if (is.null(csv)) NULL else path.expand(csv),
                                   chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
                                   where = where, image = image, band = band, band_scale = band_scale,
-                                  band_offset = band_offset, unit = unit, terrain = terrain)
+                                  band_offset = band_offset, unit = unit, terrain = terrain,
+                                  other_year = if (is.null(other_year)) NULL else as.integer(other_year))
   df <- rows_df(res$rows)
   for (k in c("title", "mode", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   if (!is.null(res$by_landcover)) attr(df, "by_landcover") <- rows_df(res$by_landcover)
+  for (k in c("changed_ha", "unchanged_ha")) if (!is.null(res[[k]])) attr(df, k) <- unlist(res[[k]])
   cited(df, res)
 }
 

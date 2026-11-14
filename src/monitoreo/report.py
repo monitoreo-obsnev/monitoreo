@@ -77,6 +77,11 @@ METHODS = {
 	                           'over each feature, as the zonal statistics by group of geemap; % of the area with a '
 	                           'class (the pixels without data are not counted). Each class of the map with its broad '
 	                           'land cover (that of the land cover masks).',
+	'area_by_class_transitions': 'The pair of classes of each pixel (its class of the land cover map in the first year '
+	                             'and in the other) and the true area of each pixel summed by pair over each feature, as '
+	                             'the Sankey diagrams of land cover change of geemap; % of the area with a class in both '
+	                             'years. Unchanged: the same class in both years. The diagram joins the classes by '
+	                             'broad land cover.',
 	'area_by_class_breaks': 'The map of the variable (the temporal metric of the images of the period on each pixel) cut '
 	                        'at the breaks (a value equal to a break goes to the class above it), and the true area of '
 	                        'each pixel summed by class over each feature; % of the area with values.',
@@ -129,6 +134,8 @@ TABLES = {
 	'area_by_class': (('rows',), [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'),
 	                              ('value_from', 'From{u}'), ('value_to', 'To{u}'), ('ha', 'Hectares'),
 	                              ('percent', '% of the area with classes')]),
+	'area_by_class_transitions': (('rows',), [('region', 'Region'), ('from_label', 'From'), ('to_label', 'To'),
+	                                          ('ha', 'Hectares'), ('percent', '% of the area with classes')]),
 	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
 	                                          ('dnbr_max', 'dNBR to'), ('rdnbr_min', 'RdNBR from'),
 	                                          ('rdnbr_max', 'RdNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
@@ -398,7 +405,12 @@ def item_facts(tool, args, result=None, names=None):
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else tool]
 		facts.append(('Method', METHODS['static'] if static else method))
 	elif tool == 'area_by_class':
-		kind = 'landcover' if args.get('landcover') else 'trend' if args.get('trend') else 'breaks'
+		kind = ('transitions' if args.get('other_year') else 'landcover') if args.get('landcover') else \
+			'trend' if args.get('trend') else 'breaks'
+		if kind == 'transitions' and isinstance(result.get('changed_ha'), dict):
+			for region, ha in result['changed_ha'].items():
+				label = 'Changed' + (f' ({region})' if len(result['changed_ha']) > 1 else '')
+				facts.append((label, f"{_num(ha)} ha; unchanged {_num((result.get('unchanged_ha') or {}).get(region))} ha"))
 		facts.append(('Method', METHODS[f'area_by_class_{kind}']))
 	return facts
 
@@ -411,9 +423,17 @@ def _landcover_facts(args):
 		                              'exclude': [landcover.classes()[0]['key']]})
 	except (ValueError, KeyError):
 		return [('Land cover map', f"{args.get('landcover')} {args.get('year') or ''}".strip())]
-	return [('Land cover map', f"{m['name']} {year}, pixel of {_num(m['m'])} m, {landcover.dataset(m, year)}"),
-	        ('Classes', 'those of the map, each with its broad land cover ' + (f"({m['crosswalk']})" if m.get('crosswalk')
-	                                                                          else ''))]
+	out = []
+	if args.get('other_year'):
+		try:
+			_, other, _ = landcover.check({'landcover': args['landcover'], 'year': args['other_year'],
+			                               'exclude': [landcover.classes()[0]['key']]})
+			out.append(('Compared with', f"{m['name']} {other}, {landcover.dataset(m, other)}"))
+		except ValueError:
+			out.append(('Compared with', str(args['other_year'])))
+	first = ('Land cover map', f"{m['name']} {year}, pixel of {_num(m['m'])} m, {landcover.dataset(m, year)}")
+	crosswalk = f" ({m['crosswalk']})" if m.get('crosswalk') else ''
+	return [first] + out + [('Classes', f'those of the map, each with its broad land cover{crosswalk}')]
 
 
 def perimeter_text(index, result):
@@ -470,6 +490,8 @@ def _recipe_facts(args, result, names):
 
 def item_table(tool, result, args=None):
 	"""The table of a result: (columns, rows) with the values already formatted, or None."""
+	if tool == 'area_by_class' and isinstance(result, dict) and result.get('mode') == 'transitions':
+		tool = 'area_by_class_transitions'  # the pairs of classes of two years
 	if tool not in TABLES:
 		return None
 	keys, cols = TABLES[tool]
