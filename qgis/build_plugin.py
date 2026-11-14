@@ -41,11 +41,11 @@ DEPS = ['google-api-python-client', 'google-auth', 'google-auth-httplib2', 'http
 UNUSED = ['googleapiclient/discovery_cache/documents', 'ee/tests', 'ee/apitestcase.py', 'ee/cli', 'ee/mapclient.py',
           'certifi/tests', 'rsa/cli.py']
 # modules of monitoreo for the command line, the MCP server, the assistant (its page, engine, manual and the documents
-# of the user) and the web viewer, not used by the plugin. tests/test_plugin_zip.py checks that the zip leaves out every
+# of the user), the web viewer and the maps of notebooks (geemap), not used by the plugin. tests/test_plugin_zip.py checks that the zip leaves out every
 # module the plugin never imports (documents.py has XML parsers that Bandit flags) and none that it imports: report.py
 # writes the titles and facts of the README of each result (monitoreo.readme)
 MONITOREO_UNUSED = ['cli.py', 'mcp_server.py', 'update.py', 'viewer', 'assistant.py', 'engine.py', 'manual.py', 'ui',
-                    'documents.py']
+                    'documents.py', 'notebook.py']
 OURS =re.compile(r'monitoreo_qgis/(ext/monitoreo/|[^/]+$)')  # the plugin and monitoreo, not the bundled libraries
 
 

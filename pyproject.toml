@@ -20,6 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.10"]
 plot = ["matplotlib"]
+notebook = ["geemap>=0.30", "matplotlib"]  # the maps of MonitorEO on those of geemap in Jupyter and Colab (monitoreo.notebook)
 assistant = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf"]
 test = ["pytest"]
 all = ["mcp>=1.10", "matplotlib", "starlette", "uvicorn", "pywebview", "pypdf", "pytest"]
