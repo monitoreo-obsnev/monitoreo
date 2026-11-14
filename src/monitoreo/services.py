@@ -996,14 +996,16 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	"""Animation of a variable over REGION (a timelapse, GIF or MP4 video): a frame per STEP ('annual', 'monthly',
 	'16-day' or 'daily') of the period (and SEASON), each the METRIC of the images of the step on each pixel, coloured
 	with one colour ramp for every frame (VMIN to VMAX; by default from the percentiles 5 and 95 of the map of the whole
-	period, as map_layer) and with its date, the title, the ramp with its unit and the credits of the data written on
-	it; the pixels of the region without data in a step are light grey. At most animation.MAX_FRAMES frames of
-	DIMENSIONS pixels (width or height of the map), FPS frames per second. PATH ends in .gif (default) or .mp4 (with
-	ffmpeg). Earth Engine computes the colours of each frame on the same grid of web Mercator, several at a time
-	(PROGRESS(done, total) after each), and they are joined in a GIF with their texts (see monitoreo.animation). Not
-	for the fixed layers (elevation, slope, an image), which have no dates.
+	period, as map_layer, or, for the sum and the count, which grow with the images, of the median of the frames: see
+	animation.range_image) and with its date, the title, the ramp with its unit and the credits of the data (also
+	those of the region) written on it; the pixels of the region without data in a step are light grey. At most
+	animation.MAX_FRAMES frames of DIMENSIONS pixels (width or height of the map), FPS frames per second. PATH ends in
+	.gif (default) or .mp4 (with ffmpeg). Earth Engine computes the colours of each frame on the same grid of web
+	Mercator, several at a time (PROGRESS(done, total) after each), and they are joined in a GIF with their texts (see
+	monitoreo.animation). Not for the fixed layers (elevation, slope, an image), which have no dates.
 	Returns {'file' (the GIF or the MP4), 'gif', 'frames': [{'date', 'end', 'label', 'images'}], 'n_frames', 'step',
-	'fps', 'dimensions', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale'}."""
+	'fps', 'dimensions', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale' (m: the pixels on which the frames
+	are computed, those of the frames or, if bigger, those of the data; see animation.pixel_size)}."""
 	animation.check(step, dimensions=dimensions, fps=fps, path=path)
 	animation.can_draw()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
@@ -1019,9 +1021,9 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 		animation.check(step, len(steps))
 	res = variables.native_scale(spec)
 	bounds = _bounds(regions)
-	whole = variables.image(spec, geom, res).clipToCollection(regions)
-	vis = maps.vis_params(whole, geom, ramp_entry(spec), res, vmin, vmax, palette)
 	col = variables.collection(spec, geom, res)
+	whole = animation.range_image(col, steps, metric, variables.image(spec, geom, res)).clipToCollection(regions)
+	vis = maps.vis_params(whole, geom, ramp_entry(spec), res, vmin, vmax, palette)
 	frames = animation.frames(col, regions, steps, metric, vis, res, bounds, dimensions)
 	pictures = animation.fetch_frames(frames, animation.frame_grid(bounds, dimensions), progress=progress)
 	unmasked = variables.collection(dict(spec, resample='nearest', where=None, exclude_landcover=None), geom, 1e9)
@@ -1031,13 +1033,13 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	unit = _unit(spec)
 	name = _named(spec, metric)
 	from .publish import unit_text
-	cited = references.cite('timelapse', dict(source, variable=variable, sensor=sensor, start=start, end=end,
-	                                          quality=quality))
+	cited = references.cite('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start,
+	                                          end=end, quality=quality))
 	credits = '; '.join(['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
 	gif = animation.write(pictures, path, labels, f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'],
 	                      vis['palette'], unit_text(unit), credits, fps)
 	return dict(vis, file=path, gif=gif, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
-	            bounds=bounds, scale=res, n_frames=len(steps),
+	            bounds=bounds, scale=animation.pixel_size(bounds, dimensions, res), n_frames=len(steps),
 	            frames=[{'date': a, 'end': b, 'label': animation.label(step, a, b), 'images': n}
 	                    for (a, b), n in zip(steps, counts)])
 
@@ -1272,18 +1274,20 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
 	With a land cover map and OTHER_YEAR, its changes from YEAR to OTHER_YEAR instead (see monitoreo.classes): the
 	hectares of each pair of classes (mode 'transitions'), 'by_landcover' (those of each pair of broad land covers),
-	'changed_ha' and 'unchanged_ha' of each region, and a Sankey diagram of the broad land covers in CHART.
-	Returns {'rows': [{region, class, label, ..., ha, percent}], 'mode', 'classes': [{class, label, colour}], 'scale',
-	'unit', 'title', 'csv', 'chart'} and, for a land cover map, 'by_landcover' (the hectares of each broad land
-	cover)."""
+	'changed_ha' and 'unchanged_ha' of each region, and a Sankey diagram of the broad land covers in CHART (of the
+	first feature of the region, named in its title, when it has several); features with the same name are numbered
+	('Sierra Nevada (2)').
+	Returns {'rows': [{region, class, label, ..., ha, percent}] (every class in each feature, also in the features with
+	the same name), 'mode', 'classes': [{class, label, colour}], 'scale', 'unit', 'title', 'csv', 'chart'} and, for a
+	land cover map, 'by_landcover' (the hectares of each broad land cover in each feature)."""
 	mode = classes.mode_of(landcover, breaks, trend)
+	if mode == 'landcover' and (variable or sensor or source.get('collection') or source.get('image')):
+		raise ValueError('a land cover map has its own classes: give landcover and year, without a variable nor sensor')
 	if other_year not in (None, ''):
 		if mode != 'landcover':
 			raise ValueError('other_year is for the changes of a land cover map between two years (with landcover)')
 		return _transitions(region, landcover, year, other_year, scale, csv, chart, source)  # the map, by its key
 	if mode == 'landcover':
-		if variable or source.get('collection') or source.get('image'):
-			raise ValueError('a land cover map has its own classes: give landcover and year, without a variable')
 		if source.get('where') or source.get('exclude_landcover'):
 			raise ValueError('where is for the classes of a variable (breaks, trend), not for those of a land cover map')
 		m, year = classes.landcover_map(landcover, year)
@@ -1325,7 +1329,7 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	out = {'rows': rows, 'mode': mode, 'scale': res, 'unit': unit, 'title': title, 'csv': None, 'chart': None,
 	       'classes': [{'class': c, 'label': label, 'colour': colours.get(label)} for c, label, _ in legend]}
 	if mode == 'landcover':
-		out['by_landcover'] = classes.by_landcover(rows)
+		out['by_landcover'] = classes.by_landcover(ha, legend)
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'scale_m': res}
 		if mode != 'landcover' and spec.get('period') and not variables.is_static(spec):
@@ -1365,7 +1369,7 @@ def _transitions(region, key, year, other_year, scale, csv, chart, source):
 	       'classes': [{'class': k, 'label': labels[k], 'colour': classes.LANDCOVER_COLOURS.get(k)} for k in labels]}
 	if csv:
 		out['csv'] = timeseries.write_csv(rows, csv, {'scale_m': res}, classes.COLUMNS['transitions'])
-	first = broad[0]['region'] if broad else None
+	first = next(iter(change), None)  # the first feature of the region with data (the first rows of the CSV)
 	if chart and first is not None:
 		try:
 			charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in broad if r['region'] == first],

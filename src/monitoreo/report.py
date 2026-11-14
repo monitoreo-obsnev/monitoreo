@@ -330,7 +330,8 @@ def item_facts(tool, args, result=None, names=None):
 			(tool == 'area_by_class' and args.get('trend')):
 		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class') else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
-	if tool in ('trend_map', 'download_trend') and args.get('part'):
+	if tool in ('trend_map', 'download_trend') and args.get('part') or (
+			tool == 'area_by_class' and args.get('trend') and args.get('part') and args.get('step') in ('monthly', '16-day')):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
@@ -406,10 +407,10 @@ def item_facts(tool, args, result=None, names=None):
 			points = ''
 		facts.append(('Line', f"{_num(result['length_m'] / 1000)} km{points}; segments of {_num(result.get('spacing'))} m"))
 	if tool == 'area_by_class' and args.get('breaks'):
+		from .classes import check_breaks  # the breaks as given: a list, or a text from the command line or QGIS
 		unit = unit_text(result.get('unit'))
-		facts.append(('Classes', 'cut at ' + ', '.join(f'{float(b):g}' for b in classes_of(args['breaks']))
-		                         + (f' {unit}' if unit else '')
-		                         + ' (a value equal to a break goes to the class above it)'))
+		facts.append(('Classes', 'cut at ' + ', '.join(f'{b:g}' for b in check_breaks(args['breaks']))
+		                         + (f' {unit}' if unit else '') + ' (a value equal to a break goes to the class above it)'))
 	if tool == 'area_by_class' and args.get('trend'):
 		facts.append(('Classes', f"significant decrease, no significant trend and significant increase (Mann-Kendall, "
 		                         f"p < {_num(args.get('alpha') or 0.05)})"))

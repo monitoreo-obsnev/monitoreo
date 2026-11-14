@@ -339,6 +339,23 @@ MO.chart = (() => {
 		return {data: {values: rows}, width: 'container', height: 240, layer};
 	}
 
+	// The feature of each row of an area by class (a function of the row), as the panels of its chart of Python: a new
+	// one where the region changes or a class comes again; those with the same name numbered ('Sierra Nevada (2)')
+	function features(rows) {
+		const of = new Map(), seen = new Map();
+		let name, labels;
+		rows.forEach((r, i) => {
+			if (!i || r.region !== rows[i - 1].region || labels.has(r.label)) {
+				seen.set(r.region, (seen.get(r.region) || 0) + 1);
+				name = seen.get(r.region) > 1 ? `${r.region} (${seen.get(r.region)})` : r.region;
+				labels = new Set();
+			}
+			labels.add(r.label);
+			of.set(r, name);
+		});
+		return (r) => of.get(r);
+	}
+
 	function burnTiles(rows, result) {
 		const sum = (f) => rows.filter(f).reduce((s, r) => s + (r.ha || 0), 0);
 		if (burnIndex(rows, result) === 'RdNBR') {  // the classes of Miller & Thode 2007: unchanged, low, moderate, high
@@ -376,7 +393,9 @@ MO.chart = (() => {
 	async function render(container, result, base) {
 		const rows = parse(await MO.text(base + result.csv));
 		const kind = result.chart;
-		const regions = regionsOf(rows);
+		// the region of each row; of an area by class, its feature (one chart each, also those with the same name)
+		const regionOf = kind === 'areas' ? features(rows) : (r) => r.region;
+		const regions = [...new Set(rows.map(regionOf))];
 		const box = el('div', {class: 'chart'});
 		const draw = async (subset) => {
 			box.replaceChildren();
@@ -389,10 +408,11 @@ MO.chart = (() => {
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'transect') return embed(box, transectSpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
-			if (kind === 'transitions') {  // its Sankey diagram, drawn by Python, and the pairs of classes
-				if (result.png && MO.safePath(result.png)) {
+			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
+				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
 					box.append(el('img', {class: 'sankey', src: base + result.png, loading: 'lazy',
-						alt: `${result.title}: Sankey diagram of the changes of the broad land covers`}));
+						alt: `${result.title}: Sankey diagram of the changes of the broad land covers` +
+							(regions.length > 1 ? ` (${regions[0]})` : '')}));
 				}
 				return box.append(table(subset.filter((r) => r.ha > 0), kind));
 			}
@@ -408,10 +428,10 @@ MO.chart = (() => {
 		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas', 'transitions', 'zones'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
-			current = rows.filter((r) => r.region === regions[0]);
+			current = rows.filter((r) => regionOf(r) === regions[0]);
 			container.append(el('div', {class: 'map-controls'}, el('div', {class: 'field grow'},
 				el('label', {for: id}, 'Region'),
-				el('select', {id, onchange: (e) => { current = rows.filter((r) => r.region === e.target.value); draw(current); }},
+				el('select', {id, onchange: (e) => { current = rows.filter((r) => regionOf(r) === e.target.value); draw(current); }},
 					regions.map((r) => el('option', {value: r}, r))))));
 		}
 		container.append(box);

@@ -416,7 +416,8 @@ def main(argv=None):
 	p.add_argument('--step', default='annual', choices=('annual', 'monthly', '16-day', 'daily'),
 	               help='a frame per year (default), month, 16 days or day with images (at most 120 frames)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
-	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the period)')
+	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the '
+	                                         'period; with --metric sum or count, of the median of the frames)')
 	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
 	p.add_argument('--fps', type=float, default=2, help='frames per second (default: 2)')
 	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
