@@ -447,11 +447,25 @@
 		return ui.Button({label: label, onClick: onClick});
 	}
 
-	// Results: a panel to the right of the map, with the answer of the last computation
+	// The map of the app again in place of the two maps of a swipe (swipePeriods), so that nothing is drawn on a map
+	// that is not shown
+	var swiped = false;
+	function oneMap() {
+		if (!swiped) return;
+		ui.root.widgets().set(1, map);
+		swiped = false;
+	}
+
+	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
+	// swipe was shown)
 	function show(widgets) {
+		oneMap();
 		results.clear();
 		results.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '16px', stretch: 'horizontal'}),
-			button(t('close'), function () { results.style().set('shown', false); })));
+			button(t('close'), function () {
+				oneMap();
+				results.style().set('shown', false);
+			})));
 		widgets.forEach(function (w) { results.add(w); });
 		results.style().set('shown', true);
 	}
@@ -475,15 +489,16 @@
 		addColourBar(vis, title);
 	}
 
-	// The colour bar of VIS with its TITLE at the end of the legend (MARGIN: that of the title; below the classes of
-	// the RdNBR, that of its continuous layer)
-	function addColourBar(vis, title, margin) {
-		legend.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: margin || '0 0 4px 0'}));
-		legend.add(ui.Thumbnail({image: ee.Image.pixelLonLat().select(0), params: {bbox: [0, 0, 1, 0.1],
+	// The colour bar of VIS with its TITLE at the end of the legend, or of PANEL (MARGIN: that of the title; below the
+	// classes of the RdNBR, that of its continuous layer)
+	function addColourBar(vis, title, margin, panel) {
+		panel = panel || legend;
+		panel.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: margin || '0 0 4px 0'}));
+		panel.add(ui.Thumbnail({image: ee.Image.pixelLonLat().select(0), params: {bbox: [0, 0, 1, 0.1],
 			dimensions: '200x12', format: 'png', min: 0, max: 1, palette: vis.palette}, style: {margin: '0'}}));
-		legend.add(row(ui.Label(num(vis.min), {fontSize: '11px', margin: '0'}),
+		panel.add(row(ui.Label(num(vis.min), {fontSize: '11px', margin: '0'}),
 			ui.Label(num(vis.max), {fontSize: '11px', margin: '0 0 0 150px'})));
-		legend.style().set('shown', true);
+		panel.style().set('shown', true);
 	}
 
 	// The range of the true colour VIS ({bands, min, max}) in words, its reflectance with 3 decimals: it has no colour
@@ -520,6 +535,7 @@
 	// Region --------------------------------------------------------------------------------------------------------
 
 	function setRegion(fc, name) {
+		oneMap();  // its layer on the map shown
 		state.region = fc;
 		state.regionName = name;
 		state.info = null;
@@ -627,6 +643,7 @@
 		});
 		w.push(select(modes, state.mode, function (m) {
 			state.mode = m;
+			oneMap();  // the tools to draw are those of the map of the app
 			drawing.setShown(m === 'draw');
 			if (m === 'draw') drawing.setShape('polygon');
 			render();
@@ -673,6 +690,7 @@
 		} else {
 			w.push(ui.Label(t('drawHelp'), SMALL));
 			w.push(button(t('drawAgain'), function () {
+				oneMap();
 				drawing.layers().reset();
 				drawing.setShape('polygon');
 			}));
@@ -1323,32 +1341,41 @@
 	}
 
 	// The swipe of a comparison (as the split maps of geemap): the reference period on the left and the other one on the
-	// right, in two maps that move together, with the same colours (from the percentiles of both)
-	var single = null;  // the map of the app while the two maps are shown
+	// right, in two maps that move together, with the same colours (from the percentiles of both, those of a period
+	// without pixels left out; the range of the catalog if neither has them) and their colour bar on the left map. The
+	// legend of the map of the app (that of the difference) stays as it is; any other result, Close or Back to one map
+	// show that map again (oneMap)
 	function swipePeriods(img, e, ramped, s, o) {
 		var geom = state.region.geometry();
 		var both = img.select('reference').addBands(img.select('other'));
 		var id = start();
 		both.reduceRegion({reducer: ee.Reducer.percentile([5, 95]), geometry: geom, scale: rangeScale(e), bestEffort: true,
 			maxPixels: 1e6, tileScale: 4}).evaluate(guardedAsync(id, function (st) {
-			var lo = Math.min(st.reference_p5, st.other_p5), hi = Math.max(st.reference_p95, st.other_p95);
-			var vis = mo.visParams(isFinite(lo) && isFinite(hi) ? {value_p5: lo, value_p95: hi} : null, ramped);
+			function numbers(values) {  // null for a period without pixels (Math.min would take it as 0)
+				return values.filter(function (v) { return typeof v === 'number' && isFinite(v); });
+			}
+			var los = numbers([st.reference_p5, st.other_p5]), his = numbers([st.reference_p95, st.other_p95]);
+			var vis = mo.visParams(los.length && his.length ?
+				{value_p5: Math.min.apply(null, los), value_p95: Math.max.apply(null, his)} : null, ramped);
 			var left = ui.Map(), right = ui.Map();
 			[left, right].forEach(function (m) { m.setOptions('HYBRID'); m.setControlVisibility({layerList: false}); });
 			left.addLayer(img.select('reference'), vis, s.period.join('/'));
 			right.addLayer(img.select('other'), vis, o.period.join('/'));
+			var key = ui.Panel({style: {position: 'bottom-left', padding: '6px 8px'}});
+			var unit = unitText(e, s.metric, s.temporal === 'period' ? null : s.interannual);
+			addColourBar(vis, title(e, [metricName(s.metric)]) + (unit ? ' ' + unit : ''), null, key);
+			left.add(key);
 			ui.Map.Linker([left, right]);
 			left.centerObject(geom);
 			var split = ui.SplitPanel({firstPanel: left, secondPanel: right, wipe: true, style: {stretch: 'both'}});
-			single = single || map;
-			ui.root.widgets().set(1, split);
 			show([ui.Label(t('swipe'), {fontWeight: 'bold'}),
 				ui.Label(fmt(t('swipeNote'), s.period.join('/'), o.period.join('/')), SMALL),
 				button(t('oneMap'), function () {
-					ui.root.widgets().set(1, single);
+					oneMap();
 					results.style().set('shown', false);
 				})]);
-			colourBar(vis, title(e, [metricName(state.mapMetric)]));
+			ui.root.widgets().set(1, split);  // after show, which puts the map of the app back
+			swiped = true;
 		}));
 	}
 
@@ -1664,14 +1691,16 @@
 					gif.add(ui.Label(t('animGif'), {fontSize: '12px'}, url));
 				});
 			}));
-			// the time slider: a frame on the map, chosen with a slider (as the time sliders of geemap)
+			// the time slider: a frame on the map, chosen with a slider (as the time sliders of geemap), cut to the
+			// region: the white outside it (that of the thumbnail and the GIF) would hide the whole map
 			var list = frames.toList(steps.length);
-			var frameLayer = ui.Map.Layer(ee.Image(list.get(0)), {}, labels[0]);
+			var frameOf = function (i) { return ee.Image(list.get(i)).clipToCollection(region); };
+			var frameLayer = ui.Map.Layer(frameOf(0), {}, labels[0]);
 			map.layers().add(frameLayer);
 			var current = ui.Label(labels[0], {fontSize: '12px'});
 			var slider = ui.Slider({min: 0, max: steps.length - 1, step: 1, value: 0, style: {stretch: 'horizontal'},
 				onChange: function (i) {
-					frameLayer.setEeObject(ee.Image(list.get(i)));
+					frameLayer.setEeObject(frameOf(i));
 					frameLayer.setName(labels[i]);
 					current.setValue(labels[i]);
 				}});
