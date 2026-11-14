@@ -92,11 +92,12 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.32](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.32) · 2026-11-14 · package 0.3.42
 
-- **Assistant**: While an answer runs, the button Send is Stop: it ends the answer and what Earth Engine was computing for it at once, so that something else can be asked for in its place (before, nothing could be asked until the computation ended).
+- **Assistant**: While an answer runs, the button Send is Stop: it ends the answer and what Earth Engine was computing for it at once (with a model of Ollama, Ollama stops generating it too), so that something else can be asked for in its place (before, nothing could be asked until the computation ended).
 - **Assistant, MCP server, Python package, R package** (fix): A map whose PNG preview Earth Engine cannot make in 5 minutes comes with its map tiles and without the preview, with the reason, instead of failing with «HTTPError: HTTP Error 400: Bad Request» (as the mean of the cloud frequency of MODIS of 2001-2025 over La Palma did).
-- **Assistant, MCP server, Python package, R package**: The previews of the maps of coarse data over small regions (MODIS, ERA5-Land, TerraClimate) are computed on the pixels of the data, many times faster: that map of La Palma now takes about a minute.
+- **Assistant, MCP server, Python package, R package**: The previews of the maps of coarse data over small regions (MODIS, ERA5-Land, TerraClimate) are computed on the pixels of the data, many times faster: that map of La Palma now takes less than a minute.
+- **Assistant** (fix): When the MCP server of MonitorEO stops on its own (out of memory, a crash), it starts again at the next request, which says so, instead of every computation failing with «Connection closed» until the assistant is closed.
 
 ### [v0.3.31](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.31) · 2026-11-13 · package 0.3.41
 
