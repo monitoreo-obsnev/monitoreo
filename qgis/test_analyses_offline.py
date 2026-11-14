@@ -305,5 +305,48 @@ assert any('MonitorEO [Software]' in t for t in texts), texts
 dock.make_layout()
 assert iface.opened.name() == layout.name() + ' 2'  # a free name
 print('figure:', layout.name(), len(items), 'items')
+
+# whatever the shape of the canvas (tall, wide, of 2 km), the map of the layout keeps its 205 x 160 mm with all the
+# canvas in it, the scale bar on it and the credits under it in the page; the labels of its grid have the decimals of
+# its step; and the credits are all those of the data of the layers (USGS, FAO GAUL...), not only those of Copernicus
+from monitoreo import references  # noqa: E402
+from monitoreo_qgis.dock import figure_layout, references_text  # noqa: E402
+
+
+class Canvas:
+	"""A canvas of EXTENT in EPSG:4326."""
+
+	def __init__(self, extent):
+		self.box = extent
+
+	def extent(self):
+		return self.box
+
+	def mapSettings(self):
+		return self
+
+	def destinationCrs(self):
+		return QgsCoordinateReferenceSystem('EPSG:4326')
+
+
+cited = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, 'variable': 'NDVI',
+                                      'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'})
+assert len(cited['credits']) == 2 and not any(c.startswith('Contains') for c in cited['credits']), cited['credits']
+lines.setAbstract('MonitorEO: NDVI (Landsat).' + references_text(cited))
+for box, decimals in ((QgsRectangle(-3.5, 36.9, -3.4, 37.3), 2), (QgsRectangle(-4.0, 37.0, -2.5, 37.1), 2),
+                      (QgsRectangle(-3.41, 37.09, -3.39, 37.11), 3)):
+	items = figure_layout(Canvas(box)).items()
+	m = next(i for i in items if isinstance(i, QgsLayoutItemMap))
+	y, h = m.positionWithUnits().y(), m.sizeWithUnits().height()
+	assert (round(m.sizeWithUnits().width()), round(h), round(y)) == (205, 160, 18), (box.toString(), y, h)
+	assert m.extent().buffered(1e-9).contains(box), (m.extent().toString(), box.toString())
+	assert m.grid().annotationPrecision() == decimals, (box.toString(), m.grid().intervalX())
+	scale = next(i for i in items if isinstance(i, QgsLayoutItemScaleBar))
+	assert y < scale.positionWithUnits().y() < y + h, scale.positionWithUnits().y()  # on the map
+	note = next(i for i in items if isinstance(i, QgsLayoutItemLabel) and 'MonitorEO [Software]' in i.text())
+	top = note.positionWithUnits().y()
+	assert y + h <= top and top + note.sizeWithUnits().height() <= 210, top  # under the map, in the A4 page
+	assert all(c in note.text().split('\n') for c in cited['credits']), note.text()
+print('figure of a tall, a wide and a small canvas: the map 205 x 160 mm, credits', len(cited['credits']))
 plugin.unload()
 print('OK')

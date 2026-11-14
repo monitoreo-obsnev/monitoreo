@@ -18,6 +18,7 @@ import textwrap
 
 FORMATS = ('.png', '.pdf', '.svg')
 KM_PER_DEGREE = 111.32  # of latitude, and of longitude at the equator
+CREDIT_LINE = 5.5 * 1.25 / 72  # inches of a line of the credits (5.5 points)
 
 
 def check(path, dpi=None):
@@ -52,10 +53,19 @@ def scale_bar(bounds, share=0.25):
 	return km, km / per_degree
 
 
-def degrees(x, axis):
-	"""A longitude (AXIS 'x') or latitude ('y') as 3.45° W, 37.10° N."""
+def decimals(step, least=2):
+	"""The decimals that tell apart the lines of a grid every STEP (and write them exactly), at least LEAST: 2 for 0.1
+	or 0.05, 3 for 0.005 or 0.002, 4 for 0.0025."""
+	d = least
+	while d < 10 and abs(step * 10 ** d - round(step * 10 ** d)) > 1e-6:
+		d += 1
+	return d
+
+
+def degrees(x, axis, digits=2):
+	"""A longitude (AXIS 'x') or latitude ('y') as 3.45° W, 37.10° N, with DIGITS decimals."""
 	sign = ('E' if x >= 0 else 'W') if axis == 'x' else ('N' if x >= 0 else 'S')
-	return f'{abs(x):.2f}° {sign}'
+	return f'{abs(x):.{digits}f}° {sign}'
 
 
 def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=300, width=7.0):
@@ -69,6 +79,7 @@ def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=3
 	from matplotlib.image import imread
 	from matplotlib.patches import Rectangle
 	from matplotlib.ticker import FuncFormatter, MaxNLocator
+	from matplotlib.transforms import offset_copy
 
 	w, s, e, n = bounds
 	lat0 = (s + n) / 2
@@ -76,25 +87,30 @@ def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=3
 	img = imread(io.BytesIO(png), format='png')
 	ratio = (n - s) * aspect / max(e - w, 1e-9)  # height / width of the map on the page
 	map_h = min(width * 0.86 * ratio, 9.0)
-	height = map_h + 2.0
+	lines = [textwrap.fill(c, 140) for c in credits if c]
+	foot = sum(x.count('\n') + 1 for x in lines) * CREDIT_LINE  # inches of the credits, under the colour ramp
+	height = map_h + 1.85 + foot
 	fig = Figure(figsize=(width, height))
 	FigureCanvasAgg(fig)
 	top = 1 - 0.5 / height
-	bottom = 1.4 / height
+	bottom = (1.25 + foot) / height
 	ax = fig.add_axes([0.1, bottom, 0.86, top - bottom])
 	ax.imshow(img, extent=[w, e, s, n], interpolation='nearest', zorder=1)
 	ax.set_xlim(w, e)
 	ax.set_ylim(s, n)
 	ax.set_aspect(aspect)
-	ax.xaxis.set_major_locator(MaxNLocator(5))
-	ax.yaxis.set_major_locator(MaxNLocator(5))
-	ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: degrees(x, 'x')))
-	ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: degrees(y, 'y')))
+	for axis, name in ((ax.xaxis, 'x'), (ax.yaxis, 'y')):  # the decimals of the labels from the step of the grid
+		axis.set_major_locator(MaxNLocator(5))
+		ticks = axis.get_major_locator()()
+		digits = decimals(min(b - a for a, b in zip(ticks, ticks[1:]))) if len(ticks) > 1 else 2
+		axis.set_major_formatter(FuncFormatter(lambda v, _, name=name, digits=digits: degrees(v, name, digits)))
 	ax.tick_params(labelsize=7)
 	ax.grid(color='#555', linestyle=':', linewidth=0.5, alpha=0.7, zorder=2)
-	# the north arrow, top right
-	ax.annotate('N', xy=(0.95, 0.95), xytext=(0.95, 0.80), xycoords='axes fraction', ha='center', va='center',
-	            fontsize=10, fontweight='bold', zorder=5,
+	# the north arrow, top right, of the same size whatever the map (points): the N, and the arrow under it
+	ax.annotate('N', xy=(0.95, 1), xycoords='axes fraction', xytext=(0, -3), textcoords='offset points', ha='center',
+	            va='top', fontsize=10, fontweight='bold', zorder=5)
+	ax.annotate('', xy=(0.95, 1), xycoords=offset_copy(ax.transAxes, fig, y=-15, units='points'), xytext=(0, -18),
+	            textcoords='offset points', zorder=5,
 	            arrowprops={'facecolor': 'black', 'edgecolor': 'black', 'width': 2.5, 'headwidth': 9, 'headlength': 9})
 	# the scale bar, bottom left: two halves, black and white
 	km, deg = scale_bar(bounds)
@@ -114,8 +130,7 @@ def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=3
 		bar.set_label(unit, fontsize=8)
 	if title:
 		fig.suptitle(textwrap.fill(title, 95), fontsize=10, y=1 - 0.12 / height, va='top')
-	lines = [textwrap.fill(c, 140) for c in credits if c]
-	if lines:
-		fig.text(0.02, 0.02, '\n'.join(lines), fontsize=5.5, color='#444', va='bottom', ha='left')
+	if lines:  # at the foot, in the space kept for them
+		fig.text(0.02, 0.08 / height, '\n'.join(lines), fontsize=5.5, color='#444', va='bottom', ha='left')
 	fig.savefig(path, dpi=int(dpi))
 	return path

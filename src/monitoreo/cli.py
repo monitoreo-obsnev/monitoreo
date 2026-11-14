@@ -191,7 +191,7 @@ def _error(e, args):
 	text = f'ERROR: {e}'
 	asset = None if 'variable' in args.source else args.source.get('collection')
 	if asset and 'give it as an image' in str(e):
-		text += (f'; in the command line, --image {asset} instead of --collection' if args.cmd in ('image', 'stats') else
+		text += (f'; in the command line, --image {asset} instead of --collection' if hasattr(args, 'image') else
 		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
 	return text
 

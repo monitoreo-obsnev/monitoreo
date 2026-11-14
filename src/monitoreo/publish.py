@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import assets, catalog, composite, fire, maps, references, trends
+from . import assets, catalog, composite, figures, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -258,14 +258,14 @@ def _items(spec, base, folders, log):
 			c = _logged_call(path, log) or {}
 			item.setdefault('tool', c.get('tool'))
 			item.setdefault('args', c.get('args'))
-			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
-			                                     else 'csv': path}
+			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS +
+			                                                                      figures.FORMATS) else 'csv': path}
 		res = dict(item.get('result') or {})
 		for k in ('file', 'gif', 'csv', 'chart'):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
 		item['result'] = res
-		item['args'] = dict(item.get('args') or {})
+		item['tool'], item['args'] = services_call(item.get('tool'), dict(item.get('args') or {}))
 		yield item
 
 
@@ -408,8 +408,20 @@ def _py(v):
 	return repr(v)
 
 
+def services_call(tool, args):
+	"""The function of monitoreo.services and its arguments of a call of TOOL with ARGS: map_layer with figure (of the
+	MCP server and the assistant) is map_figure, without figure and quick."""
+	if tool == 'map_layer' and 'figure' in args:
+		args = dict(args)
+		if args.pop('figure'):
+			tool = 'map_figure'
+			args.pop('quick', None)
+	return tool, args
+
+
 def python_call(tool, args):
 	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool."""
+	tool, args = services_call(tool, args)
 	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})" if tool else None
 
 
@@ -695,7 +707,8 @@ def _results(item, files, n):
 	if unit.endswith('/ year'):
 		unit = unit[:-len('/ year')].strip()
 	out = []
-	if tool == 'map_figure' and res.get('file'):  # a figure of a map: its PNG shown, a PDF or SVG to download
+	# a figure of a map (map_figure, or the file of a figure without its call): its PNG shown, a PDF or SVG to download
+	if str(res.get('file') or '').lower().endswith(figures.FORMATS):
 		kind = os.path.splitext(res['file'])[1].lstrip('.').upper()
 		path = files.add(res['file'], 'files', f'Figure ({kind}): {title}', kind)
 		return [{'id': f'r{n + 1}', 'kind': 'figure', 'title': title, 'caption': item.get('caption'), 'tool': tool,

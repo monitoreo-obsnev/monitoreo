@@ -149,11 +149,30 @@ def dated(layer, first, last):
 	props.setIsActive(True)
 
 
+CREDITS_HEADING = 'Credits of the data:'  # in the abstract of a layer, before its credits (see figure_layout)
+
+
 def references_text(res):
-	"""The references and credits of a result (monitoreo.references), for the abstract of its layer."""
-	from monitoreo import references
-	lines = references.texts(res) if res.get('references') else []
-	return ('\n\nReferences (cite them with this layer):\n' + '\n'.join(lines)) if lines else ''
+	"""The references and credits of a result (monitoreo.references), for the abstract of its layer: the credits under
+	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
+	refs = [r['text'] for r in res.get('references') or []]
+	credits = [c for c in res.get('credits') or [] if c]
+	return ((('\n\nReferences (cite them with this layer):\n' + '\n'.join(refs)) if refs else '') +
+	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
+
+
+def layer_credits(text):
+	"""The credits of the data in the abstract TEXT of a layer of the plugin (references_text): the lines under
+	CREDITS_HEADING until a blank line."""
+	lines = str(text or '').splitlines()
+	if CREDITS_HEADING not in lines:
+		return []
+	out = []
+	for line in lines[lines.index(CREDITS_HEADING) + 1:]:
+		if not line.strip():
+			break
+		out.append(line.strip())
+	return out
 
 
 def add_layer(layer, group=None):
@@ -222,6 +241,7 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	                       QgsLayoutItemPicture, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLayoutSize, QgsPrintLayout)
 	from qgis.PyQt.QtCore import QRectF
 	from qgis.PyQt.QtGui import QFont
+	from monitoreo.figures import decimals
 	project = QgsProject.instance()
 	manager = project.layoutManager()
 	title = name
@@ -246,17 +266,18 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	item = QgsLayoutItemMap(layout)
 	item.attemptSetSceneRect(QRectF(12, 18, 205, 160))
 	item.setCrs(canvas.mapSettings().destinationCrs())
-	item.setExtent(canvas.extent())
+	item.zoomToExtent(canvas.extent())  # the map keeps its 205 x 160 mm, with all the extent of the canvas in it
 	layout.addLayoutItem(item)
 	grid = item.grid()
 	grid.setEnabled(True)
-	extent = canvas.extent()
+	extent = item.extent()
 	step = _nice(max(extent.width(), extent.height()) / 5)
 	grid.setIntervalX(step)
 	grid.setIntervalY(step)
 	grid.setStyle(QgsLayoutItemMapGrid.GridStyle.Cross)
 	grid.setAnnotationEnabled(True)
-	grid.setAnnotationPrecision(2 if canvas.mapSettings().destinationCrs().isGeographic() else 0)
+	# the decimals that tell apart the lines of the grid (at least 2 in degrees, as the figures of monitoreo)
+	grid.setAnnotationPrecision(decimals(step, 2 if canvas.mapSettings().destinationCrs().isGeographic() else 0))
 	legend = QgsLayoutItemLegend(layout)
 	legend.setLinkedMap(item)
 	legend.setTitle('Legend')
@@ -275,9 +296,8 @@ def figure_layout(canvas, name='MonitorEO figure'):
 	north.attemptMove(QgsLayoutPoint(200, 20))
 	north.attemptResize(QgsLayoutSize(12, 12))
 	credits = []
-	for layer in visible:  # the references and credits that the plugin writes in the metadata of its layers
-		text = layer.serverProperties().abstract() if hasattr(layer, 'serverProperties') else ''
-		credits += [line.strip() for line in str(text).splitlines() if line.strip().startswith('Contains')]
+	for layer in visible:  # the credits of the data that the plugin writes in the metadata of its layers
+		credits += layer_credits(layer.serverProperties().abstract() if hasattr(layer, 'serverProperties') else '')
 	from monitoreo import about
 	note = QgsLayoutItemLabel(layout)
 	note.setText('\n'.join(list(dict.fromkeys(credits)) + [f'Computed with MonitorEO in Google Earth Engine. '
