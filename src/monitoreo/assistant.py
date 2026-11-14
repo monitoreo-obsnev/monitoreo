@@ -32,6 +32,7 @@ the address that the assistant opens (other pages of the browser cannot use it).
 import asyncio
 import contextlib
 import datetime as dt
+import http.client
 import json
 import os
 import pathlib
@@ -92,6 +93,7 @@ ASK_AND_WAIT = (' Ask the user which one in one sentence and stop there, without
                 'waits for their choice.')  # added to the areas found when the user has to choose one
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
 MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and the others with a button)
+CONNECTION_CLOSED = -32000  # the code of the error of a closed connection of the MCP SDK (mcp.types, 1.x and 2.x)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
               'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS', 'MONITOREO_BROKER')
 SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
@@ -803,13 +805,50 @@ def receipt(n, title):
 	        'describe or interpret them.')
 
 
-def ollama(base, path, payload=None, timeout=600):
-	"""Answer (JSON) of the API of Ollama at BASE (e.g. http://localhost:11434)."""
+def connection_closed(error):
+	"""Whether ERROR, of a call of the MCP SDK (1.x or 2.x), says that the connection with the server is closed."""
+	try:
+		import anyio
+		if isinstance(error, (anyio.ClosedResourceError, anyio.BrokenResourceError, anyio.EndOfStream)):
+			return True
+	except ImportError:
+		pass
+	code = getattr(getattr(error, 'error', None), 'code', None)  # McpError (1.x), MCPError (2.x): their ErrorData
+	return code == CONNECTION_CLOSED
+
+
+def abortable(sockets):
+	"""An opener of urllib whose connections (HTTP and HTTPS) put their socket in the list SOCKETS: another thread can
+	then cut the request with socket.shutdown (the button Stop of the assistant), which the server sees (Ollama stops
+	generating its answer)."""
+	def keeping(base):
+		class Kept(base):
+			def connect(self):
+				super().connect()
+				sockets.append(self.sock)
+		return Kept
+
+	plain, secure = keeping(http.client.HTTPConnection), keeping(http.client.HTTPSConnection)
+
+	class Plain(urllib.request.HTTPHandler):
+		def http_open(self, req):
+			return self.do_open(plain, req)
+
+	class Secure(urllib.request.HTTPSHandler):
+		def https_open(self, req):
+			return self.do_open(secure, req, context=self._context)
+
+	return urllib.request.build_opener(Plain, Secure)
+
+
+def ollama(base, path, payload=None, timeout=600, abort=None):
+	"""Answer (JSON) of the API of Ollama at BASE (e.g. http://localhost:11434). ABORT: a list that gets the socket of
+	the request, so that another thread can cut it (see abortable)."""
 	req = urllib.request.Request(base.rstrip('/') + path, method='POST' if payload is not None else 'GET',
 	                             data=json.dumps(payload).encode() if payload is not None else None,
 	                             headers={'Content-Type': 'application/json'})
 	try:
-		with urllib.request.urlopen(req, timeout=timeout) as r:
+		with (abortable(abort).open if abort is not None else urllib.request.urlopen)(req, timeout=timeout) as r:
 			return json.loads(r.read().decode())
 	except urllib.error.HTTPError as e:
 		body = e.read().decode(errors='replace')
@@ -937,12 +976,12 @@ def chat_ollama(settings, system, messages, tools):
 	if settings.get('think') is not None:
 		payload['think'] = bool(settings['think'])
 	try:
-		answer = ollama(settings['ollama'], '/api/chat', payload)
+		answer = ollama(settings['ollama'], '/api/chat', payload, abort=settings.get('abort'))
 	except ModelError as e:
 		text = str(e).lower()
 		if 'think' in payload and 'think' in text:  # a model without thinking
 			del payload['think']
-			answer = ollama(settings['ollama'], '/api/chat', payload)
+			answer = ollama(settings['ollama'], '/api/chat', payload, abort=settings.get('abort'))
 		elif 'not found' in text:
 			raise ModelError(f"the model {settings['model']} is not installed: download it") from e
 		else:
@@ -1116,10 +1155,11 @@ class Assistant:
 		self.session, self.tools, self.system = None, [], instructions()
 		self.task = None  # that of the message being answered
 		self.calling = 0  # calls of the MCP server in progress for that message (see call and stop)
-		self.interrupted = False  # whether the user stopped the last answer (the model is told with the next message)
+		self.model_call = []  # the sockets of the request to Ollama in progress for that message (see stop)
 		self.server_task, self.server_stop = None, None  # those of the MCP server (see start_server)
 		self.server_ready = asyncio.Event()  # set while the MCP server can be called
-		self.restarting = None  # a future while the MCP server starts again (see restart_server)
+		self.session_closed = None  # an event set when the session of the MCP server in use closes (see call)
+		self.restart_task = None  # the restart of the MCP server in progress (see restart_mcp)
 		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
 		self.loop, self.closing = None, False  # that of the web server; closing: the pages stop following
 		self.layers = load_layers()
@@ -1170,6 +1210,7 @@ class Assistant:
 		self.shown = {}  # the documents whose text is in the conversation: {name: {chars, size (of its parts)}}
 		self.inline_used = 0  # characters of documents put in the conversation (also of those removed since)
 		self.dropped = []  # those removed by the user since they were there (the model is told at the next message)
+		self.interrupted = False  # whether the user stopped the last answer (the model is told with the next message)
 
 	def running(self):
 		"""Whether a message is being answered."""
@@ -1225,18 +1266,27 @@ class Assistant:
 		self.calling = 0
 		self.task = asyncio.create_task(answer())
 
-	async def stop(self):
-		"""Stop the answer in progress (button Stop of the page): the model is not waited for, and a computation of the
-		MCP server in progress stops with the server, which starts again (a call cannot be stopped in it: Earth Engine
-		would go on computing, and what is asked next would wait for it). Whether there was an answer to stop."""
+	async def stop(self, reset=False):
+		"""Stop the answer in progress (button Stop of the page): the model is not waited for (a request to Ollama is
+		cut, so that Ollama stops generating it), and a computation of the MCP server in progress stops with the server,
+		which starts again (a call cannot be stopped in it: Earth Engine would go on computing, and what is asked next
+		would wait for it). With RESET, the conversation is forgotten too (New request), before the restart, so that
+		a message sent meanwhile goes to the new one. Whether there was an answer to stop."""
 		if not self.running():
+			if reset:
+				self.new_conversation()
 			return False
 		computing, task = self.calling > 0, self.task
 		task.cancel()
+		for sock in list(self.model_call):  # the thread of the model gets an error, and its answer is not kept
+			with contextlib.suppress(OSError):
+				sock.shutdown(socket.SHUT_RDWR)
 		await asyncio.wait([task])  # its events end with done; not the cancellation of this request
+		if reset:
+			self.new_conversation()
 		if computing:
 			try:
-				await self.restart_server()
+				await asyncio.shield(self.restart_mcp())
 			except Exception as e:
 				self.emit({'type': 'error', 'text': f'The MCP server of MonitorEO could not start again ({type(e).__name__}: '
 				                                    f'{e}): close the assistant and open it again.'})
@@ -1299,7 +1349,8 @@ class Assistant:
 					await session.initialize()
 					listed = await session.list_tools()
 					self.tools = model_tools([_json(t) for t in listed.tools]) + [MANUAL_TOOL, DOCUMENT_TOOL]
-					self.session = session
+					self.session, self.session_closed = session, asyncio.Event()
+					closed = self.session_closed
 					self.server_ready.set()
 					ready.set_result(None)
 					try:
@@ -1307,6 +1358,7 @@ class Assistant:
 					finally:
 						self.server_ready.clear()
 						self.session = None
+						closed.set()  # the calls in progress end (see call): mcp 1.x would leave them waiting
 		except Exception as e:
 			if not ready.done():
 				ready.set_exception(e)
@@ -1326,30 +1378,34 @@ class Assistant:
 				print(f'WARNING: the MCP server of MonitorEO: {type(e).__name__}: {e}', file=sys.stderr)
 
 	async def restart_server(self):
-		"""Start the MCP server again (see stop): what it was computing stops. The calls meanwhile wait for it."""
-		done = self.restarting = asyncio.get_running_loop().create_future()
-		try:
-			await self.stop_server()
-			await self.start_server()
-		finally:
-			self.restarting = None
-			if not done.done():
-				done.set_result(None)
+		"""Start the MCP server again: what it was computing stops."""
+		await self.stop_server()
+		await self.start_server()
+
+	def restart_mcp(self):
+		"""The restart of the MCP server (restart_server) in a task of its own, one at a time: a second stop, or a call
+		that finds the server closed, during a restart get the same one; the calls meanwhile wait for it (see call)."""
+		if not self.restart_task or self.restart_task.done():
+			self.restart_task = asyncio.ensure_future(self.restart_server())
+		return self.restart_task
 
 	async def call(self, name, args):
 		"""Call a tool of the MCP server: (error or None, texts, images as data: URLs). While the server starts again
-		(after a stop), the call waits for it."""
-		if self.restarting:
-			await asyncio.shield(self.restarting)  # a call cancelled meanwhile does not cancel the restart
+		(after a stop), the call waits for it; a call in progress when it closes ends with an error (RuntimeError), and
+		so does one that finds it stopped on its own, which starts it again."""
+		if self.restart_task and not self.restart_task.done():
+			with contextlib.suppress(Exception):  # a failed restart: the session says it below
+				await asyncio.shield(self.restart_task)  # a call cancelled meanwhile does not cancel the restart
 		elif not self.session and self.server_task and not self.server_task.done():
 			with contextlib.suppress(asyncio.TimeoutError):
 				await asyncio.wait_for(self.server_ready.wait(), 120)
-		if not self.session:
+		session, closed = self.session, self.session_closed
+		if not session:
 			raise RuntimeError('the MCP server of MonitorEO is not running: close the assistant and open it again')
 		mine = asyncio.current_task() is self.task  # a call of the answer in progress (see stop)
 		self.calling += mine
 		try:
-			res = _json(await self.session.call_tool(name, args))
+			res = _json(await self._until_closed(session, closed, name, args))
 		finally:
 			self.calling -= mine
 		content = res.get('content') or []
@@ -1358,6 +1414,33 @@ class Assistant:
 		          if c.get('type') == 'image']
 		error = (texts[0] if texts else 'error') if res.get('isError') else None
 		return error, texts, images
+
+	async def _until_closed(self, session, closed, name, args):
+		"""The answer of SESSION to the call of the tool NAME, or RuntimeError if the session closes first (CLOSED:
+		a stop, which starts the server again) or the server had stopped on its own (then it starts again)."""
+		pending = asyncio.ensure_future(session.call_tool(name, args))
+		pending.add_done_callback(lambda t: t.cancelled() or t.exception())  # an answer not waited for any more
+		gone = asyncio.ensure_future(closed.wait()) if closed else None
+		try:
+			await asyncio.wait({pending} | ({gone} if gone else set()), return_when=asyncio.FIRST_COMPLETED)
+		finally:
+			if gone:
+				gone.cancel()
+			if not pending.done():
+				pending.cancel()  # also when this task is cancelled (Stop)
+		if not pending.done() or pending.cancelled():  # the session closed first (its cancellation is on its way)
+			raise RuntimeError('the MCP server of MonitorEO started again (button Stop): ask for it again')
+		try:
+			return pending.result()
+		except Exception as e:
+			if not connection_closed(e) or session is not self.session or (self.server_stop and self.server_stop.is_set()):
+				raise
+			try:  # the server stopped on its own (it ran out of memory, or crashed): it starts again
+				await asyncio.shield(self.restart_mcp())
+			except Exception as again:
+				raise RuntimeError(f'the MCP server of MonitorEO had stopped and could not start again ({again}): close '
+				                   'the assistant and open it again') from e
+			raise RuntimeError('the MCP server of MonitorEO had stopped, and has started again: ask for it again') from e
 
 	async def connect(self, project):
 		"""Use this Google Cloud project (empty: the shared account of MonitorEO); returns the answer of the MCP
@@ -1414,8 +1497,8 @@ class Assistant:
 			text += (f'{NOTE}the assistant does not do this; it is done with {name} of MonitorEO, for {what}: {url}. '
 			         "Say it in one or two sentences with the link, in the language of the user's words above, without "
 			         'code or names of tools.)')
-		if self.interrupted:  # the model knows that the previous answer was stopped (and its calls, see stopped)
-			self.interrupted = False
+		interrupted, self.interrupted = self.interrupted, False
+		if interrupted:  # the model knows that the previous answer was stopped (and its calls, see stopped)
 			text += NOTE + INTERRUPTED
 		mark, before = len(self.messages), (dict(self.shown), self.inline_used, list(self.dropped))
 		note = self.document_message()
@@ -1429,12 +1512,14 @@ class Assistant:
 			try:
 				if not self.cloud() and not self.base():
 					raise ModelError('the engine of the models is missing: install it in Settings')
-				message = await asyncio.to_thread(chat_model, self.model_settings(), self.system_prompt(),
-				                                  self.messages, self.tools)
+				self.model_call = []  # its sockets (Ollama), to cut it if the user stops it (see stop)
+				message = await asyncio.to_thread(chat_model, {**self.model_settings(), 'abort': self.model_call},
+				                                  self.system_prompt(), self.messages, self.tools)
 				self.cloud_model = message.get('model') or self.cloud_model
 			except ModelError as e:
 				if isinstance(e, TooLong) and len(self.messages) == mark + 1 + bool(note):  # nothing answered yet:
 					del self.messages[mark:]  # the conversation as it was (the documents of the note go again later)
+					self.interrupted = self.interrupted or interrupted  # and the note of a stop, with the next message
 					self.shown, self.inline_used, self.dropped = before[0], before[1], before[2] + [
 						k for k in self.dropped if k not in before[2]]
 				yield {'type': 'error', 'text': f'Language model: {e}'}
@@ -2508,7 +2593,12 @@ def make_app(assistant, token, port):
 		return JSONResponse({'updated': True})
 
 	async def reset(request):
-		assistant.new_conversation()
+		"""New request: with stop, the answer in progress stops first (see Assistant.stop), in the same request."""
+		body = await request.json()
+		if body.get('stop'):
+			await assistant.stop(reset=True)
+		else:
+			assistant.new_conversation()
 		return JSONResponse({})
 
 	async def stop(request):

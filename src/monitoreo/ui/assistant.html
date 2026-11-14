@@ -1123,7 +1123,13 @@ function setBusy(on) {  // while an answer runs, the button Send stops it
   b.title = on ? 'Stop the answer and the computation in progress, to ask for something else' : '';
 }
 
+function dropPending() {  // the area or unit chosen while an answer ran: not sent after a stop or a reset
+  pending = null;
+  document.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
+}
+
 async function stop() {
+  dropPending();
   $('send').disabled = true;
   $('send').textContent = 'Stopping…';
   try { await api('/api/stop', {}); }  // the button is Send again with the event done
@@ -1143,6 +1149,7 @@ function show(e) {
     if (running) { running.querySelector('.spinner')?.remove(); running = null; }
     if (pending) { const text = pending; pending = null; send(text); }
   } else if (e.type === 'reset') {
+    dropPending();
     $('chat').replaceChildren($('intro'));
     $('intro').hidden = false;
     question = running = userLang = null;
@@ -1231,10 +1238,9 @@ $('reset').onclick = async () => {
                       '(their files stay in the folder MonitorEO)?') :
       $('chat').querySelector('.card') &&
       !confirm('The conversation and its results are cleared from this page (their files stay in the folder MonitorEO). Go on?')) return;
-  try {
-    if (busy) await api('/api/stop', {});
-    await api('/api/reset', {});
-  } catch (e) { return notice(e.message, true); }  // the page clears with its event
+  dropPending();
+  try { await api('/api/reset', {stop: busy}); }  // one request: the answer stops and the conversation is cleared
+  catch (e) { return notice(e.message, true); }  // the page clears with its event
 };
 
 $('report').onclick = () => {

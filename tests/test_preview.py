@@ -3,6 +3,7 @@ those of the preview, the message of Earth Engine when it cannot make one, and t
 (the assistant showed «HTTPError: HTTP Error 400: Bad Request» for the map of the cloud frequency of MODIS of
 2001-2025 over La Palma, and the map was lost)."""
 
+import http.client
 import io
 import json
 import urllib.error
@@ -23,6 +24,10 @@ class Img:
 
 	def reproject(self, projection):
 		self.done.append(('reproject', projection))
+		return self
+
+	def clipToCollection(self, regions):
+		self.done.append(('clip', regions))
 		return self
 
 	def visualize(self, **vis):
@@ -98,6 +103,20 @@ def test_the_message_of_earth_engine(fake_ee, monkeypatch):
 	with pytest.raises(ee.EEException, match='in 5 minutes'):
 		maps.thumbnail(Img(), 'region')
 
+	def cut(url, timeout):  # the connection closes while the PNG comes
+		raise http.client.IncompleteRead(b'\x89P', 1000)
+
+	monkeypatch.setattr(maps.urllib.request, 'urlopen', cut)
+	with pytest.raises(ee.EEException, match='could not send the PNG preview: IncompleteRead'):
+		maps.thumbnail(Img(), 'region')
+
+	class CutBody(urllib.error.HTTPError):
+		def read(self, *a):
+			raise http.client.IncompleteRead(b'{"err', 100)
+
+	error = CutBody('https://earthengine.googleapis.com', 400, 'Bad Request', {}, io.BytesIO(b''))
+	assert 'HTTP Error 400' in maps.earth_engine_error(error)  # its message, when its body comes cut
+
 
 class Regions:
 	def geometry(self):
@@ -109,7 +128,13 @@ class Regions:
 
 def test_the_map_without_its_preview(monkeypatch, tmp_path):
 	seen = []
-	monkeypatch.setattr(maps, 'coarse', lambda img, res, bounds: seen.append((res, bounds)) or img)
+
+	def coarse(img, res, bounds):
+		seen.append((res, bounds))
+		img.done.append(('coarse', res))
+		return img
+
+	monkeypatch.setattr(maps, 'coarse', coarse)
 	monkeypatch.setattr(maps, 'with_outline', lambda img, vis, regions: img)
 
 	def refused(img, region, vis=None, dimensions=768, path=None):
@@ -124,8 +149,15 @@ def test_the_map_without_its_preview(monkeypatch, tmp_path):
 	assert seen == [(1000, LA_PALMA)]  # on the pixels of the data, if they are the coarser
 
 	monkeypatch.setattr(maps, 'thumbnail', lambda img, region, vis=None, dimensions=768, path=None: b'png')
-	res = services._preview(dict(out), Img(), {}, Regions(), 1000, png)
+	img = Img()
+	res = services._preview(dict(out), img, {}, Regions(), 1000, png)
 	assert res['thumbnail'] == png and 'thumbnail_error' not in res
+	# clipped after the pixels of the data, on those of the preview: a region smaller than an ERA5-Land pixel (11 km)
+	# would else get that pixel almost transparent
+	assert [d[0] for d in img.done] == ['coarse', 'clip']
+	img = Img()
+	services._preview(dict(out), img, {}, Regions(), 1000, png, clip=False)  # map_layer(clip=False)
+	assert [d[0] for d in img.done] == ['coarse']
 	assert services._preview(dict(out), Img(), {}, Regions(), 1000, None) == out  # quick: no preview asked for
 
 

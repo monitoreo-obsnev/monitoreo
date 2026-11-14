@@ -13,6 +13,7 @@ coarser than the pixels of the preview are computed on their own grid (coarse): 
 (1 km) over an island of 40 km took more than 5 minutes at 768 pixels, and Earth Engine answered HTTP Error 400.
 """
 
+import http.client
 import json
 import math
 import urllib.error
@@ -102,7 +103,9 @@ def coarse(image, scale, bounds, dimensions=PREVIEW_PIXELS):
 	"""IMAGE computed on a grid of SCALE metres (the pixels of its data) when they are bigger than the pixels of a
 	preview of DIMENSIONS over BOUNDS ([w, s, e, n], degrees): Earth Engine then computes each pixel of the data once,
 	instead of each pixel of the preview (hundreds of times fewer for MODIS or ERA5-Land over a small region), and the
-	preview shows the pixels of the data. IMAGE as it is otherwise, or without SCALE or BOUNDS."""
+	preview shows the pixels of the data. IMAGE as it is otherwise, or without SCALE or BOUNDS. IMAGE should not be
+	clipped to the region yet: its clip would be computed on that grid too (a region smaller than a pixel would get a
+	faint pixel); clip what this returns instead, on the pixels of the preview."""
 	if not scale or not bounds:
 		return image
 	w, s, e, n = bounds
@@ -117,7 +120,7 @@ def earth_engine_error(error):
 	or the error itself."""
 	try:
 		body = error.read().decode('utf-8', 'replace')
-	except (OSError, ValueError, AttributeError):
+	except (OSError, ValueError, AttributeError, http.client.HTTPException):  # a body cut short, too
 		body = ''
 	try:
 		message = json.loads(body)['error']['message']
@@ -139,6 +142,8 @@ def thumbnail(image, region_geom, vis=None, dimensions=PREVIEW_PIXELS, path=None
 			png = r.read()
 	except urllib.error.HTTPError as e:  # before OSError (an HTTPError is one): its body says why
 		raise ee.EEException(f'Earth Engine could not make the PNG preview: {earth_engine_error(e)}') from e
+	except http.client.HTTPException as e:  # the connection cut while the PNG came (IncompleteRead, BadStatusLine)
+		raise ee.EEException(f'Earth Engine could not send the PNG preview: {e!r}') from e
 	except (TimeoutError, urllib.error.URLError) as e:
 		if isinstance(e, TimeoutError) or isinstance(getattr(e, 'reason', None), TimeoutError):
 			raise ee.EEException(f'Earth Engine did not make the PNG preview in {PREVIEW_TIMEOUT // 60} minutes') from e

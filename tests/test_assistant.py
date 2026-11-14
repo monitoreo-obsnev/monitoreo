@@ -2062,12 +2062,12 @@ def test_the_mcp_server_starts_again():
 			first = a.session
 			assert first is not None and a.server_ready.is_set()
 			assert 'map_layer' in [t['function']['name'] for t in a.tools]
-			restart = asyncio.create_task(a.restart_server())
+			restart = a.restart_mcp()
+			assert a.restart_mcp() is restart  # one restart at a time
 			await asyncio.sleep(0)  # the old server is stopping: a call now waits for the new one
-			assert a.restarting is not None
 			error, texts, _ = await a.call('list_variables', {'text': 'cloud frequency', 'lang': 'en'})
 			await restart
-			assert a.session is not None and a.session is not first and a.server_ready.is_set() and not a.restarting
+			assert a.session is not None and a.session is not first and a.server_ready.is_set()
 			assert error is None and 'CF' in texts[0]
 		assert a.session is None and not a.server_ready.is_set() and a.server_task is None
 
@@ -2079,5 +2079,198 @@ def test_the_page_stops():
 	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
 	assert "b.textContent = on ? 'Stop' : 'Send'" in page and "api('/api/stop', {})" in page
 	assert "e.type === 'stopped'" in page
+	# Stop and New request drop the area or unit chosen meanwhile, and New request stops and clears in one request
+	assert page.count('dropPending();') >= 3 and "api('/api/reset', {stop: busy})" in page
 	app = assistant.make_app(assistant.Assistant({**assistant.DEFAULTS, 'project': ''}), 'token', 8765)
 	assert '/api/stop' in [r.path for r in app.routes]
+
+
+def test_new_request_while_an_answer_runs(monkeypatch):
+	"""New request while an answer runs: one request stops it and clears the conversation, and the first message of
+	the new one has no note of the stop (the page sent stop and reset apart, and the note went to the new one)."""
+	entered, release = threading.Event(), threading.Event()
+	seen = []
+
+	def model(settings, system, messages, tools):
+		seen.append(json.loads(json.dumps(messages)))
+		if len(seen) == 1:
+			entered.set()
+			release.wait(10)
+		return {'content': 'Answered.'}
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': ''})
+		a.tools = assistant.model_tools(TOOLS)
+		a.start('Map of the cloud frequency')
+		await asyncio.to_thread(entered.wait, 5)
+		assert await a.stop(reset=True) is True
+		release.set()
+		events = [e async for e in _take(a.follow(0), 1)]
+		assert not a.interrupted and not a.messages
+		a.start('NDVI of Doñana in 2024')
+		await _until_done(a, events[-1]['seq'] + 1)
+		assert await a.stop(reset=True) is False  # nothing running: only the reset
+		return a, events
+
+	try:
+		a, events = asyncio.run(run())
+	finally:
+		release.set()
+	assert events[0]['type'] == 'reset'  # the events of the stopped answer went with the old conversation
+	assert seen[-1] == [{'role': 'user', 'content': 'NDVI of Doñana in 2024'}]
+
+
+def test_the_note_of_a_stop_survives_a_message_too_long(monkeypatch):
+	calls = []
+
+	def model(settings, system, messages, tools):
+		calls.append(json.loads(json.dumps(messages)))
+		if len(calls) == 1:
+			raise assistant.TooLong('too long')
+		return {'content': 'Answered.'}
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': ''})
+	a.tools = assistant.model_tools(TOOLS)
+	a.messages.append({'role': 'user', 'content': 'Map of the cloud frequency of 2001-2025 in La Palma'})
+	a.stopped()  # the user stopped its answer before the model answered
+
+	async def run(text):
+		return [e async for e in a.chat(text)]
+
+	asyncio.run(run('NDVI of Doñana instead, with this long document'))
+	assert a.interrupted  # not sent: the note goes with the next message
+	asyncio.run(run('NDVI of Doñana instead'))
+	assert calls[-1][-1]['content'] == 'NDVI of Doñana instead' + assistant.NOTE + assistant.INTERRUPTED
+
+
+@pytest.mark.parametrize('ids', [True, False])
+def test_stopped_answers_each_call_once(ids):
+	"""Each call of the stopped answer gets one answer: the one it had, or STOPPED; by its id (the models of the cloud)
+	or by its place (Ollama, whose calls have no id)."""
+	a = FakeAssistant({**assistant.DEFAULTS, 'project': ''})
+	names = ['list_variables', 'map_layer', 'time_series']
+	calls = [{**({'id': f'c{n}'} if ids else {}), 'function': {'name': name, 'arguments': {}}}
+	         for n, name in enumerate(names, 1)]
+	a.messages += [{'role': 'user', 'content': 'x'}, {'role': 'assistant', 'content': '', 'tool_calls': calls}]
+	a.call_id = 'c1' if ids else None
+	a._tool_message('list_variables', 'NDVI, EVI')  # the first one had answered
+	a.call_id = None
+	a.stopped()
+	answers = a.messages[2:]
+	assert [m['content'] for m in answers] == ['NDVI, EVI', assistant.STOPPED, assistant.STOPPED]
+	assert [m['tool_name'] for m in answers] == names
+	assert [m.get('tool_call_id') for m in answers] == (['c1', 'c2', 'c3'] if ids else [None, None, None])
+	sent = assistant.openai_messages('s', a.messages)
+	tools = [m for m in sent if m['role'] == 'tool']
+	assert len(tools) == 3 and len({m['tool_call_id'] for m in tools}) == 3
+	assert not any('answered' in str(m.get('content')) for m in sent if m['role'] == 'user')
+
+
+class Never:
+	"""A session of the MCP server whose call does not end."""
+
+	def __init__(self):
+		self.started = asyncio.Event()
+
+	async def call_tool(self, name, args):
+		self.started.set()
+		await asyncio.Event().wait()
+
+
+def test_a_call_ends_when_its_session_closes():
+	"""A call of another request of the page (a pixel, a step of the map) in progress when the MCP server starts
+	again (Stop) ends with an error: with mcp 1.x it waited for ever."""
+
+	async def run():
+		a = FakeAssistant.__mro__[1]({**assistant.DEFAULTS, 'project': ''})
+		a.session, a.session_closed = Never(), asyncio.Event()
+		pixel = asyncio.create_task(a.call('time_series', {}))  # not the task of the answer
+		await asyncio.wait_for(a.session.started.wait(), 5)
+		assert a.calling == 0
+		a.session_closed.set()  # what serve does when the session closes
+		with pytest.raises(RuntimeError, match='started again'):
+			await asyncio.wait_for(pixel, 5)
+
+	asyncio.run(run())
+
+
+def test_a_server_that_stopped_on_its_own_starts_again():
+
+	class Closed(Exception):  # an MCPError (2.x) or McpError (1.x) of a closed connection
+		def __init__(self):
+			super().__init__('Connection closed')
+			self.error = type('ErrorData', (), {'code': assistant.CONNECTION_CLOSED})()
+
+	class Dead:
+		async def call_tool(self, name, args):
+			raise Closed()
+
+	class Fine:
+		async def call_tool(self, name, args):
+			raise ValueError('another error of the tool')
+
+	async def run():
+		a = FakeAssistant.__mro__[1]({**assistant.DEFAULTS, 'project': ''})
+		a.session, a.session_closed = Dead(), asyncio.Event()
+		restarts = []
+
+		async def restart():
+			restarts.append(True)
+			a.session = Fine()
+
+		a.restart_server = restart
+		with pytest.raises(RuntimeError, match='had stopped, and has started again'):
+			await a.call('time_series', {})
+		assert restarts == [True]
+		with pytest.raises(ValueError, match='another error'):  # the other errors are not a closed connection
+			await a.call('time_series', {})
+		assert restarts == [True]
+
+	asyncio.run(run())
+	assert assistant.connection_closed(__import__('anyio').ClosedResourceError())
+	assert not assistant.connection_closed(ValueError('x'))
+
+
+def test_stop_cuts_the_request_to_ollama(monkeypatch):
+	"""Stop while a model of Ollama thinks cuts its request, so that Ollama stops generating it (and the next message
+	does not wait for it)."""
+	import http.server
+	got, gone = threading.Event(), threading.Event()
+
+	class Slow(http.server.BaseHTTPRequestHandler):
+		def do_POST(self):
+			self.rfile.read(int(self.headers['Content-Length']))
+			got.set()
+			self.connection.settimeout(10)
+			try:
+				data = self.connection.recv(1)
+			except OSError:
+				data = b''
+			if not data:
+				gone.set()
+
+		def log_message(self, *args):
+			pass
+
+	server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Slow)
+	threading.Thread(target=server.serve_forever, daemon=True).start()
+	for k in ('HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'):
+		monkeypatch.delenv(k, raising=False)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': '', 'provider': 'ollama',
+		                   'ollama': f'http://127.0.0.1:{server.server_address[1]}', 'model': 'qwen3:8b'})
+		a.tools = assistant.model_tools(TOOLS)
+		a.start('Map of the cloud frequency')
+		await asyncio.to_thread(got.wait, 5)
+		assert a.model_call  # the socket of the request
+		assert await a.stop() is True
+		return await asyncio.to_thread(gone.wait, 5)
+
+	try:
+		assert asyncio.run(run()), 'Ollama did not see the request cut'
+	finally:
+		server.shutdown()

@@ -863,14 +863,15 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	Writes a PNG preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail
 	None and the reason in thumbnail_error).
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
-	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
-	                                 quality, clip, None, source)
+	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                   quality, False, None, source)
+	img = whole.clipToCollection(regions) if clip else whole
 	entry = variable_entry(spec)
 	# the data of Earth Engine outside the catalog have no range in it: always from the map
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick or entry is None)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
-	return _preview(out, img, vis, regions, res, thumbnail)
+	return _preview(out, whole, vis, regions, res, thumbnail, clip)
 
 
 def has_rgb(variable=None, sensor=None, collection=None, ref=None):
@@ -902,24 +903,27 @@ def rgb_map(region, variable=None, sensor=None, start=None, end=None, metric='me
 	preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail None and the
 	reason in thumbnail_error).
 	Returns {'url', 'bands', 'min', 'max', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
-	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
-	                                 quality, clip, None, source, rgb=True)
+	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                   quality, False, None, source, rgb=True)
+	img = whole.clipToCollection(regions) if clip else whole
 	vis = maps.rgb_vis(img, regions.geometry(), res, vmin, vmax, compute=not quick)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_rgb_name(spec, metric), unit=catalog.RGB_UNIT,
 	           bounds=_bounds(regions), thumbnail=None)
-	return _preview(out, img, vis, regions, res, thumbnail)
+	return _preview(out, whole, vis, regions, res, thumbnail, clip)
 
 
-def _preview(out, img, vis, regions, res, path):
-	"""The result OUT of a map ({'url', 'bounds'...}) with its PNG preview: IMG coloured with VIS, with the outline of
-	REGIONS, computed on the pixels of the data (RES metres) when they are bigger than those of the preview (see
-	maps.coarse), written to PATH (if given). The preview is only a picture of the map: if Earth Engine cannot make
-	it, the map is there anyway (its tiles), with the reason in thumbnail_error (and thumbnail None)."""
+def _preview(out, img, vis, regions, res, path, clip=True):
+	"""The result OUT of a map ({'url', 'bounds'...}) with its PNG preview: IMG (not clipped yet) coloured with VIS,
+	computed on the pixels of the data (RES metres) when they are bigger than those of the preview (see maps.coarse),
+	then clipped to REGIONS (with CLIP) on the pixels of the preview, with their outline, written to PATH (if given).
+	The preview is only a picture of the map: if Earth Engine cannot make it, the map is there anyway (its tiles),
+	with the reason in thumbnail_error (and thumbnail None)."""
 	if not path:
 		return out
 	try:
-		maps.thumbnail(maps.with_outline(maps.coarse(img, res, out.get('bounds')), vis, regions),
-		               regions.geometry().bounds(), None, path=path)
+		img = maps.coarse(img, res, out.get('bounds'))
+		img = img.clipToCollection(regions) if clip else img
+		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=path)
 		out['thumbnail'] = path
 	except (ee.EEException, OSError) as e:  # Earth Engine, or the network
 		out['thumbnail'], out['thumbnail_error'] = None, str(e)
@@ -940,10 +944,11 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, dimensions=768,
               path=None, **source):
 	"""PNG (bytes) of the map of a variable over REGION, with the outline of the region."""
-	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
-	                                 quality, True, None, source)
-	vis = maps.vis_params(img, regions.geometry(), variable_entry(spec), res, vmin, vmax, palette)
-	img = maps.coarse(img, res, _bounds(regions), dimensions)
+	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                   quality, False, None, source)
+	vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), variable_entry(spec), res, vmin, vmax,
+	                      palette)
+	img = maps.coarse(whole, res, _bounds(regions), dimensions).clipToCollection(regions)  # see maps.coarse
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
 
@@ -1199,7 +1204,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	return out
 
 
-def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source):
+def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source, clip=True):
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
@@ -1209,7 +1214,7 @@ def _trend(region, variable, sensor, start, end, step, part, metric, season, qua
 	if alpha:
 		img = img.updateMask(img.select('p_value').lt(alpha))
 	name = f"{_title(spec)} | trend {trends.part_key(step, part)} ({metric})"
-	return spec, regions, img.clipToCollection(regions), part, native, name
+	return spec, regions, img.clipToCollection(regions) if clip else img, part, native, name
 
 
 @_cited
@@ -1227,8 +1232,9 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	if output not in trends.OUTPUTS:
 		raise ValueError(f"unknown output {output}: use {', '.join(trends.OUTPUTS)}")
 	spec, regions, img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric, season,
-	                                                quality, alpha, None, source)
-	band = img.select(output)
+	                                                quality, alpha, None, source, clip=False)
+	whole = img.select(output)  # the preview is clipped on its own pixels (see _preview)
+	band = whole.clipToCollection(regions)
 	vis = trends.vis(output)
 	quick = quick and variable_entry(spec) is not None  # the data outside the catalog have no range in it
 	if quick and (vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None))):
@@ -1247,7 +1253,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	unit = _unit(spec)
 	out = dict(vis, url=maps.tile_url(band, vis), name=f'{name}: {output}', bounds=_bounds(regions), thumbnail=None,
 	           unit=(f'{unit} / year' if unit else '') if output == 'slope' else unit if output == 'intercept' else '')
-	return _preview(out, band, vis, regions, native, thumbnail)
+	return _preview(out, whole, vis, regions, native, thumbnail)
 
 
 @_cited
@@ -1336,7 +1342,7 @@ def same_area(source, start, end):
 
 
 def _comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal, interannual, season,
-                quality, res, source, two_periods=False):
+                quality, res, source, two_periods=False, clip=True):
 	if not other_start or not other_end:
 		raise ValueError('give the other period: other_start and other_end')
 	ref = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
@@ -1350,7 +1356,8 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	geom = regions.geometry()
 	a = variables.image(ref, geom, res or native)
 	b = variables.image(oth, geom, res or native)
-	img = ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']).clipToCollection(regions)
+	img = ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other'])
+	img = img.clipToCollection(regions) if clip else img
 	name = (f"{_title(dict(ref, period=None))} ({metric}) | {oth['period'][0]} / {oth['period'][1]} - "
 	        f"{ref['period'][0]} / {ref['period'][1]}")
 	return ref, regions, img, native, name
@@ -1366,8 +1373,9 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the reason in
 	thumbnail_error, if Earth Engine cannot make the PNG preview)."""
 	spec, regions, img, native, name = _comparison(region, variable, sensor, start, end, other_start, other_end, metric,
-	                                               temporal, interannual, season, quality, None, source)
-	diff = img.select('difference')
+	                                               temporal, interannual, season, quality, None, source, clip=False)
+	whole = img.select('difference')  # the preview is clipped on its own pixels (see _preview)
+	diff = whole.clipToCollection(regions)
 	if vmin is None or vmax is None:
 		auto = maps.vis_params(diff.rename('value'), regions.geometry(), None, native)
 		vis = trends.vis('difference', auto['min'], auto['max'])
@@ -1377,7 +1385,7 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 		vis['palette'] = maps.ramp(None, palette)
 	out = dict(vis, url=maps.tile_url(diff, vis), name=f'{name}: difference', unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
-	return _preview(out, diff, vis, regions, native, thumbnail)
+	return _preview(out, whole, vis, regions, native, thumbnail)
 
 
 @_cited
