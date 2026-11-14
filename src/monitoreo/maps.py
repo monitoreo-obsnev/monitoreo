@@ -7,8 +7,15 @@ The true colour of the images of a variable (bands red, green and blue, surface 
 bands stretched together between the lowest of their percentiles 2 and the highest of their percentiles 98 over the
 region (rgb_vis): one range for the three, so that the colours keep their balance (a stretch of each band would tint
 them).
+
+The PNG previews (thumbnail) are computed by Earth Engine in a single request, which has to end in some minutes. Data
+coarser than the pixels of the preview are computed on their own grid (coarse): the mean of 25 years of daily MODIS
+(1 km) over an island of 40 km took more than 5 minutes at 768 pixels, and Earth Engine answered HTTP Error 400.
 """
 
+import json
+import math
+import urllib.error
 import urllib.request
 
 import ee
@@ -18,6 +25,8 @@ from .sensors import RGB_BANDS
 DEFAULT_PALETTE = ['000080', '0000FF', '0080FF', '00FFFF', '80FFFF', 'FFFFFF', 'FFFF00', 'FF8000', 'FF0000', '800000']
 RGB_STRETCH = (2, 98)  # percentiles of the reflectance of the true colour between which it is stretched
 RGB_RANGE = (0.0, 0.3)  # the reflectance of the true colour when it is not computed (quick) or cannot be
+PREVIEW_PIXELS = 768  # width or height of the PNG previews
+PREVIEW_TIMEOUT = 300  # seconds that Earth Engine has to make a PNG preview
 
 
 def ramp(entry=None, colours=None):
@@ -89,15 +98,51 @@ def with_outline(image, vis, regions, color='000000', width=2):
 	return ee.Image(image).visualize(**vis).blend(outline)
 
 
-def thumbnail(image, region_geom, vis=None, dimensions=768, path=None):
-	"""PNG (bytes) of IMAGE over REGION_GEOM, coloured with VIS (None if IMAGE is already RGB)."""
+def coarse(image, scale, bounds, dimensions=PREVIEW_PIXELS):
+	"""IMAGE computed on a grid of SCALE metres (the pixels of its data) when they are bigger than the pixels of a
+	preview of DIMENSIONS over BOUNDS ([w, s, e, n], degrees): Earth Engine then computes each pixel of the data once,
+	instead of each pixel of the preview (hundreds of times fewer for MODIS or ERA5-Land over a small region), and the
+	preview shows the pixels of the data. IMAGE as it is otherwise, or without SCALE or BOUNDS."""
+	if not scale or not bounds:
+		return image
+	w, s, e, n = bounds
+	size = max((e - w) * 111320 * math.cos(math.radians((s + n) / 2)), (n - s) * 110574)  # metres
+	if float(scale) * int(dimensions) <= size:
+		return image
+	return ee.Image(image).reproject(ee.Projection('EPSG:4326').atScale(float(scale)))
+
+
+def earth_engine_error(error):
+	"""The message of Earth Engine in the HTTPError ERROR of a request of its PNG (its body: {"error": {"message"}}),
+	or the error itself."""
+	try:
+		body = error.read().decode('utf-8', 'replace')
+	except (OSError, ValueError, AttributeError):
+		body = ''
+	try:
+		message = json.loads(body)['error']['message']
+	except (ValueError, KeyError, TypeError):
+		message = body.strip()[:300]
+	return message or str(error)
+
+
+def thumbnail(image, region_geom, vis=None, dimensions=PREVIEW_PIXELS, path=None):
+	"""PNG (bytes) of IMAGE over REGION_GEOM, coloured with VIS (None if IMAGE is already RGB). ee.EEException with
+	the message of Earth Engine if it cannot make it, or does not in PREVIEW_TIMEOUT seconds."""
 	img = ee.Image(image).visualize(**vis) if vis else ee.Image(image)
 	url = img.getThumbURL({'region': region_geom, 'dimensions': int(dimensions), 'format': 'png'})
 	if not url.startswith('https://'):
 		raise ValueError(f'Earth Engine gave a thumbnail URL that is not https: {url}')
-	# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
-	with urllib.request.urlopen(url, timeout=300) as r:  # nosec B310
-		png = r.read()
+	try:
+		# only https (checked above): the warning of Bandit about file:/ and other schemes does not apply
+		with urllib.request.urlopen(url, timeout=PREVIEW_TIMEOUT) as r:  # nosec B310
+			png = r.read()
+	except urllib.error.HTTPError as e:  # before OSError (an HTTPError is one): its body says why
+		raise ee.EEException(f'Earth Engine could not make the PNG preview: {earth_engine_error(e)}') from e
+	except (TimeoutError, urllib.error.URLError) as e:
+		if isinstance(e, TimeoutError) or isinstance(getattr(e, 'reason', None), TimeoutError):
+			raise ee.EEException(f'Earth Engine did not make the PNG preview in {PREVIEW_TIMEOUT // 60} minutes') from e
+		raise
 	if path:
 		with open(path, 'wb') as f:
 			f.write(png)

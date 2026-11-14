@@ -109,6 +109,7 @@ main { overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
 .card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .card img { max-width: 100%; margin-top: 8px; border-radius: 6px; background: #fff; }
 .card.failed { border-color: var(--err); }
+.card.stopped { opacity: .65; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0; font-size: .88em; }
 dt { color: var(--muted); }
 dd { margin: 0; }
@@ -1113,17 +1114,31 @@ $('snapshot').onclick = async () => {
 // --- the conversation: the events of the assistant, all of them from the first one when the page opens -------------
 let running = null, nextEvent = 0, pending = null;  // pending: a message for when the answer in progress ends
 
+function setBusy(on) {  // while an answer runs, the button Send stops it
+  busy = on;
+  const b = $('send');
+  b.disabled = false;
+  b.textContent = on ? 'Stop' : 'Send';
+  b.classList.toggle('primary', !on);
+  b.title = on ? 'Stop the answer and the computation in progress, to ask for something else' : '';
+}
+
+async function stop() {
+  $('send').disabled = true;
+  $('send').textContent = 'Stopping…';
+  try { await api('/api/stop', {}); }  // the button is Send again with the event done
+  catch (e) { notice('It could not be stopped: ' + e.message, true); if (busy) setBusy(true); }
+}
+
 function show(e) {
   if (e.type === 'user') {
-    busy = true;
-    $('send').disabled = true;
+    setBusy(true);
     $('intro').hidden = true;
     question = question || e.text;
     userLang = language(e.text) || userLang;
     message('user', e.text);
   } else if (e.type === 'done') {
-    busy = false;
-    $('send').disabled = false;
+    setBusy(false);
     status(null);
     if (running) { running.querySelector('.spinner')?.remove(); running = null; }
     if (pending) { const text = pending; pending = null; send(text); }
@@ -1167,6 +1182,10 @@ function show(e) {
   } else if (e.type === 'error') {
     if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
     notice(e.text, true);
+  } else if (e.type === 'stopped') {
+    if (running) { running.classList.add('stopped'); running.querySelector('.spinner')?.remove(); running = null; }
+    status(null);
+    notice(e.text);
   }
 }
 
@@ -1188,7 +1207,7 @@ async function follow() {  // the events from nextEvent on, again after a cut (t
 async function send(text) {
   text = text.trim();
   if (!text) return;
-  if (busy) return notice('Wait until what is running ends.', true);
+  if (busy) return notice('Wait until what is running ends, or stop it with the button Stop.', true);
   if (reading) {  // the model would get the message without the documents being read
     pending = text;
     $('text').value = '';
@@ -1201,17 +1220,21 @@ async function send(text) {
   $('text').focus();
 }
 
-$('ask').onsubmit = ev => { ev.preventDefault(); send($('text').value); };
+$('ask').onsubmit = ev => { ev.preventDefault(); if (busy) stop(); else send($('text').value); };
 $('text').onkeydown = ev => {
   if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); send($('text').value); }
 };
 document.querySelectorAll('.examples button').forEach(b => b.onclick = () => send(b.textContent));
 
 $('reset').onclick = async () => {
-  if (busy) return;
-  if ($('chat').querySelector('.card') &&
+  if (busy ? !confirm('A request is running: stop it and clear the conversation and its results from this page ' +
+                      '(their files stay in the folder MonitorEO)?') :
+      $('chat').querySelector('.card') &&
       !confirm('The conversation and its results are cleared from this page (their files stay in the folder MonitorEO). Go on?')) return;
-  try { await api('/api/reset', {}); } catch (e) { return notice(e.message, true); }  // the page clears with its event
+  try {
+    if (busy) await api('/api/stop', {});
+    await api('/api/reset', {});
+  } catch (e) { return notice(e.message, true); }  // the page clears with its event
 };
 
 $('report').onclick = () => {

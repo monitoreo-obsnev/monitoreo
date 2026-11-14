@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import threading
 
 import pytest
 
@@ -1902,3 +1903,181 @@ def test_the_page_has_the_feedback_button():
 		page = f.read()
 	assert all(f'id="{i}"' in page for i in ('feedbackButton', 'feedback', 'feedbackIssue', 'feedbackForm'))
 	assert 'fb.links[key]' in page  # the links come from /api/state
+
+
+# The button Stop, and the maps without their preview (the map of the cloud frequency of MODIS of 2001-2025 over La
+# Palma failed with «HTTPError: HTTP Error 400: Bad Request», and nothing could be asked until it ended) -------------
+
+MAP_TOOL = {'name': 'map_layer', 'description': 'Map.', 'inputSchema': {'type': 'object', 'properties': {
+	**{k: {'type': 'string'} for k in ('variable', 'sensor', 'start', 'end', 'metric')}, 'region': {'type': 'object'}}}}
+CF = {'region': {'island_at': [-17.86, 28.68]}, 'variable': 'CF', 'sensor': 'MODIS', 'start': '2001-01-01',
+      'end': '2025-12-31', 'metric': 'mean'}
+
+
+class Blocked:
+	"""A session of the MCP server whose tools do not end (as a map that takes Earth Engine many minutes)."""
+
+	def __init__(self):
+		self.started = asyncio.Event()
+
+	async def call_tool(self, name, args):
+		self.started.set()
+		await asyncio.Event().wait()
+
+
+async def _until_done(a, since=0):
+	got = []
+	async for e in a.follow(since, ping=0.05):
+		got.append(e)
+		if e['type'] == 'done':
+			return got
+
+
+def test_stop_a_computation(monkeypatch):
+	"""Stop while a tool computes: the answer ends at once, the MCP server starts again (what Earth Engine computed
+	for it stops), the model gets that the call was not done, and the user asks for something else at once."""
+	answers = iter([{'content': '', 'tool_calls': [{'id': 'c1', 'function': {'name': 'map_layer', 'arguments': CF}}]},
+	                {'content': 'The NDVI, then.'}])
+	seen = []
+
+	def model(settings, system, messages, tools):
+		seen.append(json.loads(json.dumps(messages)))
+		return next(answers)
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+
+	async def run():
+		a = assistant.Assistant({**assistant.DEFAULTS, 'project': ''})
+		a.tools = assistant.model_tools(TOOLS + [MAP_TOOL])
+		a.session = Blocked()
+		restarts = []
+
+		async def restart():
+			restarts.append(a.calling)
+			a.session = Blocked()
+
+		a.restart_server = restart
+		assert await a.stop() is False  # nothing to stop
+		a.start('Cloud frequency of MODIS of 2001-2025 in La Palma')
+		await asyncio.wait_for(a.session.started.wait(), 5)
+		assert a.running() and a.calling == 1
+		assert await a.stop() is True
+		assert not a.running() and restarts == [0]
+		first = await _until_done(a)
+		a.start('Stop it: the NDVI instead')  # at once
+		second = await _until_done(a, first[-1]['seq'] + 1)
+		return a, first, second
+
+	a, first, second = asyncio.run(run())
+	assert [e['type'] for e in first if e['type'] != 'status'] == ['user', 'running', 'stopped', 'done']
+	assert next(e for e in first if e['type'] == 'stopped')['text'].startswith('Stopped.')
+	assert [e['type'] for e in second if e['type'] != 'status'] == ['user', 'assistant', 'done']
+	stopped = next(m for m in seen[1] if m['role'] == 'tool')
+	assert stopped == {'role': 'tool', 'tool_name': 'map_layer', 'content': assistant.STOPPED, 'tool_call_id': 'c1'}
+	assert seen[1][-1]['content'] == 'Stop it: the NDVI instead' + assistant.NOTE + assistant.INTERRUPTED
+	assert a.said() == ['Cloud frequency of MODIS of 2001-2025 in La Palma', 'Stop it: the NDVI instead']
+	assert not a.interrupted and not a.results
+	# the model of the cloud gets an answer for each call (openai_messages)
+	sent = assistant.openai_messages('s', seen[1])
+	assert any(m['role'] == 'tool' and m['tool_call_id'] and m['content'] == assistant.STOPPED for m in sent)
+
+
+def test_stop_while_the_model_thinks(monkeypatch):
+	"""Stop before the model answers: nothing computes, so the MCP server goes on as it is; the late answer of the
+	model is not kept."""
+	entered, release = threading.Event(), threading.Event()
+	seen = []
+
+	def model(settings, system, messages, tools):
+		seen.append(json.loads(json.dumps(messages)))
+		if len(seen) == 1:
+			entered.set()
+			release.wait(10)
+			return {'content': 'Too late.'}
+		return {'content': 'Answered.'}
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': ''})
+		a.tools = assistant.model_tools(TOOLS)
+		restarts = []
+
+		async def restart():
+			restarts.append(True)
+
+		a.restart_server = restart
+		a.start('Map of the cloud frequency')
+		await asyncio.to_thread(entered.wait, 5)
+		assert await a.stop() is True
+		release.set()
+		first = await _until_done(a)
+		a.start('Another thing')
+		second = await _until_done(a, first[-1]['seq'] + 1)
+		return a, first, second, restarts
+
+	try:
+		a, first, second, restarts = asyncio.run(run())
+	finally:
+		release.set()
+	assert restarts == []
+	assert [e['type'] for e in first if e['type'] != 'status'] == ['user', 'stopped', 'done']
+	assert [m['role'] for m in seen[1]] == ['user', 'user']  # 'Too late.' is not in the conversation
+	assert seen[1][1]['content'].endswith(assistant.INTERRUPTED)
+	assert [e['text'] for e in second if e['type'] == 'assistant'] == ['Answered.']
+
+
+def test_a_map_without_its_preview(monkeypatch):
+	"""A map whose preview Earth Engine could not make is a result with its map in the panel, and a notice."""
+
+	class NoPreview(FakeAssistant):
+		async def call(self, name, args):
+			return None, [json.dumps({**MAP, 'thumbnail': None, 'thumbnail_error':
+			                          'EEException: Earth Engine could not make the PNG preview: Computation timed out.'})], []
+
+	a = NoPreview({**assistant.DEFAULTS, 'project': ''})
+	a.tools = assistant.model_tools(TOOLS + [MAP_TOOL])
+	a.messages.append({'role': 'user', 'content': 'Cloud frequency of MODIS of 2001-2025 in La Palma'})
+
+	async def run():
+		return [e async for e in a.run_tool({'name': 'map_layer', 'arguments': CF})]
+
+	events = asyncio.run(run())
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['running', 'result', 'notice']
+	result = next(e for e in events if e['type'] == 'result')
+	assert result['image'] is None and result['map']['url'] == MAP['url']  # the map, by its tiles
+	notice = next(e for e in events if e['type'] == 'notice')['text']
+	assert notice.startswith('The result 1 has no preview image (Earth Engine could not make the PNG preview: '
+	                         'Computation timed out.)') and 'EEException' not in notice
+	assert a.messages[-1]['content'].startswith('Done')  # the model gets its receipt: nothing to ask for again
+
+
+def test_the_mcp_server_starts_again():
+	"""The MCP server of MonitorEO starts again (after a stop) with its tools, without computing in Earth Engine."""
+	pytest.importorskip('mcp')
+
+	async def run():
+		a = assistant.Assistant({**assistant.DEFAULTS, 'project': ''})
+		async with a.connected():
+			first = a.session
+			assert first is not None and a.server_ready.is_set()
+			assert 'map_layer' in [t['function']['name'] for t in a.tools]
+			restart = asyncio.create_task(a.restart_server())
+			await asyncio.sleep(0)  # the old server is stopping: a call now waits for the new one
+			assert a.restarting is not None
+			error, texts, _ = await a.call('list_variables', {'text': 'cloud frequency', 'lang': 'en'})
+			await restart
+			assert a.session is not None and a.session is not first and a.server_ready.is_set() and not a.restarting
+			assert error is None and 'CF' in texts[0]
+		assert a.session is None and not a.server_ready.is_set() and a.server_task is None
+
+	asyncio.run(asyncio.wait_for(run(), 120))
+
+
+def test_the_page_stops():
+	"""The page has the button Stop (Send while an answer runs) and the route of the API behind it."""
+	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
+	assert "b.textContent = on ? 'Stop' : 'Send'" in page and "api('/api/stop', {})" in page
+	assert "e.type === 'stopped'" in page
+	app = assistant.make_app(assistant.Assistant({**assistant.DEFAULTS, 'project': ''}), 'token', 8765)
+	assert '/api/stop' in [r.path for r in app.routes]

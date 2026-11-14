@@ -21,6 +21,10 @@ project, against the quota of its tier) and warns when less than 10 % are left. 
 project, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
 cloud_model, if there, asks the broker for one of its models (to compare them).
 
+While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
+computing, the MCP server starts again, so that Earth Engine stops and the next request does not wait for it. A map
+whose PNG preview Earth Engine cannot make in some minutes comes with its tiles alone (thumbnail_error).
+
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
 the address that the assistant opens (other pages of the browser cannot use it).
 """
@@ -80,6 +84,10 @@ MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
 MAX_STEPS = 8  # answers of the model to a message of the user
 WAITING = ('Not done: the user has been asked to choose or answer something; wait for their answer and do it '
            'then.')  # the answer of a call that the assistant does not run while the user has to answer
+STOPPED = ('Not done: the user stopped it before it ended (button Stop). Do it again only if the user asks for it '
+           'again.')  # the answer of a call that the user stopped
+INTERRUPTED = ('the user stopped the answer to their previous message before it ended (button Stop): answer this '
+               'one.)')  # added to the next message of the user after a stop
 ASK_AND_WAIT = (' Ask the user which one in one sentence and stop there, without calling any tool: the application '
                 'waits for their choice.')  # added to the areas found when the user has to choose one
 MAX_ADVICE = 8000  # characters of the answer of an advice tool that the model gets
@@ -1107,6 +1115,11 @@ class Assistant:
 		self.settings = settings or load_settings()
 		self.session, self.tools, self.system = None, [], instructions()
 		self.task = None  # that of the message being answered
+		self.calling = 0  # calls of the MCP server in progress for that message (see call and stop)
+		self.interrupted = False  # whether the user stopped the last answer (the model is told with the next message)
+		self.server_task, self.server_stop = None, None  # those of the MCP server (see start_server)
+		self.server_ready = asyncio.Event()  # set while the MCP server can be called
+		self.restarting = None  # a future while the MCP server starts again (see restart_server)
 		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
 		self.loop, self.closing = None, False  # that of the web server; closing: the pages stop following
 		self.layers = load_layers()
@@ -1201,11 +1214,49 @@ class Assistant:
 			try:
 				async for e in self.chat(text):
 					self.emit(e)
+			except asyncio.CancelledError:  # the user stopped it (stop)
+				self.stopped()
+				self.emit({'type': 'stopped', 'text': 'Stopped. Write what you want instead.'})
+				raise
 			except Exception as e:  # the conversation goes on
 				self.emit({'type': 'error', 'text': f'The assistant has failed: {type(e).__name__}: {e}'})
 			finally:
 				self.emit({'type': 'done'})
+		self.calling = 0
 		self.task = asyncio.create_task(answer())
+
+	async def stop(self):
+		"""Stop the answer in progress (button Stop of the page): the model is not waited for, and a computation of the
+		MCP server in progress stops with the server, which starts again (a call cannot be stopped in it: Earth Engine
+		would go on computing, and what is asked next would wait for it). Whether there was an answer to stop."""
+		if not self.running():
+			return False
+		computing, task = self.calling > 0, self.task
+		task.cancel()
+		await asyncio.wait([task])  # its events end with done; not the cancellation of this request
+		if computing:
+			try:
+				await self.restart_server()
+			except Exception as e:
+				self.emit({'type': 'error', 'text': f'The MCP server of MonitorEO could not start again ({type(e).__name__}: '
+				                                    f'{e}): close the assistant and open it again.'})
+		return True
+
+	def stopped(self):
+		"""What the conversation keeps of an answer that the user stopped: each call of the model in it without its
+		answer gets STOPPED, and the next message of the user a note (INTERRUPTED)."""
+		self.interrupted = True
+		last = next((i for i in range(len(self.messages) - 1, -1, -1) if self.messages[i]['role'] != 'tool'), None)
+		if last is None or self.messages[last]['role'] != 'assistant':  # the model had not answered yet
+			return
+		answers = [m for m in self.messages[last + 1:] if m['role'] == 'tool']
+		ids = {m.get('tool_call_id') for m in answers}
+		for n, call in enumerate(self.messages[last].get('tool_calls') or []):
+			if (call.get('id') in ids) if call.get('id') else n < len(answers):
+				continue
+			self.call_id = call.get('id')
+			self._tool_message((call.get('function') or {}).get('name'), STOPPED)
+		self.call_id = None
 
 	def new_conversation(self):
 		"""Forget the conversation and its results (their files stay); the pages get a reset."""
@@ -1219,6 +1270,22 @@ class Assistant:
 	@contextlib.asynccontextmanager
 	async def connected(self):
 		"""Start the MCP server of MonitorEO (this same version) and keep the session with it."""
+		await self.start_server()
+		try:
+			yield
+		finally:
+			await self.stop_server()
+
+	async def start_server(self):
+		"""Start the MCP server in a task of its own (see serve), and wait until it can be called."""
+		ready, self.server_stop = asyncio.get_running_loop().create_future(), asyncio.Event()
+		self.server_task = asyncio.create_task(self.serve(ready, self.server_stop))
+		await ready
+
+	async def serve(self, ready, stop):
+		"""Run the MCP server of MonitorEO (this same version), with the project of the settings, until STOP: the
+		session is opened and closed in this same task (as anyio wants). READY gets the end of the start, or its
+		error."""
 		from mcp import ClientSession, StdioServerParameters
 		from mcp.client.stdio import stdio_client
 		env = {k: os.environ[k] for k in PASSED_ENV if os.environ.get(k)}
@@ -1226,22 +1293,65 @@ class Assistant:
 		if self.settings.get('project'):
 			env['EE_PROJECT'] = self.settings['project']
 		args = (['-s'] if sys.flags.no_user_site else []) + ['-m', 'monitoreo.mcp_server']
-		async with stdio_client(StdioServerParameters(command=sys.executable, args=args, env=env)) as (read, write):
-			async with ClientSession(read, write) as session:
-				await session.initialize()
-				listed = await session.list_tools()
-				self.tools = model_tools([_json(t) for t in listed.tools]) + [MANUAL_TOOL, DOCUMENT_TOOL]
-				self.session = session
-				try:
-					yield
-				finally:
-					self.session = None
+		try:
+			async with stdio_client(StdioServerParameters(command=sys.executable, args=args, env=env)) as (read, write):
+				async with ClientSession(read, write) as session:
+					await session.initialize()
+					listed = await session.list_tools()
+					self.tools = model_tools([_json(t) for t in listed.tools]) + [MANUAL_TOOL, DOCUMENT_TOOL]
+					self.session = session
+					self.server_ready.set()
+					ready.set_result(None)
+					try:
+						await stop.wait()
+					finally:
+						self.server_ready.clear()
+						self.session = None
+		except Exception as e:
+			if not ready.done():
+				ready.set_exception(e)
+			else:
+				raise
+
+	async def stop_server(self):
+		"""Stop the MCP server (its computations in progress with it)."""
+		task, self.server_task = self.server_task, None
+		if task:
+			self.server_stop.set()
+			try:
+				await asyncio.wait_for(task, 15)
+			except asyncio.TimeoutError:  # cancelled by wait_for
+				pass
+			except Exception as e:  # it had stopped already
+				print(f'WARNING: the MCP server of MonitorEO: {type(e).__name__}: {e}', file=sys.stderr)
+
+	async def restart_server(self):
+		"""Start the MCP server again (see stop): what it was computing stops. The calls meanwhile wait for it."""
+		done = self.restarting = asyncio.get_running_loop().create_future()
+		try:
+			await self.stop_server()
+			await self.start_server()
+		finally:
+			self.restarting = None
+			if not done.done():
+				done.set_result(None)
 
 	async def call(self, name, args):
-		"""Call a tool of the MCP server: (error or None, texts, images as data: URLs)."""
+		"""Call a tool of the MCP server: (error or None, texts, images as data: URLs). While the server starts again
+		(after a stop), the call waits for it."""
+		if self.restarting:
+			await asyncio.shield(self.restarting)  # a call cancelled meanwhile does not cancel the restart
+		elif not self.session and self.server_task and not self.server_task.done():
+			with contextlib.suppress(asyncio.TimeoutError):
+				await asyncio.wait_for(self.server_ready.wait(), 120)
 		if not self.session:
 			raise RuntimeError('the MCP server of MonitorEO is not running: close the assistant and open it again')
-		res = _json(await self.session.call_tool(name, args))
+		mine = asyncio.current_task() is self.task  # a call of the answer in progress (see stop)
+		self.calling += mine
+		try:
+			res = _json(await self.session.call_tool(name, args))
+		finally:
+			self.calling -= mine
 		content = res.get('content') or []
 		texts = [_without_eecu_warning(c['text']) for c in content if c.get('type') == 'text']
 		images = [f"data:{c.get('mimeType') or 'image/png'};base64,{c['data']}" for c in content
@@ -1304,6 +1414,9 @@ class Assistant:
 			text += (f'{NOTE}the assistant does not do this; it is done with {name} of MonitorEO, for {what}: {url}. '
 			         "Say it in one or two sentences with the link, in the language of the user's words above, without "
 			         'code or names of tools.)')
+		if self.interrupted:  # the model knows that the previous answer was stopped (and its calls, see stopped)
+			self.interrupted = False
+			text += NOTE + INTERRUPTED
 		mark, before = len(self.messages), (dict(self.shown), self.inline_used, list(self.dropped))
 		note = self.document_message()
 		if note:  # before the words of the user, in a message of its own (see said), never edited afterwards
@@ -1466,6 +1579,11 @@ class Assistant:
 		        'image': images[0] if images else None, 'title': title}
 		self.results.append(item)
 		yield {'type': 'result', **self.card(item)}
+		if isinstance(result, dict) and result.get('thumbnail_error'):  # the map is there (its tiles), without its PNG
+			yield {'type': 'notice', 'text': f"The result {item['id']} has no preview image "
+			                                 f"({re.sub(r'^[A-Za-z]+(Error|Exception): ', '', result['thumbnail_error'])}): its "
+			                                 'map is in the panel of the maps, and «Add this view to the report» puts '
+			                                 'it in the report.'}
 		self._tool_message(name, receipt(item['id'], item['title']))
 		for event in await self.eecu_events():
 			yield event
@@ -2393,6 +2511,9 @@ def make_app(assistant, token, port):
 		assistant.new_conversation()
 		return JSONResponse({})
 
+	async def stop(request):
+		return JSONResponse({'stopped': await assistant.stop()})
+
 	async def make_report(request):
 		body = await request.json()
 		path = await asyncio.to_thread(assistant.write_report, body.get('title'), body.get('ids'),
@@ -2472,6 +2593,7 @@ def make_app(assistant, token, port):
 		Route('/api/chat', guarded(chat), methods=['POST']),
 		Route('/api/events', guarded(events)),
 		Route('/api/reset', guarded(reset), methods=['POST']),
+		Route('/api/stop', guarded(stop), methods=['POST']),
 		Route('/api/quit', guarded(quit_app), methods=['POST']),
 		Route('/api/update', guarded(update_app), methods=['POST']),
 		Route('/api/report', guarded(make_report), methods=['POST']),

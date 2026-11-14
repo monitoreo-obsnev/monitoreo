@@ -860,7 +860,8 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	"""Map of a variable over REGION aggregated in time (e.g. the median NDVI of 2018-2021): URL of its Earth
 	Engine tiles (XYZ, valid for some hours; their values cannot be queried: download_image for that) and colour
 	ramp (from the map, or from the catalog if QUICK: computing it over big regions and long periods takes long).
-	Writes a PNG preview to THUMBNAIL if given.
+	Writes a PNG preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail
+	None and the reason in thumbnail_error).
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, None, source)
@@ -869,10 +870,7 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette, compute=not quick or entry is None)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
-	if thumbnail:
-		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
-		out['thumbnail'] = thumbnail
-	return out
+	return _preview(out, img, vis, regions, res, thumbnail)
 
 
 def has_rgb(variable=None, sensor=None, collection=None, ref=None):
@@ -901,16 +899,30 @@ def rgb_map(region, variable=None, sensor=None, start=None, end=None, metric='me
 	Earth Engine tiles (XYZ, valid for some hours), with the three bands stretched together between VMIN and VMAX
 	(reflectance; by default the lowest percentile 2 and the highest percentile 98 of the bands over the region, or 0
 	to 0.3 if QUICK). Only the variables whose images have red, green and blue bands (see has_rgb). Writes a PNG
-	preview to THUMBNAIL if given.
+	preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail None and the
+	reason in thumbnail_error).
 	Returns {'url', 'bands', 'min', 'max', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, None, source, rgb=True)
 	vis = maps.rgb_vis(img, regions.geometry(), res, vmin, vmax, compute=not quick)
 	out = dict(vis, url=maps.tile_url(img, vis), name=_rgb_name(spec, metric), unit=catalog.RGB_UNIT,
 	           bounds=_bounds(regions), thumbnail=None)
-	if thumbnail:
-		maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
-		out['thumbnail'] = thumbnail
+	return _preview(out, img, vis, regions, res, thumbnail)
+
+
+def _preview(out, img, vis, regions, res, path):
+	"""The result OUT of a map ({'url', 'bounds'...}) with its PNG preview: IMG coloured with VIS, with the outline of
+	REGIONS, computed on the pixels of the data (RES metres) when they are bigger than those of the preview (see
+	maps.coarse), written to PATH (if given). The preview is only a picture of the map: if Earth Engine cannot make
+	it, the map is there anyway (its tiles), with the reason in thumbnail_error (and thumbnail None)."""
+	if not path:
+		return out
+	try:
+		maps.thumbnail(maps.with_outline(maps.coarse(img, res, out.get('bounds')), vis, regions),
+		               regions.geometry().bounds(), None, path=path)
+		out['thumbnail'] = path
+	except (ee.EEException, OSError) as e:  # Earth Engine, or the network
+		out['thumbnail'], out['thumbnail_error'] = None, str(e)
 	return out
 
 
@@ -931,6 +943,7 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, True, None, source)
 	vis = maps.vis_params(img, regions.geometry(), variable_entry(spec), res, vmin, vmax, palette)
+	img = maps.coarse(img, res, _bounds(regions), dimensions)
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
 
@@ -1209,7 +1222,8 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	Earth Engine tiles (the values cannot be queried: download_trend for that). QUICK: with a fixed colour ramp
 	(slope: ±2 % of the range of the variable in the catalog per year) instead of that of the map, which takes
 	minutes over big regions and long periods.
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'}."""
+	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the reason in
+	thumbnail_error, if Earth Engine cannot make the PNG preview)."""
 	if output not in trends.OUTPUTS:
 		raise ValueError(f"unknown output {output}: use {', '.join(trends.OUTPUTS)}")
 	spec, regions, img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric, season,
@@ -1233,10 +1247,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	unit = _unit(spec)
 	out = dict(vis, url=maps.tile_url(band, vis), name=f'{name}: {output}', bounds=_bounds(regions), thumbnail=None,
 	           unit=(f'{unit} / year' if unit else '') if output == 'slope' else unit if output == 'intercept' else '')
-	if thumbnail:
-		maps.thumbnail(maps.with_outline(band, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
-		out['thumbnail'] = thumbnail
-	return out
+	return _preview(out, band, vis, regions, native, thumbnail)
 
 
 @_cited
@@ -1352,7 +1363,8 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 	"""Map of the difference between the variable aggregated in time over another period (OTHER_START to OTHER_END)
 	and over the reference period (START to END), over REGION (e.g. the median NDVI of 2023 minus that of
 	2018-2021). Earth Engine tiles (the values cannot be queried: download_comparison for that).
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'}."""
+	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the reason in
+	thumbnail_error, if Earth Engine cannot make the PNG preview)."""
 	spec, regions, img, native, name = _comparison(region, variable, sensor, start, end, other_start, other_end, metric,
 	                                               temporal, interannual, season, quality, None, source)
 	diff = img.select('difference')
@@ -1365,10 +1377,7 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 		vis['palette'] = maps.ramp(None, palette)
 	out = dict(vis, url=maps.tile_url(diff, vis), name=f'{name}: difference', unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
-	if thumbnail:
-		maps.thumbnail(maps.with_outline(diff, vis, regions), regions.geometry().bounds(), None, path=thumbnail)
-		out['thumbnail'] = thumbnail
-	return out
+	return _preview(out, diff, vis, regions, native, thumbnail)
 
 
 @_cited
