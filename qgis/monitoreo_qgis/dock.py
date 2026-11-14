@@ -970,6 +970,26 @@ class MonitorEODock(QDockWidget):
 		self.fill_datasets()
 		self.community_theme.currentIndexChanged.connect(lambda i: self.fill_datasets())
 		form.addRow(self.community_row)
+		self.search_row = QWidget()  # the Earth Engine data catalog: from the copy of its index (no Earth Engine)
+		sf = QFormLayout(self.search_row)
+		sf.setContentsMargins(0, 0, 0, 0)
+		self.catalog_text = QLineEdit()
+		self.catalog_text.setPlaceholderText('words in English, e.g. snow cover, soil moisture')
+		self.catalog_text.returnPressed.connect(self.search_catalog)
+		row = QHBoxLayout()
+		row.addWidget(self.catalog_text, 1)
+		b = QPushButton('Search')
+		b.setToolTip('Searches the Earth Engine data catalog (the copy of its index in MonitorEO: without Earth '
+		             'Engine): the collections with data in the period, the images (fixed) of any date, over the map '
+		             'view when it is the region')
+		b.clicked.connect(lambda checked=False: self.search_catalog())
+		row.addWidget(b)
+		sf.addRow('Search the catalog', info(row, HELP['catalog_search']))
+		self.catalog_found = QComboBox()
+		self.catalog_found.setPlaceholderText('search first')
+		self.catalog_found.activated.connect(self.catalog_chosen)
+		sf.addRow('Dataset', self.catalog_found)
+		form.addRow(self.search_row)
 		self.asset_id = QLineEdit(s.value(SETTINGS + 'asset', ''))
 		self.asset_id.setPlaceholderText('e.g. IDAHO_EPSCOR/TERRACLIMATE or projects/sat-io/open-datasets/FABDEM')
 		self.asset_id.returnPressed.connect(self.read_asset)
@@ -1273,6 +1293,7 @@ class MonitorEODock(QDockWidget):
 		data = self.data_themes.get(self.theme.currentData())
 		self.data_row.setVisible(data is not None)
 		self.community_row.setVisible(data == 'community')
+		self.search_row.setVisible(data == 'earth_engine')
 		for w in (self.variable_field, self.variable_label):
 			if w is not None:
 				w.setVisible(data is None)
@@ -1365,6 +1386,44 @@ class MonitorEODock(QDockWidget):
 			                                                         f'Licence: {licence}') if x),
 			                                   Qt.ItemDataRole.ToolTipRole)
 		self.community_dataset.setCurrentIndex(-1)
+
+	def search_catalog(self):
+		"""The datasets of the Earth Engine data catalog with the words written (services.find_datasets): the
+		collections of images with data in the period and the images (fixed) whatever their dates, over the region of
+		the map view when it is the region (within the world: a view zoomed out goes beyond it), in the list Dataset."""
+		bbox = None
+		if self.region_kind.currentData() == 'extent':
+			canvas = self.iface.mapCanvas()
+			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), QgsCoordinateReferenceSystem('EPSG:4326'),
+			                            QgsProject.instance())
+			r = tr.transformBoundingBox(canvas.extent())
+			w, s, e, n = max(r.xMinimum(), -180), max(r.yMinimum(), -90), min(r.xMaximum(), 180), min(r.yMaximum(), 90)
+			bbox = [w, s, e, n] if w < e and s < n else None  # a view outside the world: all of it
+		try:
+			found = services.find_datasets(self.catalog_text.text(), self.start.date().toString('yyyy-MM-dd'),
+			                               self.end.date().toString('yyyy-MM-dd'), bbox, limit=50)
+		except ValueError as e:
+			self.message(str(e), 'Warning')
+			return
+		self.catalog_records = {d['id']: d for d in found}
+		self.catalog_found.clear()
+		for d in found:
+			kind = 'collection' if d['type'] == 'image_collection' else 'image'
+			years = f"{(d.get('start') or '?')[:4]}-{(d.get('end') or 'now')[:4]}"
+			self.catalog_found.addItem(f"{d['title']} ({kind}, {years})", d['id'])
+			self.catalog_found.setItemData(self.catalog_found.count() - 1, d['id'], Qt.ItemDataRole.ToolTipRole)
+		self.catalog_found.setPlaceholderText(f'{len(found)} datasets: choose one' if found else
+		                                      'none: try other words in English')
+		self.catalog_found.setCurrentIndex(-1)
+
+	def catalog_chosen(self, i):
+		"""A dataset of the Earth Engine data catalog chosen: its ID, then read in Earth Engine (its bands)."""
+		asset = self.catalog_found.itemData(i)
+		if not asset:
+			return
+		self.asset_id.setText(asset)
+		self.asset_edited()
+		self.read_asset(asset)
 
 	def dataset_chosen(self, i):
 		"""A dataset of the GEE Community Catalog chosen: its ID and what its record says, then read in Earth Engine

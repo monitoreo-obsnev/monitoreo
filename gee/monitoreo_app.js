@@ -1193,6 +1193,6363 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "eecatalog": {
+  "datasets": [
+   [
+    "AAFC/ACI",
+    "Canada AAFC Annual Crop Inventory",
+    1,
+    2009,
+    2025,
+    "aafc agriculture canada crop landcover"
+   ],
+   [
+    "ACA/reef_habitat/v2_0",
+    "Allen Coral Atlas (ACA) - Geomorphic Zonation and Benthic Habitat - v2.0",
+    0,
+    2018,
+    2021,
+    "coral oceans planet-derived reef seagrass sentinel2-derived"
+   ],
+   [
+    "AHN/AHN2_05M_INT",
+    "AHN Netherlands 0.5m DEM, Interpolated",
+    0,
+    2012,
+    2012,
+    "ahn dem elevation elevation-topography geophysical lidar netherlands"
+   ],
+   [
+    "AHN/AHN2_05M_NON",
+    "AHN Netherlands 0.5m DEM, Non-Interpolated",
+    0,
+    2012,
+    2012,
+    "ahn dem elevation elevation-topography geophysical lidar netherlands"
+   ],
+   [
+    "AHN/AHN2_05M_RUW",
+    "AHN Netherlands 0.5m DEM, Raw Samples",
+    0,
+    2012,
+    2012,
+    "ahn dem elevation elevation-topography geophysical lidar netherlands"
+   ],
+   [
+    "AHN/AHN3",
+    "AHN3: Netherlands AHN 0.5m",
+    1,
+    2014,
+    2019,
+    "ahn dem elevation elevation-topography geophysical lidar netherlands"
+   ],
+   [
+    "AHN/AHN4",
+    "AHN4: Netherlands AHN 0.5m",
+    1,
+    2020,
+    2022,
+    "ahn dem elevation elevation-topography geophysical lidar netherlands"
+   ],
+   [
+    "AIRBUS/SPOT_2_4_5/BRAZIL/2007_2009/MS/V1",
+    "SPOT Multispectral Imagery 10-20m, Brazil",
+    1,
+    2007,
+    2009,
+    "brazil forest-code google multispectral satellite-imagery spot"
+   ],
+   [
+    "AIRBUS/SPOT_2_4_5/BRAZIL/2007_2009/MS_NC/V1",
+    "SPOT Multispectral Pseudo Natural Color Imagery 10-20m, Brazil",
+    1,
+    2007,
+    2009,
+    "brazil forest-code google rgb satellite-imagery spot"
+   ],
+   [
+    "AIRBUS/SPOT_2_4_5/BRAZIL/2007_2009/PAN/V1",
+    "SPOT Panchromatic Imagery 5-10m, Brazil",
+    1,
+    2007,
+    2009,
+    "brazil forest-code google imagery satellite-imagery spot"
+   ],
+   [
+    "AIRBUS/SPOT_2_4_5/BRAZIL/2007_2009/PMS_NC/V1",
+    "SPOT Pansharpened Pseudo Natural Color Imagery 5-10m, Brazil",
+    1,
+    2007,
+    2009,
+    "brazil forest-code google rgb satellite-imagery spot"
+   ],
+   [
+    "ASTER/AST_L1T_003",
+    "ASTER L1T Radiance",
+    1,
+    2000,
+    2025,
+    "aster eos imagery nasa nir radiance satellite-imagery swir terra thermal tir toa"
+   ],
+   [
+    "AU/GA/AUSTRALIA_5M_DEM",
+    "Australian 5M DEM",
+    1,
+    2015,
+    2015,
+    "australia dem elevation elevation-topography ga geophysical geoscience-australia lidar"
+   ],
+   [
+    "AU/GA/DEM_1SEC/v10/DEM-H",
+    "DEM-H: Australian SRTM Hydrologically Enforced Digital Elevation Model",
+    0,
+    2010,
+    2010,
+    "australia dem elevation elevation-topography ga geophysical geoscience-australia smoothed srtm"
+   ],
+   [
+    "AU/GA/DEM_1SEC/v10/DEM-S",
+    "DEM-S: Australian Smoothed Digital Elevation Model",
+    0,
+    2010,
+    2010,
+    "australia dem elevation elevation-topography ga geophysical geoscience-australia smoothed srtm"
+   ],
+   [
+    "BIOPAMA/GlobalOilPalm/v1_2",
+    "Global Oil Palm Extent and Planting Year (1990-2021) v1.2",
+    1,
+    1990,
+    2021,
+    "agriculture biodiversity biopama conservation crop global landcover landuse landuse-landcover palm plantation"
+   ],
+   [
+    "BNETD/land_cover/v1",
+    "Cote d'Ivoire BNETD 2020 Land Cover Map",
+    1,
+    2020,
+    2021,
+    "classification deforestation forest landcover landuse-landcover"
+   ],
+   [
+    "BNU/FGS/CCNL/v1",
+    "CCNL: Consistent and Corrected Nighttime Light Dataset from DMSP-OLS (1992-2013) v1",
+    1,
+    1992,
+    2014,
+    "bnu dmsp eog imagery lights nighttime ols population visible yearly"
+   ],
+   [
+    "CANADA/NFIS/NTEMS/CA_FOREST_AGE",
+    "Landsat-derived forest age for Canada 2019",
+    1,
+    2019,
+    2020,
+    "canada forest forest-biomass"
+   ],
+   [
+    "CGIAR/SRTM90_V4",
+    "SRTM Digital Elevation Data Version 4",
+    0,
+    2000,
+    2000,
+    "cgiar dem elevation elevation-topography geophysical srtm topography"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Basic_Demographic_Characteristics",
+    "GPWv411: Basic Demographic Characteristics (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Data_Context",
+    "GPWv411: Data Context (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Land_Area",
+    "GPWv411: Land Area (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Mean_Administrative_Unit_Area",
+    "GPWv411: Mean Administrative Unit Area (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_National_Identifier_Grid",
+    "GPWv411: National Identifier Grid (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Population_Count",
+    "GPWv411: Population Count (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Population_Density",
+    "GPWv411: Population Density (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Count",
+    "GPWv411: Adjusted to Match 2015 Revision of UN WPP Country Totals (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_UNWPP-Adjusted_Population_Density",
+    "GPWv411: UN-Adjusted Population Density (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Water_Area",
+    "GPWv411: Water Area (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population surface-ground-water"
+   ],
+   [
+    "CIESIN/GPWv411/GPW_Water_Mask",
+    "GPWv411: Water Mask (Gridded Population of the World Version 4.11)",
+    1,
+    2000,
+    2020,
+    "ciesin gpw nasa population surface-ground-water"
+   ],
+   [
+    "COPERNICUS/CORINE/V20/100m",
+    "Copernicus CORINE Land Cover",
+    1,
+    1986,
+    2018,
+    "clc copernicus corine eea esa eu landcover landuse-landcover"
+   ],
+   [
+    "COPERNICUS/DEM/GLO30_2024_1",
+    "Copernicus DEM GLO-30 (2024_1): Global 30m Digital Elevation Model",
+    1,
+    2010,
+    2020,
+    "copernicus dem elevation elevation-topography geophysical"
+   ],
+   [
+    "COPERNICUS/Landcover/100m/Proba-V-C3/Global",
+    "Copernicus Global Land Cover Layers: CGLS-LC100 Collection 3",
+    1,
+    2015,
+    2019,
+    "copernicus eea esa eu landcover landuse-landcover proba probav vito"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/BIO",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - BIO",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/CAR",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - CAR",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/CO2",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - CO2",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/NUT",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - NUT",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/OPTICS",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - OPTICS",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/PFT",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - PFT",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_BGC_001_028/PLANKTON",
+    "Copernicus Global Ocean Bio-Geo-Chemical Forecast - PLANKTON",
+    1,
+    2022,
+    2025,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_ANALYSISFORECAST_PHY_DAILY",
+    "Global Ocean Physics Analysis and Forecast Daily",
+    1,
+    2022,
+    null,
+    "copernicus daily forecast oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_SEA_SURFACE/NRT_DAILY",
+    "Multi Observation Global Ocean Sea Surface Salinity and Sea Surface Density : Daily, Near Real Time",
+    1,
+    2023,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_SEA_SURFACE/NRT_DAILY_V2",
+    "Multi Observation Global Ocean Sea Surface Salinity and Sea Surface Density : Daily, Near Real Time V2",
+    1,
+    2024,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/GLOBAL_SEA_SURFACE/REP_DAILY",
+    "Multi Observation Global Ocean Sea Surface Salinity and Sea Surface Density : Daily, Multi-Year Reprocessed",
+    1,
+    1993,
+    2024,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/OPTICS_MULTI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Optics, Multi-Sensor 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/PLANKTON_MULTI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Plankton, Multi-Sensor, 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/PLANKTON_OLCI_300M",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Plankton, OLCI, 300M",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/PRIMARY_PRODUCTION_MULTI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Primary Production, Multi-Sensor 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/REFLECTANCE_MULTI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Reflectance, Multi-Sensor 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/REFLECTANCE_OLCI_300M",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Reflectance, OLCI 300M",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/TRANSPARENCY_MULTI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Transparency, Multi-Sensor, 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/OC_GLO_BGC/TRANSPARENCY_OLCI_4KM",
+    "Global Ocean Colour: Bio-Geo-Chemical, L4, from Satellite Observations, Transparency, OLCI, 4KM",
+    1,
+    2025,
+    null,
+    "copernicus oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/SATELLITE_OCEAN_COLOR/V6",
+    "Copernicus Satellite Ocean Color Daily Data",
+    1,
+    1997,
+    null,
+    "chlorophyll-a copernicus daily oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/WAV/ANFC_0_083DEG_PT3H",
+    "Global Ocean Waves Analysis and Forecast",
+    1,
+    2022,
+    null,
+    "copernicus forecast hourly oceans"
+   ],
+   [
+    "COPERNICUS/MARINE/WAV/ANFC_0_083DEG_STATIC",
+    "Global Ocean Waves Static Bathymetry",
+    1,
+    2022,
+    2001,
+    "bathymetry copernicus oceans"
+   ],
+   [
+    "COPERNICUS/S1_GRD",
+    "Sentinel-1 SAR GRD: C-band Synthetic Aperture Radar Ground Range Detected, log scaling",
+    1,
+    2014,
+    null,
+    "backscatter copernicus esa eu polarization radar sar satellite-imagery sentinel"
+   ],
+   [
+    "COPERNICUS/S2_CLOUD_PROBABILITY",
+    "Sentinel-2: Cloud Probability",
+    1,
+    2015,
+    null,
+    "cloud copernicus esa eu msi radiance satellite-imagery sentinel sentinelhub"
+   ],
+   [
+    "COPERNICUS/S2_HARMONIZED",
+    "Harmonized Sentinel-2 MSI: MultiSpectral Instrument, Level-1C (TOA)",
+    1,
+    2015,
+    null,
+    "copernicus esa eu msi radiance satellite-imagery sentinel"
+   ],
+   [
+    "COPERNICUS/S2_SR_HARMONIZED",
+    "Harmonized Sentinel-2 MSI: MultiSpectral Instrument, Level-2A (SR)",
+    1,
+    2017,
+    null,
+    "copernicus esa eu msi reflectance satellite-imagery sentinel sr"
+   ],
+   [
+    "COPERNICUS/S3/OLCI",
+    "Sentinel-3 OLCI EFR: Ocean and Land Color Instrument Earth Observation Full Resolution",
+    1,
+    2016,
+    null,
+    "copernicus esa eu olci radiance satellite-imagery sentinel toa"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_AER_AI",
+    "Sentinel-5P NRTI AER AI: Near Real-Time UV Aerosol Index",
+    1,
+    2018,
+    null,
+    "aai aerosol air-quality atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_AER_LH",
+    "Sentinel-5P NRTI AER LH: Near Real-Time UV Aerosol Layer Height",
+    1,
+    2018,
+    null,
+    "aerosol air-quality alh atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_CLOUD",
+    "Sentinel-5P NRTI CLOUD: Near Real-Time Cloud Properties",
+    1,
+    2018,
+    null,
+    "atmosphere cloud copernicus dlr esa eu s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_CO",
+    "Sentinel-5P NRTI CO: Near Real-Time Carbon Monoxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere carbon-monoxide copernicus esa eu knmi pollution s5p sentinel sron tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_HCHO",
+    "Sentinel-5P NRTI HCHO: Near Real-Time Formaldehyde",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere bira copernicus dlr esa eu formaldehyde hcho pollution s5p sentinel"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_NO2",
+    "Sentinel-5P NRTI NO2: Near Real-Time Nitrogen Dioxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere copernicus esa eu knmi nitrogen-dioxide no2 pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_O3",
+    "Sentinel-5P NRTI O3: Near Real-Time Ozone",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/NRTI/L3_SO2",
+    "Sentinel-5P NRTI SO2: Near Real-Time Sulfur Dioxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere bira copernicus dlr esa eu pollution s5p sentinel so2 sulfur-dioxide"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_AER_AI",
+    "Sentinel-5P OFFL AER AI: Offline UV Aerosol Index",
+    1,
+    2018,
+    null,
+    "aai aerosol air-quality atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_AER_LH",
+    "Sentinel-5P OFFL AER LH: Offline UV Aerosol Layer Height",
+    1,
+    2018,
+    null,
+    "aerosol air-quality alh atmosphere copernicus esa eu knmi pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_CH4",
+    "Sentinel-5P OFFL CH4: Offline Methane",
+    1,
+    2019,
+    null,
+    "atmosphere climate copernicus esa eu knmi methane s5p sentinel sron tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_CLOUD",
+    "Sentinel-5P OFFL CLOUD: Offline Cloud Properties",
+    1,
+    2018,
+    null,
+    "atmosphere cloud copernicus dlr esa eu s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_CO",
+    "Sentinel-5P OFFL CO: Offline Carbon Monoxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere carbon-monoxide copernicus esa eu knmi pollution s5p sentinel sron tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_HCHO",
+    "Sentinel-5P OFFL HCHO: Offline Formaldehyde",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere bira copernicus dlr esa eu formaldehyde hcho pollution s5p sentinel"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_NO2",
+    "Sentinel-5P OFFL NO2: Offline Nitrogen Dioxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere copernicus esa eu knmi nitrogen-dioxide no2 pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_O3",
+    "Sentinel-5P OFFL O3: Offline Ozone",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_O3_TCL",
+    "Sentinel-5P OFFL O3 TCL: Offline Tropospheric Ozone",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere copernicus esa eu o3 ozone pollution s5p sentinel tropomi"
+   ],
+   [
+    "COPERNICUS/S5P/OFFL/L3_SO2",
+    "Sentinel-5P OFFL SO2: Offline Sulfur Dioxide",
+    1,
+    2018,
+    null,
+    "air-quality atmosphere bira copernicus dlr esa eu pollution s5p sentinel so2 sulfur-dioxide"
+   ],
+   [
+    "CPOM/CryoSat2/ANTARCTICA_DEM",
+    "CryoSat-2 Antarctica 1km DEM",
+    0,
+    2010,
+    2016,
+    "antarctica cpom cryosat-2 dem elevation elevation-topography polar"
+   ],
+   [
+    "CSIC/SPEI/2_11",
+    "SPEIbase: Standardised Precipitation-Evapotranspiration Index database, Version 2.11",
+    1,
+    1901,
+    2025,
+    "climate climate-change drought evapotranspiration global monthly palmer precipitation temperature water-vapor"
+   ],
+   [
+    "CSIRO/BHI/v4",
+    "CSIRO Global Biodiversity Indicators",
+    1,
+    2000,
+    2025,
+    "bhi biodiversity csiro ecosystems habitat species"
+   ],
+   [
+    "CSIRO/SLGA",
+    "SLGA: Soil and Landscape Grid of Australia (Soil Attributes)",
+    1,
+    1950,
+    2013,
+    "australia csiro digital-soil-mapping globalsoilmap slga soil soil-depth tern"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/ALOS_CHILI",
+    "Global ALOS CHILI (Continuous Heat-Insolation Load Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/ALOS_landforms",
+    "Global ALOS Landforms",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/ALOS_mTPI",
+    "Global ALOS mTPI (Multi-Scale Topographic Position Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/ALOS_topoDiversity",
+    "Global ALOS Topographic Diversity",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/SRTM_CHILI",
+    "Global SRTM CHILI (Continuous Heat-Insolation Load Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/SRTM_landforms",
+    "Global SRTM Landforms",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/SRTM_mTPI",
+    "Global SRTM mTPI (Multi-Scale Topographic Position Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/Global/SRTM_topoDiversity",
+    "Global SRTM Topographic Diversity",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical global landforms slope topography"
+   ],
+   [
+    "CSP/ERGo/1_0/US/CHILI",
+    "US NED CHILI (Continuous Heat-Insolation Load Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/landforms",
+    "US NED Landforms",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/lithology",
+    "US Lithology",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/mTPI",
+    "US NED mTPI (Multi-Scale Topographic Position Index)",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/physioDiversity",
+    "US NED Physiographic Diversity",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/physiography",
+    "US Physiography",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/ERGo/1_0/US/topoDiversity",
+    "US NED Topographic Diversity",
+    0,
+    2006,
+    2011,
+    "aspect csp elevation elevation-topography ergo geophysical landforms slope topography us"
+   ],
+   [
+    "CSP/HM/GlobalHumanModification",
+    "CSP gHM: Global Human Modification",
+    1,
+    2016,
+    2016,
+    "csp fragmentation human-modification landcover landscape-gradient population stressors tnc"
+   ],
+   [
+    "DLR/WSF/WSF2015/v1",
+    "World Settlement Footprint 2015",
+    0,
+    2015,
+    2016,
+    "landcover landsat-derived population sentinel1-derived settlement urban"
+   ],
+   [
+    "DOE/ORNL/LandScan_HD/Ukraine_202201",
+    "LandScan High Definition Data for Ukraine, January 2022",
+    0,
+    2022,
+    2022,
+    "landscan population ukraine"
+   ],
+   [
+    "ECMWF/CAMS/NRT",
+    "Copernicus Atmosphere Monitoring Service (CAMS) Global Near-Real-Time",
+    1,
+    2016,
+    null,
+    "aerosol atmosphere climate copernicus ecmwf forecast particulate-matter"
+   ],
+   [
+    "ECMWF/ERA5/DAILY",
+    "ERA5 Daily Aggregates - Latest Climate Reanalysis Produced by ECMWF / Copernicus Climate Change Service",
+    1,
+    1979,
+    2020,
+    "climate copernicus dewpoint ecmwf era5 precipitation pressure reanalysis surface temperature weather-and-climate wind"
+   ],
+   [
+    "ECMWF/ERA5/HOURLY",
+    "ERA5 Hourly - ECMWF Climate Reanalysis",
+    1,
+    1940,
+    null,
+    "atmosphere climate copernicus ecmwf era5 hourly precipitation pressure radiation reanalysis temperature weather"
+   ],
+   [
+    "ECMWF/ERA5/HOURLY_PRESSURE_LEVELS",
+    "ERA5 Hourly Pressure Levels - ECMWF Climate Reanalysis",
+    1,
+    1940,
+    null,
+    "atmosphere climate copernicus ecmwf era5 hourly pressure reanalysis temperature weather weather-and-climate wind"
+   ],
+   [
+    "ECMWF/ERA5/MONTHLY",
+    "ERA5 Monthly Aggregates - Latest Climate Reanalysis Produced by ECMWF / Copernicus Climate Change Service",
+    1,
+    1979,
+    2020,
+    "climate copernicus dewpoint ecmwf era5 precipitation pressure reanalysis surface temperature weather-and-climate wind"
+   ],
+   [
+    "ECMWF/ERA5_LAND/DAILY_AGGR",
+    "ERA5-Land Daily Aggregated - ECMWF Climate Reanalysis",
+    1,
+    1950,
+    null,
+    "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
+   ],
+   [
+    "ECMWF/ERA5_LAND/HOURLY",
+    "ERA5-Land Hourly - ECMWF Climate Reanalysis",
+    1,
+    1950,
+    null,
+    "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
+   ],
+   [
+    "ECMWF/ERA5_LAND/MONTHLY_AGGR",
+    "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis",
+    1,
+    1950,
+    null,
+    "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
+   ],
+   [
+    "ECMWF/ERA5_LAND/MONTHLY_BY_HOUR",
+    "ERA5-Land Monthly Averaged by Hour of Day - ECMWF Climate Reanalysis",
+    1,
+    1950,
+    null,
+    "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
+   ],
+   [
+    "ECMWF/ERA5_LAND/STATIC",
+    "ERA5-Land Static - ECMWF Climate Reanalysis",
+    0,
+    1950,
+    null,
+    "cds climate copernicus ecmwf era5-land evaporation heat lakes precipitation pressure radiation reanalysis"
+   ],
+   [
+    "ECMWF/NRT_FORECAST/IFS/OPER",
+    "ECMWF Near-Realtime IFS Atmospheric Forecasts",
+    1,
+    2024,
+    null,
+    "dewpoint ecmwf forecast global humidity precipitation pressure radiation rainfall snow soil-moisture soil-temperature"
+   ],
+   [
+    "ECMWF/NRT_FORECAST/IFS/SCWV",
+    "ECMWF Near-Realtime IFS Wave (Short-Cutoff) Forecasts",
+    1,
+    2024,
+    null,
+    "ecmwf forecast global oceans weather-and-climate"
+   ],
+   [
+    "ECMWF/NRT_FORECAST/IFS/WAVE",
+    "ECMWF Near-Realtime IFS Wave Forecasts",
+    1,
+    2024,
+    null,
+    "ecmwf forecast global oceans weather-and-climate"
+   ],
+   [
+    "EDF/MethaneSAT/MethaneAIR/L3concentration",
+    "MethaneAIR L3 Concentration v1",
+    1,
+    2021,
+    2023,
+    "atmosphere climate edf emissions ghg methane methaneair methanesat"
+   ],
+   [
+    "EDF/MethaneSAT/MethaneAIR/L4area",
+    "MethaneAIR L4 Area Sources v1",
+    1,
+    2021,
+    2023,
+    "atmosphere climate edf emissions ghg methane methaneair methanesat"
+   ],
+   [
+    "EO1/HYPERION",
+    "EO-1 Hyperion Hyperspectral Imager",
+    1,
+    2001,
+    2017,
+    "eo-1 hyperion hyperspectral satellite-imagery usgs"
+   ],
+   [
+    "ESA/CCI/Above_Ground_Biomass/V6_0",
+    "ESA CCI Above-Ground Biomass for 2007, 2010, 2015-2022 (v6.0)",
+    1,
+    2007,
+    2023,
+    "biomass cci ecosystems esa forest"
+   ],
+   [
+    "ESA/CCI/FireCCI/5_1",
+    "FireCCI51: MODIS Fire_cci Burned Area Pixel Product, Version 5.1",
+    1,
+    2001,
+    2020,
+    "burn c3s cci climate-change copernicus esa fire firecci firecci51 fragmentation gcos geophysical"
+   ],
+   [
+    "ESA/GLOBCOVER_L4_200901_200912_V2_3",
+    "GlobCover: Global Land Cover Map",
+    0,
+    2009,
+    2010,
+    "esa globcover landcover landuse-landcover"
+   ],
+   [
+    "ESA/WorldCereal/2021/MARKERS/v100",
+    "ESA WorldCereal Active Cropland 10 m v100",
+    1,
+    2020,
+    2021,
+    "agriculture copernicus crop esa global landcover landsat sentinel1-derived sentinel2-derived"
+   ],
+   [
+    "ESA/WorldCereal/2021/MODELS/v100",
+    "ESA WorldCereal 10 m v100",
+    1,
+    2020,
+    2021,
+    "agriculture copernicus crop esa global landcover landsat sentinel1-derived sentinel2-derived"
+   ],
+   [
+    "ESA/WorldCover/v100",
+    "ESA WorldCover 10m v100",
+    1,
+    2020,
+    2021,
+    "esa landcover landuse landuse-landcover sentinel1-derived sentinel2-derived"
+   ],
+   [
+    "ESA/WorldCover/v200",
+    "ESA WorldCover 10m v200",
+    1,
+    2021,
+    2022,
+    "esa landcover landuse landuse-landcover sentinel1-derived sentinel2-derived"
+   ],
+   [
+    "Earth_Big_Data/GLOBAL_SEASONAL_S1/V2019/BACKSCATTER",
+    "Global Seasonal Sentinel-1 Interferometric Coherence and Backscatter V2019 Backscatter",
+    1,
+    2019,
+    2020,
+    "backscatter earth-big-data jpl nasa polarization radar sar satellite-imagery seasonal sentinel1-derived"
+   ],
+   [
+    "Earth_Big_Data/GLOBAL_SEASONAL_S1/V2019/COHERENCE",
+    "Global Seasonal Sentinel-1 Interferometric Coherence and Backscatter V2019 Coherence",
+    1,
+    2019,
+    2020,
+    "earth-big-data jpl nasa polarization radar sar satellite-imagery seasonal sentinel1-derived"
+   ],
+   [
+    "Earth_Big_Data/GLOBAL_SEASONAL_S1/V2019/DECAY_MODEL_PARAMETERS",
+    "Global Seasonal Sentinel-1 Interferometric Coherence and Backscatter V2019 Decay Model Parameters",
+    1,
+    2019,
+    2020,
+    "earth-big-data jpl nasa polarization radar sar satellite-imagery seasonal sentinel1-derived"
+   ],
+   [
+    "Earth_Big_Data/GLOBAL_SEASONAL_S1/V2019/INCIDENCE_LAYOVER_SHADOW",
+    "Global Seasonal Sentinel-1 Interferometric Coherence and Backscatter V2019 Incidence Layover Shadow",
+    1,
+    2019,
+    2020,
+    "earth-big-data jpl nasa polarization radar sar satellite-imagery seasonal sentinel1-derived"
+   ],
+   [
+    "Estonia/Maamet/orthos/mono",
+    "Estonia mono orthophotos",
+    1,
+    1993,
+    2021,
+    "estonia orthophotos"
+   ],
+   [
+    "Estonia/Maamet/orthos/mono_low_flying",
+    "Estonia mono low flying orthophotos",
+    1,
+    1993,
+    2021,
+    "estonia low-flying orthophotos"
+   ],
+   [
+    "Estonia/Maamet/orthos/rgb",
+    "Estonia RGB orthophotos",
+    1,
+    1993,
+    2021,
+    "estonia orthophotos rgb"
+   ],
+   [
+    "Estonia/Maamet/orthos/rgb_low_flying",
+    "Estonia RGB low flying orthophotos",
+    1,
+    1993,
+    2021,
+    "estonia low-flying orthophotos rgb"
+   ],
+   [
+    "FAO/GHG/1/DROSA_A",
+    "UN FAO Drained Organic Soils Area (Annual) 1.0",
+    1,
+    1992,
+    2018,
+    "agriculture climate climate-change emissions fao ghg organic-soils weather-and-climate"
+   ],
+   [
+    "FAO/GHG/1/DROSE_A",
+    "Drained Organic Soils Emissions (Annual) 1.0",
+    1,
+    1992,
+    2018,
+    "agriculture climate climate-change emissions fao ghg organic-soils weather-and-climate"
+   ],
+   [
+    "FAO/SOFO/1/FPP",
+    "Forest proximate people (FPP) 1.0",
+    1,
+    2019,
+    2019,
+    "agriculture fao forest global plant-productivity population rural-area"
+   ],
+   [
+    "FAO/SOFO/1/TPP",
+    "Tree proximate people (TPP) 1.0",
+    1,
+    2019,
+    2019,
+    "agriculture fao forest global plant-productivity population rural-area"
+   ],
+   [
+    "FAO/WAPOR/2/L1_AETI_D",
+    "WAPOR Actual Evapotranspiration and Interception 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/2/L1_E_D",
+    "WAPOR Dekadal Evaporation 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/2/L1_I_D",
+    "WAPOR Dekadal Interception 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/2/L1_NPP_D",
+    "WAPOR Dekadal Net Primary Production 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao plant-productivity wapor water"
+   ],
+   [
+    "FAO/WAPOR/2/L1_RET_D",
+    "WAPOR Dekadal Reference Evapotranspiration 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/2/L1_RET_E",
+    "WAPOR Daily Reference Evapotranspiration 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/2/L1_T_D",
+    "WAPOR Dekadal Transpiration 2.0",
+    1,
+    2009,
+    2023,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_AETI_D",
+    "WAPOR Actual Evapotranspiration and Interception 3.0",
+    1,
+    2018,
+    null,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_E_D",
+    "WAPOR Dekadal Evaporation 3.0",
+    1,
+    2018,
+    null,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_I_D",
+    "WAPOR Dekadal Interception 3.0",
+    1,
+    2009,
+    null,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_RET_D",
+    "WAPOR Dekadal Reference Evapotranspiration 3.0",
+    1,
+    2018,
+    null,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_RET_E",
+    "WAPOR Daily Reference Evapotranspiration 3.0",
+    1,
+    2018,
+    null,
+    "agriculture fao wapor water water-vapor"
+   ],
+   [
+    "FAO/WAPOR/3/L1_T_D",
+    "WAPOR Dekadal Transpiration 3.0",
+    1,
+    2009,
+    null,
+    "agriculture fao global wapor water water-vapor"
+   ],
+   [
+    "FIRMS",
+    "FIRMS: Fire Information for Resource Management System",
+    1,
+    2000,
+    null,
+    "eosdis fire firms geophysical hotspot lance modis nasa thermal"
+   ],
+   [
+    "Finland/MAVI/VV/50cm",
+    "Finland NRG NLS orthophotos 50 cm by Mavi",
+    1,
+    2015,
+    2018,
+    "falsecolor finland mavi nrg orthophotos"
+   ],
+   [
+    "Finland/SMK/V/50cm",
+    "Finland RGB NLS orthophotos 50 cm by SMK",
+    1,
+    2015,
+    2023,
+    "finland orthophotos rgb smk"
+   ],
+   [
+    "Finland/SMK/VV/50cm",
+    "Finland NRG NLS orthophotos 50 cm by SMK",
+    1,
+    2015,
+    2022,
+    "falsecolor finland nrg orthophotos smk"
+   ],
+   [
+    "GFW/GFF/V1/fishing_hours",
+    "GFW (Global Fishing Watch) Daily Fishing Hours",
+    1,
+    2012,
+    2017,
+    "fishing gfw monthly oceans"
+   ],
+   [
+    "GFW/GFF/V1/vessel_hours",
+    "GFW (Global Fishing Watch) Daily Vessel Hours",
+    1,
+    2012,
+    2017,
+    "fishing gfw monthly oceans"
+   ],
+   [
+    "GLCF/GLS_WATER",
+    "GLCF: Landsat Global Inland Water",
+    1,
+    2000,
+    2000,
+    "glcf landsat-derived nasa surface-ground-water umd water"
+   ],
+   [
+    "GLOBAL_FLOOD_DB/MODIS_EVENTS/V1",
+    "Global Flood Database v1 (2000-2018)",
+    1,
+    2000,
+    2018,
+    "c2s cloudtostreet dartmouth dfo flood gfd inundation surface surface-ground-water water"
+   ],
+   [
+    "GOOGLE/BRAZIL_FOREST_2008/V1/ANALYTIC",
+    "Brazil Forest Imagery Dataset 2008: Analytic Basemap",
+    0,
+    2007,
+    2009,
+    "brazil forest-code google imagery multispectral satellite-imagery spot"
+   ],
+   [
+    "GOOGLE/BRAZIL_FOREST_2008/V1/VISUAL",
+    "Brazil Forest Imagery Dataset 2008: Visual Basemap",
+    0,
+    2007,
+    2009,
+    "brazil deforestation forest-code google rgb satellite-imagery spot"
+   ],
+   [
+    "GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED",
+    "Cloud Score+ S2_HARMONIZED V1",
+    1,
+    2015,
+    null,
+    "cloud google satellite-imagery sentinel2-derived"
+   ],
+   [
+    "GOOGLE/DYNAMICWORLD/V1",
+    "Dynamic World V1",
+    1,
+    2015,
+    null,
+    "global google landcover landuse landuse-landcover nrt sentinel2-derived"
+   ],
+   [
+    "GOOGLE/GLOBAL_CCDC/V1",
+    "Google Global Landsat-based CCDC Segments (1999-2019)",
+    1,
+    1999,
+    2020,
+    "change-detection google landcover landsat-derived landuse landuse-landcover"
+   ],
+   [
+    "GOOGLE/Research/open-buildings-temporal/v1",
+    "Open Buildings Temporal V1",
+    1,
+    2016,
+    2023,
+    "africa annual asia building-height built-up height high-resolution open-buildings population south-asia southeast-asia"
+   ],
+   [
+    "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL",
+    "Satellite Embedding V1",
+    1,
+    2017,
+    2025,
+    "annual global google landsat-derived satellite-imagery sentinel1-derived sentinel2-derived"
+   ],
+   [
+    "GRIDMET/DROUGHT",
+    "GRIDMET DROUGHT: CONUS Drought Indices",
+    1,
+    1980,
+    null,
+    "climate climatic-water-balance conus crop drought eddi evapotranspiration geophysical gridmet merced metdata palmer"
+   ],
+   [
+    "Germany/Brandenburg/orthos/20cm",
+    "Brandenburg (Germany) RGBN orthophotos 20 cm",
+    1,
+    2021,
+    2023,
+    "brandenburg germany orthophotos rgbn"
+   ],
+   [
+    "HYCOM/sea_surface_elevation",
+    "HYCOM: Hybrid Coordinate Ocean Model, Sea Surface Elevation",
+    1,
+    1992,
+    2024,
+    "elevation hycom nopp oceans ssh water"
+   ],
+   [
+    "HYCOM/sea_temp_salinity",
+    "HYCOM: Hybrid Coordinate Ocean Model, Water Temperature and Salinity",
+    1,
+    1992,
+    2024,
+    "hycom nopp oceans salinity sst water water-temp"
+   ],
+   [
+    "HYCOM/sea_water_velocity",
+    "HYCOM: Hybrid Coordinate Ocean Model, Water Velocity",
+    1,
+    1992,
+    2024,
+    "hycom nopp oceans velocity water"
+   ],
+   [
+    "IAHS/GFPLAIN250/v0",
+    "GFPLAIN250m: Global 250m Floodplain Dataset",
+    0,
+    2018,
+    2018,
+    "flood monitoring surface-ground-water"
+   ],
+   [
+    "IDAHO_EPSCOR/GRIDMET",
+    "GRIDMET: University of Idaho Gridded Surface Meteorological Dataset",
+    1,
+    1979,
+    null,
+    "climate fireburning gridmet humidity merced metdata nfdrs precipitation radiation temperature water-vapor weather-and-climate"
+   ],
+   [
+    "IDAHO_EPSCOR/MACAv2_METDATA",
+    "MACAv2-METDATA: University of Idaho, Multivariate Adaptive Constructed Analogs Applied to Global Climate Models",
+    1,
+    1900,
+    2100,
+    "climate conus geophysical idaho maca monthly weather-and-climate"
+   ],
+   [
+    "IDAHO_EPSCOR/MACAv2_METDATA_MONTHLY",
+    "MACAv2-METDATA Monthly Summaries: University of Idaho, Multivariate Adaptive Constructed Analogs Applied to Global Climate Models",
+    1,
+    1900,
+    2099,
+    "climate conus geophysical idaho maca monthly weather-and-climate"
+   ],
+   [
+    "IDAHO_EPSCOR/TERRACLIMATE",
+    "TerraClimate: Monthly Climate and Climatic Water Balance for Global Terrestrial Surfaces, University of Idaho",
+    1,
+    1958,
+    2024,
+    "climate drought evapotranspiration geophysical global merced monthly palmer pdsi precipitation runoff temperature"
+   ],
+   [
+    "IGN/RGE_ALTI/1M/2_0",
+    "RGE ALTI: IGN RGE ALTI Digital Elevation 1m",
+    1,
+    2009,
+    2021,
+    "dem elevation elevation-topography geophysical"
+   ],
+   [
+    "IPCC/AR6/SLP",
+    "IPCC AR6 Sea Level Projections Regional (Medium Confidence)",
+    1,
+    2020,
+    2120,
+    "ipcc oceans sea-level-changes"
+   ],
+   [
+    "ISDASOIL/Africa/v1/aluminium_extractable",
+    "iSDAsoil extractable Aluminium",
+    0,
+    2001,
+    2017,
+    "africa aluminium isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/bedrock_depth",
+    "iSDAsoil Depth to Bedrock",
+    0,
+    2001,
+    2017,
+    "africa bedrock isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/bulk_density",
+    "iSDAsoil Bulk Density, <2mm Fraction",
+    0,
+    2001,
+    2017,
+    "africa bulk-density isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/calcium_extractable",
+    "iSDAsoil Extractable Calcium",
+    0,
+    2001,
+    2017,
+    "africa calcium isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/carbon_organic",
+    "iSDAsoil Organic Carbon",
+    0,
+    2001,
+    2017,
+    "africa carbon carbon-organic isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/carbon_total",
+    "iSDAsoil Total Carbon",
+    0,
+    2001,
+    2017,
+    "africa aluminium isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/cation_exchange_capacity",
+    "iSDAsoil Effective Cation Exchange Capacity",
+    0,
+    2001,
+    2017,
+    "africa aluminium isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/clay_content",
+    "iSDAsoil Clay Content",
+    0,
+    2001,
+    2017,
+    "africa clay isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/fcc",
+    "iSDAsoil Fertility Capability Classification",
+    0,
+    2001,
+    2017,
+    "africa fcc isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/iron_extractable",
+    "iSDAsoil Extractable Iron",
+    0,
+    2001,
+    2017,
+    "africa iron isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/magnesium_extractable",
+    "iSDAsoil Extractable Magnesium",
+    0,
+    2001,
+    2017,
+    "africa isda magnesium soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/nitrogen_total",
+    "iSDAsoil Total Nitrogen",
+    0,
+    2001,
+    2017,
+    "africa isda nitrogen soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/ph",
+    "iSDAsoil pH",
+    0,
+    2001,
+    2017,
+    "africa isda ph soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/phosphorus_extractable",
+    "iSDAsoil Extractable Phosphorus",
+    0,
+    2001,
+    2017,
+    "africa isda phosphorus soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/potassium_extractable",
+    "iSDAsoil Extractable Potassium",
+    0,
+    2001,
+    2017,
+    "africa isda potassium soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/sand_content",
+    "iSDAsoil Sand Content",
+    0,
+    2001,
+    2017,
+    "africa isda sand soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/silt_content",
+    "iSDAsoil Silt Content",
+    0,
+    2001,
+    2017,
+    "africa isda silt soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/stone_content",
+    "iSDAsoil Stone Content",
+    0,
+    2001,
+    2017,
+    "africa isda soil stone"
+   ],
+   [
+    "ISDASOIL/Africa/v1/sulphur_extractable",
+    "iSDAsoil Extractable Sulfur",
+    0,
+    2001,
+    2017,
+    "africa isda soil sulfur"
+   ],
+   [
+    "ISDASOIL/Africa/v1/texture_class",
+    "iSDAsoil USDA Texture Class",
+    0,
+    2001,
+    2017,
+    "africa aluminium isda soil"
+   ],
+   [
+    "ISDASOIL/Africa/v1/zinc_extractable",
+    "iSDAsoil Extractable Zinc",
+    0,
+    2001,
+    2017,
+    "africa isda soil zinc"
+   ],
+   [
+    "ISRIC/SoilGrids250m/v2_0",
+    "SoilGrids250m 2.0 - Volumetric Water Content",
+    1,
+    1905,
+    2016,
+    "soil soil-moisture water"
+   ],
+   [
+    "JAXA/ALOS/AVNIR-2/ORI",
+    "ALOS/AVNIR-2 ORI",
+    1,
+    2006,
+    2011,
+    "alos avnir-2 eorc jaxa orthophoto satellite-imagery visible"
+   ],
+   [
+    "JAXA/ALOS/AW3D30/V4_1",
+    "ALOS DSM: Global 30m v4.1",
+    1,
+    2006,
+    2011,
+    "alos dem elevation elevation-topography geophysical jaxa topography"
+   ],
+   [
+    "JAXA/ALOS/PALSAR-2/Level2_1/StripMap_202401",
+    "ALOS-2 PALSAR-2 StripMap Level 2.1",
+    1,
+    2022,
+    2024,
+    "alos2 eroc jaxa palsar2 radar sar satellite-imagery"
+   ],
+   [
+    "JAXA/ALOS/PALSAR-2/Level2_2/ScanSAR",
+    "PALSAR-2 ScanSAR Level 2.2",
+    1,
+    2014,
+    null,
+    "alos2 eroc jaxa palsar2 radar sar satellite-imagery"
+   ],
+   [
+    "JAXA/ALOS/PALSAR/YEARLY/FNF",
+    "Global 3-class PALSAR-2/PALSAR Forest/Non-Forest Map",
+    1,
+    2007,
+    2018,
+    "alos alos2 classification eroc forest forest-biomass jaxa landcover palsar palsar2 sar"
+   ],
+   [
+    "JAXA/ALOS/PALSAR/YEARLY/FNF4",
+    "Global 4-class PALSAR-2/PALSAR Forest/Non-Forest Map",
+    1,
+    2017,
+    2021,
+    "alos alos2 classification eroc forest forest-biomass jaxa landcover palsar palsar2 sar"
+   ],
+   [
+    "JAXA/ALOS/PALSAR/YEARLY/SAR",
+    "Global PALSAR-2/PALSAR Yearly Mosaic, version 1",
+    1,
+    2007,
+    2020,
+    "alos alos2 eroc jaxa palsar palsar2 sar satellite-imagery"
+   ],
+   [
+    "JAXA/ALOS/PALSAR/YEARLY/SAR_EPOCH",
+    "Global PALSAR-2/PALSAR Yearly Mosaic, version 2.5.0",
+    1,
+    2015,
+    2024,
+    "alos alos2 eroc jaxa palsar palsar2 sar satellite-imagery"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LAI/V1",
+    "GCOM-C/SGLI L3 Leaf Area Index (V1)",
+    1,
+    2018,
+    2020,
+    "g-portal gcom gcom-c jaxa lai land leaf-area-index vegetation-indices"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LAI/V2",
+    "GCOM-C/SGLI L3 Leaf Area Index (V2)",
+    1,
+    2018,
+    2021,
+    "g-portal gcom gcom-c jaxa lai land leaf-area-index vegetation-indices"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LAI/V3",
+    "GCOM-C/SGLI L3 Leaf Area Index (V3)",
+    1,
+    2021,
+    null,
+    "g-portal gcom gcom-c jaxa lai land leaf-area-index vegetation-indices"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LST/V1",
+    "GCOM-C/SGLI L3 Land Surface Temperature (V1)",
+    1,
+    2018,
+    2020,
+    "climate g-portal gcom gcom-c jaxa land land-surface-temperature lst weather-and-climate"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LST/V2",
+    "GCOM-C/SGLI L3 Land Surface Temperature (V2)",
+    1,
+    2018,
+    2021,
+    "climate g-portal gcom gcom-c jaxa land land-surface-temperature lst weather-and-climate"
+   ],
+   [
+    "JAXA/GCOM-C/L3/LAND/LST/V3",
+    "GCOM-C/SGLI L3 Land Surface Temperature (V3)",
+    1,
+    2021,
+    null,
+    "climate g-portal gcom gcom-c jaxa land land-surface-temperature lst weather-and-climate"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/CHLA/V1",
+    "GCOM-C/SGLI L3 Chlorophyll-a Concentration (V1)",
+    1,
+    2018,
+    2020,
+    "chla chlorophyll-a g-portal gcom gcom-c jaxa ocean-color oceans"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/CHLA/V2",
+    "GCOM-C/SGLI L3 Chlorophyll-a Concentration (V2)",
+    1,
+    2018,
+    2021,
+    "chla chlorophyll-a g-portal gcom gcom-c jaxa ocean-color oceans"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/CHLA/V3",
+    "GCOM-C/SGLI L3 Chlorophyll-a Concentration (V3)",
+    1,
+    2021,
+    null,
+    "chla chlorophyll-a g-portal gcom gcom-c jaxa ocean-color oceans"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/SST/V1",
+    "GCOM-C/SGLI L3 Sea Surface Temperature (V1)",
+    1,
+    2018,
+    2020,
+    "climate g-portal gcom gcom-c jaxa oceans sea-surface-temperature sst"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/SST/V2",
+    "GCOM-C/SGLI L3 Sea Surface Temperature (V2)",
+    1,
+    2018,
+    2021,
+    "climate g-portal gcom gcom-c jaxa oceans sea-surface-temperature sst"
+   ],
+   [
+    "JAXA/GCOM-C/L3/OCEAN/SST/V3",
+    "GCOM-C/SGLI L3 Sea Surface Temperature (V3)",
+    1,
+    2018,
+    null,
+    "climate g-portal gcom gcom-c jaxa oceans sea-surface-temperature sst"
+   ],
+   [
+    "JAXA/GPM_L3/GSMaP/v6/operational",
+    "GSMaP Operational: Global Satellite Mapping of Precipitation - V6",
+    1,
+    2014,
+    null,
+    "climate geophysical gpm hourly jaxa precipitation weather"
+   ],
+   [
+    "JAXA/GPM_L3/GSMaP/v6/reanalysis",
+    "GSMaP Reanalysis: Global Satellite Mapping of Precipitation",
+    1,
+    2000,
+    2014,
+    "climate geophysical gpm hourly jaxa precipitation weather"
+   ],
+   [
+    "JAXA/GPM_L3/GSMaP/v7/operational",
+    "GSMaP Operational: Global Satellite Mapping of Precipitation - V7",
+    1,
+    2014,
+    2026,
+    "climate geophysical gpm hourly jaxa precipitation weather"
+   ],
+   [
+    "JAXA/GPM_L3/GSMaP/v8/operational",
+    "GSMaP Operational: Global Satellite Mapping of Precipitation - V8",
+    1,
+    1998,
+    null,
+    "climate geophysical gpm hourly jaxa precipitation weather"
+   ],
+   [
+    "JCU/Murray/GIC/global_tidal_wetland_change/2019",
+    "Murray Global Tidal Wetland Change v1.0 (1999-2019)",
+    0,
+    1999,
+    2019,
+    "coastal ecosystem intertidal landsat-derived mangrove murray saltmarsh surface-ground-water tidal-flat tidal-marsh"
+   ],
+   [
+    "JRC/CEMS_GLOFAS/FloodHazard/v2_1",
+    "JRC Global River Flood Hazard Maps Version 2.1",
+    1,
+    2024,
+    2024,
+    "flood monitoring surface-ground-water wri"
+   ],
+   [
+    "JRC/D5/EUCROPMAP/V1",
+    "EUCROPMAP",
+    1,
+    2018,
+    2022,
+    "agriculture crop eu jrc lucas sentinel1-derived"
+   ],
+   [
+    "JRC/GFC2020/V4",
+    "EC JRC global map of forest cover 2020, V4",
+    0,
+    2020,
+    2020,
+    "eudr forest forest-biomass jrc"
+   ],
+   [
+    "JRC/GFC2020_subtypes/V2",
+    "EC JRC global map of forest types 2020, V2",
+    0,
+    2020,
+    2020,
+    "eudr forest forest-biomass jrc landcover primary-forest"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_BUILT_C",
+    "GHSL: Global settlement characteristics (10 m) 2018 (P2023A)",
+    1,
+    2018,
+    2018,
+    "building built builtup copernicus ghsl height jrc landcover population roads sdg sentinel2-derived"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_BUILT_H",
+    "GHSL: Global building height 2018 (P2023A)",
+    1,
+    2018,
+    2018,
+    "alos building built built-environment builtup copernicus dem ghsl height jrc population sdg"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_BUILT_S",
+    "GHSL: Global built-up surface 1975-2030 (P2023A)",
+    1,
+    1975,
+    2030,
+    "built built-environment builtup copernicus ghsl jrc landcover landsat-derived population sdg sentinel2-derived settlement"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_BUILT_S_10m",
+    "GHSL: Global built-up surface 10m (P2023A)",
+    1,
+    2018,
+    2019,
+    "built built-environment builtup copernicus ghsl jrc landcover population sdg sentinel2-derived settlement urban"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_BUILT_V",
+    "GHSL: Global building volume 1975-2030 (P2023A)",
+    1,
+    1975,
+    2030,
+    "alos building built-environment copernicus dem ghsl jrc population sdg sentinel2-derived srtm urban"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_POP",
+    "GHSL: Global population surfaces 1975-2030 (P2023A)",
+    1,
+    1975,
+    2030,
+    "ciesin-derived ghsl jrc population sdg"
+   ],
+   [
+    "JRC/GHSL/P2023A/GHS_SMOD_V2-0",
+    "GHSL: Degree of Urbanization 1975-2030 V2-0 (P2023A)",
+    1,
+    1975,
+    2030,
+    "ghsl jrc population sdg settlement"
+   ],
+   [
+    "JRC/GSW1_4/GlobalSurfaceWater",
+    "JRC Global Surface Water Mapping Layers, v1.4",
+    0,
+    1984,
+    2022,
+    "change-detection geophysical google jrc landsat-derived surface surface-ground-water water"
+   ],
+   [
+    "JRC/GSW1_4/Metadata",
+    "JRC Global Surface Water Metadata, v1.4",
+    0,
+    1984,
+    2022,
+    "geophysical google jrc landsat-derived surface surface-ground-water water"
+   ],
+   [
+    "JRC/GSW1_4/MonthlyHistory",
+    "JRC Monthly Water History, v1.4",
+    1,
+    1984,
+    2022,
+    "geophysical google history jrc landsat-derived monthly surface surface-ground-water water"
+   ],
+   [
+    "JRC/GSW1_4/MonthlyRecurrence",
+    "JRC Monthly Water Recurrence, v1.4",
+    1,
+    1984,
+    2022,
+    "geophysical google history jrc landsat-derived monthly recurrence surface surface-ground-water water"
+   ],
+   [
+    "JRC/GSW1_4/YearlyHistory",
+    "JRC Yearly Water Classification History, v1.4",
+    1,
+    1984,
+    2022,
+    "annual geophysical google history jrc landsat-derived surface surface-ground-water water yearly"
+   ],
+   [
+    "KNTU/LiDARLab/IranLandCover/V1",
+    "Iran Land Cover Map v1 13-class (2017)",
+    0,
+    2017,
+    2018,
+    "iran kntu landcover landuse-landcover"
+   ],
+   [
+    "LANDFIRE/Fire/FRG/v1_2_0",
+    "LANDFIRE FRG (Fire Regime Groups) v1.2.0",
+    1,
+    2010,
+    2010,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/MFRI/v1_2_0",
+    "LANDFIRE MFRI (Mean Fire Return Interval) v1.2.0",
+    1,
+    2010,
+    2010,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/PLS/v1_2_0",
+    "LANDFIRE PLS (Percent Low-severity Fire) v1.2.0",
+    1,
+    2010,
+    2010,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/PMS/v1_2_0",
+    "LANDFIRE PMS (Percent of Mixed-severity Fire) v1.2.0",
+    1,
+    2010,
+    2010,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/PRS/v1_2_0",
+    "LANDFIRE PRS (Percent of Replacement-severity Fire) v1.2.0",
+    1,
+    2010,
+    2010,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/SClass/v1_4_0",
+    "LANDFIRE SClass (Succession Classes) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/VCC/v1_4_0",
+    "LANDFIRE VCC (Vegetation Condition Class) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Fire/VDep/v1_4_0",
+    "LANDFIRE VDep (Vegetation Departure) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/BPS/v1_4_0",
+    "LANDFIRE BPS (Biophysical Settings) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/ESP/v1_2_0/AK",
+    "LANDFIRE ESP AK (Environmental Site Potential) v1.2.0",
+    0,
+    2010,
+    2010,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/ESP/v1_2_0/CONUS",
+    "LANDFIRE ESP CONUS (Environmental Site Potential) v1.2.0",
+    0,
+    2010,
+    2010,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/ESP/v1_2_0/HI",
+    "LANDFIRE ESP HI (Environmental Site Potential) v1.2.0",
+    0,
+    2010,
+    2010,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/EVC/v1_4_0",
+    "LANDFIRE EVC (Existing Vegetation Cover) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/EVH/v1_4_0",
+    "LANDFIRE EVH (Existing Vegetation Height) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDFIRE/Vegetation/EVT/v1_4_0",
+    "LANDFIRE EVT (Existing Vegetation Type) v1.4.0",
+    1,
+    2014,
+    2014,
+    "doi fire forest-biomass landfire nature-conservancy usda usgs vegetation wildfire"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite satellite-imagery sr usgs"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY_BAI",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day BAI Composite",
+    1,
+    1984,
+    null,
+    "bai fire landsat landsat-composite usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY_EVI",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day EVI Composite",
+    1,
+    1984,
+    null,
+    "evi landsat landsat-composite usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY_NBR",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day NBR Composite",
+    1,
+    1984,
+    null,
+    "fire landsat landsat-composite nbrt usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY_NDVI",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day NDVI Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_32DAY_NDWI",
+    "Landsat Collection 2 Tier 1 Level 2 32-Day NDWI Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite ndwi surface-ground-water usgs"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite satellite-imagery sr usgs"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY_BAI",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day BAI Composite",
+    1,
+    1984,
+    null,
+    "bai fire landsat landsat-composite usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY_EVI",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day EVI Composite",
+    1,
+    1984,
+    null,
+    "evi landsat landsat-composite usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY_NBR",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day NBR Composite",
+    1,
+    1984,
+    null,
+    "fire landsat landsat-composite nbrt usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY_NDVI",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day NDVI Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_8DAY_NDWI",
+    "Landsat Collection 2 Tier 1 Level 2 8-Day NDWI Composite",
+    1,
+    1984,
+    null,
+    "landsat landsat-composite ndwi surface-ground-water usgs"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL",
+    "Landsat Collection 2 Tier 1 Level 2 Annual Composite",
+    1,
+    1984,
+    2026,
+    "landsat landsat-composite satellite-imagery sr usgs"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL_BAI",
+    "Landsat Collection 2 Tier 1 Level 2 Annual BAI Composite",
+    1,
+    1984,
+    2026,
+    "bai fire landsat landsat-composite usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL_EVI",
+    "Landsat Collection 2 Tier 1 Level 2 Annual EVI Composite",
+    1,
+    1984,
+    2026,
+    "evi landsat landsat-composite usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL_NBR",
+    "Landsat Collection 2 Tier 1 Level 2 Annual NBR Composite",
+    1,
+    1984,
+    2026,
+    "fire landsat landsat-composite nbrt usgs vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL_NDVI",
+    "Landsat Collection 2 Tier 1 Level 2 Annual NDVI Composite",
+    1,
+    1984,
+    2026,
+    "landsat landsat-composite ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "LANDSAT/COMPOSITES/C02/T1_L2_ANNUAL_NDWI",
+    "Landsat Collection 2 Tier 1 Level 2 Annual NDWI Composite",
+    1,
+    1984,
+    2026,
+    "landsat landsat-composite ndwi surface-ground-water usgs"
+   ],
+   [
+    "LANDSAT/GLS1975",
+    "Landsat Global Land Survey 1975",
+    1,
+    1972,
+    1983,
+    "global gls landsat radiance satellite-imagery usgs"
+   ],
+   [
+    "LANDSAT/GLS1975_MOSAIC",
+    "Landsat Global Land Survey 1975 Mosaic",
+    1,
+    1975,
+    1976,
+    "gls landsat radiance satellite-imagery usgs"
+   ],
+   [
+    "LANDSAT/GLS2005",
+    "Landsat Global Land Survey 2005, Landsat 5+7 scenes",
+    1,
+    2003,
+    2008,
+    "gls landsat radiance satellite-imagery usgs"
+   ],
+   [
+    "LANDSAT/GLS2005_L5",
+    "Landsat Global Land Survey 2005, Landsat 5 scenes",
+    1,
+    2003,
+    2008,
+    "etm gls l5 landsat radiance satellite-imagery usgs"
+   ],
+   [
+    "LANDSAT/GLS2005_L7",
+    "Landsat Global Land Survey 2005, Landsat 7 scenes",
+    1,
+    2003,
+    2008,
+    "etm gls l7 landsat radiance satellite-imagery usgs"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1",
+    "USGS Landsat 8 Collection 2 Tier 1 Raw Scenes",
+    1,
+    2013,
+    null,
+    "c2 global l8 landsat lc8 oli-tirs radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1_L2",
+    "USGS Landsat 8 Level 2, Collection 2, Tier 1",
+    1,
+    2013,
+    null,
+    "cfmask cloud fmask global l8sr landsat lasrc lc08 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1_RT",
+    "USGS Landsat 8 Collection 2 Tier 1 and Real-Time data Raw Scenes",
+    1,
+    2013,
+    null,
+    "c2 global l8 landsat lc8 nrt oli-tirs radiance rt satellite-imagery t1 tier1"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1_RT_TOA",
+    "USGS Landsat 8 Collection 2 Tier 1 and Real-Time data TOA Reflectance",
+    1,
+    2013,
+    null,
+    "c2 global l8 landsat lc8 satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1_TOA",
+    "USGS Landsat 8 Collection 2 Tier 1 TOA Reflectance",
+    1,
+    2013,
+    null,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LC08/C02/T2",
+    "USGS Landsat 8 Collection 2 Tier 2 Raw Scenes",
+    1,
+    2021,
+    null,
+    "c2 global l8 landsat lc8 oli-tirs radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LC08/C02/T2_L2",
+    "USGS Landsat 8 Level 2, Collection 2, Tier 2",
+    1,
+    2013,
+    null,
+    "cfmask cloud fmask global l8sr landsat lasrc lc08 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LC08/C02/T2_TOA",
+    "USGS Landsat 8 Collection 2 Tier 2 TOA Reflectance",
+    1,
+    2021,
+    null,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LC09/C02/T1",
+    "USGS Landsat 9 Collection 2 Tier 1 Raw Scenes",
+    1,
+    2021,
+    null,
+    "c2 global l9 landsat lc9 oli-tirs radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LC09/C02/T1_L2",
+    "USGS Landsat 9 Level 2, Collection 2, Tier 1",
+    1,
+    2021,
+    null,
+    "cfmask cloud fmask global l9sr landsat lasrc lc09 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LC09/C02/T1_TOA",
+    "USGS Landsat 9 Collection 2 Tier 1 TOA Reflectance",
+    1,
+    2021,
+    null,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LC09/C02/T2",
+    "USGS Landsat 9 Collection 2 Tier 2 Raw Scenes",
+    1,
+    2021,
+    null,
+    "c2 global l9 landsat lc9 oli-tirs radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LC09/C02/T2_L2",
+    "USGS Landsat 9 Level 2, Collection 2, Tier 2",
+    1,
+    2021,
+    null,
+    "cfmask cloud fmask global l9sr landsat lasrc lc09 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LC09/C02/T2_TOA",
+    "USGS Landsat 9 Collection 2 Tier 2 TOA Reflectance",
+    1,
+    2021,
+    null,
+    "c2 global l9 landsat lc9 satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1",
+    "USGS Landsat 7 Collection 2 Tier 1 Raw Scenes",
+    1,
+    1999,
+    2024,
+    "c2 etm global l7 landsat le7 radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1_L2",
+    "USGS Landsat 7 Level 2, Collection 2, Tier 1",
+    1,
+    1999,
+    2024,
+    "cfmask cloud etm fmask global landsat lasrc le07 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1_RT",
+    "USGS Landsat 7 Collection 2 Tier 1 and Real-Time data Raw Scenes",
+    1,
+    1999,
+    2024,
+    "c2 etm global l7 landsat le7 nrt radiance rt satellite-imagery t1 tier1"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1_RT_TOA",
+    "USGS Landsat 7 Collection 2 Tier 1 and Real-Time data TOA Reflectance",
+    1,
+    1999,
+    2024,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1_TOA",
+    "USGS Landsat 7 Collection 2 Tier 1 TOA Reflectance",
+    1,
+    1999,
+    2024,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LE07/C02/T2",
+    "USGS Landsat 7 Collection 2 Tier 2 Raw Scenes",
+    1,
+    1999,
+    2024,
+    "c2 etm global l7 landsat le7 radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LE07/C02/T2_L2",
+    "USGS Landsat 7 Level 2, Collection 2, Tier 2",
+    1,
+    1999,
+    2024,
+    "cfmask cloud etm fmask global landsat lasrc le07 lst reflectance satellite-imagery sr"
+   ],
+   [
+    "LANDSAT/LE07/C02/T2_TOA",
+    "USGS Landsat 7 Collection 2 Tier 2 TOA Reflectance",
+    1,
+    2003,
+    2024,
+    "c2 global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LM01/C02/T1",
+    "USGS Landsat 1 MSS Collection 2 Tier 1 Raw Scenes",
+    1,
+    1972,
+    1978,
+    "c2 global l1 landsat lm1 mss radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LM01/C02/T2",
+    "USGS Landsat 1 MSS Collection 2 Tier 2 Raw Scenes",
+    1,
+    1972,
+    1978,
+    "c2 global l1 landsat lm1 mss radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LM02/C02/T1",
+    "USGS Landsat 2 MSS Collection 2 Tier 1 Raw Scenes",
+    1,
+    1975,
+    1982,
+    "c2 global l2 landsat lm2 mss radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LM02/C02/T2",
+    "USGS Landsat 2 MSS Collection 2 Tier 2 Raw Scenes",
+    1,
+    1975,
+    1982,
+    "c2 global l2 landsat lm2 mss radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LM03/C02/T1",
+    "USGS Landsat 3 MSS Collection 2 Tier 1 Raw Scenes",
+    1,
+    1978,
+    1983,
+    "c2 global l3 landsat lm3 mss radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LM03/C02/T2",
+    "USGS Landsat 3 MSS Collection 2 Tier 2 Raw Scenes",
+    1,
+    1978,
+    1983,
+    "c2 global l3 landsat lm3 mss radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LM04/C02/T1",
+    "USGS Landsat 4 MSS Collection 2 Tier 1 Raw Scenes",
+    1,
+    1982,
+    1992,
+    "c2 global l4 landsat lm4 mss radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LM04/C02/T2",
+    "USGS Landsat 4 MSS Collection 2 Tier 2 Raw Scenes",
+    1,
+    1982,
+    1992,
+    "c2 global l4 landsat lm4 mss radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LM05/C02/T1",
+    "USGS Landsat 5 MSS Collection 2 Tier 1 Raw Scenes",
+    1,
+    1984,
+    2013,
+    "c2 global l5 landsat lm5 mss radiance satellite-imagery t1 tier1 usgs"
+   ],
+   [
+    "LANDSAT/LM05/C02/T2",
+    "USGS Landsat 5 MSS Collection 2 Tier 2 Raw Scenes",
+    1,
+    1984,
+    2013,
+    "c2 global l5 landsat lm5 mss radiance satellite-imagery t2 tier2 usgs"
+   ],
+   [
+    "LANDSAT/LT04/C02/T1",
+    "USGS Landsat 4 TM Collection 2 Tier 1 Raw Scenes",
+    1,
+    1982,
+    1993,
+    "c2 global l4 landsat lt4 radiance satellite-imagery t1 tier1 tm usgs"
+   ],
+   [
+    "LANDSAT/LT04/C02/T1_L2",
+    "USGS Landsat 4 Level 2, Collection 2, Tier 1",
+    1,
+    1982,
+    1993,
+    "cfmask cloud fmask global landsat lasrc lst lt04 reflectance satellite-imagery sr tm"
+   ],
+   [
+    "LANDSAT/LT04/C02/T1_TOA",
+    "USGS Landsat 4 TM Collection 2 Tier 1 TOA Reflectance",
+    1,
+    1982,
+    1993,
+    "global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LT04/C02/T2",
+    "USGS Landsat 4 TM Collection 2 Tier 2 Raw Scenes",
+    1,
+    1982,
+    1993,
+    "c2 global l4 landsat lt4 radiance satellite-imagery t2 tier2 tm usgs"
+   ],
+   [
+    "LANDSAT/LT04/C02/T2_L2",
+    "USGS Landsat 4 Level 2, Collection 2, Tier 2",
+    1,
+    1982,
+    1993,
+    "cfmask cloud fmask global landsat lasrc lst lt04 reflectance satellite-imagery sr tm"
+   ],
+   [
+    "LANDSAT/LT04/C02/T2_TOA",
+    "USGS Landsat 4 TM Collection 2 Tier 2 TOA Reflectance",
+    1,
+    1982,
+    1993,
+    "global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LT05/C02/T1",
+    "USGS Landsat 5 TM Collection 2 Tier 1 Raw Scenes",
+    1,
+    1984,
+    2012,
+    "c2 global l5 landsat lt5 radiance satellite-imagery t1 tier1 tm usgs"
+   ],
+   [
+    "LANDSAT/LT05/C02/T1_L2",
+    "USGS Landsat 5 Level 2, Collection 2, Tier 1",
+    1,
+    1984,
+    2012,
+    "cfmask cloud fmask global landsat lasrc lst lt05 reflectance satellite-imagery sr tm"
+   ],
+   [
+    "LANDSAT/LT05/C02/T1_TOA",
+    "USGS Landsat 5 TM Collection 2 Tier 1 TOA Reflectance",
+    1,
+    1984,
+    2011,
+    "global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/LT05/C02/T2",
+    "USGS Landsat 5 TM Collection 2 Tier 2 Raw Scenes",
+    1,
+    1984,
+    2001,
+    "c2 global l5 landsat lt5 radiance satellite-imagery t2 tier2 tm usgs"
+   ],
+   [
+    "LANDSAT/LT05/C02/T2_L2",
+    "USGS Landsat 5 Level 2, Collection 2, Tier 2",
+    1,
+    1984,
+    2011,
+    "cfmask cloud fmask global landsat lasrc lst lt05 reflectance satellite-imagery sr tm"
+   ],
+   [
+    "LANDSAT/LT05/C02/T2_TOA",
+    "USGS Landsat 5 TM Collection 2 Tier 2 TOA Reflectance",
+    1,
+    1984,
+    2001,
+    "global landsat satellite-imagery toa usgs"
+   ],
+   [
+    "LANDSAT/MANGROVE_FORESTS",
+    "Global Mangrove Forests Distribution, v1 (2000)",
+    1,
+    2000,
+    2001,
+    "annual ciesin forest-biomass global landsat-derived mangrove nasa usgs"
+   ],
+   [
+    "LARSE/GEDI/GEDI02_A_002_MONTHLY",
+    "GEDI L2A Raster Canopy Top Height (Version 2)",
+    1,
+    2019,
+    2025,
+    "elevation forest-biomass gedi larse nasa tree-cover usgs"
+   ],
+   [
+    "LARSE/GEDI/GEDI02_B_002_MONTHLY",
+    "GEDI L2B Raster Canopy Cover Vertical Profile Metrics (Version 2)",
+    1,
+    2019,
+    2025,
+    "elevation forest-biomass gedi larse nasa tree-cover usgs"
+   ],
+   [
+    "LARSE/GEDI/GEDI04_A_002_MONTHLY",
+    "GEDI L4A Raster Aboveground Biomass Density, Version 2.1",
+    1,
+    2019,
+    2025,
+    "elevation forest-biomass gedi larse nasa tree-cover usgs"
+   ],
+   [
+    "LARSE/GEDI/GEDI04_B_002",
+    "GEDI L4B Gridded Aboveground Biomass Density (Version 2)",
+    0,
+    2019,
+    2021,
+    "elevation forest-biomass gedi larse nasa tree-cover usgs"
+   ],
+   [
+    "LARSE/GEDI/GEDI04_D_002",
+    "GEDI L4D Imputed Waveforms, Version 2",
+    1,
+    2019,
+    2023,
+    "biomass canopy elevation forest forest-biomass gedi larse nasa tree-cover"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/COUNTS/V1/12KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density with COUNTS metrics, 12KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/COUNTS/V1/1KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density with COUNTS metrics, 1KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/COUNTS/V1/6KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density with COUNTS metrics, 6KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/V1/12KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density, 12KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/V1/1KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density, 1KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "LARSE/GEDI/GRIDDEDVEG_002/V1/6KM",
+    "Gridded GEDI Vegetation Structure Metrics and Biomass Density, 6KM pixel size",
+    1,
+    2019,
+    2023,
+    "biomass canopy forest forest-biomass gedi larse lidar nasa vegetation"
+   ],
+   [
+    "Latvia/Maamet/orthos/cir",
+    "Latvia Color InfraRed (CIR) orthophotos",
+    1,
+    2007,
+    2018,
+    "latvia nrg orthophotos"
+   ],
+   [
+    "Latvia/Maamet/orthos/rgb",
+    "Latvia RGB orthophotos",
+    1,
+    2007,
+    2018,
+    "latvia orthophotos rgb"
+   ],
+   [
+    "MERIT/DEM/v1_0_3",
+    "MERIT DEM: Multi-Error-Removed Improved-Terrain DEM",
+    0,
+    1987,
+    2017,
+    "dem elevation elevation-topography merit topography"
+   ],
+   [
+    "MERIT/Hydro/v1_0_1",
+    "MERIT Hydro: Global Hydrography Datasets",
+    0,
+    1987,
+    2017,
+    "dem elevation flow-direction hand hydrography hydrosheds merit river-width surface-ground-water upstream-drainage-area"
+   ],
+   [
+    "MERIT/Hydro_reduced/v1_0_1",
+    "MERIT Hydro: Supplementary Visualization Layers",
+    0,
+    1987,
+    2017,
+    "hydrography hydrosheds merit river-width surface-ground-water upstream-drainage-area"
+   ],
+   [
+    "MODIS/006/MOD44W",
+    "MOD44W.006 Terra Land Water Mask Derived From MODIS and SRTM Yearly Global 250m",
+    1,
+    2000,
+    2015,
+    "geophysical mod44w modis nasa srtm surface-ground-water usgs water-mask"
+   ],
+   [
+    "MODIS/006/MODOCGA",
+    "MODOCGA.006 Terra Ocean Reflectance Daily Global 1km",
+    1,
+    2000,
+    2023,
+    "daily global modis modocga nasa oceans reflectance satellite-imagery sr terra usgs"
+   ],
+   [
+    "MODIS/006/MYDOCGA",
+    "MYDOCGA.006 Aqua Ocean Reflectance Daily Global 1km",
+    1,
+    2002,
+    2023,
+    "aqua daily global modis mydocga nasa oceans reflectance satellite-imagery sr usgs"
+   ],
+   [
+    "MODIS/061/MCD12C1",
+    "MCD12C1.061 MODIS Land Cover Type Yearly Global 0.05 Deg CMG",
+    1,
+    2001,
+    2025,
+    "landcover landuse-landcover modis nasa usgs yearly"
+   ],
+   [
+    "MODIS/061/MCD12Q1",
+    "MCD12Q1.061 MODIS Land Cover Type Yearly Global 500m",
+    1,
+    2001,
+    2025,
+    "landcover landuse-landcover modis nasa usgs yearly"
+   ],
+   [
+    "MODIS/061/MCD12Q2",
+    "MCD12Q2.006 Land Cover Dynamics Yearly Global 500m",
+    1,
+    2001,
+    2025,
+    "evi global landuse-landcover modis onset-greenness phenology usgs yearly"
+   ],
+   [
+    "MODIS/061/MCD15A3H",
+    "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m",
+    1,
+    2002,
+    null,
+    "4-day fpar global lai mcd15a3h modis nasa plant-productivity usgs vegetation"
+   ],
+   [
+    "MODIS/061/MCD19A1_GRANULES",
+    "MCD19A1.061: Land Surface BRF Daily L2G Global 500m and 1km",
+    1,
+    2000,
+    null,
+    "aerosol aod aqua daily global maiac modis nasa satellite-imagery terra usgs"
+   ],
+   [
+    "MODIS/061/MCD19A2_GRANULES",
+    "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km",
+    1,
+    2000,
+    null,
+    "aerosol aod aqua atmosphere daily global maiac mcd19a2 modis nasa terra usgs"
+   ],
+   [
+    "MODIS/061/MCD43A1",
+    "MCD43A1.061 MODIS BRDF-Albedo Model Parameters Daily 500m",
+    1,
+    2000,
+    null,
+    "albedo brdf daily global mcd43a1 modis nasa reflectance satellite-imagery usgs"
+   ],
+   [
+    "MODIS/061/MCD43A2",
+    "MCD43A2.061 MODIS BRDF-Albedo Quality Daily 500m",
+    1,
+    2000,
+    null,
+    "albedo brdf daily global modis nasa quality reflectance satellite-imagery usgs"
+   ],
+   [
+    "MODIS/061/MCD43A3",
+    "MCD43A3.061 MODIS Albedo Daily 500m",
+    1,
+    2000,
+    null,
+    "albedo black-sky daily global modis nasa satellite-imagery usgs white-sky"
+   ],
+   [
+    "MODIS/061/MCD43A4",
+    "MCD43A4.061 MODIS Nadir BRDF-Adjusted Reflectance Daily 500m",
+    1,
+    2000,
+    null,
+    "albedo brdf daily global modis nasa reflectance satellite-imagery usgs"
+   ],
+   [
+    "MODIS/061/MCD43C3",
+    "MCD43C3.061 BRDF/Albedo Daily L3 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "albedo black-sky brdf daily global modis nasa satellite-imagery usgs white-sky"
+   ],
+   [
+    "MODIS/061/MCD64A1",
+    "MCD64A1.061 MODIS Burned Area Monthly Global 500m",
+    1,
+    2000,
+    null,
+    "burn change-detection fire geophysical global mcd64a1 modis monthly nasa usgs"
+   ],
+   [
+    "MODIS/061/MOD08_M3",
+    "MOD08_M3.061 Terra Atmosphere Monthly Global Product",
+    1,
+    2000,
+    null,
+    "atmosphere climate geophysical global mod08 mod08-m3 modis monthly nasa temperature terra usgs"
+   ],
+   [
+    "MODIS/061/MOD09A1",
+    "MOD09A1.061 Terra Surface Reflectance 8-Day Global 500m",
+    1,
+    2000,
+    null,
+    "8-day global mod09a1 modis nasa satellite-imagery sr surface-reflectance terra usgs"
+   ],
+   [
+    "MODIS/061/MOD09CMG",
+    "MOD09CMG.061 Terra Surface Reflectance Daily L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "brightness-temperature ozone satellite-imagery surface-reflectance terra"
+   ],
+   [
+    "MODIS/061/MOD09GA",
+    "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m",
+    1,
+    2000,
+    null,
+    "daily global mod09ga modis nasa satellite-imagery sr surface-reflectance terra usgs"
+   ],
+   [
+    "MODIS/061/MOD09GQ",
+    "MOD09GQ.061 Terra Surface Reflectance Daily Global 250m",
+    1,
+    2000,
+    null,
+    "daily global mod09gq modis nasa satellite-imagery sr surface-reflectance terra usgs"
+   ],
+   [
+    "MODIS/061/MOD09Q1",
+    "MOD09Q1.061 Terra Surface Reflectance 8-Day Global 250m",
+    1,
+    2000,
+    null,
+    "8-day global mod09q1 modis nasa satellite-imagery sr surface-reflectance terra usgs"
+   ],
+   [
+    "MODIS/061/MOD10A1",
+    "MOD10A1.061 Terra Snow Cover Daily Global 500m",
+    1,
+    2000,
+    null,
+    "albedo cryosphere daily geophysical global mod10a1 modis nasa nsidc snow terra"
+   ],
+   [
+    "MODIS/061/MOD10A2",
+    "MOD10A2.061 Terra Snow Cover 8-Day L3 Global 500m",
+    1,
+    2000,
+    null,
+    "8-day cryosphere geophysical global modis nasa nsidc snow terra"
+   ],
+   [
+    "MODIS/061/MOD11A1",
+    "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km",
+    1,
+    2000,
+    null,
+    "daily emissivity global lst mod11a1 modis nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD11A2",
+    "MOD11A2.061 Terra Land Surface Temperature and Emissivity 8-Day Global 1km",
+    1,
+    2000,
+    null,
+    "8-day emissivity global lst mod11a2 modis nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD13A1",
+    "MOD13A1.061 Terra Vegetation Indices 16-Day Global 500m",
+    1,
+    2000,
+    null,
+    "16-day evi global mod13a1 modis nasa ndvi terra usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MOD13A2",
+    "MOD13A2.061 Terra Vegetation Indices 16-Day Global 1km",
+    1,
+    2000,
+    null,
+    "16-day evi global mod13a2 modis nasa ndvi terra usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MOD13A3",
+    "MOD13A3.061 Vegetation Indices Monthly L3 Global 1 km SIN Grid",
+    1,
+    2000,
+    null,
+    "evi global modis monthly nasa ndvi terra usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MOD13C1",
+    "MOD13C1.061: Terra Vegetation Indices 16-Day L3 Global 0.05 Deg Climate Modeling Grid",
+    1,
+    2000,
+    null,
+    "16-day global nasa terra usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MOD13Q1",
+    "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m",
+    1,
+    2000,
+    null,
+    "16-day evi global mod13q1 modis nasa ndvi terra usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MOD14A1",
+    "MOD14A1.061: Terra Thermal Anomalies & Fire Daily Global 1km",
+    1,
+    2000,
+    null,
+    "daily fire global mod14a1 modis nasa terra usgs"
+   ],
+   [
+    "MODIS/061/MOD14A2",
+    "MOD14A2.061: Terra Thermal Anomalies & Fire 8-Day Global 1km",
+    1,
+    2000,
+    null,
+    "8-day fire global mod14a2 modis nasa terra usgs"
+   ],
+   [
+    "MODIS/061/MOD15A2H",
+    "MOD15A2H.061: Terra Leaf Area Index/FPAR 8-Day Global 500m",
+    1,
+    2000,
+    null,
+    "8-day fpar global lai mod15a2h modis nasa plant-productivity terra usgs"
+   ],
+   [
+    "MODIS/061/MOD16A2",
+    "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m",
+    1,
+    2021,
+    null,
+    "8-day evapotranspiration global mod16a2 modis nasa water-vapor"
+   ],
+   [
+    "MODIS/061/MOD16A2GF",
+    "MOD16A2GF.061: Terra Net Evapotranspiration Gap-Filled 8-Day Global 500m",
+    1,
+    2000,
+    2025,
+    "8-day evapotranspiration global modis nasa water-vapor"
+   ],
+   [
+    "MODIS/061/MOD17A2H",
+    "MOD17A2H.061: Terra Gross Primary Productivity 8-Day Global 500m",
+    1,
+    2021,
+    null,
+    "8-day global gpp mod17a2 modis nasa photosynthesis plant-productivity productivity psn terra usgs"
+   ],
+   [
+    "MODIS/061/MOD17A2HGF",
+    "MOD17A2HGF.061: Terra Gross Primary Productivity 8-Day Global 500m",
+    1,
+    2021,
+    2025,
+    "8-day global gpp modis nasa photosynthesis plant-productivity productivity psn terra usgs"
+   ],
+   [
+    "MODIS/061/MOD17A3HGF",
+    "MOD17A3HGF.061: Terra Net Primary Production Gap-Filled Yearly Global 500m",
+    1,
+    2001,
+    2025,
+    "global gpp nasa npp photosynthesis plant-productivity productivity psn terra usgs yearly"
+   ],
+   [
+    "MODIS/061/MOD21A1D",
+    "MOD21A1D.061 Terra Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
+    1,
+    2000,
+    null,
+    "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD21A1N",
+    "MOD21A1N.061 Terra Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
+    1,
+    2000,
+    null,
+    "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD21C1",
+    "MOD21C1.061 Terra Land Surface Temperature and 3-Band Emissivity Daily L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "daily emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD21C2",
+    "MOD21C2.061 Terra Land Surface Temperature and 3-Band Emissivity 8-Day L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "emissivity global lst nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD21C3",
+    "MOD21C3.061 Terra Land Surface Temperature and 3-Band Emissivity Monthly L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "emissivity global lst monthly nasa surface-temperature terra usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MOD44B",
+    "MOD44B.061 Terra Vegetation Continuous Fields Yearly Global 250m",
+    1,
+    2000,
+    2025,
+    "annual geophysical global landuse-landcover mod44b modis nasa terra tree-cover vegetation"
+   ],
+   [
+    "MODIS/061/MYD08_M3",
+    "MYD08_M3.061 Aqua Atmosphere Monthly Global Product",
+    1,
+    2002,
+    null,
+    "aqua atmosphere climate geophysical global modis monthly myd08 myd08-m3 nasa temperature usgs"
+   ],
+   [
+    "MODIS/061/MYD09A1",
+    "MYD09A1.061 Aqua Surface Reflectance 8-Day Global 500m",
+    1,
+    2002,
+    null,
+    "8-day aqua global modis myd09a1 nasa satellite-imagery sr surface-reflectance usgs"
+   ],
+   [
+    "MODIS/061/MYD09CMG",
+    "MYD09CMG.061 Aqua Surface Reflectance Daily L3 Global 0.05 Deg CMG",
+    1,
+    2002,
+    null,
+    "aqua brightness-temperature ozone satellite-imagery surface-reflectance"
+   ],
+   [
+    "MODIS/061/MYD09GA",
+    "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m",
+    1,
+    2002,
+    null,
+    "aqua daily global modis myd09ga nasa satellite-imagery sr surface-reflectance usgs"
+   ],
+   [
+    "MODIS/061/MYD09GQ",
+    "MYD09GQ.061 Aqua Surface Reflectance Daily Global 250m",
+    1,
+    2002,
+    null,
+    "aqua daily global modis myd09gq nasa satellite-imagery sr surface-reflectance usgs"
+   ],
+   [
+    "MODIS/061/MYD09Q1",
+    "MYD09Q1.061 Aqua Surface Reflectance 8-Day Global 250m",
+    1,
+    2002,
+    null,
+    "8-day aqua global modis myd09q1 nasa satellite-imagery sr surface-reflectance usgs"
+   ],
+   [
+    "MODIS/061/MYD10A1",
+    "MYD10A1.061 Aqua Snow Cover Daily Global 500m",
+    1,
+    2002,
+    null,
+    "albedo aqua cryosphere daily geophysical global modis myd10a1 nasa nsidc snow"
+   ],
+   [
+    "MODIS/061/MYD11A1",
+    "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km",
+    1,
+    2002,
+    null,
+    "aqua daily emissivity global lst modis myd11a1 nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD11A2",
+    "MYD11A2.061 Aqua Land Surface Temperature and Emissivity 8-Day Global 1km",
+    1,
+    2002,
+    null,
+    "8-day aqua emissivity global lst modis myd11a2 nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD13A1",
+    "MYD13A1.061 Aqua Vegetation Indices 16-Day Global 500m",
+    1,
+    2002,
+    null,
+    "16-day aqua evi global modis myd13a1 nasa ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MYD13A2",
+    "MYD13A2.061 Aqua Vegetation Indices 16-Day Global 1km",
+    1,
+    2002,
+    null,
+    "16-day aqua evi global modis myd13a2 nasa ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MYD13A3",
+    "MYD13A3.061 Aqua Vegetation Indices Monthly L3 Global 1 km SIN Grid",
+    1,
+    2002,
+    null,
+    "aqua evi global modis monthly nasa ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MYD13C1",
+    "MYD13C1.061: Aqua Vegetation Indices 16-Day L3 Global 0.05 Deg CMG",
+    1,
+    2002,
+    null,
+    "16-day aqua global nasa usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MYD13Q1",
+    "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m",
+    1,
+    2002,
+    null,
+    "16-day aqua evi global modis myd13q1 nasa ndvi usgs vegetation vegetation-indices"
+   ],
+   [
+    "MODIS/061/MYD14A1",
+    "MYD14A1.061: Aqua Thermal Anomalies & Fire Daily Global 1km",
+    1,
+    2002,
+    null,
+    "aqua daily fire global modis myd14a1 nasa usgs"
+   ],
+   [
+    "MODIS/061/MYD14A2",
+    "MYD14A2.061: Aqua Thermal Anomalies & Fire 8-Day Global 1km",
+    1,
+    2002,
+    null,
+    "8-day aqua fire global modis myd14a2 nasa usgs"
+   ],
+   [
+    "MODIS/061/MYD15A2H",
+    "MYD15A2H.061: Aqua Leaf Area Index/FPAR 8-Day Global 500m",
+    1,
+    2002,
+    null,
+    "8-day aqua fpar global lai modis myd15a2h nasa plant-productivity usgs"
+   ],
+   [
+    "MODIS/061/MYD16A2",
+    "MYD16A2.061: Aqua Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061",
+    1,
+    2021,
+    null,
+    "8-day evapotranspiration global modis nasa water-vapor"
+   ],
+   [
+    "MODIS/061/MYD17A2H",
+    "MYD17A2H.061: Aqua Gross Primary Productivity 8-Day Global 500m",
+    1,
+    2021,
+    null,
+    "8-day aqua global gpp modis myd17a2 nasa photosynthesis plant-productivity productivity psn usgs"
+   ],
+   [
+    "MODIS/061/MYD17A3HGF",
+    "MYD17A3HGF.061: Aqua Net Primary Production Gap-Filled Yearly Global 500m",
+    1,
+    2001,
+    2025,
+    "aqua global gpp nasa npp photosynthesis plant-productivity productivity psn usgs yearly"
+   ],
+   [
+    "MODIS/061/MYD21A1D",
+    "MYD21A1D.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
+    1,
+    2000,
+    null,
+    "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD21A1N",
+    "MYD21A1N.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily Global 1km",
+    1,
+    2000,
+    null,
+    "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD21C1",
+    "MYD21C1.061 Aqua Land Surface Temperature and 3-Band Emissivity Daily L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "aqua daily emissivity global lst nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD21C2",
+    "MYD21C2.061 Aqua Land Surface Temperature and 3-Band Emissivity 8-Day L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "aqua emissivity global lst nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/061/MYD21C3",
+    "MYD21C3.061 Aqua Land Surface Temperature and 3-Band Emissivity Monthly L3 Global 0.05 Deg CMG",
+    1,
+    2000,
+    null,
+    "aqua emissivity global lst monthly nasa surface-temperature usgs weather-and-climate"
+   ],
+   [
+    "MODIS/062/MCD18A1",
+    "MCD18A1.062 Surface Radiation Daily/3-Hour",
+    1,
+    2000,
+    null,
+    "par radiation weather-and-climate"
+   ],
+   [
+    "MODIS/062/MCD18C2",
+    "MCD18C2.062 Photosynthetically Active Radiation Daily 3-Hour",
+    1,
+    2000,
+    null,
+    "par radiation weather-and-climate"
+   ],
+   [
+    "MODIS/MCD43A4_006_BAI",
+    "MODIS Combined 16-Day BAI",
+    1,
+    2000,
+    2023,
+    "albedo bai brdf daily global mcd43a4 modis nasa reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MCD43A4_006_EVI",
+    "MODIS Combined 16-Day EVI",
+    1,
+    2000,
+    2023,
+    "albedo brdf daily evi global mcd43a4 modis nasa reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MCD43A4_006_NDSI",
+    "MODIS Combined 16-Day NDSI",
+    1,
+    2000,
+    2023,
+    "albedo brdf daily global mcd43a4 modis nasa ndsi reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MCD43A4_006_NDVI",
+    "MODIS Combined 16-Day NDVI",
+    1,
+    2000,
+    2023,
+    "albedo brdf daily global mcd43a4 modis nasa ndvi reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MCD43A4_006_NDWI",
+    "MODIS Combined 16-Day NDWI",
+    1,
+    2000,
+    2023,
+    "albedo brdf daily global mcd43a4 modis nasa ndwi reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD09GA_006_BAI",
+    "MODIS Terra Daily BAI",
+    1,
+    2000,
+    2023,
+    "bai daily global mod09ga modis surface-reflectance terra usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD09GA_006_EVI",
+    "MODIS Terra Daily EVI",
+    1,
+    2000,
+    2023,
+    "daily evi global mod09ga modis surface-reflectance terra usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD09GA_006_NDSI",
+    "MODIS Terra Daily NDSI",
+    1,
+    2000,
+    2023,
+    "daily global mod09ga modis ndsi surface-reflectance terra usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD09GA_006_NDVI",
+    "MODIS Terra Daily NDVI",
+    1,
+    2000,
+    2023,
+    "daily global mod09ga modis ndvi surface-reflectance terra usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD09GA_006_NDWI",
+    "MODIS Terra Daily NDWI",
+    1,
+    2000,
+    2023,
+    "daily global mod09ga modis ndwi surface-reflectance terra usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MOD44W/MOD44W_005_2000_02_24",
+    "MOD44W.005 Land Water Mask Derived From MODIS and SRTM",
+    0,
+    2000,
+    2000,
+    "geophysical mod44w modis srtm surface-ground-water water-mask"
+   ],
+   [
+    "MODIS/MYD09GA_006_BAI",
+    "MODIS Aqua Daily BAI",
+    1,
+    2002,
+    2023,
+    "aqua bai daily global modis myd09ga surface-reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MYD09GA_006_EVI",
+    "MODIS Aqua Daily EVI",
+    1,
+    2002,
+    2023,
+    "aqua daily evi global modis myd09ga surface-reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MYD09GA_006_NDSI",
+    "MODIS Aqua Daily NDSI",
+    1,
+    2002,
+    2023,
+    "aqua daily global modis myd09ga ndsi surface-reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MYD09GA_006_NDVI",
+    "MODIS Aqua Daily NDVI",
+    1,
+    2002,
+    2023,
+    "aqua daily global modis myd09ga ndvi surface-reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/MYD09GA_006_NDWI",
+    "MODIS Aqua Daily NDWI",
+    1,
+    2002,
+    2023,
+    "aqua daily global modis myd09ga ndwi surface-reflectance usgs vegetation-indices"
+   ],
+   [
+    "MODIS/NTSG/MOD16A2/105",
+    "MOD16A2: MODIS Global Terrestrial Evapotranspiration 8-Day Global 1km",
+    1,
+    2000,
+    2014,
+    "8-day evapotranspiration global mod16a2 modis water-vapor"
+   ],
+   [
+    "NASA/ASTER_GED/AG100_003",
+    "AG100: ASTER Global Emissivity Dataset 100-meter V003",
+    0,
+    2000,
+    2008,
+    "aster caltech elevation emissivity ged geophysical infrared jpl lst nasa ndvi satellite-imagery"
+   ],
+   [
+    "NASA/ECOSTRESS/L2T_LSTE/V2",
+    "ECOSTRESS Land Surface Temperature and Emissivity L2 Global 70 m V002",
+    1,
+    2018,
+    null,
+    "ecostress emissivity land lst plant-productivity temperature"
+   ],
+   [
+    "NASA/ECOSTRESS/L2T_STARS/V2",
+    "ECOSTRESS Tiled Ancillary NDVI and Albedo L2 Global 70 m V002",
+    1,
+    2018,
+    null,
+    "albedo ecostress land ndvi plant-productivity"
+   ],
+   [
+    "NASA/EMIT/L1B/RAD",
+    "EMIT L1B At-Sensor Calibrated Radiance and Geolocation Data 60 m",
+    1,
+    2022,
+    null,
+    "daily emit nasa radiance satellite-imagery"
+   ],
+   [
+    "NASA/EMIT/L2A/RFL",
+    "EMIT L2A Estimated Surface Reflectance and Uncertainty and Masks 60 m",
+    1,
+    2022,
+    null,
+    "daily emit nasa reflectance satellite-imagery"
+   ],
+   [
+    "NASA/EMIT/L2B/CH4ENH",
+    "Earth Surface Mineral Dust Source Investigation- Methane Enhancement",
+    1,
+    2022,
+    2024,
+    "atmosphere daily emit methane nasa"
+   ],
+   [
+    "NASA/EMIT/L2B/CH4PLM",
+    "Earth Surface Mineral Dust Source Investigation- Methane Plume Complexes",
+    1,
+    2022,
+    2024,
+    "atmosphere daily emit methane nasa"
+   ],
+   [
+    "NASA/FLDAS/NOAH01/C/GL/M/V001",
+    "FLDAS: Famine Early Warning Systems Network (FEWS NET) Land Data Assimilation System",
+    1,
+    1982,
+    null,
+    "climate cryosphere evapotranspiration famine fldas humidity ldas monthly nasa precipitation runoff snow"
+   ],
+   [
+    "NASA/GDDP-CMIP6",
+    "NEX-GDDP-CMIP6: NASA Earth Exchange Global Daily Downscaled Climate Projections",
+    1,
+    1950,
+    2100,
+    "cag climate gddp geophysical ipcc nasa nex precipitation temperature weather-and-climate"
+   ],
+   [
+    "NASA/GEOS-CF/v1/fcst/htf",
+    "GEOS-CF fcst htf v1: Goddard Earth Observing System Composition Forecast",
+    1,
+    2022,
+    2026,
+    "atmosphere composition forecast geos gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v1/fcst/tavg1hr",
+    "GEOS-CF fcst tavg1hr v1: Goddard Earth Observing System Composition Forecast",
+    1,
+    2022,
+    2026,
+    "atmosphere composition forecast geos gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v1/rpl/htf",
+    "GEOS-CF rpl htf v1: Goddard Earth Observing System Composition Forecast",
+    1,
+    2018,
+    2026,
+    "atmosphere composition forecast geos gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v1/rpl/tavg1hr",
+    "GEOS-CF rpl tavg1hr v1: Goddard Earth Observing System Composition Forecast",
+    1,
+    2018,
+    2026,
+    "atmosphere composition forecast geos gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v2/ana/htf",
+    "GEOS-CF Ana htf v2: Goddard Earth Observing System Composition Forecast",
+    1,
+    2025,
+    null,
+    "atmosphere composition forecast geos geos-cf gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v2/ana/tavg1hr",
+    "GEOS-CF ana tavg1hr v2: Goddard Earth Observing System Composition Forecast",
+    1,
+    2025,
+    null,
+    "atmosphere composition forecast geos geos-cf gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v2/fcst/htf",
+    "GEOS-CF fcst htf v2: Goddard Earth Observing System Composition Forecast",
+    1,
+    2025,
+    null,
+    "atmosphere composition forecast geos geos-cf gmao nasa"
+   ],
+   [
+    "NASA/GEOS-CF/v2/fcst/tavg1hr",
+    "GEOS-CF fcst tavg1hr v2: Goddard Earth Observing System Composition Forecast",
+    1,
+    2025,
+    null,
+    "atmosphere composition forecast geos geos-cf gmao nasa"
+   ],
+   [
+    "NASA/GIMMS/3GV0",
+    "GIMMS NDVI From AVHRR Sensors (3rd Generation)",
+    1,
+    1981,
+    2013,
+    "avhrr gimms nasa ndvi noaa vegetation vegetation-indices"
+   ],
+   [
+    "NASA/GLDAS/V021/NOAH/G025/T3H",
+    "GLDAS-2.1: Global Land Data Assimilation System",
+    1,
+    2000,
+    null,
+    "3-hourly climate cryosphere evaporation forcing geophysical gldas humidity ldas nasa precipitation pressure"
+   ],
+   [
+    "NASA/GLDAS/V022/CLSM/G025/DA1D",
+    "GLDAS-2.2: Global Land Data Assimilation System",
+    1,
+    2003,
+    null,
+    "3-hourly climate cryosphere evaporation forcing geophysical gldas humidity ldas nasa precipitation pressure"
+   ],
+   [
+    "NASA/GLDAS/V20/NOAH/G025/T3H",
+    "Reprocessed GLDAS-2.0: Global Land Data Assimilation System",
+    1,
+    1948,
+    2014,
+    "3-hourly climate cryosphere evaporation forcing geophysical gldas humidity ldas nasa precipitation pressure"
+   ],
+   [
+    "NASA/GPM_L3/IMERG_MONTHLY_V06",
+    "GPM: Monthly Global Precipitation Measurement (GPM) v6",
+    1,
+    2000,
+    2021,
+    "climate geophysical gpm imerg jaxa monthly nasa precipitation weather"
+   ],
+   [
+    "NASA/GPM_L3/IMERG_MONTHLY_V07",
+    "GPM: Monthly Global Precipitation Measurement (GPM) vRelease 07",
+    1,
+    1998,
+    2025,
+    "climate geophysical gpm imerg jaxa monthly nasa precipitation weather"
+   ],
+   [
+    "NASA/GPM_L3/IMERG_V07",
+    "GPM: Global Precipitation Measurement (GPM) Release 07",
+    1,
+    1998,
+    null,
+    "climate geophysical gpm half-hourly imerg jaxa nasa precipitation weather"
+   ],
+   [
+    "NASA/GRACE/MASS_GRIDS/OCEAN_EOFR",
+    "GRACE Monthly Mass Grids - Ocean EOFR",
+    1,
+    2002,
+    2016,
+    "crs gfz grace gravity jpl mass nasa oceans tellus water"
+   ],
+   [
+    "NASA/GRACE/MASS_GRIDS_V04/LAND",
+    "GRACE Monthly Mass Grids Release 06 Version 04 - Land",
+    1,
+    2002,
+    2017,
+    "crs gfz grace gravity jpl land mass nasa surface-ground-water tellus water"
+   ],
+   [
+    "NASA/GRACE/MASS_GRIDS_V04/MASCON",
+    "GRACE Monthly Mass Grids Release 6.3 Version 4 - Global Mascons",
+    1,
+    2002,
+    2024,
+    "grace gravity jpl mascon mass nasa surface-ground-water tellus water"
+   ],
+   [
+    "NASA/GRACE/MASS_GRIDS_V04/MASCON_CRI",
+    "GRACE Monthly Mass Grids Version 04 - Global Mascon (CRI Filtered)",
+    1,
+    2002,
+    2024,
+    "grace gravity jpl mascon mass nasa surface-ground-water tellus water"
+   ],
+   [
+    "NASA/GRACE/MASS_GRIDS_V04/OCEAN",
+    "GRACE Monthly Mass Grids Release 06 Version 04 - Ocean",
+    1,
+    2002,
+    2017,
+    "crs gfz grace gravity jpl mass nasa oceans tellus water"
+   ],
+   [
+    "NASA/GSFC/MERRA/aer/2",
+    "MERRA-2 M2T1NXAER: Aerosol Diagnostics V5.12.4",
+    1,
+    1980,
+    null,
+    "aerosol atmosphere carbon dust mass merra nasa sea-salt so2 so4"
+   ],
+   [
+    "NASA/GSFC/MERRA/aer_nv/2",
+    "MERRA-2 M2I3NVAER: Aerosol Mixing Ratio V5.12.4",
+    1,
+    1980,
+    null,
+    "aerosol atmosphere dust mass merra nasa sea-salt so2 so4"
+   ],
+   [
+    "NASA/GSFC/MERRA/flx/2",
+    "MERRA-2 M2T1NXFLX: Surface Flux Diagnostics V5.12.4",
+    1,
+    1980,
+    null,
+    "climate merra precipitation sea-salt so2 so4 soil-moisture weather-and-climate"
+   ],
+   [
+    "NASA/GSFC/MERRA/lnd/2",
+    "MERRA-2 M2T1NXLND: Land Surface Diagnostics V5.12.4",
+    1,
+    1980,
+    null,
+    "climate cryosphere evaporation ice merra precipitation soil temperature water-vapor weather-and-climate"
+   ],
+   [
+    "NASA/GSFC/MERRA/rad/2",
+    "MERRA-2 M2T1NXRAD: Radiation Diagnostics V5.12.4",
+    1,
+    1980,
+    null,
+    "albedo atmosphere climate emissivity merra shortwave temperature weather-and-climate"
+   ],
+   [
+    "NASA/GSFC/MERRA/slv/2",
+    "MERRA-2 M2T1NXSLV: Single-Level Diagnostics V5.12.4",
+    1,
+    1980,
+    null,
+    "atmosphere climate condensation humidity merra nasa omega pressure slv temperature vapor water"
+   ],
+   [
+    "NASA/HLS/HLSL30/v002",
+    "HLSL30: HLS-2 Landsat Operational Land Imager Surface Reflectance and TOA Brightness Daily Global 30m",
+    1,
+    2013,
+    null,
+    "landsat nasa satellite-imagery sentinel usgs"
+   ],
+   [
+    "NASA/HLS/HLSS30/v002",
+    "HLSS30: HLS Sentinel-2 Multi-spectral Instrument Surface Reflectance Daily Global 30m",
+    1,
+    2015,
+    null,
+    "landsat nasa satellite-imagery sentinel usgs"
+   ],
+   [
+    "NASA/JPL/global_forest_canopy_height_2005",
+    "Global Forest Canopy Height, 2005",
+    0,
+    2005,
+    2005,
+    "canopy forest forest-biomass geophysical glas jpl nasa"
+   ],
+   [
+    "NASA/LANCE/NOAA20_VIIRS/C2",
+    "VJ114IMGTDL_NRT Daily Raster: VIIRS (NOAA-20) Band 375m Active Fire",
+    1,
+    2023,
+    null,
+    "eosdis fire firms geophysical hotspot lance modis nasa thermal viirs"
+   ],
+   [
+    "NASA/LANCE/SNPP_VIIRS/C2",
+    "VNP14IMGTDL_NRT Daily Raster: VIIRS (S-NPP) Band 375m Active Fire",
+    1,
+    2023,
+    null,
+    "eosdis fire firms geophysical hotspot lance modis nasa thermal viirs"
+   ],
+   [
+    "NASA/MEASURES/GFCC/TC/v3",
+    "Global Forest Cover Change (GFCC) Tree Cover Multi-Year Global 30m",
+    1,
+    2000,
+    2015,
+    "forest forest-biomass glcf landsat-derived nasa umd"
+   ],
+   [
+    "NASA/NASADEM_HGT/001",
+    "NASADEM: NASA 30m Digital Elevation Model",
+    0,
+    2000,
+    2000,
+    "dem elevation elevation-topography geophysical nasa nasadem srtm topography usgs"
+   ],
+   [
+    "NASA/NEX-DCP30",
+    "NEX-DCP30: NASA Earth Exchange Downscaled Climate Projections",
+    1,
+    1950,
+    2099,
+    "cag climate cmip5 geophysical ipcc nasa nex precipitation temperature weather-and-climate"
+   ],
+   [
+    "NASA/NEX-DCP30_ENSEMBLE_STATS",
+    "NEX-DCP30: Ensemble Stats for NASA Earth Exchange Downscaled Climate Projections",
+    1,
+    1950,
+    2099,
+    "cag climate cmip5 geophysical ipcc nasa nex precipitation temperature weather-and-climate"
+   ],
+   [
+    "NASA/NEX-GDDP",
+    "NEX-GDDP: NASA Earth Exchange Global Daily Downscaled Climate Projections",
+    1,
+    1950,
+    2100,
+    "cag climate cmip5 gddp geophysical ipcc nasa nex precipitation temperature weather-and-climate"
+   ],
+   [
+    "NASA/NLDAS/FORA0125_H002",
+    "NLDAS-2: North American Land Data Assimilation System Forcing Fields",
+    1,
+    1979,
+    null,
+    "climate evaporation forcing geophysical hourly humidity ldas nasa nldas precipitation pressure radiation"
+   ],
+   [
+    "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+    "Ocean Color SMI: Standard Mapped Image MODIS Aqua Data",
+    1,
+    2002,
+    2025,
+    "biology chlorophyll modis nasa oceandata oceans reflectance sst temperature weather"
+   ],
+   [
+    "NASA/OCEANDATA/MODIS-Terra/L3SMI",
+    "Ocean Color SMI: Standard Mapped Image MODIS Terra Data",
+    1,
+    2000,
+    2025,
+    "biology chlorophyll modis nasa oceandata oceans reflectance sst temperature weather"
+   ],
+   [
+    "NASA/OCEANDATA/SeaWiFS/L3SMI",
+    "Ocean Color SMI: Standard Mapped Image SeaWiFS Data",
+    1,
+    1997,
+    2010,
+    "biology chlorophyll nasa oceandata oceans reflectance seawifs temperature weather"
+   ],
+   [
+    "NASA/ORNL/DAYMET_V4",
+    "Daymet V4: Daily Surface Weather and Climatological Summaries",
+    1,
+    1980,
+    2025,
+    "climate daily daylight daymet flux geophysical nasa ornl precipitation radiation snow temperature"
+   ],
+   [
+    "NASA/ORNL/biomass_carbon_density/v1",
+    "Global Aboveground and Belowground Biomass Carbon Density Maps",
+    1,
+    2010,
+    2010,
+    "aboveground belowground biomass carbon density forest forest-biomass nasa ornl vegetation"
+   ],
+   [
+    "NASA/ORNL/global_forest_classification_2020/V1",
+    "Global 2020 Forest Classification for IPCC Aboveground Biomass Tier 1 Estimates, V1",
+    1,
+    2020,
+    2020,
+    "aboveground biomass carbon classification forest forest-biomass ipcc nasa primary-forest secondary-forest"
+   ],
+   [
+    "NASA/SMAP/SPL3SMP_E/005",
+    "SPL3SMP_E.005 SMAP L3 Radiometer Global Daily 9 km Soil Moisture",
+    1,
+    2015,
+    2023,
+    "drought nasa smap soil soil-moisture surface weather"
+   ],
+   [
+    "NASA/SMAP/SPL3SMP_E/006",
+    "SPL3SMP_E.006 SMAP L3 Radiometer Global Daily 9 km Soil Moisture",
+    1,
+    2023,
+    null,
+    "drought nasa smap soil soil-moisture surface weather"
+   ],
+   [
+    "NASA/SMAP/SPL4SMGP/008",
+    "SPL4SMGP.008 SMAP L4 Global 3-hourly 9-km Surface and Root Zone Soil Moisture",
+    1,
+    2015,
+    null,
+    "drought nasa smap soil soil-moisture surface weather"
+   ],
+   [
+    "NASA/TEMPO/CLDO4_L3_V4",
+    "TEMPO gridded cloud fraction and pressure (O2-O2 dimer) V04 (PROVISIONAL)",
+    1,
+    2023,
+    null,
+    "air-quality cloud nasa pollution satellite-imagery tempo"
+   ],
+   [
+    "NASA/TEMPO/HCHO_L3_V4",
+    "TEMPO gridded HCHO vertical columns V04",
+    1,
+    2023,
+    null,
+    "air-quality formaldehyde nasa pollution satellite-imagery tempo tropomi"
+   ],
+   [
+    "NASA/TEMPO/HCHO_L3_V4_QA",
+    "TEMPO gridded HCHO (QA filtered) vertical columns V04",
+    1,
+    2023,
+    null,
+    "air-quality formaldehyde nasa pollution satellite-imagery tempo tropomi"
+   ],
+   [
+    "NASA/TEMPO/NO2_L3_V4",
+    "TEMPO gridded NO2 tropospheric and stratospheric columns V04",
+    1,
+    2023,
+    null,
+    "air-quality nasa nitrogen-dioxide pollution satellite-imagery tempo tropomi"
+   ],
+   [
+    "NASA/TEMPO/NO2_L3_V4_QA",
+    "TEMPO gridded NO2 (QA filtered) tropospheric and stratospheric columns V04",
+    1,
+    2023,
+    null,
+    "air-quality nasa nitrogen-dioxide pollution satellite-imagery tempo tropomi"
+   ],
+   [
+    "NASA/TEMPO/O3PROF_L3_V4",
+    "TEMPO gridded ozone profile V04 (PROVISIONAL)",
+    1,
+    2023,
+    null,
+    "air-quality nasa ozone pollution satellite-imagery tempo"
+   ],
+   [
+    "NASA/TEMPO/O3_L3_V4_QA",
+    "TEMPO gridded ozone total column V04 (PROVISIONAL)",
+    1,
+    2023,
+    null,
+    "air-quality nasa ozone pollution satellite-imagery tempo tropomi"
+   ],
+   [
+    "NASA/VIIRS/002/AERDB_D3_VIIRS_NOAA20",
+    "AERDB_D3_VIIRS_NOAA20.002: VIIRS/NOAA-20 Deep Blue Aerosol Optical Depth Daily L3 Global 1.0 Deg Grid",
+    1,
+    2018,
+    null,
+    "aerosol aot atmosphere daily nasa noaa viirs"
+   ],
+   [
+    "NASA/VIIRS/002/AERDB_D3_VIIRS_SNPP",
+    "AERDB_D3_VIIRS_SNPP.002: VIIRS/SNPP Deep Blue Aerosol Optical Depth Daily L3 Global 1.0 Deg Grid",
+    1,
+    2012,
+    null,
+    "aerosol aot atmosphere daily nasa noaa npp viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ146A2",
+    "VJ146A2: VIIRS Lunar Gap-Filled BRDF Nighttime Lights Daily L3 Global 500m",
+    1,
+    2018,
+    null,
+    "brdf daily nasa nighttime noaa population viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ209GA",
+    "VJ209GA: VIIRS Surface Reflectance Daily 500m and 1km",
+    1,
+    2023,
+    null,
+    "daily nasa noaa noaa21 reflectance satellite-imagery sr viirs vj209ga"
+   ],
+   [
+    "NASA/VIIRS/002/VJ209H1",
+    "VJ209H1: VIIRS Surface Reflectance 8-Day L3 Global 500m",
+    1,
+    2023,
+    null,
+    "8-day nasa noaa noaa21 reflectance satellite-imagery sr viirs vj209h1"
+   ],
+   [
+    "NASA/VIIRS/002/VJ213A1",
+    "VJ213A1: VIIRS Vegetation Indices 16-Day 500m",
+    1,
+    2023,
+    null,
+    "16-day evi nasa ndvi noaa noaa21 vegetation vegetation-indices viirs vj213a1"
+   ],
+   [
+    "NASA/VIIRS/002/VJ214A1",
+    "VJ214A1.002: Thermal Anomalies/Fire Daily L3 Global 1km SIN Grid",
+    1,
+    2023,
+    null,
+    "fire land nasa noaa surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ215A2H",
+    "VJ215A2H.002: LAI/FPAR 8-Day L4 Global 500m SIN Grid",
+    1,
+    2023,
+    null,
+    "land nasa noaa surface vegetation-indices viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ221A1D",
+    "VJ221A1D.002: Day Land Surface Temperature and Emissivity Daily 1km",
+    1,
+    2023,
+    null,
+    "daily day land nasa noaa surface temperature viirs weather-and-climate"
+   ],
+   [
+    "NASA/VIIRS/002/VJ221A1N",
+    "VJ221A1N.002: Night Land Surface Temperature and Emissivity Daily 1km",
+    1,
+    2023,
+    null,
+    "daily land nasa night noaa surface temperature viirs weather-and-climate"
+   ],
+   [
+    "NASA/VIIRS/002/VJ243IA3",
+    "VJ243IA3: BRDF/Albedo Daily L3 Global 500m SIN Grid",
+    1,
+    2023,
+    null,
+    "albedo brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ243IA4",
+    "VJ243IA4: Nadir BRDF-Adjusted Reflectance Daily L3 Global 500m SIN Grid",
+    1,
+    2023,
+    null,
+    "brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VJ243MA3",
+    "VJ243MA3: BRDF/Albedo Daily L3 Global 1km SIN Grid",
+    1,
+    2023,
+    null,
+    "albedo brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP09GA",
+    "VNP09GA: VIIRS Surface Reflectance Daily 500m and 1km",
+    1,
+    2012,
+    null,
+    "daily nasa noaa npp reflectance satellite-imagery sr viirs vnp09ga"
+   ],
+   [
+    "NASA/VIIRS/002/VNP09H1",
+    "VNP09H1: VIIRS Surface Reflectance 8-Day L3 Global 500m",
+    1,
+    2012,
+    null,
+    "daily nasa noaa npp reflectance satellite-imagery sr viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP13A1",
+    "VNP13A1.002: VIIRS Vegetation Indices 16-Day 500m",
+    1,
+    2012,
+    null,
+    "16-day evi nasa ndvi noaa npp vegetation vegetation-indices viirs vnp13a1"
+   ],
+   [
+    "NASA/VIIRS/002/VNP14A1",
+    "VNP14A1.002: Thermal Anomalies/Fire Daily L3 Global 1km SIN Grid",
+    1,
+    2012,
+    null,
+    "fire land nasa noaa surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP15A2H",
+    "VNP15A2H: LAI/FPAR 8-Day L4 Global 500m SIN Grid",
+    1,
+    2012,
+    null,
+    "land nasa noaa surface vegetation-indices viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP21A1D",
+    "VNP21A1D.002: Day Land Surface Temperature and Emissivity Daily 1km",
+    1,
+    2012,
+    null,
+    "daily day land nasa noaa surface temperature viirs weather-and-climate"
+   ],
+   [
+    "NASA/VIIRS/002/VNP21A1N",
+    "VNP21A1N.002: Night Land Surface Temperature and Emissivity Daily 1km",
+    1,
+    2012,
+    null,
+    "daily land nasa night noaa surface temperature viirs weather-and-climate"
+   ],
+   [
+    "NASA/VIIRS/002/VNP22Q2",
+    "VNP22Q2.002: Land Surface Phenology Yearly L3 Global 500m SIN Grid",
+    1,
+    2013,
+    2025,
+    "land nasa ndvi noaa npp onset-greenness phenology surface vegetation vegetation-indices viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP43IA3",
+    "VNP43IA3: BRDF/Albedo Daily L3 Global 500m SIN Grid",
+    1,
+    2012,
+    null,
+    "albedo brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP43IA4",
+    "VNP43IA4: BRDF/Albedo Quality Daily L3 Global 500m SIN Grid",
+    1,
+    2012,
+    null,
+    "brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP43MA3",
+    "VNP43MA3: BRDF/Albedo Daily L3 Global 1km SIN Grid",
+    1,
+    2012,
+    null,
+    "albedo brdf land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP46A2",
+    "VNP46A2: VIIRS Lunar Gap-Filled BRDF Nighttime Lights Daily L3 Global 500m",
+    1,
+    2012,
+    null,
+    "brdf daily nasa nighttime noaa population viirs"
+   ],
+   [
+    "NASA/VIIRS/002/VNP64A1",
+    "VNP64A1.002: Burned Area Monthly L4 Global 500m SIN Grid",
+    1,
+    2012,
+    null,
+    "burn change-detection fire land nasa surface viirs"
+   ],
+   [
+    "NOAA/CDR/ATMOS_NEAR_SURFACE/V2",
+    "NOAA CDR: Ocean Near-Surface Atmospheric Properties, Version 2",
+    1,
+    1988,
+    2021,
+    "air-temperature atmospheric cdr hourly humidity noaa oceans osb wind"
+   ],
+   [
+    "NOAA/CDR/AVHRR/AOT/V4",
+    "NOAA CDR AVHRR AOT: Daily Aerosol Optical Thickness Over Global Oceans, v04",
+    1,
+    1981,
+    null,
+    "aerosol aot atmosphere atmospheric avhrr cdr daily noaa optical pollution"
+   ],
+   [
+    "NOAA/CDR/AVHRR/LAI_FAPAR/V5",
+    "NOAA CDR AVHRR LAI FAPAR: Leaf Area Index and Fraction of Absorbed Photosynthetically Active Radiation, Version 5",
+    1,
+    1981,
+    2013,
+    "avhrr cdr daily fapar lai land noaa plant-productivity"
+   ],
+   [
+    "NOAA/CDR/AVHRR/NDVI/V5",
+    "NOAA CDR AVHRR NDVI: Normalized Difference Vegetation Index, Version 5",
+    1,
+    1981,
+    2013,
+    "avhrr cdr daily land ndvi noaa vegetation-indices"
+   ],
+   [
+    "NOAA/CDR/AVHRR/SR/V5",
+    "NOAA CDR AVHRR: Surface Reflectance, Version 5",
+    1,
+    1981,
+    2013,
+    "avhrr cdr daily land noaa reflectance satellite-imagery sr"
+   ],
+   [
+    "NOAA/CDR/GRIDSAT-B1/V2",
+    "NOAA CDR GRIDSAT-B1: Geostationary IR Channel Brightness Temperature",
+    1,
+    1980,
+    2024,
+    "brightness cdr climate fundamental geostationary infrared isccp noaa reflectance sr weather-and-climate"
+   ],
+   [
+    "NOAA/CDR/HEAT_FLUXES/V2",
+    "NOAA CDR: Ocean Heat Fluxes, Version 2",
+    1,
+    1988,
+    2021,
+    "atmospheric cdr flux heat hourly noaa oceans osb"
+   ],
+   [
+    "NOAA/CDR/OISST/V2_1",
+    "NOAA CDR OISST v02r01: Optimum Interpolation Sea Surface Temperature",
+    1,
+    1981,
+    null,
+    "avhrr cdr daily ice noaa oceans oisst real-time sst temperature"
+   ],
+   [
+    "NOAA/CDR/PATMOSX/V53",
+    "NOAA CDR PATMOSX: Cloud Properties, Reflectance, and Brightness Temperatures, Version 5.3",
+    1,
+    1979,
+    2022,
+    "atmospheric avhrr brightness cdr climate cloud metop noaa optical poes reflectance temperature"
+   ],
+   [
+    "NOAA/CDR/SST_PATHFINDER/V53",
+    "NOAA AVHRR Pathfinder Version 5.3 Collated Global 4km Sea Surface Temperature",
+    1,
+    1981,
+    2023,
+    "avhrr noaa oceans pathfinder sea-ice sst temperature wind"
+   ],
+   [
+    "NOAA/CDR/SST_WHOI/V2",
+    "NOAA CDR WHOI: Sea Surface Temperature, Version 2",
+    1,
+    1988,
+    2021,
+    "atmospheric cdr hourly noaa oceans oisst osb sst whoi"
+   ],
+   [
+    "NOAA/CDR/VIIRS/LAI_FAPAR/V1",
+    "NOAA CDR VIIRS LAI FAPAR: Leaf Area Index and Fraction of Absorbed Photosynthetically Active Radiation, Version 1",
+    1,
+    2014,
+    null,
+    "cdr daily fapar lai land noaa plant-productivity viirs"
+   ],
+   [
+    "NOAA/CDR/VIIRS/NDVI/V1",
+    "NOAA CDR VIIRS NDVI: Normalized Difference Vegetation Index, Version 1",
+    1,
+    2014,
+    null,
+    "cdr daily land ndvi noaa vegetation-indices viirs"
+   ],
+   [
+    "NOAA/CFSR_HARMONIZED",
+    "CFSR: Climate Forecast System Reanalysis Harmonized",
+    1,
+    2018,
+    null,
+    "climate daylight flux forecast geophysical ncep noaa nws precipitation radiation snow temperature"
+   ],
+   [
+    "NOAA/CFSV2/FOR6H_HARMONIZED",
+    "CFSV2: NCEP Climate Forecast System Version 2, 6-Hourly Products Harmonized",
+    1,
+    1979,
+    null,
+    "climate daylight flux forecast geophysical ncep noaa nws precipitation radiation snow temperature"
+   ],
+   [
+    "NOAA/CPC/Precipitation",
+    "CPC Global Unified Gauge-Based Analysis of Daily Precipitation",
+    1,
+    2006,
+    null,
+    "daily noaa precipitation weather"
+   ],
+   [
+    "NOAA/CPC/Temperature",
+    "CPC Global Unified Temperature",
+    1,
+    1979,
+    null,
+    "climate daily noaa precipitation weather weather-and-climate"
+   ],
+   [
+    "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4",
+    "DMSP OLS: Global Radiance-Calibrated Nighttime Lights Version 4, Defense Meteorological Program Operational Linescan System",
+    1,
+    1996,
+    2011,
+    "calibrated dmsp eog imagery lights nighttime ols population radiance visible yearly"
+   ],
+   [
+    "NOAA/DMSP-OLS/NIGHTTIME_LIGHTS",
+    "DMSP OLS: Nighttime Lights Time Series Version 4, Defense Meteorological Program Operational Linescan System",
+    1,
+    1992,
+    2014,
+    "dmsp eog imagery lights nighttime ols population visible yearly"
+   ],
+   [
+    "NOAA/GFS0P25",
+    "GFS: Global Forecast System 384-Hour Predicted Atmosphere Data",
+    1,
+    2015,
+    null,
+    "climate cloud emc flux forecast geophysical gfs humidity ncep noaa precipitation radiation"
+   ],
+   [
+    "NOAA/GOES/16/FDCC",
+    "GOES-16 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
+    1,
+    2017,
+    2025,
+    "abi fdc fire goes goes-16 goes-east goes-r hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/16/FDCF",
+    "GOES-16 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
+    1,
+    2017,
+    2025,
+    "abi fdc fire goes goes-16 goes-east goes-r hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/16/MCMIPC",
+    "GOES-16 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
+    1,
+    2017,
+    2025,
+    "abi atmosphere goes goes-16 goes-east goes-r mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/16/MCMIPF",
+    "GOES-16 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
+    1,
+    2017,
+    2025,
+    "abi atmosphere goes goes-16 goes-east goes-r mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/16/MCMIPM",
+    "GOES-16 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
+    1,
+    2017,
+    2025,
+    "abi atmosphere goes goes-16 goes-east goes-r mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/17/FDCC",
+    "GOES-17 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
+    1,
+    2018,
+    2023,
+    "abi fdc fire goes goes-17 goes-s hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/17/FDCF",
+    "GOES-17 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
+    1,
+    2018,
+    2023,
+    "abi fdc fire goes goes-17 goes-s hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/17/MCMIPC",
+    "GOES-17 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
+    1,
+    2018,
+    2023,
+    "abi atmosphere goes goes-17 goes-s mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/17/MCMIPF",
+    "GOES-17 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
+    1,
+    2018,
+    2023,
+    "abi atmosphere goes goes-17 goes-s mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/17/MCMIPM",
+    "GOES-17 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
+    1,
+    2018,
+    2023,
+    "abi atmosphere goes goes-17 goes-s mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/18/FDCC",
+    "GOES-18 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
+    1,
+    2022,
+    null,
+    "abi fdc fire goes goes-18 goes-t goes-west hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/18/FDCF",
+    "GOES-18 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
+    1,
+    2022,
+    null,
+    "abi fdc fire goes goes-18 goes-t goes-west hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/18/MCMIPC",
+    "GOES-18 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
+    1,
+    2018,
+    null,
+    "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/18/MCMIPF",
+    "GOES-18 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
+    1,
+    2018,
+    null,
+    "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/18/MCMIPM",
+    "GOES-18 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
+    1,
+    2022,
+    null,
+    "abi atmosphere goes goes-18 goes-t goes-west mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/19/FDCC",
+    "GOES-19 FDCC Series ABI Level 2 Fire/Hot Spot Characterization CONUS",
+    1,
+    2025,
+    null,
+    "abi fdc fire goes goes-19 goes-east goes-u hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/19/FDCF",
+    "GOES-19 FDCF Series ABI Level 2 Fire/Hot Spot Characterization Full Disk",
+    1,
+    2025,
+    null,
+    "abi fdc fire goes goes-19 goes-east goes-u hotspot nesdis noaa ospo wildfire"
+   ],
+   [
+    "NOAA/GOES/19/MCMIPC",
+    "GOES-19 MCMIPC Series ABI Level 2 Cloud and Moisture Imagery CONUS",
+    1,
+    2025,
+    null,
+    "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/19/MCMIPF",
+    "GOES-19 MCMIPF Series ABI Level 2 Cloud and Moisture Imagery Full Disk",
+    1,
+    2025,
+    null,
+    "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/GOES/19/MCMIPM",
+    "GOES-19 MCMIPM Series ABI Level 2 Cloud and Moisture Imagery Mesoscale",
+    1,
+    2025,
+    null,
+    "abi atmosphere goes goes-19 goes-east goes-u mcmip nesdis noaa ospo satellite-imagery weather"
+   ],
+   [
+    "NOAA/NCEP_DOE_RE2/total_cloud_coverage",
+    "NCEP-DOE Reanalysis 2 (Gaussian Grid), Total Cloud Coverage",
+    1,
+    1979,
+    2026,
+    "atmosphere climate cloud geophysical ncep noaa reanalysis"
+   ],
+   [
+    "NOAA/NGDC/ETOPO1",
+    "ETOPO1: Global 1 Arc-Minute Elevation",
+    0,
+    2008,
+    2008,
+    "bedrock dem elevation elevation-topography geophysical ice noaa topography"
+   ],
+   [
+    "NOAA/NWS/RTMA",
+    "RTMA: Real-Time Mesoscale Analysis",
+    1,
+    2011,
+    null,
+    "atmosphere climate cloud geophysical humidity noaa nws precipitation pressure rtma surface temperature"
+   ],
+   [
+    "NOAA/PERSIANN-CDR",
+    "PERSIANN-CDR: Precipitation Estimation From Remotely Sensed Information Using Artificial Neural Networks-Climate Data Record",
+    1,
+    1983,
+    null,
+    "cdr climate geophysical ncdc noaa persiann precipitation weather"
+   ],
+   [
+    "NOAA/VIIRS/001/VNP43IA1",
+    "VNP43IA1: BRDF/Albedo Model Parameters Daily L3 Global 500m SIN Grid",
+    1,
+    2012,
+    2024,
+    "land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NOAA/VIIRS/001/VNP43IA2",
+    "VNP43IA2: BRDF/Albedo Quality Daily L3 Global 500m SIN Grid",
+    1,
+    2012,
+    2024,
+    "land nasa noaa satellite-imagery surface viirs"
+   ],
+   [
+    "NOAA/VIIRS/001/VNP46A1",
+    "VNP46A1: VIIRS Daily Gridded Day Night Band 500m Linear Lat Lon Grid Night",
+    1,
+    2012,
+    2025,
+    "daily dnb nasa noaa population viirs"
+   ],
+   [
+    "NOAA/VIIRS/AOD_EDR/V3",
+    "VIIRS Aerosol Optical Depth and Aerosol Particle Size EDRs V3",
+    1,
+    2022,
+    null,
+    "aerosol aod atmosphere noaa viirs"
+   ],
+   [
+    "NOAA/VIIRS/DNB/ANNUAL_V21",
+    "VIIRS Nighttime Day/Night Annual Band Composites V2.1",
+    1,
+    2012,
+    2021,
+    "annual dnb eog lights nighttime noaa population viirs visible"
+   ],
+   [
+    "NOAA/VIIRS/DNB/ANNUAL_V22",
+    "VIIRS Nighttime Day/Night Annual Band Composites V2.2",
+    1,
+    2012,
+    2025,
+    "annual dnb eog lights nighttime noaa population viirs visible"
+   ],
+   [
+    "NOAA/VIIRS/DNB/MONTHLY_V1/VCMCFG",
+    "VIIRS Nighttime Day/Night Band Composites Version 1",
+    1,
+    2012,
+    null,
+    "dnb eog lights monthly nighttime noaa population viirs visible"
+   ],
+   [
+    "NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG",
+    "VIIRS Stray Light Corrected Nighttime Day/Night Band Composites Version 1",
+    1,
+    2014,
+    null,
+    "dnb eog lights monthly nighttime noaa population stray-light viirs visible"
+   ],
+   [
+    "NRCan/CDEM",
+    "Canadian Digital Elevation Model",
+    1,
+    1945,
+    2011,
+    "canada cdem dem elevation elevation-topography geophysical nrcan topography"
+   ],
+   [
+    "Netherlands/Beeldmateriaal/LUCHTFOTO_RGB",
+    "Netherlands orthophotos",
+    1,
+    2021,
+    2022,
+    "netherlands orthophotos rgb"
+   ],
+   [
+    "OPERA/DIST/L3_DIST-ANN-HLS/V1",
+    "OPERA Land Surface Disturbance Annual from Harmonized Landsat Sentinel-2 (DIST-ANN-HLS) V1",
+    1,
+    2023,
+    2025,
+    "disturbance forest forest-biomass geophysical landsat-derived nasa opera sentinel2-derived vegetation"
+   ],
+   [
+    "OPERA/DSWX/L3_V1/HLS",
+    "Dynamic Surface Water Extent from Harmonized Landsat Sentinel-2 (DSWx-HLS) V1",
+    1,
+    2023,
+    null,
+    "geophysical landsat-derived nasa opera sentinel2-derived surface surface-ground-water water"
+   ],
+   [
+    "OPERA/DSWX/L3_V1/S1",
+    "Dynamic Surface Water Extent from Sentinel-1 (DSWx-S1) V1",
+    1,
+    2024,
+    null,
+    "geophysical nasa opera sentinel1-derived surface surface-ground-water water"
+   ],
+   [
+    "OPERA/RTC/L2_V1/S1",
+    "OPERA Radiometric Terrain-Corrected SAR Backscatter from Sentinel-1 V1.0",
+    1,
+    2016,
+    null,
+    "backscatter jpl nasa opera polarization radar sar satellite-imagery sentinel1-derived"
+   ],
+   [
+    "OPERA/RTC/L2_V1/S1_STATIC",
+    "OPERA Radiometric Terrain-Corrected SAR Backscatter from Sentinel-1 Static Layers V1.0",
+    1,
+    2014,
+    2014,
+    "jpl nasa opera sar satellite-imagery sentinel1-derived"
+   ],
+   [
+    "OREGONSTATE/PRISM/ANd",
+    "PRISM Daily Spatial Dataset ANd",
+    1,
+    1981,
+    null,
+    "daily geophysical oregonstate precipitation pressure prism temperature vapor weather weather-and-climate"
+   ],
+   [
+    "OREGONSTATE/PRISM/ANm",
+    "PRISM Monthly Spatial Dataset ANm",
+    1,
+    1895,
+    null,
+    "geophysical monthly oregonstate precipitation pressure prism temperature vapor weather weather-and-climate"
+   ],
+   [
+    "OREGONSTATE/PRISM/Norm91m",
+    "PRISM Long-Term Normals Dataset Norm91m",
+    1,
+    1991,
+    2020,
+    "30-year geophysical oregonstate precipitation pressure prism temperature vapor weather weather-and-climate"
+   ],
+   [
+    "OSU/GIMP/2000_ICE_OCEAN_MASK",
+    "Greenland Ice & Ocean Mask - Greenland Mapping Project (GIMP)",
+    0,
+    1999,
+    2002,
+    "arctic cryosphere gimp greenland ice mask nasa polar"
+   ],
+   [
+    "OSU/GIMP/2000_IMAGERY_MOSAIC",
+    "2000 Greenland Mosaic - Greenland Ice Mapping Project (GIMP)",
+    0,
+    1999,
+    2002,
+    "arctic gimp greenland imagery nasa polar radarsat-1 satellite-imagery"
+   ],
+   [
+    "OSU/GIMP/DEM",
+    "Greenland DEM - Greenland Mapping Project (GIMP)",
+    0,
+    1999,
+    2002,
+    "arctic elevation-topography gimp greenland nasa polar"
+   ],
+   [
+    "OSU/GIMP/ICE_VELOCITY_OPT",
+    "MEaSUREs Greenland Ice Velocity: Selected Glacier Site Velocity Maps from Optical Images Version 2",
+    1,
+    1985,
+    2016,
+    "arctic cryosphere gimp greenland ice nasa polar velocity"
+   ],
+   [
+    "OpenLandMap/CLM/CLM_LST_MOD11A2-DAYNIGHT_M/v01",
+    "OpenLandMap Long-term Land Surface Temperature Monthly Day-Night Difference",
+    0,
+    2000,
+    2018,
+    "climate day envirometrix lst mod11a2 modis monthly night opengeohub openlandmap weather-and-climate"
+   ],
+   [
+    "OpenLandMap/CLM/CLM_LST_MOD11A2-DAY_M/v01",
+    "OpenLandMap Long-term Land Surface Temperature Daytime Monthly Median",
+    0,
+    2000,
+    2018,
+    "climate envirometrix lst mod11a2 modis monthly opengeohub openlandmap weather-and-climate"
+   ],
+   [
+    "OpenLandMap/CLM/CLM_LST_MOD11A2-DAY_SD/v01",
+    "OpenLandMap Long-term Land Surface Temperature Daytime Monthly Standard Deviation",
+    0,
+    2000,
+    2018,
+    "climate envirometrix lst mod11a2 modis monthly opengeohub openlandmap weather-and-climate"
+   ],
+   [
+    "OpenLandMap/CLM/CLM_PRECIPITATION_SM2RAIN_M/v01",
+    "OpenLandMap Precipitation Monthly",
+    0,
+    2007,
+    2019,
+    "envirometrix imerg monthly opengeohub openlandmap precipitation"
+   ],
+   [
+    "OpenLandMap/PNV/PNV_BIOME-TYPE_BIOME00K_C/v01",
+    "OpenLandMap Potential Distribution of Biomes",
+    0,
+    2001,
+    2002,
+    "biome ecosystems envirometrix opengeohub openlandmap potential"
+   ],
+   [
+    "OpenLandMap/PNV/PNV_FAPAR_PROBA-V_D/v01",
+    "OpenLandMap Potential FAPAR Monthly",
+    0,
+    2001,
+    2002,
+    "envirometrix fapar monthly opengeohub openlandmap plant-productivity potential"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_BULKDENS-FINEEARTH_USDA-4A1H_M/v02",
+    "OpenLandMap Soil Bulk Density",
+    0,
+    1950,
+    2018,
+    "bulk density envirometrix opengeohub openlandmap soil"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_CLAY-WFRACTION_USDA-3A1A1A_M/v02",
+    "OpenLandMap Clay Content",
+    0,
+    1950,
+    2018,
+    "clay envirometrix opengeohub openlandmap soil usda"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_GRTGROUP_USDA-SOILTAX-HAPLUDALFS_P/v01",
+    "OpenLandMap Predicted Hapludalfs Probability",
+    0,
+    1950,
+    2018,
+    "argillic envirometrix hapludalfs opengeohub openlandmap soil"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_GRTGROUP_USDA-SOILTAX_C/v01",
+    "OpenLandMap USDA Soil Taxonomy Great Groups",
+    0,
+    1950,
+    2018,
+    "envirometrix opengeohub openlandmap soil taxonomy usda"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_ORGANIC-CARBON_USDA-6A1C_M/v02",
+    "OpenLandMap Soil Organic Carbon Content",
+    0,
+    1950,
+    2018,
+    "carbon envirometrix opengeohub openlandmap organic soil"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_PH-H2O_USDA-4C1A2A_M/v02",
+    "OpenLandMap Soil pH in H2O",
+    0,
+    1950,
+    2018,
+    "envirometrix opengeohub openlandmap ph soil"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_SAND-WFRACTION_USDA-3A1A1A_M/v02",
+    "OpenLandMap Sand Content",
+    0,
+    1950,
+    2018,
+    "envirometrix opengeohub openlandmap sand soil usda"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_TEXTURE-CLASS_USDA-TT_M/v02",
+    "OpenLandMap Soil Texture Class (USDA System)",
+    0,
+    1950,
+    2018,
+    "envirometrix opengeohub openlandmap soil texture usda"
+   ],
+   [
+    "OpenLandMap/SOL/SOL_WATERCONTENT-33KPA_USDA-4B1C_M/v01",
+    "OpenLandMap Soil Water Content at 33kPa (Field Capacity)",
+    0,
+    1950,
+    2018,
+    "envirometrix opengeohub openlandmap soil watercontent"
+   ],
+   [
+    "Oxford/MAP/IGBP_Fractional_Landcover_5km_Annual",
+    "Oxford MAP: Malaria Atlas Project Fractional International Geosphere-Biosphere Programme Landcover",
+    1,
+    2001,
+    2013,
+    "igbp landcover landuse-landcover map"
+   ],
+   [
+    "RUB/RUBCLIM/LCZ/global_lcz_map/latest",
+    "Global map of Local Climate Zones, latest version",
+    1,
+    2018,
+    2019,
+    "climate landcover landuse-landcover urban"
+   ],
+   [
+    "SKYSAT/GEN-A/PUBLIC/ORTHO/MULTISPECTRAL",
+    "Planet SkySat Public Ortho Imagery, Multispectral",
+    1,
+    2014,
+    2016,
+    "highres multispectral pansharpened planet satellite-imagery skysat"
+   ],
+   [
+    "SKYSAT/GEN-A/PUBLIC/ORTHO/RGB",
+    "Planet SkySat Public Ortho Imagery, RGB",
+    1,
+    2014,
+    2016,
+    "highres pansharpened planet rgb satellite-imagery skysat"
+   ],
+   [
+    "SNU/ESL/BESS/Rad/v1",
+    "Breathing Earth System Simulator (BESS) Radiation v1",
+    1,
+    2001,
+    2021,
+    "climate evapotranspiration gpp modis-derived par radiation shortwave weather-and-climate"
+   ],
+   [
+    "Slovakia/orthos/25cm",
+    "Slovakia orthophotos",
+    1,
+    2017,
+    2020,
+    "orthophotos rgb"
+   ],
+   [
+    "Spain/PNOA/PNOA10",
+    "Spain RGB orthophotos 10 cm",
+    1,
+    2007,
+    2019,
+    "orthophotos pnoa rgb spain"
+   ],
+   [
+    "Switzerland/SWISSIMAGE/orthos/10cm",
+    "SWISSIMAGE 10 cm RGB imagery",
+    1,
+    2017,
+    2021,
+    "orthophotos rgb swissimage swisstopo"
+   ],
+   [
+    "TERN/AET/CMRSET_LANDSAT_V2_2",
+    "Actual Evapotranspiration for Australia (CMRSET Landsat V2.2)",
+    1,
+    2000,
+    null,
+    "agriculture australia csiro evaporation evapotranspiration landsat-derived tern viirs-derived water-vapor"
+   ],
+   [
+    "TNC/HM/v3/300m_c",
+    "TNC Global Human Modification v3 (Change-Consistent 300m)",
+    1,
+    1990,
+    2020,
+    "fragmentation human-modification landcover landscape-gradient population stressors tnc"
+   ],
+   [
+    "TNC/HM/v3/90m_s",
+    "TNC Global Human Modification v3 (Static Snapshot 90m)",
+    1,
+    2022,
+    2022,
+    "fragmentation human-modification landcover landscape-gradient population stressors tnc"
+   ],
+   [
+    "TOMS/MERGED_V4",
+    "TOMS and OMI Merged Ozone Data v4",
+    1,
+    1978,
+    null,
+    "atmosphere aura climate geophysical ges-disc goddard nasa omi ozone toms weather-and-climate"
+   ],
+   [
+    "TRMM/3B42",
+    "TRMM 3B42: 3-Hourly Precipitation Estimates",
+    1,
+    1998,
+    2019,
+    "3-hourly climate geophysical jaxa nasa precipitation rainfall trmm weather"
+   ],
+   [
+    "TRMM/3B43V7",
+    "TRMM 3B43: Monthly Precipitation Estimates",
+    1,
+    1998,
+    2019,
+    "climate geophysical jaxa nasa precipitation rainfall trmm weather"
+   ],
+   [
+    "TUBerlin/BigEarthNet/v1",
+    "TUBerlin/BigEarthNet/v1",
+    1,
+    2017,
+    2018,
+    "chip copernicus corine-derived label landuse-landcover ml sentinel tile"
+   ],
+   [
+    "Tsinghua/DESS/ChinaTerraceMap/v1",
+    "DESS China Terrace Map v1",
+    0,
+    2018,
+    2019,
+    "agriculture china dess landcover landuse landuse-landcover terrace tsinghua"
+   ],
+   [
+    "Tsinghua/FROM-GLC/GAIA/v10",
+    "Tsinghua FROM-GLC Year of Change to Impervious Surface",
+    0,
+    1985,
+    2018,
+    "built development impervious population tsinghua urban"
+   ],
+   [
+    "UCSB-CHC/CHIRPS/V3/DAILY_RNL",
+    "CHIRPS Precipitation Daily Reanalysis: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0, ERA5-based)",
+    1,
+    1981,
+    null,
+    "chc climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
+    "CHIRPS Precipitation Daily Near-Real-Time: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0, IMERG-based)",
+    1,
+    1981,
+    null,
+    "chc climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UCSB-CHC/CHIRPS/V3/PENTAD",
+    "CHIRPS Precipitation Pentad: Climate Hazards Center InfraRed Precipitation With Station Data (Version 3.0)",
+    1,
+    1981,
+    null,
+    "chc chg climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UCSB-CHG/CHIRPS/DAILY",
+    "CHIRPS Precipitation Daily: Climate Hazards Center InfraRed Precipitation With Station Data (Version 2.0 Final)",
+    1,
+    1981,
+    null,
+    "chg climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UCSB-CHG/CHIRPS/PENTAD",
+    "CHIRPS Precipitation Pentad: Climate Hazards Center InfraRed Precipitation With Station Data (Version 2.0 Final)",
+    1,
+    1981,
+    null,
+    "chg climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UCSB-CHG/CHIRTS/DAILY",
+    "CHIRTS Temperature Daily: Climate Hazards Center InfraRed Temperature with Stations daily data product",
+    1,
+    1983,
+    2016,
+    "chg climate daily era5 geophysical reanalysis temperature ucsb weather-and-climate wind"
+   ],
+   [
+    "UCSB/CHC/CMIP6/v1",
+    "The Climate Hazards Center (CHC) Coupled Model Intercomparison Project Phase 6 (CHC-CMIP6)",
+    1,
+    1983,
+    2016,
+    "climate geophysical precipitation ucsb weather"
+   ],
+   [
+    "UK/EA/ENGLAND_1M_TERRAIN/2022",
+    "England 1m Composite DTM/DSM (Environment Agency)",
+    0,
+    2000,
+    2022,
+    "dem elevation elevation-topography lidar"
+   ],
+   [
+    "UMD/GLAD/PRIMARY_HUMID_TROPICAL_FORESTS/v1",
+    "Primary Humid Tropical Forests",
+    1,
+    2001,
+    2002,
+    "forest forest-biomass glad global landsat-derived umd"
+   ],
+   [
+    "UMD/hansen/global_forest_change_2025_v1_13",
+    "Hansen Global Forest Change v1.13 (2000-2025)",
+    0,
+    2000,
+    2025,
+    "forest forest-biomass geophysical hansen landsat-derived umd"
+   ],
+   [
+    "UMN/PGC/ArcticDEM/V3/2m",
+    "ArcticDEM Strips",
+    1,
+    2009,
+    2017,
+    "arctic dem elevation-topography geophysical pgc umn"
+   ],
+   [
+    "UMN/PGC/ArcticDEM/V4/2m_mosaic",
+    "ArcticDEM Mosaic V4.1",
+    0,
+    2012,
+    2020,
+    "arctic dem elevation-topography geophysical pgc umn"
+   ],
+   [
+    "UMN/PGC/REMA/V1/2m",
+    "REMA Strips 2m",
+    1,
+    2009,
+    2018,
+    "dem elevation-topography geophysical pgc rema umn"
+   ],
+   [
+    "UMN/PGC/REMA/V1/8m",
+    "REMA Strips 8m",
+    1,
+    2009,
+    2018,
+    "dem elevation-topography geophysical pgc rema umn"
+   ],
+   [
+    "UMN/PGC/REMA/V1_1/8m",
+    "REMA Mosaic",
+    0,
+    2009,
+    2018,
+    "dem elevation-topography geophysical pgc rema umn"
+   ],
+   [
+    "UMT/Climate/IrrMapper_RF/v1_2",
+    "IrrMapper Irrigated Lands, Version 1.2",
+    1,
+    1986,
+    2025,
+    "agriculture landsat-derived"
+   ],
+   [
+    "UMT/NTSG/v2/LANDSAT/GPP",
+    "Landsat Gross Primary Production CONUS",
+    1,
+    1986,
+    2021,
+    "16-day conus gpp gridmet-derived landsat mod17 nlcd-derived photosynthesis plant-productivity production productivity"
+   ],
+   [
+    "UMT/NTSG/v2/LANDSAT/NPP",
+    "Landsat Net Primary Production CONUS",
+    1,
+    1986,
+    2020,
+    "conus gridmet-derived landsat mod17 nlcd-derived npp photosynthesis plant-productivity production productivity yearly"
+   ],
+   [
+    "UMT/NTSG/v2/MODIS/GPP",
+    "MODIS Gross Primary Production CONUS",
+    1,
+    2001,
+    2021,
+    "8-day conus gpp gridmet-derived mod09q1 mod17 modis nlcd-derived photosynthesis plant-productivity production productivity"
+   ],
+   [
+    "UMT/NTSG/v2/MODIS/NPP",
+    "MODIS Net Primary Production CONUS",
+    1,
+    2001,
+    2019,
+    "conus gridmet-derived mod09q1 mod17 modis nlcd-derived npp photosynthesis plant-productivity production productivity yearly"
+   ],
+   [
+    "UQ/murray/Intertidal/v1_1/data_mask",
+    "Murray Global Intertidal Change Data Mask",
+    0,
+    1984,
+    2017,
+    "coastal google intertidal landsat-derived murray surface-ground-water tidal-flats uq"
+   ],
+   [
+    "UQ/murray/Intertidal/v1_1/global_intertidal",
+    "Murray Global Intertidal Change Classification",
+    1,
+    1984,
+    2017,
+    "coastal google intertidal landsat-derived murray surface-ground-water tidal-flats uq"
+   ],
+   [
+    "UQ/murray/Intertidal/v1_1/qa_pixel_count",
+    "Murray Global Intertidal Change QA Pixel Count",
+    1,
+    1984,
+    2017,
+    "coastal google intertidal landsat-derived murray surface-ground-water tidal-flats uq"
+   ],
+   [
+    "USDA/NAIP/DOQQ",
+    "NAIP: National Agriculture Imagery Program",
+    1,
+    2002,
+    2023,
+    "aerial agriculture fpac highres imagery naip orthophotos usda"
+   ],
+   [
+    "USDA/NASS/CDL",
+    "USDA NASS Cropland Data Layers",
+    1,
+    1997,
+    2025,
+    "agriculture cdl crop landcover nass usda"
+   ],
+   [
+    "USDA/SOLUS100/V0",
+    "SOLUS: Soil properties of the conterminous United States at 100-m resolution",
+    1,
+    2023,
+    2024,
+    "soil usda"
+   ],
+   [
+    "USDA/WRC/v0",
+    "Wildfire Risk to Communities v0",
+    1,
+    2020,
+    2022,
+    "burn fire usda wildfire"
+   ],
+   [
+    "USFS/GTAC/MTBS/annual_burn_severity_mosaics/v1",
+    "Monitoring Trends in Burn Severity (MTBS) Burn Severity Images",
+    1,
+    1984,
+    2024,
+    "eros fire forest gtac landcover landsat-derived mtbs redcastle-resources usda usfs usgs"
+   ],
+   [
+    "USGS/3DEP/10m_collection",
+    "USGS 3DEP 10m National Map Seamless (1/3 Arc-Second)",
+    1,
+    1924,
+    2022,
+    "3dep dem elevation elevation-topography geophysical topography usgs"
+   ],
+   [
+    "USGS/3DEP/1m",
+    "USGS 3DEP 1m National Map",
+    1,
+    2003,
+    2025,
+    "3dep dem elevation elevation-topography geophysical topography usgs"
+   ],
+   [
+    "USGS/GAP/AK/2001",
+    "USGS GAP Alaska 2001",
+    0,
+    2001,
+    2002,
+    "ecosystems gap landcover landfire usgs vegetation"
+   ],
+   [
+    "USGS/GAP/CONUS/2011",
+    "USGS GAP CONUS 2011",
+    0,
+    2011,
+    2012,
+    "ecosystems gap landcover landfire usgs vegetation"
+   ],
+   [
+    "USGS/GAP/HI/2001",
+    "USGS GAP Hawaii 2001",
+    0,
+    2001,
+    2002,
+    "ecosystems gap landcover landfire usgs vegetation"
+   ],
+   [
+    "USGS/GAP/PR/2001",
+    "USGS GAP Puerto Rico 2001",
+    0,
+    2001,
+    2002,
+    "ecosystems gap landcover landfire usgs vegetation"
+   ],
+   [
+    "USGS/GFSAD1000_V1",
+    "GFSAD1000: Cropland Extent 1km Multi-Study Crop Mask, Global Food-Support Analysis Data",
+    0,
+    2010,
+    2010,
+    "agriculture crop gfsad landcover usgs"
+   ],
+   [
+    "USGS/GMTED2010_FULL",
+    "GMTED2010: Global Multi-resolution Terrain Elevation Data 2010",
+    0,
+    2010,
+    2010,
+    "dem elevation elevation-topography geophysical srtm topography usgs"
+   ],
+   [
+    "USGS/GTOPO30",
+    "GTOPO30: Global 30 Arc-Second Elevation",
+    0,
+    1996,
+    1996,
+    "dem elevation elevation-topography geophysical gtopo30 nasa topography usgs"
+   ],
+   [
+    "USGS/LIMA/MOSAIC",
+    "Landsat Image Mosaic of Antarctica (LIMA) 16-Bit Pan-Sharpened Mosaic",
+    0,
+    1999,
+    2002,
+    "antarctica ice landsat-derived lima mosaic satellite-imagery sr usgs"
+   ],
+   [
+    "USGS/LIMA/SR",
+    "Landsat Image Mosaic of Antarctica (LIMA) - Processed Landsat Scenes (16 bit)",
+    1,
+    1999,
+    2002,
+    "antarctica ice landsat-derived lima mosaic satellite-imagery sr usgs"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2019_REL/NLCD",
+    "NLCD 2019: USGS National Land Cover Database, 2019 release",
+    1,
+    2001,
+    2019,
+    "blm landcover landuse-landcover mrlc nlcd usgs"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2020_REL/NALCMS",
+    "Land Cover of North America at 30 meters, 2020",
+    0,
+    2019,
+    2021,
+    "landcover landsat landuse-landcover nlcd reflectance"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2021_REL/NLCD",
+    "NLCD 2021: USGS National Land Cover Database, 2021 release",
+    1,
+    2021,
+    2022,
+    "blm landcover landuse-landcover mrlc nlcd usgs"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2023_REL/RCMAP/V6/COVER",
+    "RCMAP Rangeland Component Timeseries (1985-2023), v06",
+    1,
+    1985,
+    2023,
+    "climate-change disturbance landsat-derived landuse-landcover nlcd rangeland trends"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2023_REL/RCMAP/V6/TRENDS",
+    "RCMAP Rangeland Trends for Component Timeseries (1985-2023), v06",
+    0,
+    1985,
+    2023,
+    "climate-change disturbance landsat-derived landuse-landcover nlcd rangeland trends"
+   ],
+   [
+    "USGS/NLCD_RELEASES/2023_REL/RCMAP/V6/TRENDS_YEAR",
+    "RCMAP Rangeland Trends Year for Component Timeseries (1985-2023), v06",
+    1,
+    1985,
+    2023,
+    "climate-change disturbance landsat-derived landuse-landcover nlcd rangeland trends"
+   ],
+   [
+    "USGS/SRTMGL1_003",
+    "NASA SRTM Digital Elevation 30m",
+    0,
+    2000,
+    2000,
+    "dem elevation elevation-topography geophysical nasa srtm topography usgs"
+   ],
+   [
+    "UTOKYO/WTLAB/KBDI/v1",
+    "KBDI: Keetch-Byram Drought Index",
+    1,
+    2007,
+    null,
+    "drought fire kbdi lst-derived rainfall utokyo wtlab"
+   ],
+   [
+    "VITO/PROBAV/C1/S1_TOC_100M",
+    "PROBA-V C1 Top Of Canopy Daily Synthesis 100m",
+    1,
+    2013,
+    2021,
+    "esa multispectral nir proba probav satellite-imagery swir vito"
+   ],
+   [
+    "VITO/PROBAV/C1/S1_TOC_333M",
+    "PROBA-V C1 Top Of Canopy Daily Synthesis 333m",
+    1,
+    2013,
+    2021,
+    "esa multispectral nir proba probav satellite-imagery swir vito"
+   ],
+   [
+    "WCMC/biomass_carbon_density/v1_0",
+    "WCMC Above and Below Ground Biomass Carbon Density",
+    1,
+    2010,
+    2010,
+    "biomass carbon forest-biomass unep wcmc"
+   ],
+   [
+    "WHBU/NBAR_1YEAR",
+    "MODIS 1-year Nadir BRDF-Adjusted Reflectance (NBAR) Mosaic",
+    1,
+    2000,
+    2017,
+    "albedo annual bu mcd43a4 modis-derived nbar reflectance satellite-imagery whrc"
+   ],
+   [
+    "WHBU/NBAR_2YEAR",
+    "MODIS 2-year Nadir BRDF-Adjusted Reflectance (NBAR) Mosaic",
+    1,
+    2001,
+    2017,
+    "albedo annual bu mcd43a4 modis-derived nbar reflectance satellite-imagery whrc"
+   ],
+   [
+    "WHBU/NBAR_3YEAR",
+    "MODIS 3-year Nadir BRDF-Adjusted Reflectance (NBAR) Mosaic",
+    1,
+    2002,
+    2017,
+    "albedo annual bu mcd43a4 modis-derived nbar reflectance satellite-imagery whrc"
+   ],
+   [
+    "WHRC/biomass/tropical",
+    "WHRC Pantropical National Level Carbon Stock Dataset",
+    0,
+    2012,
+    2012,
+    "aboveground biomass carbon forest-biomass geophysical pantropical tropical umd whrc"
+   ],
+   [
+    "WORLDCLIM/V1/BIO",
+    "WorldClim BIO Variables V1",
+    0,
+    1960,
+    1991,
+    "berkeley bioclim climate coldest diurnal driest isothermality monthly precipitation seasonality temperature warmest"
+   ],
+   [
+    "WORLDCLIM/V1/MONTHLY",
+    "WorldClim Climatology V1",
+    1,
+    1960,
+    1991,
+    "berkeley climate monthly precipitation temperature weather weather-and-climate worldclim"
+   ],
+   [
+    "WRI/Aqueduct_Flood_Hazard_Maps/V2",
+    "WRI Aqueduct Floods Hazard Maps Version 2",
+    1,
+    2010,
+    2080,
+    "flood monitoring surface-ground-water wri"
+   ],
+   [
+    "WRI/GFW/FORMA/alerts",
+    "FORMA Alerts",
+    0,
+    2012,
+    2019,
+    "daily deforestation fire forest forma gfw modis monitoring wri"
+   ],
+   [
+    "WRI/GFW/FORMA/raw_output_firms",
+    "FORMA Raw Output FIRMS",
+    1,
+    2017,
+    2019,
+    "daily deforestation fire forest forma gfw modis monitoring wri"
+   ],
+   [
+    "WRI/GFW/FORMA/raw_output_ndvi",
+    "FORMA Raw Output NDVI",
+    1,
+    2012,
+    2019,
+    "daily deforestation forest forest-biomass forma gfw modis monitoring wri"
+   ],
+   [
+    "WRI/GFW/FORMA/thresholds",
+    "FORMA Alert Thresholds",
+    0,
+    2012,
+    2016,
+    "daily deforestation fire forest forma gfw modis monitoring wri"
+   ],
+   [
+    "WRI/GFW/FORMA/vegetation_tstats",
+    "FORMA Vegetation T-Statistics",
+    1,
+    2012,
+    2019,
+    "daily deforestation forest forest-biomass forma gfw modis monitoring wri"
+   ],
+   [
+    "WRI/SBTN/naturalLands/v1/2020",
+    "SBTN Natural Lands Map v1",
+    0,
+    2020,
+    2020,
+    "ecosystems landcover landuse-landcover wri"
+   ],
+   [
+    "WRI/SBTN/naturalLands/v1_1/2020",
+    "SBTN Natural Lands Map v1.1",
+    0,
+    2020,
+    2020,
+    "ecosystems landcover landuse-landcover wri"
+   ],
+   [
+    "WWF/HydroSHEDS/03CONDEM",
+    "WWF HydroSHEDS Hydrologically Conditioned DEM, 3 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "conditioned dem elevation geophysical hydrography hydrology hydrosheds srtm surface-ground-water topography water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/03DIR",
+    "WWF HydroSHEDS Drainage Direction, 3 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "direction drainage flow geophysical hydrography hydrology hydrosheds srtm surface-ground-water water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/03VFDEM",
+    "WWF HydroSHEDS Void-Filled DEM, 3 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "dem elevation geophysical hydrography hydrology hydrosheds srtm surface-ground-water topography void-filled water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/15ACC",
+    "WWF HydroSHEDS Flow Accumulation, 15 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "accumulation drainage flow geophysical hydrography hydrology hydrosheds srtm surface-ground-water water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/15CONDEM",
+    "WWF HydroSHEDS Hydrologically Conditioned DEM, 15 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "conditioned dem elevation geophysical hydrography hydrology hydrosheds srtm surface-ground-water topography water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/15DIR",
+    "WWF HydroSHEDS Drainage Direction, 15 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "direction drainage flow geophysical hydrography hydrology hydrosheds srtm surface-ground-water water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/30ACC",
+    "WWF HydroSHEDS Flow Accumulation, 30 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "accumulation drainage flow geophysical hydrography hydrology hydrosheds srtm surface-ground-water water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/30CONDEM",
+    "WWF HydroSHEDS Hydrologically Conditioned DEM, 30 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "conditioned dem elevation geophysical hydrography hydrology hydrosheds srtm surface-ground-water topography water wwf"
+   ],
+   [
+    "WWF/HydroSHEDS/30DIR",
+    "WWF HydroSHEDS Drainage Direction, 30 Arc-Seconds",
+    0,
+    2000,
+    2000,
+    "direction drainage flow geophysical hydrography hydrology hydrosheds srtm surface-ground-water water wwf"
+   ],
+   [
+    "WorldPop/GP/100m/R2025A/v1/pop",
+    "WorldPop Global Project Population Data (R2025A): Estimated Residential Population per 100x100m Grid Square",
+    1,
+    2015,
+    2031,
+    "demography population worldpop"
+   ],
+   [
+    "WorldPop/GP/100m/pop_age_sex",
+    "WorldPop Global Project Population Data: Estimated Age and Sex Structures of Residential Population per 100x100m Grid Square",
+    1,
+    2020,
+    2021,
+    "demography population worldpop"
+   ],
+   [
+    "WorldPop/GP/100m/pop_age_sex_cons_unadj",
+    "WorldPop Global Project Population Data: Constrained Estimated Age and Sex Structures of Residential Population per 100x100m Grid Square",
+    1,
+    2020,
+    2021,
+    "demography population worldpop"
+   ],
+   [
+    "YALE/YCEO/UHI/Summer_UHI_yearly_pixel/v4",
+    "YCEO Surface Urban Heat Islands: Pixel-Level Composites of Yearly Summertime Daytime and Nighttime Intensity",
+    1,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "YALE/YCEO/UHI/UHI_all_averaged/v4",
+    "YCEO Surface Urban Heat Islands: Spatially-Averaged Daytime and Nighttime Intensity for Annual, Summer, and Winter",
+    0,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "YALE/YCEO/UHI/UHI_monthly_averaged/v4",
+    "YCEO Surface Urban Heat Islands: Spatially-Averaged Monthly Composites of Daytime and Nighttime Intensity",
+    0,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "YALE/YCEO/UHI/UHI_yearly_averaged/v4",
+    "YCEO Surface Urban Heat Islands: Spatially-Averaged Yearly Composites of Annual Daytime and Nighttime Intensity",
+    1,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "YALE/YCEO/UHI/UHI_yearly_pixel/v4",
+    "YCEO Surface Urban Heat Islands: Pixel-Level Annual Daytime and Nighttime Intensity",
+    1,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "YALE/YCEO/UHI/Winter_UHI_yearly_pixel/v4",
+    "YCEO Surface Urban Heat Islands: Pixel-Level Yearly Composites of Wintertime Daytime and Nighttime Intensity",
+    1,
+    2003,
+    2018,
+    "climate uhi urban weather-and-climate yale"
+   ],
+   [
+    "projects/climate-and-sustainability/assets/gem-15_v1",
+    "GEM-15: Near-Global Surface and Terrain Elevation Models (15m) (Experimental)",
+    1,
+    2025,
+    2025,
+    "dem elevation elevation-topography google height ml topography"
+   ],
+   [
+    "projects/climate-and-sustainability/assets/ghg/emit/mapl_emit_enhancements_v1_0",
+    "MAPL-EMIT: Modeled Methane Enhancement and Plume Probability",
+    1,
+    2022,
+    2026,
+    "atmosphere emit ghg methane"
+   ],
+   [
+    "projects/climate-and-sustainability/assets/ghg/emit/mapl_emit_plumes_v1_0",
+    "MAPL-EMIT: Modeled Methane Plumes",
+    1,
+    2022,
+    2026,
+    "atmosphere emit ghg methane"
+   ],
+   [
+    "projects/edf-methanesat-ee/assets/mair/L3concentration",
+    "MethaneAIR L3 Concentration V1.1.0",
+    1,
+    2025,
+    2025,
+    "atmosphere climate edf emissions ghg methane methaneair methanesat"
+   ],
+   [
+    "projects/edf-methanesat-ee/assets/msat/L3concentration",
+    "MethaneSAT L3 Concentration V1.0.0",
+    1,
+    2024,
+    2025,
+    "atmosphere climate edf emissions ghg methane methanesat"
+   ],
+   [
+    "projects/edf-methanesat-ee/assets/msat/L4area",
+    "MethaneSAT L4 Area Sources V1.0.0",
+    1,
+    2024,
+    2025,
+    "atmosphere climate edf emissions ghg methane methanesat"
+   ],
+   [
+    "projects/ee-earth-timelapse/assets/annual",
+    "Earth Timelapse v0",
+    1,
+    1984,
+    2022,
+    "copernicus global google landsat-derived satellite-imagery sentinel2-derived"
+   ],
+   [
+    "projects/ee-pkurelab/assets/LHScat",
+    "LHScat:A global long-term, high-resolution satellite radar backscatter datasets",
+    1,
+    1992,
+    2021,
+    "ascat c-bands ers ku-band qscat radar satellite-imagery"
+   ],
+   [
+    "projects/ee-pkurelab/assets/LHScatQC",
+    "LHScat Quality Control",
+    0,
+    1992,
+    2021,
+    "ascat c-bands ers ku-band qscat radar satellite-imagery"
+   ],
+   [
+    "projects/forestdatapartnership/assets/cocoa/model_2026a",
+    "Cocoa Probability model 2026a",
+    1,
+    2018,
+    2024,
+    "agriculture alphaearth-derived biodiversity cocoa conservation crop eudr landuse plantation"
+   ],
+   [
+    "projects/forestdatapartnership/assets/coffee/model_2026a",
+    "Coffee Probability model 2026a",
+    1,
+    2018,
+    2024,
+    "agriculture alphaearth-derived biodiversity coffee conservation crop eudr landuse plantation"
+   ],
+   [
+    "projects/forestdatapartnership/assets/community_forests/ForestPersistence_2020",
+    "Forest Persistence v0",
+    0,
+    2020,
+    2020,
+    "biodiversity conservation deforestation eudr forest-biomass primary-forest undisturbed-forest"
+   ],
+   [
+    "projects/forestdatapartnership/assets/palm/model_2026a",
+    "Palm Probability model 2026a",
+    1,
+    2018,
+    2024,
+    "agriculture alphaearth-derived biodiversity conservation crop eudr landuse palm plantation"
+   ],
+   [
+    "projects/forestdatapartnership/assets/rubber/model_2026a",
+    "Rubber Probability model 2026a",
+    1,
+    2018,
+    2024,
+    "agriculture alphaearth-derived biodiversity conservation crop eudr landuse plantation rubber"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/PARDIG_1_LR",
+    "PARDIG LR (Long-Record)",
+    1,
+    1999,
+    2023,
+    "climate flood gpm hydrology meteorology pardig precipitation radar rain rainfall satellite snowfall"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/PARDIG_1_NRT",
+    "PARDIG NRT (Near-Real-Time)",
+    1,
+    2016,
+    null,
+    "climate flood gpm hydrology meteorology pardig precipitation radar rain rainfall satellite satweave"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/weathernext_2_0_0",
+    "WeatherNext 2",
+    1,
+    2022,
+    null,
+    "cyclones fgn forecast precipitation temperature weather weather-and-climate weathernext wind"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/weathernext_2_0_0_mean",
+    "WeatherNext 2 Mean",
+    1,
+    2022,
+    null,
+    "forecast precipitation temperature weather weather-and-climate weathernext wind"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/weathernext_3_0_0_0p05deg",
+    "WeatherNext 3 (0.05&deg;)",
+    1,
+    2024,
+    null,
+    "flood forecast humidity precipitation temperature weather weather-and-climate weathernext wind"
+   ],
+   [
+    "projects/gcp-public-data-weathernext/assets/weathernext_3_0_0_0p1deg",
+    "WeatherNext 3 (0.1&deg;)",
+    1,
+    2024,
+    null,
+    "flood forecast humidity precipitation temperature weather weather-and-climate weathernext wind"
+   ],
+   [
+    "projects/gcpm041u-lemur/assets/scanfi_v12/SCANFI_v1_2",
+    "SCANFI: the Spatialized CAnadian National Forest Inventory data product1.2",
+    0,
+    2020,
+    2021,
+    "canada forest forest-biomass tree-cover"
+   ],
+   [
+    "projects/global-pasture-watch/assets/ggc-30m/v1/cultiv-grassland_p",
+    "GPW Annual Probabilities of Cultivated Grasslands v1",
+    1,
+    2000,
+    2023,
+    "global land landcover landuse landuse-landcover pasture rangeland vegetation"
+   ],
+   [
+    "projects/global-pasture-watch/assets/ggc-30m/v1/grassland_c",
+    "GPW Annual Dominant Class of Grasslands v1",
+    1,
+    2000,
+    2023,
+    "global land landcover landuse landuse-landcover pasture rangeland vegetation"
+   ],
+   [
+    "projects/global-pasture-watch/assets/ggc-30m/v1/nat-semi-grassland_p",
+    "GPW Annual Probabilities of Natural/Semi-natural Grasslands v1",
+    1,
+    2000,
+    2023,
+    "global land landcover landuse landuse-landcover pasture rangeland vegetation"
+   ],
+   [
+    "projects/global-pasture-watch/assets/ggpp-30m/v1/ugpp_m",
+    "GPW Annual uncalibrated Gross Primary Productivity (uGPP) v1",
+    1,
+    2000,
+    2024,
+    "global land landcover landuse plant-productivity vegetation"
+   ],
+   [
+    "projects/global-pasture-watch/assets/gld-1km/v1/livestock-headcount-faostat_m",
+    "GPW Annual livestock headcount FAOSTAT-adjusted v1",
+    1,
+    2000,
+    2022,
+    "agriculture global gpw land landuse pasture rangeland"
+   ],
+   [
+    "projects/global-pasture-watch/assets/gsvh-30m/v1/short-veg-height_m",
+    "GPW Annual short vegetation height v1",
+    1,
+    2000,
+    2025,
+    "canopy global land landcover plant-productivity vegetation"
+   ],
+   [
+    "projects/global-precipitation-nowcast/assets/global_estimation",
+    "Oya: 5km Quasi-Global Precipitation Estimates",
+    1,
+    2004,
+    2026,
+    "climate geophysical gpm precipitation weather"
+   ],
+   [
+    "projects/gtac-data-publish/assets/LCMS/Product_Version/2025-11",
+    "USFS Landscape Change Monitoring System v2025-11 (CONUS and OCONUS)",
+    1,
+    1985,
+    2025,
+    "change-detection forest fsic-go gtac landcover landuse landuse-landcover redcastle-resources usda usfs"
+   ],
+   [
+    "projects/gtac-data-publish/assets/TCC/Product_Version/2025-6",
+    "USFS Tree Canopy Cover v2025-6 (CONUS and OCONUS)",
+    1,
+    1985,
+    2025,
+    "forest fsic-go gtac landuse-landcover redcastle-resources tree-cover usda usfs usgs"
+   ],
+   [
+    "projects/gtac-data-publish/assets/TreeMap/Product_Version/2023-1",
+    "USFS TreeMap 2023-1",
+    1,
+    2016,
+    2023,
+    "aboveground biomass carbon climate-change conus forest forest-biomass forest-inventory-and-analysis forest-type fsic-go gtac landcover"
+   ],
+   [
+    "projects/landandcarbon/assets/wri_gdm_drivers_forest_loss_1km/v1_1_2001_2023",
+    "WRI/Google DeepMind Global Drivers of Forest Loss 2001-2023 v1.1",
+    0,
+    2001,
+    2024,
+    "agriculture deforestation forest forest-biomass google landuse wri"
+   ],
+   [
+    "projects/landandcarbon/assets/wri_gdm_drivers_forest_loss_1km/v1_2001_2022",
+    "WRI/Google DeepMind Global Drivers of Forest Loss 2001-2022 v1.0",
+    0,
+    2001,
+    2023,
+    "agriculture deforestation forest forest-biomass google landuse wri"
+   ],
+   [
+    "projects/landandcarbon/assets/wri_gdm_drivers_forest_loss_1km/v1_2_2001_2024",
+    "WRI/Google DeepMind Global Drivers of Forest Loss 2001-2024 v1.2",
+    0,
+    2001,
+    2025,
+    "agriculture deforestation forest forest-biomass google landuse wri"
+   ],
+   [
+    "projects/landandcarbon/assets/wri_gdm_drivers_forest_loss_1km/v1_3_2001_2025",
+    "WRI/Google DeepMind Global Drivers of Forest Loss 2001-2025 v1.3",
+    0,
+    2001,
+    2026,
+    "agriculture deforestation forest forest-biomass google landuse wri"
+   ],
+   [
+    "projects/malariaatlasproject/assets/EVI_v061/1km/8-Daily",
+    "EVI: Malaria Atlas Project Gap-Filled Enhanced Vegetation Index (8-Daily 1km)",
+    1,
+    2001,
+    2024,
+    "evi map vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/EVI_v061/1km/Annual",
+    "EVI: Malaria Atlas Project Gap-Filled Enhanced Vegetation Index (Annual 1km)",
+    1,
+    2001,
+    2024,
+    "evi map vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/EVI_v061/1km/Monthly",
+    "EVI: Malaria Atlas Project Gap-Filled Enhanced Vegetation Index (Monthly 1km)",
+    1,
+    2001,
+    2024,
+    "evi map vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Day_v061/1km/8-Daily",
+    "LST Day: Malaria Atlas Project Gap-Filled Daytime Land Surface Temperature (8-Daily 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Day_v061/1km/Annual",
+    "LST Day: Malaria Atlas Project Gap-Filled Daytime Land Surface Temperature (Annual 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Day_v061/1km/Monthly",
+    "LST Day: Malaria Atlas Project Gap-Filled Daytime Land Surface Temperature (Monthly 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Night_v061/1km/8-Daily",
+    "LST Night: Malaria Atlas Project Gap-Filled Nighttime Land Surface Temperature (8-Daily 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Night_v061/1km/Annual",
+    "LST Night: Malaria Atlas Project Gap-Filled Nighttime Land Surface Temperature (Annual 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/LST_Night_v061/1km/Monthly",
+    "LST Night: Malaria Atlas Project Gap-Filled Nighttime Land Surface Temperature (Monthly 1km)",
+    1,
+    2001,
+    2024,
+    "lst map surface-temperature weather-and-climate"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCB_v061/1km/8-Daily",
+    "TCB: Malaria Atlas Project Gap-Filled Tasseled Cap Brightness (8-Daily 1km)",
+    1,
+    2001,
+    2024,
+    "brightness map tasseled-cap tcb vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCB_v061/1km/Annual",
+    "TCB: Malaria Atlas Project Gap-Filled Tasseled Cap Brightness (Annual 1km)",
+    1,
+    2001,
+    2024,
+    "brightness map tasseled-cap tcb vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCB_v061/1km/Monthly",
+    "TCB: Malaria Atlas Project Gap-Filled Tasseled Cap Brightness (Monthly 1km)",
+    1,
+    2001,
+    2024,
+    "brightness map tasseled-cap tcb vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCW_v061/1km/8-Daily",
+    "TCW: Malaria Atlas Project Gap-Filled Tasseled Cap Wetness (8-Daily 1km)",
+    1,
+    2001,
+    2024,
+    "map tasseled-cap tcw vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCW_v061/1km/Annual",
+    "TCW: Malaria Atlas Project Gap-Filled Tasseled Cap Wetness (Annual 1km)",
+    1,
+    2001,
+    2024,
+    "map tasseled-cap tcw vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/TCW_v061/1km/Monthly",
+    "TCW: Malaria Atlas Project Gap-Filled Tasseled Cap Wetness (Monthly 1km)",
+    1,
+    2001,
+    2024,
+    "map tasseled-cap tcw vegetation vegetation-indices"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/accessibility_to_cities/2015_v1_0",
+    "Malaria Atlas Project Accessibility to Cities 2015",
+    0,
+    2015,
+    2016,
+    "accessibility map population"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019",
+    "Malaria Atlas Project Accessibility to Healthcare 2019",
+    0,
+    2019,
+    2020,
+    "accessibility map population"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/accessibility_to_healthcare/2019_walking_only",
+    "Malaria Atlas Project Accessibility to Healthcare 2019 (Walking Only)",
+    0,
+    2019,
+    2020,
+    "accessibility map population"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/friction_surface/2015_v1_0",
+    "Malaria Atlas Project Global Friction Surface 2015",
+    0,
+    2015,
+    2016,
+    "accessibility map population"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/friction_surface/2019_v5_1",
+    "Malaria Atlas Project Global Friction Surface 2019",
+    0,
+    2019,
+    2020,
+    "accessibility map population"
+   ],
+   [
+    "projects/malariaatlasproject/assets/accessibility/friction_surface/2019_v5_1_walking_only",
+    "Malaria Atlas Project Global Friction Surface 2019 (Walking Only)",
+    0,
+    2019,
+    2020,
+    "accessibility map population"
+   ],
+   [
+    "projects/mangrovedatahub2/assets/CGMD-AFCC30",
+    "Global Annual Mangrove Fractional Canopy Cover (1984-2023)",
+    1,
+    1984,
+    2023,
+    "annual coastal forest-biomass global landsat-derived mangrove vegetation-indices wetland"
+   ],
+   [
+    "projects/mapbiomas-public/assets/bolivia/lulc/v1",
+    "MapBiomas Land Use and Land Cover - Bolivia V1.0",
+    1,
+    1985,
+    2024,
+    "landsat-derived landuse-landcover"
+   ],
+   [
+    "projects/mapbiomas-public/assets/brazil/lulc/v1",
+    "MapBiomas Land Use and Land Cover - Brazil V1.0",
+    1,
+    1985,
+    2024,
+    "landsat-derived landuse-landcover"
+   ],
+   [
+    "projects/mapbiomas-public/assets/ecuador/lulc/v1",
+    "MapBiomas Land Use and Land Cover - Ecuador V1.0",
+    1,
+    1985,
+    2024,
+    "landsat-derived landuse-landcover"
+   ],
+   [
+    "projects/nature-trace/assets/farmscapes/england_v1_0",
+    "Farmscapes 2020",
+    1,
+    2018,
+    2020,
+    "biodiversity climate conservation ecological-connectivity forest landuse-landcover"
+   ],
+   [
+    "projects/nature-trace/assets/forest_typology/forest_typology_2020_v1_0_collection",
+    "Forest Typology (ForTy) 2020 v1.0",
+    1,
+    2020,
+    2020,
+    "alphaearth-derived biodiversity climate conservation deforestation eudr forest forest-biomass"
+   ],
+   [
+    "projects/nature-trace/assets/forest_typology/natural_forest_2020_v1_0_collection",
+    "Natural Forests of the World 2020",
+    1,
+    2020,
+    2020,
+    "biodiversity climate conservation deforestation eudr forest forest-biomass"
+   ],
+   [
+    "projects/nature-trace/assets/species_distribution_models/australia_mammals/v0",
+    "Species Distribution, Australia Mammals",
+    0,
+    2017,
+    2025,
+    "alphaearth-derived biodiversity conservation ecosystems species"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/CHM/001",
+    "NEON Canopy Height Model (CHM)",
+    1,
+    2013,
+    2026,
+    "airborne canopy forest forest-biomass highres lidar neon vegetation"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/CNC/002",
+    "NEON Canopy Nitrogen Content (CNC)",
+    1,
+    2013,
+    2021,
+    "airborne canopy forest highres hyperspectral neon nitrogen plant-productivity surface-reflectance vegetation"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/DEM/001",
+    "NEON Digital Elevation Model (DEM)",
+    1,
+    2013,
+    2026,
+    "airborne dem elevation-topography forest highres lidar neon vegetation"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/HSI_REFL/001",
+    "NEON Surface Directional Reflectance",
+    1,
+    2013,
+    2021,
+    "airborne forest hyperspectral neon satellite-imagery surface-reflectance vegetation"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/HSI_REFL/002",
+    "NEON Surface Bidirectional Reflectance",
+    1,
+    2013,
+    null,
+    "airborne forest highres hyperspectral neon satellite-imagery surface-reflectance vegetation"
+   ],
+   [
+    "projects/neon-prod-earthengine/assets/RGB/001",
+    "NEON RGB Camera Imagery",
+    1,
+    2013,
+    2026,
+    "airborne forest highres neon orthophoto orthophotos rgb vegetation"
+   ],
+   [
+    "projects/ngis-cat/assets/DEA/NIDEM",
+    "Preview National Intertidal Digital Elevation Model 25m 1.0.0",
+    0,
+    1986,
+    2017,
+    "australia dem elevation-topography ga"
+   ],
+   [
+    "projects/openet/assets/disalexi/conus/gridmet/monthly/v2_0",
+    "OpenET DisALEXI Monthly Evapotranspiration v2.0",
+    1,
+    2001,
+    2025,
+    "evapotranspiration landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/disalexi/conus/gridmet/monthly/v2_1",
+    "OpenET DisALEXI Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/eemetric/conus/gridmet/monthly/v2_0",
+    "OpenET eeMETRIC Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/eemetric/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET eeMETRIC Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/eemetric/conus/gridmet/monthly/v2_1",
+    "OpenET eeMETRIC Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ensemble/conus/gridmet/monthly/v2_0",
+    "OpenET Ensemble Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ensemble/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET Ensemble Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ensemble/conus/gridmet/monthly/v2_1",
+    "OpenET Ensemble Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/geesebal/conus/gridmet/monthly/v2_0",
+    "OpenET geeSEBAL Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/geesebal/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET geeSEBAL Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/geesebal/conus/gridmet/monthly/v2_1",
+    "OpenET geeSEBAL Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ptjpl/conus/gridmet/monthly/v2_0",
+    "OpenET PT-JPL Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ptjpl/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET PT-JPL Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ptjpl/conus/gridmet/monthly/v2_1",
+    "OpenET PT-JPL Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/sims/conus/gridmet/monthly/v2_0",
+    "OpenET SIMS Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/sims/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET SIMS Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/sims/conus/gridmet/monthly/v2_1",
+    "OpenET SIMS Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ssebop/conus/gridmet/monthly/v2_0",
+    "OpenET SSEBop Monthly Evapotranspiration v2.0",
+    1,
+    1999,
+    2025,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ssebop/conus/gridmet/monthly/v2_0_pre2000",
+    "OpenET SSEBop Monthly Evapotranspiration v2.0 (1985-1999)",
+    1,
+    1984,
+    1999,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/openet/assets/ssebop/conus/gridmet/monthly/v2_1",
+    "OpenET SSEBop Monthly Evapotranspiration v2.1",
+    1,
+    2015,
+    null,
+    "evapotranspiration gridmet-derived landsat-derived monthly openet water water-vapor"
+   ],
+   [
+    "projects/planet-nicfi/assets/basemaps/africa",
+    "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Africa",
+    1,
+    2015,
+    null,
+    "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
+   ],
+   [
+    "projects/planet-nicfi/assets/basemaps/americas",
+    "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Americas",
+    1,
+    2015,
+    null,
+    "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
+   ],
+   [
+    "projects/planet-nicfi/assets/basemaps/asia",
+    "NICFI Satellite Data Program Basemaps for Tropical Forest Monitoring - Asia",
+    1,
+    2015,
+    null,
+    "basemaps forest nicfi planet satellite-imagery sr surface-reflectance tropics"
+   ],
+   [
+    "projects/pml_evapotranspiration/PML/OUTPUT/PML_V22a",
+    "PML_V2.2a: Coupled Evapotranspiration and Gross Primary Product (MODIS Edition)",
+    1,
+    2000,
+    2024,
+    "evapotranspiration gpp plant-productivity water-vapor"
+   ],
+   [
+    "projects/pml_evapotranspiration/PML/OUTPUT/PML_V22a_VIIRS",
+    "PML_V2.2a: Coupled Evapotranspiration and Gross Primary Product (VIIRS Edition)",
+    1,
+    2012,
+    2025,
+    "evapotranspiration gpp plant-productivity water-vapor"
+   ],
+   [
+    "projects/sat-io/open-datasets/GLOBathy/GLOBathy_bathymetry",
+    "GLOBathy Global lakes bathymetry dataset",
+    0,
+    2022,
+    2022,
+    "bathymetry hydrology lake surface-ground-water"
+   ],
+   [
+    "projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL",
+    "LandScan Population Data Global 1km",
+    1,
+    2000,
+    2023,
+    "demography landscan population"
+   ],
+   [
+    "projects/sat-io/open-datasets/us-drought-monitor",
+    "United States Drought Monitor",
+    1,
+    2000,
+    null,
+    "drought ndmc noaa precipitation usda"
+   ]
+  ],
+  "downloaded": "2026-11-14"
+ },
  "landcover": {
   "classes": [
    {
@@ -6937,6 +13294,35 @@ var MonitorEO = (function () {
 		return c ? (c[lang] || c.en) : key;
 	}
 
+	// The search of the Earth Engine data catalog (services.find_datasets, monitoreo.eecatalog), in its slim copy of
+	// catalog.js (build.py: eecatalogIndex): the words of TEXT, at least half of them, in the title or ID (3 points
+	// each) or the keywords (1), those with most words first; the collections of images with data in the years FIRST
+	// to LAST (the images, fixed layers without dates, whatever their dates); at most LIMIT
+	function catalogLow(text) {
+		return String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+			.replace(/[^a-z0-9.\-_/]+/g, ' ').trim();
+	}
+
+	function searchCatalog(text, first, last, limit) {
+		var words = catalogLow(text).split(' ').filter(Boolean);
+		var found = [];
+		((CATALOG.eecatalog || {}).datasets || []).forEach(function (d, i) {
+			if (d[2] && first && d[4] !== null && d[4] !== undefined && d[4] < first) return;
+			if (d[2] && last && d[3] !== null && d[3] !== undefined && d[3] > last) return;
+			var head = catalogLow(d[1] + ' ' + d[0]), tail = catalogLow(d[5]), n = 0, score = 0;
+			words.forEach(function (w) {
+				if (head.indexOf(w) >= 0) { n++; score += 3; } else if (tail.indexOf(w) >= 0) { n++; score += 1; }
+			});
+			if (words.length && n * 2 < words.length) return;
+			found.push([n, score, i, d]);
+		});
+		found.sort(function (a, b) { return b[0] - a[0] || b[1] - a[1] || a[2] - b[2]; });
+		return found.slice(0, limit || 20).map(function (f) {
+			var d = f[3];
+			return {id: d[0], title: d[1], type: d[2] ? 'image_collection' : 'image', first: d[3], last: d[4]};
+		});
+	}
+
 	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
 	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
 	// (that of the whole period would be that of all the steps, as many times bigger as they are)
@@ -7782,6 +14168,7 @@ var MonitorEO = (function () {
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
 		broadTransitions: broadTransitions, ZONE_STATS: ZONE_STATS, zoneStats: zoneStats, zoneRows: zoneRows,
 		transectCuts: transectCuts, transectStats: transectStats, transectRows: transectRows,
+		searchCatalog: searchCatalog,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
 		animationRange: animationRange,
@@ -7873,6 +14260,9 @@ var MonitorEO = (function () {
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
 			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
 			doy: 'Una l\u00ednea por a\u00f1o, sobre los d\u00edas del a\u00f1o', dayOfYear: 'D\u00eda del a\u00f1o',
+			catalogSearch: 'Buscar en el cat\u00e1logo de Earth Engine', catalogHint: 'palabras en ingl\u00e9s, p. ej. snow cover',
+			catalogFound: '%s conjuntos (colecciones con datos en el periodo, im\u00e1genes fijas de cualquier fecha): elige uno',
+			catalogNone: 'Ninguno: prueba otras palabras en ingl\u00e9s.',
 			swipe: 'Cortina: los dos periodos lado a lado', oneMap: 'Volver a un mapa',
 			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
@@ -8035,6 +14425,9 @@ var MonitorEO = (function () {
 				'with the Python package, QGIS or the assistant (timelapse).',
 			animGif: 'Download the GIF', animSlider: 'Frame on the map',
 			doy: 'A line per year, over the days of the year', dayOfYear: 'Day of the year',
+			catalogSearch: 'Search the Earth Engine data catalog', catalogHint: 'words in English, e.g. snow cover',
+			catalogFound: '%s datasets (collections with data in the period, fixed images of any date): choose one',
+			catalogNone: 'None: try other words in English.',
 			swipe: 'Swipe: the two periods side by side', oneMap: 'Back to one map',
 			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
@@ -8184,6 +14577,7 @@ var MonitorEO = (function () {
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
 		// its band, use (collection or image), scale, offset and unit as written, why the last ID could not be read
 		// (error), and the theme and dataset of the GEE Community Catalog chosen
+		catalogText: '', catalogFound: null,  // the search of the Earth Engine data catalog (theme earth_engine)
 		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
 			band: null, scale: '', offset: '', unit: '', title: null, source: null, page: null, licence: null,
 			error: null, communityTheme: null, communityId: null}
@@ -8615,9 +15009,34 @@ var MonitorEO = (function () {
 
 	// The data of Earth Engine by its ID: the ID and Read, then what it is (title, source, licence and page), its band,
 	// its use (images with dates or a fixed image), the scale and offset of its stored values and their unit
+	// The search of the Earth Engine data catalog (its copy in catalog.js: without Earth Engine): the collections with
+	// data in the years of the period, the images (fixed) whatever their dates; the dataset chosen is read as an ID written
+	function catalogWidgets() {
+		var w = [header(t('catalogSearch'))];
+		var box = ui.Textbox({placeholder: t('catalogHint'), value: state.catalogText,
+			onChange: function (v) { state.catalogText = v; }, style: {width: '250px'}});
+		w.push(row(box, button(t('search'), function () {
+			var years = state.period.map(function (d) { return Number(String(d).slice(0, 4)); });
+			state.catalogFound = mo.searchCatalog(box.getValue(), years[0], years[1], 30);
+			render();
+		})));
+		var found = state.catalogFound;
+		if (found && !found.length) w.push(ui.Label(t('catalogNone'), SMALL));
+		if (found && found.length) {
+			w.push(ui.Label(fmt(t('catalogFound'), found.length), SMALL));
+			w.push(select(found.map(function (d) {
+				return {value: d.id, label: d.title + ' (' + (d.first || '?') + '-' + (d.last || '\u2026') + ')'};
+			}), null, function (v) {
+				state.data.text = v;
+				readAsset(v);
+			}, '330px'));
+		}
+		return w;
+	}
+
 	function dataWidgets() {
 		var d = state.data;
-		var w = state.theme === 'community' ? communityWidgets() : [];
+		var w = state.theme === 'community' ? communityWidgets() : state.theme === 'earth_engine' ? catalogWidgets() : [];
 		w.push(header(t('assetId')));
 		var id = ui.Textbox({placeholder: t('assetHint'), value: d.text, onChange: function (v) { d.text = v; },
 			style: {width: '250px'}});

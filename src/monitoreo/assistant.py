@@ -100,7 +100,7 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'describe_asset', 'community_themes',
-          'community_datasets', 'landcover_maps')  # their answers go to the model
+          'community_datasets', 'landcover_maps', 'find_datasets')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
@@ -175,6 +175,7 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'describe_asset': 'Reading the description of {asset} in Earth Engine',
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
+          'find_datasets': 'Searching the Earth Engine data catalog for «{text}»',
           'landcover_maps': 'Looking at the land cover maps of the land cover masks'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
@@ -260,8 +261,9 @@ Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-19
 without dates, like the elevation.
 - Other data of Earth Engine, outside the catalog: any image or collection of images of Earth Engine by its ID (the \
 path of its asset), instead of variable and sensor, when the user asks for it or no variable of the catalog fits. \
-Never make up an ID: the user gives it, or community_themes and community_datasets find those of the GEE Community \
-Catalog by theme or word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
+Never make up an ID: the user gives it, find_datasets finds those of the Earth Engine data catalog (by words in \
+English, dates and area), and community_themes and community_datasets those of the GEE Community Catalog by theme or \
+word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
 maps, series, trends and comparisons) or as image (a fixed layer without dates, like the elevation: maps, their \
 statistics and downloads only, without start and end), its bands with their scale, offset and unit, and the arguments \
 to pass (band, one; band_scale, band_offset, unit in UDUNITS). With terrain, "slope" or "aspect" of the band of an \
@@ -691,6 +693,16 @@ def data_text(tool, text, limit=None):
 		if limit and len(head) + len(rest) > limit:  # said first, as the end of the list is cut
 			head += '; only the first ones fit here: narrow the list with text or kind'
 		return head + rest
+	if tool == 'find_datasets' and isinstance(r, list):  # a line each: ID, type, dates, pixel, title and page
+		lines = [f"- {d.get('id')} ({'image collection' if d.get('type') == 'image_collection' else 'image'}, "
+		         f"{d.get('start') or '?'} to {d.get('end') or 'now'}"
+		         + (f", pixel {d['gsd']:g} m" if isinstance(d.get('gsd'), (int, float)) else '')
+		         + f"): {d.get('title', '')}; {d.get('page', '')}" for d in r if isinstance(d, dict)]
+		if not lines:
+			return ('No dataset of the Earth Engine data catalog with those words, dates and area: try other words in '
+			        'English, or fewer of them.')
+		return (f'{len(lines)} datasets of the Earth Engine data catalog, the best first; describe_asset tells whether '
+		        'one goes as collection or image, and its bands:\n' + '\n'.join(lines))
 	return text
 
 
@@ -1659,7 +1671,7 @@ class Assistant:
 					if units_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
 						self.waiting = True
 						text += ASK_AND_WAIT
-			if name in ('describe_asset', 'community_datasets'):
+			if name in ('describe_asset', 'community_datasets', 'find_datasets'):
 				text = data_text(name, text, self.advice_limit())
 			self._tool_message(name, text[:self.advice_limit()])
 			return

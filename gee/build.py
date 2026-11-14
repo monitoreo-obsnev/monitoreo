@@ -33,7 +33,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
-from monitoreo import __released__, __version__, about, catalog, community, sensors, services  # noqa: E402
+from monitoreo import __released__, __version__, about, catalog, community, eecatalog, sensors, services  # noqa: E402
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
@@ -60,6 +60,20 @@ def logo(path, width):
 	kind = 'jpeg' if img.mode == 'RGB' else 'png'
 	img.save(buf, kind, **({'quality': 90} if kind == 'jpeg' else {'optimize': True}))
 	return f'data:image/{kind};base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def eecatalog_index():
+	"""The copy of the index of the Earth Engine data catalog (monitoreo.eecatalog) for the app, slim: each image or
+	collection of images as [id, title, 1 if a collection of images (0: an image), first year, last year (None: it
+	goes on, its last image at most eecatalog.OPEN days older than the copy or eecatalog.AHEAD days after it),
+	keywords (with spaces)], in the order of the index (see searchCatalog in core.js). Without their descriptions,
+	which the app does not search."""
+	rows = []
+	for d in eecatalog.load()['datasets']:
+		rows.append([d['id'], d['title'], 1 if d['type'] == 'image_collection' else 0,
+		             int(d['start'][:4]) if d.get('start') else None, int(d['end'][:4]) if d.get('end') else None,
+		             ' '.join(d.get('keywords') or [])])
+	return {'downloaded': eecatalog.load().get('downloaded'), 'datasets': rows}
 
 
 def community_index():
@@ -144,6 +158,9 @@ def main():
 	parser.add_argument('--project', help='Earth Engine project (default: EE_PROJECT)')
 	parser.add_argument('--app-only', action='store_true',
 	                    help='only write monitoreo_app.js, from the catalog.js there is (without Earth Engine)')
+	parser.add_argument('--indexes-only', action='store_true',
+	                    help='write the indexes of catalog.js again (the GEE Community Catalog and the Earth Engine data '
+	                         'catalog) and monitoreo_app.js, without Earth Engine: after refreshing them')
 	parser.add_argument('--about-only', action='store_true',
 	                    help='write the about of catalog.js again (version, date of the release, links of suggestions; '
 	                         'its logos as they were) and monitoreo_app.js, without Earth Engine: at each release')
@@ -151,6 +168,15 @@ def main():
 	if args.app_only:
 		app()
 		print('wrote monitoreo_app.js (catalog.js as it was)')
+		return
+	if args.indexes_only:
+		data = read_catalog()
+		data['community'] = community_index()
+		data['eecatalog'] = eecatalog_index()
+		write_catalog(data)
+		app()
+		print(f"wrote the indexes of catalog.js ({len(data['eecatalog']['datasets'])} datasets of the Earth Engine data "
+		      'catalog) and monitoreo_app.js')
 		return
 	if args.about_only:
 		data = read_catalog()
@@ -162,7 +188,8 @@ def main():
 	services.init(args.project)
 	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
 	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
-	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index()}
+	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index(),
+	        'eecatalog': eecatalog_index()}
 	write_catalog(data)
 	app()
 	print(f"{len(data['variables'])} variables and {len(data['community']['datasets'])} datasets of the GEE Community "

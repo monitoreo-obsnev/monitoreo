@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
 from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle, QgsSettings  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
-from qgis.PyQt.QtCore import Qt  # noqa: E402
+from qgis.PyQt.QtCore import QDate, Qt  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
 from qgis.PyQt.QtWidgets import QMainWindow, QPushButton, QTableWidget  # noqa: E402
 
@@ -384,6 +384,34 @@ wait()
 assert calls[-1]['doy'] is False  # a value per year: no line per year
 dock.doy.setChecked(False)
 print('series by day of the year:', sorted(chart.series))
+
+# the search of the Earth Engine data catalog, in the theme of the data by its ID (the copy of its index)
+dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
+assert dock.search_row.isVisibleTo(dock) and not dock.community_row.isVisibleTo(dock)
+dock.catalog_text.setText('snow cover')
+read = []
+dock.read_asset = lambda asset=None: read.append(asset)
+dock.search_catalog()
+assert dock.catalog_found.count() > 0 and 'MODIS/061/MOD10A1' in [dock.catalog_found.itemData(i)
+                                                                  for i in range(dock.catalog_found.count())]
+dock.catalog_chosen(0)
+assert dock.asset_id.text() == dock.catalog_found.itemData(0) and read == [dock.asset_id.text()]
+print('catalog search:', dock.catalog_found.count(), 'datasets, first', dock.catalog_found.itemData(0))
+# the images (fixed layers) whatever the Period, and the map view zoomed out beyond the world (a project in EPSG:4326):
+# within the world, not an error about a bbox nobody wrote
+dock.region_kind.setCurrentIndex(dock.region_kind.findData('extent'))
+iface.canvas.setDestinationCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
+iface.canvas.setExtent(QgsRectangle(-200, -110, 200, 110))
+assert iface.canvas.extent().xMinimum() < -180 and iface.canvas.extent().yMinimum() < -90
+dock.start.setDate(QDate(2020, 1, 1))
+dock.end.setDate(QDate(2021, 12, 31))
+dock.catalog_text.setText('worldclim')
+before = len(messages)
+dock.search_catalog()
+assert len(messages) == before, messages[before:]
+assert 'WORLDCLIM/V1/BIO' in [dock.catalog_found.itemData(i) for i in range(dock.catalog_found.count())]
+print('catalog search, world view and fixed images:', dock.catalog_found.count(), 'datasets')
+dock.theme.setCurrentIndex(dock.theme.count() - 1)
 
 # the figure: a print layout of the canvas with its map, grid, legend, scale bar, north arrow, title and credits
 from qgis.core import QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar  # noqa: E402

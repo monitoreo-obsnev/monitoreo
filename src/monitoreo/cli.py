@@ -37,6 +37,9 @@
                                                      compare); image and stats also take --image ID (a fixed image,
                                                      without dates) and
                                                      --terrain slope|aspect (in degrees: its unit is then degree)
+    monitoreo datasets [TEXT] [--start D] [--end D] [--bbox W S E N] [--kind image|image_collection] [--limit N]
+                                                     search the Earth Engine data catalog by words (in English), dates
+                                                     and area (without Earth Engine)
     monitoreo asset ID                              what an image or collection of Earth Engine is (type, bands,
                                                      units, scale, dates, how to cite it), to give it with --collection
                                                      or --image and --band
@@ -239,6 +242,20 @@ def _table(rows, cols):
 		print('  '.join(str(r.get(c, '')).ljust(widths[c]) for c in cols))
 
 
+def _bbox_args(argv):
+	"""ARGV with --bbox=W,S,E,N and --bbox W,S,E,N as --bbox W S E N: argparse reads -3.6,36.9,... (a west below 0) as
+	an option, but -3.6 alone as a number."""
+	out = []
+	for a in argv:
+		if a.startswith('--bbox='):
+			out += ['--bbox'] + a[len('--bbox='):].split(',')
+		elif out and out[-1] == '--bbox' and ',' in a:
+			out += a.split(',')
+		else:
+			out.append(a)
+	return out
+
+
 def main(argv=None):
 	from . import about
 	parser = argparse.ArgumentParser(prog='monitoreo', description=about.DESCRIPTION['en'],
@@ -269,6 +286,17 @@ def main(argv=None):
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
 	                                 'scale, dates and how to cite it (reads its metadata in Earth Engine)')
 	p.add_argument('asset', metavar='ID', help="its ID, as in ee.ImageCollection('ID') (e.g. IDAHO_EPSCOR/TERRACLIMATE)")
+	p = sub.add_parser('datasets', help='search the Earth Engine data catalog by words (in English), dates and area '
+	                                    '(without Earth Engine)')
+	p.add_argument('text', nargs='*', help='words of its title, ID, keywords or description, e.g. snow cover')
+	p.add_argument('--start', help='collections of images with data from this day (YYYY-MM-DD); the images, fixed '
+	                               'layers without dates, whatever their dates')
+	p.add_argument('--end', help='collections of images with data until this day')
+	p.add_argument('--bbox', nargs=4, type=float, metavar=('W', 'S', 'E', 'N'),
+	               help='with data over this area: west, south, east and north in degrees, e.g. --bbox -3.6 36.9 -2.6 37.3 '
+	                    '(or --bbox=-3.6,36.9,-2.6,37.3)')
+	p.add_argument('--kind', choices=('image', 'image_collection'), help='only images or only collections of images')
+	p.add_argument('--limit', type=int, default=20, help='at most this number of datasets (default 20, at most 100)')
 	p = sub.add_parser('community', help='the themes of the GEE Community Catalog, or its images and collections of '
 	                                     'images (without Earth Engine)')
 	p.add_argument('--theme', help='only those of a theme of the catalog (its name in English or Spanish, or part of it)')
@@ -524,7 +552,7 @@ def main(argv=None):
 	p.add_argument('--browser', action='store_true', help='open it in the browser instead of in a window of its own')
 	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
-	args = parser.parse_args(argv)
+	args = parser.parse_args(_bbox_args(sys.argv[1:] if argv is None else argv))
 	if args.cmd in computes and not (args.cmd == 'areas' and args.landcover):  # what it computes, or its error before
 		args.source = _source(args, computes[args.cmd])  # Earth Engine
 	elif args.cmd == 'areas':
@@ -577,6 +605,16 @@ def main(argv=None):
 		return
 	if args.cmd == 'community':  # the copy of its index in MonitorEO: without Earth Engine
 		return _community(args, services)
+	if args.cmd == 'datasets':  # the copy of the index of the Earth Engine data catalog: without Earth Engine
+		try:
+			rows = services.find_datasets(' '.join(args.text), args.start, args.end, args.bbox, args.kind, args.limit)
+		except ValueError as e:
+			sys.exit(f'ERROR: {e}')
+		_table([{k: r.get(k, '') for k in ('id', 'type', 'start', 'end', 'title')} for r in rows],
+		       ['id', 'type', 'start', 'end', 'title'])
+		print(f'\n{len(rows)} datasets of the Earth Engine data catalog | monitoreo asset ID describes one (its bands, '
+		      'units and how to cite it); then compute it with --collection or --image and --band')
+		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
 	if args.cmd == 'mcp':
