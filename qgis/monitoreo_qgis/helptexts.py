@@ -339,9 +339,10 @@ HELP = {
 		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'transect':
 		'<p><b>Profile along the line</b>: the map of the variable (with the options of the group <b>Map</b>) and the '
-		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments: the mean '
-		'of the pixels that each segment crosses. Draw it in a new temporary layer of lines, from the valley to the '
-		'summit, across a fire or along a river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments (at least '
+		'a pixel of the data long, so fewer on lines shorter than 100 pixels): the mean of the pixels that each segment '
+		'crosses. Draw it in a new temporary layer of lines, from the valley to the summit, across a fire or along a '
+		'river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
 		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '

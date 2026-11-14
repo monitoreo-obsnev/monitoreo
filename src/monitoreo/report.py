@@ -399,8 +399,12 @@ def item_facts(tool, args, result=None, names=None):
 		                       + (f" ({z.get('metric') or 'mean'} of {period_text(*z['period'])})" if z.get('period')
 		                          else '')))
 	if tool == 'transect' and result.get('length_m'):
-		facts.append(('Line', f"{_num(result['length_m'] / 1000)} km, {len(args.get('line') or [])} points; segments of "
-		                      f"{_num(result.get('spacing'))} m"))
+		from .services import transect_line
+		try:  # the points of the line, whatever its form (a list of points, its JSON text, a GeoJSON LineString)
+			points = f", {_num(len(transect_line(args.get('line'))))} points"
+		except ValueError:
+			points = ''
+		facts.append(('Line', f"{_num(result['length_m'] / 1000)} km{points}; segments of {_num(result.get('spacing'))} m"))
 	if tool == 'area_by_class' and args.get('breaks'):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Classes', 'cut at ' + ', '.join(f'{float(b):g}' for b in classes_of(args['breaks']))

@@ -1047,24 +1047,26 @@ STEP_NAMES = {'annual': 'a frame per year', 'monthly': 'a frame per month', '16-
 
 
 REGION_STATS = catalog.REGION_STATS  # the statistics of region_stats by default
+REGION_STATS_ZONES = catalog.REGION_STATS_ZONES  # and with zones
 
 
 @_cited
 def region_stats(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
-                 interannual='mean', season=None, quality=None, stats=REGION_STATS, scale=None, zones=None, csv=None,
+                 interannual='mean', season=None, quality=None, stats=None, scale=None, zones=None, csv=None,
                  chart=None, **source):
 	"""Statistics over each feature of REGION of the map of a variable aggregated in time: STATS, any of mean,
 	median, min, max, std (standard deviation), cv (coefficient of variation, in %: 100 × std / mean) and pN
-	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim).
+	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim); by
+	default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
 	With ZONES, those of each zone of each feature instead: the classes of another variable cut at some values, e.g.
 	the elevation bands {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000, 2500]} (also
 	'metric', 'temporal', 'interannual' and 'period' of a variable with dates, by default aggregated over the period of
 	the result, as the conditions of where), with the rows of every zone of every feature (zone, zone_label,
-	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median and the percentiles 25 and 75
-	(or the first statistic) of each zone.
+	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median (or the first statistic) of each
+	zone and its percentiles 25 and 75 (or else 5 and 95, if STATS has them and not those; its legend says which).
 	{'rows': [{region, mean, std, cv, min, p5, p50, p95, max, n_pixels}], 'stats', 'scale', 'unit' (of the map: that of
 	cv is %), 'title', 'csv', 'chart'}."""
-	stats = [stats] if isinstance(stats, str) else list(stats or REGION_STATS)
+	stats = [stats] if isinstance(stats, str) else list(stats or (REGION_STATS_ZONES if zones else REGION_STATS))
 	for s in stats:
 		composite.check_metric(s)  # before Earth Engine
 	zone_cuts = zones_of(zones)
@@ -1136,14 +1138,14 @@ def transect(line, variable=None, sensor=None, start=None, end=None, metric='med
 	step = float(spacing) if spacing else max(native, length / max(int(points), 2))
 	cuts = transect_cuts(length, step)
 	segments = ee.List(geom.cutLines(cuts, 1).geometries())
-	n = len(cuts) + 1
+	n = len(cuts) + 1  # the segments wanted: the rows (Earth Engine may give one fewer, the last row then empty)
 	half = float(scale or native) / 2
 
 	def segment(i):
 		g = ee.Geometry(segments.get(i))
 		return ee.Feature(g.buffer(half, 1), {'i': i, 'centre': g.centroid(1).coordinates()})
 
-	fc = ee.FeatureCollection(ee.List.sequence(0, n - 1).map(segment))
+	fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(segment))
 	value = variables.image(spec, geom.buffer(step), scale or native).rename('value')
 	dem = variables.image(make_spec('ELEVATION', 'Copernicus'), geom.buffer(step), 30).rename('elevation')
 	stats = ee.Image.cat([value, dem]).reduceRegions(collection=fc, reducer=ee.Reducer.mean(), scale=scale or native,
@@ -1176,8 +1178,9 @@ TRANSECT_COLUMNS = ['distance_m', 'lon', 'lat', 'value', 'elevation']
 
 
 def transect_cuts(length, step):
-	"""The distances (m) where a line of LENGTH metres is cut every STEP metres."""
-	return [step * i for i in range(1, int(length // step) + 2) if step * i < length]
+	"""The distances (m) where a line of LENGTH metres is cut every STEP metres: none within a millionth of a step of
+	its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH, and its cut would add a segment of 0 m)."""
+	return [step * i for i in range(1, int(length // step) + 2) if step * i < length - step * 1e-6]
 
 
 def transect_line(line):
@@ -1220,6 +1223,9 @@ def zones_of(zones):
 	if unknown:
 		raise ValueError(f"zones has unknown keys {', '.join(sorted(unknown))}: give variable, sensor and breaks (and "
 		                 'metric, temporal, interannual or period for a variable with dates)')
+	period = zones.get('period')
+	if period and (not isinstance(period, (list, tuple)) or len(period) != 2):
+		raise ValueError(f"the period of zones on {zones.get('variable') or zones.get('index')} is [start, end]")
 	return classes.check_breaks(zones.get('breaks') or [])
 
 

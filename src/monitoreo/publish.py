@@ -90,13 +90,13 @@ LICENSES = {
 }
 LICENSE = 'CC-BY-4.0'
 
-# type of analysis of each tool, and its name in the viewer
+# type of analysis of each tool (region_stats with zones too: gradients, see _analysis), and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation', 'area_by_class': 'areas'}
+            'timelapse': 'animation', 'area_by_class': 'areas', 'transect': 'gradients'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
-                  'areas': 'Area by class'}
+                  'areas': 'Area by class', 'gradients': 'Gradients'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
@@ -828,6 +828,13 @@ def _variables(items):
 	return list(out.values())
 
 
+def _analysis(item):
+	"""The type of analysis of a result ITEM of a report (see ANALYSES)."""
+	if item.get('tool') == 'region_stats' and isinstance((item.get('args') or {}).get('zones'), dict):
+		return 'gradients'  # the statistics of each elevation band, as the profiles along a line
+	return ANALYSES.get(item.get('tool'), 'map')
+
+
 def _periods(items):
 	out = []
 	for it in items:
@@ -890,7 +897,7 @@ def build(spec, rid, base, folders, log, folder):
 		bs = [r['bounds'] for r in maps_]
 		region['bounds'] = [min(b[0] for b in bs), min(b[1] for b in bs), max(b[2] for b in bs), max(b[3] for b in bs)]
 	periods = _periods(items)
-	analyses = list(dict.fromkeys(ANALYSES.get(it.get('tool'), 'map') for it in items))
+	analyses = list(dict.fromkeys(_analysis(it) for it in items))
 	sections = [{'title': str(s['title']), 'text': _paragraphs(s.get('text'))} for s in _list(spec.get('sections'))]
 	return {
 		'schema': SCHEMA, 'id': rid, 'title': str(spec['title']).strip(),

@@ -631,10 +631,10 @@ def region_stats(region: dict, variable: Optional[str] = None, sensor: Optional[
 	"""Statistics over each feature of a region of the map of a variable aggregated in time (METRIC; with temporal
 	'annual', 'monthly' or '16-day', then INTERANNUAL between the years), with the number of pixels. stats: any of
 	mean, median, min, max, std (standard deviation), cv (coefficient of variation: 100 * std / mean, in %) and pN
-	(percentile N), for any variable; by default mean, std, cv, min, p5, p50, p95 and max. zones: those of each band
-	of another variable instead, e.g. {"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000, 2500]}
-	(elevation bands), with a CSV and a chart. Required: region, and variable and sensor or collection or image and
-	band; start and end, except for the fixed layers."""
+	(percentile N), for any variable; by default mean, std, cv, min, p5, p50, p95 and max (with zones, also p25 and
+	p75). zones: those of each band of another variable instead, e.g. {"variable": "ELEVATION", "sensor":
+	"Copernicus", "breaks": [1500, 2000, 2500]} (elevation bands), with a CSV and a chart. Required: region, and
+	variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
 	files = {}
@@ -660,9 +660,9 @@ def transect(line: list, variable: Optional[str] = None, sensor: Optional[str] =
              band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
              unit: Optional[str] = None, terrain: Optional[str] = None, where: Optional[list] = None):
 	"""Profile of the map of a variable (as map_layer, also the fixed layers) along a line ([[lon, lat], ...], two
-	points or more), with the elevation: the mean of each segment of spacing metres (default: the length / points),
-	e.g. the NDVI from the valley to the summit. Writes a CSV and returns the chart. Required: line, and variable and
-	sensor or collection or image and band; start and end, except for the fixed layers."""
+	points or more), with the elevation: the mean of each segment of spacing metres (default: the length / points, at
+	least a pixel), e.g. the NDVI from the valley to the summit. Writes a CSV and returns the chart. Required: line,
+	and variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
 	stem = _stem('transect', _data(variable, sensor, source), *(() if image else (metric, start, end)))

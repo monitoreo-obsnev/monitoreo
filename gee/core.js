@@ -1538,18 +1538,20 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres
+	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres, none within a
+	// millionth of a step of its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH)
 	function transectCuts(length, step) {
 		var out = [];
-		for (var i = 1; i * step < length; i++) out.push(i * step);
+		for (var i = 1; i * step < length - step * 1e-6; i++) out.push(i * step);
 		return out;
 	}
 
 	// The mean of VALUE and of the elevation DEM over each segment of LINE cut at CUTS (each within half a pixel of
-	// SCALE), with the centre of each segment, to evaluate
+	// SCALE), with the centre of each segment, to evaluate: the segments that Earth Engine gives (one fewer if it
+	// measures the line a hair shorter: transectRows leaves the last row empty)
 	function transectStats(value, dem, line, cuts, scale, crs) {
 		var segments = ee.List(ee.Geometry(line).cutLines(cuts, 1).geometries());
-		var fc = ee.FeatureCollection(ee.List.sequence(0, cuts.length).map(function (i) {
+		var fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(function (i) {
 			var g = ee.Geometry(segments.get(i));
 			return ee.Feature(g.buffer(scale / 2, 1), {i: i, centre: g.centroid(1).coordinates()});
 		}));

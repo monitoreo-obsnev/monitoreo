@@ -6848,18 +6848,20 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres
+	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres, none within a
+	// millionth of a step of its end (with STEP = LENGTH / N, N \u00d7 STEP may fall a hair short of LENGTH)
 	function transectCuts(length, step) {
 		var out = [];
-		for (var i = 1; i * step < length; i++) out.push(i * step);
+		for (var i = 1; i * step < length - step * 1e-6; i++) out.push(i * step);
 		return out;
 	}
 
 	// The mean of VALUE and of the elevation DEM over each segment of LINE cut at CUTS (each within half a pixel of
-	// SCALE), with the centre of each segment, to evaluate
+	// SCALE), with the centre of each segment, to evaluate: the segments that Earth Engine gives (one fewer if it
+	// measures the line a hair shorter: transectRows leaves the last row empty)
 	function transectStats(value, dem, line, cuts, scale, crs) {
 		var segments = ee.List(ee.Geometry(line).cutLines(cuts, 1).geometries());
-		var fc = ee.FeatureCollection(ee.List.sequence(0, cuts.length).map(function (i) {
+		var fc = ee.FeatureCollection(ee.List.sequence(0, segments.size().subtract(1)).map(function (i) {
 			var g = ee.Geometry(segments.get(i));
 			return ee.Feature(g.buffer(scale / 2, 1), {i: i, centre: g.centroid(1).coordinates()});
 		}));
@@ -9325,7 +9327,8 @@ var MonitorEO = (function () {
 				}));
 			}));
 			show([ui.Label(name, {fontWeight: 'bold'}),
-				ui.Chart(chart, 'LineChart', {pointSize: 4, vAxis: {title: unitText(e, state.mapMetric, null)}}),
+				ui.Chart(chart, 'LineChart', {pointSize: 4, vAxis: {title: unitText(e, state.mapMetric,
+					state.temporal === 'period' ? null : state.interannual)}}),
 				ui.Chart([[t('zoneBand'), 'p25', 'p50', 'p75', metricName('mean')]].concat(rows.map(function (r) {
 					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.zone_label, num(r.p25), num(r.p50),
 						num(r.p75), num(r.mean)];
@@ -9357,7 +9360,8 @@ var MonitorEO = (function () {
 					}));
 					show([ui.Label(name, {fontWeight: 'bold'}),
 						ui.Chart(chart, 'LineChart', {hAxis: {title: t('distance')}, series: {1: {targetAxisIndex: 1,
-							color: '#9e9e9e'}}, vAxes: {0: {title: unitText(e, state.mapMetric, null)},
+							color: '#9e9e9e'}}, vAxes: {0: {title: unitText(e, state.mapMetric,
+							state.temporal === 'period' ? null : state.interannual)},
 							1: {title: t('elevationM')}}}),
 						ui.Label(fmt(t('profileNote'), num(step)), SMALL),
 						csvWidget(rows, ['distance_m', 'value', 'elevation', 'lon', 'lat'], name, e)]);

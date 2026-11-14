@@ -1022,14 +1022,16 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' @param stats the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 #'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
 #'   \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
-#'   p5, p50, p95 and max.
+#'   p5, p50, p95 and max (with \code{zones}, also p25 and p75).
 #' @param zones the statistics of each band of another variable instead, e.g. the elevation bands
 #'   \code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
-#'   is aggregated over the period of the result, or its own \code{period}).
-#' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG).
+#'   is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).
+#' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
+#'   of each band with its percentiles 25 and 75 (or else 5 and 95, if \code{stats} has them and not those).
 #' @return A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of
-#'   \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and n_pixels) with the attributes title, unit (of
-#'   the map; cv is in \%), scale, references and credits (see \code{mo_references()}).
+#'   \code{stats}: by default mean, std, cv, min, p5, p50, p95, max, and with \code{zones} p25 and p75 too; and
+#'   n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
+#'   \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1076,11 +1078,13 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 #' Profile of a variable along a line, with the elevation
 #'
 #' The map of \code{mo_map_layer()} with the same arguments (also the fixed layers) along a line: the line is cut in
-#' segments of \code{spacing} metres (default: its length / \code{points}), and each segment gets the mean of the
-#' pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of geemap (Wu, 2020).
+#' segments of \code{spacing} metres (default: its length / \code{points}, at least a pixel of the data), and each
+#' segment gets the mean of the pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of
+#' geemap (Wu, 2020).
 #' @inheritParams mo_params
 #' @param line the line: a matrix or list of points \code{list(c(lon, lat), ...)}, or a GeoJSON LineString.
-#' @param spacing,points the length of the segments in metres, or their number.
+#' @param spacing,points the length of the segments in metres, or their number (segments at least a pixel of the
+#'   data long: fewer on a line shorter than \code{points} pixels).
 #' @return A data.frame (distance_m, value, elevation, lon, lat) with the attributes title, unit, length_m, spacing,
 #'   csv, chart, references and credits (see \code{mo_references()}).
 #' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of

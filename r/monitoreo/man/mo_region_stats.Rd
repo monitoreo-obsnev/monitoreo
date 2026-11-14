@@ -105,18 +105,20 @@ band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments
 \item{stats}{the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
 \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
-p5, p50, p95 and max.}
+p5, p50, p95 and max (with \code{zones}, also p25 and p75).}
 
 \item{zones}{the statistics of each band of another variable instead, e.g. the elevation bands
 \code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
-is aggregated over the period of the result, or its own \code{period}).}
+is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).}
 
-\item{csv, chart}{optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG).}
+\item{csv, chart}{optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
+of each band with its percentiles 25 and 75 (or else 5 and 95, if \code{stats} has them and not those).}
 }
 \value{
 A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of
-  \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and n_pixels) with the attributes title, unit (of
-  the map; cv is in \%), scale, references and credits (see \code{mo_references()}).
+  \code{stats}: by default mean, std, cv, min, p5, p50, p95, max, and with \code{zones} p25 and p75 too; and
+  n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
+  \code{mo_references()}).
 }
 \description{
 The statistics of the map of \code{mo_map_layer()} with the same arguments over each feature of the region. Instead

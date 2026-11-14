@@ -703,7 +703,7 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Line', info(self.line_layer, HELP['transect']))
 		b = QPushButton('Profile along the line')
 		b.setToolTip('The map of the variable (with the options of the group Map) and the elevation along the selected '
-		             'line of the layer (or its first one), every 1 % of its length')
+		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
 		b.clicked.connect(self.run_transect)
 		f.addRow(b)
 		main.addWidget(box)

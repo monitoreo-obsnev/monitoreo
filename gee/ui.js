@@ -1535,7 +1535,8 @@
 				}));
 			}));
 			show([ui.Label(name, {fontWeight: 'bold'}),
-				ui.Chart(chart, 'LineChart', {pointSize: 4, vAxis: {title: unitText(e, state.mapMetric, null)}}),
+				ui.Chart(chart, 'LineChart', {pointSize: 4, vAxis: {title: unitText(e, state.mapMetric,
+					state.temporal === 'period' ? null : state.interannual)}}),
 				ui.Chart([[t('zoneBand'), 'p25', 'p50', 'p75', metricName('mean')]].concat(rows.map(function (r) {
 					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.zone_label, num(r.p25), num(r.p50),
 						num(r.p75), num(r.mean)];
@@ -1567,7 +1568,8 @@
 					}));
 					show([ui.Label(name, {fontWeight: 'bold'}),
 						ui.Chart(chart, 'LineChart', {hAxis: {title: t('distance')}, series: {1: {targetAxisIndex: 1,
-							color: '#9e9e9e'}}, vAxes: {0: {title: unitText(e, state.mapMetric, null)},
+							color: '#9e9e9e'}}, vAxes: {0: {title: unitText(e, state.mapMetric,
+							state.temporal === 'period' ? null : state.interannual)},
 							1: {title: t('elevationM')}}}),
 						ui.Label(fmt(t('profileNote'), num(step)), SMALL),
 						csvWidget(rows, ['distance_m', 'value', 'elevation', 'lon', 'lat'], name, e)]);

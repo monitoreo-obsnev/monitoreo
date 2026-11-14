@@ -216,8 +216,8 @@ def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=1
 
 def zones_png(rows, stats, path=None, title=None, ylabel=None, xlabel=None, dpi=120):
 	"""PNG (bytes) of the statistics of each zone (ROWS of region_stats with zones: zone_label and STATS): the median
-	(or the first statistic) of each zone with the band of its percentiles 25 and 75 when they are there, a line per
-	region."""
+	(or the first statistic) of each zone with the band of its percentiles 25 and 75 (or else 5 and 95) when they are
+	there, named in the legend, a line per region."""
 	from matplotlib.figure import Figure
 
 	mid = next((s for s in ('p50', 'median', 'mean') if s in stats), stats[0])

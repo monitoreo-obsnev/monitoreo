@@ -316,7 +316,8 @@ MO.chart = (() => {
 	}
 
 	// The statistics of each zone (region_stats with zones: e.g. the elevation bands): the median, or the first
-	// statistic, with the band of the percentiles 25 and 75 (or 5 and 95) when they are there
+	// statistic, with the band of the percentiles 25 and 75 (or else 5 and 95) when they are there, in grey; the legend
+	// says which
 	function zonesSpec(rows, result) {
 		const stats = result.stats || [];
 		const mid = ['p50', 'median', 'mean'].find((s) => stats.includes(s)) || stats[0] || 'mean';
@@ -324,12 +325,17 @@ MO.chart = (() => {
 			stats.includes('p5') && stats.includes('p95') ? ['p5', 'p95'] : null;
 		const order = [...new Set(rows.map((r) => r.zone_label))];
 		const x = {field: 'zone_label', type: 'ordinal', sort: order, title: null, axis: {labelAngle: -20}};
+		const name = COLUMNS[mid] || mid;
+		const spread = band && `Percentiles ${band[0].slice(1)} to ${band[1].slice(1)}`;
+		const scale = {domain: band ? [name, spread] : [name], range: [palette()[0], '#9e9e9e']};
 		const layer = [{mark: {type: 'line', point: true}, encoding: {x,
 			y: {field: mid, type: 'quantitative', title: result.ylabel || result.unit || mid, scale: {zero: false}},
-			tooltip: [{field: 'zone_label', title: 'Zone'}, {field: mid, title: COLUMNS[mid] || mid, format: '.4~g'},
+			color: {datum: name, scale},
+			tooltip: [{field: 'zone_label', title: 'Zone'}, {field: mid, title: name, format: '.4~g'},
+				...(band || []).map((s) => ({field: s, title: COLUMNS[s] || s, format: '.4~g'})),
 				{field: 'n_pixels', title: 'Pixels'}]}}];
-		if (band) layer.unshift({mark: {type: 'area', opacity: 0.2}, encoding: {x,
-			y: {field: band[0], type: 'quantitative'}, y2: {field: band[1]}}});
+		if (band) layer.unshift({mark: {type: 'area', opacity: 0.3}, encoding: {x,
+			y: {field: band[0], type: 'quantitative'}, y2: {field: band[1]}, color: {datum: spread, scale}}});
 		return {data: {values: rows}, width: 'container', height: 240, layer};
 	}
 
