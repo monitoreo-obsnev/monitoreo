@@ -84,7 +84,9 @@ median, mean, min, max and pN. A map whose preview Earth Engine cannot make in s
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
-pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Animations
+pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Hectares and %
+of each class of a land cover map of a year, of the map of a variable cut at some values, or of the trend on each
+pixel (significant decrease, no trend, increase): area_by_class. Animations
 (timelapses) of a variable, a frame per year, month, 16 days or day with its date: timelapse (a GIF, or an MP4). Burn
 severity of a fire (dNBR with the classes of the USGS, hectares and GeoTIFF; or, with index "RBR", the Relativized
 Burn Ratio, a continuous index; or, with index "RdNBR", the relative dNBR of Miller & Thode 2007 with the classes of
@@ -572,6 +574,43 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 	res = services.rgb_map(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
 	return [_text(res)] + _preview(res)
+
+
+@tool
+def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
+                  start: Optional[str] = None, end: Optional[str] = None, landcover: Optional[str] = None,
+                  year: Optional[int] = None, breaks: Optional[List[float]] = None, trend: bool = False,
+                  metric: Optional[str] = None, temporal: str = 'period', interannual: str = 'mean',
+                  step: str = 'annual', part: Optional[int] = None, alpha: float = 0.05,
+                  season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                  collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
+                  band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
+                  terrain: Optional[str] = None, where: Optional[list] = None):
+	"""Hectares and % of each class over each feature of a region, of one of: landcover, a land cover map of a year
+	(landcover_maps; e.g. "CORINE", 2018): each class of the map with its broad land cover, without variable; breaks,
+	the map of a variable (as map_layer, also the fixed layers) cut at those values, e.g. [1500, 2000, 2500] for the
+	ELEVATION; or trend true, the trend of a variable on each pixel (as trend_map: step, part, metric of each year, the
+	mean by default; start and end) in significant decrease, no significant trend and significant increase
+	(Mann-Kendall p < alpha). The % is of the area with a class. Writes a CSV and returns a bar chart."""
+	_ready()
+	if landcover:
+		source, what = {}, f"landcover_{landcover}_{year or ''}"
+	else:
+		source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+		if trend:
+			_dates(variable, sensor, source, 'trends', start=start, end=end)
+		what = _data(variable, sensor, source)
+	stem = _stem('areas', what, 'trend' if trend else 'breaks' if breaks else '', start, end)
+	res = services.area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
+	                             chart=_out(stem, 'png'), where=where, **source)
+	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'rows', 'by_landcover', 'csv', 'chart',
+	                                    'readme', 'references', 'credits') if res.get(k) is not None}
+	out = [_text(summary)]
+	if res.get('chart'):
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
 
 
 @tool

@@ -73,6 +73,17 @@ METHODS = {
 	             'the images of the step on each pixel, coloured with the same colour ramp in every frame (Colours) so '
 	             'that they can be compared, with its date; the pixels of the region without data in a step are light '
 	             'grey.',
+	'area_by_class_landcover': 'The true area of each pixel (ee.Image.pixelArea) summed by class of the land cover map '
+	                           'over each feature, as the zonal statistics by group of geemap; % of the area with a '
+	                           'class (the pixels without data are not counted). Each class of the map with its broad '
+	                           'land cover (that of the land cover masks).',
+	'area_by_class_breaks': 'The map of the variable (the temporal metric of the images of the period on each pixel) cut '
+	                        'at the breaks (a value equal to a break goes to the class above it), and the true area of '
+	                        'each pixel summed by class over each feature; % of the area with values.',
+	'area_by_class_trend': "The trend on each pixel (Mann-Kendall test and Sen's slope of the yearly values) in three "
+	                       'classes: significant decrease (p-value below alpha, slope below 0), no significant trend, '
+	                       'and significant increase; the true area of each pixel summed by class over each feature; % '
+	                       'of the area with a trend (2 years or more with data).',
 	'static': 'A fixed layer, without dates: its value on each pixel (no period, temporal metric or pixel filters).',
 	'burn_severity_rbr': 'RBR (Relativized Burn Ratio, Parks et al., 2014): dNBR / (NBR before + 1.001), with the NBR '
 	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
@@ -115,6 +126,9 @@ TABLES = {
 	                           ('p50', 'Median'), ('p75', 'P75'), ('p90', 'P90'), ('p95', 'P95'), ('max', 'Max.'),
 	                           ('n_pixels', 'Pixels')]),
 	'download_variables': (('files',), [('file', 'File'), ('images', 'Images'), ('pixel_filters', 'Discarded pixels')]),
+	'area_by_class': (('rows',), [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'),
+	                              ('value_from', 'From{u}'), ('value_to', 'To{u}'), ('ha', 'Hectares'),
+	                              ('percent', '% of the area with classes')]),
 	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
 	                                          ('dnbr_max', 'dNBR to'), ('rdnbr_min', 'RdNBR from'),
 	                                          ('rdnbr_max', 'RdNBR to'), ('mean', 'RBR mean'), ('median', 'RBR median'),
@@ -251,7 +265,7 @@ def item_title(tool, args, result=None):
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
 		                           season=season_text(args.get('season')))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'burn_severity', 'download_image', 'download_trend',
-	            'download_comparison'):
+	            'download_comparison', 'area_by_class'):
 		return default_title(tool, args) + (' (GeoTIFF)' if tool == 'download_image' else '')
 	if tool == 'download_variables':
 		return f"Variables in GeoTIFF: {args.get('name', '')}" + (' (plan, not downloaded)' if args.get('dry_run') else '')
@@ -295,15 +309,20 @@ def item_facts(tool, args, result=None, names=None):
 	if args.get('other_start') and args.get('other_end'):
 		label = 'After the fire' if tool == 'burn_severity' else 'Other period'
 		facts.append((label, period_text(args['other_start'], args['other_end']) + season_text(args.get('season'))))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse'):
-		step = args.get('step') or ('annual' if 'trend' in tool or tool == 'timelapse' else 'monthly')
+	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse') or \
+			(tool == 'area_by_class' and args.get('trend')):
+		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class') else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
 	if tool in ('trend_map', 'download_trend') and args.get('part'):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison', 'rgb_map',
-	                                                      'download_rgb', 'timelapse') else 'mean')
+	                                                      'download_rgb', 'timelapse') or
+	                                (tool == 'area_by_class' and not args.get('trend')) else 'mean')
+	if tool == 'area_by_class' and args.get('landcover'):  # a land cover map: no variable, period nor metric
+		static = True
+		facts += _landcover_facts(args)
 	if not static:
 		facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
@@ -356,6 +375,13 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	if tool == 'area_by_class' and args.get('breaks'):
+		unit = unit_text(result.get('unit'))
+		facts.append(('Classes', 'cut at ' + ', '.join(_num(b) for b in args['breaks']) + (f' {unit}' if unit else '')
+		                         + ' (a value equal to a break goes to the class above it)'))
+	if tool == 'area_by_class' and args.get('trend'):
+		facts.append(('Classes', f"significant decrease, no significant trend and significant increase (Mann-Kendall, "
+		                         f"p < {_num(args.get('alpha') or 0.05)})"))
 	if tool == 'timelapse' and result.get('n_frames'):
 		empty = sum(1 for f in result.get('frames') or [] if not f.get('images'))
 		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 2)} per second"
@@ -371,7 +397,23 @@ def item_facts(tool, args, result=None, names=None):
 		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else tool]
 		facts.append(('Method', METHODS['static'] if static else method))
+	elif tool == 'area_by_class':
+		kind = 'landcover' if args.get('landcover') else 'trend' if args.get('trend') else 'breaks'
+		facts.append(('Method', METHODS[f'area_by_class_{kind}']))
 	return facts
+
+
+def _landcover_facts(args):
+	"""The facts of the land cover map of a call of area_by_class: its name, year, pixel and dataset."""
+	from . import landcover
+	try:
+		m, year, _ = landcover.check({'landcover': args['landcover'], 'year': args.get('year'),
+		                              'exclude': [landcover.classes()[0]['key']]})
+	except (ValueError, KeyError):
+		return [('Land cover map', f"{args.get('landcover')} {args.get('year') or ''}".strip())]
+	return [('Land cover map', f"{m['name']} {year}, pixel of {_num(m['m'])} m, {landcover.dataset(m, year)}"),
+	        ('Classes', 'those of the map, each with its broad land cover ' + (f"({m['crosswalk']})" if m.get('crosswalk')
+	                                                                          else ''))]
 
 
 def perimeter_text(index, result):

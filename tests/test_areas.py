@@ -1,0 +1,227 @@
+"""Area of each class over each feature of a region (services.area_by_class and monitoreo.classes), without Earth
+Engine: the kinds of classes and their errors, the classes of the breaks and of the trend, the rows and their %, the
+citations, the README, the report, the viewer of results, the command line, the MCP server and the Earth Engine app
+(gee/core.js in node, the same classes and rows as Python). tests/test_ee.py computes them in Earth Engine."""
+
+import json
+import os
+import shutil
+import subprocess
+
+import pytest
+
+from monitoreo import classes, readme, references, report, services
+
+REGION = {'bbox': [-3.62, 36.86, -3.50, 36.93]}
+
+
+def test_one_kind_of_classes():
+	assert classes.mode_of('CORINE') == 'landcover' and classes.mode_of(breaks=[1]) == 'breaks'
+	assert classes.mode_of(trend=True) == 'trend'
+	for kwargs in ({}, {'landcover_map': 'CORINE', 'breaks': [1]}, {'breaks': [1], 'trend': True}):
+		with pytest.raises(ValueError, match='give one kind of classes'):
+			classes.mode_of(**kwargs)
+
+
+def test_the_breaks():
+	assert classes.check_breaks('1500, 2000;2500') == [1500.0, 2000.0, 2500.0]
+	for bad, text in (([], 'at least one'), (['a'], 'are numbers'), ([2, 1], 'from the lowest'), ([1, 1], 'each once')):
+		with pytest.raises(ValueError, match=text):
+			classes.check_breaks(bad)
+	assert classes.break_classes([0.2, 0.4], '°C') == [(0, 'below 0.2 °C', None, 0.2), (1, '0.2 to 0.4 °C', 0.2, 0.4),
+	                                                   (2, '0.4 °C or more', 0.4, None)]
+
+
+def test_the_rows_and_their_percent():
+	legend = [(c, label, {}) for c, label, _ in classes.TREND]
+	rows = classes.rows({'park': {-1: 10.0, 0: 70.0, 1: 20.0}, 'empty': {}}, legend, {'map': 'x'})
+	assert [(r['region'], r['class'], r['ha'], r['percent']) for r in rows[:3]] == \
+		[('park', -1, 10.0, 10.0), ('park', 0, 70.0, 70.0), ('park', 1, 20.0, 20.0)]
+	assert rows[0]['map'] == 'x' and all(r['percent'] is None for r in rows[3:])
+	table = [{'region': 'p', 'landcover': k, 'ha': h, 'percent': p} for k, h, p in
+	         (('trees', 10.0, 10.0), ('water', 5.0, 5.0), ('trees', 20.0, 20.0))]
+	assert [(r['landcover'], r['ha'], r['percent']) for r in classes.by_landcover(table)] == \
+		[('water', 5.0, 5.0), ('trees', 30.0, 30.0)]
+
+
+def test_the_land_cover_maps_and_their_classes():
+	m, year = classes.landcover_map('corine')
+	assert m['key'] == 'CORINE' and year == 2018
+	assert classes.landcover_classes(m)[0] == (111, 'Continuous urban fabric', 'built')
+	assert set(k for _, _, k in classes.landcover_classes(m)) <= set(classes.LANDCOVER_COLOURS)
+	with pytest.raises(ValueError, match='has no map of 2001'):
+		classes.landcover_map('CORINE', 2001)
+
+
+def test_the_errors_before_earth_engine():
+	with pytest.raises(ValueError, match='without a variable'):
+		services.area_by_class(REGION, 'NDVI', 'Modis', landcover='CORINE')
+	with pytest.raises(ValueError, match='where is for the classes of a variable'):
+		services.area_by_class(REGION, landcover='CORINE', where=[{'variable': 'ELEVATION', 'sensor': 'Copernicus',
+		                                                           'min': 1500}])
+	with pytest.raises(ValueError, match='give one kind of classes'):
+		services.area_by_class(REGION, 'NDVI', 'Modis', '2020-01-01', '2020-12-31')
+	with pytest.raises(ValueError, match='from the lowest'):
+		services.area_by_class(REGION, 'ELEVATION', 'Copernicus', breaks=[3, 2])
+
+
+LANDCOVER = {'region': REGION, 'landcover': 'CORINE', 'year': 2018}
+TREND = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Modis', 'start': '2005-01-01', 'end': '2024-12-31',
+         'trend': True}
+
+
+def test_what_an_area_by_class_cites():
+	ids = [r['id'] for r in references.cite('area_by_class', LANDCOVER)['references']]
+	assert {'clc2018', 'bise2023', 'wu2020', 'gorelick2017', 'monitoreo'} <= set(ids)
+	assert any('Copernicus' in c for c in references.cite('area_by_class', LANDCOVER)['credits'])
+	ids = [r['id'] for r in references.cite('area_by_class', TREND)['references']]
+	assert {'mann1945', 'sen1968', 'tucker1979', 'wu2020'} <= set(ids)
+
+
+def test_the_readme_and_the_report(tmp_path):
+	csv = tmp_path / 'areas.csv'
+	csv.write_text('region,map,year,class,label,landcover,ha,percent,scale_m\n'
+	               'bbox,CORINE Land Cover,2018,311,311 Broad-leaved forest,trees,120.5,60.0,100.0\n', encoding='utf-8')
+	result = {'rows': [{'region': 'bbox', 'class': 311, 'label': '311 Broad-leaved forest', 'landcover': 'trees',
+	                    'ha': 120.5, 'percent': 60.0}], 'mode': 'landcover', 'scale': 100.0, 'unit': '',
+	          'csv': str(csv), 'title': 'Area of each class of CORINE Land Cover 2018'}
+	text = readme.text('area_by_class', LANDCOVER, result, computed='2026-11-14T10:00:00+01:00')
+	assert 'class: class: its code in the land cover map' in text and 'percent: % of the area of the feature' in text
+	assert 'Land cover map: CORINE Land Cover 2018, pixel of 100 m' in text and 'zonal statistics by group' in text
+	assert 'mo.area_by_class(region=' in text
+	assert report.item_title('area_by_class', LANDCOVER) == 'Area of each class of CORINE Land Cover 2018'
+	assert report.item_title('area_by_class', TREND) == 'Area of each class of the trend of NDVI (MODIS), 2005-2024'
+	labels, body = report.item_table('area_by_class', result, LANDCOVER)
+	assert labels == ['Class', 'Land cover', 'Hectares', '% of the area with classes'] and body[0][0] == \
+		'311 Broad-leaved forest'
+	facts = dict(report.item_facts('area_by_class', dict(TREND, alpha=0.01), {'scale': 250.0}))
+	assert facts['Step'] == 'annual' and facts['Temporal metric'] == 'mean' and 'p < 0.01' in facts['Classes']
+
+
+def test_the_viewer_of_results_draws_the_areas(tmp_path):
+	from monitoreo import publish
+	csv = tmp_path / 'areas.csv'
+	csv.write_text('region,class,label,ha,percent\nbbox,-1,significant decrease,10,10\n'
+	               'bbox,0,no significant trend,80,80\nbbox,1,significant increase,10,10\n', encoding='utf-8')
+	result = {'csv': str(csv), 'mode': 'trend', 'unit': '',
+	          'classes': [{'class': c, 'label': label, 'colour': colour} for c, label, colour in classes.TREND]}
+	spec = {'title': 'Areas', 'summary': 'Areas', 'region': {'name': 'Sierra Nevada'},
+	        'results': [{'tool': 'area_by_class', 'args': TREND, 'result': result}]}
+	folder = tmp_path / 'report'
+	folder.mkdir()
+	rep = publish.build(spec, 'areas', str(tmp_path), [], None, str(folder))
+	r = rep['results'][0]
+	assert r['chart'] == 'areas' and r['classes'][0] == {'class': -1, 'label': 'significant decrease',
+	                                                       'colour': 'd7191c'}
+	assert rep['analyses'] == [{'id': 'areas', 'name': 'Area by class'}] and publish.check_report(rep, str(folder)) == []
+
+
+@pytest.fixture
+def calls(monkeypatch):
+	out = []
+
+	def fake(region, variable=None, sensor=None, start=None, end=None, metric=None, temporal='period',
+	         interannual='mean', season=None, quality=None, landcover=None, year=None, breaks=None, trend=False,
+	         step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, **source):
+		out.append(dict(source, region=region, variable=variable, sensor=sensor, landcover=landcover, year=year,
+		                breaks=breaks, trend=trend, metric=metric, csv=csv, chart=chart))
+		return {'rows': [{'region': 'bbox', 'class': 0, 'label': 'below 1500 m', 'ha': 12.25, 'percent': 100.0}],
+		        'mode': 'landcover' if landcover else 'breaks', 'scale': 30.0, 'unit': 'm', 'title': 'Areas',
+		        'csv': csv, 'chart': None, 'classes': []}
+	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
+	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
+	monkeypatch.setattr(services, 'area_by_class', fake)
+	return out
+
+
+def test_the_command_line_computes_the_areas(calls, capsys):
+	from monitoreo import cli
+	cli.main(['areas', '--region', json.dumps(REGION), '--landcover', 'CORINE', '--year', '2018'])
+	assert (calls[-1]['landcover'], calls[-1]['year'], calls[-1]['variable']) == ('CORINE', 2018, None)
+	cli.main(['areas', 'ELEVATION', '--sensor', 'Copernicus', '--region', json.dumps(REGION), '--breaks',
+	          '1500,2000'])
+	assert calls[-1]['breaks'] == '1500,2000' and calls[-1]['variable'] == 'ELEVATION'
+	out = capsys.readouterr().out
+	assert 'below 1500 m' in out and '12.2' in out and '% of the area with classes' in out
+	with pytest.raises(SystemExit):
+		cli.main(['areas', 'NDVI', '--sensor', 'Modis', '--region', json.dumps(REGION), '--landcover', 'CORINE'])
+	assert 'monitoreo areas' in cli.__doc__
+
+
+def test_the_mcp_server_computes_the_areas(calls, monkeypatch, tmp_path):
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
+	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
+	out = mcp_server.area_by_class(REGION, landcover='CORINE', year=2018)
+	answer = json.loads(out[0] if isinstance(out, list) else out)
+	assert calls[-1]['landcover'] == 'CORINE' and answer['rows'][0]['ha'] == 12.25 and calls[-1]['csv'].endswith('.csv')
+	with pytest.raises(Exception, match='fixed layer'):
+		mcp_server.area_by_class(REGION, 'ELEVATION', 'Copernicus', trend=True, start='2001-01-01', end='2002-01-01')
+	assert 'area_by_class' in mcp_server.INSTRUCTIONS
+
+
+def test_the_assistant_knows_the_areas():
+	from monitoreo import assistant
+	assert 'area_by_class' in assistant.RESULTS and 'area_by_class' in assistant.PROMPT
+
+
+APP = r"""
+var fs = require('fs'), path = require('path'), vm = require('vm');
+var input = JSON.parse(fs.readFileSync(0, 'utf8'));
+global.ee = new Proxy({}, {get: function () { return function () { return {}; }; }});  // nothing is computed
+['catalog.js', 'core.js'].forEach(function (f) {
+	vm.runInThisContext(fs.readFileSync(path.join(process.argv[1], f), 'utf8'), {filename: f});
+});
+var mo = global.MonitorEO;
+function attempt(f) {
+	try { return f(); } catch (e) { return 'ERROR ' + e.message; }
+}
+process.stdout.write(JSON.stringify({
+	breaks: input.breaks.map(function (b) { return attempt(function () { return mo.breakClasses(mo.checkBreaks(b[0]), b[1], 'en'); }); }),
+	bad: input.bad.map(function (b) { return attempt(function () { return mo.checkBreaks(b); }); }),
+	scales: input.areas.map(function (a) { return mo.areaScale(a[0], a[1]); }),
+	rows: mo.areaRows(input.features, mo.TREND_CLASSES.map(function (c) { return [c[0], c[1], {}]; }), {map: 'x'}),
+	trend: mo.TREND_CLASSES.map(function (c) { return [c[0], c[1], c[2]]; })
+}));
+"""
+
+
+def test_the_app_has_the_same_classes():
+	"""The area by class of the Earth Engine app (gee/core.js, in node): the same classes, scales and rows."""
+	import math
+	if not shutil.which('node'):
+		pytest.skip('no node')
+	breaks = [('1500, 2000, 2500', 'm'), ([0.2, 0.4], '')]
+	bad = [[], ['a'], [2, 1]]
+	area_cases = [(10, 1e6), (10, 1e10), (500, 5e9)]
+	features = [{'properties': {'name': 'park', 'groups': [{'class': -1, 'sum': 10.0}, {'class': 0, 'sum': 70.0},
+	                                                        {'class': 1, 'sum': 20.0}]}},
+	            {'properties': {'name': 'empty', 'groups': []}}]
+	gee = os.path.join(os.path.dirname(__file__), '..', 'gee')
+	run = subprocess.run(['node', '-e', APP, gee], input=json.dumps({'breaks': breaks, 'bad': bad, 'areas': area_cases,
+	                                                                  'features': features}),
+	                     capture_output=True, text=True, timeout=120)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['breaks'] == [[list(c) for c in classes.break_classes(classes.check_breaks(b), u)] for b, u in breaks]
+	assert [o.split(':')[0] for o in out['bad']] == ['ERROR give at least one break, e.g. [0.2, 0.4, 0.6]',
+	                                                 'ERROR breaks are numbers, e.g. [0.2, 0.4, 0.6]; not ["a"]',
+	                                                 'ERROR breaks go from the lowest to the highest, each once']
+
+	class Regions:  # classes.scale_for without Earth Engine: the area of the biggest region
+		def __init__(self, area):
+			self.area = area
+
+		def map(self, f):
+			return self
+
+		def aggregate_max(self, key):
+			return self
+
+		def getInfo(self):
+			return self.area
+	assert out['scales'] == [classes.scale_for(n, Regions(a)) for n, a in area_cases]
+	assert out['rows'] == classes.rows({'park': {-1: 10.0, 0: 70.0, 1: 20.0}, 'empty': {}},
+	                                   [(c, label, {}) for c, label, _ in classes.TREND], {'map': 'x'})
+	assert out['trend'] == [list(c) for c in classes.TREND]
+	assert not math.isnan(out['scales'][0])

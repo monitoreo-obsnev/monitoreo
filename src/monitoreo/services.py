@@ -41,7 +41,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, charts, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, charts, classes, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -1075,6 +1075,89 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 	return {'rows': rows, 'stats': stats, 'scale': scale, 'unit': _unit(spec), 'title': _named(spec, metric)}
 
 
+@_cited
+def area_by_class(region, variable=None, sensor=None, start=None, end=None, metric=None, temporal='period',
+                  interannual='mean', season=None, quality=None, landcover=None, year=None, breaks=None, trend=False,
+                  step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, **source):
+	"""Hectares and % of each class over each feature of REGION (see monitoreo.classes), of one of:
+	LANDCOVER, a land cover map of YEAR (see landcover_maps; default: its last year), each class of the map with its
+	broad land cover; BREAKS, the map of a variable (as map_layer: METRIC, by default the median, TEMPORAL, INTERANNUAL;
+	also the fixed layers) cut at those values, e.g. [0.2, 0.4, 0.6] (below 0.2, 0.2 to 0.4, 0.4 to 0.6, 0.6 or more);
+	or TREND, the trend of a variable on each pixel (as trend_map: STEP, PART and METRIC of each year, by default the
+	mean), in significant
+	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA). The area of each pixel is
+	its true area, on pixels of SCALE metres (default: those of the data, bigger over big regions); the % is of the
+	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
+	Returns {'rows': [{region, class, label, ..., ha, percent}], 'mode', 'classes': [{class, label, colour}], 'scale',
+	'unit', 'title', 'csv', 'chart'} and, for a land cover map, 'by_landcover' (the hectares of each broad land
+	cover)."""
+	mode = classes.mode_of(landcover, breaks, trend)
+	if mode == 'landcover':
+		if variable or source.get('collection') or source.get('image'):
+			raise ValueError('a land cover map has its own classes: give landcover and year, without a variable')
+		if source.get('where') or source.get('exclude_landcover'):
+			raise ValueError('where is for the classes of a variable (breaks, trend), not for those of a land cover map')
+		m, year = classes.landcover_map(landcover, year)
+		regions = areas.region(region)
+		res = scale or classes.scale_for(float(m['m']), regions)
+		img = classes.source(m, year, regions.geometry())  # the argument landcover hides the module of that name
+		legend = [(code, f'{code} {name}', {'landcover': k}) for code, name, k in classes.landcover_classes(m)]
+		colours = {label: classes.LANDCOVER_COLOURS.get(more['landcover'], '9e9e9e') for _, label, more in legend}
+		extra, unit = {'map': m['name'], 'year': year}, ''
+		title = f"Area of each class of {m['name']} {year}"
+	elif mode == 'breaks':
+		cuts = classes.check_breaks(breaks)
+		metric = metric or 'median'
+		spec, regions, value, res0 = _build(region, variable, sensor, start, end, metric, temporal, interannual,
+		                                    season, quality, False, None, source)
+		res = scale or classes.scale_for(float(res0), regions)
+		unit = _unit(spec)
+		from .publish import unit_text
+		img = classes.classify_breaks(value, cuts)
+		legend = [(c, label, {'value_from': lo, 'value_to': hi})
+		          for c, label, lo, hi in classes.break_classes(cuts, unit_text(unit))]
+		palette = maps.ramp(ramp_entry(spec))
+		colours = {label: _ramp_colour(palette, (i + 0.5) / len(legend)) for i, (_, label, _) in enumerate(legend)}
+		extra = {}
+		title = f"Area of each class of {_named(spec, metric)}"
+	else:
+		metric = metric or 'mean'  # the metric of each year of the trends
+		spec, regions, trend_img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric,
+		                                                      season, quality, None, None, source, clip=False)
+		res = scale or classes.scale_for(native, regions)
+		img = classes.classify_trend(trend_img, alpha)
+		legend = [(c, label, {}) for c, label, _ in classes.TREND]
+		colours = {label: colour for _, label, colour in classes.TREND}
+		extra, unit = {}, _unit(spec)
+		title = f"Area of each class of the trend of {name} (p < {alpha:g})"
+	crs = timeseries.region_crs(regions)
+	ha = classes.hectares(img, regions, res, crs)
+	rows = classes.rows(ha, legend, extra)
+	out = {'rows': rows, 'mode': mode, 'scale': res, 'unit': unit, 'title': title, 'csv': None, 'chart': None,
+	       'classes': [{'class': c, 'label': label, 'colour': colours.get(label)} for c, label, _ in legend]}
+	if mode == 'landcover':
+		out['by_landcover'] = classes.by_landcover(rows)
+	if csv:
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'scale_m': res}
+		if mode != 'landcover' and spec.get('period') and not variables.is_static(spec):
+			meta['period'] = '/'.join(spec['period'])
+		out['csv'] = timeseries.write_csv(rows, csv, meta if mode != 'landcover' else {'scale_m': res},
+		                                  classes.COLUMNS[mode])
+	if chart and rows:
+		try:
+			charts.areas_png(rows, colours, chart, title)
+			out['chart'] = chart
+		except ImportError:  # no matplotlib: the table and the CSV are still there
+			pass
+	return out
+
+
+def _ramp_colour(palette, t):
+	"""The colour (hex) at T (0 to 1) of the ramp PALETTE, as Earth Engine interpolates it."""
+	return '%02x%02x%02x' % animation.ramp(palette, 101)[int(round(max(0.0, min(1.0, t)) * 100))]
+
+
+# Exports -----------------------------------------------------------------------------------------------------------
 # Exports -----------------------------------------------------------------------------------------------------------
 
 @_cited

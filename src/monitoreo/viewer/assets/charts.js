@@ -7,7 +7,8 @@ MO.chart = (() => {
 	const {el} = MO;
 	const NUMERIC = new Set(['value', 'n_pixels', 'n_images', 'n', 'tau', 'z', 'p_value', 'slope', 'intercept', 'first_year',
 		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max',
-		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max']);
+		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'percent',
+		'value_from', 'value_to', 'year']);
 	const COLUMNS = {
 		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
 		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
@@ -16,13 +17,15 @@ MO.chart = (() => {
 		n_other: 'Years (other)', class: 'Class', dnbr_min: 'dNBR from', dnbr_max: 'dNBR to', rdnbr_min: 'RdNBR from',
 		rdnbr_max: 'RdNBR to', ha: 'Hectares', mean: 'Mean', median: 'Median', std: 'Standard deviation',
 		cv: 'Coefficient of variation (%)', p10: 'Percentile 10',
-		p90: 'Percentile 90', min: 'Minimum', max: 'Maximum',
+		p90: 'Percentile 90', min: 'Minimum', max: 'Maximum', percent: '% of the area with classes',
+		landcover: 'Land cover', value_from: 'From', value_to: 'To', map: 'Map', year: 'Year',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
 		trends: ['region', 'label', 'slope', 'p_value', 'significant', 'tau', 'z', 'n', 'intercept', 'first_year', 'last_year'],
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
 		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max', 'ha'],
+		areas: ['region', 'label', 'landcover', 'value_from', 'value_to', 'ha', 'percent'],
 	};
 	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table, with the
 	// standard deviation and the coefficient of variation (RBR_BASE: those of the reports published before them)
@@ -260,6 +263,31 @@ MO.chart = (() => {
 		};
 	}
 
+	// The hectares of each class of a land cover map, of the classes of a variable or of a trend (area_by_class), with
+	// the colours of its chart of Python
+	function areasSpec(rows, result) {
+		const classes = result.classes || [];
+		const labels = classes.map((c) => c.label);
+		const data = rows.filter((r) => r.ha > 0);
+		return {
+			data: {values: data}, width: 'container', height: {step: 24},
+			layer: [
+				{mark: {type: 'bar', height: {band: 0.7}},
+					encoding: {
+						y: {field: 'label', type: 'nominal', sort: labels, title: null},
+						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
+						color: {field: 'label', type: 'nominal', legend: null,
+							scale: {domain: labels, range: classes.map((c) => `#${c.colour || '6baed6'}`)}},
+						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
+							{field: 'percent', title: '% of the area with classes', format: '.1f'}]}},
+				{mark: {type: 'text', align: 'left', dx: 5, fontSize: 12},
+					transform: [{calculate: "format(datum.percent, '.1f') + ' %'", as: 'text'}],
+					encoding: {y: {field: 'label', type: 'nominal', sort: labels}, x: {field: 'ha', type: 'quantitative'},
+						text: {field: 'text', type: 'nominal'}}},
+			],
+		};
+	}
+
 	function burnTiles(rows, result) {
 		const sum = (f) => rows.filter(f).reduce((s, r) => s + (r.ha || 0), 0);
 		if (burnIndex(rows, result) === 'RdNBR') {  // the classes of Miller & Thode 2007: unchanged, low, moderate, high
@@ -307,6 +335,7 @@ MO.chart = (() => {
 			if (kind === 'trends' && parts > 1) return embed(box, trendsSpec(subset, result));
 			if (kind === 'trends') return box.append(...trendTiles(subset, result));
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
+			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'burn_severity') {
 				box.append(burnTiles(subset, result));
 				const inner = el('div');
@@ -316,7 +345,7 @@ MO.chart = (() => {
 			return box.append(table(subset, kind));
 		};
 		let current = rows;
-		if (regions.length > 1 && ['comparison', 'burn_severity'].includes(kind) ||
+		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => r.region === regions[0]);

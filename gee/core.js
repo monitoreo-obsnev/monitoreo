@@ -1416,6 +1416,98 @@ var MonitorEO = (function () {
 		}));
 	}
 
+	// Area by class (services.area_by_class, monitoreo.classes): hectares and % of each class over each feature, of a
+	// land cover map of a year, of the map of a variable cut at some values (breaks) or of its trend on each pixel
+	var TREND_CLASSES = [[-1, 'significant decrease', 'd7191c', 'disminución significativa'],
+		[0, 'no significant trend', 'bdbdbd', 'sin tendencia significativa'],
+		[1, 'significant increase', '1a9641', 'aumento significativo']];
+	var LANDCOVER_COLOURS = {water: '419bdf', trees: '397d49', grassland: '88b053', wetland: '7a87c6',
+		cropland: 'e49635', shrubland: 'dfc35a', built: 'c4281b', bare: 'a59b8f', snow: 'b39fe1'};
+	var AREA_TARGET_PIXELS = 1e7;
+
+	// classes.check_breaks: an increasing list of numbers, from a list or a text with commas
+	function checkBreaks(breaks) {
+		if (typeof breaks === 'string') breaks = breaks.replace(/;/g, ',').split(',').filter(function (b) { return b.trim(); });
+		var out = (breaks || []).map(function (b) { return Number(b); });
+		if (!out.length) throw new Error('give at least one break, e.g. [0.2, 0.4, 0.6]');
+		if (out.some(function (b) { return !isFinite(b); })) {
+			throw new Error('breaks are numbers, e.g. [0.2, 0.4, 0.6]; not ' + JSON.stringify(breaks));
+		}
+		for (var i = 1; i < out.length; i++) {
+			if (out[i] <= out[i - 1]) throw new Error('breaks go from the lowest to the highest, each once: ' + out.join(', '));
+		}
+		return out;
+	}
+
+	function brk(x) {
+		return String(Number(x.toPrecision(6)));
+	}
+
+	// classes.break_classes: [class, label, from, to] of the classes of BREAKS, the labels with UNIT
+	function breakClasses(breaks, unit, lang) {
+		var u = unit ? ' ' + unit : '', es = lang === 'es';
+		var out = [[0, (es ? 'menos de ' : 'below ') + brk(breaks[0]) + u, null, breaks[0]]];
+		for (var i = 1; i < breaks.length; i++) {
+			out.push([i, brk(breaks[i - 1]) + (es ? ' a ' : ' to ') + brk(breaks[i]) + u, breaks[i - 1], breaks[i]]);
+		}
+		out.push([breaks.length, brk(breaks[breaks.length - 1]) + u + (es ? ' o más' : ' or more'),
+			breaks[breaks.length - 1], null]);
+		return out;
+	}
+
+	// classes.classify_breaks
+	function classifyBreaks(value, breaks) {
+		var out = ee.Image.constant(0).updateMask(ee.Image(value).mask().select(0));
+		breaks.forEach(function (b) { out = out.add(ee.Image(value).gte(b)); });
+		return out.toInt().rename('class');
+	}
+
+	// classes.classify_trend: -1 significant decrease, 0 no significant trend, 1 significant increase
+	function classifyTrend(trend, alpha) {
+		trend = ee.Image(trend);
+		var slope = trend.select('slope');
+		return trend.select('p_value').lt(alpha || 0.05).multiply(slope.gt(0).subtract(slope.lt(0))).toInt()
+			.rename('class').updateMask(slope.mask());
+	}
+
+	// classes.scale_for, from the AREA of the biggest region (m²)
+	function areaScale(native, area) {
+		var need = area ? Math.sqrt(area / AREA_TARGET_PIXELS) : native;
+		if (need <= native) return Number(native);
+		var nice = [];
+		for (var e = 1; e < 6; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
+		return nice.filter(function (n) { return n >= need; })[0] || nice[nice.length - 1];
+	}
+
+	// classes.hectares: the grouped sum of the true area of the pixels by class over each feature, to evaluate
+	function classHectares(classesImg, regions, scale, crs) {
+		return ee.Image.pixelArea().divide(1e4).updateMask(ee.Image(classesImg).mask()).addBands(classesImg)
+			.reduceRegions({collection: regions, reducer: ee.Reducer.sum().group(1, 'class'), scale: scale, crs: crs,
+				tileScale: 4});
+	}
+
+	// classes.rows: [{region, class, label, ..., ha, percent}] of the evaluated FEATURES of classHectares, for CLASSES
+	// ([class, label, {more columns}]) and the columns of EXTRA
+	function areaRows(features, classes, extra) {
+		var out = [];
+		features.forEach(function (f) {
+			var ha = {};
+			(f.properties.groups || []).forEach(function (g) { ha[Math.round(g['class'])] = g.sum; });
+			var total = classes.reduce(function (a, c) { return a + (ha[c[0]] || 0); }, 0);
+			classes.forEach(function (c) {
+				var row = {region: String(f.properties.name)};
+				Object.keys(extra || {}).forEach(function (k) { row[k] = extra[k]; });
+				row['class'] = c[0];
+				row.label = c[1];
+				Object.keys(c[2] || {}).forEach(function (k) { row[k] = c[2][k]; });
+				row.ha = ha[c[0]] || 0;
+				row.percent = total ? 100 * row.ha / total : null;
+				out.push(row);
+			});
+		});
+		return out;
+	}
+
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
 	function dailyDays(s, region) {
 		var wins = windows(s.period, s.season);
@@ -2244,6 +2336,9 @@ var MonitorEO = (function () {
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
+		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
+		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
+		classHectares: classHectares, areaRows: areaRows,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,

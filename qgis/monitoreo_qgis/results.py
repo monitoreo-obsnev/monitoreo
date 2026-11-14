@@ -36,6 +36,8 @@ RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('s
 # the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
 RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
                  ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]
+AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'), ('value_from', 'From'),
+                ('value_to', 'To'), ('ha', 'Hectares'), ('percent', '% of the area with classes')]
 FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
 MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
@@ -235,6 +237,9 @@ class ResultDialog(QDialog):
 			rbr = index == 'RBR'
 			rows, columns = (res['stats'], RBR_COLUMNS) if rbr else \
 				(res['classes'], RDNBR_COLUMNS if index == 'RdNBR' else BURN_COLUMNS)
+		elif kind == 'areas':  # the columns of its kind of classes (a land cover map, breaks or a trend)
+			rows = res['rows']
+			columns = [c for c in AREA_COLUMNS if any(c[0] in r for r in rows)]
 		else:
 			rows = res['rows'] if trends else res['profile']
 			columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
@@ -243,6 +248,8 @@ class ResultDialog(QDialog):
 		lay = QVBoxLayout(self)
 		if kind == 'burn':
 			text = f"{res['title']} · pixels of {res['scale']:g} m" + burn_text(res)
+		elif kind == 'areas':
+			text = f"{res['title']} · pixels of {res['scale']:g} m · % of the area with classes"
 		else:
 			text = (f"{res['title']} · {unit_label(res, trends)} · pixels of {res['scale']:g} m"
 			        + (' · significant: p < 0.05 (Mann-Kendall)' if trends else
@@ -255,6 +262,8 @@ class ResultDialog(QDialog):
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
 			lay.addWidget(label)
 		colours = {}
+		if kind == 'areas':  # the colour of each class, as in its chart
+			colours = {c['class']: f"#{c['colour']}" for c in res.get('classes') or [] if c.get('colour')}
 		if kind == 'burn' and not rbr:  # the colour of each class, as in its layer (USGS or Miller & Thode 2007)
 			from monitoreo import fire
 			colours = {c['value']: c['color'] for c in fire.legend('RdNBR' if index == 'RdNBR' else 'dNBR')}

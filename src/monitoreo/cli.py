@@ -17,6 +17,10 @@
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
+    monitoreo areas --region JSON --landcover MAP [--year Y] [--csv F] [--png F]
+    monitoreo areas VARIABLE --sensor S --region JSON [--start D --end D] --breaks 0.2,0.4,0.6 | --trend
+                                                     hectares and % of each class of a land cover map, of the map of a
+                                                     variable cut at some values, or of the trend on each pixel
     monitoreo timelapse VARIABLE --sensor S --region JSON --start D --end D --out F.gif|F.mp4
                         [--step annual|monthly|16-day|daily] [--metric median] [--fps 2]
                                                      animation of a variable: a frame per step with its date
@@ -345,6 +349,33 @@ def main(argv=None):
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
+	areas = computes['areas'] = p = sub.add_parser('areas', help='hectares and % of each class of a land cover map, of '
+	                                                             'the map of a variable cut at some values, or of the '
+	                                                             'trend of a variable on each pixel')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor; none with '
+	                                           '--landcover')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p, image=True)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--landcover', metavar='MAP', help='a land cover map (monitoreo landcover lists them): its classes, '
+	                                                  'with their broad land cover')
+	p.add_argument('--year', type=int, help='with --landcover, the year of the map (default: its last one)')
+	p.add_argument('--breaks', help='the values where to cut the map of the variable, separated by commas, e.g. '
+	                                '1500,2000,2500 for ELEVATION (below 1500, 1500 to 2000, ...)')
+	p.add_argument('--trend', action='store_true', help='the classes of the trend of the variable on each pixel: '
+	                                                    'significant decrease, no significant trend and increase')
+	p.add_argument('--start', help='first day (not for the fixed layers nor --landcover)')
+	p.add_argument('--end', help='last day')
+	p.add_argument('--metric', help=METRIC_HELP + ' (default: median; with --trend, that of each year: mean)')
+	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
+	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
+	p.add_argument('--step', default='annual', choices=('monthly', '16-day', 'annual'), help='with --trend')
+	p.add_argument('--part', type=int, help='with --trend and --step monthly or 16-day: the month (1-12) or 16 days')
+	p.add_argument('--alpha', type=float, default=0.05, help='with --trend: significant if p < alpha (default 0.05)')
+	p.add_argument('--scale', type=float, help='pixel size in metres (default: that of the data, bigger in big regions)')
+	p.add_argument('--csv')
+	p.add_argument('--png')
 	computes['timelapse'] = p = sub.add_parser('timelapse', help='animation of a variable over a region (a timelapse): '
 	                                                             'a frame per step of the period, with its date')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
@@ -443,8 +474,12 @@ def main(argv=None):
 	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
 	args = parser.parse_args(argv)
-	if args.cmd in computes:  # what it computes, or its error before Earth Engine
-		args.source = _source(args, computes[args.cmd])
+	if args.cmd in computes and not (args.cmd == 'areas' and args.landcover):  # what it computes, or its error before
+		args.source = _source(args, computes[args.cmd])  # Earth Engine
+	elif args.cmd == 'areas':
+		if args.variable or args.sensor:
+			areas.error('--landcover has its own classes: give no VARIABLE nor --sensor')
+		args.source = {}
 	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
 		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '
 		           'describes an ID of Earth Engine')
@@ -580,6 +615,9 @@ def _compute(args, services):
 	if args.cmd == 'timelapse':
 		_timelapse(args, services)
 		return
+	if args.cmd == 'areas':
+		_areas(args, services)
+		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
 		_image(args, services)
@@ -641,6 +679,25 @@ def _stats(args, services):
 	_table(_fmt(res['rows']), ['region'] + list(res.get('stats') or stats) + ['n_pixels'])
 	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats) else ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
+
+
+def _areas(args, services):
+	"""Hectares and % of each class (services.area_by_class): of a land cover map, of the map of a variable cut at
+	--breaks or of its trend on each pixel."""
+	try:
+		res = services.area_by_class(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
+		                             temporal=args.temporal, interannual=args.interannual, landcover=args.landcover,
+		                             year=args.year, breaks=args.breaks, trend=args.trend, step=args.step,
+		                             part=args.part, alpha=args.alpha, scale=args.scale, csv=args.csv, chart=args.png,
+		                             where=_where(args), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	cols = ['region', 'class', 'label'] + (['landcover'] if res['mode'] == 'landcover' else []) + ['ha', 'percent']
+	_table([{k: (f'{v:.1f}' if k in ('ha', 'percent') and isinstance(v, float) else v) for k, v in r.items()}
+	        for r in res['rows'] if r.get('ha')], cols)
+	print(f"\n{res['title']} | pixels of {res['scale']:g} m | % of the area with classes"
+	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | chart {res['chart']}" if res.get('chart') else '')
+	      + (f" | README {res['readme']}" if res.get('readme') else ''))
 
 
 def _timelapse(args, services):

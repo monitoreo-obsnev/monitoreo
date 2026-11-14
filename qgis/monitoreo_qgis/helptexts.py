@@ -318,6 +318,17 @@ HELP = {
 		'left with no data. Unchecked, it shows all of them.</p>'
 		'<p>A high p-value does not prove that there is no change: with few years or much variability, the test has no '
 		'power to see it.</p>' + manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
+	'area_kind':
+		'<p><b>Compute the areas</b> gives the <b>hectares</b> and the <b>%</b> of each class over each feature of the '
+		'region, in a window with its chart and table (CSV with its README):</p><ul>'
+		'<li><b>Land cover map</b>: the classes of a land cover map of a year (ESA WorldCover, Dynamic World, CORINE '
+		'Land Cover, MODIS), each with its broad land cover. No variable.</li>'
+		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
+		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
+		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '
+		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li></ul>'
+		'<p>The area of each pixel is its true area; the % is of the area with a class.</p>'
+		+ manual('Concepts#area-by-class'),
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
 		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '
@@ -325,14 +336,14 @@ HELP = {
 		'of the whole period), so that they can be compared; the pixels without data in a step are light grey.</p>'
 		'<p>At most 120 frames: for long periods, a frame per year. Earth Engine makes each frame, so it takes some '
 		'minutes. The window plays the GIF, with the date and the number of images of each frame, and saves it with '
-		'its README.</p>' + manual('QGIS-plugin#10-animation-timelapse'),
+		'its README.</p>' + manual('QGIS-plugin#11-animation-timelapse'),
 	'anim_metric':
 		'<p>How the images of each frame are joined on each pixel: the median (by default), the mean, the minimum, the '
 		'maximum, a percentile, the standard deviation or the coefficient of variation (%).</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'anim_fps':
 		'<p>Frames per second of the GIF: 2 shows each year for half a second.</p>'
-		+ manual('QGIS-plugin#10-animation-timelapse'),
+		+ manual('QGIS-plugin#11-animation-timelapse'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
 		'summarized on each pixel. The <b>Median</b> resists outliers better than the mean.</p>' + SPREAD_HELP +

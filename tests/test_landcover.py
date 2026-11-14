@@ -245,7 +245,9 @@ STEPS = r"""
 var out = {};
 var lc = 'Leave some land covers out of the results';
 out.order = texts(controls);
-out.before = {on: check(lc).opts.value, maps: Boolean(selectWith('CORINE'))};
+out.before = {on: check(lc).opts.value, maps: find(controls, 'Select', function (w) {
+	return (w.opts.items || []).some(function (i) { return i.value === 'CORINE'; });
+}).length};
 check(lc).opts.onChange(true);
 out.worldcover = {map: selectWith('CORINE').opts.value, year: selectWith(2021).opts.value,
 	years: selectWith(2021).opts.items.map(function (i) { return i.value; })};
@@ -285,7 +287,7 @@ def test_the_panel_of_the_app():
 	assert run.returncode == 0, run.stderr
 	out = json.loads(run.stdout)
 	assert out['order'].index('Land cover mask') < out['order'].index('Theme')
-	assert out['before'] == {'on': False, 'maps': False}  # folded
+	assert out['before'] == {'on': False, 'maps': 1}  # folded: only the map of Area by class, further down
 	assert out['worldcover'] == {'map': 'WorldCover', 'year': 2021, 'years': [2021, 2020]}
 	assert out['corine']['year'] == 2018 and out['corine']['years'] == [2018, 2012, 2006, 2000, 1990]
 	checks = dict(out['corine']['checks'])

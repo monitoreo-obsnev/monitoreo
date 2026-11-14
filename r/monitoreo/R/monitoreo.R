@@ -1062,6 +1062,67 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
   cited(df, res)
 }
 
+#' Hectares and percent of each class over each feature of a region
+#'
+#' The area of each class of one of: a land cover map of a year (\code{landcover}, see \code{mo_landcover_maps()}),
+#' each class of the map with its broad land cover; the map of a variable (as \code{mo_map_layer()}, also the fixed
+#' layers) cut at \code{breaks}, e.g. \code{c(1500, 2000, 2500)} for the elevation; or, with \code{trend = TRUE},
+#' the trend of a variable on each pixel (as \code{mo_trend_map()}) in significant decrease, no significant trend and
+#' significant increase (Mann-Kendall p-value below \code{alpha}). The area of each pixel is its true area; the percent
+#' is of the area with a class (the pixels without data are not counted), as the zonal statistics by group of geemap
+#' (Wu, 2020).
+#' @inheritParams mo_params
+#' @param landcover a land cover map, e.g. \code{"CORINE"} or \code{"WorldCover"} (without variable).
+#' @param year with \code{landcover}, the year of the map (default: its last one).
+#' @param breaks the values where to cut the map of the variable, e.g. \code{c(0.2, 0.4, 0.6)}.
+#' @param trend \code{TRUE}: the classes of the trend of the variable on each pixel.
+#' @param step,part,alpha with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or
+#'   \code{"16-day"}), the part (month 1-12 or 16 days 1-23) and the p-value below which a trend is significant.
+#' @param metric the temporal metric (default: the median; with \code{trend}, that of each year, the mean).
+#' @return A data.frame (region, class, label and, for a land cover map, map, year and landcover; for breaks,
+#'   value_from and value_to; ha, percent) with the attributes title, mode, unit, scale, by_landcover (the hectares of
+#'   each broad land cover), csv, chart, references and credits (see \code{mo_references()}).
+#' @section References: The result carries its references (with DOI): those of the land cover map and of its table of
+#'   correspondences, or of the formula or algorithm of the variable, of its Earth Engine datasets, of the method
+#'   (Mann-Kendall and Sen for the trend), of the region, of Google Earth Engine and of MonitorEO, and the credits that
+#'   the terms of use of the data ask for. \code{mo_references()} prints them.
+#' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
+#'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
+#'
+#' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
+#'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
+#'   \doi{10.1016/j.rse.2017.06.031}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' mo_area_by_class(mo_wdpa(389011), landcover = "CORINE", year = 2018)
+#' # elevation bands
+#' mo_area_by_class(mo_wdpa(389011), "ELEVATION", "Copernicus", breaks = c(1500, 2000, 2500, 3000))
+#' # where the NDVI goes up or down
+#' mo_area_by_class(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", trend = TRUE)
+#' }
+#' @export
+mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, landcover = NULL,
+                             year = NULL, breaks = NULL, trend = FALSE, metric = NULL, temporal = "period",
+                             interannual = "mean", step = "annual", part = NULL, alpha = 0.05, season = NULL,
+                             quality = NULL, scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL,
+                             image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                             terrain = NULL) {
+  if (is.null(landcover)) check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+  res <- services()$area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                                  landcover, if (is.null(year)) NULL else as.integer(year),
+                                  if (is.null(breaks)) NULL else as.list(as.numeric(breaks)), isTRUE(trend), step,
+                                  if (is.null(part)) NULL else as.integer(part), alpha, scale = scale,
+                                  csv = if (is.null(csv)) NULL else path.expand(csv),
+                                  chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
+                                  where = where, image = image, band = band, band_scale = band_scale,
+                                  band_offset = band_offset, unit = unit, terrain = terrain)
+  df <- rows_df(res$rows)
+  for (k in c("title", "mode", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
+  if (!is.null(res$by_landcover)) attr(df, "by_landcover") <- rows_df(res$by_landcover)
+  cited(df, res)
+}
+
 #' Export the map of a variable to a GeoTIFF in Google Drive
 #'
 #' A batch task of Earth Engine, without limits of size (it needs your own Earth Engine account, not the shared one).

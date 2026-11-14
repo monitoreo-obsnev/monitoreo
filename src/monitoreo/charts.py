@@ -125,3 +125,33 @@ def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('
 	ax.legend(fontsize=8, frameon=False)
 	fig.tight_layout()
 	return _png(fig, path)
+
+
+def areas_png(rows, colours=None, path=None, title=None, dpi=120, max_regions=6):
+	"""PNG (bytes) of the hectares of each class (ROWS: [{region, label, ha, percent}], see monitoreo.classes): a panel
+	of horizontal bars per region (the first MAX_REGIONS), each class with its colour (COLOURS: {label: 'rrggbb'}) and
+	its %, the classes without area left out."""
+	from matplotlib.figure import Figure
+
+	regions = list(dict.fromkeys(r['region'] for r in rows))[:max_regions]
+	shown = {g: [r for r in rows if r['region'] == g and r.get('ha')] for g in regions}
+	n = max(1, max((len(v) for v in shown.values()), default=1))
+	fig = Figure(figsize=(9, 1.2 + 0.32 * n * len(regions)), dpi=dpi)
+	for i, g in enumerate(regions):
+		ax = fig.add_subplot(len(regions), 1, i + 1)
+		rs = list(reversed(shown[g]))
+		ax.barh([textwrap.shorten(str(r['label']), 45) for r in rs], [r['ha'] for r in rs],
+		        color=[f"#{(colours or {}).get(r['label'], '6baed6')}" for r in rs], edgecolor='#555', linewidth=0.4)
+		for y, r in enumerate(rs):
+			if r.get('percent') is not None:
+				ax.text(r['ha'], y, f" {r['percent']:.1f} %", va='center', fontsize=8)
+		ax.set_xlabel('ha' if i == len(regions) - 1 else '')
+		ax.tick_params(labelsize=8)
+		ax.grid(axis='x', alpha=0.3)
+		ax.margins(x=0.15)
+		if len(regions) > 1:
+			ax.set_title(str(g), fontsize=9, loc='left')
+	if title:
+		fig.suptitle(textwrap.fill(title, 100), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)

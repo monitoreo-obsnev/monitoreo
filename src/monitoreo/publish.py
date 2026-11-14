@@ -93,14 +93,15 @@ LICENSE = 'CC-BY-4.0'
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation'}
+            'timelapse': 'animation', 'area_by_class': 'areas'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
-                  'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation'}
+                  'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
+                  'areas': 'Area by class'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
-CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'table')
+CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas'}
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -360,6 +361,16 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'area_by_class':
+		if args.get('landcover'):
+			from . import landcover
+			try:
+				name = landcover.find(args['landcover'])['name']
+			except ValueError:
+				name = str(args['landcover'])
+			return f"Area of each class of {name}" + (f" {args['year']}" if args.get('year') else '')
+		what = f'the trend of {var}' if args.get('trend') else var
+		return f'Area of each class of {what}' + (f', {period}{season}' if period and not is_static(args) else '')
 	return var or 'Result'
 
 
@@ -722,6 +733,8 @@ def _results(item, files, n):
 				entry['burned_min'] = fire.CLASSES[index]['burned']  # the burned area: the index from this value
 			if out:
 				entry['title'] = item.get('chart_title') or 'Area of each severity class'
+		elif chart == 'areas':  # the colour of each class, as in its chart of Python
+			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')} for c in res.get('classes') or []]
 		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
 			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):
