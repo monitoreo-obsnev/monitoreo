@@ -73,6 +73,8 @@
 			areaChanged: '%s: cambiaron %s ha y no cambiaron %s ha (por clase del mapa).', areaFrom: 'De', areaTo: 'A',
 			areaBroad: 'Por usos del suelo generales; cada par de clases, en el CSV.', badYears: 'elige dos años distintos.',
 			areaOneYear: '%s tiene un mapa de un solo año: no hay cambios que calcular.',
+			areaNoWhere: 'La máscara de usos del suelo y «Solo los píxeles donde» son para las clases de una variable ' +
+				'(cortes, tendencia), no para las de un mapa de usos del suelo: desmárcalos.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: 'Índice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas imágenes y píxeles que la ' +
@@ -225,6 +227,8 @@
 			areaChanged: '%s: %s ha changed and %s ha did not (by class of the map).', areaFrom: 'From', areaTo: 'To',
 			areaBroad: 'By broad land cover; each pair of classes, in the CSV.', badYears: 'choose two different years.',
 			areaOneYear: '%s has a map of a single year: there are no changes to compute.',
+			areaNoWhere: 'The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, ' +
+				'trend), not for those of a land cover map: uncheck them.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -830,7 +834,7 @@
 		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
 		// data of Earth Engine let the metrics change meanwhile
 		var only = mo.byRef(state.ref).metric;
-		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = only;
 		render();
 	}
 
@@ -848,7 +852,8 @@
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
-		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
+		// its only metric (SCF), also of each frame of the animation
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
 		render();
 	}
 
@@ -1345,6 +1350,8 @@
 		var geom = regions.geometry();
 		if (kind === 'landcover' && state.areaChangeOn) return landcoverChanges();
 		if (kind === 'landcover') {
+			// as services.area_by_class: the land cover mask and where are for the classes of a variable
+			if (state.landcoverOn || state.whereOn) return message(t('areaNoWhere'), true);
 			var m = mo.landcoverMap(state.areaMap);
 			var year = state.areaYear || mo.landcoverDefaultYear(m);
 			img = mo.landcoverSource(m, year, geom).rename('class');
@@ -1483,8 +1490,9 @@
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
-	// map of the whole period (its percentiles 5 and 95, as services.timelapse), as a thumbnail that plays them, its
-	// dates and its colour bar; and the GIF to download
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
+	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
+	// download
 	function timelapse() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -1496,7 +1504,8 @@
 		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
 		var ramped = mo.rampEntry(e, state.animMetric, 'period');
 		var id = start();
-		mo.percentiles(mo.image(s, geom).clipToCollection(region), geom, rangeScale(e)).evaluate(function (st, error) {
+		var range = mo.animationRange(s, region, steps, state.animMetric);
+		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
 			if (id !== run) return;
 			var vis = mo.visParams(error ? null : st, ramped);
 			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);

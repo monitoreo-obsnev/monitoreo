@@ -1,7 +1,8 @@
 """Area of each class over each feature of a region (services.area_by_class and monitoreo.classes), without Earth
-Engine: the kinds of classes and their errors, the classes of the breaks and of the trend, the rows and their %, the
-citations, the README, the report, the viewer of results, the command line, the MCP server and the Earth Engine app
-(gee/core.js in node, the same classes and rows as Python). tests/test_ee.py computes them in Earth Engine."""
+Engine: the kinds of classes and their errors, the classes of the breaks and of the trend, the rows and their % (also
+of the features with the same name), the citations, the README, the report, the viewer of results (also of the answers
+of the MCP server), the command line, the MCP server and the Earth Engine app (gee/core.js in node, the same classes and
+rows as Python; ui.js, its refusals). tests/test_ee.py computes them in Earth Engine."""
 
 import json
 import os
@@ -34,14 +35,76 @@ def test_the_breaks():
 
 def test_the_rows_and_their_percent():
 	legend = [(c, label, {}) for c, label, _ in classes.TREND]
-	rows = classes.rows({'park': {-1: 10.0, 0: 70.0, 1: 20.0}, 'empty': {}}, legend, {'map': 'x'})
+	rows = classes.rows([('park', {-1: 10.0, 0: 70.0, 1: 20.0}), ('empty', {})], legend, {'map': 'x'})
 	assert [(r['region'], r['class'], r['ha'], r['percent']) for r in rows[:3]] == \
 		[('park', -1, 10.0, 10.0), ('park', 0, 70.0, 70.0), ('park', 1, 20.0, 20.0)]
 	assert rows[0]['map'] == 'x' and all(r['percent'] is None for r in rows[3:])
-	table = [{'region': 'p', 'landcover': k, 'ha': h, 'percent': p} for k, h, p in
-	         (('trees', 10.0, 10.0), ('water', 5.0, 5.0), ('trees', 20.0, 20.0))]
-	assert [(r['landcover'], r['ha'], r['percent']) for r in classes.by_landcover(table)] == \
-		[('water', 5.0, 5.0), ('trees', 30.0, 30.0)]
+	legend = [(311, '311 Broad-leaved forest', {'landcover': 'trees'}), (511, '511 Water courses', {'landcover': 'water'}),
+	          (312, '312 Coniferous forest', {'landcover': 'trees'})]
+	broad = classes.by_landcover([('p', {311: 10.0, 511: 5.0, 312: 20.0, 999: 65.0}), ('empty', {})], legend)
+	assert [(r['region'], r['landcover'], r['ha'], r['percent']) for r in broad] == \
+		[('p', 'water', 5.0, 100 * 5 / 35), ('p', 'trees', 30.0, 100 * 30 / 35),
+		 ('empty', 'water', 0.0, None), ('empty', 'trees', 0.0, None)]  # no class: no %, not 0 %
+
+
+class FakeEE:
+	"""An ee that computes nothing: each of its objects and methods gives it back, and getInfo the FEATURES of
+	reduceRegions."""
+
+	def __init__(self, features):
+		self.features = features
+
+	def __getattr__(self, name):
+		return self
+
+	def __call__(self, *args, **kwargs):
+		return self
+
+	def getInfo(self):
+		return {'features': self.features}
+
+
+# two areas of WDPA with the same name (e.g. the National Park and the Natural Park of a wdpa_name), and an empty one
+SAME_NAME = [{'properties': {'name': 'Sierra Nevada', 'groups': [{'class': 311, 'sum': 1000.0},
+                                                                 {'class': 321, 'sum': 0.0}]}},
+             {'properties': {'name': 'Sierra Nevada', 'groups': [{'class': 321, 'sum': 5.0}]}},
+             {'properties': {'name': 'empty', 'groups': []}}]
+
+
+def test_the_features_with_the_same_name_keep_their_own_rows(monkeypatch, tmp_path):
+	"""Each feature of the region has its rows, its hectares of each broad land cover and its panel of the chart, also
+	when another one has its name (as region_stats): none overwrites the other."""
+	monkeypatch.setattr(classes, 'ee', FakeEE(SAME_NAME))
+	ha = classes.hectares('classes', 'regions', 100, 'EPSG:3035')
+	assert ha == [('Sierra Nevada', {311: 1000.0, 321: 0.0}), ('Sierra Nevada', {321: 5.0}), ('empty', {})]
+	m, year = classes.landcover_map('CORINE', 2018)
+	legend = [(code, f'{code} {name}', {'landcover': k}) for code, name, k in classes.landcover_classes(m)]
+	rows = classes.rows(ha, legend)
+	assert len(rows) == 3 * len(legend)
+	assert [(r['region'], r['ha'], r['percent']) for r in rows if r['class'] == 311] == \
+		[('Sierra Nevada', 1000.0, 100.0), ('Sierra Nevada', 0.0, 0.0), ('empty', 0.0, None)]
+	assert [(r['region'], r['landcover'], r['ha'], r['percent']) for r in classes.by_landcover(ha, legend)
+	        if r['ha']] == [('Sierra Nevada', 'trees', 1000.0, 100.0), ('Sierra Nevada', 'grassland', 5.0, 100.0)]
+	# services.area_by_class, without Earth Engine: its rows, by_landcover and CSV keep both areas
+	monkeypatch.setattr(services.areas, 'region', lambda region: FakeEE(SAME_NAME))
+	monkeypatch.setattr(classes, 'scale_for', lambda native, regions: 100.0)
+	monkeypatch.setattr(classes, 'source', lambda m, year, region=None: 'classes')
+	monkeypatch.setattr(services.timeseries, 'region_crs', lambda regions: 'EPSG:3035')
+	out = services.area_by_class({'wdpa_name': 'Sierra Nevada'}, landcover='CORINE', year=2018,
+	                             csv=str(tmp_path / 'areas.csv'))
+	assert out['rows'] == [dict(r, map='CORINE Land Cover', year=2018) for r in rows]
+	assert out['by_landcover'] == classes.by_landcover(ha, legend)
+	csv = (tmp_path / 'areas.csv').read_text(encoding='utf-8').splitlines()
+	assert len(csv) == 1 + 3 * len(legend) and sum(1 for r in csv if r.startswith('Sierra Nevada,')) == 2 * len(legend)
+	# the chart: a panel for each feature
+	pytest.importorskip('matplotlib')
+	from matplotlib.axes import Axes
+
+	from monitoreo import charts
+	titles = []
+	monkeypatch.setattr(Axes, 'set_title', lambda self, label, *args, **kwargs: titles.append(label))
+	charts.areas_png(rows, {}, str(tmp_path / 'areas.png'))
+	assert titles == ['Sierra Nevada', 'Sierra Nevada', 'empty']
 
 
 def test_the_land_cover_maps_and_their_classes():
@@ -96,6 +159,33 @@ def test_the_readme_and_the_report(tmp_path):
 		'311 Broad-leaved forest'
 	facts = dict(report.item_facts('area_by_class', dict(TREND, alpha=0.01), {'scale': 250.0}))
 	assert facts['Step'] == 'annual' and facts['Temporal metric'] == 'mean' and 'p < 0.01' in facts['Classes']
+	assert 'Part of the year' not in facts and 'Part of the year' not in dict(
+		report.item_facts('area_by_class', dict(TREND, part=7), {}))  # annual (the default): the whole year
+
+
+def test_the_readme_says_the_breaks_given_as_a_text(tmp_path):
+	"""The command line and QGIS give the breaks as a text: the README says its numbers, not its characters."""
+	args = {'region': REGION, 'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': '1500,2000'}
+	facts = dict(report.item_facts('area_by_class', args, {'unit': 'm'}))
+	assert facts['Classes'] == 'cut at 1500, 2000 m (a value equal to a break goes to the class above it)'
+	csv = tmp_path / 'bands.csv'
+	csv.write_text('region,class,label,value_from,value_to,ha,percent\nbbox,0,below 1500 m,,1500,10,100\n',
+	               encoding='utf-8')
+	text = readme.text('area_by_class', dict(args, breaks='0.2; 0.4'), {'csv': str(csv), 'mode': 'breaks', 'unit': '',
+	                                                                    'scale': 30.0, 'title': 'Areas'})
+	assert 'cut at 0.2, 0.4 (a value' in text
+
+
+def test_the_part_of_the_year_of_a_trend_is_in_the_title_and_the_facts():
+	"""The classes of the trend of a month or of 16 days say which, in the title and the facts, as trend_map."""
+	july, period = dict(TREND, step='monthly', part=7), dict(TREND, step='16-day', part=12)
+	assert report.item_title('area_by_class', july) == \
+		'Area of each class of the trend of July of NDVI (MODIS), 2005-2024'
+	assert report.item_title('area_by_class', period) == \
+		'Area of each class of the trend of 16-day period 12 of NDVI (MODIS), 2005-2024'
+	facts = dict(report.item_facts('area_by_class', july, {'scale': 250.0}))
+	assert facts['Part of the year'] == 'July' and facts['Temporal metric'] == 'mean' and 'p < 0.05' in facts['Classes']
+	assert dict(report.item_facts('area_by_class', period, {}))['Part of the year'] == '16-day period 12'
 
 
 def test_the_viewer_of_results_draws_the_areas(tmp_path):
@@ -114,6 +204,76 @@ def test_the_viewer_of_results_draws_the_areas(tmp_path):
 	assert r['chart'] == 'areas' and r['classes'][0] == {'class': -1, 'label': 'significant decrease',
 	                                                       'colour': 'd7191c'}
 	assert rep['analyses'] == [{'id': 'areas', 'name': 'Area by class'}] and publish.check_report(rep, str(folder)) == []
+
+
+AREAS_VIEWER = r"""
+var fs = require('fs'), vm = require('vm');
+var input = JSON.parse(fs.readFileSync(0, 'utf8')), specs = [];
+function node(tag, attrs, children) {  // the elements of the page, without a browser
+	return {tag: tag, attrs: attrs || {}, children: children, clientWidth: 800,
+		append: function () { this.children.push.apply(this.children, arguments); },
+		replaceChildren: function () { this.children = []; }};
+}
+global.MO = {el: function (tag, attrs) { return node(tag, attrs, [].slice.call(arguments, 2).flat(Infinity)); },
+	MONTHS: [], css: function () { return ''; }, text: async function () { return input.csv; }};
+global.window = {matchMedia: function () { return {addEventListener: function () {}}; }};
+global.document = {documentElement: {}};
+global.getComputedStyle = function () { return {colorScheme: 'light'}; };
+global.vega = {read: function (text) {  // a CSV without quotes
+	var lines = text.trim().split(/\r?\n/), cols = lines[0].split(',');
+	return lines.slice(1).map(function (l) {
+		var v = l.split(','), r = {};
+		cols.forEach(function (c, i) { r[c] = v[i]; });
+		return r;
+	});
+}};
+global.vegaEmbed = async function (box, spec) {
+	specs.push(spec.data.values.map(function (r) { return [r.region, r.label, r.ha]; }));
+};
+vm.runInThisContext(fs.readFileSync(process.argv[1], 'utf8'), {filename: 'charts.js'});
+function find(n, tag) {
+	if (!n || typeof n !== 'object') return null;
+	if (n.tag === tag) return n;
+	for (var i = 0; i < (n.children || []).length; i++) {
+		var f = find(n.children[i], tag);
+		if (f) return f;
+	}
+	return null;
+}
+(async function () {
+	var container = node('div', {}, []);
+	await MO.chart.render(container, {chart: 'areas', csv: 'areas.csv', id: 'a', classes: input.classes}, '');
+	var select = find(container, 'select'), options = select ? select.children.map(function (o) { return o.attrs.value; }) : [];
+	if (select) select.attrs.onchange({target: {value: options[1]}});
+	await new Promise(function (resolve) { setTimeout(resolve, 0); });
+	process.stdout.write(JSON.stringify({options: options, specs: specs}));
+})();
+"""
+
+
+@pytest.mark.skipif(not shutil.which('node'), reason='no Node')
+def test_the_viewer_draws_each_feature_also_those_with_the_same_name():
+	"""The chart of an area by class in the viewer of results (charts.js, in node): one feature at a time, chosen in
+	Region, also those with the same name (numbered), as the panels of the chart of Python; not their bars together."""
+	import csv
+	import io
+	legend = [(311, '311 Broad-leaved forest', {}), (321, '321 Natural grasslands', {})]
+	rows = classes.rows([('Sierra Nevada', {311: 1000.0, 321: 20.0}), ('Sierra Nevada', {321: 5.0}), ('empty', {})],
+	                    legend)
+	text = io.StringIO()
+	writer = csv.DictWriter(text, ['region', 'class', 'label', 'ha', 'percent'], lineterminator='\n')
+	writer.writeheader()
+	writer.writerows({k: '' if r[k] is None else r[k] for k in writer.fieldnames} for r in rows)
+	charts_js = os.path.join(os.path.dirname(classes.__file__), 'viewer', 'assets', 'charts.js')
+	run = subprocess.run(["node", "-e", AREAS_VIEWER, charts_js],
+	                     input=json.dumps({'csv': text.getvalue(), 'classes': [{'label': label, 'colour': '6baed6'}
+	                                                                          for _, label, _ in legend]}),
+	                     capture_output=True, text=True, timeout=60)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['options'] == ['Sierra Nevada', 'Sierra Nevada (2)', 'empty'], out
+	assert out['specs'] == [[['Sierra Nevada', '311 Broad-leaved forest', 1000], ['Sierra Nevada', '321 Natural grasslands', 20]],
+	                        [['Sierra Nevada', '321 Natural grasslands', 5]]], out
 
 
 @pytest.fixture
@@ -165,6 +325,88 @@ def test_the_mcp_server_computes_the_areas(calls, monkeypatch, tmp_path):
 	assert 'area_by_class' in mcp_server.INSTRUCTIONS
 
 
+AREA_CALLS = {'landcover': ({'landcover': 'CORINE', 'year': 2018}, {311: 70.0, 512: 30.0}),
+              'breaks': ({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000]}, {0: 40.0, 2: 60.0}),
+              'trend': ({'variable': 'NDVI', 'sensor': 'Modis', 'start': '2005-01-01', 'end': '2024-12-31',
+                         'trend': True}, {-1: 10.0, 0: 90.0})}
+
+
+@pytest.mark.parametrize('kind', list(AREA_CALLS))
+def test_the_report_of_an_area_by_class_of_the_mcp_server_has_its_classes(kind, monkeypatch, tmp_path):
+	"""The answer of the MCP server, and so its log that publish_report reads, has no classes (it stays small): the
+	report takes them from the CSV, with the colours of services.area_by_class (its chart in the viewer)."""
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	from monitoreo import publish
+	call, groups = AREA_CALLS[kind]
+	regions = FakeEE([{'properties': {'name': 'bbox', 'groups': [{'class': c, 'sum': h} for c, h in groups.items()]}}])
+	monkeypatch.setattr(classes, 'ee', regions)  # services.area_by_class without Earth Engine
+	monkeypatch.setattr(services.areas, 'region', lambda region: regions)
+	monkeypatch.setattr(classes, 'scale_for', lambda native, regions: 100.0)
+	monkeypatch.setattr(classes, 'source', lambda m, year, region=None: 'classes')
+	monkeypatch.setattr(services.timeseries, 'region_crs', lambda regions: 'EPSG:3035')
+	monkeypatch.setattr(services, '_build', lambda region, variable, sensor, start, end, metric, *args:
+	                    (services.make_spec(variable, sensor, start, end, metric), regions, 'value', 30))
+	monkeypatch.setattr(services, '_trend', lambda region, variable, sensor, start, end, step, part, metric, *args, **kw:
+	                    (services.make_spec(variable, sensor, start, end, metric), regions, 'trend', 0, 250.0, 'NDVI'))
+	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
+	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
+	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
+	expected = services.area_by_class(REGION, **call)['classes']
+	assert all(c['colour'] for c in expected)
+	out = mcp_server.area_by_class(REGION, **call)
+	answer = json.loads(out[0] if isinstance(out, list) else out)
+	assert 'classes' not in answer and answer['csv']
+	spec = {'title': 'Areas', 'summary': 'Areas', 'results': [os.path.basename(answer['csv'])]}
+	folder = tmp_path / 'report'
+	folder.mkdir()
+	rep = publish.build(spec, 'areas', str(tmp_path), [], publish.calls_log(str(tmp_path)), str(folder))
+	r = rep['results'][0]
+	assert r['tool'] == 'area_by_class' and r['chart'] == 'areas' and r['classes'] == expected
+
+
+# The Area by class of the panel of the app in Node (the ui and ee of tests/test_themes.py, which compute nothing): a
+# land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
+STEPS = r"""
+var out = {};
+answer = {info: {area: 8e7, centroid: [-3.56, 36.9], total: 8e7, boundsArea: 9e7}, n: 1};
+selectWith('view').opts.onChange('view');
+button('Use the map view').opts.onClick();
+var mask = 'Leave some land covers out of the results', where = 'a variable is between two values';
+check(mask).opts.onChange(true);
+button('Compute the areas').opts.onClick();
+out.mask = last();
+check(mask).opts.onChange(false);
+check(where).opts.onChange(true);
+button('Compute the areas').opts.onClick();
+out.where = last();
+check(where).opts.onChange(false);
+answer = {features: [{properties: {name: 'Map view', groups: [{'class': 10, sum: 70}, {'class': 30, sum: 30}]}}]};
+button('Compute the areas').opts.onClick();
+out.none = last();
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(not shutil.which('node'), reason='no Node')
+def test_the_app_refuses_the_mask_and_where_for_a_land_cover_map():
+	"""Area by class of a land cover map in the app: with the land cover mask or «Only the pixels where» on, the
+	message of the refusal and nothing computed; with both off, its chart and table."""
+	from test_themes import GEE, PANEL, _build
+
+	from monitoreo import catalog
+	script = PANEL[:PANEL.index('var out = {};')] + STEPS
+	data = {'community': _build().community_index(), 'other_themes': catalog.OTHER_THEMES, 'assets': {}}
+	run = subprocess.run(['node', '-e', script, GEE], input=json.dumps(data), capture_output=True, text=True,
+	                     timeout=120)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	refusal = ('The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, trend), not '
+	           'for those of a land cover map: uncheck them.')
+	for case in ('mask', 'where'):
+		assert out[case]['texts'][-1] == refusal and not out[case]['charts'], out[case]
+	assert [c['type'] for c in out['none']['charts']] == ['BarChart', 'Table'], out['none']
+
+
 def test_the_assistant_knows_the_areas():
 	from monitoreo import assistant
 	assert 'area_by_class' in assistant.RESULTS and 'area_by_class' in assistant.PROMPT
@@ -201,6 +443,7 @@ def test_the_app_has_the_same_classes():
 	area_cases = [(10, 1e6), (10, 1e10), (500, 5e9)]
 	features = [{'properties': {'name': 'park', 'groups': [{'class': -1, 'sum': 10.0}, {'class': 0, 'sum': 70.0},
 	                                                        {'class': 1, 'sum': 20.0}]}},
+	            {'properties': {'name': 'park', 'groups': [{'class': 1, 'sum': 5.0}]}},  # another one of that name
 	            {'properties': {'name': 'empty', 'groups': []}}]
 	gee = os.path.join(os.path.dirname(__file__), '..', 'gee')
 	run = subprocess.run(['node', '-e', APP, gee], input=json.dumps({'breaks': breaks, 'bad': bad, 'areas': area_cases,
@@ -226,8 +469,9 @@ def test_the_app_has_the_same_classes():
 		def getInfo(self):
 			return self.area
 	assert out['scales'] == [classes.scale_for(n, Regions(a)) for n, a in area_cases]
-	assert out['rows'] == classes.rows({'park': {-1: 10.0, 0: 70.0, 1: 20.0}, 'empty': {}},
+	assert out['rows'] == classes.rows([('park', {-1: 10.0, 0: 70.0, 1: 20.0}), ('park', {1: 5.0}), ('empty', {})],
 	                                   [(c, label, {}) for c, label, _ in classes.TREND], {'map': 'x'})
+	assert len(out['rows']) == 9  # each feature its rows, also those of the same name
 	assert out['trend'] == [list(c) for c in classes.TREND]
 	assert not math.isnan(out['scales'][0])
 
@@ -236,7 +480,7 @@ def test_the_app_has_the_same_classes():
 
 def test_the_pairs_of_classes_and_their_rows():
 	m, _ = classes.landcover_map('CORINE')
-	ha = {'park': {311 * 1000 + 311: 60.0, 311 * 1000 + 324: 30.0, 512 * 1000 + 512: 10.0}}
+	ha = [('park', {311 * 1000 + 311: 60.0, 311 * 1000 + 324: 30.0, 512 * 1000 + 512: 10.0})]
 	rows = classes.transition_rows(ha, m, 2006, 2018)
 	assert [(r['from_class'], r['to_class'], r['ha'], r['percent']) for r in rows] == \
 		[(311, 311, 60.0, 60.0), (311, 324, 30.0, 30.0), (512, 512, 10.0, 10.0)]
@@ -245,6 +489,15 @@ def test_the_pairs_of_classes_and_their_rows():
 	broad = classes.broad_transitions(rows)
 	assert [(r['from_landcover'], r['to_landcover'], r['ha']) for r in broad] == [('water', 'water', 10.0),
 	                                                                             ('trees', 'trees', 90.0)]
+
+
+def test_the_changes_of_features_of_the_same_name_stay_apart():
+	m, _ = classes.landcover_map('CORINE')
+	ha = [('park', {311 * 1000 + 324: 30.0}), ('park', {311 * 1000 + 311: 5.0}), ('other', {})]
+	rows = classes.transition_rows(ha, m, 2006, 2018)
+	assert [r['region'] for r in rows] == ['park', 'park (2)']
+	assert classes.changed(rows) == {'park': (30.0, 0.0), 'park (2)': (0.0, 5.0)}
+	assert [r['region'] for r in classes.broad_transitions(rows)] == ['park', 'park (2)']
 
 
 def test_the_changes_before_earth_engine():
@@ -270,8 +523,8 @@ def changes(monkeypatch):
 	monkeypatch.setattr(services.areas, 'region', lambda region: Regions())
 	monkeypatch.setattr(services.classes, 'source', lambda m, year, geom: year)
 	monkeypatch.setattr(services.classes, 'pairs', lambda first, other: (first, other))
-	monkeypatch.setattr(services.classes, 'hectares', lambda img, regions, scale, crs: {
-		'Sierra Nevada': {311311: 80.0, 311324: 15.0, 324311: 5.0}, 'Doñana': {512512: 30.0, 311311: 10.0}})
+	monkeypatch.setattr(services.classes, 'hectares', lambda img, regions, scale, crs: [
+		('Sierra Nevada', {311311: 80.0, 311324: 15.0, 324311: 5.0}), ('Doñana', {512512: 30.0, 311311: 10.0})])
 	monkeypatch.setattr(services.timeseries, 'region_crs', lambda regions: 'EPSG:3035')
 	drawn = []
 

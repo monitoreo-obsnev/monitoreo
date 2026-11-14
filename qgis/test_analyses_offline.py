@@ -9,8 +9,9 @@ has no Pillow: it checks that monitoreo.animation draws the texts of the frames 
 (greyed out for the fixed layers without dates, its metric fixed for the snow cover frequency), the arguments sent,
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
-each kind (for the changes of a land cover map, the Sankey diagram of the first feature, named in its title) and the
-window of the result (its table, with the colour of each class).
+each kind (a land cover map without the land cover mask nor «Only the pixels where»; for its changes, the Sankey
+diagram of the first feature, named in its title) and the window of the result (its table, with the colour of each
+class). The land cover mask starts off, whatever the settings stored by other tests.
 """
 
 import os
@@ -28,7 +29,7 @@ sys.path.insert(0, os.path.join(APP, 'Contents', 'Resources', 'python'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
-from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle  # noqa: E402
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle, QgsSettings  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
@@ -93,11 +94,35 @@ except ImportError:
 	assert movie.isValid() and movie.frameCount() == 3, movie.frameCount()
 	movie.jumpToFrame(0)
 	frame = movie.currentImage()
-	big, small, top, bar, bottom = animation.layout(160)
-	assert (frame.width(), frame.height()) == (160, top + 120 + bottom)
-	assert QColor(frame.pixel(80, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
+	from qgis.PyQt.QtGui import QFont, QFontMetrics
+	fw = max(160, animation.MIN_WIDTH)  # a map narrower than MIN_WIDTH, centred on a frame of MIN_WIDTH
+	big, small, top, bar, bottom = animation.layout(fw)
+	font = QFont()
+	font.setPixelSize(small)
+	width = QFontMetrics(font).horizontalAdvance  # the credits in as many lines as they need
+	bottom = animation.layout(fw, len(animation._wrap(width, 'MonitorEO; Google Earth Engine', fw - 16)))[4]
+	assert (frame.width(), frame.height()) == (fw, top + 120 + bottom)
+	assert QColor(frame.pixel(fw // 2, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
 	assert any(QColor(frame.pixel(x, y)).getRgb()[:3] != (255, 255, 255) for x in range(8, 60) for y in range(6, 20))
 	print('GIF without Pillow:', movie.frameCount(), 'frames', frame.width(), 'x', frame.height())
+	# long credits: all of them, in as many lines as they need (the band below grows), not cut
+	credits = ('MonitorEO; Google Earth Engine; Contains modified Copernicus Climate Change Service information '
+	           '2021-2023; Source: FAO GAUL 2025 (CC BY 4.0)')
+	lines = animation._wrap(width, credits, fw - 16)
+	assert len(lines) > 2 and ' '.join(lines) == credits, lines
+	out = animation.annotate(pictures[0], 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'], 'unit', credits)
+	b, s, top, bar, bottom = animation.layout(fw, len(lines))
+	assert out.shape == (top + 120 + bottom, fw, 3) and bottom > animation.layout(fw)[4], out.shape
+	last = top + 120 + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+	assert (out[last:last + s, 8:fw - 8] != 255).any()  # its last line written
+	print('credits drawn with Qt in', len(lines), 'lines')
+	# a narrow map (a strip of land, 18 x 65 pixels): centred on a frame of MIN_WIDTH, its credits in a few lines
+	out = animation.annotate(np.full((65, 18, 3), 200, np.uint8), 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'],
+	                         'unit', credits)
+	x = (animation.MIN_WIDTH - 18) // 2
+	assert out.shape == (top + 65 + bottom, animation.MIN_WIDTH, 3), out.shape
+	assert (out[top:top + 61, x:x + 18] == 200).all() and (out[top:top + 61, :x] == 255).all()
+	print('a map 18 pixels wide on a frame of', out.shape[1], 'x', out.shape[0])
 
 calls = []
 
@@ -153,6 +178,8 @@ def area_by_class(region, csv=None, **opts):
 services.area_by_class = area_by_class
 sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
 charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
+for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
+	QgsSettings().remove('MonitorEO/' + key)
 
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
@@ -226,6 +253,7 @@ for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', Fal
 dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
 assert dock.area_year.currentData() == 2018 and dock.area_year.findData(1990) >= 0
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('landcover'))
+assert not dock.landcover_box.isChecked() and not any(c['on'].isChecked() for c in dock.where)  # not stored ones
 calls.clear()
 dock.run_areas()
 wait()
@@ -238,6 +266,15 @@ wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
 assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
 dock.area_change.setChecked(False)
+# a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
+made = len(calls)
+for box in (dock.landcover_box, dock.where[0]['on']):
+	box.setChecked(True)
+	dock.run_areas()
+	wait()
+	box.setChecked(False)
+	assert len(calls) == made and 'are for the classes of a variable' in messages[-1], messages[-1]
+	assert messages[-1].startswith('Warning: The land cover mask and «Only the pixels where»'), messages[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()

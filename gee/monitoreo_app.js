@@ -6678,6 +6678,7 @@ var MonitorEO = (function () {
 	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
 	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
 	var MAX_FRAMES = 120;
+	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
 	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
 	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
 		'October', 'November', 'December'];
@@ -6826,14 +6827,17 @@ var MonitorEO = (function () {
 	}
 
 	function transitionRows(features, m, year, otherYear) {
-		var out = [];
+		var out = [], seen = {};
 		features.forEach(function (f) {
+			var name = String(f.properties.name);  // classes.numbered: those of the same name, 'Sierra Nevada (2)'
+			seen[name] = (seen[name] || 0) + 1;
+			var region = seen[name] > 1 ? name + ' (' + seen[name] + ')' : name;
 			var by = (f.properties.groups || []).map(function (g) { return [Math.round(g['class']), g.sum]; });
 			var total = by.reduce(function (a, g) { return a + g[1]; }, 0);
 			by.sort(function (a, b) { return b[1] - a[1]; });
 			by.forEach(function (g) {
 				var a = Math.floor(g[0] / PAIR), b = g[0] % PAIR;
-				out.push({region: String(f.properties.name), map: m.name, year: year, other_year: otherYear,
+				out.push({region: region, map: m.name, year: year, other_year: otherYear,
 					from_class: a, from_label: a + ' ' + (m.names[String(a)] || ''), from_landcover: m.classes[String(a)] || null,
 					to_class: b, to_label: b + ' ' + (m.names[String(b)] || ''), to_landcover: m.classes[String(b)] || null,
 					ha: g[1], percent: total ? 100 * g[1] / total : null});
@@ -6866,6 +6870,18 @@ var MonitorEO = (function () {
 	function landcoverName(key, lang) {
 		var c = landcoverClasses().filter(function (x) { return x.key === key; })[0];
 		return c ? (c[lang] || c.en) : key;
+	}
+
+	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
+	// (that of the whole period would be that of all the steps, as many times bigger as they are)
+	function animationRange(s, regions, steps, metric) {
+		var geom = regions.geometry();
+		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
+		var col = collection(s, geom);
+		return ee.ImageCollection.fromImages(steps.map(function (b) {
+			return reduce(col.filterDate(b[0], b[1]), metric);
+		})).median().rename('value').clipToCollection(regions);
 	}
 
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
@@ -7701,7 +7717,8 @@ var MonitorEO = (function () {
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
 		broadTransitions: broadTransitions,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
-		animationSteps: animationSteps, animationFrames: animationFrames,
+		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
+		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
@@ -7799,6 +7816,8 @@ var MonitorEO = (function () {
 			areaChanged: '%s: cambiaron %s ha y no cambiaron %s ha (por clase del mapa).', areaFrom: 'De', areaTo: 'A',
 			areaBroad: 'Por usos del suelo generales; cada par de clases, en el CSV.', badYears: 'elige dos a\u00f1os distintos.',
 			areaOneYear: '%s tiene un mapa de un solo a\u00f1o: no hay cambios que calcular.',
+			areaNoWhere: 'La m\u00e1scara de usos del suelo y \u00abSolo los p\u00edxeles donde\u00bb son para las clases de una variable ' +
+				'(cortes, tendencia), no para las de un mapa de usos del suelo: desm\u00e1rcalos.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: '\u00cdndice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas im\u00e1genes y p\u00edxeles que la ' +
@@ -7951,6 +7970,8 @@ var MonitorEO = (function () {
 			areaChanged: '%s: %s ha changed and %s ha did not (by class of the map).', areaFrom: 'From', areaTo: 'To',
 			areaBroad: 'By broad land cover; each pair of classes, in the CSV.', badYears: 'choose two different years.',
 			areaOneYear: '%s has a map of a single year: there are no changes to compute.',
+			areaNoWhere: 'The land cover mask and \u00abOnly the pixels where\u00bb are for the classes of a variable (breaks, ' +
+				'trend), not for those of a land cover map: uncheck them.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -8556,7 +8577,7 @@ var MonitorEO = (function () {
 		// the variable stays (and the pixel filters chosen for it), but its only metric (SCF, CF) again: the themes of the
 		// data of Earth Engine let the metrics change meanwhile
 		var only = mo.byRef(state.ref).metric;
-		if (only) state.mapMetric = state.stepMetric = state.trendMetric = only;
+		if (only) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = only;
 		render();
 	}
 
@@ -8574,7 +8595,8 @@ var MonitorEO = (function () {
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
-		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = e.metric;  // its only metric (SCF)
+		// its only metric (SCF), also of each frame of the animation
+		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
 		render();
 	}
 
@@ -9071,6 +9093,8 @@ var MonitorEO = (function () {
 		var geom = regions.geometry();
 		if (kind === 'landcover' && state.areaChangeOn) return landcoverChanges();
 		if (kind === 'landcover') {
+			// as services.area_by_class: the land cover mask and where are for the classes of a variable
+			if (state.landcoverOn || state.whereOn) return message(t('areaNoWhere'), true);
 			var m = mo.landcoverMap(state.areaMap);
 			var year = state.areaYear || mo.landcoverDefaultYear(m);
 			img = mo.landcoverSource(m, year, geom).rename('class');
@@ -9209,8 +9233,9 @@ var MonitorEO = (function () {
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
-	// map of the whole period (its percentiles 5 and 95, as services.timelapse), as a thumbnail that plays them, its
-	// dates and its colour bar; and the GIF to download
+	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
+	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
+	// download
 	function timelapse() {
 		var e = entry();
 		if (!ready(e)) return;
@@ -9222,7 +9247,8 @@ var MonitorEO = (function () {
 		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
 		var ramped = mo.rampEntry(e, state.animMetric, 'period');
 		var id = start();
-		mo.percentiles(mo.image(s, geom).clipToCollection(region), geom, rangeScale(e)).evaluate(function (st, error) {
+		var range = mo.animationRange(s, region, steps, state.animMetric);
+		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
 			if (id !== run) return;
 			var vis = mo.visParams(error ? null : st, ramped);
 			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);

@@ -516,13 +516,14 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
               unit: Optional[str] = None, where: Optional[list] = None):
 	"""Animation of a variable over a region (a timelapse): a frame per step ('annual', 'monthly', '16-day' or 'daily')
 	of the period (and season), each the METRIC of the images of the step on each pixel, with one colour ramp for every
-	frame (vmin to vmax; by default from the percentiles 5 and 95 of the map of the whole period) and, written on it,
-	its date, the title, the colour ramp with its unit and the credits of the data; the pixels without data in a step
-	are light grey. At most 120 frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an
-	MP4 too; it needs ffmpeg) and returns its last frame as a picture, the date and the number of images of each frame,
-	and the colour ramp. It takes some minutes (Earth Engine makes each frame). fps: frames per second; dimensions:
-	width or height of the map in pixels (64 to 1200). Not for the fixed layers, which have no dates. Required:
-	region, start and end, and variable and sensor or collection and band."""
+	frame (vmin to vmax; by default from the percentiles 5 and 95 of the map of the whole period or, for the metrics
+	sum and count, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit
+	and the credits of the data and of the region; the pixels without data in a step are light grey. At most 120
+	frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an MP4 too; it needs ffmpeg) and
+	returns its last frame as a picture, the date and the number of images of each frame, and the colour ramp. It
+	takes some minutes (Earth Engine makes each frame). fps: frames per second; dimensions: width or height of the map
+	in pixels (64 to 1200). Not for the fixed layers, which have no dates. Required: region, start and end, and
+	variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, None, band, band_scale, band_offset, unit)
 	_dates(variable, sensor, source, 'animations', start=start, end=end)
 	_ready()
