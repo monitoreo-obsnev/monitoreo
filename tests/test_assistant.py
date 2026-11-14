@@ -995,6 +995,11 @@ def test_other_tool():
 	assert assistant.other_tool('Quiero el NDVI de 30 parques cada mes de forma automática') == python
 	assert assistant.other_tool('¿Lo puedo hacer en R?')[0] == 'the R package'
 	assert assistant.other_tool('quiero editar mi capa')[0] == 'the QGIS plugin'
+	for text in ('Hazme un mapa para imprimir del NDVI del parque', 'el mapa del NDVI con la leyenda del mapa',
+	             'Make a printable map of the NDVI for my report'):  # a figure of the map, by the assistant itself
+		assert assistant.other_tool(text) is None, text
+	assert 'map_layer with figure true' in assistant.instructions() and 'making maps to print' not in \
+		assistant.instructions()
 	assert assistant.other_tool('¿Se puede usar desde el móvil sin instalar nada?')[2] == assistant.WIKI + 'Earth-Engine-app'
 	assert assistant.other_tool('Quiero publicarlo en una página web pública')[2] == assistant.WIKI + 'Results-viewer'
 	assert assistant.other_tool('Serie del NDVI de cada mes de 2024 en Doñana') is None
@@ -1004,7 +1009,9 @@ def test_other_tool():
 	assert assistant.other_tool('Can I do it in R?')[2] == assistant.WIKI + 'R-package'
 	assert assistant.other_tool('Is there an R package?')[0] == 'the R package'
 	assert assistant.other_tool('I want to edit my layer')[2] == assistant.WIKI + 'QGIS-plugin'
-	assert assistant.other_tool('Can I make a map to print?')[0] == 'the QGIS plugin'
+	assert assistant.other_tool('Can I make a map to print?') is None  # the assistant makes it: map_layer with figure
+	for text in ('A print layout of the map with my layers', 'A map layout with my layers'):  # of ArcGIS Pro too
+		assert assistant.other_tool(text)[0] == 'the QGIS plugin', text
 	assert assistant.other_tool('Can I use it on my phone without installing anything?')[0] == 'the Earth Engine app'
 	assert assistant.other_tool('How do I publish a report for anyone to see?')[0] == 'the results viewer'
 	assert assistant.other_tool('Monthly NDVI series of 2024 in Doñana') is None
