@@ -100,8 +100,9 @@ ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comp
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
-CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'table')
+CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
+          'transect': 'transect'}
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -361,6 +362,13 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'transect':
+		return f'Profile of {var} along a line, {period}{season}' if period and not is_static(args) else \
+			f'Profile of {var} along a line'
+	if tool == 'region_stats' and isinstance(args.get('zones'), dict):
+		from .services import zone_name
+		what = f"Statistics of {var} by {zone_name(args['zones'])}"
+		return what + (f', {period}{season}' if period and not is_static(args) else '')
 	if tool == 'area_by_class':
 		if args.get('landcover'):
 			from . import landcover
@@ -670,7 +678,7 @@ def _chart_type(tool, path):
 	if tool in CHARTS:
 		return CHARTS[tool]
 	cols = _columns(path)
-	return ('series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
+	return ('zones' if 'zone_label' in cols else 'series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
 
@@ -719,6 +727,10 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart in ('transect', 'zones'):  # the title of the y axis, and the statistics of the zones
+			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
+			if chart == 'zones':
+				entry['stats'] = list(res.get('stats') or [])
 		if chart == 'trends':
 			entry['slope_unit'] = unit_text(unit, per_year=True)
 			entry['alpha'] = float(args.get('alpha') or 0.05)

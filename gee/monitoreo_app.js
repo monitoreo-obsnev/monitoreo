@@ -6818,6 +6818,69 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// Gradients (services.region_stats with zones, services.transect): the statistics of a map in each band of another
+	// variable, and its profile along a line with the elevation
+	var ZONE_STATS = ['p25', 'p50', 'p75', 'mean'];
+
+	// The grouped statistics (ZONE_STATS and the count) of the image VALUE in each zone of ZONE over each feature, to
+	// evaluate
+	function zoneStats(value, zone, regions, scale, crs) {
+		var red = ee.Reducer.percentile([25, 50, 75]).combine(ee.Reducer.mean(), '', true)
+			.combine(ee.Reducer.count(), '', true);
+		return ee.Image(value).rename('value').addBands(zone).reduceRegions({collection: regions,
+			reducer: red.group(1, 'zone'), scale: scale, crs: crs, tileScale: 4});
+	}
+
+	// The rows of the evaluated FEATURES of zoneStats for the zones of LEGEND (breakClasses)
+	function zoneRows(features, legend) {
+		var out = [];
+		features.forEach(function (f) {
+			var by = {};
+			(f.properties.groups || []).forEach(function (g) { by[Math.round(g.zone)] = g; });
+			legend.forEach(function (z) {
+				var g = by[z[0]] || {};
+				var row = {region: String(f.properties.name), zone: z[0], zone_label: z[1], zone_from: z[2], zone_to: z[3]};
+				ZONE_STATS.forEach(function (s) { row[s] = g[s] === undefined ? null : g[s]; });
+				row.n_pixels = g.count || 0;
+				out.push(row);
+			});
+		});
+		return out;
+	}
+
+	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres
+	function transectCuts(length, step) {
+		var out = [];
+		for (var i = 1; i * step < length; i++) out.push(i * step);
+		return out;
+	}
+
+	// The mean of VALUE and of the elevation DEM over each segment of LINE cut at CUTS (each within half a pixel of
+	// SCALE), with the centre of each segment, to evaluate
+	function transectStats(value, dem, line, cuts, scale, crs) {
+		var segments = ee.List(ee.Geometry(line).cutLines(cuts, 1).geometries());
+		var fc = ee.FeatureCollection(ee.List.sequence(0, cuts.length).map(function (i) {
+			var g = ee.Geometry(segments.get(i));
+			return ee.Feature(g.buffer(scale / 2, 1), {i: i, centre: g.centroid(1).coordinates()});
+		}));
+		return ee.Image.cat([ee.Image(value).rename('value'), ee.Image(dem).rename('elevation')]).reduceRegions({
+			collection: fc, reducer: ee.Reducer.mean(), scale: scale, crs: crs, tileScale: 4});
+	}
+
+	// The rows {distance_m, lon, lat, value, elevation} of the evaluated FEATURES of transectStats
+	function transectRows(features, cuts, length) {
+		var by = {};
+		features.forEach(function (f) { by[Math.round(f.properties.i)] = f.properties; });
+		var out = [];
+		for (var i = 0; i <= cuts.length; i++) {
+			var p = by[i] || {}, a = i ? cuts[i - 1] : 0, b = i < cuts.length ? cuts[i] : length;
+			var c = p.centre || [null, null];
+			out.push({distance_m: (a + b) / 2, lon: c[0], lat: c[1], value: p.value === undefined ? null : p.value,
+				elevation: p.elevation === undefined ? null : p.elevation});
+		}
+		return out;
+	}
+
 	// The changes of a land cover map between two years (classes.pairs, transition_rows, broad_transitions)
 	var PAIR = 1000;
 
@@ -7699,7 +7762,8 @@ var MonitorEO = (function () {
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
-		broadTransitions: broadTransitions,
+		broadTransitions: broadTransitions, ZONE_STATS: ZONE_STATS, zoneStats: zoneStats, zoneRows: zoneRows,
+		transectCuts: transectCuts, transectStats: transectStats, transectRows: transectRows,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
@@ -7798,6 +7862,11 @@ var MonitorEO = (function () {
 			areaChange: 'Sus cambios hasta', areaChanges: 'Cambios de las clases de %s de %s a %s',
 			areaChanged: '%s: cambiaron %s ha y no cambiaron %s ha (por clase del mapa).', areaFrom: 'De', areaTo: 'A',
 			areaBroad: 'Por usos del suelo generales; cada par de clases, en el CSV.', badYears: 'elige dos a\u00f1os distintos.',
+			gradients: 'Gradientes (franjas de altitud y perfiles)', zonesOf: 'Franjas de', zoneStats: 'Estad\u00edsticas de cada franja',
+			zoneTitle: '%s por franjas de %s', zoneBand: 'Franja', zoneNote: 'Con las opciones de Mapa; p\u00edxeles de %s m.',
+			drawLine: 'Dibujar una l\u00ednea y su perfil', drawLineHelp: 'Dibuja la l\u00ednea en el mapa: un clic por v\u00e9rtice y doble clic para terminarla.',
+			profileTitle: '%s a lo largo de una l\u00ednea de %s km', distance: 'Distancia (km)', elevationM: 'Elevaci\u00f3n (m)',
+			profileNote: 'Tramos de %s m: la media de los p\u00edxeles que cruza cada uno. Con las opciones de Mapa.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: '\u00cdndice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas im\u00e1genes y p\u00edxeles que la ' +
@@ -7949,6 +8018,11 @@ var MonitorEO = (function () {
 			areaChange: 'Its changes to', areaChanges: 'Changes of the classes of %s from %s to %s',
 			areaChanged: '%s: %s ha changed and %s ha did not (by class of the map).', areaFrom: 'From', areaTo: 'To',
 			areaBroad: 'By broad land cover; each pair of classes, in the CSV.', badYears: 'choose two different years.',
+			gradients: 'Gradients (elevation bands and profiles)', zonesOf: 'Bands of', zoneStats: 'Statistics of each band',
+			zoneTitle: '%s by bands of %s', zoneBand: 'Band', zoneNote: 'With the options of Map; pixels of %s m.',
+			drawLine: 'Draw a line and its profile', drawLineHelp: 'Draw the line on the map: a click per vertex and a double click to end it.',
+			profileTitle: '%s along a line of %s km', distance: 'Distance (km)', elevationM: 'Elevation (m)',
+			profileNote: 'Segments of %s m: the mean of the pixels that each one crosses. With the options of Map.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -8073,6 +8147,7 @@ var MonitorEO = (function () {
 		animStep: 'annual', animMetric: 'median',
 		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
 		areaChangeOn: false, areaOther: null,  // the changes of the land cover map to another year
+		zoneRef: null, zoneBreaks: '1500, 2000, 2500, 3000', drawingLine: false,  // gradients: the bands and the line
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
@@ -8265,6 +8340,13 @@ var MonitorEO = (function () {
 	});
 
 	drawing.onDraw(function (geometry) {
+		if (state.drawingLine) {  // the line of a profile (Gradients), not a region
+			state.drawingLine = false;
+			drawing.setShape(null);
+			drawing.setDrawModes(['polygon']);
+			drawing.setShown(state.mode === 'draw');
+			return guarded(function () { profile(geometry); })();
+		}
 		if (state.mode !== 'draw') return;
 		drawing.setShape(null);
 		setRegion(ee.FeatureCollection([ee.Feature(geometry, {name: t('polygon')})]), t('polygon'));
@@ -9199,6 +9281,110 @@ var MonitorEO = (function () {
 		return state.areaKind === 'trend' && entry().static ? disable(w) : w;
 	}
 
+	// Gradients (services.region_stats with zones, services.transect) ----------------------------------------------
+
+	// The map of the variable, as Map (no metric for a fixed layer), and its spec
+	function mapImage(geom) {
+		var e = entry();
+		var s = specOf(null, state.mapMetric);
+		s.temporal = state.temporal;
+		s.interannual = state.interannual;
+		return {e: e, s: s, image: mo.image(s, geom), name: title(e, [metricName(state.mapMetric)].concat(
+			e.static ? [] : [s.period.join('/')]))};
+	}
+
+	function zoneEntry() {
+		var statics = mo.variables().filter(function (v) { return v.static; });
+		if (!state.zoneRef) state.zoneRef = (statics.filter(function (v) { return v.index === 'ELEVATION'; })[0] || statics[0]).ref;
+		return mo.byRef(state.zoneRef);
+	}
+
+	// The percentiles 25, 50 and 75 and the mean of the map in each band of a fixed layer (the elevation), over each
+	// feature: a chart of the median of each band, a table and its CSV
+	function zoneStatistics() {
+		var e = entry();
+		if (!ready(e)) return;
+		var cuts = mo.checkBreaks(state.zoneBreaks);
+		var z = zoneEntry();
+		var geom = state.region.geometry();
+		var m = mapImage(geom);
+		var scale = mo.autoScale(e, state.info.area);
+		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
+		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
+		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
+		var name = fmt(t('zoneTitle'), m.name, z.index);
+		var id = start();
+		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.zoneRows(fc.features, legend);
+			var regionNames = regionsOf(rows);
+			var chart = [[t('zoneBand')].concat(regionNames)].concat(legend.map(function (l) {
+				return [l[1]].concat(regionNames.map(function (g) {
+					var r = rows.filter(function (x) { return x.region === g && x.zone === l[0]; })[0];
+					return r && r.p50 !== null ? r.p50 : null;
+				}));
+			}));
+			show([ui.Label(name, {fontWeight: 'bold'}),
+				ui.Chart(chart, 'LineChart', {pointSize: 4, vAxis: {title: unitText(e, state.mapMetric, null)}}),
+				ui.Chart([[t('zoneBand'), 'p25', 'p50', 'p75', metricName('mean')]].concat(rows.map(function (r) {
+					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.zone_label, num(r.p25), num(r.p50),
+						num(r.p75), num(r.mean)];
+				})), 'Table'),
+				ui.Label(fmt(t('zoneNote'), num(scale)), SMALL),
+				csvWidget(rows, ['region', 'zone', 'zone_label', 'zone_from', 'zone_to', 'p25', 'p50', 'p75', 'mean',
+					'n_pixels'], name, e)]);
+		}));
+	}
+
+	// The profile of the map along the LINE drawn, with the elevation: 100 segments (at least a pixel of the data)
+	function profile(line) {
+		var e = entry();
+		if (e.problem) return message(e.problem, true);
+		var m = mapImage(line.buffer(1000));
+		var native = Number(e.m);
+		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];
+		var dem = mo.image(mo.spec({ref: elevation.ref, quality: {}}), line.buffer(1000), 30);
+		var id = start();
+		ee.Dictionary({length: line.length(1), centroid: line.centroid(1).coordinates()}).evaluate(guardedAsync(id, function (d) {
+			var step = Math.max(native, d.length / 100);
+			var cuts = mo.transectCuts(d.length, step);
+			var name = fmt(t('profileTitle'), m.name, num(d.length / 1000, 3));
+			mo.transectStats(m.image, dem, line, cuts, native, mo.utmOf(d.centroid[0], d.centroid[1]))
+				.evaluate(guardedAsync(id, function (fc) {
+					var rows = mo.transectRows(fc.features, cuts, d.length);
+					var chart = [[t('distance'), entry().index || 'value', t('elevationM')]].concat(rows.map(function (r) {
+						return [r.distance_m / 1000, r.value, r.elevation];
+					}));
+					show([ui.Label(name, {fontWeight: 'bold'}),
+						ui.Chart(chart, 'LineChart', {hAxis: {title: t('distance')}, series: {1: {targetAxisIndex: 1,
+							color: '#9e9e9e'}}, vAxes: {0: {title: unitText(e, state.mapMetric, null)},
+							1: {title: t('elevationM')}}}),
+						ui.Label(fmt(t('profileNote'), num(step)), SMALL),
+						csvWidget(rows, ['distance_m', 'value', 'elevation', 'lon', 'lat'], name, e)]);
+				}));
+		}));
+	}
+
+	function gradientWidgets() {
+		var w = [header(t('gradients'))];
+		var statics = mo.variables().filter(function (v) { return v.static; }).map(function (v) {
+			return {value: v.ref, label: v.index + ' \u00b7 ' + v.sensor};
+		});
+		zoneEntry();
+		w.push(row(ui.Label(t('zonesOf')), select(statics, state.zoneRef, function (v) { state.zoneRef = v; }, '150px'),
+			ui.Textbox({placeholder: t('breaksHint'), value: state.zoneBreaks,
+				onChange: function (v) { state.zoneBreaks = v; }, style: {width: '120px'}})));
+		w.push(button(t('zoneStats'), guarded(zoneStatistics)));
+		w.push(button(t('drawLine'), function () {
+			state.drawingLine = true;
+			drawing.setShown(true);
+			drawing.setDrawModes(['line', 'polygon']);
+			drawing.setShape('line');
+			message(t('drawLineHelp'));
+		}));
+		return w;
+	}
+
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
@@ -9846,7 +10032,8 @@ var MonitorEO = (function () {
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), areaWidgets(), animationWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), areaWidgets(), gradientWidgets(),
+			animationWidgets(),
 			seriesWidgets(), trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });

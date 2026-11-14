@@ -212,3 +212,67 @@ def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=1
 		ax.set_title(textwrap.fill(title, 100), fontsize=10)
 	fig.tight_layout()
 	return _png(fig, path)
+
+
+def zones_png(rows, stats, path=None, title=None, ylabel=None, xlabel=None, dpi=120):
+	"""PNG (bytes) of the statistics of each zone (ROWS of region_stats with zones: zone_label and STATS): the median
+	(or the first statistic) of each zone with the band of its percentiles 25 and 75 when they are there, a line per
+	region."""
+	from matplotlib.figure import Figure
+
+	mid = next((s for s in ('p50', 'median', 'mean') if s in stats), stats[0])
+	lo, hi = ('p25', 'p75') if {'p25', 'p75'} <= set(stats) else ('p5', 'p95') if {'p5', 'p95'} <= set(stats) else \
+		(None, None)
+	fig = Figure(figsize=(9, 4.5), dpi=dpi)
+	ax = fig.add_subplot()
+	regions = list(dict.fromkeys(r['region'] for r in rows))
+	labels = list(dict.fromkeys(r['zone_label'] for r in rows))
+	for g in regions:
+		rs = [r for r in rows if r['region'] == g]
+		x = [labels.index(r['zone_label']) for r in rs]
+		y = [r.get(mid) if r.get(mid) is not None else float('nan') for r in rs]
+		line = ax.plot(x, y, marker='o', linewidth=1.4, label=f'{g}: {mid}' if len(regions) > 1 else mid)[0]
+		if lo:
+			ax.fill_between(x, [r.get(lo) if r.get(lo) is not None else float('nan') for r in rs],
+			                [r.get(hi) if r.get(hi) is not None else float('nan') for r in rs],
+			                color=line.get_color(), alpha=0.18, label=f'{lo} to {hi}' if g == regions[0] else None)
+	ax.set_xticks(range(len(labels)))
+	ax.set_xticklabels([textwrap.shorten(str(l), 22) for l in labels], rotation=20, ha='right', fontsize=8)
+	if xlabel:
+		ax.set_xlabel(xlabel)
+	if ylabel:
+		ax.set_ylabel(ylabel)
+	ax.grid(alpha=0.3)
+	ax.legend(fontsize=8, frameon=False)
+	if title:
+		ax.set_title(textwrap.fill(title, 100), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)
+
+
+def transect_png(rows, path=None, title=None, ylabel=None, dpi=120):
+	"""PNG (bytes) of a profile along a line (ROWS of transect: distance_m, value, elevation): the variable against the
+	distance, and the elevation in grey on a second axis."""
+	from matplotlib.figure import Figure
+
+	fig = Figure(figsize=(9, 4.2), dpi=dpi)
+	ax = fig.add_subplot()
+	x = [r['distance_m'] / 1000 for r in rows]
+	if any(r.get('elevation') is not None for r in rows):
+		ax2 = ax.twinx()
+		z = [r['elevation'] if r.get('elevation') is not None else float('nan') for r in rows]
+		ax2.fill_between(x, z, min((v for v in z if v == v), default=0), color='#bdbdbd', alpha=0.5, linewidth=0)
+		ax2.set_ylabel('Elevation (m)', color='#777')
+		ax2.tick_params(colors='#777', labelsize=8)
+		ax.set_zorder(ax2.get_zorder() + 1)
+		ax.patch.set_visible(False)
+	ax.plot(x, [r['value'] if r.get('value') is not None else float('nan') for r in rows], color='#1f77b4',
+	        linewidth=1.5, marker='.', markersize=3)
+	ax.set_xlabel('Distance along the line (km)')
+	if ylabel:
+		ax.set_ylabel(ylabel)
+	ax.grid(alpha=0.3)
+	if title:
+		ax.set_title(textwrap.fill(title, 100), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)

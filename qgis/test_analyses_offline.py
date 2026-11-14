@@ -139,6 +139,25 @@ def area_by_class(region, csv=None, **opts):
 
 services.area_by_class = area_by_class
 
+
+def region_stats(region, csv=None, **opts):
+	calls.append(dict(opts, region=region, tool='region_stats'))
+	rows = [{'region': 'extent', 'zone': z, 'zone_label': label, 'p25': 0.2, 'p50': 0.3, 'p75': 0.4, 'mean': 0.3,
+	         'n_pixels': 10} for z, label in ((0, 'below 1500 m'), (1, '1500 m or more'))]
+	return {'rows': rows, 'stats': opts.get('stats'), 'scale': 250.0, 'unit': '[unitless]', 'ylabel': 'NDVI',
+	        'title': 'NDVI by ELEVATION (Copernicus) bands', 'csv': csv, 'references': [], 'credits': []}
+
+
+def transect(line, csv=None, **opts):
+	calls.append(dict(opts, line=line, tool='transect'))
+	rows = [{'distance_m': d, 'value': 0.3, 'elevation': 1000.0 + d, 'lon': -3.5, 'lat': 37.1} for d in (50.0, 150.0)]
+	return {'rows': rows, 'length_m': 200.0, 'spacing': 100.0, 'scale': 10.0, 'unit': '[unitless]', 'ylabel': 'NDVI',
+	        'title': 'NDVI along a line', 'csv': csv, 'references': [], 'credits': []}
+
+
+services.region_stats = region_stats
+services.transect = transect
+
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
 plugin.initGui()
@@ -240,5 +259,32 @@ headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount
 assert headers == ['Region', 'Class', 'Hectares', '% of the area with classes'], headers
 assert table.rowCount() == 3 and not table.item(0, 1).icon().isNull()  # the colour of the class
 print('window of the areas:', dlg.windowTitle(), headers)
+
+# Gradients: the statistics of each elevation band, and the profile along the selected line of a layer
+assert dock.zone_variable.currentText().startswith('ELEVATION · Copernicus')
+dock.zone_breaks.setText('1500')
+dock.run_zones()
+wait()
+z = calls[-1]
+assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': '1500'}
+assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
+dlg = dock.series_dialogs[len(dock.series) - 1]
+table = dlg.findChild(QTableWidget)
+assert [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())][:3] == ['Region', 'Band', 'Percentile 25']
+from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer  # noqa: E402
+lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')
+f = QgsFeature()
+f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(-3.60, 37.15), QgsPointXY(-3.45, 37.10)]))
+lines.dataProvider().addFeatures([f])
+QgsProject.instance().addMapLayer(lines)
+dock.line_layer.setLayer(lines)
+dock.run_transect()
+wait()
+t = calls[-1]
+assert t['tool'] == 'transect' and t['line'] == [[-3.6, 37.15], [-3.45, 37.1]] and t['variable'] == 'NDVI', t
+res = dock.series[-1]
+assert res['kind'] == 'transect' and dock.series_dialogs[len(dock.series) - 1].findChild(QTableWidget).rowCount() == 2
+print('gradients:', z['zones'], '| line', t['line'])
+QgsProject.instance().removeMapLayer(lines.id())
 plugin.unload()
 print('OK')

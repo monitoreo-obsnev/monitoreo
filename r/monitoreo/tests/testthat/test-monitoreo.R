@@ -434,6 +434,29 @@ test_that("the area of each class: its arguments reach the services, a data.fram
   expect_error(mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", trend = TRUE), "sensor")
 })
 
+test_that("the gradients: the zones of region_stats and the profile along a line reach the services", {
+  sent <- NULL
+  local_mocked_bindings(services = function() list(
+    region_stats = function(...) {
+      sent <<- list(...)
+      list(rows = list(list(region = "park", zone = 0L, zone_label = "below 1500 m", p50 = 0.4, n_pixels = 10L)),
+           title = "NDVI", unit = "", scale = 250, references = list(), credits = list())
+    },
+    transect = function(...) {
+      sent <<- list(...)
+      list(rows = list(list(distance_m = 500, value = 43.6, elevation = 684, lon = -3.59, lat = 37.15)),
+           title = "LST", unit = "[°C]", length_m = 1000, spacing = 1000, references = list(), credits = list())
+    }), .package = "monitoreo")
+  x <- mo_region_stats(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", "Modis", "2023-06-01", "2023-08-31",
+                       zones = list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000)))
+  expect_equal(sent$zones$breaks, list(1500, 2000))
+  expect_equal(x$zone_label, "below 1500 m")
+  p <- mo_transect(rbind(c(-3.60, 37.15), c(-3.39, 37.06)), "LST", "Modis", "2023-07-01", "2023-08-31")
+  expect_equal(sent[[1]], list(c(-3.60, 37.15), c(-3.39, 37.06)))
+  expect_equal(p$elevation, 684)
+  expect_equal(attr(p, "length_m"), 1000)
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

@@ -82,6 +82,14 @@ COLUMNS = {
 	'from_label': 'name of the class in the first year', 'from_landcover': 'broad land cover of the class in the first year',
 	'to_class': 'class of the map in the other year (code)', 'to_label': 'name of the class in the other year',
 	'to_landcover': 'broad land cover of the class in the other year',
+	'zone': 'zone: its number from 0 (below the first break of the variable of the zones)',
+	'zone_label': 'name of the zone (its values of the variable of the zones)',
+	'zone_from': 'lowest value of the variable of the zones in the zone (empty: no limit)',
+	'zone_to': 'value of the variable of the zones where the zone ends, not in it (empty: no limit)',
+	'distance_m': 'distance along the line to the middle of the segment (m)',
+	'lon': 'longitude of the middle of the segment (degrees, WGS 84)', 'lat': 'latitude of the middle of the segment '
+	                                                                       '(degrees, WGS 84)',
+	'elevation': 'mean elevation of the segment (m, Copernicus DEM GLO-30)',
 }
 # the columns of the CSV of area_by_class that differ
 COLUMNS_AREAS = {
@@ -270,7 +278,9 @@ def text(tool, args, result, computed=None):
 			out += _section('Columns of', os.path.basename(f))
 			header = _csv_header(f)
 			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
-				dict(COLUMNS, **COLUMNS_AREAS) if tool == 'area_by_class' else COLUMNS
+				dict(COLUMNS, **COLUMNS_AREAS) if tool == 'area_by_class' else \
+				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
+				if tool == 'transect' else COLUMNS
 			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):

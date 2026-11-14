@@ -24,7 +24,10 @@ mo_region_stats(
   unit = NULL,
   terrain = NULL,
   interannual = "mean",
-  stats = NULL
+  stats = NULL,
+  zones = NULL,
+  csv = NULL,
+  chart = NULL
 )
 }
 \arguments{
@@ -103,11 +106,17 @@ band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments
 \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
 \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
 p5, p50, p95 and max.}
+
+\item{zones}{the statistics of each band of another variable instead, e.g. the elevation bands
+\code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
+is aggregated over the period of the result, or its own \code{period}).}
+
+\item{csv, chart}{optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG).}
 }
 \value{
-A data.frame (region, the columns of \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and
-  n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
-  \code{mo_references()}).
+A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of
+  \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and n_pixels) with the attributes title, unit (of
+  the map; cv is in \%), scale, references and credits (see \code{mo_references()}).
 }
 \description{
 The statistics of the map of \code{mo_map_layer()} with the same arguments over each feature of the region. Instead
@@ -132,6 +141,9 @@ mo_region_stats(mo_wdpa(389011), "PRECIP", "TerraClimate", "2001-01-01", "2020-1
                 temporal = "annual", interannual = "cv", stats = c("mean", "median", "p90"))
 # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
 mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+# the NDVI of each elevation band of 500 m
+mo_region_stats(mo_wdpa(389011), "NDVI", "Modis", "2023-06-01", "2023-08-31", stats = c("p25", "p50", "p75"),
+                zones = list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500, 3000)))
 }
 }
 \references{

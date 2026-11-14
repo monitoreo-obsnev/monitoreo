@@ -77,6 +77,12 @@ METHODS = {
 	                           'over each feature, as the zonal statistics by group of geemap; % of the area with a '
 	                           'class (the pixels without data are not counted). Each class of the map with its broad '
 	                           'land cover (that of the land cover masks).',
+	'transect': 'The line cut in segments of the same length, and the mean of the map of the variable (the temporal '
+	            'metric of the images of the period on each pixel) and of the elevation (Copernicus DEM) over the pixels '
+	            'that each segment crosses (within half a pixel of it), as the transects of geemap.',
+	'region_stats_zones': 'The temporal metric of the images of the period on each pixel and its statistics over each '
+	                      'zone of each feature: the classes of the variable of the zones (its map over the same '
+	                      'period, or a fixed layer) cut at its breaks, as the zonal statistics by group of geemap.',
 	'area_by_class_transitions': 'The pair of classes of each pixel (its class of the land cover map in the first year '
 	                             'and in the other) and the true area of each pixel summed by pair over each feature, as '
 	                             'the Sankey diagrams of land cover change of geemap; % of the area with a class in both '
@@ -134,6 +140,8 @@ TABLES = {
 	'area_by_class': (('rows',), [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'),
 	                              ('value_from', 'From{u}'), ('value_to', 'To{u}'), ('ha', 'Hectares'),
 	                              ('percent', '% of the area with classes')]),
+	'transect': (('rows',), [('distance_m', 'Distance (m)'), ('value', 'Value{u}'), ('elevation', 'Elevation (m)'),
+	                         ('lon', 'Longitude'), ('lat', 'Latitude')]),
 	'area_by_class_transitions': (('rows',), [('region', 'Region'), ('from_label', 'From'), ('to_label', 'To'),
 	                                          ('ha', 'Hectares'), ('percent', '% of the area with classes')]),
 	'burn_severity': (('classes', 'stats'), [('region', 'Region'), ('label', 'Severity class'), ('dnbr_min', 'dNBR from'),
@@ -263,6 +271,8 @@ def item_references(tool, args, result=None, date=None):
 
 def item_title(tool, args, result=None):
 	"""The title in English of the result of a call."""
+	if tool == 'region_stats' and args.get('zones'):  # by bands of another variable
+		return default_title(tool, args)
 	if tool in TITLES:
 		v = _var(args) if not args.get('variable') else \
 			f"{args.get('variable', '')} ({SENSORS.get(args.get('sensor'), args.get('sensor') or '')})"
@@ -272,7 +282,7 @@ def item_title(tool, args, result=None):
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
 		                           season=season_text(args.get('season')))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'burn_severity', 'download_image', 'download_trend',
-	            'download_comparison', 'area_by_class'):
+	            'download_comparison', 'area_by_class', 'transect') or (tool == 'region_stats' and args.get('zones')):
 		return default_title(tool, args) + (' (GeoTIFF)' if tool == 'download_image' else '')
 	if tool == 'download_variables':
 		return f"Variables in GeoTIFF: {args.get('name', '')}" + (' (plan, not downloaded)' if args.get('dry_run') else '')
@@ -284,7 +294,7 @@ def item_facts(tool, args, result=None, names=None):
 	result = result if isinstance(result, dict) else {}
 	if tool == 'download_variables':
 		return _recipe_facts(args, result, names)
-	facts = [('Region', region_text(args.get('region'), names or {}))]
+	facts = [('Region', region_text(args.get('region'), names or {}))] if tool != 'transect' else []
 	if args.get('where'):
 		facts.append(('Pixels of the region', 'only where ' + where_text(args['where'])))
 	entry = _entry(args.get('variable') or (fire_variable(args) if tool == 'burn_severity' else None), args.get('sensor') or
@@ -325,7 +335,7 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
 	                                                      'download_image', 'download_comparison', 'rgb_map',
-	                                                      'download_rgb', 'timelapse') or
+	                                                      'download_rgb', 'timelapse', 'transect') or
 	                                (tool == 'area_by_class' and not args.get('trend')) else 'mean')
 	if tool == 'area_by_class' and args.get('landcover'):  # a land cover map: no variable, period nor metric
 		static = True
@@ -382,9 +392,19 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	if tool == 'region_stats' and isinstance(args.get('zones'), dict):
+		from .services import zone_name
+		z = args['zones']
+		facts.append(('Zones', f"{zone_name(z)}, cut at {', '.join(f'{b:g}' for b in classes_of(z.get('breaks')))}"
+		                       + (f" ({z.get('metric') or 'mean'} of {period_text(*z['period'])})" if z.get('period')
+		                          else '')))
+	if tool == 'transect' and result.get('length_m'):
+		facts.append(('Line', f"{_num(result['length_m'] / 1000)} km, {len(args.get('line') or [])} points; segments of "
+		                      f"{_num(result.get('spacing'))} m"))
 	if tool == 'area_by_class' and args.get('breaks'):
 		unit = unit_text(result.get('unit'))
-		facts.append(('Classes', 'cut at ' + ', '.join(_num(b) for b in args['breaks']) + (f' {unit}' if unit else '')
+		facts.append(('Classes', 'cut at ' + ', '.join(f'{float(b):g}' for b in classes_of(args['breaks']))
+		                         + (f' {unit}' if unit else '')
 		                         + ' (a value equal to a break goes to the class above it)'))
 	if tool == 'area_by_class' and args.get('trend'):
 		facts.append(('Classes', f"significant decrease, no significant trend and significant increase (Mann-Kendall, "
@@ -402,8 +422,9 @@ def item_facts(tool, args, result=None, names=None):
 		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
 		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
-		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else tool]
-		facts.append(('Method', METHODS['static'] if static else method))
+		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else
+		                 'region_stats_zones' if tool == 'region_stats' and args.get('zones') else tool]
+		facts.append(('Method', METHODS['static'] if static and not args.get('zones') else method))
 	elif tool == 'area_by_class':
 		kind = ('transitions' if args.get('other_year') else 'landcover') if args.get('landcover') else \
 			'trend' if args.get('trend') else 'breaks'
@@ -413,6 +434,19 @@ def item_facts(tool, args, result=None, names=None):
 				facts.append((label, f"{_num(ha)} ha; unchanged {_num((result.get('unchanged_ha') or {}).get(region))} ha"))
 		facts.append(('Method', METHODS[f'area_by_class_{kind}']))
 	return facts
+
+
+def classes_of(breaks):
+	"""The breaks of a call (a list, or a text with commas), as numbers; those that are not, left out."""
+	if isinstance(breaks, str):
+		breaks = breaks.replace(';', ',').split(',')
+	out = []
+	for b in breaks or []:
+		try:
+			out.append(float(b))
+		except (TypeError, ValueError):
+			pass
+	return out
 
 
 def _landcover_facts(args):
@@ -504,8 +538,8 @@ def item_table(tool, result, args=None):
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit_text(unit, per_year=True)})"
 	if tool == 'region_stats' and isinstance(result, dict) and result.get('stats'):  # those asked for, in their order
 		known = dict(cols)
-		cols = [('region', 'Region')] + [(s, known.get(s) or _stat_label(s)) for s in result['stats']] + \
-			[('n_pixels', 'Pixels')]
+		cols = [('region', 'Region'), ('zone_label', 'Zone')] + [(s, known.get(s) or _stat_label(s))
+		                                                         for s in result['stats']] + [('n_pixels', 'Pixels')]
 	if len({str(r.get('region')) for r in rows}) <= 1:
 		cols = [c for c in cols if c[0] != 'region']
 	cols = [c for c in cols if any(c[0] in r for r in rows)]
