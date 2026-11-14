@@ -1162,6 +1162,7 @@ function show(e) {
   else if (e.type === 'areas') $('chat').append(areasCard(e));
   else if (e.type === 'units') $('chat').append(unitsCard(e));
   else if (e.type === 'notice') notice(e.text);
+  else if (e.type === 'layers') renderLayers(e.layers);  // a study area made by a result: the perimeter of a fire
   else if (e.type === 'eecu') renderEecu(e.usage);
   else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);
   else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'For ' + e.what + ', MonitorEO has ',

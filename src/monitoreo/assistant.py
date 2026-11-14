@@ -332,7 +332,11 @@ vegetation of very different cover (sparse shrubs and dense forest), where the d
 sparse one. It is the only index with MODIS (sensor "Modis", pixel of 500 m: Terra since 2000; with collection \
 "MODIS/061/MYD09GA", Aqua since 2002), for big fires; its mixed pixels make its classes approximate. Its classes were \
 calibrated one year after the fire: for them, take the period after about one year after the fire, in the same season \
-as the period before. «Unchanged» is not «unburned»: one year after the fire the area was as before it.
+as the period before. «Unchanged» is not «unburned»: one year after the fire the area was as before it. When the user \
+wants the perimeter or the polygons of the burned area (to study it afterwards, to download it for a GIS), \
+perimeter true: it becomes a study area of the user, for the next analyses inside it (the recovery of the NDVI after \
+the fire). Burned: from dNBR 0.1 (RdNBR 0.069), or burned_min; the RBR has no classes: ask the user for burned_min. \
+Patches and unburned islands of less than min_ha (1 ha) are left out and filled.
 
 Variables of the catalog (sensors, pixel and first year):
 {variables}{guide}"""
@@ -1669,7 +1673,15 @@ class Assistant:
 			                                 f"({re.sub(r'^[A-Za-z]+(Error|Exception): ', '', result['thumbnail_error'])}): its "
 			                                 'map is in the panel of the maps, and «Add this view to the report» puts '
 			                                 'it in the report.'}
-		self._tool_message(name, receipt(item['id'], item['title']))
+		area = self.perimeter_area(item) if tool == 'burn_severity' else None
+		if area:  # the perimeter of the burned area: a study area for the next analyses
+			yield {'type': 'layers', 'layers': [{'name': k, 'text': layer_text(v)} for k, v in self.layers.items()]}
+			yield {'type': 'notice', 'text': f"The perimeter of the burned area of result {item['id']} is now the study "
+			                                 f"area «{area}»: ask for another analysis inside it (e.g. the NDVI after the "
+			                                 'fire), or download it from the result.'}
+		self._tool_message(name, receipt(item['id'], item['title']) + (
+			f" The perimeter of its burned area is the study area «{area}»: region {{\"layer\": \"{area}\"}} for the "
+			'analyses inside it.' if area else ''))
 		for event in await self.eecu_events():
 			yield event
 		if tool in PERIOD_MAP:
@@ -1819,7 +1831,7 @@ class Assistant:
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
 			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
 				card['under'] = {'text': report.map_style('rgb_map', args, item['under'])['text']}
-			for k in ('csv', 'file', 'readme'):
+			for k in ('csv', 'file', 'perimeter', 'readme'):  # perimeter: the polygons of the burned area
 				if isinstance(result.get(k), str):
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
 					                      'path': result[k]})
@@ -2156,6 +2168,20 @@ class Assistant:
 		                     **{k: info[k] for k in ('features', 'area_ha', 'crs', 'name_field', 'bounds')}}
 		save_layers(self.layers)
 		return {'name': name, **self.layers[name], 'text': layer_text(self.layers[name])}
+
+	def perimeter_area(self, item):
+		"""Keep the perimeter of the burned area of the burn severity ITEM (its GeoPackage, perimeter) as a study area
+		of the user, burned_area_<result>, that the model can give as the region of the next analyses: its name, or
+		None without polygons."""
+		result = item.get('result') if isinstance(item.get('result'), dict) else {}
+		path = result.get('perimeter')
+		if not (isinstance(path, str) and os.path.exists(path)) or not any((result.get('perimeter_ha') or {}).values()):
+			return None
+		try:
+			with open(path, 'rb') as f:
+				return self.add_layer(f"burned_area_{item['id']}{os.path.splitext(path)[1]}", f.read())['name']
+		except (OSError, ValueError):  # the result is there anyway, with its file
+			return None
 
 	def remove_layer(self, name):
 		layer = self.layers.pop(name, None)

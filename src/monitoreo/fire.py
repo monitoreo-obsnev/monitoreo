@@ -191,6 +191,78 @@ def stats_reducer():
 	return ee.Reducer.mean().combine(percentiles, '', True).combine(ee.Reducer.minMax(), '', True)
 
 
+# The perimeter of the burned area (perimeter; burnPerimeter in gee/core.js): the polygons of the burned pixels, those
+# whose index is at least the value from which a pixel is burned (that of its classes, CLASSES, or the one the user
+# gives: always with the RBR, which has no classes), joined when they touch, even by a corner. The patches of less than
+# PERIMETER_MIN_HA are left out (isolated pixels of harvests, clouds left), and the unburned islands of less than it
+# inside a patch are filled; the bigger islands stay as holes. The same minimum for both, as a minimum mapping unit.
+PERIMETER_MIN_HA = 1.0
+# the fields of the vector file of the perimeter and their types (described in readme.FIELDS)
+PERIMETER_TYPES = {'region': str, 'ha': float, 'patches': int, 'index': str, 'burned_min': float, 'min_ha': float,
+                   'sensor': str, 'before': str, 'after': str}
+PERIMETER_FIELDS = list(PERIMETER_TYPES)
+
+
+def burned_min(index, value=None):
+	"""The value of the burn INDEX ('dNBR', 'RBR' or 'RdNBR') from which a pixel is in the perimeter of the burned
+	area: VALUE if given, else that of its classes (dNBR 0.1, RdNBR 0.069); the RBR, without classes, needs VALUE."""
+	if value is not None:
+		return float(value)
+	if index not in CLASSES:
+		raise ValueError(f'the {index} has no classes: give burned_min, the {index} from which a pixel is burned, for '
+		                 'the perimeter of the burned area')
+	return CLASSES[index]['burned']
+
+
+def _rings(polygon, pixels, crs, min_m2):
+	"""The coordinates of POLYGON (a list of rings in the ee.Projection PIXELS) without its holes of less than MIN_M2
+	square metres (in CRS)."""
+	rings = ee.List(polygon)
+
+	def hole(ring):
+		area = ee.Geometry.Polygon(ee.List([ring]), pixels, False).area(1, crs)
+		return ee.Algorithms.If(area.gte(min_m2), ring, None)
+	return ee.List([rings.get(0)]).cat(rings.slice(1).map(hole, True))
+
+
+def perimeter(value, burned_min, regions, scale, crs, min_ha=PERIMETER_MIN_HA):
+	"""ee.FeatureCollection of the perimeter of the burned area of each feature of REGIONS (see PERIMETER_MIN_HA): a
+	feature with a MultiPolygon (EPSG:4326) of the connected pixels (eight neighbours) of SCALE metres in CRS of the
+	ee.Image VALUE (a burn index) at least BURNED_MIN, without the patches of less than MIN_HA hectares and with the
+	unburned islands of less than MIN_HA filled, and the properties name (that of the feature), ha (its area, in
+	hectares) and patches (its polygons)."""
+	burned = value.gte(burned_min).selfMask().rename('burned')
+	min_m2 = float(min_ha) * 1e4
+	min_pixels = min_m2 / float(scale) ** 2
+	# the polygons of reduceToVectors in the projection of the pixels (geometryInNativeProjection): CRS in units of
+	# SCALE metres, so that their edges are those of the pixels until the end
+	pixels = ee.Projection(crs).atScale(scale)
+
+	def polygons(f):  # the coordinates of the polygons of a patch, without its small islands (with 0 ha, every one)
+		g = f.geometry()
+		coords = ee.List(ee.Algorithms.If(ee.String(g.type()).equals('Polygon'), ee.List([g.coordinates()]),
+		                                  g.coordinates()))
+		return coords.map(lambda p: _rings(p, pixels, crs, min_m2)) if min_m2 > 0 else coords
+
+	def one(region):
+		geom = region.geometry()
+		patches = burned.clip(geom).reduceToVectors(geometry=geom, scale=scale, crs=crs, geometryType='polygon',
+		                                            eightConnected=True, maxPixels=1e13, tileScale=4,
+		                                            geometryInNativeProjection=True)
+		kept = patches.filter(ee.Filter.gte('count', min_pixels))
+		coords = ee.List(kept.iterate(lambda f, acc: ee.List(acc).cat(polygons(f)), ee.List([])))
+		shape = ee.Geometry.MultiPolygon(coords, pixels, False)
+		return ee.Feature(shape.transform('EPSG:4326', float(scale) / 10),
+		                  {'name': region.get('name'), 'ha': shape.area(1, crs).divide(1e4), 'patches': coords.size()})
+	return regions.map(one)
+
+
+def perimeter_rows(features):
+	"""[{region, ha, patches, geometry (GeoJSON)}] of the features of perimeter (getInfo)."""
+	return [{'region': str(f['properties'].get('name')), 'ha': f['properties'].get('ha') or 0.0,
+	         'patches': int(f['properties'].get('patches') or 0), 'geometry': f.get('geometry')} for f in features]
+
+
 def table(groups, region, index='dNBR'):
 	"""Rows [{region, class, label, <key>_min, <key>_max, ha}] (key: dnbr for the dNBR, rdnbr for the RdNBR) of every
 	class of INDEX, from the GROUPS of an Earth Engine grouped sum of hectares ([{'class', 'sum'}])."""

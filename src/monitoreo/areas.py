@@ -24,6 +24,7 @@ References (monitoreo.references gives them, with those of the data, with each r
 
 import json
 import math
+import os
 
 import ee
 
@@ -392,6 +393,49 @@ def save_ecoregions(eco, path, max_error):
 		feat.SetGeometry(_polygons(g, ogr))
 		lyr.CreateFeature(feat)
 	ds = None
+
+
+# the vector files that MonitorEO writes (the perimeter of the burned area of burn_severity): their driver of OGR by
+# their extension
+VECTOR_DRIVERS = {'.gpkg': 'GPKG', '.geojson': 'GeoJSON', '.shp': 'ESRI Shapefile'}
+
+
+def vector_driver(path):
+	"""The driver of OGR of the vector file PATH, by its extension (see VECTOR_DRIVERS)."""
+	ext = os.path.splitext(str(path))[1].lower()
+	if ext not in VECTOR_DRIVERS:
+		raise ValueError(f"write the polygons to a file {', '.join(VECTOR_DRIVERS)}, not {os.path.basename(str(path))}")
+	return VECTOR_DRIVERS[ext]
+
+
+def save_polygons(rows, path, layer, types):
+	"""Write ROWS ([{field: value, ..., 'geometry': a GeoJSON geometry in EPSG:4326}]) to the vector file PATH (its
+	format by its extension, see vector_driver) as the layer LAYER of MultiPolygons in EPSG:4326, valid (OGR MakeValid:
+	the polygons joined by a corner become two), with the fields TYPES ({name: str, int or float}). A row without
+	polygons is written without geometry. Returns PATH."""
+	ogr = _ogr()
+	drv = ogr.GetDriverByName(vector_driver(path))
+	if os.path.exists(path):
+		drv.DeleteDataSource(path)
+	ds = drv.CreateDataSource(path)
+	lyr = ds.CreateLayer(layer, wgs84(), ogr.wkbMultiPolygon)
+	kinds = {str: ogr.OFTString, int: ogr.OFTInteger, float: ogr.OFTReal}
+	for name, kind in types.items():
+		lyr.CreateField(ogr.FieldDefn(name, kinds[kind]))
+	for r in rows:
+		feat = ogr.Feature(lyr.GetLayerDefn())
+		for name, kind in types.items():
+			if r.get(name) is not None:
+				feat.SetField(name, kind(r[name]))
+		g = r.get('geometry')
+		if g and g.get('coordinates'):
+			geom = ogr.CreateGeometryFromJson(json.dumps(g))
+			if not geom.IsValid():
+				geom = geom.MakeValid()
+			feat.SetGeometry(_polygons(geom, ogr))
+		lyr.CreateFeature(feat)
+	ds = None
+	return path
 
 
 def _polygons(g, ogr):

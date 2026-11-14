@@ -23,6 +23,9 @@ NODATA = -9999
 # outputs and callbacks of the functions of monitoreo.services: not part of what was computed
 NOT_ARGS = {'csv', 'chart', 'path', 'thumbnail', 'progress', 'log', 'folder', 'tile', 'workers', 'record', 'wait',
             'drive_dir', 'overwrite', 'dry_run', 'quick'}
+# outputs that are part of what was computed: a file whose name the call keeps (without its folder), so that the call to
+# reproduce it writes it again (the perimeter of the burned area of burn_severity)
+NAMED_OUTPUTS = {'perimeter'}
 
 # the columns of the CSV files of the tools ({u}: the unit of the variable)
 COLUMNS = {
@@ -68,6 +71,21 @@ COLUMNS = {
 	'before': 'period before the fire (first/last day)', 'after': 'period after the fire (first/last day)',
 	'index': 'burn index',
 }
+# the fields of the vector file of the perimeter of the burned area (burn_severity with perimeter: fire.PERIMETER_TYPES)
+FIELDS = {
+	'region': 'name of the feature of the region (its name, or its number)',
+	'ha': 'area of the polygons, in hectares (UDUNITS ha), computed on the grid of the pixels',
+	'patches': 'burned patches of the feature: groups of burned pixels joined by a side or a corner (count)',
+	'index': 'burn index (dNBR, RBR or RdNBR)',
+	'burned_min': 'value of the index from which a pixel is burned (dimensionless, UDUNITS 1)',
+	'min_ha': 'smallest burned patch kept and smallest unburned island left as a hole, in hectares (UDUNITS ha)',
+	'sensor': 'sensor of the images',
+	'before': 'period before the fire (first/last day)',
+	'after': 'period after the fire (first/last day)',
+}
+# the files of polygons that the tools write (areas.VECTOR_DRIVERS)
+VECTOR_KINDS = {'.gpkg': 'polygons (GeoPackage, EPSG:4326, layer perimeter)', '.geojson': 'polygons (GeoJSON, EPSG:4326)',
+                '.shp': 'polygons (Shapefile, EPSG:4326, with its .shx, .dbf and .prj)'}
 # the columns of the CSV of the RdNBR (burn_severity with index RdNBR, a CSV with the column rdnbr_min) that differ
 COLUMNS_RDNBR = {
 	'class': 'severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)',
@@ -85,7 +103,7 @@ def _now():
 
 def call_args(args):
 	"""The arguments of a call that say what was computed (without its outputs and callbacks, nor those left empty)."""
-	return {k: v for k, v in (args or {}).items()
+	return {k: os.path.basename(v) if k in NAMED_OUTPUTS and isinstance(v, str) else v for k, v in (args or {}).items()
 	        if k not in NOT_ARGS and v is not None and not callable(v) and v != {} and v != []}
 
 
@@ -190,7 +208,7 @@ def text(tool, args, result, computed=None):
 	from . import report
 	result = result if isinstance(result, dict) else {}
 	given = call_args(args)
-	files = [result[k] for k in ('file', 'csv', 'chart') if isinstance(result.get(k), str) and
+	files = [result[k] for k in ('file', 'csv', 'chart', 'perimeter') if isinstance(result.get(k), str) and
 	         os.path.exists(result[k])]
 	name = os.path.basename(files[0]) if files else tool
 	title = report.item_title(tool, given, result)
@@ -198,7 +216,7 @@ def text(tool, args, result, computed=None):
 	       _wrap(f'Computed with MonitorEO {__version__} in Google Earth Engine on {computed or _now()}.', '', '')]
 	out += _section('Files')
 	kinds = {'.csv': 'table (CSV, UTF-8, comma-separated, a header row)',
-	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)'}
+	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS}
 	out += [_wrap(f'{os.path.basename(f)}: {kinds.get(os.path.splitext(f)[1].lower(), "")}') for f in files]
 	out += _section('How it was computed')
 	out += [_wrap(f'{k}: {v}') for k, v in report.item_facts(tool, given, result)]
@@ -227,6 +245,12 @@ def text(tool, args, result, computed=None):
 			for i, b, bu in bands:
 				label = publish.band_text(b, names)[0] if b == 'severity' else BANDS.get(b, ('', ''))[0]
 				out.append(_wrap(f'{i} {b}: {label}' + (f' ({bu})' if bu else '')))
+		elif ext in VECTOR_KINDS:
+			out += _section('Fields of', os.path.basename(f))
+			out.append(_wrap('The perimeter of the burned area: a feature for each feature of the region, a MultiPolygon '
+			                 'of its burned pixels (without geometry if none), to use as the study area of other '
+			                 f"analyses: region {{'file': '{os.path.basename(f)}', 'name_field': 'region'}}."))
+			out += [_wrap(f'{k}: {v}') for k, v in FIELDS.items()]
 	call = publish.python_call(tool, given)
 	if call:
 		out += _section('To reproduce it in Python')
@@ -257,7 +281,8 @@ def document(tool, args, result, computed=None):
 		folders = result.get('folders') or {}
 		paths = [recipe_folder(d, result) for d in (folders.values() if isinstance(folders, dict) else folders)]
 		return [p for p in paths if p] or None
-	files = [result[k] for k in ('file', 'csv') if isinstance(result.get(k), str) and os.path.exists(result[k])]
+	files = [result[k] for k in ('file', 'csv', 'perimeter') if isinstance(result.get(k), str) and
+	         os.path.exists(result[k])]
 	if not files:
 		return None
 	for f in files:

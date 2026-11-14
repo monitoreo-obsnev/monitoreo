@@ -274,7 +274,8 @@ HELP = {
 	'series_list':
 		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '
 		'press <b>Show</b> to open its window again, with its chart (if it has one), its table and the buttons to save '
-		'them: <b>Save CSV…</b>, <b>Save chart…</b> and, for a burn severity, <b>Save GeoTIFF…</b>.</p>'
+		'them: <b>Save CSV…</b>, <b>Save chart…</b> and, for a burn severity, <b>Save GeoTIFF…</b> (and <b>Save '
+		'perimeter…</b>, the polygons of the burned area).</p>'
 		'<p>In the window of a time series, <b>Map of</b> and <b>Add to the map</b> add the map of its whole period or '
 		'of one of its dates, with its days in the Temporal Controller. If the images of the variable have a true '
 		'colour (Sentinel-2, Landsat and the cloud frequency of MODIS), <b>Layer</b> chooses the <b>Index</b>, its '
@@ -396,6 +397,16 @@ HELP = {
 		'<b>Identify Features</b>).</p>'
 		+ cite_html(method_references('burn_severity') + method_references('rbr') + method_references('rdnbr'))
 		+ manual('Concepts#burn-severity-dnbr'),
+	'fire_perimeter':
+		'<p><b>Perimeter</b>: also the polygons of the burned area, in a layer over the severity (a temporary '
+		'GeoPackage; <b>Save perimeter…</b> in the window of the result keeps it). Choose it in <b>Region</b> → '
+		'<b>Layer</b> to compute other analyses inside the fire, e.g. the NDVI of the years after it.</p>'
+		'<p>A pixel is burned from the value of <b>Burned from</b>; empty, from that of the classes of the index: '
+		'dNBR ≥ 0.1 (low severity and above) or RdNBR ≥ 0.069 (changed). The RBR has no classes: write the value. The '
+		'burned pixels that touch, even by a corner, form a patch; the patches of less than <b>smallest</b> (1 ha by '
+		'default) are left out (isolated pixels of harvests or clouds left), and the unburned islands of less than it '
+		'inside them filled; 0 keeps every pixel. A feature for each feature of the region, with its hectares.</p>'
+		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_before':
 		'<p>A period <b>before the fire</b>, without it: the median of its images on each pixel is the NBR before. A '
 		'few weeks or months of the same season, e.g. the 2 months before the fire, so that clouds leave clear '

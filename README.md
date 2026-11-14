@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Earth Engine app, QGIS plugin, Assistant, MCP server, Python package, Command line, R package**: The burn severity of a fire also gives the perimeter of the burned area as polygons (a MultiPolygon for each feature of the region, with its hectares), to download (GeoPackage, GeoJSON or Shapefile; GeoJSON or KML in the Earth Engine app) and to use as the study area of other analyses: a pixel is burned from dNBR 0.1 or RdNBR 0.069, or from a value of the index you choose (needed with the RBR), and burned patches and unburned islands of less than 1 ha (or the area you choose) are left out and filled. The QGIS plugin adds it as a layer to choose as the region, the Earth Engine app has «Use as the region», and the assistant keeps it as a study area for the next questions.
+
 ### [v0.3.33](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.33) · 2026-11-14 · package 0.3.43
 
 - **Assistant, QGIS plugin, Earth Engine app, Command line**: The version comes with the date it was released, as in «MonitorEO 0.3.43 · released 2026-11-14»: in the header of the assistant, at the top of the panel of the QGIS plugin, under the subtitle of the Earth Engine app and in `monitoreo --version`.

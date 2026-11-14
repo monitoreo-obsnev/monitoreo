@@ -36,6 +36,11 @@ def burn(monkeypatch):
 		out = {'scale': 10.0, 'csv': kw.get('csv'), 'file': kw.get('path'), 'readme': '/tmp/fire.README.txt',
 		       'resolution': 10.0, 'native_resolution': 10.0}
 		out.update(references.cite('burn_severity', dict(kw, sensor=sensor, start=start, end=end)))  # as _cited
+		if kw.get('perimeter'):  # the polygons of the burned area
+			index = {'rbr': 'RBR', 'rdnbr': 'RdNBR'}.get(str(kw.get('index')).lower(), 'dNBR')
+			out.update(perimeter=kw['perimeter'], perimeter_ha={'bbox': 2010.5}, perimeter_patches={'bbox': 3},
+			           burned_min=fire.burned_min(index, kw.get('burned_min')),
+			           min_ha=fire.PERIMETER_MIN_HA if kw.get('min_ha') is None else kw['min_ha'])
 		if str(kw.get('index')).lower() == 'rdnbr':
 			classes = fire.table([{'class': 1, 'sum': 600.25}, {'class': 3, 'sum': 1500.0}, {'class': 0, 'sum': 50.0}],
 			                     'bbox', 'RdNBR')
@@ -79,6 +84,36 @@ def test_the_command_line_computes_the_burn_severity(burn, capsys, tmp_path):
 	assert 'bbox: burned area (dNBR >= 0.1) 2100.2 ha' in out
 	assert f'| CSV {csv} | GeoTIFF {tif} | README /tmp/fire.README.txt' in out
 	assert out.rstrip().splitlines()[-1].startswith('Burn severity (dNBR, USGS) Sentinel-2 (median)')
+
+
+def test_the_command_line_writes_the_perimeter(burn, capsys, tmp_path):
+	"""monitoreo burn --perimeter: the polygons of the burned area, with the value from which a pixel is burned and
+	the smallest patch, and their hectares."""
+	from monitoreo import cli
+	gpkg = str(tmp_path / 'fire.gpkg')
+	cli.main(['burn'] + ARGS + ['--perimeter', gpkg, '--burned-min', '0.27', '--min-ha', '2'])
+	call = burn[-1]
+	assert (call['perimeter'], call['burned_min'], call['min_ha']) == (gpkg, 0.27, 2.0)
+	out = capsys.readouterr().out
+	assert 'bbox: perimeter of the burned area (dNBR >= 0.27, patches and islands of at least 2 ha) 2010.5 ha in 3 ' \
+	       'patches' in out
+	assert f'| perimeter {gpkg} |' in out
+	cli.main(['burn'] + ARGS)  # as before: no perimeter unless asked for
+	assert burn[-1]['perimeter'] is None and burn[-1]['burned_min'] is None and burn[-1]['min_ha'] is None
+	assert 'perimeter' not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('extra, error', [
+	(['--min-ha', '2'], '--burned-min and --min-ha are for the perimeter'),
+	(['--burned-min', '0.2'], '--burned-min and --min-ha are for the perimeter'),
+	(['--index', 'RBR', '--perimeter', 'fire.gpkg'], '--index RBR has no classes: give --burned-min'),
+])
+def test_the_command_line_refuses_a_perimeter_without_what_it_needs(burn, capsys, extra, error):
+	from monitoreo import cli
+	with pytest.raises(SystemExit):
+		cli.main(['burn'] + ARGS + extra)
+	assert error in capsys.readouterr().err
+	assert not burn
 
 
 def test_the_command_line_computes_the_rbr(burn, capsys):
@@ -234,6 +269,26 @@ def test_the_mcp_server_names_the_files_of_each_burn_index(mcp, burn, tmp_path):
 	assert names['RdNBR'].startswith('burn_severity_RdNBR_Landsat_2021-07-15_')
 
 
+def test_the_mcp_server_writes_the_perimeter(mcp, burn, tmp_path):
+	"""perimeter true: a GeoPackage next to the GeoTIFF, with its name and time, and its hectares in the answer;
+	without it, nothing."""
+	answer = json.loads(mcp.burn_severity(REGION, '2021-07-15', '2021-08-31', '2021-09-20', '2021-10-31',
+	                                      index='RBR', perimeter=True, burned_min=0.1, min_ha=0.5))
+	call = burn[-1]
+	assert call['perimeter'] == call['path'][:-4] + '_perimeter.gpkg'
+	assert os.path.dirname(call['perimeter']) == str(tmp_path)
+	assert (call['burned_min'], call['min_ha']) == (0.1, 0.5)
+	assert answer['perimeter'] == call['perimeter'] and answer['perimeter_ha'] == {'bbox': 2010.5}
+	assert answer['burned_min'] == 0.1 and answer['min_ha'] == 0.5
+	mcp.burn_severity(REGION, '2021-07-15', '2021-08-31', '2021-09-20', '2021-10-31')
+	assert burn[-1]['perimeter'] is None and burn[-1]['burned_min'] is None
+	doc = ' '.join(mcp.burn_severity.__doc__.split())
+	for words in ('perimeter true', '{"file": <perimeter>, "name_field": "region"}', 'burned_min', 'min_ha',
+	              'the RBR has no classes'):
+		assert words in doc, words
+	assert 'perimeter true' in ' '.join(mcp.INSTRUCTIONS.split())
+
+
 def test_the_model_learns_the_rdnbr(mcp):
 	import inspect
 	doc = ' '.join(mcp.burn_severity.__doc__.split())
@@ -317,6 +372,32 @@ def test_the_help_of_the_plugin_explains_the_burn_severity(helptexts):
 		assert doi in text
 	assert 'Key &amp; Benson' in text and 'QGIS-plugin#9-burn-severity-of-a-fire' in helptexts.HELP['fire_sensor']
 	assert 'Burn severity of a fire' in helptexts.HELP['theme']
+
+
+def test_the_help_of_the_plugin_explains_the_perimeter(helptexts):
+	text = helptexts.HELP['fire_perimeter']
+	for words in ('<b>Perimeter</b>', 'Region</b> → <b>Layer', 'dNBR ≥ 0.1', 'RdNBR ≥ 0.069', 'The RBR has no classes',
+	              '1 ha', 'Save perimeter…', 'QGIS-plugin#9-burn-severity-of-a-fire'):
+		assert words in text, words
+	assert 'Save perimeter…' in helptexts.HELP['series_list']
+
+
+def test_the_perimeter_is_in_every_tool():
+	"""The perimeter of the burned area of burn_severity reaches every tool that computes the burn severity: the
+	command line, the MCP server, the assistant, the QGIS plugin, the R package and the Earth Engine app (its port in
+	core.js and its panel in ui.js, for the three indices, in the app that is published)."""
+	cli, mcp = _read('src', 'monitoreo', 'cli.py'), _read('src', 'monitoreo', 'mcp_server.py')
+	dock, r = _read('qgis', 'monitoreo_qgis', 'dock.py'), _read('r', 'monitoreo', 'R', 'monitoreo.R')
+	core, ui, app = _read('gee', 'core.js'), _read('gee', 'ui.js'), _read('gee', 'monitoreo_app.js')
+	assert 'perimeter=args.perimeter, burned_min=args.burned_min, min_ha=args.min_ha' in cli
+	assert "perimeter=tif[:-4] + '_perimeter.gpkg' if perimeter else None" in mcp
+	assert 'self.perimeter_args(index, stem)' in dock and 'self.add_perimeter_layer(res)' in dock
+	assert 'perimeter = if (is.null(perimeter)) NULL else path.expand(perimeter)' in r
+	assert 'function burnPerimeter(' in core and 'geometryInNativeProjection: true' in core
+	for index, band in (('dNBR', 'dnbr'), ('RBR', 'rbr'), ('RdNBR', 'rdnbr')):
+		assert f"perimeterWidget(out.image.select('{band}'), '{index}', scale, e, name, before, after)" in ui, index
+	assert 'function perimeterWidget(' in app and 'function burnPerimeter(' in app  # built (gee/build.py)
+	assert f'var PERIMETER_MIN_HA = {fire.PERIMETER_MIN_HA:g};' in core
 
 
 def test_the_analyses_of_a_theme_are_in_every_tool():

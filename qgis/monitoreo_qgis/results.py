@@ -140,11 +140,13 @@ def _cell(v):
 
 
 def save_file(src, path, res):
-	"""Copy the file SRC of the result RES to PATH and, if it is its CSV or its GeoTIFF, its README next to it
-	(<name>.README.txt), which explains its columns or bands and how to cite it."""
+	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its GeoTIFF or its perimeter (the polygons
+	of the burned area), its README next to it (<name>.README.txt), which explains its columns, bands or fields and how
+	to cite it."""
 	shutil.copyfile(src, path)
 	readme = res.get('readme')
-	if src in (res.get('csv'), res.get('file')) and isinstance(readme, str) and os.path.exists(readme):
+	if src in (res.get('csv'), res.get('file'), res.get('perimeter')) and isinstance(readme, str) and \
+			os.path.exists(readme):
 		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
 
 
@@ -164,6 +166,21 @@ def references_box(res):
 def burn_text(res):
 	"""What the window of the burn severity RES says over its table: the burned area of each region (dNBR), how the
 	RBR is computed, or how the RdNBR is computed and the changed area of each region (RdNBR)."""
+	return _burn_text(res) + perimeter_text(res)
+
+
+def perimeter_text(res):
+	"""The perimeter of the burned area of the burn severity RES, if it has one: its hectares in each region."""
+	ha = res.get('perimeter_ha')
+	if not res.get('perimeter') or not isinstance(ha, dict):
+		return ''
+	areas = ', '.join(f'{region}: {v:,.1f} ha' for region, v in ha.items()) if len(ha) > 1 else \
+		f'{next(iter(ha.values())):,.1f} ha' if ha else '0 ha'
+	return (f" · perimeter of the burned area ({res.get('index') or 'dNBR'} ≥ {res.get('burned_min', 0):g}, without "
+	        f"patches nor islands of less than {res.get('min_ha', 0):g} ha): {areas}")
+
+
+def _burn_text(res):
 	from monitoreo import fire
 	if res.get('index') == 'RBR':
 		return (' · RBR = dNBR / (NBR before + 1.001), without phenological correction and without the factor 1000; '
@@ -256,7 +273,8 @@ class ResultDialog(QDialog):
 		row.addStretch()
 		for text, path, filt in (('Save CSV…', res.get('csv'), 'CSV (*.csv)'),
 		                         ('Save chart…', res.get('chart'), 'PNG (*.png)'),
-		                         ('Save GeoTIFF…', res.get('file'), 'GeoTIFF (*.tif)')):
+		                         ('Save GeoTIFF…', res.get('file'), 'GeoTIFF (*.tif)'),
+		                         ('Save perimeter…', res.get('perimeter'), 'GeoPackage (*.gpkg)')):
 			if path:
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))

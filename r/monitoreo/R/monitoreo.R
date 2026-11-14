@@ -1489,6 +1489,12 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'
 #' The RBR and the RdNBR compare two periods: the other functions refuse them (\code{mo_variables()} gives them
 #' \code{two_periods = TRUE}).
+#'
+#' With \code{perimeter}, also the perimeter of the burned area in a vector file, to use as the region of other
+#' analyses (\code{mo_sf(sf::read_sf(perimeter), "region")}): a MultiPolygon in EPSG:4326 of the burned pixels of each
+#' feature of the region, those whose index is at least \code{burned_min} (by default that of its classes: dNBR 0.1,
+#' RdNBR 0.069; the RBR, without classes, needs it), joined when they touch, even by a corner, without the patches of
+#' less than \code{min_ha} hectares and with the unburned islands of less than \code{min_ha} inside them filled.
 #' @inheritParams mo_params
 #' @param start,end the period before the fire.
 #' @param other_start,other_end the period after the fire.
@@ -1500,13 +1506,21 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' @param index \code{"dNBR"}, \code{"RBR"} or \code{"RdNBR"}.
 #' @param collection only with \code{index = "RdNBR"} and \code{sensor = "Modis"}: \code{"MODIS/061/MOD09GA"} (Terra,
 #'   the default, since 2000-02-24) or \code{"MODIS/061/MYD09GA"} (Aqua, since 2002-07-04).
+#' @param perimeter optional path of a vector file (.gpkg, .geojson or .shp) with the perimeter of the burned area:
+#'   a feature for each feature of the region, with the fields region, ha, patches, index, burned_min, min_ha, sensor,
+#'   before and after.
+#' @param burned_min with \code{perimeter}: the value of the index from which a pixel is burned (default: that of its
+#'   classes, dNBR 0.1 or RdNBR 0.069; needed with \code{index = "RBR"}).
+#' @param min_ha with \code{perimeter}: the burned patches of less than these hectares are left out, and the unburned
+#'   islands of less than them inside them filled (default 1; 0: every pixel).
 #' @return A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
 #'   region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
 #'   mean, median, p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
 #'   the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
 #'   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
 #'   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
-#'   of the GeoTIFF), title, file, readme, references and credits.
+#'   of the GeoTIFF), title, file, readme, references and credits; with \code{perimeter}, also perimeter (its path),
+#'   perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1562,21 +1576,37 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' severity <- terra::categories(severity, value = legend[c("value", "label")])
 #' terra::coltab(severity) <- legend[c("value", "color")]
 #' terra::plot(severity, all_levels = TRUE)
+#' # the perimeter of the burned area, and the NDVI of the years after the fire inside it
+#' fire <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
+#'                          "2022-10-01", "2022-11-30", perimeter = "fire.gpkg")
+#' attr(fire, "perimeter_ha")
+#' burned <- sf::read_sf("fire.gpkg")
+#' ndvi <- mo_time_series(mo_sf(burned, "region"), "NDVI", "Sentinel-2", "2022-10-01", "2025-09-30")
 #' }
 #' @export
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
-                             csv = NULL, index = "dNBR", where = NULL, collection = NULL) {
+                             csv = NULL, index = "dNBR", where = NULL, collection = NULL, perimeter = NULL,
+                             burned_min = NULL, min_ha = NULL) {
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
                                   path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index,
-                                  where = where, collection = collection)
+                                  where = where, collection = collection,
+                                  perimeter = if (is.null(perimeter)) NULL else path.expand(perimeter),
+                                  burned_min = burned_min, min_ha = min_ha)
   df <- rows_df(if (identical(res$index, "RBR")) res$stats else res$classes)
   attr(df, "burned_ha") <- unlist(res$burned_ha)
   if (!is.null(res$classes) && !is.null(res$stats)) attr(df, "stats") <- rows_df(res$stats)  # RdNBR: both
   if (!is.null(res$classes)) attr(df, "legend") <- burn_legend(res$index)
   attr(df, "title") <- res$title
   attr(df, "file") <- res$file
+  if (!is.null(res$perimeter)) {  # the polygons of the burned area
+    attr(df, "perimeter") <- res$perimeter
+    attr(df, "perimeter_ha") <- unlist(res$perimeter_ha)
+    attr(df, "perimeter_patches") <- unlist(res$perimeter_patches)
+    attr(df, "burned_min") <- res$burned_min
+    attr(df, "min_ha") <- res$min_ha
+  }
   cited(df, res)
 }
 

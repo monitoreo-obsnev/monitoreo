@@ -20,7 +20,10 @@ mo_burn_severity(
   csv = NULL,
   index = "dNBR",
   where = NULL,
-  collection = NULL
+  collection = NULL,
+  perimeter = NULL,
+  burned_min = NULL,
+  min_ha = NULL
 )
 }
 \arguments{
@@ -67,6 +70,16 @@ covers), e.g. without the water bodies and the built-up areas of CORINE Land Cov
 
 \item{collection}{only with \code{index = "RdNBR"} and \code{sensor = "Modis"}: \code{"MODIS/061/MOD09GA"} (Terra,
 the default, since 2000-02-24) or \code{"MODIS/061/MYD09GA"} (Aqua, since 2002-07-04).}
+
+\item{perimeter}{optional path of a vector file (.gpkg, .geojson or .shp) with the perimeter of the burned area:
+a feature for each feature of the region, with the fields region, ha, patches, index, burned_min, min_ha, sensor,
+before and after.}
+
+\item{burned_min}{with \code{perimeter}: the value of the index from which a pixel is burned (default: that of its
+classes, dNBR 0.1 or RdNBR 0.069; needed with \code{index = "RBR"}).}
+
+\item{min_ha}{with \code{perimeter}: the burned patches of less than these hectares are left out, and the unburned
+islands of less than them inside them filled (default 1; 0: every pixel).}
 }
 \value{
 A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
@@ -75,7 +88,8 @@ A data.frame of the hectares of each class by region (region, class, label, dnbr
   the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
-  of the GeoTIFF), title, file, readme, references and credits.
+  of the GeoTIFF), title, file, readme, references and credits; with \code{perimeter}, also perimeter (its path),
+  perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha.
 }
 \description{
 The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
@@ -102,6 +116,12 @@ the fire, the area was indistinguishable from before.
 
 The RBR and the RdNBR compare two periods: the other functions refuse them (\code{mo_variables()} gives them
 \code{two_periods = TRUE}).
+
+With \code{perimeter}, also the perimeter of the burned area in a vector file, to use as the region of other
+analyses (\code{mo_sf(sf::read_sf(perimeter), "region")}): a MultiPolygon in EPSG:4326 of the burned pixels of each
+feature of the region, those whose index is at least \code{burned_min} (by default that of its classes: dNBR 0.1,
+RdNBR 0.069; the RBR, without classes, needs it), joined when they touch, even by a corner, without the patches of
+less than \code{min_ha} hectares and with the unburned islands of less than \code{min_ha} inside them filled.
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -130,6 +150,12 @@ severity <- terra::as.int(terra::rast("rdnbr.tif")[["severity"]])
 severity <- terra::categories(severity, value = legend[c("value", "label")])
 terra::coltab(severity) <- legend[c("value", "color")]
 terra::plot(severity, all_levels = TRUE)
+# the perimeter of the burned area, and the NDVI of the years after the fire inside it
+fire <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31",
+                         "2022-10-01", "2022-11-30", perimeter = "fire.gpkg")
+attr(fire, "perimeter_ha")
+burned <- sf::read_sf("fire.gpkg")
+ndvi <- mo_time_series(mo_sf(burned, "region"), "NDVI", "Sentinel-2", "2022-10-01", "2025-09-30")
 }
 }
 \references{
