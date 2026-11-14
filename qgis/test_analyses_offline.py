@@ -10,7 +10,7 @@ has no Pillow: it checks that monitoreo.animation draws the texts of the frames 
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
 each kind (a land cover map without the land cover mask nor «Only the pixels where») and the window of the result (its
-table, with the colour of each class).
+table, with the colour of each class). The land cover mask starts off, whatever the settings stored by other tests.
 """
 
 import os
@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(APP, 'Contents', 'Resources', 'python'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
-from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle  # noqa: E402
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle, QgsSettings  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
@@ -139,6 +139,8 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
+for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
+	QgsSettings().remove('MonitorEO/' + key)
 
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
@@ -212,6 +214,7 @@ for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', Fal
 dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
 assert dock.area_year.currentData() == 2018 and dock.area_year.findData(1990) >= 0
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('landcover'))
+assert not dock.landcover_box.isChecked() and not any(c['on'].isChecked() for c in dock.where)  # not stored ones
 calls.clear()
 dock.run_areas()
 wait()

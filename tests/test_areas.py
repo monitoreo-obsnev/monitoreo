@@ -206,6 +206,76 @@ def test_the_viewer_of_results_draws_the_areas(tmp_path):
 	assert rep['analyses'] == [{'id': 'areas', 'name': 'Area by class'}] and publish.check_report(rep, str(folder)) == []
 
 
+VIEWER = r"""
+var fs = require('fs'), vm = require('vm');
+var input = JSON.parse(fs.readFileSync(0, 'utf8')), specs = [];
+function node(tag, attrs, children) {  // the elements of the page, without a browser
+	return {tag: tag, attrs: attrs || {}, children: children, clientWidth: 800,
+		append: function () { this.children.push.apply(this.children, arguments); },
+		replaceChildren: function () { this.children = []; }};
+}
+global.MO = {el: function (tag, attrs) { return node(tag, attrs, [].slice.call(arguments, 2).flat(Infinity)); },
+	MONTHS: [], css: function () { return ''; }, text: async function () { return input.csv; }};
+global.window = {matchMedia: function () { return {addEventListener: function () {}}; }};
+global.document = {documentElement: {}};
+global.getComputedStyle = function () { return {colorScheme: 'light'}; };
+global.vega = {read: function (text) {  // a CSV without quotes
+	var lines = text.trim().split(/\r?\n/), cols = lines[0].split(',');
+	return lines.slice(1).map(function (l) {
+		var v = l.split(','), r = {};
+		cols.forEach(function (c, i) { r[c] = v[i]; });
+		return r;
+	});
+}};
+global.vegaEmbed = async function (box, spec) {
+	specs.push(spec.data.values.map(function (r) { return [r.region, r.label, r.ha]; }));
+};
+vm.runInThisContext(fs.readFileSync(process.argv[1], 'utf8'), {filename: 'charts.js'});
+function find(n, tag) {
+	if (!n || typeof n !== 'object') return null;
+	if (n.tag === tag) return n;
+	for (var i = 0; i < (n.children || []).length; i++) {
+		var f = find(n.children[i], tag);
+		if (f) return f;
+	}
+	return null;
+}
+(async function () {
+	var container = node('div', {}, []);
+	await MO.chart.render(container, {chart: 'areas', csv: 'areas.csv', id: 'a', classes: input.classes}, '');
+	var select = find(container, 'select'), options = select ? select.children.map(function (o) { return o.attrs.value; }) : [];
+	if (select) select.attrs.onchange({target: {value: options[1]}});
+	await new Promise(function (resolve) { setTimeout(resolve, 0); });
+	process.stdout.write(JSON.stringify({options: options, specs: specs}));
+})();
+"""
+
+
+@pytest.mark.skipif(not shutil.which('node'), reason='no Node')
+def test_the_viewer_draws_each_feature_also_those_with_the_same_name():
+	"""The chart of an area by class in the viewer of results (charts.js, in node): one feature at a time, chosen in
+	Region, also those with the same name (numbered), as the panels of the chart of Python; not their bars together."""
+	import csv
+	import io
+	legend = [(311, '311 Broad-leaved forest', {}), (321, '321 Natural grasslands', {})]
+	rows = classes.rows([('Sierra Nevada', {311: 1000.0, 321: 20.0}), ('Sierra Nevada', {321: 5.0}), ('empty', {})],
+	                    legend)
+	text = io.StringIO()
+	writer = csv.DictWriter(text, ['region', 'class', 'label', 'ha', 'percent'], lineterminator='\n')
+	writer.writeheader()
+	writer.writerows({k: '' if r[k] is None else r[k] for k in writer.fieldnames} for r in rows)
+	charts_js = os.path.join(os.path.dirname(classes.__file__), 'viewer', 'assets', 'charts.js')
+	run = subprocess.run(['node', '-e', VIEWER, charts_js],
+	                     input=json.dumps({'csv': text.getvalue(), 'classes': [{'label': label, 'colour': '6baed6'}
+	                                                                          for _, label, _ in legend]}),
+	                     capture_output=True, text=True, timeout=60)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['options'] == ['Sierra Nevada', 'Sierra Nevada (2)', 'empty'], out
+	assert out['specs'] == [[['Sierra Nevada', '311 Broad-leaved forest', 1000], ['Sierra Nevada', '321 Natural grasslands', 20]],
+	                        [['Sierra Nevada', '321 Natural grasslands', 5]]], out
+
+
 @pytest.fixture
 def calls(monkeypatch):
 	out = []
