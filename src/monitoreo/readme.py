@@ -278,9 +278,11 @@ def text(tool, args, result, computed=None):
 	out = [f'README of {name}', '=' * min(WIDTH, len(f'README of {name}')), '', title,
 	       _wrap(f'Computed with MonitorEO {__version__} in Google Earth Engine on {computed or _now()}.', '', '')]
 	out += _section('Files')
+	figure = 'figure of the map ({}), with its grid, scale bar, north arrow, colour ramp and credits'
 	kinds = {'.csv': 'table (CSV, UTF-8, comma-separated, a header row)',
 	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS,
-	         **ANIMATION_KINDS}
+	         **ANIMATION_KINDS, **({'.png': figure.format('PNG'), '.pdf': figure.format('PDF'),
+	                                '.svg': figure.format('SVG')} if tool == 'map_figure' else {})}
 	if result.get('mode') == 'transitions':  # the changes of a land cover map: the Sankey diagram of its first feature
 		regions = list(result.get('changed_ha') or {})
 		kinds['.png'] = 'Sankey diagram (PNG) of the changes of the broad land covers' + \

@@ -131,11 +131,15 @@ def earth_engine_error(error):
 	return message or str(error)
 
 
-def thumbnail(image, region_geom, vis=None, dimensions=PREVIEW_PIXELS, path=None):
-	"""PNG (bytes) of IMAGE over REGION_GEOM, coloured with VIS (None if IMAGE is already RGB). ee.EEException with
-	the message of Earth Engine if it cannot make it, or does not in PREVIEW_TIMEOUT seconds."""
+def thumbnail(image, region_geom, vis=None, dimensions=PREVIEW_PIXELS, path=None, crs=None):
+	"""PNG (bytes) of IMAGE over REGION_GEOM, coloured with VIS (None if IMAGE is already RGB), in CRS (by default that
+	of Earth Engine for thumbnails). ee.EEException with the message of Earth Engine if it cannot make it, or does not
+	in PREVIEW_TIMEOUT seconds."""
 	img = ee.Image(image).visualize(**vis) if vis else ee.Image(image)
-	url = img.getThumbURL({'region': region_geom, 'dimensions': int(dimensions), 'format': 'png'})
+	params = {'region': region_geom, 'dimensions': int(dimensions), 'format': 'png'}
+	if crs:
+		params['crs'] = crs
+	url = img.getThumbURL(params)
 	png = fetch(url, 'the PNG preview')
 	if path:
 		with open(path, 'wb') as f:

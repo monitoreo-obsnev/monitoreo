@@ -41,7 +41,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, charts, classes, composite, drive, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, charts, classes, composite, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -889,6 +889,40 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, res, thumbnail, clip)
+
+
+@_cited
+def map_figure(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
+               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, path=None,
+               title=None, dpi=300, width=7.0, dimensions=1600, **source):
+	"""Figure of the map of a variable over REGION (as map_layer) for a report or a paper, as the maps of cartoee of
+	geemap: PATH (.png, by default, .pdf or .svg) with the map (DIMENSIONS pixels of Earth Engine, with the outline of
+	the region) on its longitudes and latitudes, a scale bar, a north arrow, the colour ramp (VMIN to VMAX, by default
+	those of the map) with its unit, the TITLE (default: that of the map) and the credits of the data and the citation
+	of MonitorEO; WIDTH inches at DPI (see monitoreo.figures). It needs matplotlib.
+	Returns {'file', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale', 'dpi'}."""
+	figures.check(path, dpi)
+	try:
+		import matplotlib  # noqa: F401
+	except ImportError:
+		raise ValueError('a figure needs matplotlib: pip install matplotlib (or monitoreo[plot])') from None
+	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
+	                                   quality, False, None, source)
+	geom = regions.geometry()
+	vis = maps.vis_params(whole.clipToCollection(regions), geom, ramp_entry(spec), res, vmin, vmax, palette)
+	bounds = figures.padded(_bounds(regions))
+	img = maps.coarse(whole, res, bounds, dimensions).clipToCollection(regions)  # see maps.coarse
+	png = maps.thumbnail(maps.with_outline(img, vis, regions), ee.Geometry.Rectangle(bounds, 'EPSG:4326', False), None,
+	                     dimensions, crs='EPSG:4326')
+	from . import about
+	from .publish import unit_text
+	cited = references.cite('map_figure', dict(source, variable=variable, sensor=sensor, start=start, end=end,
+	                                           quality=quality, region=region))
+	credits = list(cited.get('credits') or []) + [f'Computed with MonitorEO in Google Earth Engine. {about.CITATION}']
+	name = _named(spec, metric)
+	path = path or _slug(f"figure_{_file_stem(variable, sensor, metric, start, end, source)}") + '.png'
+	figures.map_figure(png, bounds, vis, unit_text(_unit(spec)), title or name, credits, path, dpi, width)
+	return dict(vis, file=path, name=name, unit=_unit(spec), bounds=bounds, scale=res, dpi=int(dpi))
 
 
 def has_rgb(variable=None, sensor=None, collection=None, ref=None):

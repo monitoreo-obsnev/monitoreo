@@ -492,15 +492,23 @@ def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
               collection: Optional[str] = None, image: Optional[str] = None, band: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-              terrain: Optional[str] = None, where: Optional[list] = None, quick: bool = False):
+              terrain: Optional[str] = None, where: Optional[list] = None, quick: bool = False, figure: bool = False):
 	"""Map of a variable over a region aggregated in time (e.g. the median NDVI of a period): returns the URL of
 	its Earth Engine map tiles (XYZ, {z}/{x}/{y}, valid for some hours; add it to QGIS as an XYZ layer), the colour
 	ramp and a PNG preview with the outline of the region. temporal: 'period' (METRIC over all the images),
 	'annual', 'monthly' or '16-day' (METRIC of each, then INTERANNUAL between the years). quick: only the tiles, at
-	once (without the preview, and with the colour ramp of the catalog instead of that of the map). Required: region,
-	and variable and sensor or collection or image and band; start and end, except for the fixed layers."""
+	once (without the preview, and with the colour ramp of the catalog instead of that of the map). figure: instead
+	of the tiles, a figure for a report or a paper (PNG of 300 dpi with grid, scale bar, north arrow, colour ramp and
+	credits), in file. Required: region, and variable and sensor or collection or image and band; start and end,
+	except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 	_ready()
+	if figure:
+		path = _out(_stem('figure', _data(variable, sensor, source), *(() if image else (metric, start, end))), 'png')
+		fig = services.map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+		                          vmin, vmax, path=path, where=where, **source)
+		with open(fig['file'], 'rb') as f:
+			return [_text(fig)] + [Image(data=f.read(), format='png')]
 	png = None if quick else _out(_stem('map', _data(variable, sensor, source),
 	                                    *(() if image else (metric, start, end))), 'png')
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
@@ -984,15 +992,15 @@ def publish_report(title: str, summary: str, files: List[str], question: Optiona
                    authors: Optional[List[str]] = None, downloads: Optional[List[str]] = None,
                    report_id: Optional[str] = None, site: Optional[str] = None) -> str:
 	"""For the administrators of the viewer of results of MonitorEO: publish an analysis as a report of the static
-	web site in the folder site (default: MONITOREO_SITE or ~/MonitorEO/visor). files: the GeoTIFF and CSV files
-	written by the other tools (download_trend, download_comparison, download_image, burn_severity, time_series,
-	trend_table, compare_series; not yet the true colour of download_rgb) in the order of the page; their calls are
-	read from the log of this server. Texts in Spanish, the language of the viewer: title (e.g. the question of the
-	analysis), summary (the answer in one or two sentences), question, answer (the result; paragraphs separated by a
-	blank line), method; region: {"name": ..., "wdpa_id": ...}; downloads: other files (PDF, figures). The GeoTIFFs
-	become Cloud Optimized GeoTIFFs and the site gets the report, the viewer and its catalogue. It is public only when
-	an administrator deploys the folder (git push to the repository of the site, or rsync to its server); `monitoreo
-	serve` shows it on this computer."""
+	web site in the folder site (default: MONITOREO_SITE or ~/MonitorEO/visor). files: the GeoTIFF, CSV and figure
+	files written by the other tools (download_trend, download_comparison, download_image, burn_severity, time_series,
+	trend_table, compare_series, map_layer with figure; not yet the true colour of download_rgb) in the order of the
+	page; their calls are read from the log of this server. Texts in Spanish, the language of the viewer: title (e.g.
+	the question of the analysis), summary (the answer in one or two sentences), question, answer (the result;
+	paragraphs separated by a blank line), method; region: {"name": ..., "wdpa_id": ...}; downloads: other files (a
+	PDF). The GeoTIFFs become Cloud Optimized GeoTIFFs and the site gets the report, the viewer and its catalogue. It
+	is public only when an administrator deploys the folder (git push to the repository of the site, or rsync to its
+	server); `monitoreo serve` shows it on this computer."""
 	spec = {'title': title, 'summary': summary, 'question': question, 'answer': answer, 'method': method,
 	        'region': region, 'authors': authors, 'downloads': downloads, 'results': list(files)}
 	if report_id:

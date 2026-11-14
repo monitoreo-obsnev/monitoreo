@@ -271,7 +271,7 @@ def test_the_command_line_says_how_to_give_an_image(computed, monkeypatch):
 
 	def refuse(*a, **kw):
 		raise ValueError(said['error'])
-	for name in ('time_series', 'trend_table', 'download_image'):
+	for name in ('time_series', 'trend_table', 'download_image', 'map_figure', 'area_by_class', 'transect'):
 		monkeypatch.setattr(services, name, refuse)
 	said['error'] = 'WORLDCLIM/V1/BIO is an image, not a collection of images: give it as an image (a fixed layer)'
 	with pytest.raises(SystemExit) as e:
@@ -285,6 +285,12 @@ def test_the_command_line_says_how_to_give_an_image(computed, monkeypatch):
 	with pytest.raises(SystemExit) as e:
 		cli.main(['image', '--collection', 'X/TILES', '--band', 'b1', '--out', 'x.tif'] + ARGS)
 	assert str(e.value.code) == f"ERROR: {said['error']}; in the command line, --image X/TILES instead of --collection"
+	# the other commands with their own --image: the figure, the areas by class and the profile along a line
+	for argv in (['figure', '--out', 'x.png'] + ARGS, ['areas', '--breaks', '10'] + ARGS,
+	             ['transect', '--line', '[[-3.6, 36.9], [-3.5, 36.9]]', '--start', YEARS[0], '--end', YEARS[1]]):
+		with pytest.raises(SystemExit) as e:
+			cli.main(argv[:1] + ['--collection', 'X/TILES', '--band', 'b1'] + argv[1:])
+		assert str(e.value.code).endswith('; in the command line, --image X/TILES instead of --collection'), argv[0]
 	said['error'] = 'the unit of X is written in UDUNITS'
 	with pytest.raises(SystemExit) as e:
 		cli.main(['series', '--collection', 'X', '--band', 'b1'] + ARGS)
@@ -523,7 +529,7 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 		params, given = set(inspect.signature(getattr(mcp, name)).parameters), \
 			set(inspect.signature(getattr(services, service)).parameters)
 		assert params - given <= {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain',
-		                          'where'}, name
+		                          'where', 'figure'}, name  # figure: map_layer also calls services.map_figure
 	assert 'ee.ImageCollection' in mcp.describe_asset.__doc__ and 'references and credits' in mcp.describe_asset.__doc__
 	# the slope and the aspect are in degrees, whatever the unit of the band (that describe_asset gives: m for a DEM)
 	assert 'in degrees (its unit is then degree: give no unit, or "degree", not that of the band)' in \

@@ -74,6 +74,9 @@ class Iface:
 	def removePluginWebMenu(self, name, action):
 		pass
 
+	def openLayoutDesigner(self, layout):
+		self.opened = layout
+
 
 import monitoreo_qgis  # noqa: E402
 from monitoreo_qgis import deps  # noqa: E402
@@ -339,5 +342,76 @@ res = dock.series[-1]
 assert res['kind'] == 'transect' and dock.series_dialogs[len(dock.series) - 1].findChild(QTableWidget).rowCount() == 2
 print('gradients:', z['zones'], '| line', t['line'])
 QgsProject.instance().removeMapLayer(lines.id())
+
+# the figure: a print layout of the canvas with its map, grid, legend, scale bar, north arrow, title and credits
+from qgis.core import QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar  # noqa: E402
+lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')
+lines.dataProvider().addFeatures([f])
+QgsProject.instance().addMapLayer(lines)
+dock.make_layout()
+layout = iface.opened
+items = layout.items()
+assert layout.name().startswith('MonitorEO figure') and any(isinstance(i, QgsLayoutItemMap) for i in items)
+assert any(isinstance(i, QgsLayoutItemLegend) for i in items) and any(isinstance(i, QgsLayoutItemScaleBar) for i in items)
+texts = [i.text() for i in items if isinstance(i, QgsLayoutItemLabel)]
+assert any('MonitorEO [Software]' in t for t in texts), texts
+dock.make_layout()
+assert iface.opened.name() == layout.name() + ' 2'  # a free name
+print('figure:', layout.name(), len(items), 'items')
+
+# whatever the shape of the canvas (tall, wide, of 2 km), the map of the layout keeps its 205 x 160 mm with all the
+# canvas in it, the scale bar on it and the credits under it in the page; the labels of its grid have the decimals of
+# its step; and the credits are all those of the data of the layers (USGS, FAO GAUL...), not only those of Copernicus
+from monitoreo import references  # noqa: E402
+from monitoreo_qgis.dock import figure_layout, layer_credits, references_text  # noqa: E402
+
+
+class Canvas:
+	"""A canvas of EXTENT in EPSG:4326."""
+
+	def __init__(self, extent):
+		self.box = extent
+
+	def extent(self):
+		return self.box
+
+	def mapSettings(self):
+		return self
+
+	def destinationCrs(self):
+		return QgsCoordinateReferenceSystem('EPSG:4326')
+
+
+cited = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, 'variable': 'NDVI',
+                                      'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'})
+assert len(cited['credits']) == 2 and not any(c.startswith('Contains') for c in cited['credits']), cited['credits']
+lines.setAbstract('MonitorEO: NDVI (Landsat).' + references_text(cited))
+for box, decimals in ((QgsRectangle(-3.5, 36.9, -3.4, 37.3), 2), (QgsRectangle(-4.0, 37.0, -2.5, 37.1), 2),
+                      (QgsRectangle(-3.41, 37.09, -3.39, 37.11), 3)):
+	items = figure_layout(Canvas(box)).items()
+	m = next(i for i in items if isinstance(i, QgsLayoutItemMap))
+	y, h = m.positionWithUnits().y(), m.sizeWithUnits().height()
+	assert (round(m.sizeWithUnits().width()), round(h), round(y)) == (205, 160, 18), (box.toString(), y, h)
+	assert m.extent().buffered(1e-9).contains(box), (m.extent().toString(), box.toString())
+	assert m.grid().annotationPrecision() == decimals, (box.toString(), m.grid().intervalX())
+	scale = next(i for i in items if isinstance(i, QgsLayoutItemScaleBar))
+	assert y < scale.positionWithUnits().y() < y + h, scale.positionWithUnits().y()  # on the map
+	note = next(i for i in items if isinstance(i, QgsLayoutItemLabel) and 'MonitorEO [Software]' in i.text())
+	top = note.positionWithUnits().y()
+	assert y + h <= top and top + note.sizeWithUnits().height() <= 210, top  # under the map, in the A4 page
+	assert all(c in note.text().split('\n') for c in cited['credits']), note.text()
+print('figure of a tall, a wide and a small canvas: the map 205 x 160 mm, credits', len(cited['credits']))
+
+# a layer of an earlier version of the plugin has its credits at the end of its references, without their heading:
+# those of the data of the catalog (Copernicus Sentinel, USGS, Copernicus DEM, FAO GAUL) are found among them
+for args in ({'variable': 'NDVI', 'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'},
+             {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2023-06-01', 'end': '2023-08-31'},
+             {'variable': 'ELEVATION', 'sensor': 'Copernicus'}):
+	old = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, **args})
+	text = 'MonitorEO: NDVI.\n\nReferences (cite them with this layer):\n' + '\n'.join(references.texts(old))
+	assert old['credits'] and layer_credits(text) == old['credits'], (layer_credits(text), old['credits'])
+	assert layer_credits('MonitorEO: NDVI.' + references_text(old)) == old['credits']
+assert layer_credits('A layer of my own') == [] and layer_credits(None) == []
+print('credits of the layers of an earlier plugin, without their heading:', len(old['credits']))
 plugin.unload()
 print('OK')

@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import assets, catalog, composite, fire, maps, references, trends
+from . import assets, catalog, composite, figures, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -93,7 +93,7 @@ LICENSE = 'CC-BY-4.0'
 # type of analysis of each tool (region_stats with zones too: gradients, see _analysis), and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation', 'area_by_class': 'areas', 'transect': 'gradients'}
+            'timelapse': 'animation', 'area_by_class': 'areas', 'map_figure': 'map', 'transect': 'gradients'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
                   'areas': 'Area by class', 'gradients': 'Gradients'}
@@ -261,8 +261,8 @@ def _items(spec, base, folders, log):
 			c = _logged_call(path, log) or {}
 			item.setdefault('tool', c.get('tool'))
 			item.setdefault('args', c.get('args'))
-			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
-			                                     else 'csv': path}
+			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS +
+			                                                                      figures.FORMATS) else 'csv': path}
 		res = dict(item.get('result') or {})
 		if isinstance(res.get('gif'), str) and str(res.get('file') or '').lower().endswith('.mp4'):
 			try:
@@ -273,7 +273,7 @@ def _items(spec, base, folders, log):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
 		item['result'] = res
-		item['args'] = dict(item.get('args') or {})
+		item['tool'], item['args'] = services_call(item.get('tool'), dict(item.get('args') or {}))
 		yield item
 
 
@@ -370,6 +370,8 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'map_figure':
+		return f'Figure of the map of {var}' + (f', {period}{season}' if period and not is_static(args) else '')
 	if tool == 'transect':
 		return f'Profile of {var} along a line, {period}{season}' if period and not is_static(args) else \
 			f'Profile of {var} along a line'
@@ -419,15 +421,26 @@ def _py(v):
 	return repr(v)
 
 
+def services_call(tool, args):
+	"""The function of monitoreo.services and its arguments of a call of TOOL with ARGS: map_layer with figure (of the
+	MCP server and the assistant) is map_figure, without figure and quick; the video of the tool timelapse of the MCP
+	server is the path of an MP4 of services.timelapse."""
+	if tool == 'map_layer' and 'figure' in args:
+		args = dict(args)
+		if args.pop('figure'):
+			tool = 'map_figure'
+			args.pop('quick', None)
+	if tool == 'timelapse' and 'video' in args:
+		args = dict(args)
+		if args.pop('video'):
+			args.setdefault('path', 'animation.mp4')
+	return tool, args
+
+
 def python_call(tool, args):
-	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool: the video of the tool
-	timelapse of the MCP server is the path of an MP4 of services.timelapse."""
-	if not tool:
-		return None
-	args = dict(args)
-	if tool == 'timelapse' and args.pop('video', None):
-		args.setdefault('path', 'animation.mp4')
-	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})"
+	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool."""
+	tool, args = services_call(tool, args)
+	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})" if tool else None
 
 
 # Files --------------------------------------------------------------------------------------------------------------
@@ -732,6 +745,12 @@ def _results(item, files, n):
 	if unit.endswith('/ year'):
 		unit = unit[:-len('/ year')].strip()
 	out = []
+	# a figure of a map (map_figure, or the file of a figure without its call): its PNG shown, a PDF or SVG to download
+	if str(res.get('file') or '').lower().endswith(figures.FORMATS):
+		kind = os.path.splitext(res['file'])[1].lstrip('.').upper()
+		path = files.add(res['file'], 'files', f'Figure ({kind}): {title}', kind)
+		return [{'id': f'r{n + 1}', 'kind': 'figure', 'title': title, 'caption': item.get('caption'), 'tool': tool,
+		         'image': path if kind == 'PNG' else None, 'file': path, 'call': call}]
 	gif = res.get('gif') or (res.get('file') if str(res.get('file') or '').lower().endswith('.gif') else None)
 	if gif:  # an animation (services.timelapse): its GIF, and its MP4 to download
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'animation', 'title': title, 'caption': item.get('caption'),
@@ -923,7 +942,8 @@ def build(spec, rid, base, folders, log, folder):
 	dst = os.path.join(folder, thumbnail)
 	maps_ = [r for r in results if r['kind'] == 'map']
 	pngs = [r['png'] for r in results if r.get('png')]
-	gifs = [r['gif'] for r in results if r.get('gif')]
+	gifs = [r['gif'] for r in results if r.get('gif')] + [r['image'] for r in results if r.get('kind') == 'figure' and
+	                                                       r.get('image')]
 	if spec.get('thumbnail'):
 		_thumbnail_of_image(_find(spec['thumbnail'], base, folders), dst)
 	elif maps_:
@@ -1172,6 +1192,9 @@ def check_report(report, folder=None):
 			w, s, e, n = r['bounds']
 			if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
 				p.append(f'{where}: bounds are [west, south, east, north] in degrees')
+		elif r.get('kind') == 'figure':
+			if r.get('file') not in paths or (r.get('image') and r['image'] not in paths):
+				p.append(f'{where}: its figure is not in files')
 		elif r.get('kind') == 'animation':
 			if r.get('gif') not in paths:
 				p.append(f'{where}: its GIF is not in files')
@@ -1185,7 +1208,7 @@ def check_report(report, folder=None):
 			if r.get('png') and r['png'] not in paths:
 				p.append(f'{where}: its PNG is not in files')
 		else:
-			p.append(f'{where}: kind is map, chart or animation')
+			p.append(f'{where}: kind is map, chart, animation or figure')
 	for f in report['files']:
 		if not _rel_ok(f.get('path')) or not f.get('title') or not isinstance(f.get('bytes'), int):
 			p.append(f"file {f.get('path')}: a relative path, a title and its bytes")

@@ -25,6 +25,9 @@
                                                      the statistics of each band of another variable (elevation)
     monitoreo transect VARIABLE --sensor S --line '[[lon, lat], ...]' [--start D --end D] [--csv F] [--png F]
                                                      profile of a variable along a line, with the elevation
+    monitoreo figure VARIABLE --sensor S --region JSON [--start D --end D] --out F.png|F.pdf|F.svg [--dpi 300]
+                                                     figure of the map for a report or a paper: grid, scale bar,
+                                                     north arrow, colour ramp and credits
     monitoreo timelapse VARIABLE --sensor S --region JSON --start D --end D --out F.gif|F.mp4
                         [--step annual|monthly|16-day|daily] [--metric median] [--fps 2]
                                                      animation of a variable: a frame per step with its date
@@ -188,7 +191,7 @@ def _error(e, args):
 	text = f'ERROR: {e}'
 	asset = None if 'variable' in args.source else args.source.get('collection')
 	if asset and 'give it as an image' in str(e):
-		text += (f'; in the command line, --image {asset} instead of --collection' if args.cmd in ('image', 'stats') else
+		text += (f'; in the command line, --image {asset} instead of --collection' if hasattr(args, 'image') else
 		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
 	return text
 
@@ -404,6 +407,23 @@ def main(argv=None):
 	p.add_argument('--scale', type=float, help='pixel size in metres (default: that of the data, bigger in big regions)')
 	p.add_argument('--csv')
 	p.add_argument('--png')
+	computes['figure'] = p = sub.add_parser('figure', help='figure of the map of a variable for a report or a paper: '
+	                                                       'grid, scale bar, north arrow, colour ramp and credits')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p, image=True)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 389011}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', help='first day (not for the fixed layers)')
+	p.add_argument('--end', help='last day')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
+	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
+	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
+	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map)')
+	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
+	p.add_argument('--title', help='title of the figure (default: that of the map)')
+	p.add_argument('--dpi', type=int, default=300, help='resolution of a PNG (default: 300)')
+	p.add_argument('--out', required=True, help='the figure: PNG (.png), PDF (.pdf) or SVG (.svg)')
 	computes['timelapse'] = p = sub.add_parser('timelapse', help='animation of a variable over a region (a timelapse): '
 	                                                             'a frame per step of the period, with its date')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
@@ -649,6 +669,17 @@ def _compute(args, services):
 		return
 	if args.cmd == 'transect':
 		_transect(args, services)
+		return
+	if args.cmd == 'figure':
+		try:
+			res = services.map_figure(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
+			                          temporal=args.temporal, interannual=args.interannual, vmin=args.vmin,
+			                          vmax=args.vmax, path=args.out, title=args.title, dpi=args.dpi, where=_where(args),
+			                          **args.source)
+		except ValueError as e:
+			sys.exit(_error(e, args))
+		print(f"{res['file']}: {res['name']} | colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
+		      + (f" | README {res['readme']}" if res.get('readme') else ''))
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
