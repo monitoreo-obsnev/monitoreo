@@ -36,7 +36,8 @@ RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('s
 # the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
 RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
                  ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]
-AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'), ('value_from', 'From'),
+AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('from_label', 'From (first year)'),
+                ('to_label', 'To (other year)'), ('landcover', 'Land cover'), ('value_from', 'From'),
                 ('value_to', 'To'), ('ha', 'Hectares'), ('percent', '% of the area with classes')]
 FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
@@ -250,6 +251,8 @@ class ResultDialog(QDialog):
 			text = f"{res['title']} · pixels of {res['scale']:g} m" + burn_text(res)
 		elif kind == 'areas':
 			text = f"{res['title']} · pixels of {res['scale']:g} m · % of the area with classes"
+			for region, ha in (res.get('changed_ha') or {}).items():  # the changes of a land cover map
+				text += f" · {region}: changed {ha:,.1f} ha, unchanged {res['unchanged_ha'][region]:,.1f} ha"
 		else:
 			text = (f"{res['title']} · {unit_label(res, trends)} · pixels of {res['scale']:g} m"
 			        + (' · significant: p < 0.05 (Mann-Kendall)' if trends else

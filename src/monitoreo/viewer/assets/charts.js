@@ -19,6 +19,7 @@ MO.chart = (() => {
 		cv: 'Coefficient of variation (%)', p10: 'Percentile 10',
 		p90: 'Percentile 90', min: 'Minimum', max: 'Maximum', percent: '% of the area with classes',
 		landcover: 'Land cover', value_from: 'From', value_to: 'To', map: 'Map', year: 'Year',
+		from_label: 'From (first year)', to_label: 'To (other year)', other_year: 'Other year',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
@@ -26,6 +27,7 @@ MO.chart = (() => {
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
 		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max', 'ha'],
 		areas: ['region', 'label', 'landcover', 'value_from', 'value_to', 'ha', 'percent'],
+		transitions: ['region', 'from_label', 'to_label', 'ha', 'percent'],
 	};
 	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table, with the
 	// standard deviation and the coefficient of variation (RBR_BASE: those of the reports published before them)
@@ -355,6 +357,14 @@ MO.chart = (() => {
 			if (kind === 'trends') return box.append(...trendTiles(subset, result));
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
+			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
+				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
+					box.append(el('img', {class: 'sankey', src: base + result.png, loading: 'lazy',
+						alt: `${result.title}: Sankey diagram of the changes of the broad land covers` +
+							(regions.length > 1 ? ` (${regions[0]})` : '')}));
+				}
+				return box.append(table(subset.filter((r) => r.ha > 0), kind));
+			}
 			if (kind === 'burn_severity') {
 				box.append(burnTiles(subset, result));
 				const inner = el('div');
@@ -364,7 +374,7 @@ MO.chart = (() => {
 			return box.append(table(subset, kind));
 		};
 		let current = rows;
-		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas'].includes(kind) ||
+		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas', 'transitions'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => regionOf(r) === regions[0]);

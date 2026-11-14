@@ -8,6 +8,11 @@ statistics by group of geemap, Wu 2020): the classes of
   trend      the trend of a variable on each pixel (Mann-Kendall and Sen, see monitoreo.trends): significant decrease
              (p-value below alpha and slope below 0), no significant trend, and significant increase.
 
+The changes between two years of a land cover map (transitions) are the area of each pair of classes (the class of the
+pixel in the first year and in the other), as the Sankey diagrams of land cover change that geemap draws: each class
+of the map and each broad land cover, the unchanged area (the same class in both years) and a Sankey diagram of the
+broad land covers.
+
 The area of each pixel is its true area on the ground (ee.Image.pixelArea), summed by class over each feature on a
 grid of the pixel of the data (bigger over big regions, see scale_for). The pixels without data (no class, or masked
 by the pixel filters, the land cover mask or where) are not counted: the % is of the area with a class.
@@ -27,6 +32,8 @@ TREND = [(-1, 'significant decrease', 'd7191c'), (0, 'no significant trend', 'bd
          (1, 'significant increase', '1a9641')]
 TARGET_PIXELS = 1e7  # pixels per region for the automatic scale (the areas are sums: they need fewer than a map)
 COLUMNS = {'landcover': ['region', 'map', 'year', 'class', 'label', 'landcover', 'ha', 'percent'],
+           'transitions': ['region', 'map', 'year', 'other_year', 'from_class', 'from_label', 'from_landcover',
+                           'to_class', 'to_label', 'to_landcover', 'ha', 'percent'],
            'breaks': ['region', 'class', 'label', 'value_from', 'value_to', 'ha', 'percent'],
            'trend': ['region', 'class', 'label', 'ha', 'percent']}
 # colours of the broad land covers (those of Dynamic World, whose classes they are: see monitoreo.landcover)
@@ -162,4 +169,69 @@ def by_landcover(ha, classes):
 		for k in sorted(acc, key=lambda k: order.index(k) if k in order else len(order)):
 			out.append({'region': region, 'landcover': k, 'label': landcover.label(k), 'ha': acc[k],
 			            'percent': 100 * acc[k] / total if total else None})
+	return out
+
+
+# Changes of a land cover map between two years -----------------------------------------------------------------------
+
+PAIR = 1000  # the pair of classes of a pixel: its class in the first year × PAIR + its class in the other (< 1000)
+
+
+def pairs(first, other):
+	"""The image of the pair of classes of each pixel (band 'class'): its class in the image FIRST × PAIR + its class in
+	OTHER, masked where either is."""
+	return ee.Image(first).multiply(PAIR).add(ee.Image(other)).toInt().rename('class')
+
+
+def numbered(ha):
+	"""HA ([(region, {...})], see hectares) with the features of the same name numbered from the second one ('Sierra
+	Nevada (2)'), as the viewer names them, so that the changes of each one stay apart."""
+	seen, out = {}, []
+	for region, by in ha:
+		seen[region] = seen.get(region, 0) + 1
+		out.append((region if seen[region] == 1 else f'{region} ({seen[region]})', by))
+	return out
+
+
+def transition_rows(ha, m, year, other_year):
+	"""Rows [{region, map, year, other_year, from_class, from_label, from_landcover, to_class, to_label, to_landcover,
+	ha, percent}] of the pairs of classes with area of each feature of HA ([(region, {pair: hectares})], see hectares
+	and pairs; those of the same name numbered, see numbered) of the land cover map M, sorted by hectares; percent of
+	the area with a class in both years."""
+	names = {code: (f'{code} {name}', k) for code, name, k in landcover_classes(m)}
+	out = []
+	for region, by in numbered(ha):
+		total = sum(by.values())
+		for pair, h in sorted(by.items(), key=lambda x: -x[1]):
+			a, b = divmod(int(pair), PAIR)
+			fa, fb = names.get(a, (str(a), None)), names.get(b, (str(b), None))
+			out.append({'region': region, 'map': m['name'], 'year': year, 'other_year': other_year, 'from_class': a,
+			            'from_label': fa[0], 'from_landcover': fa[1], 'to_class': b, 'to_label': fb[0],
+			            'to_landcover': fb[1], 'ha': h, 'percent': 100 * h / total if total else None})
+	return out
+
+
+def broad_transitions(rows):
+	"""The ROWS of transition_rows summed by broad land cover: [{region, from_landcover, from_label, to_landcover,
+	to_label, ha, percent}], in the order of the broad land covers."""
+	acc = {}
+	for r in rows:
+		k = (r['region'], r['from_landcover'], r['to_landcover'])
+		acc.setdefault(k, {'region': r['region'], 'from_landcover': r['from_landcover'],
+		                   'from_label': landcover.label(r['from_landcover']), 'to_landcover': r['to_landcover'],
+		                   'to_label': landcover.label(r['to_landcover']), 'ha': 0.0, 'percent': 0.0})
+		acc[k]['ha'] += r['ha']
+		acc[k]['percent'] += r['percent'] or 0.0
+	order = [c['key'] for c in landcover.classes()]
+	pos = lambda k: order.index(k) if k in order else len(order)
+	return sorted(acc.values(), key=lambda r: (r['region'], pos(r['from_landcover']), pos(r['to_landcover'])))
+
+
+def changed(rows):
+	"""{region: (changed hectares, unchanged hectares)} of the ROWS of transition_rows: a pixel is unchanged if it has
+	the same class of the map in both years."""
+	out = {}
+	for r in rows:
+		c, u = out.get(r['region'], (0.0, 0.0))
+		out[r['region']] = (c, u + r['ha']) if r['from_class'] == r['to_class'] else (c + r['ha'], u)
 	return out

@@ -101,7 +101,7 @@ ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'table')
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -376,6 +376,8 @@ def default_title(tool, args):
 				name = landcover.find(args['landcover'])['name']
 			except ValueError:
 				name = str(args['landcover'])
+			if args.get('other_year'):
+				return f"Changes of the classes of {name} from {args.get('year') or 'its last year'} to {args['other_year']}"
 			return f"Area of each class of {name}" + (f" {args['year']}" if args.get('year') else '')
 		what, part = var, args.get('part')
 		if args.get('trend'):  # the part of the year of its trend, as download_trend (services: 'annual' by default)
@@ -748,7 +750,8 @@ def _results(item, files, n):
 		out.append(entry)
 	if res.get('csv'):
 		path = files.add(res['csv'], 'data', f'Table (CSV): {title}', 'CSV')
-		chart = item.get('chart') or _chart_type(tool, res['csv'])
+		chart = item.get('chart') or ('transitions' if res.get('mode') == 'transitions' else
+		                              _chart_type(tool, res['csv']))
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
 		         (item.get('caption') if not out else None), 'tool': tool, 'csv': path, 'png': None,

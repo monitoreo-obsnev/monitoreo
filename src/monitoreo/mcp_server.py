@@ -580,7 +580,8 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 @tool
 def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
                   start: Optional[str] = None, end: Optional[str] = None, landcover: Optional[str] = None,
-                  year: Optional[int] = None, breaks: Optional[List[float]] = None, trend: bool = False,
+                  year: Optional[int] = None, other_year: Optional[int] = None,
+                  breaks: Optional[List[float]] = None, trend: bool = False,
                   metric: Optional[str] = None, temporal: str = 'period', interannual: str = 'mean',
                   step: str = 'annual', part: Optional[int] = None, alpha: float = 0.05,
                   season: Optional[List[str]] = None, quality: Optional[dict] = None,
@@ -588,14 +589,15 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
                   band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
                   terrain: Optional[str] = None, where: Optional[list] = None):
 	"""Hectares and % of each class over each feature of a region, of one of: landcover, a land cover map of a year
-	(landcover_maps; e.g. "CORINE", 2018): each class of the map with its broad land cover, without variable; breaks,
+	(landcover_maps; e.g. "CORINE", 2018): each class of the map with its broad land cover, without variable (with
+	other_year, its changes between the two years: each pair of classes and a Sankey diagram); breaks,
 	the map of a variable (as map_layer, also the fixed layers) cut at those values, e.g. [1500, 2000, 2500] for the
 	ELEVATION; or trend true, the trend of a variable on each pixel (as trend_map: step, part, metric of each year, the
 	mean by default; start and end) in significant decrease, no significant trend and significant increase
 	(Mann-Kendall p < alpha). The % is of the area with a class. Writes a CSV and returns a bar chart."""
 	_ready()
 	if landcover:
-		source, what = {}, f"landcover_{landcover}_{year or ''}"
+		source, what = {}, f"landcover_{landcover}_{year or ''}" + (f'_{other_year}' if other_year else '')
 	else:
 		source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
 		if trend:
@@ -604,9 +606,13 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	stem = _stem('areas', what, 'trend' if trend else 'breaks' if breaks else '', start, end)
 	res = services.area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
-	                             chart=_out(stem, 'png'), where=where, **source)
-	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'rows', 'by_landcover', 'csv', 'chart',
-	                                    'readme', 'references', 'credits') if res.get(k) is not None}
+	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
+	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'changed_ha', 'unchanged_ha',
+	                                    'rows', 'csv', 'chart', 'readme', 'references', 'credits')
+	           if res.get(k) is not None}
+	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
+		summary['note'] = f"{len(summary['rows'])} rows: the first {MAX_ROWS_SHOWN} are shown, all of them in the CSV"
+		summary['rows'] = summary['rows'][:MAX_ROWS_SHOWN]
 	out = [_text(summary)]
 	if res.get('chart'):
 		with open(res['chart'], 'rb') as f:

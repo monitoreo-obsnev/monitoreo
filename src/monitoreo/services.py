@@ -1080,7 +1080,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 @_cited
 def area_by_class(region, variable=None, sensor=None, start=None, end=None, metric=None, temporal='period',
                   interannual='mean', season=None, quality=None, landcover=None, year=None, breaks=None, trend=False,
-                  step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, **source):
+                  step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, other_year=None, **source):
 	"""Hectares and % of each class over each feature of REGION (see monitoreo.classes), of one of:
 	LANDCOVER, a land cover map of YEAR (see landcover_maps; default: its last year), each class of the map with its
 	broad land cover; BREAKS, the map of a variable (as map_layer: METRIC, by default the median, TEMPORAL, INTERANNUAL;
@@ -1090,13 +1090,22 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA). The area of each pixel is
 	its true area, on pixels of SCALE metres (default: those of the data, bigger over big regions); the % is of the
 	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
+	With a land cover map and OTHER_YEAR, its changes from YEAR to OTHER_YEAR instead (see monitoreo.classes): the
+	hectares of each pair of classes (mode 'transitions'), 'by_landcover' (those of each pair of broad land covers),
+	'changed_ha' and 'unchanged_ha' of each region, and a Sankey diagram of the broad land covers in CHART (of the
+	first feature of the region, named in its title, when it has several); features with the same name are numbered
+	('Sierra Nevada (2)').
 	Returns {'rows': [{region, class, label, ..., ha, percent}] (every class in each feature, also in the features with
 	the same name), 'mode', 'classes': [{class, label, colour}], 'scale', 'unit', 'title', 'csv', 'chart'} and, for a
 	land cover map, 'by_landcover' (the hectares of each broad land cover in each feature)."""
 	mode = classes.mode_of(landcover, breaks, trend)
+	if mode == 'landcover' and (variable or sensor or source.get('collection') or source.get('image')):
+		raise ValueError('a land cover map has its own classes: give landcover and year, without a variable nor sensor')
+	if other_year not in (None, ''):
+		if mode != 'landcover':
+			raise ValueError('other_year is for the changes of a land cover map between two years (with landcover)')
+		return _transitions(region, landcover, year, other_year, scale, csv, chart, source)  # the map, by its key
 	if mode == 'landcover':
-		if variable or source.get('collection') or source.get('image'):
-			raise ValueError('a land cover map has its own classes: give landcover and year, without a variable')
 		if source.get('where') or source.get('exclude_landcover'):
 			raise ValueError('where is for the classes of a variable (breaks, trend), not for those of a land cover map')
 		m, year = classes.landcover_map(landcover, year)
@@ -1150,6 +1159,43 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 			charts.areas_png(rows, colours, chart, title)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
+			pass
+	return out
+
+
+def _transitions(region, key, year, other_year, scale, csv, chart, source):
+	"""The changes of the land cover map KEY from YEAR to OTHER_YEAR (see area_by_class)."""
+	if source.get('where') or source.get('exclude_landcover') or source.get('collection') or source.get('image'):
+		raise ValueError('the changes of a land cover map take no variable nor where')
+	m, year = classes.landcover_map(key, year)
+	_, other = classes.landcover_map(key, other_year)
+	if other == year:
+		raise ValueError(f'give two different years of {m["name"]}: year and other_year')
+	regions = areas.region(region)
+	res = scale or classes.scale_for(float(m['m']), regions)
+	geom = regions.geometry()
+	img = classes.pairs(classes.source(m, year, geom), classes.source(m, other, geom))
+	ha = classes.hectares(img, regions, res, timeseries.region_crs(regions))
+	rows = classes.transition_rows(ha, m, year, other)
+	broad = classes.broad_transitions(rows)
+	change = classes.changed(rows)
+	title = f"Changes of the classes of {m['name']} from {year} to {other}"
+	labels = {c['key']: landcover.label(c['key']) for c in landcover.classes()}  # the module: no argument hides it
+	out = {'rows': rows, 'mode': 'transitions', 'by_landcover': broad, 'scale': res, 'unit': '', 'title': title,
+	       'csv': None, 'chart': None, 'year': year, 'other_year': other,
+	       'changed_ha': {k: v[0] for k, v in change.items()}, 'unchanged_ha': {k: v[1] for k, v in change.items()},
+	       'classes': [{'class': k, 'label': labels[k], 'colour': classes.LANDCOVER_COLOURS.get(k)} for k in labels]}
+	if csv:
+		out['csv'] = timeseries.write_csv(rows, csv, {'scale_m': res}, classes.COLUMNS['transitions'])
+	first = next(iter(change), None)  # the first feature of the region with data (the first rows of the CSV)
+	if chart and first is not None:
+		try:
+			charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in broad if r['region'] == first],
+			                  {labels[k]: c for k, c in classes.LANDCOVER_COLOURS.items() if k in labels}, chart,
+			                  f'{title}: broad land covers' + (f' ({first})' if len(change) > 1 else ''),
+			                  (str(year), str(other)))
+			out['chart'] = chart
+		except ImportError:
 			pass
 	return out
 

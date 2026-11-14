@@ -353,7 +353,8 @@ def cite(tool, args=None, date=None, datasets=()):
 		try:
 			m, year, _ = landcover.check({'landcover': args['landcover'], 'year': args.get('year'),
 			                              'exclude': [landcover.classes()[0]['key']]})
-			ids, credits = of_datasets([landcover.dataset(m, year)])
+			years = [year] + ([int(args['other_year'])] if args.get('other_year') not in (None, '') else [])
+			ids, credits = of_datasets(list(dict.fromkeys(landcover.dataset(m, y) for y in years)))
 			ids += list(m.get('crosswalk_references') or [])
 		except (ValueError, KeyError, TypeError):
 			pass

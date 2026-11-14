@@ -6819,6 +6819,59 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// The changes of a land cover map between two years (classes.pairs, transition_rows, broad_transitions)
+	var PAIR = 1000;
+
+	function pairs(first, other) {
+		return ee.Image(first).multiply(PAIR).add(ee.Image(other)).toInt().rename('class');
+	}
+
+	function transitionRows(features, m, year, otherYear) {
+		var out = [], seen = {};
+		features.forEach(function (f) {
+			var name = String(f.properties.name);  // classes.numbered: those of the same name, 'Sierra Nevada (2)'
+			seen[name] = (seen[name] || 0) + 1;
+			var region = seen[name] > 1 ? name + ' (' + seen[name] + ')' : name;
+			var by = (f.properties.groups || []).map(function (g) { return [Math.round(g['class']), g.sum]; });
+			var total = by.reduce(function (a, g) { return a + g[1]; }, 0);
+			by.sort(function (a, b) { return b[1] - a[1]; });
+			by.forEach(function (g) {
+				var a = Math.floor(g[0] / PAIR), b = g[0] % PAIR;
+				out.push({region: region, map: m.name, year: year, other_year: otherYear,
+					from_class: a, from_label: a + ' ' + (m.names[String(a)] || ''), from_landcover: m.classes[String(a)] || null,
+					to_class: b, to_label: b + ' ' + (m.names[String(b)] || ''), to_landcover: m.classes[String(b)] || null,
+					ha: g[1], percent: total ? 100 * g[1] / total : null});
+			});
+		});
+		return out;
+	}
+
+	function broadTransitions(rows, lang) {
+		var acc = {}, keys = [];
+		var order = landcoverClasses().map(function (c) { return c.key; });
+		rows.forEach(function (r) {
+			var k = [r.region, r.from_landcover, r.to_landcover].join('|');
+			if (!acc[k]) {
+				keys.push(k);
+				acc[k] = {region: r.region, from_landcover: r.from_landcover, to_landcover: r.to_landcover,
+					from_label: landcoverName(r.from_landcover, lang), to_label: landcoverName(r.to_landcover, lang),
+					ha: 0, percent: 0};
+			}
+			acc[k].ha += r.ha;
+			acc[k].percent += r.percent || 0;
+		});
+		var pos = function (k) { var i = order.indexOf(k); return i < 0 ? order.length : i; };
+		return keys.map(function (k) { return acc[k]; }).sort(function (a, b) {
+			return a.region < b.region ? -1 : a.region > b.region ? 1 :
+				pos(a.from_landcover) - pos(b.from_landcover) || pos(a.to_landcover) - pos(b.to_landcover);
+		});
+	}
+
+	function landcoverName(key, lang) {
+		var c = landcoverClasses().filter(function (x) { return x.key === key; })[0];
+		return c ? (c[lang] || c.en) : key;
+	}
+
 	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
 	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
 	// (that of the whole period would be that of all the steps, as many times bigger as they are)
@@ -7661,7 +7714,8 @@ var MonitorEO = (function () {
 		islandAt: islandAt,
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
-		classHectares: classHectares, areaRows: areaRows,
+		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
+		broadTransitions: broadTransitions,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
 		animationRange: animationRange,
@@ -7758,6 +7812,10 @@ var MonitorEO = (function () {
 			computeAreas: 'Calcular las superficies', areaClass: 'Clase', areaPercent: '% de la superficie con clases',
 			areaNote: 'P\u00edxeles de %s m. El % es de la superficie con una clase (no cuentan los p\u00edxeles sin datos).',
 			areaTrendNote: 'Con las opciones de Tendencias (partes del a\u00f1o y m\u00e9trica de cada a\u00f1o); significativa si p < 0,05.',
+			areaChange: 'Sus cambios hasta', areaChanges: 'Cambios de las clases de %s de %s a %s',
+			areaChanged: '%s: cambiaron %s ha y no cambiaron %s ha (por clase del mapa).', areaFrom: 'De', areaTo: 'A',
+			areaBroad: 'Por usos del suelo generales; cada par de clases, en el CSV.', badYears: 'elige dos a\u00f1os distintos.',
+			areaOneYear: '%s tiene un mapa de un solo a\u00f1o: no hay cambios que calcular.',
 			areaNoWhere: 'La m\u00e1scara de usos del suelo y \u00abSolo los p\u00edxeles donde\u00bb son para las clases de una variable ' +
 				'(cortes, tendencia), no para las de un mapa de usos del suelo: desm\u00e1rcalos.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
@@ -7908,6 +7966,10 @@ var MonitorEO = (function () {
 			computeAreas: 'Compute the areas', areaClass: 'Class', areaPercent: '% of the area with classes',
 			areaNote: 'Pixels of %s m. The % is of the area with a class (the pixels without data are not counted).',
 			areaTrendNote: 'With the options of Trends (parts of the year and metric of each year); significant if p < 0.05.',
+			areaChange: 'Its changes to', areaChanges: 'Changes of the classes of %s from %s to %s',
+			areaChanged: '%s: %s ha changed and %s ha did not (by class of the map).', areaFrom: 'From', areaTo: 'To',
+			areaBroad: 'By broad land cover; each pair of classes, in the CSV.', badYears: 'choose two different years.',
+			areaOneYear: '%s has a map of a single year: there are no changes to compute.',
 			areaNoWhere: 'The land cover mask and \u00abOnly the pixels where\u00bb are for the classes of a variable (breaks, ' +
 				'trend), not for those of a land cover map: uncheck them.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
@@ -8033,6 +8095,7 @@ var MonitorEO = (function () {
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median',
 		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
+		areaChangeOn: false, areaOther: null,  // the changes of the land cover map to another year
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
@@ -9028,6 +9091,7 @@ var MonitorEO = (function () {
 		var kind = state.areaKind, regions = state.region, img, legend, extra = {}, name, native, colours;
 		if (!state.region || !state.info) return message(t('noRegion'), true);
 		var geom = regions.geometry();
+		if (kind === 'landcover' && state.areaChangeOn) return landcoverChanges();
 		if (kind === 'landcover') {
 			// as services.area_by_class: the land cover mask and where are for the classes of a variable
 			if (state.landcoverOn || state.whereOn) return message(t('areaNoWhere'), true);
@@ -9092,6 +9156,39 @@ var MonitorEO = (function () {
 		}));
 	}
 
+	// The changes of the land cover map from its year to another: the hectares of each pair of broad land covers (each
+	// pair of classes in the CSV), and the changed and unchanged area of each region
+	function landcoverChanges() {
+		var m = mo.landcoverMap(state.areaMap), regions = state.region, geom = regions.geometry();
+		var year = state.areaYear || mo.landcoverDefaultYear(m), other = state.areaOther || mo.landcoverDefaultYear(m);
+		if (year === other) return message(fmt(t('areaChanges'), m.name, year, other) + ': ' + t('badYears'), true);
+		var img = mo.pairs(mo.landcoverSource(m, year, geom), mo.landcoverSource(m, other, geom));
+		var scale = mo.areaScale(Number(m.m), state.info.area);
+		var name = fmt(t('areaChanges'), m.name, year, other);
+		var id = start();
+		mo.classHectares(img, regions, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.transitionRows(fc.features, m, year, other);
+			var broad = mo.broadTransitions(rows, state.lang);
+			var regionNames = regionsOf(rows);
+			var notes = regionNames.map(function (g) {
+				var ch = 0, un = 0;
+				rows.forEach(function (r) {
+					if (r.region !== g) return;
+					if (r.from_class === r.to_class) un += r.ha; else ch += r.ha;
+				});
+				return ui.Label(fmt(t('areaChanged'), g, num(ch, 4), num(un, 4)));
+			});
+			show([ui.Label(name, {fontWeight: 'bold'})].concat(notes).concat([
+				ui.Chart([[t('areaFrom'), t('areaTo'), t('hectares'), t('areaPercent')]].concat(broad.map(function (r) {
+					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.from_label, r.to_label, num(r.ha, 4),
+						r.percent === null ? '' : num(r.percent, 3)];
+				})), 'Table'),
+				ui.Label(t('areaBroad') + ' ' + fmt(t('areaNote'), num(scale)), SMALL),
+				csvWidget(rows, ['region', 'map', 'year', 'other_year', 'from_class', 'from_label', 'from_landcover',
+					'to_class', 'to_label', 'to_landcover', 'ha', 'percent'], name, null)]));
+		}));
+	}
+
 	function areaWidgets() {
 		var w = [header(t('areas'))];
 		var kinds = ['landcover', 'breaks', 'trend'].map(function (k) { return {value: k, label: t('k_' + k)}; });
@@ -9104,11 +9201,25 @@ var MonitorEO = (function () {
 			var m = mo.landcoverMap(state.areaMap);
 			var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
 			if (!state.areaYear || mo.landcoverYears(m).indexOf(state.areaYear) < 0) state.areaYear = mo.landcoverDefaultYear(m);
+			if (!state.areaOther || mo.landcoverYears(m).indexOf(state.areaOther) < 0) state.areaOther = mo.landcoverDefaultYear(m);
+			if (state.areaChangeOn && state.areaYear === state.areaOther && years.length > 1) {
+				// two different years (ticked, or another map): the first one, the year before the other, as in QGIS
+				var i = years.map(function (y) { return y.value; }).indexOf(state.areaOther);
+				state.areaYear = years[i + 1 < years.length ? i + 1 : i - 1].value;
+			}
 			w.push(row(ui.Label(t('areaMap')), select(maps, state.areaMap, function (v) {
 				state.areaMap = v;
 				state.areaYear = null;
+				state.areaOther = null;
 				render();
 			}, '150px'), select(years, state.areaYear, function (v) { state.areaYear = v; }, '80px')));
+			var other = select(years, state.areaOther, function (v) { state.areaOther = v; }, '80px');
+			other.setDisabled(!state.areaChangeOn);
+			w.push(row(check(t('areaChange'), state.areaChangeOn, function (v) {
+				state.areaChangeOn = v;
+				render();
+			}), other));
+			if (state.areaChangeOn && years.length < 2) w.push(ui.Label(fmt(t('areaOneYear'), m.name), SMALL));
 		} else if (state.areaKind === 'breaks') {
 			w.push(row(ui.Label(t('areaBreaks')), ui.Textbox({placeholder: t('breaksHint'), value: state.areaBreaks,
 				onChange: function (v) { state.areaBreaks = v; }, style: {width: '190px'}})));

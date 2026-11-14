@@ -333,3 +333,14 @@ def test_area_by_class(tmp_path):
 	assert abs(sum(r['percent'] for r in lc['rows']) - 100) < 1e-6 and lc['by_landcover']
 	assert [r['label'] for r in bands['rows']] == ['below 500 m', '500 to 1000 m', '1000 to 1500 m', '1500 m or more']
 	assert {r['class'] for r in trend['rows']} == {-1, 0, 1} and os.path.exists(lc['readme'])
+
+
+def test_changes_of_a_land_cover_map(tmp_path):
+	"""The changes of CORINE from 2006 to 2018 over the box: the pairs of classes sum its area, and the changed and
+	unchanged area too, with the Sankey diagram."""
+	res = services.area_by_class(GUAJARES, landcover='CORINE', year=2006, other_year=2018,
+	                             chart=str(tmp_path / 'sankey.png'))
+	total = sum(r['ha'] for r in res['rows'])
+	assert 7500 < total < 8800 and abs(res['changed_ha']['bbox'] + res['unchanged_ha']['bbox'] - total) < 1e-6
+	assert abs(sum(r['ha'] for r in res['by_landcover']) - total) < 1e-6
+	assert res.get('chart') is None or os.path.getsize(res['chart']) > 0
