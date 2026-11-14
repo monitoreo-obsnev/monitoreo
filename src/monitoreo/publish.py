@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import assets, catalog, composite, fire, maps, references, trends
+from . import assets, catalog, composite, figures, fire, maps, references, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -90,13 +90,13 @@ LICENSES = {
 }
 LICENSE = 'CC-BY-4.0'
 
-# type of analysis of each tool, and its name in the viewer
+# type of analysis of each tool (region_stats with zones too: gradients, see _analysis), and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation', 'area_by_class': 'areas', 'map_figure': 'map'}
+            'timelapse': 'animation', 'area_by_class': 'areas', 'map_figure': 'map', 'transect': 'gradients'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
-                  'areas': 'Area by class'}
+                  'areas': 'Area by class', 'gradients': 'Gradients'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
@@ -222,7 +222,8 @@ def log_call(tool, args, result, folder=None):
 
 
 def _logged_call(path, log):
-	"""The last call of the log LOG that wrote a file of the name of PATH: {tool, args, result}, or None."""
+	"""The last call of the log LOG that wrote a file of the name of PATH (any of its files: also the GIF of an
+	animation made as a video, whose file is the MP4): {tool, args, result}, or None."""
 	if not log or not os.path.isfile(log):
 		return None
 	name, found = os.path.basename(path), None
@@ -233,13 +234,15 @@ def _logged_call(path, log):
 			except ValueError:
 				continue
 			res = c.get('result') or {}
-			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name for k in ('file', 'csv', 'chart')):
+			if any(isinstance(res.get(k), str) and os.path.basename(res[k]) == name
+			       for k in ('file', 'gif', 'csv', 'chart')):
 				found = c
 	return found
 
 
 def _items(spec, base, folders, log):
-	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved."""
+	"""The results of SPEC as {tool, args, result, title, caption, ...}, with the paths of their files resolved (the MP4
+	of an animation that is no longer there is left out: its GIF is the animation)."""
 	for item in _list(spec.get('results')):
 		item = {'file': item} if isinstance(item, str) else dict(item)
 		if 'answer' in item:
@@ -259,14 +262,19 @@ def _items(spec, base, folders, log):
 			c = _logged_call(path, log) or {}
 			item.setdefault('tool', c.get('tool'))
 			item.setdefault('args', c.get('args'))
-			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS)
-			                                     else 'csv': path}
+			item['result'] = c.get('result') or {'file' if path.lower().endswith(('.tif', '.tiff') + ANIMATIONS +
+			                                                                      figures.FORMATS) else 'csv': path}
 		res = dict(item.get('result') or {})
+		if isinstance(res.get('gif'), str) and str(res.get('file') or '').lower().endswith('.mp4'):
+			try:
+				_find(res['file'], base, folders)
+			except FileNotFoundError:  # the video deleted or moved: the GIF, without it
+				res['file'] = res['gif']
 		for k in ('file', 'gif', 'csv', 'chart'):
 			if isinstance(res.get(k), str):
 				res[k] = _find(res[k], base, folders)
 		item['result'] = res
-		item['args'] = dict(item.get('args') or {})
+		item['tool'], item['args'] = services_call(item.get('tool'), dict(item.get('args') or {}))
 		yield item
 
 
@@ -383,7 +391,12 @@ def default_title(tool, args):
 			if args.get('other_year'):
 				return f"Changes of the classes of {name} from {args.get('year') or 'its last year'} to {args['other_year']}"
 			return f"Area of each class of {name}" + (f" {args['year']}" if args.get('year') else '')
-		what = f'the trend of {var}' if args.get('trend') else var
+		what, part = var, args.get('part')
+		if args.get('trend'):  # the part of the year of its trend, as download_trend (services: 'annual' by default)
+			step = args.get('step') or 'annual'
+			what = f'the trend of {var}' if step == 'annual' or not part else \
+				f'the trend of {MONTHS[int(part) - 1]} of {var}' if step == 'monthly' else \
+				f'the trend of 16-day period {part} of {var}'
 		return f'Area of each class of {what}' + (f', {period}{season}' if period and not is_static(args) else '')
 	return var or 'Result'
 
@@ -410,8 +423,25 @@ def _py(v):
 	return repr(v)
 
 
+def services_call(tool, args):
+	"""The function of monitoreo.services and its arguments of a call of TOOL with ARGS: map_layer with figure (of the
+	MCP server and the assistant) is map_figure, without figure and quick; the video of the tool timelapse of the MCP
+	server is the path of an MP4 of services.timelapse."""
+	if tool == 'map_layer' and 'figure' in args:
+		args = dict(args)
+		if args.pop('figure'):
+			tool = 'map_figure'
+			args.pop('quick', None)
+	if tool == 'timelapse' and 'video' in args:
+		args = dict(args)
+		if args.pop('video'):
+			args.setdefault('path', 'animation.mp4')
+	return tool, args
+
+
 def python_call(tool, args):
 	"""The call of monitoreo.services (imported as mo) that gives the same result as the tool."""
+	tool, args = services_call(tool, args)
 	return f"mo.{tool}({', '.join(f'{k}={_py(v)}' for k, v in args.items())})" if tool else None
 
 
@@ -686,6 +716,26 @@ def _chart_type(tool, path):
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
 
+def _area_classes(args, path):
+	"""The classes of the CSV of area_by_class PATH ([{class, label, colour}], in their order) with the colours of
+	services.area_by_class, for a result without them (the answer of the MCP server and its log): those of the broad
+	land covers, of the trend, or of the colour ramp of the variable (ARGS) for its breaks."""
+	from . import classes
+	from .services import _ramp_colour
+	first = {}
+	for r in _read_csv(path):  # each feature has every class, in their order
+		first.setdefault(r['label'], r)
+	trend = {c: colour for c, _, colour in classes.TREND}
+	ramp = maps.ramp(_entry(args.get('variable'), args.get('sensor')))  # the data outside the catalog: the default one
+	out = []
+	for i, r in enumerate(first.values()):
+		code = int(float(r['class']))
+		colour = classes.LANDCOVER_COLOURS.get(r['landcover'], '9e9e9e') if 'landcover' in r else \
+			_ramp_colour(ramp, (i + 0.5) / len(first)) if 'value_from' in r else trend.get(code)
+		out.append({'class': code, 'label': r['label'], 'colour': colour})
+	return out
+
+
 def _results(item, files, n):
 	"""The results of report.json of a call (ITEM): a map with its GeoTIFF, a chart with its CSV, or both."""
 	tool, args, res = item.get('tool'), item['args'], item['result']
@@ -697,7 +747,8 @@ def _results(item, files, n):
 	if unit.endswith('/ year'):
 		unit = unit[:-len('/ year')].strip()
 	out = []
-	if tool == 'map_figure' and res.get('file'):  # a figure of a map: its PNG shown, a PDF or SVG to download
+	# a figure of a map (map_figure, or the file of a figure without its call): its PNG shown, a PDF or SVG to download
+	if str(res.get('file') or '').lower().endswith(figures.FORMATS):
 		kind = os.path.splitext(res['file'])[1].lstrip('.').upper()
 		path = files.add(res['file'], 'files', f'Figure ({kind}): {title}', kind)
 		return [{'id': f'r{n + 1}', 'kind': 'figure', 'title': title, 'caption': item.get('caption'), 'tool': tool,
@@ -760,8 +811,9 @@ def _results(item, files, n):
 				entry['burned_min'] = fire.CLASSES[index]['burned']  # the burned area: the index from this value
 			if out:
 				entry['title'] = item.get('chart_title') or 'Area of each severity class'
-		elif chart == 'areas':  # the colour of each class, as in its chart of Python
-			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')} for c in res.get('classes') or []]
+		elif chart == 'areas':  # the colour of each class, as in its chart of Python (from its CSV if the result has none)
+			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')}
+			                    for c in res.get('classes') or _area_classes(args, res['csv'])]
 		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
 			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):
@@ -840,6 +892,13 @@ def _variables(items):
 	return list(out.values())
 
 
+def _analysis(item):
+	"""The type of analysis of a result ITEM of a report (see ANALYSES)."""
+	if item.get('tool') == 'region_stats' and isinstance((item.get('args') or {}).get('zones'), dict):
+		return 'gradients'  # the statistics of each elevation band, as the profiles along a line
+	return ANALYSES.get(item.get('tool'), 'map')
+
+
 def _periods(items):
 	out = []
 	for it in items:
@@ -903,7 +962,7 @@ def build(spec, rid, base, folders, log, folder):
 		bs = [r['bounds'] for r in maps_]
 		region['bounds'] = [min(b[0] for b in bs), min(b[1] for b in bs), max(b[2] for b in bs), max(b[3] for b in bs)]
 	periods = _periods(items)
-	analyses = list(dict.fromkeys(ANALYSES.get(it.get('tool'), 'map') for it in items))
+	analyses = list(dict.fromkeys(_analysis(it) for it in items))
 	sections = [{'title': str(s['title']), 'text': _paragraphs(s.get('text'))} for s in _list(spec.get('sections'))]
 	return {
 		'schema': SCHEMA, 'id': rid, 'title': str(spec['title']).strip(),

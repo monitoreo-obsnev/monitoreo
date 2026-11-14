@@ -172,7 +172,7 @@ cited <- function(df, res) {
 #' @keywords internal
 NULL
 
-utils::globalVariables(c("date", "value", "region"))
+utils::globalVariables(c("date", "value", "region", "doy", "year"))
 
 # The data that a function computes: a variable of the catalog and its sensor (with them, collection is one of the
 # collections of that variable), or instead the data of Earth Engine given by its ID (collection or image, with band,
@@ -691,8 +691,9 @@ mo_sf <- function(x, name = NULL) {
 #' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
-#' @param doy \code{TRUE}: the chart (\code{chart}) with a line per year over the days of the year, and the columns
-#'   year and doy (day of the year), to compare the years; not with \code{step = "annual"}.
+#' @param doy \code{TRUE}: the chart (\code{chart}, and that of \code{mo_plot()}) with a line per year over the days
+#'   of the year, and the columns year and doy (day of the year), to compare the years; not with
+#'   \code{step = "annual"}.
 #' @param chart optional path of a PNG chart.
 #' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
 #'   (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
@@ -735,10 +736,13 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
 
 #' Chart of a time series
 #'
-#' With ggplot2 if it is installed, else with base graphics.
+#' With ggplot2 if it is installed, else with base graphics. A series of \code{mo_time_series(doy = TRUE)} (with the
+#' columns year and doy) is drawn with a line per year over the days of the year, from January to December, from the
+#' oldest year (light) to the newest (dark, thicker), with a panel per region (with base graphics, a line type per
+#' region).
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
-#' @importFrom graphics legend lines
+#' @importFrom graphics axis legend lines
 #' @examples
 #' \dontrun{
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
@@ -747,12 +751,42 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
   unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
+  by_doy <- all(c("year", "doy") %in% names(ts))  # a line per year over the days of the year (doy = TRUE)
+  starts <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)  # the day of the year of the first of each month
+  regions <- unique(ts$region)
+  if (by_doy && requireNamespace("ggplot2", quietly = TRUE)) {
+    ts$year <- factor(ts$year)
+    p <- ggplot2::ggplot(ts, ggplot2::aes(x = doy, y = value, colour = year, group = year)) +
+      ggplot2::geom_line(linewidth = 0.4) +
+      ggplot2::geom_line(data = ts[ts$year == levels(ts$year)[nlevels(ts$year)], ], linewidth = 1.1) +
+      ggplot2::geom_point(size = 0.8) +
+      ggplot2::scale_colour_viridis_d(begin = 0, end = 0.85, direction = -1) +  # the newest year the darkest
+      ggplot2::scale_x_continuous(limits = c(1, 366), breaks = starts, labels = month.abb) +
+      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal()
+    return(if (length(regions) > 1) p + ggplot2::facet_wrap(~region, ncol = 1) else p)
+  }
+  if (by_doy) {
+    years <- sort(unique(ts$year))
+    cols <- grDevices::hcl.colors(length(years) + 1, "viridis", rev = TRUE)[-1]  # without its lightest yellow
+    widths <- ifelse(seq_along(years) == length(years), 2.5, 1)
+    plot(ts$doy, ts$value, type = "n", xlim = c(1, 366), main = title, xlab = "", ylab = unit, xaxt = "n")
+    axis(1, at = starts, labels = month.abb)
+    for (i in seq_along(regions)) {
+      for (k in seq_along(years)) {
+        s <- ts[ts$region == regions[i] & ts$year == years[k], ]
+        s <- s[order(s$doy), ]
+        lines(s$doy, s$value, col = cols[k], lwd = widths[k], lty = i, type = "o", pch = 20)
+      }
+    }
+    legend("topleft", legend = years, col = cols, lwd = widths, bty = "n")
+    if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
+    return(invisible(ts))
+  }
   if (requireNamespace("ggplot2", quietly = TRUE)) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
       ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal())
   }
-  regions <- unique(ts$region)
   plot(ts$date, ts$value, type = "n", main = title, xlab = "", ylab = unit)
   for (i in seq_along(regions)) {
     s <- ts[ts$region == regions[i], ]
@@ -807,19 +841,24 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #'
 #' A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
 #' temporal metric of the images of the step on each pixel, coloured with one colour ramp for every frame (from
-#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period) and, written
-#' on it, its date, the title, the colour ramp with its unit and the credits of the data; the pixels of the region
-#' without data in a step are light grey. Earth Engine makes each frame as a PNG thumbnail and Python (Pillow) joins
-#' them in a GIF, as the timelapses of geemap (Wu, 2020). At most 120 frames. Not for the fixed layers (elevation,
-#' slope, an image), which have no dates. Instead of a variable of the catalog, any collection of images of Earth
-#' Engine with dates, by its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
+#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period or, for the
+#' metrics \code{"sum"} and \code{"count"}, which grow with the images, of the median of the frames) and, written on
+#' it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+#' lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
+#' colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
+#' not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the
+#' QGIS plugin does without it, with Qt and its own GIF encoder), and the MP4 with ffmpeg, as the timelapses of geemap
+#' (Wu, 2020). At most 120 frames. Not for the fixed layers (elevation, slope, an image), which have no dates. Instead
+#' of a variable of the catalog, any collection of images of Earth Engine with dates, by its ID: \code{collection} and
+#' \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param path the GIF (\code{.gif}) or video (\code{.mp4}, it needs ffmpeg) of the animation.
 #' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
 #' @param fps frames per second.
 #' @param dimensions width or height of the map in pixels (64 to 1200).
 #' @return A list (file, gif, frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
-#'   palette, name, unit, bounds, scale, readme, references, credits).
+#'   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
+#'   or, if bigger, that of the data; readme, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1054,14 +1093,17 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' @param stats the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 #'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
 #'   \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
-#'   p5, p50, p95 and max.
+#'   p5, p50, p95 and max (with \code{zones}, also p25 and p75).
 #' @param zones the statistics of each band of another variable instead, e.g. the elevation bands
 #'   \code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
-#'   is aggregated over the period of the result, or its own \code{period}).
-#' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG).
+#'   is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).
+#' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
+#'   (or else the mean, or the first statistic) of each band with its percentiles 25 and 75 (or else 5 and 95, if
+#'   \code{stats} has them and not those; with neither, no band).
 #' @return A data.frame (region, with \code{zones} also zone, zone_label, zone_from and zone_to, the columns of
-#'   \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and n_pixels) with the attributes title, unit (of
-#'   the map; cv is in \%), scale, references and credits (see \code{mo_references()}).
+#'   \code{stats}: by default mean, std, cv, min, p5, p50, p95, max, and with \code{zones} p25 and p75 too; and
+#'   n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
+#'   \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1108,11 +1150,13 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 #' Profile of a variable along a line, with the elevation
 #'
 #' The map of \code{mo_map_layer()} with the same arguments (also the fixed layers) along a line: the line is cut in
-#' segments of \code{spacing} metres (default: its length / \code{points}), and each segment gets the mean of the
-#' pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of geemap (Wu, 2020).
+#' segments of \code{spacing} metres (default: its length / \code{points}, at least a pixel of the data), and each
+#' segment gets the mean of the pixels it crosses and the mean elevation of the Copernicus DEM, as the transects of
+#' geemap (Wu, 2020).
 #' @inheritParams mo_params
 #' @param line the line: a matrix or list of points \code{list(c(lon, lat), ...)}, or a GeoJSON LineString.
-#' @param spacing,points the length of the segments in metres, or their number.
+#' @param spacing,points the length of the segments in metres, or their number (segments at least a pixel of the
+#'   data long: fewer on a line shorter than \code{points} pixels).
 #' @return A data.frame (distance_m, value, elevation, lon, lat) with the attributes title, unit, length_m, spacing,
 #'   csv, chart, references and credits (see \code{mo_references()}).
 #' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
@@ -1156,7 +1200,8 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' @param other_year with \code{landcover}, its changes from \code{year} to this year instead: the hectares of each
 #'   pair of classes (from_class, from_label, from_landcover, to_class, to_label, to_landcover, ha, percent), the
 #'   attributes by_landcover (each pair of broad land covers), changed_ha and unchanged_ha, and with \code{chart} a
-#'   Sankey diagram of the broad land covers.
+#'   Sankey diagram of the broad land covers (of the first feature of the region, named in its title, when it has
+#'   several).
 #' @param breaks the values where to cut the map of the variable, e.g. \code{c(0.2, 0.4, 0.6)}.
 #' @param trend \code{TRUE}: the classes of the trend of the variable on each pixel.
 #' @param step,part,alpha with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or

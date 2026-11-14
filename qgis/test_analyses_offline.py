@@ -9,7 +9,9 @@ has no Pillow: it checks that monitoreo.animation draws the texts of the frames 
 (greyed out for the fixed layers without dates, its metric fixed for the snow cover frequency), the arguments sent,
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
-each kind and the window of the result (its table, with the colour of each class).
+each kind (a land cover map without the land cover mask nor «Only the pixels where»; for its changes, the Sankey
+diagram of the first feature, named in its title) and the window of the result (its table, with the colour of each
+class). The land cover mask starts off, whatever the settings stored by other tests.
 """
 
 import os
@@ -27,7 +29,7 @@ sys.path.insert(0, os.path.join(APP, 'Contents', 'Resources', 'python'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
-from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle  # noqa: E402
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle, QgsSettings  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
@@ -80,7 +82,7 @@ import monitoreo_qgis  # noqa: E402
 from monitoreo_qgis import deps  # noqa: E402
 
 deps.setup_path()  # earthengine-api from the ext/ of the plugin (build_plugin.py), or from PYTHONPATH
-from monitoreo import animation, services  # noqa: E402
+from monitoreo import animation, charts, services  # noqa: E402
 from qgis.PyQt.QtGui import QMovie  # noqa: E402
 
 # without Pillow: the texts with Qt, the GIF by monitoreo.animation
@@ -95,11 +97,35 @@ except ImportError:
 	assert movie.isValid() and movie.frameCount() == 3, movie.frameCount()
 	movie.jumpToFrame(0)
 	frame = movie.currentImage()
-	big, small, top, bar, bottom = animation.layout(160)
-	assert (frame.width(), frame.height()) == (160, top + 120 + bottom)
-	assert QColor(frame.pixel(80, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
+	from qgis.PyQt.QtGui import QFont, QFontMetrics
+	fw = max(160, animation.MIN_WIDTH)  # a map narrower than MIN_WIDTH, centred on a frame of MIN_WIDTH
+	big, small, top, bar, bottom = animation.layout(fw)
+	font = QFont()
+	font.setPixelSize(small)
+	width = QFontMetrics(font).horizontalAdvance  # the credits in as many lines as they need
+	bottom = animation.layout(fw, len(animation._wrap(width, 'MonitorEO; Google Earth Engine', fw - 16)))[4]
+	assert (frame.width(), frame.height()) == (fw, top + 120 + bottom)
+	assert QColor(frame.pixel(fw // 2, top + 50)).getRgb()[:3] == (255, 0, 0)  # the map, under its texts
 	assert any(QColor(frame.pixel(x, y)).getRgb()[:3] != (255, 255, 255) for x in range(8, 60) for y in range(6, 20))
 	print('GIF without Pillow:', movie.frameCount(), 'frames', frame.width(), 'x', frame.height())
+	# long credits: all of them, in as many lines as they need (the band below grows), not cut
+	credits = ('MonitorEO; Google Earth Engine; Contains modified Copernicus Climate Change Service information '
+	           '2021-2023; Source: FAO GAUL 2025 (CC BY 4.0)')
+	lines = animation._wrap(width, credits, fw - 16)
+	assert len(lines) > 2 and ' '.join(lines) == credits, lines
+	out = animation.annotate(pictures[0], 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'], 'unit', credits)
+	b, s, top, bar, bottom = animation.layout(fw, len(lines))
+	assert out.shape == (top + 120 + bottom, fw, 3) and bottom > animation.layout(fw)[4], out.shape
+	last = top + 120 + 6 + bar + 3 + s + 6 + (len(lines) - 1) * (s + 4)
+	assert (out[last:last + s, 8:fw - 8] != 255).any()  # its last line written
+	print('credits drawn with Qt in', len(lines), 'lines')
+	# a narrow map (a strip of land, 18 x 65 pixels): centred on a frame of MIN_WIDTH, its credits in a few lines
+	out = animation.annotate(np.full((65, 18, 3), 200, np.uint8), 0, ['2021'], 'NDVI', 0.1, 0.8, ['ff0000', '00ff00'],
+	                         'unit', credits)
+	x = (animation.MIN_WIDTH - 18) // 2
+	assert out.shape == (top + 65 + bottom, animation.MIN_WIDTH, 3), out.shape
+	assert (out[top:top + 61, x:x + 18] == 200).all() and (out[top:top + 61, :x] == 255).all()
+	print('a map 18 pixels wide on a frame of', out.shape[1], 'x', out.shape[0])
 
 calls = []
 
@@ -130,6 +156,18 @@ services.timelapse = timelapse
 
 def area_by_class(region, csv=None, **opts):
 	calls.append(dict(opts, region=region, csv=csv, tool='area_by_class'))
+	if opts.get('other_year'):  # the changes of a land cover map over two features: Sierra Nevada, then Doñana
+		rows = [{'region': g, 'from_label': a, 'to_label': b, 'ha': ha, 'percent': p} for g, a, b, ha, p in
+		        (('Sierra Nevada', '311 Broad-leaved forest', '324 Transitional woodland-shrub', 15.0, 15.0),
+		         ('Doñana', '512 Water bodies', '512 Water bodies', 30.0, 100.0))]
+		with open(csv, 'w') as f:
+			f.write('region,from_label,to_label,ha,percent\n')
+		return {'rows': rows, 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
+		        'year': opts['year'], 'other_year': opts['other_year'], 'classes': [], 'references': [], 'credits': [],
+		        'changed_ha': {'Sierra Nevada': 15.0, 'Doñana': 0.0},
+		        'unchanged_ha': {'Sierra Nevada': 0.0, 'Doñana': 30.0},
+		        'by_landcover': [{'region': 'Doñana', 'from_label': 'Water', 'to_label': 'Water', 'ha': 30.0},
+		                         {'region': 'Sierra Nevada', 'from_label': 'Trees', 'to_label': 'Trees', 'ha': 15.0}]}
 	rows = [{'region': 'extent', 'class': c, 'label': label, 'ha': ha, 'percent': p}
 	        for c, label, ha, p in ((-1, 'significant decrease', 10.0, 10.0), (0, 'no significant trend', 80.0, 80.0),
 	                                (1, 'significant increase', 10.0, 10.0))]
@@ -141,6 +179,10 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
+sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
+charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
+for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
+	QgsSettings().remove('MonitorEO/' + key)
 
 
 def region_stats(region, csv=None, **opts):
@@ -249,6 +291,7 @@ for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', Fal
 dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
 assert dock.area_year.currentData() == 2018 and dock.area_year.findData(1990) >= 0
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('landcover'))
+assert not dock.landcover_box.isChecked() and not any(c['on'].isChecked() for c in dock.where)  # not stored ones
 calls.clear()
 dock.run_areas()
 wait()
@@ -259,7 +302,17 @@ assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (20
 dock.run_areas()
 wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
+assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
 dock.area_change.setChecked(False)
+# a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
+made = len(calls)
+for box in (dock.landcover_box, dock.where[0]['on']):
+	box.setChecked(True)
+	dock.run_areas()
+	wait()
+	box.setChecked(False)
+	assert len(calls) == made and 'are for the classes of a variable' in messages[-1], messages[-1]
+	assert messages[-1].startswith('Warning: The land cover mask and «Only the pixels where»'), messages[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()
@@ -315,8 +368,16 @@ assert calls[-1]['tool'] == 'time_series' and calls[-1]['doy'] is True, calls[-1
 from monitoreo_qgis.results import ChartWidget  # noqa: E402
 chart = ChartWidget(dock.series[-1]['rows'], 'NDVI', 'NDVI')
 assert chart.doy and sorted(chart.series) == ['2022', '2023'] and len(chart.series['2022']) == 12
+old, new = chart.pen(0, '2022'), chart.pen(1, '2023')  # the newest year darker and thicker, as charts.doy_png
+assert new.widthF() > old.widthF() and new.color().lightness() < old.color().lightness()
 chart.resize(600, 320)
 chart.grab()  # it paints
+rows = [dict(r, region=g) for g in ('park', 'buffer') for r in dock.series[-1]['rows']]  # two regions: a dash each
+two = ChartWidget(rows, 'NDVI', 'NDVI')
+assert two.pen(0, 'park 2022').style() != two.pen(2, 'buffer 2022').style()
+assert two.pen(0, 'park 2022').color() == two.pen(2, 'buffer 2022').color()
+two.resize(600, 320)
+two.grab()
 dock.step.setCurrentIndex(dock.step.findData('annual'))
 dock.run_series()
 wait()
@@ -339,5 +400,60 @@ assert any('MonitorEO [Software]' in t for t in texts), texts
 dock.make_layout()
 assert iface.opened.name() == layout.name() + ' 2'  # a free name
 print('figure:', layout.name(), len(items), 'items')
+
+# whatever the shape of the canvas (tall, wide, of 2 km), the map of the layout keeps its 205 x 160 mm with all the
+# canvas in it, the scale bar on it and the credits under it in the page; the labels of its grid have the decimals of
+# its step; and the credits are all those of the data of the layers (USGS, FAO GAUL...), not only those of Copernicus
+from monitoreo import references  # noqa: E402
+from monitoreo_qgis.dock import figure_layout, layer_credits, references_text  # noqa: E402
+
+
+class Canvas:
+	"""A canvas of EXTENT in EPSG:4326."""
+
+	def __init__(self, extent):
+		self.box = extent
+
+	def extent(self):
+		return self.box
+
+	def mapSettings(self):
+		return self
+
+	def destinationCrs(self):
+		return QgsCoordinateReferenceSystem('EPSG:4326')
+
+
+cited = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, 'variable': 'NDVI',
+                                      'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'})
+assert len(cited['credits']) == 2 and not any(c.startswith('Contains') for c in cited['credits']), cited['credits']
+lines.setAbstract('MonitorEO: NDVI (Landsat).' + references_text(cited))
+for box, decimals in ((QgsRectangle(-3.5, 36.9, -3.4, 37.3), 2), (QgsRectangle(-4.0, 37.0, -2.5, 37.1), 2),
+                      (QgsRectangle(-3.41, 37.09, -3.39, 37.11), 3)):
+	items = figure_layout(Canvas(box)).items()
+	m = next(i for i in items if isinstance(i, QgsLayoutItemMap))
+	y, h = m.positionWithUnits().y(), m.sizeWithUnits().height()
+	assert (round(m.sizeWithUnits().width()), round(h), round(y)) == (205, 160, 18), (box.toString(), y, h)
+	assert m.extent().buffered(1e-9).contains(box), (m.extent().toString(), box.toString())
+	assert m.grid().annotationPrecision() == decimals, (box.toString(), m.grid().intervalX())
+	scale = next(i for i in items if isinstance(i, QgsLayoutItemScaleBar))
+	assert y < scale.positionWithUnits().y() < y + h, scale.positionWithUnits().y()  # on the map
+	note = next(i for i in items if isinstance(i, QgsLayoutItemLabel) and 'MonitorEO [Software]' in i.text())
+	top = note.positionWithUnits().y()
+	assert y + h <= top and top + note.sizeWithUnits().height() <= 210, top  # under the map, in the A4 page
+	assert all(c in note.text().split('\n') for c in cited['credits']), note.text()
+print('figure of a tall, a wide and a small canvas: the map 205 x 160 mm, credits', len(cited['credits']))
+
+# a layer of an earlier version of the plugin has its credits at the end of its references, without their heading:
+# those of the data of the catalog (Copernicus Sentinel, USGS, Copernicus DEM, FAO GAUL) are found among them
+for args in ({'variable': 'NDVI', 'sensor': 'Landsat', 'start': '2020-01-01', 'end': '2020-12-31'},
+             {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2023-06-01', 'end': '2023-08-31'},
+             {'variable': 'ELEVATION', 'sensor': 'Copernicus'}):
+	old = references.cite('map_layer', {'region': {'admin1': 'Andalucía', 'country': 'ESP'}, **args})
+	text = 'MonitorEO: NDVI.\n\nReferences (cite them with this layer):\n' + '\n'.join(references.texts(old))
+	assert old['credits'] and layer_credits(text) == old['credits'], (layer_credits(text), old['credits'])
+	assert layer_credits('MonitorEO: NDVI.' + references_text(old)) == old['credits']
+assert layer_credits('A layer of my own') == [] and layer_credits(None) == []
+print('credits of the layers of an earlier plugin, without their heading:', len(old['credits']))
 plugin.unload()
 print('OK')

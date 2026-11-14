@@ -13,7 +13,10 @@ mo_plot(ts)
 A ggplot object, or \code{ts} invisibly.
 }
 \description{
-With ggplot2 if it is installed, else with base graphics.
+With ggplot2 if it is installed, else with base graphics. A series of \code{mo_time_series(doy = TRUE)} (with the
+columns year and doy) is drawn with a line per year over the days of the year, from January to December, from the
+oldest year (light) to the newest (dark, thicker), with a panel per region (with base graphics, a line type per
+region).
 }
 \examples{
 \dontrun{

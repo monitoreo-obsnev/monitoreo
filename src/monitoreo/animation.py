@@ -32,6 +32,7 @@ STEPS = ('annual', 'monthly', '16-day', 'daily')
 MAX_FRAMES = 120  # frames of an animation
 DIMENSIONS = 600  # width or height of the frames of the map (pixels)
 MAX_DIMENSIONS = 1200
+MIN_WIDTH = 200  # width of the frames of a narrower map (pixels), centred on them, so that their texts fit
 FPS = 2  # frames per second
 WORKERS = 6  # frames computed at the same time
 NO_DATA = 'd9d9d9'  # the pixels of the region without data in a step
@@ -41,6 +42,7 @@ MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'Augus
           'November', 'December']
 FORMATS = ('.gif', '.mp4')
 EARTH = 6378137.0  # radius of web Mercator (m)
+TOTALS = ('sum', 'count')  # metrics that grow with the images: that of the whole period is that of all its steps
 
 
 def check(step, n_frames=None, dimensions=None, fps=None, path=None):
@@ -92,6 +94,16 @@ def frames(col, regions, steps, metric, vis, res=None, bounds=None, dimensions=D
 	return out
 
 
+def range_image(col, steps, metric, whole):
+	"""The map whose percentiles 5 and 95 colour every frame: WHOLE, that of the whole period or, for a METRIC of TOTALS
+	(sum, count), which grows with the images, the median of the frames of STEPS (the METRIC of the images of COL of
+	each step): that of the whole period would be that of all the steps, as many times bigger as they are."""
+	if str(metric).strip().lower() not in TOTALS:
+		return whole
+	return ee.ImageCollection.fromImages([composite._reduce(col.filterDate(a, b), metric) for a, b in steps]) \
+		.median().rename('value')
+
+
 def mercator(lon, lat):
 	"""(x, y) in web Mercator (EPSG:3857, metres) of a point in degrees."""
 	lat = max(min(lat, 85.0), -85.0)
@@ -106,6 +118,14 @@ def frame_grid(bounds, dimensions=DIMENSIONS):
 	x1, y1 = mercator(e, n)
 	res = max(x1 - x0, y1 - y0, 1.0) / int(dimensions)
 	return Grid.around('EPSG:3857', res, x0, y0, x1, y1)
+
+
+def pixel_size(bounds, dimensions=DIMENSIONS, res=None):
+	"""The size (m) of the pixels on which Earth Engine computes the frames over BOUNDS ([w, s, e, n], degrees): those
+	of the frames (of frame_grid, on the ground at the middle latitude of BOUNDS) or, if bigger, those of the data, RES
+	metres (see maps.coarse)."""
+	ground = frame_grid(bounds, dimensions).res * math.cos(math.radians((bounds[1] + bounds[3]) / 2))
+	return max(ground, float(res or 0))
 
 
 def fetch_frames(frames_, grid, workers=WORKERS, progress=None):
@@ -149,16 +169,19 @@ def ramp(palette, n):
 	return out
 
 
-def layout(width):
-	"""The sizes of the texts of a frame WIDTH pixels wide: (big font, small font, band above, ramp, band below)."""
+def layout(width, lines=1):
+	"""The sizes of the texts of a frame WIDTH pixels wide with LINES lines of credits: (big font, small font, band
+	above, ramp, band below)."""
 	big, small = max(14, width // 26), max(10, width // 48)
-	return big, small, big * 2 + 16, max(10, width // 40), small * 3 + 28
+	return big, small, big * 2 + 16, max(10, width // 40), small * 3 + 28 + (max(1, lines) - 1) * (small + 4)
 
 
 def annotate(frame, i, labels, title, vmin, vmax, palette, unit='', credits=''):
 	"""The frame I (uint8 array, rows x columns x 3) with a band above with its date (LABELS, one per frame) and TITLE,
 	a progress bar, and a band below with the colour ramp of PALETTE from VMIN to VMAX with its UNIT and the CREDITS of
-	the data: drawn with Pillow or, without it, with Qt (QGIS). ValueError without both."""
+	the data, all of them, in as many lines as they need (see _wrap): drawn with Pillow or, without it, with Qt (QGIS).
+	A map narrower than MIN_WIDTH pixels is centred on a frame of MIN_WIDTH, white around it. ValueError without
+	both."""
 	texts = (labels[i] if i < len(labels) else '', title, _number(vmin), _number(vmax), unit or '', credits or '',
 	         (i + 1) / (len(labels) or 1))
 	try:
@@ -198,13 +221,38 @@ def _cut(width_of, text, width):
 	return text + '…'
 
 
+def _wrap(width_of, text, width):
+	"""The lines of TEXT that fit in WIDTH pixels (WIDTH_OF(text): its width), broken at its spaces (a word longer than
+	a line, at its letters): nothing is cut."""
+	lines, line = [], ''
+	for word in str(text or '').split():
+		joined = f'{line} {word}' if line else word
+		if width_of(joined) <= width:
+			line = joined
+			continue
+		if line:
+			lines.append(line)
+		while len(word) > 1 and width_of(word) > width:
+			k = len(word) - 1
+			while k > 1 and width_of(word[:k]) > width:
+				k -= 1
+			lines.append(word[:k])
+			word = word[k:]
+		line = word
+	return lines + [line] if line else lines
+
+
 def _annotate_pil(frame, palette, date, title, lo, hi, unit, credits, done):
 	from PIL import Image, ImageDraw
-	h, w = frame.shape[:2]
+	h, m = frame.shape[:2]
+	w = max(m, MIN_WIDTH)  # a narrower map, centred
 	b, s, top, bar_h, bottom = layout(w)
 	big, small = _font(b), _font(s)
+	measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+	lines = _wrap(lambda t: measure.textlength(t, font=small), credits, w - 16)
+	bottom = layout(w, len(lines))[4]
 	canvas = Image.new('RGB', (w, top + h + bottom), 'white')
-	canvas.paste(Image.fromarray(frame, 'RGB'), (0, top))
+	canvas.paste(Image.fromarray(frame, 'RGB'), ((w - m) // 2, top))
 	d = ImageDraw.Draw(canvas)
 	d.text((8, 6), _cut(lambda t: d.textlength(t, font=big), date, w - 16), fill='black', font=big)
 	d.text((8, 6 + b + 6), _cut(lambda t: d.textlength(t, font=small), title, w - 16), fill=(60, 60, 60), font=small)
@@ -218,25 +266,29 @@ def _annotate_pil(frame, palette, date, title, lo, hi, unit, credits, done):
 	d.text((x1 - d.textlength(hi, font=small), ty), hi, fill='black', font=small)
 	if unit:
 		d.text(((w - d.textlength(unit, font=small)) / 2, ty), unit, fill='black', font=small)
-	d.text((8, ty + s + 6), _cut(lambda t: d.textlength(t, font=small), credits, w - 16), fill=(90, 90, 90), font=small)
+	for k, line in enumerate(lines):
+		d.text((8, ty + s + 6 + k * (s + 4)), line, fill=(90, 90, 90), font=small)
 	return np.asarray(canvas, dtype=np.uint8)
 
 
 def _annotate_qt(frame, palette, date, title, lo, hi, unit, credits, done):
 	from qgis.PyQt.QtCore import QRect, Qt
 	from qgis.PyQt.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
-	h, w = frame.shape[:2]
+	h, m = frame.shape[:2]
+	w = max(m, MIN_WIDTH)  # a narrower map, centred
 	b, s, top, bar_h, bottom = layout(w)
-	data = np.ascontiguousarray(frame)
-	picture = QImage(data.data, w, h, 3 * w, QImage.Format.Format_RGB888)
-	canvas = QImage(w, top + h + bottom, QImage.Format.Format_RGB888)
-	canvas.fill(QColor('white'))
-	p = QPainter(canvas)
-	p.drawImage(0, top, picture)
 	big, small = QFont(), QFont()
 	big.setPixelSize(b)
 	small.setPixelSize(s)
 	fb, fs = QFontMetrics(big), QFontMetrics(small)
+	lines = _wrap(fs.horizontalAdvance, credits, w - 16)
+	bottom = layout(w, len(lines))[4]
+	data = np.ascontiguousarray(frame)
+	picture = QImage(data.data, m, h, 3 * m, QImage.Format.Format_RGB888)
+	canvas = QImage(w, top + h + bottom, QImage.Format.Format_RGB888)
+	canvas.fill(QColor('white'))
+	p = QPainter(canvas)
+	p.drawImage((w - m) // 2, top, picture)
 	left = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
 	p.setFont(big)
 	p.setPen(QColor('black'))
@@ -258,7 +310,8 @@ def _annotate_qt(frame, palette, date, title, lo, hi, unit, credits, done):
 	if unit:
 		p.drawText(QRect((w - fs.horizontalAdvance(unit)) // 2, ty, w, s + 6), left, unit)
 	p.setPen(QColor(90, 90, 90))
-	p.drawText(QRect(8, ty + s + 6, w - 16, s + 6), left, _cut(fs.horizontalAdvance, credits, w - 16))
+	for k, line in enumerate(lines):
+		p.drawText(QRect(8, ty + s + 6 + k * (s + 4), w - 16, s + 6), left, line)
 	p.end()
 	ptr = canvas.constBits()
 	if hasattr(ptr, 'setsize'):  # PyQt: a sip.voidptr without its size

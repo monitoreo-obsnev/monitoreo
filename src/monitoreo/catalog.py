@@ -329,6 +329,9 @@ RATE_UDUNITS = re.compile(r'^()(.+?)(?:/(?:month|day|d|\d+ ?days?|\(\d+ ?days?\)
 CV_UNIT = '[%]'  # the coefficient of variation (composite.CV): 100 × the standard deviation / the mean
 # the statistics over each feature of a region of services.region_stats by default (any metric of composite.METRICS)
 REGION_STATS = ('mean', 'std', 'cv', 'min', 'p5', 'p50', 'p95', 'max')
+# and with zones (region_stats with zones), also the percentiles 25 and 75: the band of the chart of the median of each
+# zone, as in the QGIS plugin and the Earth Engine app
+REGION_STATS_ZONES = ('mean', 'std', 'cv', 'min', 'p5', 'p25', 'p50', 'p75', 'p95', 'max')
 
 
 def is_cv(*metrics):
