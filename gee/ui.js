@@ -63,6 +63,7 @@
 			animNote: 'Los píxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
 			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
+			doy: 'Una línea por año, sobre los días del año', dayOfYear: 'Día del año',
 			swipe: 'Cortina: los dos periodos lado a lado', oneMap: 'Volver a un mapa',
 			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
@@ -221,6 +222,7 @@
 			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
 				'with the Python package, QGIS or the assistant (timelapse).',
 			animGif: 'Download the GIF', animSlider: 'Frame on the map',
+			doy: 'A line per year, over the days of the year', dayOfYear: 'Day of the year',
 			swipe: 'Swipe: the two periods side by side', oneMap: 'Back to one map',
 			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
@@ -358,7 +360,7 @@
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
-		animStep: 'annual', animMetric: 'median',
+		animStep: 'annual', animMetric: 'median', doy: false,  // doy: the series with a line per year
 		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
 		areaChangeOn: false, areaOther: null,  // the changes of the land cover map to another year
 		zoneRef: null, zoneBreaks: '1500, 2000, 2500, 3000', drawingLine: false,  // gradients: the bands and the line
@@ -1727,6 +1729,31 @@
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
+	// The time series with a line per year over the days of the year (services.time_series with doy): the first region
+	function doyChart(rows, e, name) {
+		var region = regionsOf(rows)[0];
+		var years = [], values = {}, days = [];
+		rows.forEach(function (r) {
+			if (r.region !== region) return;
+			var d = mo.date(r.date), y = d.getUTCFullYear();
+			var doy = Math.round((d - Date.UTC(y, 0, 1)) / 864e5) + 1;
+			if (years.indexOf(y) < 0) years.push(y);
+			if (days.indexOf(doy) < 0) days.push(doy);
+			values[y + '|' + doy] = r.value;
+		});
+		years.sort();
+		days.sort(function (a, b) { return a - b; });
+		var table = [[t('dayOfYear')].concat(years.map(String))].concat(days.map(function (d) {
+			return [d].concat(years.map(function (y) {
+				var v = values[y + '|' + d];
+				return v === undefined ? null : v;
+			}));
+		}));
+		return ui.Chart(table, 'LineChart', {title: name + ' · ' + region, interpolateNulls: true, pointSize: 2,
+			lineWidth: 1.2, hAxis: {title: t('dayOfYear'), viewWindow: {min: 1, max: 366}},
+			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}});
+	}
+
 	// The time series of S (or, with PARTS, the values of each part of the year in each year: trends and comparisons):
 	// done(rows, scale)
 	function fetchSeries(s, metric, steps, id, done) {
@@ -1752,7 +1779,9 @@
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
-				show([seriesChart(rows, e, name), ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
+				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
+				show([doy ? doyChart(rows, e, name) : seriesChart(rows, e, name),
+					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
 					csvWidget(rows, ['region', 'date', 'value', 'n_pixels', 'n_images'], name, e)]);
 			});
 		}
@@ -1845,6 +1874,7 @@
 		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
+		w.push(check(t('doy'), state.doy, function (v) { state.doy = v; }));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
 	}

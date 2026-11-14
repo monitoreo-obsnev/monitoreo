@@ -72,7 +72,8 @@ def chart_png(res, path):
 	fails): then the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res))
+		doy = bool(res['rows']) and 'doy' in res['rows'][0]  # a line per year over the days of the year
+		(charts.doy_png if doy else charts.time_series_png)(res['rows'], path, title=res['title'], ylabel=ylabel(res))
 		return path
 	except Exception:
 		return None
@@ -376,14 +377,23 @@ def nice_ticks(lo, hi, n=5):
 
 
 class ChartWidget(QWidget):
-	"""Line chart of the rows (a line per region), drawn with QPainter."""
+	"""Line chart of the rows (a line per region), drawn with QPainter; with the day of the year in the rows (doy), a line
+	per year (and region) over the days of one year."""
 
 	def __init__(self, rows, title='', unit='', parent=None):
 		super().__init__(parent)
 		self.title, self.unit = title, unit
+		self.doy = bool(rows) and 'doy' in rows[0]
+		regions = len({r['region'] for r in rows}) > 1
 		self.series = {}
 		for r in rows:
-			self.series.setdefault(r['region'], []).append((dt.date.fromisoformat(r['date']), r.get('value')))
+			d = dt.date.fromisoformat(r['date'])
+			if self.doy:  # every year on the days of 2000 (a leap year: 366 days)
+				key = f"{r['region']} {d.year}" if regions else str(d.year)
+				self.series.setdefault(key, []).append((dt.date(2000, 1, 1) + dt.timedelta(days=r['doy'] - 1),
+				                                        r.get('value')))
+			else:
+				self.series.setdefault(r['region'], []).append((d, r.get('value')))
 		for v in self.series.values():
 			v.sort()
 		self.setMinimumHeight(320)
@@ -418,14 +428,16 @@ class ChartWidget(QWidget):
 			p.setPen(QColor('black'))
 			p.drawText(QRectF(0, y - 8, left - 6, 16), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, f'{t:.4g}')
 		years = range(d0.year, d1.year + 1)
-		marks = [dt.date(y, m, 1) for y in years for m in ((1,) if len(years) > 3 else (1, 4, 7, 10))]
+		marks = [dt.date(y, m, 1) for y in years for m in (range(1, 13) if self.doy else
+		                                                     (1,) if len(years) > 3 else (1, 4, 7, 10))]
 		for d in marks:
 			if d0 <= d <= d1:
 				x = xy(d, v0).x()
 				p.setPen(grid)
 				p.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
 				p.setPen(QColor('black'))
-				p.drawText(QRectF(x - 40, plot.bottom() + 4, 80, 16), Qt.AlignmentFlag.AlignHCenter, d.strftime('%Y-%m'))
+				p.drawText(QRectF(x - 40, plot.bottom() + 4, 80, 16), Qt.AlignmentFlag.AlignHCenter,
+				           d.strftime('%b') if self.doy else d.strftime('%Y-%m'))
 		p.drawRect(plot)
 		if self.unit:
 			p.save()

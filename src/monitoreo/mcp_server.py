@@ -457,21 +457,23 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 step: str = 'monthly', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None,
                 image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
-                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
+                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
+                doy: bool = False):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, std, cv, pN) and over the region with
 	STAT (mean, median, min, max, std, cv, pN; cv: coefficient of variation, 100 * std / mean, in %), with the number
 	of images and of valid pixels of each value. Writes a CSV
 	table and a PNG chart (paths in the answer) and returns the chart. Required: region, start and end, and variable
 	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
-	clouds); scale: pixel size of the statistics in metres."""
+	clouds); scale: pixel size of the statistics in metres. doy: the chart with a line per year over the days of the
+	year, to compare the years (not with step annual)."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()
 	stem = _stem(_data(variable, sensor, source), step, metric, start, end)
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                           where=where, **source)
+	                           where=where, doy=doy, **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
 	                                    'references', 'credits')}

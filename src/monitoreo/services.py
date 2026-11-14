@@ -798,26 +798,33 @@ def _slug(text):
 
 @_cited
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
-                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, **source):
+                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, doy=False, **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
-	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given.
+	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
+	year and the day of the year (1-366) of each step, and the chart has a line per year over the days of the year,
+	to compare the years (phenology, snow seasons; as the day-of-year charts of geemap): not for an annual step.
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
+	if doy and step == 'annual':
+		raise ValueError('a line per year over the days of the year (doy) needs a step shorter than a year: daily, '
+		                 '16-day or monthly')
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
+	if doy:
+		timeseries.with_doy(rows)
 	unit = _unit(spec, stat)
-	title = _title(spec, step, metric, stat)
+	title = _title(spec, step, metric, stat) + (' | by day of the year' if doy else '')
 	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec, stat),
 	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
-		out['csv'] = timeseries.write_csv(rows, csv, meta)
+		out['csv'] = timeseries.write_csv(rows, csv, meta, timeseries.COLUMNS + (['year', 'doy'] if doy else []))
 	if chart and rows:
 		try:
-			charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None)
+			(charts.doy_png if doy else charts.time_series_png)(rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass

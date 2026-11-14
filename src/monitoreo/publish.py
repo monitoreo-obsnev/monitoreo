@@ -102,7 +102,8 @@ ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
           'transect': 'transect'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'table')
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'doy',
+               'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -335,7 +336,8 @@ def default_title(tool, args):
 		if args.get('other_start') and args.get('other_end') else ''
 	step = args.get('step') or ('annual' if tool in ('trend_table', 'download_trend', 'timelapse') else 'monthly')
 	if tool == 'time_series':
-		return f'{STEPS.get(step, step).capitalize()} time series of {var}, {period}{season}'
+		return f'{STEPS.get(step, step).capitalize()} time series of {var}, {period}{season}' + (
+			', by day of the year' if args.get('doy') else '')
 	if tool == 'trend_table':
 		what = 'Annual trend' if step == 'annual' else f'Trend {PARTS.get(step, step)}'
 		return f'{what} of {var}, {period}{season}'
@@ -727,6 +729,7 @@ def _results(item, files, n):
 	if res.get('csv'):
 		path = files.add(res['csv'], 'data', f'Table (CSV): {title}', 'CSV')
 		chart = item.get('chart') or ('transitions' if res.get('mode') == 'transitions' else
+		                              'doy' if tool == 'time_series' and args.get('doy') else
 		                              _chart_type(tool, res['csv']))
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
@@ -734,6 +737,8 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart == 'doy':
+			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
 		if chart in ('transect', 'zones'):  # the title of the y axis, and the statistics of the zones
 			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
 			if chart == 'zones':

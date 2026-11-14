@@ -78,6 +78,7 @@ COLUMNS = {
 	'value_from': 'lowest value of the class{u} (empty: no limit)',
 	'value_to': 'value where the class ends, not in it{u} (empty: no limit)',
 	'period': 'period of the data (first/last day)',
+	'year': 'year of the first day of the step', 'doy': 'day of the year (1-366) of the first day of the step',
 	'other_year': 'the other year of the land cover map', 'from_class': 'class of the map in the first year (code)',
 	'from_label': 'name of the class in the first year', 'from_landcover': 'broad land cover of the class in the first year',
 	'to_class': 'class of the map in the other year (code)', 'to_label': 'name of the class in the other year',

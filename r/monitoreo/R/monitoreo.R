@@ -691,6 +691,9 @@ mo_sf <- function(x, name = NULL) {
 #' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
+#' @param doy \code{TRUE}: the chart (\code{chart}) with a line per year over the days of the year, and the columns
+#'   year and doy (day of the year), to compare the years; not with \code{step = "annual"}.
+#' @param chart optional path of a PNG chart.
 #' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
 #'   (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
 #'   credits (see \code{mo_references()}).
@@ -715,12 +718,12 @@ mo_sf <- function(x, name = NULL) {
 mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
                            where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
-                           unit = NULL) {
+                           unit = NULL, doy = FALSE, chart = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, csv = csv, collection = collection, where = where,
                                 image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit)
+                                unit = unit, doy = isTRUE(doy), chart = if (is.null(chart)) NULL else path.expand(chart))
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit

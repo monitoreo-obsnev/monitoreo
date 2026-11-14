@@ -353,6 +353,8 @@ def item_facts(tool, args, result=None, names=None):
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
+	if tool == 'time_series' and args.get('doy'):
+		facts.append(('Chart', 'a line per year over the days of the year (that of the first day of each step)'))
 	if custom and not static:
 		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
 		                                  'for the variables of its catalog)'))

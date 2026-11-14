@@ -276,3 +276,42 @@ def transect_png(rows, path=None, title=None, ylabel=None, dpi=120):
 		ax.set_title(textwrap.fill(title, 100), fontsize=10)
 	fig.tight_layout()
 	return _png(fig, path)
+
+
+MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]  # day of the year of the first of each month
+
+
+def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=150):
+	"""PNG (bytes) of a time series (ROWS with year and doy: see timeseries.with_doy) with a line per year over the days
+	of the year, from the oldest year (light) to the newest (dark, thicker), as the day-of-year charts of geemap; a panel
+	per region (the first 4)."""
+	from matplotlib import colormaps
+	from matplotlib.figure import Figure
+
+	regions = list(dict.fromkeys(r['region'] for r in rows))[:4]
+	years = sorted({r['year'] for r in rows})
+	cmap = colormaps['viridis_r']
+	fig = Figure(figsize=(width, height * (1 if len(regions) == 1 else 0.6 * len(regions))), dpi=dpi)
+	for i, g in enumerate(regions):
+		ax = fig.add_subplot(len(regions), 1, i + 1)
+		for k, y in enumerate(years):
+			pts = sorted((r['doy'], r.get('value')) for r in rows if r['region'] == g and r['year'] == y)
+			newest = k == len(years) - 1
+			ax.plot([p[0] for p in pts], [p[1] if p[1] is not None else float('nan') for p in pts], marker='o',
+			        markersize=2.5 if newest else 1.5, linewidth=2.2 if newest else 1.0,
+			        color=cmap(0.15 + 0.85 * k / max(len(years) - 1, 1)), label=str(y), zorder=3 if newest else 2)
+		ax.set_xlim(1, 366)
+		ax.set_xticks(MONTH_STARTS)
+		ax.set_xticklabels(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+		                   fontsize=8)
+		ax.grid(alpha=0.3)
+		if ylabel:
+			ax.set_ylabel(ylabel, fontsize=8)
+		if len(regions) > 1:
+			ax.set_title(str(g), fontsize=9, loc='left')
+		if i == 0:
+			ax.legend(fontsize=7, frameon=False, ncol=min(len(years), 8), loc='best')
+	if title:
+		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)

@@ -662,6 +662,10 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Step', info(self.step, HELP['step']))
 		f.addRow('Metric of each step', info(self.ts_metric, HELP['ts_metric']))
 		f.addRow('Statistic of the region', info(self.stat, HELP['stat']))
+		self.doy = QCheckBox('a line per year, over the days of the year')
+		self.doy.setToolTip('The chart with a line per year (from January to December), to compare the years: the '
+		                    'snow seasons, the greening of each spring... Not with the annual step')
+		f.addRow('Chart', self.doy)
 		b = QPushButton('Compute the time series')
 		b.clicked.connect(self.run_series)
 		f.addRow(b)
@@ -1648,10 +1652,11 @@ class MonitorEODock(QDockWidget):
 		other = self.other_period()
 		if other:
 			return self.run_comparison(region, var, other, step, metric, stat, tmp)
+		doy = self.doy.isChecked() and step != 'annual'  # a line per year: not with a value per year
 
 		def work():
 			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'series.csv'),
-			                            **var)
+			                            doy=doy, **var)
 
 		def done(res):
 			from .results import SeriesDialog, chart_png

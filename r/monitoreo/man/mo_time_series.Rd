@@ -23,7 +23,9 @@ mo_time_series(
   band = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  doy = FALSE,
+  chart = NULL
 )
 }
 \arguments{
@@ -94,6 +96,11 @@ e.g. \code{band_scale = 0.1}.}
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
 reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
 aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
+
+\item{doy}{\code{TRUE}: the chart (\code{chart}) with a line per year over the days of the year, and the columns
+year and doy (day of the year), to compare the years; not with \code{step = "annual"}.}
+
+\item{chart}{optional path of a PNG chart.}
 }
 \value{
 A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
