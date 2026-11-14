@@ -96,6 +96,13 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 - **Assistant, QGIS plugin, Earth Engine app, Command line**: The version comes with the date it was released, as in «MonitorEO 0.3.41 · released 2026-11-13»: in the header of the assistant, at the top of the panel of the QGIS plugin, under the subtitle of the Earth Engine app and in `monitoreo --version`.
 
+### [v0.3.32](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.32) · 2026-11-14 · package 0.3.42
+
+- **Assistant**: While an answer runs, the button Send is Stop: it ends the answer and what Earth Engine was computing for it at once (with a model of Ollama, Ollama stops generating it too), so that something else can be asked for in its place (before, nothing could be asked until the computation ended).
+- **Assistant, MCP server, Python package, R package** (fix): A map whose PNG preview Earth Engine cannot make in 5 minutes comes with its map tiles and without the preview, with the reason, instead of failing with «HTTPError: HTTP Error 400: Bad Request» (as the mean of the cloud frequency of MODIS of 2001-2025 over La Palma did).
+- **Assistant, MCP server, Python package, R package**: The previews of the maps of coarse data over small regions (MODIS, ERA5-Land, TerraClimate) are computed on the pixels of the data, many times faster: that map of La Palma now takes less than a minute.
+- **Assistant** (fix): When the MCP server of MonitorEO stops on its own (out of memory, a crash), it starts again at the next request, which says so, instead of every computation failing with «Connection closed» until the assistant is closed.
+
 ### [v0.3.31](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.31) · 2026-11-13 · package 0.3.41
 
 - **All tools** (fix): The median and the percentiles 10 and 90 of the RBR and the RdNBR of the burn severity are no longer coarse when a region has a few extreme values: in the unburned surroundings of a fire the percentile 10 and the median came out as the same value (-0.049, where its pixels give -0.120 and -0.037); now they are within about 0.001 of those of the pixels.
