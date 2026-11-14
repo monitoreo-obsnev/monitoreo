@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.35](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.35) · 2026-11-14 · package 0.3.45
 
 - **Earth Engine app** (fix): The GeoJSON of the perimeter of the burned area has its polygons (it was downloaded with its fields but without them; the KML had them), and the hint of «Burned from» says «dNBR 0.1» instead of «dNBR 0.1000».
 
