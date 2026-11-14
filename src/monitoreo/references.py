@@ -276,9 +276,10 @@ def _picks(args):
 def _uses_cv(tool, args, recipe=None):
 	"""Whether the result of the call of TOOL with ARGS has coefficients of variation (composite.CV): its metric, its
 	metric between the years (if the images are aggregated by years), its statistic over the region or one of its
-	statistics (region_stats: by default, see catalog.REGION_STATS; the RBR and the RdNBR of burn_severity), a
-	condition of where on them, or the same of a variable of its RECIPE (with the defaults of the recipe). A fixed
-	layer (elevation, slope, an image) has no images: its metrics, which the services ignore, do not count."""
+	statistics (region_stats: by default, see catalog.REGION_STATS and REGION_STATS_ZONES; the RBR and the RdNBR of
+	burn_severity), a condition of where on them, or the same of a variable of its RECIPE (with the defaults of the
+	recipe). A fixed layer (elevation, slope, an image) has no images: its metrics, which the services ignore, do not
+	count."""
 	def cv(x):
 		return str(x or '').strip().lower() == 'cv'
 
@@ -305,7 +306,8 @@ def _uses_cv(tool, args, recipe=None):
 		return str(args.get('index') or '').lower() in ('rbr', 'rdnbr') or where(args)
 	if tool == 'region_stats':
 		stats = args.get('stats')
-		stats = [stats] if isinstance(stats, str) else list(stats or catalog.REGION_STATS)  # as region_stats
+		default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
+		stats = [stats] if isinstance(stats, str) else list(stats or default)
 		if any(cv(s) for s in stats):
 			return True
 	if recipe is not None:

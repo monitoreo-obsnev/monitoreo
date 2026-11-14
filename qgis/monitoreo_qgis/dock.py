@@ -822,7 +822,7 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Line', info(self.line_layer, HELP['transect']))
 		b = QPushButton('Profile along the line')
 		b.setToolTip('The map of the variable (with the options of the group Map) and the elevation along the selected '
-		             'line of the layer (or its first one), every 1 % of its length')
+		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
 		b.clicked.connect(self.run_transect)
 		f.addRow(b)
 		main.addWidget(box)
@@ -1874,10 +1874,14 @@ class MonitorEODock(QDockWidget):
 
 	def run_areas(self):
 		"""Hectares and % of each class over each feature of the region (services.area_by_class): of a land cover map
-		of a year, of the variable cut at the breaks, or of its trend (with the options of the group Trends), in a window
-		with its chart and table."""
+		of a year (refused with the land cover mask or «Only the pixels where», as services), of the variable cut at the
+		breaks, or of its trend (with the options of the group Trends), in a window with its chart and table."""
 		kind = self.area_kind.currentData()
 		if kind == 'landcover':
+			if self.landcover_box.isChecked() or any(c['on'].isChecked() for c in self.where):  # as services
+				self.message('The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, '
+				             'trend), not for those of a land cover map: uncheck them', 'Warning')
+				return
 			try:
 				region = self.region()
 			except Exception as e:
@@ -1912,10 +1916,11 @@ class MonitorEODock(QDockWidget):
 			path = os.path.join(tmp, 'areas.png')
 			colours = {c['label']: c['colour'] for c in res['classes']}
 			try:  # in the main thread; without matplotlib, the table only
-				if res['mode'] == 'transitions':
-					first = res['by_landcover'][0]['region'] if res['by_landcover'] else None
+				if res['mode'] == 'transitions':  # the Sankey diagram of the first feature, named if there are several
+					first = res['rows'][0]['region'] if res['rows'] else None
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
-					                   if r['region'] == first], colours, path, res['title'],
+					                   if r['region'] == first], colours, path,
+					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
 					                  (str(res['year']), str(res['other_year'])))
 				else:
 					charts.areas_png(res['rows'], colours, path, res['title'])

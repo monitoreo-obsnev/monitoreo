@@ -84,8 +84,8 @@ COLUMNS = {
 	'to_landcover': 'broad land cover of the class in the other year',
 	'zone': 'zone: its number from 0 (below the first break of the variable of the zones)',
 	'zone_label': 'name of the zone (its values of the variable of the zones)',
-	'zone_from': 'lowest value of the variable of the zones in the zone (empty: no limit)',
-	'zone_to': 'value of the variable of the zones where the zone ends, not in it (empty: no limit)',
+	'zone_from': 'lowest value of the variable of the zones in the zone{zu} (empty: no limit)',
+	'zone_to': 'value of the variable of the zones where the zone ends, not in it{zu} (empty: no limit)',
 	'distance_m': 'distance along the line to the middle of the segment (m)',
 	'lon': 'longitude of the middle of the segment (degrees, WGS 84)', 'lat': 'latitude of the middle of the segment '
 	                                                                       '(degrees, WGS 84)',
@@ -97,6 +97,17 @@ COLUMNS_AREAS = {
 	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
 	'label': 'name of the class',
 	'ha': 'hectares of the class in the feature (true area of its pixels)',
+	'year': 'year of the land cover map',
+}
+# the columns of the CSV of the changes of a land cover map (area_by_class with other_year) that differ from those of
+# COLUMNS_AREAS
+COLUMNS_TRANSITIONS = {
+	'year': 'first year of the land cover map (that of from_class)',
+	'other_year': 'other year of the land cover map (that of to_class)',
+	'ha': 'hectares of the pixels of the feature with from_class in year and to_class in other_year (true area of its '
+	      'pixels)',
+	'percent': '% of the area of the feature with a class in both years (the pixels without data in either year are '
+	           'not counted)',
 }
 # the fields of the vector file of the perimeter of the burned area (burn_severity with perimeter: fire.PERIMETER_TYPES)
 FIELDS = {
@@ -169,6 +180,19 @@ def _udunits(result, args):
 	"""The unit of the variable of a result in UDUNITS ('degC', '1'), or '' if unknown."""
 	from . import catalog
 	return catalog.udunits(_catalog_unit(result, args))
+
+
+def _zone_unit(args):
+	"""The unit of the variable of the zones of a call of region_stats (zone_from, zone_to), as shown and in UDUNITS,
+	e.g. ' (m; UDUNITS m)', or '' without zones."""
+	z = args.get('zones')
+	if not isinstance(z, dict):
+		return ''
+	zargs = {'variable': z.get('variable') or z.get('index'), 'sensor': z.get('sensor'), 'collection': z.get('collection'),
+	         'metric': z.get('metric') or 'mean', 'temporal': z.get('temporal'),
+	         'interannual': z.get('interannual') or 'mean'}
+	ud = _udunits(None, zargs)
+	return f" ({_unit(None, zargs) or 'dimensionless'}; UDUNITS {ud})" if ud else ''
 
 
 def _wrap(text, indent='  ', hang='    '):
@@ -259,11 +283,16 @@ def text(tool, args, result, computed=None):
 	         '.tif': f'map (GeoTIFF, float32, NoData {NODATA})', '.png': 'chart (PNG)', **VECTOR_KINDS,
 	         **ANIMATION_KINDS, **({'.png': figure.format('PNG'), '.pdf': figure.format('PDF'),
 	                                '.svg': figure.format('SVG')} if tool == 'map_figure' else {})}
+	if result.get('mode') == 'transitions':  # the changes of a land cover map: the Sankey diagram of its first feature
+		regions = list(result.get('changed_ha') or {})
+		kinds['.png'] = 'Sankey diagram (PNG) of the changes of the broad land covers' + \
+			(f' of {regions[0]}, the first feature of the region' if len(regions) > 1 else '')
 	out += [_wrap(f'{os.path.basename(f)}: {kinds.get(os.path.splitext(f)[1].lower(), "")}') for f in files]
 	out += _section('How it was computed')
 	out += [_wrap(f'{k}: {v}') for k, v in report.item_facts(tool, given, result)]
 	unit, ud = _unit(result, args), _udunits(result, args)
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit + '/year' if unit else 'per year'})"
+	zu = _zone_unit(given) if tool == 'region_stats' else ''
 	if ud:
 		out += _section('Units')
 		per_year = f"; its change per year, {band_udunits('slope', ud)}" if 'trend' in tool else ''
@@ -280,10 +309,11 @@ def text(tool, args, result, computed=None):
 			out += _section('Columns of', os.path.basename(f))
 			header = _csv_header(f)
 			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
-				dict(COLUMNS, **COLUMNS_AREAS) if tool == 'area_by_class' else \
+				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
+				if tool == 'area_by_class' else \
 				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
 				if tool == 'transect' else COLUMNS
-			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
+			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy, zu=zu)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):
 			bands, grid = _bands(f)
