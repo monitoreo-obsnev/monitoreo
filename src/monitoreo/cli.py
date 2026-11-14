@@ -4,7 +4,7 @@
     monitoreo info VARIABLE [--sensor S]             everything about a variable
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
-    monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F]
+    monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
     monitoreo image VARIABLE --sensor S --region JSON --start D --end D [--out F.tif] [--rgb F.tif] [--metric median]
                     [--resolution M]                 GeoTIFF of the map of a variable aggregated in time (--out), of the
                                                      true colour of the same images (--rgb: bands red, green and blue)
@@ -296,6 +296,8 @@ def main(argv=None):
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
 	p.add_argument('--png')
+	p.add_argument('--doy', action='store_true', help='the chart with a line per year over the days of the year, to '
+	                                                  'compare the years (not with --step annual)')
 	computes['image'] = image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, '
 	                                                             'aggregated in time, and of the true colour of the '
 	                                                             'same images')
@@ -691,7 +693,7 @@ def _compute(args, services):
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
-		                           progress=progress, where=_where(args), **args.source)
+		                           progress=progress, where=_where(args), doy=args.doy, **args.source)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
 		sys.exit(_error(e, args))
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])

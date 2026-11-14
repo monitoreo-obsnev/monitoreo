@@ -7790,7 +7790,7 @@ var MonitorEO = (function () {
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
-		DIVERGING: DIVERGING, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
+		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
 		RDNBR_SEVERITY: RDNBR_SEVERITY, RDNBR_COLOURS: RDNBR_COLOURS, RDNBR_BURNED: RDNBR_BURNED,
@@ -7872,6 +7872,7 @@ var MonitorEO = (function () {
 			animNote: 'Los p\u00edxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
 			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
+			doy: 'Una l\u00ednea por a\u00f1o, sobre los d\u00edas del a\u00f1o', dayOfYear: 'D\u00eda del a\u00f1o',
 			swipe: 'Cortina: los dos periodos lado a lado', oneMap: 'Volver a un mapa',
 			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
@@ -8033,6 +8034,7 @@ var MonitorEO = (function () {
 			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
 				'with the Python package, QGIS or the assistant (timelapse).',
 			animGif: 'Download the GIF', animSlider: 'Frame on the map',
+			doy: 'A line per year, over the days of the year', dayOfYear: 'Day of the year',
 			swipe: 'Swipe: the two periods side by side', oneMap: 'Back to one map',
 			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
@@ -8173,7 +8175,7 @@ var MonitorEO = (function () {
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
-		animStep: 'annual', animMetric: 'median',
+		animStep: 'annual', animMetric: 'median', doy: false,  // doy: the series with a line per year
 		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
 		areaChangeOn: false, areaOther: null,  // the changes of the land cover map to another year
 		zoneRef: null, zoneBreaks: '1500, 2000, 2500, 3000', drawingLine: false,  // gradients: the bands and the line
@@ -9583,6 +9585,46 @@ var MonitorEO = (function () {
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
+	// The colour at F (0 to 1) along the ramp COLOURS (hex), between its two nearest colours
+	function rampColour(colours, f) {
+		var x = Math.max(0, Math.min(1, f)) * (colours.length - 1), i = Math.min(Math.floor(x), colours.length - 2);
+		return '#' + [0, 2, 4].map(function (j) {
+			var a = parseInt(colours[i].substr(j, 2), 16), b = parseInt(colours[i + 1].substr(j, 2), 16);
+			var c = Math.round(a + (b - a) * (x - i));
+			return (c < 16 ? '0' : '') + c.toString(16);
+		}).join('');
+	}
+
+	// The time series with a line per year over the days of the year (services.time_series with doy) of the feature
+	// REGION (its rows with year and doy: see computeSeries), from the oldest year (light) to the newest (dark,
+	// thicker), as charts.doy_png
+	function doyChart(rows, e, name, region) {
+		var years = [], values = {}, days = [];
+		rows.forEach(function (r) {
+			if (r.region !== region) return;
+			if (years.indexOf(r.year) < 0) years.push(r.year);
+			if (days.indexOf(r.doy) < 0) days.push(r.doy);
+			values[r.year + '|' + r.doy] = r.value;
+		});
+		years.sort();
+		days.sort(function (a, b) { return a - b; });
+		var table = [[t('dayOfYear')].concat(years.map(String))].concat(days.map(function (d) {
+			return [d].concat(years.map(function (y) {
+				var v = values[y + '|' + d];
+				return v === undefined ? null : v;
+			}));
+		}));
+		var series = {};
+		years.forEach(function (y, k) {
+			var newest = k === years.length - 1;
+			series[k] = {color: rampColour(mo.YEARS, 0.15 + 0.85 * k / Math.max(years.length - 1, 1)),
+				lineWidth: newest ? 2.2 : 1, pointSize: newest ? 3 : 2};
+		});
+		return ui.Chart(table, 'LineChart', {title: name + ' \u00b7 ' + region, interpolateNulls: true, series: series,
+			hAxis: {title: t('dayOfYear'), viewWindow: {min: 1, max: 366}},
+			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}});
+	}
+
 	// The time series of S (or, with PARTS, the values of each part of the year in each year: trends and comparisons):
 	// done(rows, scale)
 	function fetchSeries(s, metric, steps, id, done) {
@@ -9608,8 +9650,17 @@ var MonitorEO = (function () {
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
-				show([seriesChart(rows, e, name), ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
-					csvWidget(rows, ['region', 'date', 'value', 'n_pixels', 'n_images'], name, e)]);
+				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
+				if (doy) rows.forEach(function (r) {  // the year and the day of the year of each step (as with_doy)
+					var d = mo.date(r.date);
+					r.year = d.getUTCFullYear();
+					r.doy = Math.round((d - Date.UTC(r.year, 0, 1)) / 864e5) + 1;
+				});
+				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
+				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
+					[seriesChart(rows, e, name)]).concat([
+					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
+					csvWidget(rows, columns, name, e)]));
 			});
 		}
 		if (state.step !== 'daily') return go(mo.seriesBins(s, state.step));
@@ -9701,6 +9752,7 @@ var MonitorEO = (function () {
 		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
+		w.push(check(t('doy'), state.doy, function (v) { state.doy = v; }));
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
 	}

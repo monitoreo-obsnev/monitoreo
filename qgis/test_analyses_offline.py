@@ -203,6 +203,22 @@ def transect(line, csv=None, **opts):
 services.region_stats = region_stats
 services.transect = transect
 
+
+def time_series(region, csv=None, **opts):
+	calls.append(dict(opts, region=region, tool='time_series'))
+	rows = [{'region': 'extent', 'date': f'{y}-{m:02d}-01', 'value': 0.1 * m, 'n_pixels': 10, 'n_images': 2}
+	        for y in (2022, 2023) for m in range(1, 13)]
+	if opts.get('doy'):
+		import datetime
+		for r in rows:
+			d = datetime.date.fromisoformat(r['date'])
+			r['year'], r['doy'] = d.year, d.timetuple().tm_yday
+	return {'rows': rows, 'csv': csv, 'chart': None, 'scale': 250.0, 'unit': '[unitless]', 'ylabel': 'NDVI',
+	        'title': 'NDVI', 'n_steps': 24, 'regions': ['extent'], 'references': [], 'credits': []}
+
+
+services.time_series = time_series
+
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
 plugin.initGui()
@@ -342,6 +358,32 @@ res = dock.series[-1]
 assert res['kind'] == 'transect' and dock.series_dialogs[len(dock.series) - 1].findChild(QTableWidget).rowCount() == 2
 print('gradients:', z['zones'], '| line', t['line'])
 QgsProject.instance().removeMapLayer(lines.id())
+
+# the time series with a line per year over the days of the year: the chart of Qt (no matplotlib in QGIS)
+dock.step.setCurrentIndex(dock.step.findData('monthly'))
+dock.doy.setChecked(True)
+dock.run_series()
+wait()
+assert calls[-1]['tool'] == 'time_series' and calls[-1]['doy'] is True, calls[-1]
+from monitoreo_qgis.results import ChartWidget  # noqa: E402
+chart = ChartWidget(dock.series[-1]['rows'], 'NDVI', 'NDVI')
+assert chart.doy and sorted(chart.series) == ['2022', '2023'] and len(chart.series['2022']) == 12
+old, new = chart.pen(0, '2022'), chart.pen(1, '2023')  # the newest year darker and thicker, as charts.doy_png
+assert new.widthF() > old.widthF() and new.color().lightness() < old.color().lightness()
+chart.resize(600, 320)
+chart.grab()  # it paints
+rows = [dict(r, region=g) for g in ('park', 'buffer') for r in dock.series[-1]['rows']]  # two regions: a dash each
+two = ChartWidget(rows, 'NDVI', 'NDVI')
+assert two.pen(0, 'park 2022').style() != two.pen(2, 'buffer 2022').style()
+assert two.pen(0, 'park 2022').color() == two.pen(2, 'buffer 2022').color()
+two.resize(600, 320)
+two.grab()
+dock.step.setCurrentIndex(dock.step.findData('annual'))
+dock.run_series()
+wait()
+assert calls[-1]['doy'] is False  # a value per year: no line per year
+dock.doy.setChecked(False)
+print('series by day of the year:', sorted(chart.series))
 
 # the figure: a print layout of the canvas with its map, grid, legend, scale bar, north arrow, title and credits
 from qgis.core import QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar  # noqa: E402

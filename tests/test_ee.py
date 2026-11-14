@@ -365,3 +365,11 @@ def test_map_figure(tmp_path):
 	pytest.importorskip('matplotlib')
 	res = services.map_figure(GUAJARES, 'NDVI', 'Sentinel-2', '2023-06-01', '2023-08-31', path=str(tmp_path / 'f.pdf'))
 	assert open(res['file'], 'rb').read(4) == b'%PDF' and 0 < res['min'] < res['max'] < 1 and os.path.exists(res['readme'])
+
+
+def test_time_series_by_day_of_the_year(tmp_path):
+	"""A line per year over the days of the year: the year and the day of the year of each step, and its chart."""
+	res = services.time_series(GUAJARES, 'NDVI', 'Modis', '2022-01-01', '2023-12-31', step='monthly', doy=True,
+	                           chart=str(tmp_path / 'doy.png'))
+	assert {r['year'] for r in res['rows']} == {2022, 2023} and res['rows'][1]['doy'] == 32
+	assert res['title'].endswith('by day of the year') and (res['chart'] is None or os.path.getsize(res['chart']) > 0)

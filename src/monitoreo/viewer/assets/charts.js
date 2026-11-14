@@ -33,6 +33,7 @@ MO.chart = (() => {
 		areas: ['region', 'label', 'landcover', 'value_from', 'value_to', 'ha', 'percent'],
 		transitions: ['region', 'from_label', 'to_label', 'ha', 'percent'],
 		transect: ['distance_m', 'value', 'elevation', 'lon', 'lat'],
+		doy: ['region', 'date', 'value', 'n_images', 'n_pixels'],
 	};
 	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table, with the
 	// standard deviation and the coefficient of variation (RBR_BASE: those of the reports published before them)
@@ -295,6 +296,28 @@ MO.chart = (() => {
 		};
 	}
 
+	// A time series with a line per year over the days of the year (time_series with doy), from the oldest year (light)
+	// to the newest (dark, thicker)
+	function doySpec(rows, result) {
+		const data = rows.map((r) => {
+			const d = new Date(`${r.date}T00:00:00Z`);
+			const doy = Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
+			return {...r, year: String(d.getUTCFullYear()), doy, day: new Date(Date.UTC(2000, 0, doy))};
+		});
+		const newest = data.reduce((y, r) => r.year > y ? r.year : y, '');
+		return {
+			data: {values: data}, width: 'container', height: 260,
+			mark: {type: 'line', point: {size: 18}},
+			encoding: {
+				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
+				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: {zero: false}},
+				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true}},
+				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
+				tooltip: [{field: 'date', title: 'Date'}, {field: 'value', title: 'Value', format: '.4~g'}],
+			},
+		};
+	}
+
 	// A profile along a line (transect): the variable against the distance, over the elevation in grey
 	function transectSpec(rows, result) {
 		const data = rows.map((r) => ({...r, km: r.distance_m / 1000}));
@@ -407,6 +430,7 @@ MO.chart = (() => {
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'transect') return embed(box, transectSpec(subset, result));
+			if (kind === 'doy') return embed(box, doySpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
 			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
 				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
@@ -425,7 +449,7 @@ MO.chart = (() => {
 			return box.append(table(subset, kind));
 		};
 		let current = rows;
-		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas', 'transitions', 'zones'].includes(kind) ||
+		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => regionOf(r) === regions[0]);

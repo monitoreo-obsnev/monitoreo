@@ -156,6 +156,15 @@ def write_csv(rows, path, meta=None, columns=COLUMNS):
 	return path
 
 
+def with_doy(rows):
+	"""ROWS with the year and the day of the year (1-366) of the first day of each step: 'year' and 'doy', to draw a
+	line per year over the days of the year (as the day-of-year charts of geemap)."""
+	for r in rows:
+		d = dt.date.fromisoformat(str(r['date'])[:10])
+		r['year'], r['doy'] = d.year, d.timetuple().tm_yday
+	return rows
+
+
 def climatology(rows):
 	"""Mean of each calendar month over the years, per region: [{region, month, value, n_years}]."""
 	acc = {}

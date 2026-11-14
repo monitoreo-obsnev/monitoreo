@@ -371,6 +371,8 @@ def cite(tool, args=None, date=None, datasets=()):
 		ids += _methods('area_by_class') + (_methods('trends') if args.get('trend') else [])
 	if tool == 'map_figure':
 		ids += _methods('map_figure')
+	if tool == 'time_series' and args.get('doy'):  # a line per year over the days of the year
+		ids += _methods('doy')
 	if tool == 'transect':  # the elevation of the profile: the Copernicus DEM
 		more, cred = of_spec({'index': 'ELEVATION', 'sensor': 'Copernicus'}, period)
 		ids += more + _methods('transect')

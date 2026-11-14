@@ -172,7 +172,7 @@ cited <- function(df, res) {
 #' @keywords internal
 NULL
 
-utils::globalVariables(c("date", "value", "region"))
+utils::globalVariables(c("date", "value", "region", "doy", "year"))
 
 # The data that a function computes: a variable of the catalog and its sensor (with them, collection is one of the
 # collections of that variable), or instead the data of Earth Engine given by its ID (collection or image, with band,
@@ -691,6 +691,10 @@ mo_sf <- function(x, name = NULL) {
 #' \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
+#' @param doy \code{TRUE}: the chart (\code{chart}, and that of \code{mo_plot()}) with a line per year over the days
+#'   of the year, and the columns year and doy (day of the year), to compare the years; not with
+#'   \code{step = "annual"}.
+#' @param chart optional path of a PNG chart.
 #' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
 #'   (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
 #'   credits (see \code{mo_references()}).
@@ -715,12 +719,12 @@ mo_sf <- function(x, name = NULL) {
 mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
                            where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
-                           unit = NULL) {
+                           unit = NULL, doy = FALSE, chart = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, csv = csv, collection = collection, where = where,
                                 image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit)
+                                unit = unit, doy = isTRUE(doy), chart = if (is.null(chart)) NULL else path.expand(chart))
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -732,10 +736,13 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
 
 #' Chart of a time series
 #'
-#' With ggplot2 if it is installed, else with base graphics.
+#' With ggplot2 if it is installed, else with base graphics. A series of \code{mo_time_series(doy = TRUE)} (with the
+#' columns year and doy) is drawn with a line per year over the days of the year, from January to December, from the
+#' oldest year (light) to the newest (dark, thicker), with a panel per region (with base graphics, a line type per
+#' region).
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
-#' @importFrom graphics legend lines
+#' @importFrom graphics axis legend lines
 #' @examples
 #' \dontrun{
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
@@ -744,12 +751,42 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
   unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
+  by_doy <- all(c("year", "doy") %in% names(ts))  # a line per year over the days of the year (doy = TRUE)
+  starts <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)  # the day of the year of the first of each month
+  regions <- unique(ts$region)
+  if (by_doy && requireNamespace("ggplot2", quietly = TRUE)) {
+    ts$year <- factor(ts$year)
+    p <- ggplot2::ggplot(ts, ggplot2::aes(x = doy, y = value, colour = year, group = year)) +
+      ggplot2::geom_line(linewidth = 0.4) +
+      ggplot2::geom_line(data = ts[ts$year == levels(ts$year)[nlevels(ts$year)], ], linewidth = 1.1) +
+      ggplot2::geom_point(size = 0.8) +
+      ggplot2::scale_colour_viridis_d(begin = 0, end = 0.85, direction = -1) +  # the newest year the darkest
+      ggplot2::scale_x_continuous(limits = c(1, 366), breaks = starts, labels = month.abb) +
+      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal()
+    return(if (length(regions) > 1) p + ggplot2::facet_wrap(~region, ncol = 1) else p)
+  }
+  if (by_doy) {
+    years <- sort(unique(ts$year))
+    cols <- grDevices::hcl.colors(length(years) + 1, "viridis", rev = TRUE)[-1]  # without its lightest yellow
+    widths <- ifelse(seq_along(years) == length(years), 2.5, 1)
+    plot(ts$doy, ts$value, type = "n", xlim = c(1, 366), main = title, xlab = "", ylab = unit, xaxt = "n")
+    axis(1, at = starts, labels = month.abb)
+    for (i in seq_along(regions)) {
+      for (k in seq_along(years)) {
+        s <- ts[ts$region == regions[i] & ts$year == years[k], ]
+        s <- s[order(s$doy), ]
+        lines(s$doy, s$value, col = cols[k], lwd = widths[k], lty = i, type = "o", pch = 20)
+      }
+    }
+    legend("topleft", legend = years, col = cols, lwd = widths, bty = "n")
+    if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
+    return(invisible(ts))
+  }
   if (requireNamespace("ggplot2", quietly = TRUE)) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
       ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal())
   }
-  regions <- unique(ts$region)
   plot(ts$date, ts$value, type = "n", main = title, xlab = "", ylab = unit)
   for (i in seq_along(regions)) {
     s <- ts[ts$region == regions[i], ]

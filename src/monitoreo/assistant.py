@@ -281,7 +281,8 @@ the maps, ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CO
 2018) and MODIS MCD12Q1 (every year since 2001): landcover_maps lists their years and which classes of each map are \
 each land cover. Choose the map of the year closest to the period of the result (CORINE only in Europe), and say \
 which map and year you used.
-- Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
+- Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes); to \
+compare the years (phenology, snow seasons), doy true: a line per year over the days of the year. Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
 temporal takes no other values. Any statistic of any variable: mean, median, min, max, std (standard deviation), \
