@@ -71,6 +71,20 @@ COLUMNS = {
 	'reference_period': 'reference period (first/last day)', 'other_period': 'other period (first/last day)',
 	'before': 'period before the fire (first/last day)', 'after': 'period after the fire (first/last day)',
 	'index': 'burn index',
+	'percent': '% of the area of the feature with a class (the pixels without data are not counted)',
+	'landcover': 'broad land cover of the class (that of the land cover masks: water, trees, grassland, wetland, '
+	             'cropland, shrubland, built, bare or snow)',
+	'map': 'land cover map', 'year': 'year of the land cover map',
+	'value_from': 'lowest value of the class{u} (empty: no limit)',
+	'value_to': 'value where the class ends, not in it{u} (empty: no limit)',
+	'period': 'period of the data (first/last day)',
+}
+# the columns of the CSV of area_by_class that differ
+COLUMNS_AREAS = {
+	'class': 'class: its code in the land cover map; for the classes of a variable, its number from 0 (below the first '
+	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
+	'label': 'name of the class',
+	'ha': 'hectares of the class in the feature (true area of its pixels)',
 }
 # the fields of the vector file of the perimeter of the burned area (burn_severity with perimeter: fire.PERIMETER_TYPES)
 FIELDS = {
@@ -251,7 +265,8 @@ def text(tool, args, result, computed=None):
 		if ext == '.csv':
 			out += _section('Columns of', os.path.basename(f))
 			header = _csv_header(f)
-			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else COLUMNS
+			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
+				dict(COLUMNS, **COLUMNS_AREAS) if tool == 'area_by_class' else COLUMNS
 			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy)) for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):

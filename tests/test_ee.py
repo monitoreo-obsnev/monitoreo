@@ -320,3 +320,16 @@ def test_animation(tmp_path):
 	assert 0 <= res['min'] < res['max'] <= 1 and (res['min'], res['max']) != (0.0, 1.0)  # those of the map
 	gif = PIL.open(res['gif'])
 	assert gif.n_frames == 3 and gif.size[0] in (300, 301) and os.path.exists(res['readme'])
+
+
+def test_area_by_class(tmp_path):
+	"""The hectares of each class of a land cover map, of the elevation cut at some values and of the trend of the NDVI:
+	the same area of the region in the three, about that of the box."""
+	lc = services.area_by_class(GUAJARES, landcover='CORINE', year=2018, csv=str(tmp_path / 'lc.csv'))
+	bands = services.area_by_class(GUAJARES, 'ELEVATION', 'Copernicus', breaks=[500, 1000, 1500])
+	trend = services.area_by_class(GUAJARES, 'NDVI', 'Modis', '2005-01-01', '2024-12-31', trend=True)
+	totals = [sum(r['ha'] for r in res['rows']) for res in (lc, bands, trend)]
+	assert all(7500 < t < 8800 for t in totals), totals  # the box: about 10.7 x 7.8 km
+	assert abs(sum(r['percent'] for r in lc['rows']) - 100) < 1e-6 and lc['by_landcover']
+	assert [r['label'] for r in bands['rows']] == ['below 500 m', '500 to 1000 m', '1000 to 1500 m', '1500 m or more']
+	assert {r['class'] for r in trend['rows']} == {-1, 0, 1} and os.path.exists(lc['readme'])

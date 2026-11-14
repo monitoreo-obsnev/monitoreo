@@ -103,7 +103,7 @@ ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'community_datasets', 'landcover_maps')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
-           'download_variables', 'timelapse')  # their answers go only to the user and the report
+           'download_variables', 'timelapse', 'area_by_class')  # their answers go only to the user and the report
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 # arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
@@ -293,7 +293,8 @@ zero and positive values (precipitation, NDVI of vegetation), not with a mean ne
 around 0). Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
 with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
 each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
-compare_series and compare_map. Animation of the change, a frame per year (or month) with its date: timelapse \
+compare_series and compare_map. Hectares of each class: area_by_class, of a land cover map (landcover, year), of a \
+variable cut at some values (breaks, e.g. elevation bands) or of its trend (trend true). Animation of the change, a frame per year (or month) with its date: timelapse \
 (step "annual" or "monthly", at most 120 frames; it takes some minutes). Fire: burn_severity.
 - True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
 colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \

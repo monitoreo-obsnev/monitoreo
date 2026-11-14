@@ -93,14 +93,15 @@ LICENSE = 'CC-BY-4.0'
 # type of analysis of each tool, and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
-            'timelapse': 'animation'}
+            'timelapse': 'animation', 'area_by_class': 'areas'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
-                  'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation'}
+                  'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
+                  'areas': 'Area by class'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
-CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison'}
-CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'table')
+CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas'}
+CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -368,6 +369,21 @@ def default_title(tool, args):
 		return f'True colour of the images of {var}, {period}{season}'
 	if tool == 'timelapse':
 		return f'Animation of {var}, {STEPS.get(step, step)} frames, {period}{season}'
+	if tool == 'area_by_class':
+		if args.get('landcover'):
+			from . import landcover
+			try:
+				name = landcover.find(args['landcover'])['name']
+			except ValueError:
+				name = str(args['landcover'])
+			return f"Area of each class of {name}" + (f" {args['year']}" if args.get('year') else '')
+		what, part = var, args.get('part')
+		if args.get('trend'):  # the part of the year of its trend, as download_trend (services: 'annual' by default)
+			step = args.get('step') or 'annual'
+			what = f'the trend of {var}' if step == 'annual' or not part else \
+				f'the trend of {MONTHS[int(part) - 1]} of {var}' if step == 'monthly' else \
+				f'the trend of 16-day period {part} of {var}'
+		return f'Area of each class of {what}' + (f', {period}{season}' if period and not is_static(args) else '')
 	return var or 'Result'
 
 
@@ -675,6 +691,26 @@ def _chart_type(tool, path):
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
 
+def _area_classes(args, path):
+	"""The classes of the CSV of area_by_class PATH ([{class, label, colour}], in their order) with the colours of
+	services.area_by_class, for a result without them (the answer of the MCP server and its log): those of the broad
+	land covers, of the trend, or of the colour ramp of the variable (ARGS) for its breaks."""
+	from . import classes
+	from .services import _ramp_colour
+	first = {}
+	for r in _read_csv(path):  # each feature has every class, in their order
+		first.setdefault(r['label'], r)
+	trend = {c: colour for c, _, colour in classes.TREND}
+	ramp = maps.ramp(_entry(args.get('variable'), args.get('sensor')))  # the data outside the catalog: the default one
+	out = []
+	for i, r in enumerate(first.values()):
+		code = int(float(r['class']))
+		colour = classes.LANDCOVER_COLOURS.get(r['landcover'], '9e9e9e') if 'landcover' in r else \
+			_ramp_colour(ramp, (i + 0.5) / len(first)) if 'value_from' in r else trend.get(code)
+		out.append({'class': code, 'label': r['label'], 'colour': colour})
+	return out
+
+
 def _results(item, files, n):
 	"""The results of report.json of a call (ITEM): a map with its GeoTIFF, a chart with its CSV, or both."""
 	tool, args, res = item.get('tool'), item['args'], item['result']
@@ -736,6 +772,9 @@ def _results(item, files, n):
 				entry['burned_min'] = fire.CLASSES[index]['burned']  # the burned area: the index from this value
 			if out:
 				entry['title'] = item.get('chart_title') or 'Area of each severity class'
+		elif chart == 'areas':  # the colour of each class, as in its chart of Python (from its CSV if the result has none)
+			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')}
+			                    for c in res.get('classes') or _area_classes(args, res['csv'])]
 		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
 			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):

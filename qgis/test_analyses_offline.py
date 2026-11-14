@@ -1,13 +1,16 @@
-"""Test of the animations (timelapses) in the QGIS plugin without Earth Engine, with the Python of QGIS (offscreen,
-seconds):
+"""Test of the analyses of the QGIS plugin added after the review of geemap (animations, area by class), without
+Earth Engine, with the Python of QGIS (offscreen, seconds):
 
-    PYTHONNOUSERSITE=1 PYTHONPATH=src <python of QGIS> qgis/test_animation_offline.py
+    PYTHONNOUSERSITE=1 PYTHONPATH=src <python of QGIS> qgis/test_analyses_offline.py
 
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). The Python of QGIS
 has no Pillow: it checks that monitoreo.animation draws the texts of the frames with Qt and writes the GIF by itself
 (write_gif), and QMovie plays it. services.timelapse is faked (a GIF of three frames): it checks the group Animation
 (greyed out for the fixed layers without dates, its metric fixed for the snow cover frequency), the arguments sent,
 and the window of the result, with the GIF playing, its frames and the button to save it with its README.
+services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
+each kind (a land cover map without the land cover mask nor «Only the pixels where») and the window of the result (its
+table, with the colour of each class). The land cover mask starts off, whatever the settings stored by other tests.
 """
 
 import os
@@ -25,7 +28,7 @@ sys.path.insert(0, os.path.join(APP, 'Contents', 'Resources', 'python'))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np  # noqa: E402
-from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle  # noqa: E402
+from qgis.core import QgsApplication, QgsCoordinateReferenceSystem, QgsRectangle, QgsSettings  # noqa: E402
 from qgis.gui import QgsMapCanvas, QgsMessageBar  # noqa: E402
 from qgis.PyQt.QtCore import Qt  # noqa: E402
 from qgis.PyQt.QtGui import QColor  # noqa: E402
@@ -146,6 +149,23 @@ services.init = lambda *args, **kw: 'project'
 services.eecu_usage = eecu_usage
 services.timelapse = timelapse
 
+
+def area_by_class(region, csv=None, **opts):
+	calls.append(dict(opts, region=region, csv=csv, tool='area_by_class'))
+	rows = [{'region': 'extent', 'class': c, 'label': label, 'ha': ha, 'percent': p}
+	        for c, label, ha, p in ((-1, 'significant decrease', 10.0, 10.0), (0, 'no significant trend', 80.0, 80.0),
+	                                (1, 'significant increase', 10.0, 10.0))]
+	with open(csv, 'w') as f:
+		f.write('region,class,label,ha,percent\n')
+	return {'rows': rows, 'mode': 'trend', 'scale': 250.0, 'unit': '', 'title': 'Area of each class', 'csv': csv,
+	        'classes': [{'class': r['class'], 'label': r['label'], 'colour': c}
+	                    for r, c in zip(rows, ('d7191c', 'bdbdbd', '1a9641'))], 'references': [], 'credits': []}
+
+
+services.area_by_class = area_by_class
+for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
+	QgsSettings().remove('MonitorEO/' + key)
+
 iface = Iface()
 plugin = monitoreo_qgis.classFactory(iface)
 plugin.initGui()
@@ -208,5 +228,46 @@ copy = os.path.join(TMP, 'copy.gif')
 save_file(res['gif'], copy, res)
 assert os.path.exists(copy) and os.path.exists(os.path.join(TMP, 'copy.README.txt'))
 print('window of the animation:', dlg.windowTitle(), '| frames', dlg.movie.frameCount())
+
+# Area by class: the fields of each kind, the arguments sent and the window
+kinds = [dock.area_kind.itemData(i) for i in range(dock.area_kind.count())]
+assert kinds == ['landcover', 'breaks', 'trend'], kinds
+for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', False, True), ('trend', False, False)):
+	dock.area_kind.setCurrentIndex(dock.area_kind.findData(kind))
+	assert dock.area_map_row.isVisibleTo(dock) == map_shown and dock.area_breaks.isVisibleTo(dock) == breaks_shown, kind
+dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
+assert dock.area_year.currentData() == 2018 and dock.area_year.findData(1990) >= 0
+dock.area_kind.setCurrentIndex(dock.area_kind.findData('landcover'))
+assert not dock.landcover_box.isChecked() and not any(c['on'].isChecked() for c in dock.where)  # not stored ones
+calls.clear()
+dock.run_areas()
+wait()
+assert calls[-1]['landcover'] == 'CORINE' and calls[-1]['year'] == 2018 and 'variable' not in calls[-1], calls[-1]
+# a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
+for box in (dock.landcover_box, dock.where[0]['on']):
+	box.setChecked(True)
+	dock.run_areas()
+	wait()
+	box.setChecked(False)
+	assert len(calls) == 1 and 'are for the classes of a variable' in messages[-1], messages[-1]
+	assert messages[-1].startswith('Warning: The land cover mask and «Only the pixels where»'), messages[-1]
+dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
+dock.area_breaks.setText('0.2, 0.4')
+dock.run_areas()
+wait()
+assert calls[-1]['breaks'] == '0.2, 0.4' and calls[-1]['variable'] == 'NDVI', calls[-1]
+assert calls[-1]['metric'] == dock.map_metric.currentData(), calls[-1]
+dock.area_kind.setCurrentIndex(dock.area_kind.findData('trend'))
+dock.run_areas()
+wait()
+assert calls[-1]['trend'] is True and calls[-1]['step'] == dock.trend_step.currentData(), calls[-1]
+res = dock.series[-1]
+assert res['kind'] == 'areas' and res['label'].startswith('Area by class: NDVI')
+dlg = dock.series_dialogs[dock.series.index(res)]
+table = dlg.findChild(QTableWidget)
+headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+assert headers == ['Region', 'Class', 'Hectares', '% of the area with classes'], headers
+assert table.rowCount() == 3 and not table.item(0, 1).icon().isNull()  # the colour of the class
+print('window of the areas:', dlg.windowTitle(), headers)
 plugin.unload()
 print('OK')

@@ -6727,6 +6727,98 @@ var MonitorEO = (function () {
 		}));
 	}
 
+	// Area by class (services.area_by_class, monitoreo.classes): hectares and % of each class over each feature, of a
+	// land cover map of a year, of the map of a variable cut at some values (breaks) or of its trend on each pixel
+	var TREND_CLASSES = [[-1, 'significant decrease', 'd7191c', 'disminuci\u00f3n significativa'],
+		[0, 'no significant trend', 'bdbdbd', 'sin tendencia significativa'],
+		[1, 'significant increase', '1a9641', 'aumento significativo']];
+	var LANDCOVER_COLOURS = {water: '419bdf', trees: '397d49', grassland: '88b053', wetland: '7a87c6',
+		cropland: 'e49635', shrubland: 'dfc35a', built: 'c4281b', bare: 'a59b8f', snow: 'b39fe1'};
+	var AREA_TARGET_PIXELS = 1e7;
+
+	// classes.check_breaks: an increasing list of numbers, from a list or a text with commas
+	function checkBreaks(breaks) {
+		if (typeof breaks === 'string') breaks = breaks.replace(/;/g, ',').split(',').filter(function (b) { return b.trim(); });
+		var out = (breaks || []).map(function (b) { return Number(b); });
+		if (!out.length) throw new Error('give at least one break, e.g. [0.2, 0.4, 0.6]');
+		if (out.some(function (b) { return !isFinite(b); })) {
+			throw new Error('breaks are numbers, e.g. [0.2, 0.4, 0.6]; not ' + JSON.stringify(breaks));
+		}
+		for (var i = 1; i < out.length; i++) {
+			if (out[i] <= out[i - 1]) throw new Error('breaks go from the lowest to the highest, each once: ' + out.join(', '));
+		}
+		return out;
+	}
+
+	function brk(x) {
+		return String(Number(x.toPrecision(6)));
+	}
+
+	// classes.break_classes: [class, label, from, to] of the classes of BREAKS, the labels with UNIT
+	function breakClasses(breaks, unit, lang) {
+		var u = unit ? ' ' + unit : '', es = lang === 'es';
+		var out = [[0, (es ? 'menos de ' : 'below ') + brk(breaks[0]) + u, null, breaks[0]]];
+		for (var i = 1; i < breaks.length; i++) {
+			out.push([i, brk(breaks[i - 1]) + (es ? ' a ' : ' to ') + brk(breaks[i]) + u, breaks[i - 1], breaks[i]]);
+		}
+		out.push([breaks.length, brk(breaks[breaks.length - 1]) + u + (es ? ' o m\u00e1s' : ' or more'),
+			breaks[breaks.length - 1], null]);
+		return out;
+	}
+
+	// classes.classify_breaks
+	function classifyBreaks(value, breaks) {
+		var out = ee.Image.constant(0).updateMask(ee.Image(value).mask().select(0));
+		breaks.forEach(function (b) { out = out.add(ee.Image(value).gte(b)); });
+		return out.toInt().rename('class');
+	}
+
+	// classes.classify_trend: -1 significant decrease, 0 no significant trend, 1 significant increase
+	function classifyTrend(trend, alpha) {
+		trend = ee.Image(trend);
+		var slope = trend.select('slope');
+		return trend.select('p_value').lt(alpha || 0.05).multiply(slope.gt(0).subtract(slope.lt(0))).toInt()
+			.rename('class').updateMask(slope.mask());
+	}
+
+	// classes.scale_for, from the AREA of the biggest region (m\u00b2)
+	function areaScale(native, area) {
+		var need = area ? Math.sqrt(area / AREA_TARGET_PIXELS) : native;
+		if (need <= native) return Number(native);
+		var nice = [];
+		for (var e = 1; e < 6; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
+		return nice.filter(function (n) { return n >= need; })[0] || nice[nice.length - 1];
+	}
+
+	// classes.hectares: the grouped sum of the true area of the pixels by class over each feature, to evaluate
+	function classHectares(classesImg, regions, scale, crs) {
+		return ee.Image.pixelArea().divide(1e4).updateMask(ee.Image(classesImg).mask()).addBands(classesImg)
+			.reduceRegions({collection: regions, reducer: ee.Reducer.sum().group(1, 'class'), scale: scale, crs: crs,
+				tileScale: 4});
+	}
+
+	// classes.rows: [{region, class, label, ..., ha, percent}] of the evaluated FEATURES of classHectares, for CLASSES
+	// ([class, label, {more columns}]) and the columns of EXTRA
+	function areaRows(features, classes, extra) {
+		var out = [];
+		features.forEach(function (f) {
+			var ha = {};
+			(f.properties.groups || []).forEach(function (g) { ha[Math.round(g['class'])] = g.sum; });
+			var total = classes.reduce(function (a, c) { return a + (ha[c[0]] || 0); }, 0);
+			classes.forEach(function (c) {
+				var row = {region: String(f.properties.name)};
+				Object.keys(extra || {}).forEach(function (k) { row[k] = extra[k]; });
+				row['class'] = c[0];
+				row.label = c[1];
+				Object.keys(c[2] || {}).forEach(function (k) { row[k] = c[2][k]; });
+				row.ha = ha[c[0]] || 0;
+				row.percent = total ? 100 * row.ha / total : null;
+				out.push(row);
+			});
+		});
+		return out;
+	}
+
 	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
 	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
 	// (that of the whole period would be that of all the steps, as many times bigger as they are)
@@ -7567,6 +7659,9 @@ var MonitorEO = (function () {
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		islandAt: islandAt,
+		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
+		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
+		classHectares: classHectares, areaRows: areaRows,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
 		animationSteps: animationSteps, animationFrames: animationFrames, TOTALS: TOTALS,
 		animationRange: animationRange,
@@ -7657,6 +7752,14 @@ var MonitorEO = (function () {
 			animNote: 'Los p\u00edxeles sin datos en un fotograma, en gris claro. El GIF con la fecha escrita en cada ' +
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
 			animGif: 'Descargar el GIF',
+			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
+			k_breaks: 'La variable, cortada en unos valores', k_trend: 'La tendencia de la variable',
+			areaMap: 'Mapa y a\u00f1o', areaBreaks: 'Cortes', breaksHint: 'p. ej. 1500, 2000, 2500',
+			computeAreas: 'Calcular las superficies', areaClass: 'Clase', areaPercent: '% de la superficie con clases',
+			areaNote: 'P\u00edxeles de %s m. El % es de la superficie con una clase (no cuentan los p\u00edxeles sin datos).',
+			areaTrendNote: 'Con las opciones de Tendencias (partes del a\u00f1o y m\u00e9trica de cada a\u00f1o); significativa si p < 0,05.',
+			areaNoWhere: 'La m\u00e1scara de usos del suelo y \u00abSolo los p\u00edxeles donde\u00bb son para las clases de una variable ' +
+				'(cortes, tendencia), no para las de un mapa de usos del suelo: desm\u00e1rcalos.',
 			downloadReady: 'GeoTIFF de %s m (NoData -9999): ', downloadLink: 'descargar',
 			layer: 'Capa', l_index: '\u00cdndice', l_rgb: 'Color verdadero (RGB)', l_both: 'Ambas',
 			rgbNote: 'Color verdadero: la reflectancia roja, verde y azul de las mismas im\u00e1genes y p\u00edxeles que la ' +
@@ -7799,6 +7902,14 @@ var MonitorEO = (function () {
 			animNote: 'The pixels without data in a frame, in light grey. The GIF with the date written on each frame, ' +
 				'with the Python package, QGIS or the assistant (timelapse).',
 			animGif: 'Download the GIF',
+			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
+			k_breaks: 'The variable, cut at some values', k_trend: 'The trend of the variable',
+			areaMap: 'Map and year', areaBreaks: 'Breaks', breaksHint: 'e.g. 1500, 2000, 2500',
+			computeAreas: 'Compute the areas', areaClass: 'Class', areaPercent: '% of the area with classes',
+			areaNote: 'Pixels of %s m. The % is of the area with a class (the pixels without data are not counted).',
+			areaTrendNote: 'With the options of Trends (parts of the year and metric of each year); significant if p < 0.05.',
+			areaNoWhere: 'The land cover mask and \u00abOnly the pixels where\u00bb are for the classes of a variable (breaks, ' +
+				'trend), not for those of a land cover map: uncheck them.',
 			download: 'Download GeoTIFF', downloadReady: 'GeoTIFF of %s m (NoData -9999): ', downloadLink: 'download',
 			layer: 'Layer', l_index: 'Index', l_rgb: 'True colour (RGB)', l_both: 'Both',
 			rgbNote: 'True colour: the red, green and blue reflectance of the same images and pixels as the variable, ' +
@@ -7921,6 +8032,7 @@ var MonitorEO = (function () {
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median',
+		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
@@ -8908,6 +9020,105 @@ var MonitorEO = (function () {
 		return w;
 	}
 
+	// Area by class (services.area_by_class) ------------------------------------------------------------------------
+
+	// Hectares and % of each class over each feature of the region, of a land cover map of a year, of the variable cut
+	// at the breaks (its map, as Map) or of its trend on each pixel (as Trends): a bar chart, a table and the CSV
+	function areaByClass() {
+		var kind = state.areaKind, regions = state.region, img, legend, extra = {}, name, native, colours;
+		if (!state.region || !state.info) return message(t('noRegion'), true);
+		var geom = regions.geometry();
+		if (kind === 'landcover') {
+			// as services.area_by_class: the land cover mask and where are for the classes of a variable
+			if (state.landcoverOn || state.whereOn) return message(t('areaNoWhere'), true);
+			var m = mo.landcoverMap(state.areaMap);
+			var year = state.areaYear || mo.landcoverDefaultYear(m);
+			img = mo.landcoverSource(m, year, geom).rename('class');
+			legend = Object.keys(m.classes).map(Number).sort(function (a, b) { return a - b; }).map(function (code) {
+				return [code, code + ' ' + m.names[String(code)], {landcover: m.classes[String(code)]}];
+			});
+			colours = legend.map(function (c) { return mo.LANDCOVER_COLOURS[c[2].landcover] || '9e9e9e'; });
+			extra = {map: m.name, year: year};
+			name = fmt(t('areaOf'), m.name + ' ' + year);
+			native = Number(m.m);
+		} else {
+			var e = entry();
+			if (!ready(e)) return;
+			native = Number(e.m);
+			if (kind === 'breaks') {
+				var cuts = mo.checkBreaks(state.areaBreaks);
+				var s = specOf(null, state.mapMetric);
+				s.temporal = state.temporal;
+				s.interannual = state.interannual;
+				var unit = unitText(e, state.mapMetric, state.temporal === 'period' ? null : state.interannual)
+					.replace(/^\[|\]$/g, '');
+				img = mo.classifyBreaks(mo.image(s, geom), cuts);
+				legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang).map(function (c) {
+					return [c[0], c[1], {value_from: c[2], value_to: c[3]}];
+				});
+				var ramp = mo.ramp(e);
+				colours = legend.map(function (c, i) { return ramp[Math.min(ramp.length - 1, Math.floor((i + 0.5) / legend.length * ramp.length))]; });
+				name = title(e, [metricName(state.mapMetric)].concat(e.static ? [] : [s.period.join('/')]));
+			} else {
+				var ts = specOf(null, state.trendMetric);
+				var part = state.trendStep === 'annual' ? 0 : state.trendPart;
+				img = mo.classifyTrend(mo.trendImage(ts, geom, state.trendStep, part, state.trendMetric), 0.05);
+				legend = mo.TREND_CLASSES.map(function (c) { return [c[0], state.lang === 'es' ? c[3] : c[1], {}]; });
+				colours = mo.TREND_CLASSES.map(function (c) { return c[2]; });
+				name = title(e, [t('trendMap'), ts.period.join('/')]);
+			}
+		}
+		var scale = mo.areaScale(native, state.info.area);
+		var id = start();
+		mo.classHectares(img, regions, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.areaRows(fc.features, legend, extra);
+			var regionNames = regionsOf(rows);
+			var shown = rows.filter(function (r) { return r.ha > 0; });
+			var colour = {};
+			legend.forEach(function (c, i) { colour[c[1]] = '#' + colours[i]; });
+			var table = [[t('areaClass'), t('hectares'), {role: 'style'}]].concat(shown.map(function (r) {
+				return [(regionNames.length > 1 ? r.region + ': ' : '') + r.label, r.ha, colour[r.label]];
+			}));
+			var cols = ['region', 'class', 'label'].concat(kind === 'landcover' ? ['landcover'] :
+				kind === 'breaks' ? ['value_from', 'value_to'] : []).concat(['ha', 'percent']);
+			show([ui.Label(name, {fontWeight: 'bold'}),
+				ui.Chart(table, 'BarChart', {legend: {position: 'none'}, hAxis: {title: t('hectares')}}),
+				ui.Chart([[t('areaClass'), t('hectares'), t('areaPercent')]].concat(shown.map(function (r) {
+					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.label, num(r.ha, 4),
+						r.percent === null ? '' : num(r.percent, 3)];
+				})), 'Table'),
+				ui.Label(fmt(t('areaNote'), num(scale)) + (kind === 'trend' ? ' ' + t('areaTrendNote') : ''), SMALL),
+				csvWidget(rows, cols, name, kind === 'landcover' ? null : entry())]);
+		}));
+	}
+
+	function areaWidgets() {
+		var w = [header(t('areas'))];
+		var kinds = ['landcover', 'breaks', 'trend'].map(function (k) { return {value: k, label: t('k_' + k)}; });
+		w.push(row(ui.Label(t('areaKind')), select(kinds, state.areaKind, function (v) {
+			state.areaKind = v;
+			render();
+		}, '230px')));
+		if (state.areaKind === 'landcover') {
+			var maps = mo.landcoverMaps().map(function (m) { return {value: m.key, label: m.name}; });
+			var m = mo.landcoverMap(state.areaMap);
+			var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
+			if (!state.areaYear || mo.landcoverYears(m).indexOf(state.areaYear) < 0) state.areaYear = mo.landcoverDefaultYear(m);
+			w.push(row(ui.Label(t('areaMap')), select(maps, state.areaMap, function (v) {
+				state.areaMap = v;
+				state.areaYear = null;
+				render();
+			}, '150px'), select(years, state.areaYear, function (v) { state.areaYear = v; }, '80px')));
+		} else if (state.areaKind === 'breaks') {
+			w.push(row(ui.Label(t('areaBreaks')), ui.Textbox({placeholder: t('breaksHint'), value: state.areaBreaks,
+				onChange: function (v) { state.areaBreaks = v; }, style: {width: '190px'}})));
+		} else {
+			w.push(ui.Label(t('areaTrendNote'), SMALL));
+		}
+		w.push(button(t('computeAreas'), guarded(areaByClass)));
+		return state.areaKind === 'trend' && entry().static ? disable(w) : w;
+	}
+
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
 	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
@@ -9557,8 +9768,8 @@ var MonitorEO = (function () {
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), animationWidgets(), seriesWidgets(),
-			trendWidgets(),
+		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), areaWidgets(), animationWidgets(),
+			seriesWidgets(), trendWidgets(),
 			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});

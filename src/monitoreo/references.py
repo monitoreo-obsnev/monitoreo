@@ -36,7 +36,7 @@ RGB = ('rgb_map', 'download_rgb')  # the true colour of the images of a variable
 EARTH_ENGINE = TRENDS + ('time_series', 'time_series_to_drive', 'export_time_series_to_drive', 'map_layer',
                          'region_stats', 'thumbnail', 'composite_image', 'export_image', 'export_image_to_drive',
                          'download_image', 'download_variables', 'compare_series', 'compare_map', 'download_comparison',
-                         'burn_severity', 'find_protected_areas', 'timelapse') + RGB
+                         'burn_severity', 'find_protected_areas', 'timelapse', 'area_by_class') + RGB
 
 
 # The references of the data of Earth Engine outside the datasets of catalog.json met so far (see of_asset): {id:
@@ -349,12 +349,22 @@ def cite(tool, args=None, date=None, datasets=()):
 			spec['collection'] = args['collection']
 		more, credits = of_spec(spec, period)
 		ids += more + _methods({'RBR': 'rbr', 'RdNBR': 'rdnbr'}.get(index, 'burn_severity'))
+	elif tool == 'area_by_class' and args.get('landcover'):  # a land cover map of a year, with its crosswalk
+		try:
+			m, year, _ = landcover.check({'landcover': args['landcover'], 'year': args.get('year'),
+			                              'exclude': [landcover.classes()[0]['key']]})
+			ids, credits = of_datasets([landcover.dataset(m, year)])
+			ids += list(m.get('crosswalk_references') or [])
+		except (ValueError, KeyError, TypeError):
+			pass
 	elif args.get('variable') or args.get('index') or args.get('collection') or args.get('image'):
 		ids, credits = of_spec(args, period, formula=tool not in RGB or _picks(args))
 	if tool in TRENDS:
 		ids += _methods('trends')
 	if tool == 'timelapse':
 		ids += _methods('timelapse')
+	if tool == 'area_by_class':
+		ids += _methods('area_by_class') + (_methods('trends') if args.get('trend') else [])
 	if _uses_cv(tool, args, recipe if tool == 'download_variables' else None):
 		ids += _methods('cv')
 	if tool == 'find_protected_areas':

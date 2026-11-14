@@ -409,6 +409,31 @@ test_that("the animation of a variable: its arguments reach the services, its fr
                             path = "ndvi.gif"), "sensor")
 })
 
+test_that("the area of each class: its arguments reach the services, a data.frame comes back", {
+  sent <- NULL
+  answer <- list(mode = "landcover", title = "Area of each class of CORINE Land Cover 2018", unit = "", scale = 100,
+                 rows = list(list(region = "park", map = "CORINE Land Cover", year = 2018L, class = 311L,
+                                  label = "311 Broad-leaved forest", landcover = "trees", ha = 120.5, percent = 60),
+                             list(region = "park", map = "CORINE Land Cover", year = 2018L, class = 321L,
+                                  label = "321 Natural grasslands", landcover = "grassland", ha = 80.3, percent = 40)),
+                 by_landcover = list(list(region = "park", landcover = "trees", label = "Trees", ha = 120.5,
+                                          percent = 60)),
+                 references = list(), credits = list())
+  local_mocked_bindings(services = function() list(area_by_class = function(...) {
+    sent <<- list(...)
+    answer
+  }), .package = "monitoreo")
+  x <- mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), landcover = "CORINE", year = 2018)
+  expect_identical(sent[[12]], 2018L)  # year
+  expect_equal(nrow(x), 2)
+  expect_equal(x$ha, c(120.5, 80.3))
+  expect_equal(attr(x, "mode"), "landcover")
+  expect_equal(nrow(attr(x, "by_landcover")), 1)
+  mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "ELEVATION", "Copernicus", breaks = c(1500, 2000))
+  expect_equal(sent[[13]], list(1500, 2000))  # breaks
+  expect_error(mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", trend = TRUE), "sensor")
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

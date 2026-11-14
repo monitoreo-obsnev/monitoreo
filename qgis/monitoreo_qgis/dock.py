@@ -46,6 +46,8 @@ TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annua
             ('Each month, then between years', 'monthly')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
+AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks)', 'breaks'),
+              ('Trend of the variable', 'trend')]
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
@@ -636,6 +638,38 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(box)
 		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
+		box = QGroupBox('Area by class')
+		f = QFormLayout(box)
+		self.area_kind = combo(AREA_KINDS, s.value(SETTINGS + 'area_kind', 'landcover'))
+		f.addRow('Classes of', info(self.area_kind, HELP['area_kind']))
+		self.area_map = QComboBox()
+		for m in landcover.maps():
+			self.area_map.addItem(f"{m['name']} · {m['m']} m · {m['coverage']}", m['key'])
+		self.area_map.setCurrentIndex(max(0, self.area_map.findData(s.value(SETTINGS + 'area_map', 'WorldCover'))))
+		self.area_year = QComboBox()
+		row = QHBoxLayout()
+		row.addWidget(self.area_map, 1)
+		row.addWidget(self.area_year)
+		self.area_map_row = QWidget()
+		self.area_map_row.setLayout(row)
+		row.setContentsMargins(0, 0, 0, 0)
+		f.addRow('Map and year', self.area_map_row)
+		self.area_map_label = f.labelForField(self.area_map_row)
+		self.area_breaks = QLineEdit(s.value(SETTINGS + 'area_breaks', ''))
+		self.area_breaks.setPlaceholderText('values separated by commas, e.g. 1500, 2000, 2500')
+		f.addRow('Breaks', self.area_breaks)
+		self.area_breaks_label = f.labelForField(self.area_breaks)
+		self.fill_area_years()
+		self.area_map.currentIndexChanged.connect(lambda i: self.fill_area_years())
+		self.area_kind.currentIndexChanged.connect(lambda i: self.area_kind_changed())
+		b = QPushButton('Compute the areas')
+		b.setToolTip('Hectares and % of each class over each feature of the region, in a window with its chart and '
+		             'table')
+		b.clicked.connect(self.run_areas)
+		f.addRow(b)
+		self.area_kind_changed()
+		main.addWidget(box)
+
 		box = QGroupBox('Animation (timelapse)')
 		self.animation_box = box  # greyed out for the fixed layers without dates (elevation, slope)
 		f = QFormLayout(box)
@@ -914,6 +948,9 @@ class MonitorEODock(QDockWidget):
 		s.setValue(SETTINGS + 'other_end', self.other_end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'folder', self.folder.text().strip())
 		s.setValue(SETTINGS + 'anim_step', self.anim_step.currentData())
+		s.setValue(SETTINGS + 'area_kind', self.area_kind.currentData())
+		s.setValue(SETTINGS + 'area_map', self.area_map.currentData())
+		s.setValue(SETTINGS + 'area_breaks', self.area_breaks.text().strip())
 		s.setValue(SETTINGS + 'fire_sensor', self.fire_sensor.currentData())
 		s.setValue(SETTINGS + 'fire_perimeter', 'true' if self.fire_perimeter.isChecked() else 'false')
 		for key, d in self.fire_dates.items():
@@ -1650,6 +1687,73 @@ class MonitorEODock(QDockWidget):
 
 		self.run_task(f"Trend map of {data_name(var)}", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
+
+	def fill_area_years(self):
+		"""The years of the land cover map of Area by class, its last one chosen (for Dynamic World, the last whole
+		year)."""
+		m = landcover.find(self.area_map.currentData())
+		self.area_year.clear()
+		for y in reversed(landcover.years(m)):
+			self.area_year.addItem(str(y), y)
+		self.area_year.setCurrentIndex(max(0, self.area_year.findData(landcover.default_year(m))))
+
+	def area_kind_changed(self):
+		"""The map and year for the classes of a land cover map, the breaks for the classes of the variable; neither
+		for its trend (that of the group Trends: its parts of the year and its metric)."""
+		kind = self.area_kind.currentData()
+		for w in (self.area_map_row, self.area_map_label):
+			w.setVisible(kind == 'landcover')
+		for w in (self.area_breaks, self.area_breaks_label):
+			w.setVisible(kind == 'breaks')
+
+	def run_areas(self):
+		"""Hectares and % of each class over each feature of the region (services.area_by_class): of a land cover map
+		of a year (refused with the land cover mask or «Only the pixels where», as services), of the variable cut at the
+		breaks, or of its trend (with the options of the group Trends), in a window with its chart and table."""
+		kind = self.area_kind.currentData()
+		if kind == 'landcover':
+			if self.landcover_box.isChecked() or any(c['on'].isChecked() for c in self.where):  # as services
+				self.message('The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, '
+				             'trend), not for those of a land cover map: uncheck them', 'Warning')
+				return
+			try:
+				region = self.region()
+			except Exception as e:
+				self.message(str(e), 'Warning')
+				return
+			opts, what = {'landcover': self.area_map.currentData(), 'year': self.area_year.currentData()}, \
+				f"{self.area_map.currentText().split(' · ')[0]} {self.area_year.currentData()}"
+		else:
+			args = self.prepare()
+			if not args:
+				return
+			region, var = args
+			what = data_name(var)
+			if kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
+				opts = dict(var, breaks=self.area_breaks.text())
+				if not (self.variable.currentData() or {}).get('static'):
+					opts.update(metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
+					            interannual=self.interannual.currentData())
+			else:
+				opts = dict(var, trend=True, step=self.trend_step.currentData(), metric=self.trend_metric.currentData(),
+				            part=self.trend_part.currentData() if self.trend_step.currentData() != 'annual' else None)
+		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+
+		def work():
+			return services.area_by_class(region, csv=os.path.join(tmp, 'areas.csv'), **opts)
+
+		def done(res):
+			from monitoreo import charts
+			path = os.path.join(tmp, 'areas.png')
+			try:  # in the main thread; without matplotlib, the table only
+				charts.areas_png(res['rows'], {c['label']: c['colour'] for c in res['classes']}, path, res['title'])
+				res['chart'] = path
+			except ImportError:
+				res['chart'] = None
+			res.update(kind='areas', label=f"Area by class: {what}")
+			self.add_result(res)
+
+		self.run_task(f"Area by class of {what}", work, done)
 
 	def run_timelapse(self):
 		"""Animation of the variable over the region (services.timelapse): a GIF with a frame per step, in its window
