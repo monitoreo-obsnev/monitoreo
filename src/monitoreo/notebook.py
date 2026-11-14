@@ -3,7 +3,7 @@ variables of MonitorEO (with its pixel filters, where, land cover masks, metrics
 two periods on a split map and the maps of each year or month with a time slider, each with its colour bar, the
 outline of the region and the credits of the data. It needs geemap, the extra notebook of the package:
 
-    pip install "monitoreo[notebook]"
+    pip install "monitoreo[notebook] @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip"
 
     import monitoreo.services as mo
     from monitoreo import notebook
@@ -26,7 +26,9 @@ from . import animation, maps, references, services, timeseries
 from . import variable as variables
 from .publish import unit_text
 
-INSTALL = 'the maps of notebooks need geemap: pip install "monitoreo[notebook]" (or pip install geemap)'
+GEEMAP = 'wu2020'  # the reference of geemap in the catalog
+INSTALL = ('the maps of notebooks need geemap: pip install "monitoreo[notebook] @ '
+           'https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip" (or pip install geemap)')
 
 
 def _geemap():
@@ -43,8 +45,12 @@ def Map(**kwargs):
 
 
 def _cited(tool, args):
-	"""{'references', 'credits'} of a map of TOOL with ARGS (see monitoreo.references.cite)."""
-	return references.cite(tool, {k: v for k, v in args.items() if v is not None})
+	"""{'references', 'credits'} of a map of TOOL with ARGS (see monitoreo.references.cite) and that of geemap (Wu, 2020),
+	with which the maps are drawn."""
+	cited = references.cite(tool, {k: v for k, v in args.items() if v is not None})
+	if not any(r['id'] == GEEMAP for r in cited['references']):
+		cited['references'] = sorted(cited['references'] + [references.get(GEEMAP)], key=references._sort_key)
+	return cited
 
 
 def _outline(m, regions, name='Region'):
@@ -92,7 +98,8 @@ def compare(region, variable=None, sensor=None, start=None, end=None, other_star
             palette=None, credits=True, **source):
 	"""A split map of geemap (as compare_map, but the two periods side by side): the map of the reference period (START
 	to END) on the left and that of the other one (OTHER_START to OTHER_END) on the right, with the same colours (by
-	default from the percentiles 5 and 95 of both), the outline of the region and the credits of the data.
+	default from the percentiles 5 and 95 of both or, if Earth Engine cannot compute them or there are no pixels, the
+	range of the catalog), their colour bar and unit, the outline of the region and the credits of the data.
 	Returns (the map of geemap, {'min', 'max', 'palette', 'unit', 'references', 'credits'})."""
 	geemap = _geemap()
 	spec = services.make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
@@ -103,21 +110,32 @@ def compare(region, variable=None, sensor=None, start=None, end=None, other_star
 	geom = regions.geometry()
 	both = img.select('reference').addBands(img.select('other'))
 	if vmin is None or vmax is None:
-		st = both.reduceRegion(ee.Reducer.percentile([5, 95]), geom, native, bestEffort=True, maxPixels=int(1e6),
-		                       tileScale=4).getInfo()
-		lo = min(v for k, v in st.items() if k.endswith('_p5') and v is not None) if st else None
-		hi = max(v for k, v in st.items() if k.endswith('_p95') and v is not None) if st else None
-		vmin = lo if vmin is None else vmin
-		vmax = hi if vmax is None else vmax
+		try:  # as maps.vis_params: big regions and long periods run out of memory
+			st = both.reduceRegion(ee.Reducer.percentile([5, 95]), geom, native, bestEffort=True, maxPixels=int(1e6),
+			                       tileScale=4).getInfo() or {}
+		except ee.EEException:
+			st = {}
+		lows = [v for k, v in st.items() if k.endswith('_p5') and v is not None]
+		highs = [v for k, v in st.items() if k.endswith('_p95') and v is not None]
+		if vmin is None and lows:
+			vmin = min(lows)
+		if vmax is None and highs:
+			vmax = max(highs)
+	# what is still None (no pixels in both periods), the range of the catalog
 	vis = maps.vis_params(None, None, services.ramp_entry(spec), native, vmin, vmax, palette, compute=False)
-	left, right = f'{start} / {end}', f'{other_start} / {other_end}'
+	left, right = ' / '.join(spec['period']), f'{other_start} / {other_end}'  # as computed (no END: today)
 	m = geemap.Map()
 	m.split_map(left_layer=geemap.ee_tile_layer(img.select('reference').clipToCollection(regions), vis, left),
 	            right_layer=geemap.ee_tile_layer(img.select('other').clipToCollection(regions), vis, right),
 	            left_label=left, right_label=right)
+	_outline(m, regions)
+	name = services._named(dict(spec, period=None), metric)
+	unit = unit_text(services._unit(spec))
+	m.add_colorbar(vis_params=vis, label=f'{name} ({unit})' if unit else name)
 	m.center_object(regions)
 	cited = _cited('compare_map', dict(source, region=region, variable=variable, sensor=sensor, start=start, end=end,
-	                                   other_start=other_start, other_end=other_end, quality=quality))
+	                                   other_start=other_start, other_end=other_end, metric=metric, temporal=temporal,
+	                                   interannual=interannual, season=season, quality=quality))
 	if credits:
 		_credits(m, cited, 'bottomright')
 	return m, dict(vis, unit=services._unit(spec), **cited)
@@ -152,7 +170,7 @@ def time_slider(m, region, variable=None, sensor=None, start=None, end=None, ste
 	if colorbar:
 		m.add_colorbar(vis_params=vis, label=f'{name} ({unit})' if unit else name)
 	cited = _cited('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start, end=end,
-	                                 quality=quality))
+	                                 step=step, metric=metric, season=season, quality=quality))
 	if credits:
 		_credits(m, cited)
 	m.center_object(regions)
