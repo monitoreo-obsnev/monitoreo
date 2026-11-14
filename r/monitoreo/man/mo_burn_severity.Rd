@@ -40,8 +40,8 @@ mo_burn_severity(
 \item{path}{optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
 rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-\code{"pN"} (percentile N).}
+\item{metric}{temporal metric of the images of each period (the NBR before and after): \code{"median"} (default),
+\code{"mean"}, \code{"min"}, \code{"max"} or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
@@ -84,7 +84,7 @@ islands of less than them inside them filled (default 1; 0: every pixel).}
 \value{
 A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
   region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
-  mean, median, p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
+  mean, median, std, cv (coefficient of variation, \%), p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
   the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
@@ -143,7 +143,7 @@ x <- mo_burn_severity(mo_bbox(-3.0, 36.9, -2.9, 37.0), "2022-06-01", "2022-08-31
                       collection = "MODIS/061/MYD09GA", path = "rdnbr.tif")
 x                     # hectares of each class
 attr(x, "burned_ha")  # hectares with RdNBR >= 0.069
-attr(x, "stats")      # mean, median, p10, p90, min and max of the RdNBR
+attr(x, "stats")      # mean, median, std, cv (\%), p10, p90, min and max of the RdNBR
 # the band severity of the GeoTIFF with the colours and labels of the classes
 legend <- attr(x, "legend")
 severity <- terra::as.int(terra::rast("rdnbr.tif")[["severity"]])

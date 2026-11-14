@@ -42,13 +42,14 @@ which only have maps and their statistics.}
 
 \item{path}{path of the GeoTIFF.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-\code{"pN"} (percentile N).}
+\item{metric}{temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+\code{"min"}, \code{"max"} or \code{"pN"} (percentile N).}
 
 \item{temporal}{\code{"period"} (the metric over all the images of the period), \code{"annual"},
 \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).}
 
-\item{interannual}{statistic between the years when \code{temporal} is not \code{"period"}.}
+\item{interannual}{metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+\code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 

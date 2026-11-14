@@ -211,6 +211,29 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
   expect_length(calls, 0)
 })
 
+test_that("the statistics of the region, also the coefficient of variation, of the images and between the years", {
+  sent <- NULL
+  answer <- function(...) {
+    sent <<- list(...)
+    list(rows = list(list(region = "park", mean = 450, cv = 18.5, p90 = 610, n_pixels = 900L)),
+         stats = list("mean", "cv", "p90"), title = "PRECIP TerraClimate", unit = "[%]", scale = 4000,
+         references = list(), credits = list())
+  }
+  local_mocked_bindings(services = function() list(region_stats = answer), .package = "monitoreo")
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  x <- mo_region_stats(region, "PRECIP", "TerraClimate", "2001-01-01", "2020-12-31", metric = "sum",
+                       temporal = "annual", interannual = "cv", stats = c("mean", "cv", "p90"))
+  expect_equal(sent[["interannual"]], "cv")
+  expect_equal(sent[["stats"]], list("mean", "cv", "p90"))  # a list, also with one statistic
+  expect_equal(x$cv, 18.5)
+  expect_equal(attr(x, "unit"), "[%]")
+  mo_region_stats(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", stats = "cv")
+  expect_equal(sent[["stats"]], list("cv"))
+  mo_region_stats(region, "ELEVATION", "Copernicus")
+  expect_null(sent[["stats"]])  # those of the package: mean, std, cv, min, p5, p50, p95 and max
+  expect_equal(sent[["interannual"]], "mean")
+})
+
 test_that("mo_image of data of Earth Engine by its ID: its name, and the arguments sent by name", {
   skip_if_no_python()
   # the spec, kind and is_static of Python, without Earth Engine; the image, its colour ramp and pixel size faked

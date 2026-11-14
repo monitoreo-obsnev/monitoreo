@@ -35,9 +35,13 @@ from .results import KINDS_TIP, MAP_KINDS  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
-METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max'), ('Percentile 5', 'p5'),
-           ('Percentile 10', 'p10'), ('Percentile 90', 'p90'), ('Percentile 95', 'p95')]
-STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max'), ('Standard deviation', 'std')]
+# the metrics of the images and the statistics of the region (any of them for any variable; composite.METRICS): the
+# standard deviation and the coefficient of variation (100 × standard deviation / mean, in %) measure how much they vary
+PERCENTILES = [('Percentile 5', 'p5'), ('Percentile 10', 'p10'), ('Percentile 25', 'p25'), ('Percentile 75', 'p75'),
+               ('Percentile 90', 'p90'), ('Percentile 95', 'p95')]
+SPREADS = [('Standard deviation', 'std'), ('Coefficient of variation (%)', 'cv')]
+METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + PERCENTILES + SPREADS
+STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + SPREADS + PERCENTILES
 TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
             ('Each month, then between years', 'monthly')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
@@ -616,7 +620,7 @@ class MonitorEODock(QDockWidget):
 		f = QFormLayout(box)
 		self.map_metric = combo(METRICS, 'median')
 		self.temporal = combo(TEMPORAL, 'period')
-		self.interannual = combo(METRICS[:4], 'mean')
+		self.interannual = combo(METRICS, 'mean')
 		f.addRow('Metric', info(self.map_metric, HELP['map_metric']))
 		f.addRow('Temporal aggregation', info(self.temporal, HELP['temporal']))
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))

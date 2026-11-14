@@ -74,6 +74,7 @@
 			downloadRgb: 'Descargar GeoTIFF del color verdadero (bandas red, green, blue)',
 			series: 'Serie temporal', step: 'Paso', s_daily: 'Diario (días con imágenes)', 's_16-day': '16 días',
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'Métrica de cada paso', stat: 'Estadístico de la región',
+			cvAxis: 'Coeficiente de variación',
 			computeSeries: 'Calcular la serie temporal',
 			trends: 'Tendencias (Mann-Kendall y Sen)', parts: 'Partes del año', p_monthly: 'Meses', 'p_16-day': '16 días',
 			p_annual: 'El año', yearMetric: 'Métrica de cada año', trendTable: 'Tabla de tendencias',
@@ -209,6 +210,7 @@
 			downloadRgb: 'Download GeoTIFF of the true colour (bands red, green, blue)',
 			series: 'Time series', step: 'Step', s_daily: 'Daily (days with images)', 's_16-day': '16 days',
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
+			cvAxis: 'Coefficient of variation',
 			computeSeries: 'Compute the time series',
 			trends: 'Trends (Mann-Kendall and Sen)', parts: 'Parts of the year', p_monthly: 'Months', 'p_16-day': '16 days',
 			p_annual: 'The year', yearMetric: 'Metric of each year', trendTable: 'Trend table',
@@ -290,13 +292,13 @@
 		}
 	};
 
-	var METRICS = ['mean', 'median', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'std', 'count'];
-	var STATS = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
+	var METRICS = ['mean', 'median', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'std', 'cv', 'count'];
+	var STATS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
 	var METRIC_NAMES = {
-		es: {mean: 'Media', median: 'Mediana', min: 'Mínimo', max: 'Máximo', std: 'Desviación típica', count: 'Número',
-			sum: 'Suma'},
-		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation', count: 'Count',
-			sum: 'Sum'}
+		es: {mean: 'Media', median: 'Mediana', min: 'Mínimo', max: 'Máximo', std: 'Desviación típica',
+			cv: 'Coeficiente de variación (%)', count: 'Número', sum: 'Suma'},
+		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation',
+			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum'}
 	};
 
 	var state = {
@@ -815,10 +817,12 @@
 		render();
 	}
 
-	// services._ylabel: title of the y axis of the charts of the entry E, the unit after its axis title if it has one
-	// (e.g. 'Snow Cover Frequency (SCF) [%]')
-	function axisTitle(e, metric) {
-		var unit = unitText(e, metric);
+	// services._ylabel: title of the y axis of the charts of the entry E (with the statistic STAT of the region), the
+	// unit after its axis title if it has one (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation,
+	// after its name
+	function axisTitle(e, metric, stat) {
+		var unit = unitText(e, metric, null, stat);
+		if ((!e.static && mo.isCv(metric)) || mo.isCv(stat)) return (t('cvAxis') + ' ' + (unit || '')).trim();
 		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
 	}
 
@@ -826,8 +830,8 @@
 	// given for the data of Earth Engine, in UDUNITS, between brackets as those of the catalog ('[mm]', services._ylabel).
 	// A fixed layer has no metric (services.make_spec: none for an image), whatever the select greyed out holds: the
 	// mosaic of a collection of rates per month is still a rate, not their sum
-	function unitText(e, metric) {
-		var unit = mo.unitOf(e, e.static ? null : metric);
+	function unitText(e, metric, interannual, stat) {
+		var unit = mo.unitOf(e, e.static ? null : metric, e.static ? null : interannual, stat);
 		return e.custom && unit && unit.charAt(0) !== '[' ? '[' + unit + ']' : unit;
 	}
 
@@ -1211,6 +1215,9 @@
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
 		var scale = rangeScale(e);
+		// the entry for the colour ramp: the range of a spread (standard deviation, coefficient of variation) is not
+		// that of the variable (services.ramp_entry)
+		var ramped = e.static ? e : mo.rampEntry(e, state.mapMetric, state.temporal, state.interannual);
 		// the range of each layer in a request of its own (one that fails does not take the other with it), drawn when
 		// both have come
 		var st = {}, failed = {}, pending = 0;
@@ -1235,13 +1242,14 @@
 				var stats = failed.index ? null : st.index;
 				var vis;
 				if (failed.index) {  // the range of the catalog (0 to 1 for the data outside it)
-					var span = typeof e.minp === 'number' && typeof e.maxp === 'number' ? (e.maxp - e.minp) / 4 : 0.1;
-					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, e);
+					var span = typeof ramped.minp === 'number' && typeof ramped.maxp === 'number' ?
+						(ramped.maxp - ramped.minp) / 4 : 0.1;
+					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, ramped);
 				} else {
-					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, e);
+					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, ramped);
 				}
 				map.addLayer(band, vis, name);
-				var unit = unitText(e, state.mapMetric);
+				var unit = unitText(e, state.mapMetric, state.temporal === 'period' ? null : state.interannual);
 				colourBar(vis, name + (unit ? ' ' + unit : ''));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
 				if (failed.index) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
@@ -1323,7 +1331,8 @@
 				return {v: v === undefined ? null : v};
 			}))};
 		});
-		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)}, lineWidth: 1.5,
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
+			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}, lineWidth: 1.5,
 			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -1429,7 +1438,8 @@
 					series[2 * i + 1] = {color: regions.length > 1 ? undefined : '#d62728', lineDashStyle: [6, 3],
 						pointShape: 'square'};
 				});
-				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, vAxis: {title: axisTitle(e, state.stepMetric)},
+				var chart = ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
+					vAxis: {title: axisTitle(e, state.stepMetric, state.stat)},
 					pointSize: 4, lineWidth: 1.5, series: series});
 				show([chart, ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(prof,
 					['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'], name, e)]);
@@ -1481,7 +1491,8 @@
 			return {c: c};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: t('seeChart') + ' ' +
-			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric)}, hAxis: {format: '####'}, series: series,
+			mo.partLabel(step, part, state.lang), vAxis: {title: axisTitle(e, state.trendMetric, state.stat)},
+			hAxis: {format: '####'}, series: series,
 			legend: {position: regions.length > 1 ? 'right' : 'none'}});
 	}
 
@@ -1496,7 +1507,7 @@
 		var id = start();
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
 			var rows = mo.trendRows(yearly, step, first, state.lang);
-			var unit = unitText(e, state.trendMetric);
+			var unit = unitText(e, state.trendMetric, null, state.stat);
 			var cols = [t('part'), 'n', 'τ', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
 				(state.lang === 'es' ? 'año' : 'year') + ')' : 'Sen'];
 			var regions = regionsOf(rows);
@@ -1555,7 +1566,7 @@
 		var fixed = mo.trendVis(output);
 		if (fixed && output !== 'slope' && output !== 'z' && output !== 'n') return add(fixed);
 		mo.percentiles(band, geom, rangeScale(e)).evaluate(guardedAsync(id, function (stats) {
-			var auto = mo.visParams(stats, e);
+			var auto = mo.visParams(stats, mo.rampEntry(e, state.trendMetric));
 			add(mo.trendVis(output, auto.min, auto.max) || auto);
 		}));
 	}
@@ -1605,7 +1616,7 @@
 		var id = start();
 		out.stats.evaluate(guardedAsync(id, function (fc) {
 			var rows = mo.rbrTable(fc.features);
-			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var stats = ['mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max'];
 			var table = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(rows.map(function (r) {
 				return [r.region].concat(stats.map(function (k) { return r[k] === null ? '' : num(r[k], 3); }),
 					[num(r.ha, 4)]);
@@ -1753,7 +1764,7 @@
 					'≥ ' + limit(r.rdnbr_min) : limit(r.rdnbr_min) + ' – ' + limit(r.rdnbr_max));
 				return [(regions.length > 1 ? r.region + ': ' : '') + r.label, range, num(r.ha, 4)];
 			}));
-			var stats = ['mean', 'median', 'p10', 'p90', 'min', 'max'];
+			var stats = ['mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max'];
 			var statsRows = mo.rdnbrTable(d.stats.features);
 			var statsTable = [[t('region')].concat(stats.map(metricName), [t('hectares')])].concat(statsRows.map(
 				function (r) {

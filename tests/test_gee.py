@@ -68,6 +68,15 @@ CASES = {
 	'map_bio01_worldclim': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 125}},
 	'series_s2_monthly': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
 	                      'spec': {'ref': 27, 'period': ['2021-05-01', '2021-07-31']}},
+	# the coefficient of variation (cv, %): of the images of each year and of the pixels of each region; between the
+	# years on each pixel; and the standard deviation of the pixels
+	'series_modis_cv': {'kind': 'series', 'region': TWO, 'step': 'annual', 'metric': 'cv', 'stat': 'cv',
+	                    'spec': {'ref': 25, 'period': ['2018-01-01', '2020-12-31']}},
+	'series_modis_std_of_means': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                              'stat': 'std', 'spec': {'ref': 25, 'period': ['2020-05-01', '2020-07-31']}},
+	'map_modis_cv_between_years': {'kind': 'percentiles', 'region': GUAJARES,
+	                               'spec': {'ref': 25, 'period': ['2015-01-01', '2020-12-31'], 'metric': 'mean',
+	                                        'temporal': 'annual', 'interannual': 'cv'}},
 	'series_landsat_two_regions': {'kind': 'series', 'region': TWO, 'step': 'annual', 'metric': 'max', 'stat': 'median',
 	                               'spec': {'ref': 14, 'period': ['2020-01-01', '2021-12-31']}},
 	'series_modis_snow_season': {'kind': 'series', 'region': GUAJARES, 'step': '16-day', 'metric': 'max', 'stat': 'p90',

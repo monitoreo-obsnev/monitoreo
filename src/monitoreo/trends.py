@@ -118,11 +118,11 @@ def yearly_collection(spec, region, res, step, part, metric='mean'):
 	"""ee.ImageCollection, in the order of the years, of images with the bands 't' (the year) and 'value' (METRIC
 	of the images of PART in that year, masked if it has none)."""
 	col = variables.collection(spec, region, res)
-	red = composite.reducer(metric)
+	composite.check_metric(metric)
 	imgs = []
 	for u, year, a, b in seasonal_bins(spec, step):
 		if u == part:
-			value = composite._reduce(col.filterDate(a, b), red)
+			value = composite._reduce(col.filterDate(a, b), metric)
 			imgs.append(ee.Image.constant(year).toFloat().rename('t').updateMask(value.mask()).addBands(value))
 	if not imgs:
 		raise ValueError(f'the period has no {part_label(step, part)}')

@@ -184,11 +184,13 @@ def rdnbr(dnbr, nbr_before):
 
 
 def stats_reducer():
-	"""ee.Reducer of the statistics of the RBR or the RdNBR over a region: its mean, median ('median'), percentiles 10
-	and 90 ('p10', 'p90'), minimum and maximum, the percentiles from a histogram of PERCENTILE_BUCKETS buckets, so that
-	a few outliers do not make them coarse."""
+	"""ee.Reducer of the statistics of the RBR or the RdNBR over a region: its mean, median ('median'), standard
+	deviation ('stdDev', from which and the mean services computes the coefficient of variation), percentiles 10 and 90
+	('p10', 'p90'), minimum and maximum, the percentiles from a histogram of PERCENTILE_BUCKETS buckets, so that a few
+	outliers do not make them coarse."""
 	percentiles = ee.Reducer.percentile([10, 50, 90], ['p10', 'median', 'p90'], PERCENTILE_BUCKETS)
-	return ee.Reducer.mean().combine(percentiles, '', True).combine(ee.Reducer.minMax(), '', True)
+	return ee.Reducer.mean().combine(percentiles, '', True).combine(ee.Reducer.stdDev(), '', True) \
+		.combine(ee.Reducer.minMax(), '', True)
 
 
 # The perimeter of the burned area (perimeter; burnPerimeter in gee/core.js): the polygons of the burned pixels, those

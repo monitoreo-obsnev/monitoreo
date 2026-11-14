@@ -284,7 +284,13 @@ which map and year you used.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
-temporal takes no other values. Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
+temporal takes no other values. Any statistic of any variable: mean, median, min, max, std (standard deviation), \
+cv (coefficient of variation: 100 × std / mean, in %) and pN (percentile N, e.g. p90), of the images of each pixel \
+(metric), between the years (interannual: e.g. how much the annual precipitation changes from year to year, temporal \
+"annual", metric "sum", interannual "cv") or over the region (stat of time_series, stats of region_stats, e.g. \
+["mean", "median", "cv", "p10", "p90"]). Say that the cv is in % and only means something for variables with a true \
+zero and positive values (precipitation, NDVI of vegetation), not with a mean near 0 (a temperature in °C, an index \
+around 0). Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
 with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
 each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
 compare_series and compare_map. Fire: burn_severity.
@@ -1897,7 +1903,7 @@ class Assistant:
 		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
 		       'label': 'value'}
 		if not dated(a):  # a fixed layer (elevation, slope): its value at the point, and no time series
-			error, texts, _ = await self.call('region_stats', {**base, 'region': point})
+			error, texts, _ = await self.call('region_stats', {**base, 'region': point, 'stats': ['mean']})
 			if error:
 				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 			stats = json.loads(texts[0]) if texts else []
@@ -1914,9 +1920,10 @@ class Assistant:
 			out.update(value=row.get('slope'), p_value=row.get('p_value'), label="Sen's slope")
 		elif m['tool'] == 'map_layer':
 			ma = m['args']
-			error, texts, _ = await self.call('region_stats', {
+			error, texts, _ = await self.call('region_stats', {  # the value of the map at the pixel: also between years
 				**base, 'region': point, 'start': ma['start'], 'end': ma['end'], 'metric': ma.get('metric') or 'median',
-				'temporal': ma.get('temporal') or 'period'})
+				'temporal': ma.get('temporal') or 'period', 'interannual': ma.get('interannual') or 'mean',
+				'stats': ['mean']})
 			stats = json.loads(texts[0]) if not error and texts else []
 			rows = stats.get('rows') if isinstance(stats, dict) else stats
 			out['value'] = rows[0].get('mean') if rows else None

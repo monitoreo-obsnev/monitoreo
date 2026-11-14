@@ -29,8 +29,9 @@ COMPARISON_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('ref
                       ('n_reference', 'Years of the reference'), ('n_other', 'Years of the other')]
 BURN_COLUMNS = [('region', 'Region'), ('label', 'Class (USGS)'), ('dnbr_min', 'dNBR from'), ('dnbr_max', 'dNBR to'),
                 ('ha', 'Hectares')]
-RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('p10', 'Percentile 10'),
-               ('p90', 'Percentile 90'), ('min', 'Minimum'), ('max', 'Maximum'), ('ha', 'Hectares with values')]
+RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('std', 'Standard deviation'),
+               ('cv', 'Coefficient of variation (%)'), ('p10', 'Percentile 10'), ('p90', 'Percentile 90'),
+               ('min', 'Minimum'), ('max', 'Maximum'), ('ha', 'Hectares with values')]
 # the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
 RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
                  ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]

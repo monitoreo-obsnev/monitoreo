@@ -7,14 +7,15 @@ MO.chart = (() => {
 	const {el} = MO;
 	const NUMERIC = new Set(['value', 'n_pixels', 'n_images', 'n', 'tau', 'z', 'p_value', 'slope', 'intercept', 'first_year',
 		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max',
-		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'p10', 'p90', 'min', 'max']);
+		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max']);
 	const COLUMNS = {
 		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
 		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
 		slope: 'Slope', intercept: 'Initial value', first_year: 'First year', last_year: 'Last year',
 		reference: 'Reference', other: 'Other period', difference: 'Difference', n_reference: 'Years (ref.)',
 		n_other: 'Years (other)', class: 'Class', dnbr_min: 'dNBR from', dnbr_max: 'dNBR to', rdnbr_min: 'RdNBR from',
-		rdnbr_max: 'RdNBR to', ha: 'Hectares', mean: 'Mean', median: 'Median', p10: 'Percentile 10',
+		rdnbr_max: 'RdNBR to', ha: 'Hectares', mean: 'Mean', median: 'Median', std: 'Standard deviation',
+		cv: 'Coefficient of variation (%)', p10: 'Percentile 10',
 		p90: 'Percentile 90', min: 'Minimum', max: 'Maximum',
 	};
 	const TABLES = {
@@ -23,8 +24,10 @@ MO.chart = (() => {
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
 		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max', 'ha'],
 	};
-	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table
-	const RBR_STATS = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
+	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table, with the
+	// standard deviation and the coefficient of variation (RBR_BASE: those of the reports published before them)
+	const RBR_STATS = ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha'];
+	const RBR_BASE = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha'];
 	const LOCALE = {decimal: '.', thousands: ',', grouping: [3], currency: ['$', ''], minus: '−'};
 	const TIME_LOCALE = {
 		dateTime: '%A, %e %B %Y, %X', date: '%d/%m/%Y', time: '%H:%M:%S', periods: ['AM', 'PM'],
@@ -281,7 +284,7 @@ MO.chart = (() => {
 
 	function table(rows, kind) {
 		const all = Object.keys(rows[0] || {});
-		const cols = (TABLES[kind] || (RBR_STATS.every((c) => all.includes(c)) ? RBR_STATS : all))
+		const cols = (TABLES[kind] || (RBR_BASE.every((c) => all.includes(c)) ? RBR_STATS : all))
 			.filter((c) => rows.length && c in rows[0]);
 		const cell = (c, v) => c === 'significant' ? (v ? 'yes' : 'no') : c === 'p_value' ? MO.pValue(v) :
 			typeof v === 'number' ? (['n', 'n_images', 'n_pixels', 'first_year', 'last_year', 'class', 'n_reference', 'n_other'].includes(c) ? String(v) : MO.num(v)) : (v ?? '–');

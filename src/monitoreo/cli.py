@@ -9,14 +9,19 @@
                     [--resolution M]                 GeoTIFF of the map of a variable aggregated in time (--out), of the
                                                      true colour of the same images (--rgb: bands red, green and blue)
                                                      or both, on the same grid
+    monitoreo stats VARIABLE --sensor S --region JSON [--start D --end D] [--metric median] [--stats mean,cv,p90]
+                                                     statistics of the map of a variable over each feature of the
+                                                     region: mean, median, min, max, std, cv (coefficient of
+                                                     variation, %) and percentiles; also the fixed layers
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
     monitoreo series --collection ID --band B [--band-scale F] [--band-offset F] [--unit U] --region JSON ...
                                                      the same with any collection of images of Earth Engine by its ID,
-                                                     instead of VARIABLE and --sensor (also image, trend and compare);
-                                                     image also takes --image ID (a fixed image, without dates) and
+                                                     instead of VARIABLE and --sensor (also image, stats, trend and
+                                                     compare); image and stats also take --image ID (a fixed image,
+                                                     without dates) and
                                                      --terrain slope|aspect (in degrees: its unit is then degree)
     monitoreo asset ID                              what an image or collection of Earth Engine is (type, bands,
                                                      units, scale, dates, how to cite it), to give it with --collection
@@ -109,6 +114,13 @@ BURN_COLLECTIONS = ('MODIS/061/MOD09GA', 'MODIS/061/MYD09GA')
 
 
 SENSOR_HELP = 'the sensor of VARIABLE, e.g. Sentinel-2 (monitoreo list gives those of each variable)'
+# the metrics of the images and the statistics of the region, for any variable (composite.METRICS)
+METRIC_HELP = ('how the images are summarized on each pixel: mean, median, min, max, std (standard deviation), cv '
+               '(coefficient of variation: 100 x std / mean, in %%), sum, count, mode or pN (percentile N, e.g. p90)')
+STAT_HELP = ('how the pixels of each feature of the region are summarized: mean, median, min, max, std (standard '
+             'deviation), cv (coefficient of variation, in %%) or pN (percentile N, e.g. p90)')
+INTERANNUAL_HELP = ('with --temporal annual, monthly or 16-day: how the years are summarized, any metric (e.g. cv: how '
+                    'much the values change from year to year, in %%)')
 # the options of the data of Earth Engine given by its ID, instead of VARIABLE and --sensor (see monitoreo asset)
 SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_scale': '--band-scale', 'band_offset': '--band-offset',
                   'unit': '--unit', 'terrain': '--terrain'}
@@ -165,7 +177,7 @@ def _error(e, args):
 	text = f'ERROR: {e}'
 	asset = None if 'variable' in args.source else args.source.get('collection')
 	if asset and 'give it as an image' in str(e):
-		text += (f'; in the command line, --image {asset} instead of --collection' if args.cmd == 'image' else
+		text += (f'; in the command line, --image {asset} instead of --collection' if args.cmd in ('image', 'stats') else
 		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
 	return text
 
@@ -178,7 +190,7 @@ def _source(args, parser):
 	given = {k: getattr(args, k, None) for k in SOURCE_OPTIONS}
 	given = {k: v for k, v in given.items() if v is not None and v != ''}
 	image = 'image' in given
-	ids = '--collection or --image' if hasattr(args, 'image') else '--collection'  # --image: only the command image
+	ids = '--collection or --image' if hasattr(args, 'image') else '--collection'  # --image: the commands image, stats
 	if args.variable:
 		if '/' in args.variable:  # an ID of Earth Engine given as a variable of the catalog (none has '/'), sensor or not
 			parser.error(f'{args.variable} is not a variable of the catalog (monitoreo list): give an ID of Earth Engine '
@@ -265,8 +277,8 @@ def main(argv=None):
 	p.add_argument('--start', required=True)
 	p.add_argument('--end', required=True)
 	p.add_argument('--step', default='monthly', choices=('daily', '16-day', 'monthly', 'annual'))
-	p.add_argument('--metric', default='mean')
-	p.add_argument('--stat', default='mean')
+	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
+	p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
 	p.add_argument('--png')
@@ -281,9 +293,9 @@ def main(argv=None):
 	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
 	                               'nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
-	p.add_argument('--metric', default='median')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
-	p.add_argument('--interannual', default='mean')
+	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
 	p.add_argument('--out', help='GeoTIFF file of the variable')
 	p.add_argument('--rgb', metavar='FILE', help='GeoTIFF file of the true colour of the same images and pixels: bands '
@@ -291,6 +303,26 @@ def main(argv=None):
 	                                             'with --out too, on its grid. Only the variables of Sentinel-2 and '
 	                                             'Landsat and the cloud frequency of MODIS (rgb in monitoreo info), '
 	                                             'with metric median, mean, min, max or pN')
+	from .catalog import REGION_STATS
+	computes['stats'] = p = sub.add_parser('stats', help='statistics of the map of a variable over each feature of a '
+	                                                     'region (also the fixed layers)')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p, image=True)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
+	                               'nor for --image)')
+	p.add_argument('--end', help='last day (not for the fixed layers)')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
+	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
+	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
+	p.add_argument('--stats', default=','.join(REGION_STATS),
+	               help='the statistics over each feature, separated by commas: mean, median, min, max, std (standard '
+	                    'deviation), cv (coefficient of variation, in %%) and pN (percentile N) (default: '
+	                    f"{','.join(REGION_STATS)})")
+	p.add_argument('--scale', type=float, help='pixel size of the statistics in metres (default: that of the data, or '
+	                                           'bigger over big regions)')
 	for name, help_ in (('trend', 'seasonal trends (Mann-Kendall and Sen) of a variable over a region'),
 	                    ('compare', 'a reference period against another, by part of the year')):
 		computes[name] = p = sub.add_parser(name, help=help_)
@@ -305,8 +337,8 @@ def main(argv=None):
 			p.add_argument('--other-start', required=True, help='first day of the other period')
 			p.add_argument('--other-end', required=True)
 		p.add_argument('--step', default='annual' if name == 'trend' else 'monthly', choices=('monthly', '16-day', 'annual'))
-		p.add_argument('--metric', default='mean')
-		p.add_argument('--stat', default='mean')
+		p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
+		p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
@@ -337,7 +369,8 @@ def main(argv=None):
 	p.add_argument('--collection', choices=BURN_COLLECTIONS, metavar='ID',
 	               help='only with --index RdNBR and --sensor Modis: MODIS/061/MOD09GA (Terra, since 2000-02-24; '
 	                    'default) or MODIS/061/MYD09GA (Aqua, since 2002-07-04)')
-	p.add_argument('--metric', default='median', help='metric of the images of each period (default: median)')
+	p.add_argument('--metric', default='median', help='metric of the images of each period: mean, median, min, max or pN '
+	                                                  '(default: median)')
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
 	p.add_argument('--csv', help='CSV file of the hectares of each class (dNBR, RdNBR) or of the statistics (RBR)')
 	p.add_argument('--out', help='GeoTIFF file, with the bands dnbr, severity, nbr_before and nbr_after (RBR: rbr, '
@@ -528,6 +561,9 @@ def _compute(args, services):
 	if args.cmd == 'image':
 		_image(args, services)
 		return
+	if args.cmd == 'stats':
+		_stats(args, services)
+		return
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
@@ -567,6 +603,21 @@ def _image(args, services):
 			      else f"{res['file']}: no valid pixel")
 	except ValueError as e:
 		sys.exit(_error(e, args))
+
+
+def _stats(args, services):
+	"""Statistics of the map of a variable over each feature of the region (services.region_stats): any of mean,
+	median, min, max, std, cv (coefficient of variation, %) and pN, for any variable, also the fixed layers."""
+	stats = [s.strip() for s in str(args.stats).split(',') if s.strip()]
+	try:
+		res = services.region_stats(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
+		                            temporal=args.temporal, interannual=args.interannual, stats=stats, scale=args.scale,
+		                            where=_where(args), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	_table(_fmt(res['rows']), ['region'] + list(res.get('stats') or stats) + ['n_pixels'])
+	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats) else ''
+	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
 
 
 def _fmt(rows, digits=4):
@@ -614,7 +665,7 @@ def _burn(args, services):
 	def cells(rows):  # hectares with a decimal, the rest with 4 digits, and nothing for the open ends of the classes
 		return [{k: '' if v is None else f'{v:.1f}' if k == 'ha' else f'{v:.4g}' if isinstance(v, float) else v
 		         for k, v in r.items()} for r in rows]
-	stats = ['region', 'mean', 'median', 'p10', 'p90', 'min', 'max', 'ha']
+	stats = services.RBR_COLUMNS  # region, mean, median, std, cv (%), p10, p90, min, max and ha
 	if res['index'] == 'RBR':
 		_table(cells(res['stats']), stats)
 	elif res['index'] == 'RdNBR':

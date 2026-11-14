@@ -138,13 +138,15 @@ cited <- function(df, res) {
 #'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
 #'   which only have maps and their statistics.
 #' @param other_start,other_end first and last day of the other period.
-#' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or
-#'   \code{"pN"} (percentile N).
+#' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+#'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
+#'   \code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.
 #' @param stat spatial statistic over each feature of the region: \code{"mean"}, \code{"median"}, \code{"min"},
-#'   \code{"max"}, \code{"std"} or \code{"pN"}.
+#'   \code{"max"}, \code{"std"}, \code{"cv"} (coefficient of variation, in \%) or \code{"pN"}.
 #' @param temporal \code{"period"} (the metric over all the images of the period), \code{"annual"},
 #'   \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).
-#' @param interannual statistic between the years when \code{temporal} is not \code{"period"}.
+#' @param interannual statistic between the years when \code{temporal} is not \code{"period"}: any of those of
+#'   \code{metric} (e.g. \code{"cv"}, how much the values change from year to year, in \%).
 #' @param season optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).
 #' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 #'   only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
@@ -808,9 +810,13 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' \code{vmax}, so that the colours keep their balance. Only the variables whose images have red, green and blue bands
 #' (column \code{rgb} of \code{mo_variables()}): those of Sentinel-2 and Landsat and the cloud frequency of MODIS; not
 #' the fixed layers, the climate nor the other MODIS products (MOD13Q1, of the NDVI and the EVI, has no green band).
-#' The metrics \code{"sum"}, \code{"std"}, \code{"count"} and \code{"mode"} give no colours, nor between the years
-#' (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
+#' The metrics \code{"sum"}, \code{"std"}, \code{"cv"}, \code{"count"} and \code{"mode"} give no colours, nor between
+#' the years (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
 #' @inheritParams mo_params
+#' @param metric temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+#'   \code{"min"}, \code{"max"} or \code{"pN"} (percentile N).
+#' @param interannual metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+#'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param vmin,vmax range of the reflectance of the three bands together (default: the lowest percentile 2 and the
 #'   highest percentile 98 of the bands over the region).
 #' @return A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,
@@ -966,8 +972,13 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' of a variable of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with
 #' \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
-#' @return A data.frame (region, mean, std, min, p5, p50, p95, max, n_pixels) with the attributes title, unit, scale,
-#'   csv, references and credits (see \code{mo_references()}).
+#' @param stats the statistics over each feature, any of \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
+#'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%) and
+#'   \code{"pN"} (percentile N), for any variable, e.g. \code{c("mean", "cv", "p90")}; by default, mean, std, cv, min,
+#'   p5, p50, p95 and max.
+#' @return A data.frame (region, the columns of \code{stats}: by default mean, std, cv, min, p5, p50, p95, max; and
+#'   n_pixels) with the attributes title, unit (of the map; cv is in \%), scale, references and credits (see
+#'   \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -980,6 +991,10 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' \dontrun{
 #' mo_init()
 #' mo_region_stats(mo_wdpa(389011), "LST", "Modis", "2023-07-01", "2023-08-31")
+#' # how much the annual precipitation changes from year to year on each pixel (coefficient of variation between the
+#' # years, in %), and its mean, median and percentile 90 over the protected area
+#' mo_region_stats(mo_wdpa(389011), "PRECIP", "TerraClimate", "2001-01-01", "2020-12-31", metric = "sum",
+#'                 temporal = "annual", interannual = "cv", stats = c("mean", "median", "p90"))
 #' # any image of Earth Engine by its ID: the annual mean temperature of WorldClim (stored in tenths of degree)
 #' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
 #' }
@@ -987,12 +1002,12 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                             temporal = "period", season = NULL, quality = NULL, scale = NULL, collection = NULL,
                             where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                            terrain = NULL) {
+                            terrain = NULL, interannual = "mean", stats = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
-  res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, season = season,
-                                 quality = quality, scale = scale, collection = collection, where = where,
-                                 image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                                 unit = unit, terrain = terrain)
+  res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, interannual = interannual,
+                                 season = season, quality = quality, stats = if (is.null(stats)) NULL else as.list(stats),
+                                 scale = scale, collection = collection, where = where, image = image, band = band,
+                                 band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
@@ -1122,6 +1137,10 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
 #' \code{mo_download_image()} with the same arguments: for small regions. Only the variables with \code{rgb} in
 #' \code{mo_variables()}. The GeoTIFF keeps the references in its metadata (item \code{references}).
 #' @inheritParams mo_params
+#' @param metric temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+#'   \code{"min"}, \code{"max"} or \code{"pN"} (percentile N).
+#' @param interannual metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+#'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param path path of the GeoTIFF.
 #' @param clip clip the map to the region.
 #' @return A list (file, grid, resolution, native_resolution, images, name, unit, bands: red, green and blue, min and
@@ -1498,6 +1517,8 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' @inheritParams mo_params
 #' @param start,end the period before the fire.
 #' @param other_start,other_end the period after the fire.
+#' @param metric temporal metric of the images of each period (the NBR before and after): \code{"median"} (default),
+#'   \code{"mean"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param sensor \code{"Sentinel-2"} or \code{"Landsat"}; with \code{index = "RdNBR"}, also \code{"Modis"} (500 m).
 #' @param path optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
 #'   rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).
@@ -1515,7 +1536,7 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'   islands of less than them inside them filled (default 1; 0: every pixel).
 #' @return A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
 #'   region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
-#'   mean, median, p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
+#'   mean, median, std, cv (coefficient of variation, \%), p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
 #'   the RdNBR, those that changed, RdNBR >= 0.069, the classes "Low severity" to "High severity"; none for the RBR),
 #'   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
 #'   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
@@ -1569,7 +1590,7 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'                       collection = "MODIS/061/MYD09GA", path = "rdnbr.tif")
 #' x                     # hectares of each class
 #' attr(x, "burned_ha")  # hectares with RdNBR >= 0.069
-#' attr(x, "stats")      # mean, median, p10, p90, min and max of the RdNBR
+#' attr(x, "stats")      # mean, median, std, cv (%), p10, p90, min and max of the RdNBR
 #' # the band severity of the GeoTIFF with the colours and labels of the classes
 #' legend <- attr(x, "legend")
 #' severity <- terra::as.int(terra::rast("rdnbr.tif")[["severity"]])

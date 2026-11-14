@@ -2,7 +2,7 @@
 
 Each step (a day with images, 16 days, a month or a year of the period, within the season if there is one) is
 reduced in time with METRIC (e.g. the mean of the NDVI of the images of each month), and then over each region with
-STAT (e.g. its spatial mean). Every row also gives the number of images of the step and of valid pixels of the
+STAT (e.g. its spatial mean, or its coefficient of variation, 'cv', in %: see composite). Every row also gives the number of images of the step and of valid pixels of the
 region, so that steps with few clear observations can be told apart.
 """
 
@@ -64,7 +64,8 @@ def region_crs(regions):
 
 
 def _stat_name(stat):
-	"""Name of the output of the spatial reducer STAT for a single band image (mean, median, p95, stdDev, ...)."""
+	"""Name of the output of the spatial reducer STAT for a single band image (mean, median, p95, stdDev, ...; for the
+	coefficient of variation, that of its mean: see composite.ee_value_of)."""
 	return composite.reducer(stat).getOutputs().getInfo()[0]
 
 
@@ -80,12 +81,15 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	scale = scale or auto_scale(spec, regions)
 	crs = crs or region_crs(regions)
 	col = variable.collection(spec, geom, scale)
-	red = composite.reducer(metric)
-	sred = composite.reducer(stat).combine(ee.Reducer.count(), '', True)
+	composite.check_metric(metric)
+	# the statistic count is the number of pixels: once (Earth Engine refuses two outputs count)
+	sred = ee.Reducer.count() if str(stat).strip().lower() == 'count' else \
+		composite.reducer(stat).combine(ee.Reducer.count(), '', True)
 	out = _stat_name(stat)
 	steps = steps if steps is not None else bins(spec, step, geom)
 	bands = [f's{i}' for i in range(len(steps))]
-	img = ee.Image.cat([composite._reduce(col.filterDate(a, b), red).rename(band) for band, (a, b) in zip(bands, steps)])
+	img = ee.Image.cat([composite._reduce(col.filterDate(a, b), metric).rename(band)
+	                    for band, (a, b) in zip(bands, steps)])
 	n_images = ee.List([col.filterDate(a, b).size() for a, b in steps])
 	stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)
 	prefix = [f'{band}_' if len(bands) > 1 else '' for band in bands]  # a single band keeps the names of the outputs
@@ -93,7 +97,8 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	def rows(f):
 		f = ee.Feature(f)
 		return ee.FeatureCollection([ee.Feature(None, {
-			'region': f.get('name'), 'date': a, 'value': f.get(p + out), 'n_pixels': f.get(p + 'count'),
+			'region': f.get('name'), 'date': a, 'value': composite.ee_value_of(f, stat, out, p),
+			'n_pixels': f.get(p + 'count'),
 			'n_images': n_images.get(i)}) for i, (p, (a, _)) in enumerate(zip(prefix, steps))])
 
 	return stats.map(rows).flatten()
