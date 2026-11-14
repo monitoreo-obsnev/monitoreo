@@ -107,14 +107,18 @@ def _bases(stats):
 def region_reducer(stats, count=True):
 	"""ee.Reducer of the statistics STATS (e.g. ['mean', 'cv', 'p95']) over a region, for an image of one band
 	(with COUNT, also the number of pixels, output count), and the names of the outputs of its reducers, {metric:
-	output} (e.g. {'mean': 'mean', 'std': 'stdDev', 'p95': 'p95'}), from which value_of reads each statistic."""
+	output} (e.g. {'mean': 'mean', 'std': 'stdDev', 'p95': 'p95'}), from which value_of reads each statistic. With
+	COUNT, the statistic count is that number of pixels (a second reducer of it would repeat the output count)."""
 	bases = _bases(stats)
-	reds = [reducer(b) for b in bases]
-	names = ee.List([r.getOutputs().get(0) for r in reds]).getInfo()
+	kept = [b for b in bases if not (count and b == 'count')]
+	reds = [reducer(b) for b in kept]
+	names = dict(zip(kept, ee.List([r.getOutputs().get(0) for r in reds]).getInfo())) if reds else {}
+	if count and 'count' in bases:
+		names['count'] = 'count'
 	red = ee.Reducer.count() if count else None
 	for r in reds:
 		red = r if red is None else red.combine(r, '', True)
-	return red, dict(zip(bases, names))
+	return red, names
 
 
 def value_of(props, stat, names, prefix=''):

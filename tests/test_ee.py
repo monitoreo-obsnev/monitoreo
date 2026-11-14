@@ -246,7 +246,7 @@ def test_comparison(tmp_path):
 	                              step='monthly', csv=str(tmp_path / 'c.csv'), chart=str(tmp_path / 'c.png'))
 	assert len(res['profile']) == 12 and all(r['n_reference'] == 3 and r['n_other'] == 1 for r in res['profile'])
 	r = res['profile'][6]
-	assert r['label'] == 'julio' and abs(r['difference'] - (r['other'] - r['reference'])) < 1e-12
+	assert r['label'] == 'July' and abs(r['difference'] - (r['other'] - r['reference'])) < 1e-12  # tools in English
 	assert {x['period'] for x in res['rows']} == {'reference', 'other'} and os.path.getsize(res['chart']) > 0
 	m = services.compare_map(GUAJARES, 'NDVI', 'Modis', '2016-01-01', '2018-12-31', '2021-01-01', '2021-12-31')
 	assert '{z}' in m['url'] and m['min'] == -m['max']

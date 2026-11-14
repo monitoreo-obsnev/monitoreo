@@ -40,9 +40,8 @@ mo_burn_severity(
 \item{path}{optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
 rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
-\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
-\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
+\item{metric}{temporal metric of the images of each period (the NBR before and after): \code{"median"} (default),
+\code{"mean"}, \code{"min"}, \code{"max"} or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 

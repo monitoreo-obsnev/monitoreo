@@ -123,7 +123,10 @@ def _catalog_unit(result, args):
 
 def _metrics(args):
 	"""The metric of the images, the metric between the years (if the images are aggregated by years) and the
-	statistic over the region of a call (see catalog.unit_of)."""
+	statistic over the region of a call (see catalog.unit_of). A fixed layer (elevation, slope, an image) has no
+	images: the metrics of the call, which the services ignore, are not those of its values."""
+	if publish.is_static(args):
+		return None, None, args.get('stat')
 	between = args.get('interannual') if (args.get('temporal') or 'period') != 'period' else None
 	return args.get('metric'), between, args.get('stat')
 

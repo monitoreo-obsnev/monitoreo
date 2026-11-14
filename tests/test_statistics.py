@@ -123,6 +123,18 @@ def test_the_reducer_of_the_statistics_of_a_region(fake_ee):
 	assert composite.value_of({'s0_stdDev': 0.1, 's0_p90': 0.7}, 'p90', names, 's0_') == 0.7
 
 
+def test_the_count_is_the_number_of_pixels(fake_ee):
+	"""The statistic count over a region is the number of pixels that region_reducer always counts: a second reducer
+	of it would repeat the output count, which Earth Engine refuses."""
+	red, names = composite.region_reducer(['mean', 'count'])
+	assert red.outputs == ['count', 'mean'] and names == {'mean': 'mean', 'count': 'count'}
+	assert composite.value_of({'mean': 0.5, 'count': 120}, 'count', names) == 120
+	red, names = composite.region_reducer(['count'])
+	assert red.outputs == ['count'] and names == {'count': 'count'}
+	red, names = composite.region_reducer(['count', 'cv'], count=False)
+	assert red.outputs == ['count', 'mean', 'stdDev']
+
+
 def test_the_default_statistics_of_region_stats():
 	assert services.REGION_STATS == catalog.REGION_STATS
 	assert 'cv' in services.REGION_STATS and 'std' in services.REGION_STATS
@@ -177,6 +189,90 @@ def test_the_coefficient_of_variation_is_cited():
 	assert 'pearson1896' not in ids('download_variables', recipe=recipe)
 	with open(os.path.join(ROOT, '.zenodo.json'), encoding='utf-8') as f:
 		assert any('10.1098/rsta.1896.0007' in r for r in json.load(f)['references'])
+
+
+def test_what_cites_the_coefficient_of_variation():
+	"""Pearson (1896) also with the defaults of a recipe, with the conditions of where on a coefficient of variation and
+	with the statistics by default of region_stats (also an empty list), but not for a fixed layer, whose metrics the
+	services ignore."""
+	base = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Modis', 'start': '2021-01-01', 'end': '2021-12-31'}
+
+	def ids(tool, **args):
+		return [r['id'] for r in references.cite(tool, dict(base, **args))['references']]
+	recipe = {'temporal': 'annual', 'interannual': 'cv',
+	          'variables': [{'index': 'NDVI', 'sensor': 'Modis', 'metric': 'mean', 'period': ['2015-01-01', '2020-12-31']}]}
+	assert 'pearson1896' in ids('download_variables', recipe=recipe)
+	where = [{'variable': 'PRECIP', 'sensor': 'TerraClimate', 'metric': 'sum', 'temporal': 'annual',
+	          'interannual': 'cv', 'max': 30}]
+	assert 'pearson1896' in ids('map_layer', where=where)
+	assert 'pearson1896' in ids('download_variables', recipe=dict(recipe, interannual='mean', where=where))
+	assert 'pearson1896' not in ids('map_layer', where=[dict(where[0], interannual='mean')])
+	assert 'pearson1896' in ids('region_stats', stats=[])
+	for fixed in ({'variable': 'ELEVATION', 'sensor': 'Copernicus'},
+	              {'variable': None, 'sensor': None, 'image': 'WORLDCLIM/V1/BIO', 'band': 'bio01'}):
+		assert 'pearson1896' not in ids('map_layer', **fixed, metric='cv', temporal='annual', interannual='cv')
+		assert 'pearson1896' in ids('region_stats', **fixed, metric='cv', stats=['mean', 'cv'])  # its pixels
+
+
+def test_the_units_of_a_condition_on_a_coefficient_of_variation():
+	from monitoreo import report
+	where = [{'variable': 'PRECIP', 'sensor': 'TerraClimate', 'metric': 'sum', 'temporal': 'annual',
+	          'interannual': 'cv', 'max': 30}]
+	assert report.where_text(where).endswith('≤ 30 %')
+	assert report.where_text([dict(where[0], interannual='mean')]).endswith('≤ 30 mm')
+	assert report.where_text([dict(where[0], temporal='period', metric='cv')]).endswith('≤ 30 %')
+	elevation = [{'variable': 'ELEVATION', 'sensor': 'Copernicus', 'metric': 'cv', 'min': 1500}]
+	assert report.where_text(elevation).endswith('≥ 1,500 m')  # a fixed layer: no metric
+
+
+def test_the_readme_of_a_fixed_layer_with_a_metric():
+	"""The metrics that a fixed layer has not (QGIS sends its greyed-out options) do not make it a coefficient of
+	variation: the README gives the unit of the variable."""
+	from monitoreo import readme
+	args = {'region': REGION, 'variable': 'ELEVATION', 'sensor': 'Copernicus', 'metric': 'cv', 'temporal': 'annual',
+	        'interannual': 'cv'}
+	text = ' '.join(readme.text('map_layer', args, {'unit': '[m]'}, computed='2026-11-14T10:00:00+01:00').split())
+	assert 'The variable is in m' in text and 'coefficients of variation' not in text
+	assert 'Pearson' not in text
+
+
+def test_the_report_has_the_statistics_asked_for():
+	from monitoreo import report
+	result = {'rows': [{'region': 'a', 'mean': 1.0, 'p99': 5.0, 'p2.5': 0.1, 'cv': 10.0, 'mode': 2.0, 'n_pixels': 3}],
+	          'stats': ['mean', 'p99', 'p2.5', 'cv', 'mode'], 'unit': '[mm]'}
+	labels, body = report.item_table('region_stats', result)
+	assert labels == ['Mean (mm)', 'P99', 'P2.5', 'CV (%)', 'Mode', 'Pixels']
+	assert body[0][1] == report._num(5.0)
+	assert report._stat('p2.5') == 'percentile 2.5'
+
+
+def test_the_maps_of_a_spread_take_their_range_from_the_map(monkeypatch):
+	"""map_layer computes the colour ramp of a standard deviation or a coefficient of variation from the map also with
+	quick (the range of the variable in the catalog is not theirs), and keeps the range of the catalog with quick for
+	the other metrics."""
+	from monitoreo import maps
+	seen = []
+	monkeypatch.setattr(services, '_build', lambda region, variable, sensor, start, end, metric, temporal, interannual,
+	                    season, quality, clip, res, source: (services.make_spec(
+		                    variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual),
+		                    types.SimpleNamespace(geometry=lambda: 'geometry'), types.SimpleNamespace(
+			                    clipToCollection=lambda r: 'image'), 250))
+	monkeypatch.setattr(services, '_bounds', lambda regions: [0, 0, 1, 1])
+	monkeypatch.setattr(services, '_preview', lambda out, *a, **k: out)
+	monkeypatch.setattr(maps, 'tile_url', lambda img, vis: 'https://ee/{z}/{x}/{y}')
+
+	def vis(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True):
+		seen.append((compute, entry))
+		return {'min': 0, 'max': 1, 'palette': maps.ramp(entry)}
+	monkeypatch.setattr(maps, 'vis_params', vis)
+	for args, compute, maxp in [({'metric': 'cv'}, True, 100), ({'metric': 'mean', 'temporal': 'annual',
+	                                                              'interannual': 'cv'}, True, 100),
+	                            ({'metric': 'std'}, True, None), ({'metric': 'median'}, False, None)]:
+		seen.clear()
+		services.map_layer(REGION, 'NDVI', 'Modis', '2021-01-01', '2021-12-31', quick=True, **args)
+		assert seen[0][0] is compute, args
+		if maxp is not None:
+			assert seen[0][1]['maxp'] == maxp
 
 
 def test_the_readme_describes_the_coefficient_of_variation(tmp_path):
@@ -315,7 +411,11 @@ var ramps = input.ramps.map(function (r) {
 	return [e.minp, e.maxp, mo.spread(r[0], r[1], r[2])];
 });
 var cvs = input.cvs.map(function (c) { return mo.cvNumber(c[0], c[1]); });
-process.stdout.write(JSON.stringify({checks: checks, units: units, ramps: ramps, cvs: cvs, CV: mo.CV, SPREAD: mo.SPREAD}));
+// the data of Earth Engine outside the catalog: no range in it, also for a spread (services.ramp_entry gives None)
+var custom = {custom: true, pm: ['000000', 'ffffff']};
+var customRamp = mo.rampEntry(custom, 'cv', 'period', 'mean') === custom;
+process.stdout.write(JSON.stringify({checks: checks, units: units, ramps: ramps, cvs: cvs, CV: mo.CV, SPREAD: mo.SPREAD,
+	customRamp: customRamp}));
 """
 
 UNITS = [['[°C]', 'cv', None, None], ['[mm/month]', 'sum', 'cv', None], ['[mm/month]', 'sum', 'mean', None],
@@ -357,6 +457,10 @@ def test_the_app_has_the_same_units_ramps_and_coefficients(app):
 		assert js == [e['minp'], e['maxp'], services.spread(spec)], (metric, temporal, interannual)
 	assert app['ramps'][-1][:2] == [ndvi['minp'], ndvi['maxp']]
 	assert app['cvs'] == [composite.cv_number(*c) for c in CVS]
+	assert app['customRamp']  # as services.ramp_entry of a spec outside the catalog (None: the range of the map)
+	spec = services.make_spec(start='2021-01-01', end='2021-12-31', metric='cv', collection='IDAHO_EPSCOR/TERRACLIMATE',
+	                          band='pr', unit='mm')
+	assert services.ramp_entry(spec) is None
 
 
 def test_the_menus_of_the_app_have_every_statistic():
@@ -394,10 +498,13 @@ def test_the_coefficient_of_variation_of_images_and_of_a_region():
 	img = i.divide(nx - 1).rename('value')
 	box = ee.Geometry.Rectangle([x0, y0, x0 + nx * res, y0 + ny * res], utm, False)
 	red, names = composite.region_reducer(['mean', 'std', 'cv', 'p90'])
-	props = img.reduceRegion(red, box, res, utm).getInfo()
+	# over the features of a region, as services.region_stats and timeseries.table (reduceRegions: the outputs of a
+	# single band keep their names, mean and stdDev; reduceRegion would name them value_mean and value_stdDev)
+	fc = img.reduceRegions(ee.FeatureCollection([ee.Feature(box, {'name': 'box'})]), red, res, utm)
+	props = fc.first().toDictionary().getInfo()
 	pixels = np.repeat(np.arange(nx) / (nx - 1), ny)
+	assert props['count'] == nx * ny
 	assert composite.value_of(props, 'cv', names) == pytest.approx(100 * pixels.std() / pixels.mean(), rel=1e-3)
 	assert composite.value_of(props, 'std', names) == pytest.approx(pixels.std(), rel=1e-3)
-	feature = ee.Feature(None, props)
-	server = composite.ee_value_of(feature, 'cv', None)
+	server = composite.ee_value_of(fc.first(), 'cv', None)  # in Earth Engine, as the time series
 	assert ee.Number(server).getInfo() == pytest.approx(composite.value_of(props, 'cv', names), rel=1e-9)

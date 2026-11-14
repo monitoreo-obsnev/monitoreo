@@ -39,15 +39,14 @@ or \code{image} instead of \code{variable}.}
 without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
 which only have maps and their statistics.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
-\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
-\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
+\item{metric}{temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+\code{"min"}, \code{"max"} or \code{"pN"} (percentile N).}
 
 \item{temporal}{\code{"period"} (the metric over all the images of the period), \code{"annual"},
 \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).}
 
-\item{interannual}{statistic between the years when \code{temporal} is not \code{"period"}: any of those of
-\code{metric} (e.g. \code{"cv"}, how much the values change from year to year, in \%).}
+\item{interannual}{metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+\code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
@@ -92,8 +91,8 @@ Engine map tiles (XYZ, valid for some hours), with the three bands stretched tog
 \code{vmax}, so that the colours keep their balance. Only the variables whose images have red, green and blue bands
 (column \code{rgb} of \code{mo_variables()}): those of Sentinel-2 and Landsat and the cloud frequency of MODIS; not
 the fixed layers, the climate nor the other MODIS products (MOD13Q1, of the NDVI and the EVI, has no green band).
-The metrics \code{"sum"}, \code{"std"}, \code{"count"} and \code{"mode"} give no colours, nor between the years
-(\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
+The metrics \code{"sum"}, \code{"std"}, \code{"cv"}, \code{"count"} and \code{"mode"} give no colours, nor between
+the years (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
 }
 \section{References}{
  The result carries its references (with DOI): those of its Earth Engine datasets (cited as

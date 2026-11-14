@@ -42,15 +42,14 @@ which only have maps and their statistics.}
 
 \item{path}{path of the GeoTIFF.}
 
-\item{metric}{temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
-\code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
-\code{"count"}, \code{"mode"} or \code{"pN"} (percentile N, e.g. \code{"p95"}), for any variable.}
+\item{metric}{temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+\code{"min"}, \code{"max"} or \code{"pN"} (percentile N).}
 
 \item{temporal}{\code{"period"} (the metric over all the images of the period), \code{"annual"},
 \code{"monthly"} or \code{"16-day"} (the metric of each, then \code{interannual} between the years).}
 
-\item{interannual}{statistic between the years when \code{temporal} is not \code{"period"}: any of those of
-\code{metric} (e.g. \code{"cv"}, how much the values change from year to year, in \%).}
+\item{interannual}{metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+\code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 

@@ -810,9 +810,13 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' \code{vmax}, so that the colours keep their balance. Only the variables whose images have red, green and blue bands
 #' (column \code{rgb} of \code{mo_variables()}): those of Sentinel-2 and Landsat and the cloud frequency of MODIS; not
 #' the fixed layers, the climate nor the other MODIS products (MOD13Q1, of the NDVI and the EVI, has no green band).
-#' The metrics \code{"sum"}, \code{"std"}, \code{"count"} and \code{"mode"} give no colours, nor between the years
-#' (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
+#' The metrics \code{"sum"}, \code{"std"}, \code{"cv"}, \code{"count"} and \code{"mode"} give no colours, nor between
+#' the years (\code{interannual}). \code{mo_leaflet(rgb, layer)} shows the true colour under the map of the variable.
 #' @inheritParams mo_params
+#' @param metric temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+#'   \code{"min"}, \code{"max"} or \code{"pN"} (percentile N).
+#' @param interannual metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+#'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param vmin,vmax range of the reflectance of the three bands together (default: the lowest percentile 2 and the
 #'   highest percentile 98 of the bands over the region).
 #' @return A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,
@@ -1133,6 +1137,10 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
 #' \code{mo_download_image()} with the same arguments: for small regions. Only the variables with \code{rgb} in
 #' \code{mo_variables()}. The GeoTIFF keeps the references in its metadata (item \code{references}).
 #' @inheritParams mo_params
+#' @param metric temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
+#'   \code{"min"}, \code{"max"} or \code{"pN"} (percentile N).
+#' @param interannual metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
+#'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param path path of the GeoTIFF.
 #' @param clip clip the map to the region.
 #' @return A list (file, grid, resolution, native_resolution, images, name, unit, bands: red, green and blue, min and
@@ -1509,6 +1517,8 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' @inheritParams mo_params
 #' @param start,end the period before the fire.
 #' @param other_start,other_end the period after the fire.
+#' @param metric temporal metric of the images of each period (the NBR before and after): \code{"median"} (default),
+#'   \code{"mean"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param sensor \code{"Sentinel-2"} or \code{"Landsat"}; with \code{index = "RdNBR"}, also \code{"Modis"} (500 m).
 #' @param path optional path of a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after (RBR:
 #'   rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr, nbr_before and nbr_after).

@@ -6715,7 +6715,9 @@ var MonitorEO = (function () {
 		var col = collection(s, regions.geometry(), scale);
 		checkMetric(metric);
 		var red = metric;
-		var sred = reducer(stat).combine(ee.Reducer.count(), '', true);
+		// the statistic count is the number of pixels: once (Earth Engine refuses two outputs count)
+		var sred = String(stat).trim().toLowerCase() === 'count' ? ee.Reducer.count() :
+			reducer(stat).combine(ee.Reducer.count(), '', true);
 		var out = ee.String(reducer(stat).getOutputs().get(0));
 		var bands = steps.map(function (st, i) { return 's' + i; });
 		var img = ee.Image.cat(steps.map(function (st, i) {
@@ -7431,9 +7433,10 @@ var MonitorEO = (function () {
 
 	// services.ramp_entry: the entry E for the colour ramp of its map: its palette, and the range of its values when
 	// Earth Engine cannot compute it, that of the variable or, for a spread, 0 to 100 % for the coefficient of variation
-	// and 0 to half the range of the variable for the standard deviation
+	// and 0 to half the range of the variable for the standard deviation; the data of Earth Engine outside the catalog
+	// (e.custom) as they are, without a range in the catalog (0 to 1, as rangeNoteData says)
 	function rampEntry(e, metric, temporal, interannual) {
-		if (!e || !spread(metric, temporal, interannual)) return e;
+		if (!e || e.custom || !spread(metric, temporal, interannual)) return e;
 		var out = {};
 		for (var k in e) out[k] = e[k];
 		if (isCv(metric) || (temporal && temporal !== 'period' && isCv(interannual))) {

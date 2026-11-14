@@ -425,6 +425,10 @@ def item_table(tool, result, args=None):
 	unit = unit_text(result.get('unit') if isinstance(result, dict) else (_entry(
 		(args or {}).get('variable'), (args or {}).get('sensor')) or {}).get('unit'))
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit_text(unit, per_year=True)})"
+	if tool == 'region_stats' and isinstance(result, dict) and result.get('stats'):  # those asked for, in their order
+		known = dict(cols)
+		cols = [('region', 'Region')] + [(s, known.get(s) or _stat_label(s)) for s in result['stats']] + \
+			[('n_pixels', 'Pixels')]
 	if len({str(r.get('region')) for r in rows}) <= 1:
 		cols = [c for c in cols if c[0] != 'region']
 	cols = [c for c in cols if any(c[0] in r for r in rows)]
@@ -448,7 +452,11 @@ def where_text(where):
 			parts.append(landcover.text(c))
 			continue
 		e = _entry(c.get('variable'), c.get('sensor')) or {}
-		unit = unit_text(catalog.unit_of(e.get('unit'), c.get('metric') or e.get('metric') or 'mean'))
+		# the unit of the values compared: % for a coefficient of variation, of the images or between the years (a
+		# fixed layer has no images: no metric)
+		between = c.get('interannual') if not e.get('static') and (c.get('temporal') or 'period') != 'period' else None
+		metric = None if e.get('static') else c.get('metric') or e.get('metric') or 'mean'
+		unit = unit_text(catalog.unit_of(e.get('unit'), metric, between))
 		how = [SENSORS.get(e.get('sensor'), e.get('sensor') or c.get('sensor') or '')]
 		if not e.get('static'):
 			temporal = c.get('temporal') or 'period'
@@ -792,9 +800,15 @@ def _entry(variable, sensor, collection=None):
 		return None
 
 
+def _stat_label(s):
+	"""The label of the column of the statistic S of region_stats that TABLES does not have, e.g. P99, Mode."""
+	m = re.fullmatch(r'p(\d+(?:\.\d+)?)', str(s))
+	return f'P{m.group(1)}' if m else _stat(s).capitalize()
+
+
 def _stat(s):
 	s = str(s)
-	m = re.fullmatch(r'p(\d+)', s)
+	m = re.fullmatch(r'p(\d+(?:\.\d+)?)', s)
 	return f'percentile {m.group(1)}' if m else STATS.get(s, s)
 
 

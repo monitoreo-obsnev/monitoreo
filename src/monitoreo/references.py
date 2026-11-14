@@ -274,28 +274,44 @@ def _picks(args):
 
 def _uses_cv(tool, args, recipe=None):
 	"""Whether the result of the call of TOOL with ARGS has coefficients of variation (composite.CV): its metric, its
-	metric between the years, its statistic over the region or one of its statistics (region_stats: by default, see
-	services.REGION_STATS; the RBR and the RdNBR of burn_severity), or a metric of a variable of its RECIPE."""
+	metric between the years (if the images are aggregated by years), its statistic over the region or one of its
+	statistics (region_stats: by default, see catalog.REGION_STATS; the RBR and the RdNBR of burn_severity), a
+	condition of where on them, or the same of a variable of its RECIPE (with the defaults of the recipe). A fixed
+	layer (elevation, slope, an image) has no images: its metrics, which the services ignore, do not count."""
 	def cv(x):
 		return str(x or '').strip().lower() == 'cv'
 
+	def static(a):
+		if not (a.get('index') or a.get('variable')):
+			return bool(a.get('image'))
+		e = _entry(a.get('index') or a.get('variable'), a.get('sensor'), a.get('collection'))
+		return bool(e and e.get('static'))
+
 	def of(a):
+		if static(a):
+			return cv(a.get('stat'))
 		metrics = a.get('metrics') or a.get('metric')
 		metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
 		between = a.get('interannual') if (a.get('temporal') or 'period') != 'period' else None
 		return any(cv(m) for m in list(metrics) + [between, a.get('stat')])
 
+	def where(a):  # the conditions on variables (not the land covers) of the pixels kept
+		conditions = a.get('where') or []
+		conditions = [conditions] if isinstance(conditions, dict) else conditions
+		return any(of(c) for c in conditions if isinstance(c, dict) and (c.get('variable') or c.get('index')))
+
 	if tool == 'burn_severity':
-		return str(args.get('index') or '').lower() in ('rbr', 'rdnbr')
+		return str(args.get('index') or '').lower() in ('rbr', 'rdnbr') or where(args)
 	if tool == 'region_stats':
 		stats = args.get('stats')
-		if stats is None:
-			return True  # services.REGION_STATS has it
-		if any(cv(s) for s in ([stats] if isinstance(stats, str) else stats)):
+		stats = [stats] if isinstance(stats, str) else list(stats or catalog.REGION_STATS)  # as region_stats
+		if any(cv(s) for s in stats):
 			return True
 	if recipe is not None:
-		return any(of(dict(v)) for v in recipe.get('variables') or [] if isinstance(v, dict))
-	return of(args)
+		defaults = {k: v for k, v in recipe.items() if k in ('temporal', 'interannual', 'where')}
+		return any(of(dict(defaults, **v)) or where(dict(defaults, **v))
+		           for v in recipe.get('variables') or [] if isinstance(v, dict))
+	return of(args) or where(args)
 
 
 def cite(tool, args=None, date=None, datasets=()):

@@ -1246,6 +1246,23 @@ def test_map_and_pixel():
 	with pytest.raises(ValueError, match='has no map'):
 		asyncio.run(a.pixel(2, 0, 0))
 
+	# a map between the years (the coefficient of variation of the annual totals): its value at the pixel is computed
+	# with its metric between the years, not with the mean between them
+	async def between():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		args = {**ARGS, 'start': '2015-01-01', 'end': '2020-12-31', 'metric': 'sum', 'temporal': 'annual',
+		        'interannual': 'cv'}
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Map',
+		                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0],
+		                             'min': 5, 'max': 40, 'palette': ['ffffff', '00aa00'], 'unit': '[%]'}})
+		calls.clear()
+		return await a.pixel(1, -3.55, 36.95)
+
+	px = asyncio.run(between())
+	stats = next(c[1] for c in calls if c[0] == 'region_stats')
+	assert (stats['metric'], stats['temporal'], stats['interannual'], stats['stats']) == ('sum', 'annual', 'cv', ['mean'])
+	assert px['unit'] == '%'
+
 	# a series: the map of its period, and on a pixel the series with the step of that of the result
 	async def series():
 		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
