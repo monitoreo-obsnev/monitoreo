@@ -7,15 +7,17 @@
 mo_variables(sensor = NULL, text = NULL, lang = "en", theme = NULL)
 }
 \arguments{
-\item{sensor}{optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
-\code{"Copernicus"}.}
+\item{sensor}{optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"},
+\code{"Copernicus"}, \code{"MERIT Hydro"} or one of the climate (e.g. \code{"WorldClim"}); case and spaces do
+not matter.}
 
 \item{text}{optional: only those with this text in their variable or their name (in English or in Spanish).}
 
 \item{lang}{language of the names: \code{"en"} or \code{"es"}.}
 
 \item{theme}{optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
-\code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
+\code{"energy"}, \code{"atmosphere"}, \code{"climate"}, \code{"terrain"} or \code{"ecosystems"} (the menus of the
+QGIS plugin and
 of the Earth Engine app). Their two other themes, \code{"earth_engine"} (Earth Engine data, by its ID) and
 \code{"community"} (GEE Community Catalog), have no variables of the catalog: see \code{mo_asset()} and
 \code{mo_community()}.}
@@ -24,9 +26,9 @@ of the Earth Engine app). Their two other themes, \code{"earth_engine"} (Earth E
 A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
   dates, two_periods: \code{TRUE} for the burn indices that compare a period before and a period after a fire,
-  RBR and RdNBR, computed only by \code{mo_burn_severity()}, and rgb: \code{TRUE} when its images have a true
-  colour, see \code{mo_rgb_map()}; \code{NA} for the others). The references of each variable:
-  \code{mo_describe()}.
+  RBR and RdNBR, computed only by \code{mo_burn_severity()}, rgb: \code{TRUE} when its images have a true
+  colour, see \code{mo_rgb_map()}, and categorical and n_classes for the layers of class codes, ECOREGION and BIOME,
+  see \code{mo_classes()}; \code{NA} for the others). The references of each variable: \code{mo_describe()}.
 }
 \description{
 Variables of the catalog of MonitorEO

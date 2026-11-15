@@ -4,6 +4,7 @@
 \alias{regions}
 \alias{mo_wdpa}
 \alias{mo_ecoregion}
+\alias{mo_biome}
 \alias{mo_country}
 \alias{mo_admin}
 \alias{mo_island}
@@ -15,6 +16,8 @@
 mo_wdpa(id)
 
 mo_ecoregion(id = NULL, lon = NULL, lat = NULL)
+
+mo_biome(id = NULL, lon = NULL, lat = NULL, within = NULL)
 
 mo_country(iso3)
 
@@ -29,10 +32,13 @@ mo_point(lon, lat, buffer = 0)
 mo_geojson(geojson, name_field = NULL)
 }
 \arguments{
-\item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID) or codes of administrative
-units (GAUL1_CODE or GAUL2_CODE of \code{mo_admin_units()}).}
+\item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
+99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE or GAUL2_CODE of
+\code{mo_admin_units()}).}
 
 \item{lon, lat}{longitude and latitude (degrees).}
+
+\item{within}{another region (e.g. \code{mo_country("ESP")}): only the part of the biome inside it.}
 
 \item{iso3}{ISO3 codes of countries, e.g. \code{"ESP"}.}
 
@@ -52,14 +58,18 @@ A region (a list) for the other functions.
 }
 \description{
 A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
-by ID or by a point (\code{mo_ecoregion()}), countries (\code{mo_country()}) and their administrative units of
+by ID or by a point (\code{mo_ecoregion()}), biomes of RESOLVE 2017 by code or by a point (\code{mo_biome()}: the
+union of their ecoregions, a feature per biome), countries (\code{mo_country()}) and their administrative units of
 FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
 point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
-(\code{mo_sf()}). Several features give a result per feature.
+(\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
+\code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
 }
 \examples{
 mo_wdpa(389011)            # Sierra Nevada National Park
 mo_ecoregion(lon = -3.3, lat = 37.1)
+mo_biome(12, within = mo_country("ESP"))  # the Mediterranean biome in Spain
+mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))
 mo_country("ESP")
 mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
 mo_island(lon = 2.9, lat = 39.6)
