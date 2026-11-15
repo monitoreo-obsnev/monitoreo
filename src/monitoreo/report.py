@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, assets, catalog, fire, references, sensors, services
+from . import __version__, areas, assets, catalog, fire, references, sensors, services
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
 	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
 
@@ -754,10 +754,21 @@ def where_text(where):
 
 
 def region_text(region, names=None):
-	"""A region of the tools (see monitoreo.areas) in English."""
+	"""A region of the tools (see monitoreo.areas) in English; with within, followed by « within » and its region."""
 	names = names or {}
 	if not isinstance(region, dict):
 		return str(region)
+	text = _region_text(region, names)
+	if isinstance(region.get('within'), dict):
+		text += ' within ' + region_text(region['within'], names)
+	return text
+
+
+def _codes(value):
+	return value if isinstance(value, (list, tuple)) else [value]
+
+
+def _region_text(region, names):
 	if 'wdpa_id' in region:
 		ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
 		return '; '.join(f'{names[str(i)]} (WDPA {i})' if str(i) in names else f'Protected area WDPA {i}'
@@ -765,10 +776,19 @@ def region_text(region, names=None):
 	if 'wdpa_name' in region:
 		return f"Protected area “{region['wdpa_name']}”"
 	if 'ecoregion_id' in region:
-		return f"Ecoregion {region['ecoregion_id']}"
+		return '; '.join(f'{areas.ecoregion_name(i)} (ecoregion {i} of RESOLVE Ecoregions 2017)'
+		                 if areas.ecoregion_name(i) else f'Ecoregion {i} of RESOLVE Ecoregions 2017'
+		                 for i in _codes(region['ecoregion_id']))
 	if 'ecoregion_at' in region:
 		lon, lat = region['ecoregion_at']
 		return f'Ecoregion of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
+	if 'biome_id' in region:
+		return '; '.join(f'{areas.biome_name(c)} (biome {c} of RESOLVE Ecoregions 2017)'
+		                 if areas.biome_name(c) else f'Biome {c} of RESOLVE Ecoregions 2017'
+		                 for c in _codes(region['biome_id']))
+	if 'biome_at' in region:
+		lon, lat = region['biome_at']
+		return f'Biome of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
 	if 'country' in region:
 		codes = region['country'] if isinstance(region['country'], list) else [region['country']]
 		return '; '.join(f"{names.get(f'country:{str(c).upper()}', str(c).upper())} (country, FAO GAUL 2025)"

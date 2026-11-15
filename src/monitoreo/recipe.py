@@ -6,6 +6,7 @@ A recipe is a dictionary, or a YAML file, with the grids and the variables:
 
     project: my-project                # Earth Engine project (default: EE_PROJECT; none: the shared account)
     crs: auto                          # CRS of the grids: auto = WGS 84 / UTM of the centre of the study area
+                                       # (EPSG:6933, equal area, if it spans more than 40 degrees of longitude)
     study: {resolution: 10, buffer: 0, drive: false}
     ecoregion: {resolution: 100, crs: null, drive: true}     # optional; crs null = that of the study area
     drive_folder: MonitorEO            # folder of Google Drive of the export tasks (grids with drive: true)
@@ -141,8 +142,8 @@ def _study_area(area, layer, res, crs):
 	(LAYER) or a region of areas.region."""
 	if isinstance(area, dict):
 		geom = areas.region(area).geometry()
-		if crs == 'auto':
-			crs = areas.utm_of(*geom.centroid(1).coordinates().getInfo())
+		if crs == 'auto':  # the UTM zone of its centre or, for a region too wide for one, an equal-area CRS
+			crs = areas.auto_crs(geom, 1)
 		ring = geom.bounds(res / 2, crs).getInfo()['coordinates'][0]
 		xs, ys = [p[0] for p in ring], [p[1] for p in ring]
 		return geom, crs, (min(xs), min(ys), max(xs), max(ys)), json.dumps(area)

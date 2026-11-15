@@ -93,6 +93,10 @@ HELP = {
 		'<li><b>Country</b>: a whole country, by its ISO3 code (FAO GAUL 2025). Big: use MODIS or a coarse pixel.</li>'
 		'<li><b>Ecoregion at the center of the map</b>: the RESOLVE 2017 ecoregion that contains the center of the '
 		'view.</li>'
+		'<li><b>Biome at the center of the map</b>: the RESOLVE 2017 biome (the union of its ecoregions) that '
+		'contains the center of the view, only its part in the map extent: a whole biome spans continents. Zoom out '
+		'for more of it, with MODIS or a coarse pixel. For its pixels in a country, choose the country and, in '
+		'<b>Only the pixels where</b>, the layer BIOME with its class.</li>'
 		'<li><b>Island at the center of the map</b>: the island of more than 1 km² (Global Islands, Sayre et al. '
 		'2019) that contains the center of the view.</li></ul>' + manual('Concepts#regions'),
 	'layer':

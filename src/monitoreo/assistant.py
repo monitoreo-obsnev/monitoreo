@@ -51,7 +51,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __released__, __version__, about, areas, documents, engine, manual, report, services
+from . import __released__, __version__, about, areas, catalog, documents, engine, manual, report, services
 from .variable import check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
@@ -236,8 +236,11 @@ find_protected_areas returns; for a Ramsar site, search with designation "ramsar
 {{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
 municipality of level 2, with the code that find_admin_units returns, never made up), {{"country": "ISO3"}} (a \
 whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
-{{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Countries and big \
-regions: MODIS, or a monthly or annual step.
+{{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
+{{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
+another region: only its part inside it, e.g. {{"biome_id": 12, "within": {{"country": "ESP"}}}} (the Mediterranean \
+biome in Spain). Countries and big regions: MODIS, or a monthly or annual step; a whole biome spans continents: \
+always within a country or another region, or MODIS or the climate at an annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS" or \
@@ -463,7 +466,12 @@ def instructions(today=None, big=False):
 	"""The instructions of the model, with the variables of the catalog: those of the big models of the cloud
 	(BIG_RULES) or those of the small models of Ollama (SMALL)."""
 	return PROMPT.format(today=(today or dt.date.today()).isoformat(), variables=variables_text(), wiki=WIKI,
-	                     **(BIG_RULES if big else SMALL))
+	                     biomes=biomes_text(), **(BIG_RULES if big else SMALL))
+
+
+def biomes_text():
+	"""The codes and names of the biomes of RESOLVE Ecoregions 2017 (catalog.biomes), for the region biome_id."""
+	return '; '.join(f"{b['code']} {b['name']}" for b in catalog.biomes())
 
 
 def variables_text():
@@ -2082,11 +2090,13 @@ class Assistant:
 		region = args.get('region') if isinstance(args.get('region'), dict) else args.get('area')
 		if not isinstance(region, dict):
 			return ''
+		within = region.get('within')
+		within = f' within {report.region_text(within, self.all_names())}' if isinstance(within, dict) else ''
 		if 'wdpa_id' in region:
 			ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
-			return '; '.join(self.names.get(str(i), f'WDPA {i}') for i in ids)
+			return '; '.join(self.names.get(str(i), f'WDPA {i}') for i in ids) + within
 		key = next((k for k, v in self.layers.items() if v['file'] == region.get('file')), None)
-		return f'study area «{key}»' if key else report.region_text(region, self.all_names())
+		return f'study area «{key}»{within}' if key else report.region_text(region, self.all_names())
 
 	def said(self):
 		"""The messages of the user, without the notes of the application (see chat) nor the text of their documents
@@ -2096,27 +2106,38 @@ class Assistant:
 	def user_text(self):
 		return ' '.join(self.said())
 
-	def unknown_areas(self, args):
-		"""The WDPA IDs of ARGS that come neither from find_protected_areas nor from the user: small models copy them
-		from the examples or make them up."""
-		region = args.get('region') or args.get('area')
-		ids = region.get('wdpa_id') if isinstance(region, dict) else None
-		if ids is None:
-			return []
-		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
-		return [i for i in (ids if isinstance(ids, list) else [ids]) if str(i) not in self.names and str(i) not in said]
+	@staticmethod
+	def _regions(args):
+		"""The region of ARGS and those of its within, nested: [region, its within, the within of that...]."""
+		region, out = args.get('region') or args.get('area'), []
+		while isinstance(region, dict) and len(out) < 10:
+			out.append(region)
+			region = region.get('within')
+		return out
 
-	def unknown_units(self, args):
-		"""The codes of administrative units of ARGS ({"admin1": ...} or {"admin2": ...}) that come neither from
-		find_admin_units nor from the user."""
-		region = args.get('region') or args.get('area')
+	def unknown_areas(self, args):
+		"""The WDPA IDs of ARGS (of its region, or of its within) that come neither from find_protected_areas nor from
+		the user: small models copy them from the examples or make them up."""
 		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
 		out = []
-		for level in (1, 2):
-			codes = region.get(f'admin{level}') if isinstance(region, dict) else None
-			for c in ([] if codes is None else codes if isinstance(codes, list) else [codes]):
-				if f'admin{level}:{c}' not in self.names and str(c) not in said:
-					out.append(f'admin{level} {c}')
+		for region in self._regions(args):
+			ids = region.get('wdpa_id')
+			for i in ([] if ids is None else ids if isinstance(ids, list) else [ids]):
+				if str(i) not in self.names and str(i) not in said:
+					out.append(i)
+		return out
+
+	def unknown_units(self, args):
+		"""The codes of administrative units of ARGS ({"admin1": ...} or {"admin2": ...}, in its region or its within)
+		that come neither from find_admin_units nor from the user."""
+		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
+		out = []
+		for region in self._regions(args):
+			for level in (1, 2):
+				codes = region.get(f'admin{level}')
+				for c in ([] if codes is None else codes if isinstance(codes, list) else [codes]):
+					if f'admin{level}:{c}' not in self.names and str(c) not in said:
+						out.append(f'admin{level} {c}')
 		return out
 
 	async def find_areas(self, text):
@@ -2152,10 +2173,14 @@ class Assistant:
 				yield event
 		key = 'region' if isinstance(args.get('region'), dict) else 'area'
 		matches = [a for a in found if a['match']]
+		ids = next((r['wdpa_id'] for r in self._regions(args) if r.get('wdpa_id') is not None), None)
 		if found and not self.unknown_areas(args):  # the ID of the model was among them
 			yield {'args': args}
-		elif len(unknown) == 1 and not isinstance(args[key]['wdpa_id'], list) and (len(matches) == 1 or len(found) == 1):
-			yield {'args': {**args, key: {**args[key], 'wdpa_id': (matches or found)[0]['SITE_ID']}}}
+		elif len(unknown) == 1 and not isinstance(ids, list) and (len(matches) == 1 or len(found) == 1):
+			region = json.loads(json.dumps(args[key]))  # the region (or its within) with the protected area found
+			holder = next(r for r in self._regions({key: region}) if r.get('wdpa_id') is not None)
+			holder['wdpa_id'] = (matches or found)[0]['SITE_ID']
+			yield {'args': {**args, key: region}}
 		else:
 			if found and must_choose(found, self.user_text().lower(), self.said()[-1] if self.said() else ''):
 				self.waiting = True

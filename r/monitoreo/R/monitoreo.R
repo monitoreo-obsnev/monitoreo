@@ -104,9 +104,10 @@ cited <- function(df, res) {
 }
 #' Arguments shared by the functions of MonitorEO
 #'
-#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
-#'   \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
-#'   \link{regions}). Several features give a result per feature.
+#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
+#'   \code{mo_admin()}, \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or
+#'   \code{mo_sf()} (see \link{regions}); a biome only within another region with \code{mo_biome(within = )}.
+#'   Several features give a result per feature.
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
 #'   take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 #'   \code{image}, with \code{band} (see \code{mo_asset()}).
@@ -165,7 +166,8 @@ cited <- function(df, res) {
 #'   Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.
 #' @param scale pixel size of the statistics in metres (default: automatic).
 #' @param resolution pixel size in metres (default: that of the data).
-#' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
+#' @param crs \code{"auto"} (UTM zone of the region; EPSG:6933, equal area, for a region wider than 40 degrees of
+#'   longitude) or a code such as \code{"EPSG:25830"}.
 #' @param vmin,vmax range of the colour ramp (default: percentiles 5 and 95 of the map).
 #' @param thumbnail optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 #'   it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).
@@ -669,12 +671,15 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' Regions of MonitorEO
 #'
 #' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
-#' by ID or by a point (\code{mo_ecoregion()}), countries (\code{mo_country()}) and their administrative units of
+#' by ID or by a point (\code{mo_ecoregion()}), biomes of RESOLVE 2017 by code or by a point (\code{mo_biome()}: the
+#' union of their ecoregions, a feature per biome), countries (\code{mo_country()}) and their administrative units of
 #' FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
 #' point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
-#' (\code{mo_sf()}). Several features give a result per feature.
-#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID) or codes of administrative
-#'   units (GAUL1_CODE or GAUL2_CODE of \code{mo_admin_units()}).
+#' (\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
+#' \code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
+#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
+#'   99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE or GAUL2_CODE of
+#'   \code{mo_admin_units()}).
 #' @param iso3 ISO3 codes of countries, e.g. \code{"ESP"}.
 #' @param level level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
 #'   municipalities...).
@@ -683,6 +688,7 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' @param buffer radius of the circle around the point, in metres (0: the pixel at the point).
 #' @param geojson a GeoJSON geometry, Feature or FeatureCollection (text or a list).
 #' @param name_field property of the GeoJSON features with their names.
+#' @param within another region (e.g. \code{mo_country("ESP")}): only the part of the biome inside it.
 #' @return A region (a list) for the other functions.
 #' @references UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month
 #'   and year of the version used. Cambridge, UK: UNEP-WCMC and IUCN. \url{https://www.protectedplanet.net}
@@ -699,6 +705,8 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' @examples
 #' mo_wdpa(389011)            # Sierra Nevada National Park
 #' mo_ecoregion(lon = -3.3, lat = 37.1)
+#' mo_biome(12, within = mo_country("ESP"))  # the Mediterranean biome in Spain
+#' mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))
 #' mo_country("ESP")
 #' mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
 #' mo_island(lon = 2.9, lat = 39.6)
@@ -711,6 +719,13 @@ mo_wdpa <- function(id) list(wdpa_id = as.list(as.integer(id)))
 #' @export
 mo_ecoregion <- function(id = NULL, lon = NULL, lat = NULL) {
   if (!is.null(id)) list(ecoregion_id = as.list(as.integer(id))) else list(ecoregion_at = list(lon, lat))
+}
+#' @rdname regions
+#' @export
+mo_biome <- function(id = NULL, lon = NULL, lat = NULL, within = NULL) {
+  r <- if (!is.null(id)) list(biome_id = as.list(as.integer(id))) else list(biome_at = list(lon, lat))
+  if (!is.null(within)) r$within <- within
+  r
 }
 #' @rdname regions
 #' @export

@@ -54,6 +54,13 @@ CASES = {
 	'map_s2_where_biome': {'kind': 'percentiles', 'region': GUAJARES,
 	                       'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
 	                                'where': [MEDITERRANEAN]}},
+	# a biome as a region (the union of its ecoregions in the table of classes) within another region (only its part
+	# inside it, as the app clips it to the map view): by its code and at a point
+	'series_modis_biome_within': {'kind': 'series', 'region': {'biome_id': 12, 'within': GUAJARES}, 'step': 'annual',
+	                              'metric': 'mean', 'stat': 'mean', 'spec': {'ref': 25, 'period': ['2020-01-01',
+	                                                                                              '2020-12-31']}},
+	'map_elevation_biome_at_within': {'kind': 'percentiles', 'region': {'biome_at': [-3.56, 36.9], 'within': GUAJARES},
+	                                  'spec': {'ref': 106}},
 	# land cover masks (a condition of where): CORINE at 10 m (the class of each pixel) and Dynamic World under MODIS
 	# (the share of each pixel of 250 m), with a series that keeps the same pixels in every step
 	'map_s2_landcover_corine': {'kind': 'percentiles', 'region': GUAJARES,

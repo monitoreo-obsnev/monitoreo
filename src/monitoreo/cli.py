@@ -82,7 +82,11 @@
                                                      at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}', '{"country": "ESP"}',
-'{"island_at": [2.9, 39.6]}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
+'{"island_at": [2.9, 39.6]}', '{"biome_at": [-3.3, 37.1]}' (the biome of RESOLVE Ecoregions 2017 at a point; by its
+code, 1 to 14 or 99, '{"biome_id": 12}': monitoreo classes BIOME lists them) or '{"bbox": [-3.5, 37, -3, 37.2]}';
+any region takes "within", another region, to keep only its part inside it, e.g. the Mediterranean biome in Spain:
+'{"biome_id": 12, "within": {"country": "ESP"}}' (a whole biome spans continents: give it within a region, or MODIS
+or the climate at an annual step). The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
@@ -344,7 +348,8 @@ def main(argv=None):
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
 	p.add_argument('--sensor', help=SENSOR_HELP)
 	_source_options(p)
-	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\' or, with within, '
+	                                                '\'{"biome_id": 12, "within": {"country": "ESP"}}\'')
 	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', required=True)
 	p.add_argument('--end', required=True)
@@ -398,7 +403,8 @@ def main(argv=None):
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
 	p.add_argument('--sensor', help=SENSOR_HELP)
 	_source_options(p, image=True)
-	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\' or the biome at '
+	                                                'a point, \'{"biome_at": [-3.3, 37.1]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
 	                               'nor for --image)')

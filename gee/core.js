@@ -1533,11 +1533,28 @@ var MonitorEO = (function () {
 		2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']};
 	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
 	var WDPA_MAX_ERROR = 10;
+	var BIOME_MAX_ERROR = 100;  // areas.BIOME_MAX_ERROR: metres, the tolerance of the union of a biome's ecoregions
+	var BIOME_CODES = '1 to 14 or 99 (Rock and Ice)';  // areas.BIOME_CODES: the codes of the biomes, in the messages
+	var WITHIN_MAX_ERROR = 100;  // areas.WITHIN_MAX_ERROR: metres, the union of the region of within, the part inside
+	// areas.GLOBAL_CRS and WIDE_DEGREES: the CRS (equal area, metres) of the regions whose bounds span more degrees of
+	// longitude than that (or cross the antimeridian), too wide for a UTM zone
+	var GLOBAL_CRS = 'EPSG:6933';
+	var WIDE_DEGREES = 40;
 
 	// areas.utm_of
 	function utmOf(lon, lat) {
 		var zone = Math.min(Math.floor((lon + 180) / 6) + 1, 60);
 		return 'EPSG:' + ((lat >= 0 ? 32600 : 32700) + zone);
+	}
+
+	// areas.crs_for: the automatic CRS of a region from INFO (regionInfo: its centroid and the coordinates of its
+	// bounds): GLOBAL_CRS when the bounds span more than WIDE_DEGREES of longitude (360 across the antimeridian), else
+	// the UTM zone of the centre (also without bounds)
+	function regionCrs(info) {
+		var ring = (info.bounds || [[]])[0];
+		var lons = ring.map(function (p) { return p[0]; });
+		if (lons.length && Math.max.apply(null, lons) - Math.min.apply(null, lons) > WIDE_DEGREES) return GLOBAL_CRS;
+		return utmOf(info.centroid[0], info.centroid[1]);
 	}
 
 	function named(fc, field) {
@@ -1631,6 +1648,95 @@ var MonitorEO = (function () {
 
 	function ecoregionAt(lon, lat) {
 		return named(ee.FeatureCollection(ECOREGIONS).filterBounds(ee.Geometry.Point([lon, lat])), 'ECO_NAME');
+	}
+
+	// areas._whole: X as a whole number, or null if it is not one
+	function wholeNumber(x) {
+		var text = String(x).trim(), f = Number(text);
+		return text !== '' && isFinite(f) && f === Math.round(f) ? f : null;
+	}
+
+	// catalog.biomes: the biomes of RESOLVE Ecoregions 2017 (the classes of BIOME), [{code, name (in Spanish with LANG
+	// 'es'), colour}], from the lowest code
+	function biomes(lang) {
+		var rows = classRows('biomes');
+		return Object.keys(rows).map(Number).sort(function (a, b) { return a - b; }).map(function (code) {
+			var row = rows[code];
+			return {code: code, name: (lang === 'es' && row.name_es) || row.name, colour: row.colour};
+		});
+	}
+
+	// areas.biome_name: the name of the biome CODE (in Spanish with LANG 'es'), or null
+	function biomeName(code, lang) {
+		var c = wholeNumber(code), b = biomes(lang).filter(function (x) { return x.code === c; })[0];
+		return b ? b.name : null;
+	}
+
+	// catalog.ecoregions_of_biome: the ECO_IDs of the ecoregions of the biome CODE in the table of classes (99, Rock
+	// and Ice, is the ECO_ID 0), from the lowest
+	function ecoregionsOfBiome(code) {
+		var rows = classRows('ecoregions');
+		return Object.keys(rows).map(Number).filter(function (eco) { return Number(rows[eco].group) === Number(code); })
+			.sort(function (a, b) { return a - b; });
+	}
+
+	// areas.biome_codes: V (a code of a biome, a list of them or a text with commas) as the codes of the biomes, each
+	// once, in their order; an Error if one is not a code of the table of the biomes, or if there are none
+	function biomeCodes(v) {
+		var values = typeof v === 'string' ? v.replace(/;/g, ',').split(',').filter(function (x) { return x.trim(); }) :
+			Array.isArray(v) ? v : [v];
+		if (!values.length) {
+			throw new Error('biome_id takes the codes of the biomes of RESOLVE Ecoregions 2017, ' + BIOME_CODES +
+				', e.g. 12: list_classes of BIOME gives them');
+		}
+		var known = biomes().map(function (b) { return b.code; }), out = [];
+		values.forEach(function (x) {
+			var c = wholeNumber(x);
+			if (c === null || known.indexOf(c) < 0) {
+				var shown = c !== null ? String(c) : typeof x === 'string' ? repr(x) : String(x);
+				throw new Error('biome_id takes the codes of the biomes of RESOLVE Ecoregions 2017, ' + BIOME_CODES +
+					', not ' + shown + ': list_classes of BIOME gives them');
+			}
+			if (out.indexOf(c) < 0) out.push(c);
+		});
+		return out;
+	}
+
+	// areas._biome: the biome CODE as a single feature named by its name (and with its code, biome): the union of the
+	// ecoregions of its ECO_IDs in the table of classes, dissolved with a tolerance of BIOME_MAX_ERROR m; with INSIDE
+	// (an ee.Geometry), only the ecoregions that touch it
+	function biomeFeature(code, inside) {
+		var eco = ee.FeatureCollection(ECOREGIONS).filter(ee.Filter.inList('ECO_ID', ecoregionsOfBiome(code)));
+		if (inside) eco = eco.filterBounds(inside);
+		var union = eco.geometry(BIOME_MAX_ERROR).dissolve(BIOME_MAX_ERROR);
+		return ee.Feature(union, {name: biomeName(code), biome: code});
+	}
+
+	// areas.region of {biome_id: V}: a feature per biome of V (see biomeCodes), only their ecoregions that touch INSIDE
+	// if given (then withinRegion keeps their part inside it)
+	function biomeRegion(v, inside) {
+		return ee.FeatureCollection(biomeCodes(v).map(function (c) { return biomeFeature(c, inside); }));
+	}
+
+	// areas._biome_at, the region {biome_at: [LON, LAT]}: the biome of the ecoregion at the point as biomeFeature
+	// (two at a boundary; none in the sea); of each biome, its feature if one of its ecoregions is there (If: only that
+	// one is joined)
+	function biomeAt(lon, lat, inside) {
+		var at = ee.FeatureCollection(ECOREGIONS).filterBounds(ee.Geometry.Point([lon, lat]));
+		var feats = biomes().map(function (b) {
+			return ee.Algorithms.If(at.filter(ee.Filter.inList('ECO_ID', ecoregionsOfBiome(b.code))).size(),
+				biomeFeature(b.code, inside), null);
+		});
+		return ee.FeatureCollection(ee.List(feats).removeAll([null]));
+	}
+
+	// areas._within: the part of each feature of FC inside INSIDE (the geometry of the region of within, with the
+	// tolerance WITHIN_MAX_ERROR: e.g. bboxRegion(bounds).geometry(WITHIN_MAX_ERROR)), with its properties; the
+	// features outside it are left out
+	function withinRegion(fc, inside) {
+		return fc.filterBounds(inside).map(function (f) {
+			return f.intersection(ee.Feature(inside), WITHIN_MAX_ERROR);
+		});
 	}
 
 	function bboxRegion(bbox, name) {
@@ -2046,13 +2152,15 @@ var MonitorEO = (function () {
 		return days.map(function (d) { return [d, iso(addDays(date(d), 1))]; });
 	}
 
-	// What autoScale and the CRS need, to evaluate once: {area: of the biggest region (m²), centroid: [lon, lat] (for
-	// utmOf), total: area of all the regions and boundsArea: of their bounding box (m²)}
+	// What autoScale and the CRS need, to evaluate once: {area: of the biggest region (m²), centroid: [lon, lat] and
+	// bounds: the coordinates of their bounding box (for regionCrs), total: area of all the regions and boundsArea: of
+	// their bounding box (m²)}
 	function regionInfo(regions) {
 		var geom = regions.geometry();
 		return ee.Dictionary({
 			area: regions.map(function (f) { return ee.Feature(null, {a: f.geometry().area(1)}); }).aggregate_max('a'),
 			centroid: geom.centroid(1000).coordinates(),
+			bounds: geom.bounds(1000).coordinates(),
 			total: geom.area(1000),
 			boundsArea: geom.bounds(1000).area(1000)
 		});
@@ -3078,7 +3186,10 @@ var MonitorEO = (function () {
 		classZoneRows: classZoneRows, classAreaLegend: classAreaLegend, classGroupRows: classGroupRows,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
-		islandAt: islandAt,
+		islandAt: islandAt, BIOME_MAX_ERROR: BIOME_MAX_ERROR, WITHIN_MAX_ERROR: WITHIN_MAX_ERROR,
+		GLOBAL_CRS: GLOBAL_CRS, WIDE_DEGREES: WIDE_DEGREES, regionCrs: regionCrs, biomes: biomes, biomeName: biomeName,
+		ecoregionsOfBiome: ecoregionsOfBiome, biomeCodes: biomeCodes, biomeFeature: biomeFeature,
+		biomeRegion: biomeRegion, biomeAt: biomeAt, withinRegion: withinRegion,
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,

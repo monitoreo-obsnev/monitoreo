@@ -3,8 +3,9 @@
 They take plain values (text, numbers, lists, dictionaries) and return plain values or files, so every tool
 computes exactly the same. A variable is given by its name in the catalog of MonitorEO (variable='NDVI',
 sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collection= and band=, or image= and band=).
-A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'bbox': [w, s, e, n]},
-{'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file': 'area.gpkg'}.
+A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'biome_id': 12} (a biome of
+RESOLVE Ecoregions 2017), {'bbox': [w, s, e, n]}, {'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file':
+'area.gpkg'}; with within, only its part inside another region: {'biome_at': [lon, lat], 'within': {'country': 'ESP'}}.
 
 Besides time series, maps and statistics, the variables are downloaded as GeoTIFFs: one map (download_image, or
 export_image to Google Drive), the true colour of the same images (rgb_map and download_rgb: the red, green and blue
@@ -1733,7 +1734,8 @@ def export_image(region, variable=None, sensor=None, start=None, end=None, metri
                  interannual='mean', season=None, quality=None, resolution=None, crs='auto', folder='MonitorEO',
                  name=None, clip=True, **source):
 	"""Export the map of a variable over REGION to a GeoTIFF in FOLDER of Google Drive, on a grid of RESOLUTION
-	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region).
+	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
+	region wider than 40 degrees of longitude: see areas.auto_crs).
 	Returns {'operation', 'file', 'folder', 'grid'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, resolution, source)
@@ -1744,11 +1746,11 @@ def export_image(region, variable=None, sensor=None, start=None, end=None, metri
 
 
 def _grid(regions, res, crs):
-	"""Grid of RES metres in CRS ('auto' = WGS 84 / UTM of the centre) that covers REGIONS."""
+	"""Grid of RES metres in CRS ('auto' = WGS 84 / UTM of the centre or, for regions too wide for one, an equal-area
+	CRS in metres: areas.auto_crs) that covers REGIONS."""
 	geom = regions.geometry()
 	if str(crs).lower() == 'auto':
-		lon, lat = geom.centroid(1).coordinates().getInfo()
-		crs = areas.utm_of(lon, lat)
+		crs = areas.auto_crs(geom, 1)
 	ring = geom.bounds(res, crs).getInfo()['coordinates'][0]
 	xs, ys = [p[0] for p in ring], [p[1] for p in ring]
 	return Grid.around(crs, res, min(xs), min(ys), max(xs), max(ys))
@@ -1783,10 +1785,10 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
                    max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
-	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region), directly: Earth
-	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). With
-	MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times bigger. Fine for small regions; for big ones at
-	full resolution, export_image (Google Drive).
+	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
+	region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
+	a time (PROGRESS(done, total) after each one). With MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times
+	bigger. Fine for small regions; for big ones at full resolution, export_image (Google Drive).
 	A categorical layer (ECOREGION, BIOME) has class codes: on pixels more than twice as big as those of the data, the
 	majority class (see monitoreo.categorical), and classes (the legend of the classes in the file, [{'value', 'label',
 	'color'}]) instead of min, max and palette (None).

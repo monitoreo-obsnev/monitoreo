@@ -30,7 +30,9 @@
 			islandHelp: 'Pulsa en el mapa sobre la isla (de más de 1 km²).', ramsar: 'Solo sitios Ramsar',
 			mode_draw: 'Polígono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el área', none: 'Ninguna área protegida con ese nombre.',
-			clickHelp: 'Pulsa en el mapa sobre la ecorregión.', useView: 'Usar la vista del mapa',
+			clickHelp: 'Pulsa en el mapa sobre la ecorregión.', useView: 'Usar la vista del mapa', mode_biome: 'Bioma',
+			biomeHelp: 'Pulsa en el mapa sobre el bioma: su parte en la vista del mapa (un bioma entero abarca ' +
+				'continentes).', noBiome: 'Ningún bioma en ese punto (¿el mar?).',
 			drawHelp: 'Dibuja un polígono en el mapa: un clic por vértice y doble clic para cerrarlo.',
 			drawAgain: 'Dibujar otro', regionIs: 'Región: ', noRegion: 'Elige primero una región.',
 			mapView: 'Vista del mapa', polygon: 'Polígono dibujado', loadingRegion: 'Cargando la región…',
@@ -218,7 +220,9 @@
 			islandHelp: 'Click on the map over the island (of more than 1 km²).', ramsar: 'Ramsar sites only',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
-			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view',
+			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view', mode_biome: 'Biome',
+			biomeHelp: 'Click on the map over the biome: its part in the map view (a whole biome spans continents).',
+			noBiome: 'No biome at that point (the sea?).',
 			drawHelp: 'Draw a polygon on the map: a click per vertex and a double click to close it.',
 			drawAgain: 'Draw another', regionIs: 'Region: ', noRegion: 'Choose a region first.',
 			mapView: 'Map view', polygon: 'Drawn polygon', loadingRegion: 'Loading the region…',
@@ -617,7 +621,7 @@
 			if (state.region !== fc) return;
 			state.info = d.info;
 			state.info.n = d.n;
-			state.info.crs = mo.utmOf(d.info.centroid[0], d.info.centroid[1]);
+			state.info.crs = mo.regionCrs(d.info);  // areas.auto_crs: the UTM zone of the centre, or EPSG:6933 if wide
 			render();
 		});
 		fc.geometry().bounds(1000).evaluate(function (b) {
@@ -631,11 +635,20 @@
 	}
 
 	map.onClick(function (coords) {
-		if (state.mode !== 'ecoregion' && state.mode !== 'island') return;
-		var fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
+		if (state.mode !== 'ecoregion' && state.mode !== 'island' && state.mode !== 'biome') return;
+		var biome = state.mode === 'biome', fc;
+		if (biome) {  // a whole biome spans continents: its part in the map view, the region {biome_at, within: bbox}
+			var inside = mo.bboxRegion(map.getBounds()).geometry(mo.WITHIN_MAX_ERROR);
+			fc = mo.withinRegion(mo.biomeAt(coords.lon, coords.lat, inside), inside);
+		} else {
+			fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
+		}
+		if (biome) message(t('loadingRegion'));
 		fc.aggregate_array('name').evaluate(function (names, error) {
 			if (error) return fail(error);
-			if (names && names.length) setRegion(fc, names[0]);
+			if (!(names && names.length)) return biome ? message(t('noBiome'), true) : null;
+			if (biome) results.style().set('shown', false);
+			setRegion(fc, biome ? names[0] + ' · ' + t('mapView') : names[0]);
 		});
 	});
 
@@ -708,7 +721,7 @@
 
 	function regionWidgets() {
 		var w = [header(t('region'))];
-		var modes = ['wdpa', 'admin', 'ecoregion', 'island', 'view', 'draw'].map(function (m) {
+		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'view', 'draw'].map(function (m) {
 			return {value: m, label: t('mode_' + m)};
 		});
 		w.push(select(modes, state.mode, function (m) {
@@ -752,6 +765,8 @@
 			w.push(ui.Label(t('islandHelp'), SMALL));
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
+		} else if (state.mode === 'biome') {
+			w.push(ui.Label(t('biomeHelp'), SMALL));
 		} else if (state.mode === 'view') {
 			w.push(button(t('useView'), function () {
 				var b = map.getBounds();

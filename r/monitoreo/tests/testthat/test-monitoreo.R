@@ -35,6 +35,16 @@ test_that("catalog and regions", {
   expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
   expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
   expect_error(mo_admin(1, level = 3))
+  expect_equal(mo_ecoregion(793), list(ecoregion_id = list(793L)))
+  expect_equal(mo_ecoregion(lon = -3.3, lat = 37.1), list(ecoregion_at = list(-3.3, 37.1)))
+  # a biome of RESOLVE 2017 by its code or at a point, and only its part within another region
+  expect_equal(mo_biome(12), list(biome_id = list(12L)))
+  expect_equal(mo_biome(c(12, 4))$biome_id, list(12L, 4L))
+  expect_equal(mo_biome(lon = -3.3, lat = 37.1)$biome_at, list(-3.3, 37.1))
+  expect_null(mo_biome(12)$within)
+  expect_equal(mo_biome(12, within = mo_country("esp")),
+               list(biome_id = list(12L), within = list(country = list("ESP"))))
+  expect_equal(mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))$within$bbox[[1]], -4)
 })
 
 test_that("references", {

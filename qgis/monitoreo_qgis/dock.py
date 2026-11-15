@@ -55,9 +55,12 @@ AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks
               ('Trend of the variable', 'trend'), ('Classes of a categorical layer (the variable)', 'classes')]
 # a condition of «Only the pixels where» on a categorical layer (ECOREGION, BIOME): its classes to keep or to leave out
 CLASS_CONDITIONS = [('is one of the classes', 'classes'), ('is none of the classes', 'exclude')]
+# the biome at the center of the map: its part in the map extent (a whole biome spans continents), the region
+# {'biome_at': [lon, lat], 'within': {'bbox': the extent}}
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
-           ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
+           ('Ecoregion at the center of the map', 'ecoregion'), ('Biome at the center of the map', 'biome'),
+           ('Island at the center of the map', 'island')]
 FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
 # MODIS, only for the burn indices that have it (services.BURN_SENSORS: the RdNBR): the daily surface reflectance of
 # Terra or of Aqua (500 m), given to services.burn_severity as the sensor 'Modis' and the collection of each
@@ -1193,21 +1196,17 @@ class MonitorEODock(QDockWidget):
 		"""Region of the services from the widgets (read in the main thread)."""
 		kind = self.region_kind.currentData()
 		wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
-		if kind == 'extent':
+		if kind in ('extent', 'ecoregion', 'biome', 'island'):
 			canvas = self.iface.mapCanvas()
 			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
 			r = tr.transformBoundingBox(canvas.extent())
-			return {'bbox': [r.xMinimum(), r.yMinimum(), r.xMaximum(), r.yMaximum()]}
-		if kind == 'ecoregion':
-			canvas = self.iface.mapCanvas()
-			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
+			extent = {'bbox': [r.xMinimum(), r.yMinimum(), r.xMaximum(), r.yMaximum()]}
+			if kind == 'extent':
+				return extent
 			c = tr.transform(canvas.extent().center())
-			return {'ecoregion_at': [c.x(), c.y()]}
-		if kind == 'island':
-			canvas = self.iface.mapCanvas()
-			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
-			c = tr.transform(canvas.extent().center())
-			return {'island_at': [c.x(), c.y()]}
+			if kind == 'biome':  # its part in the map extent: a whole biome spans continents
+				return {'biome_at': [c.x(), c.y()], 'within': extent}
+			return {f'{kind}_at': [c.x(), c.y()]}
 		if kind == 'wdpa':
 			if self.wdpa.currentData() is None:
 				raise ValueError('search for a protected area and choose it in the list')

@@ -64,9 +64,9 @@ def auto_scale(spec, regions):
 
 
 def region_crs(regions):
-	"""WGS 84 / UTM zone of the centre of REGIONS, for statistics on square pixels."""
-	lon, lat = regions.geometry().centroid(1000).coordinates().getInfo()
-	return areas.utm_of(lon, lat)
+	"""The CRS of the statistics of REGIONS, on square pixels: WGS 84 / UTM zone of their centre or, for regions too
+	wide for one (a whole biome), an equal-area CRS in metres (areas.auto_crs)."""
+	return areas.auto_crs(regions.geometry())
 
 
 def _stat_name(stat):
@@ -78,9 +78,9 @@ def _stat_name(stat):
 def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, steps=None, crs=None, tile_scale=4):
 	"""ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS (default: all
 	the steps of the period) and region of REGIONS (an ee.FeatureCollection with a 'name' property), computed on
-	pixels of SCALE metres in CRS (default: the UTM zone of the regions). The steps are reduced over the regions in a
-	single pass, as the bands of one image: with a reduction per step, Earth Engine went over the regions again for
-	each one (96 months over the Sierra Nevada National Park took 5 minutes)."""
+	pixels of SCALE metres in CRS (default: that of region_crs, the UTM zone of the regions). The steps are reduced
+	over the regions in a single pass, as the bands of one image: with a reduction per step, Earth Engine went over the
+	regions again for each one (96 months over the Sierra Nevada National Park took 5 minutes)."""
 	if variable.kind(spec) == 'image':
 		raise ValueError('a fixed image has no time series')
 	geom = regions.geometry()
