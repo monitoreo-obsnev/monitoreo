@@ -17787,6 +17787,10 @@ var MonitorEO = (function () {
 	// those on a categorical layer), masked elsewhere; null without conditions. A pixel where a condition has no data is
 	// left out
 	function whereMask(s, region, res) {
+		// on the pixels RES of the result, by default those of its data (the package always computes a result on its
+		// pixels): a condition on a fixed layer of bigger pixels (the TWI of 90 m under Sentinel-2) is then interpolated
+		// as in the package, not taken from the nearest pixel of the layer
+		res = res || (s.where && s.where.length ? Number(entryOf(s).m) : res);
 		var masks = (s.where || []).filter(isLandcover).map(function (c) {
 			return landcoverKeep(c, region, res);
 		}).concat(classConditions(s).map(function (x) {
