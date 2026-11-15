@@ -20631,10 +20631,18 @@ var MonitorEO = (function () {
 	}
 
 	function setVariable(ref) {
+		var before = entry();
 		state.ref = ref;
 		var e = entry();
 		var fixed = mo.fixedFilters(e);  // the SCF: clouds and water, always
-		if (fixed && !state.chosenQuality) state.chosenQuality = JSON.parse(JSON.stringify(state.quality));
+		if (fixed && !state.chosenQuality) {
+			// the filters chosen, those of the right axis of a profile (otherQuality): with that of what the variable
+			// before measures back on, unchecked only because of it (the snow of the NDSI), as the QGIS plugin keeps it
+			state.chosenQuality = JSON.parse(JSON.stringify(state.quality));
+			mo.FILTERS.forEach(function (f) {
+				if (before && (mo.MEASURES[f] || []).indexOf(before.index) >= 0) state.chosenQuality[f] = true;
+			});
+		}
 		if (!fixed) state.chosenQuality = null;
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;

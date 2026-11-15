@@ -635,6 +635,28 @@ assert dock.catalog_found.count() > 0 and 'MODIS/061/MOD10A1' in [dock.catalog_f
 dock.catalog_chosen(0)
 assert dock.asset_id.text() == dock.catalog_found.itemData(0) and read == [dock.asset_id.text()]
 print('catalog search:', dock.catalog_found.count(), 'datasets, first', dock.catalog_found.itemData(0))
+# data by their ID on the left axis (a collection, with its own mask: the filters greyed out) and the NDSI of
+# Sentinel-2 on the right one: the filters chosen before, as 'auto', so that the NDSI keeps its snow
+SNOW = 'MODIS/061/MOD10A1'
+dock.asset_id.setText(SNOW)
+dock.asset_read({'asset': SNOW, 'type': 'image_collection', 'use': 'collection', 'title': 'MOD10A1',
+                 'source': 'Earth Engine data catalog',
+                 'bands': [{'band': 'NDSI_Snow_Cover', 'description': 'NDSI snow cover', 'units': '', 'unit': '',
+                            'resolution_m': 500.0}],
+                 'arguments': {'collection': SNOW, 'band': 'NDSI_Snow_Cover'}, 'notes': [], 'references': [],
+                 'credits': []})
+assert dock.variable.currentData().get('custom') and not dock.filters['snow'].isEnabled()
+dock.doy.setChecked(True)
+dock.doy_other.setCurrentIndex(dock.doy_other.findText('NDSI (Sentinel-2)'))
+dock.run_series()
+wait()
+sent = calls[-1]
+assert (sent.get('collection'), sent['other_variable']) == (SNOW, 'NDSI') and sent['quality'] == auto, sent
+assert not sensors.filters(entries['NDSI'], sent['quality'])['snow']
+dock.doy_other.setCurrentIndex(0)
+dock.doy_interannual.setCurrentIndex(0)
+dock.doy.setChecked(False)
+print('data by ID on the left axis, the NDSI on the right one: the filters chosen, as', sent['quality']['snow'])
 # the images (fixed layers) whatever the Period, and the map view zoomed out beyond the world (a project in EPSG:4326):
 # within the world, not an error about a bbox nobody wrote
 dock.region_kind.setCurrentIndex(dock.region_kind.findData('extent'))

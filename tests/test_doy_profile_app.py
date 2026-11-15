@@ -316,9 +316,17 @@ selectWith('vegetation').opts.onChange('atmosphere');
 selectWith(110).opts.onChange(110);
 selectWith('none').opts.onChange(27);
 var cf = compute([input.winter, input.winterOther]);
-out.cf = {qualities: qualities, csv: cf.csv.length, texts: texts(controls)};
+out.cf = {qualities: qualities.splice(0), csv: cf.csv.length, texts: texts(controls)};
+// the SCF of Landsat on the left axis right after the NDSI of Landsat (the first of the theme Snow, its snow filter
+// unchecked only because it measures it) and the NDVI of Landsat on the right one: the NDVI without the snow
+selectWith('atmosphere').opts.onChange('snow');
+out.afterNdsi = {snow: check('snow').opts.value};
+selectWith(105).opts.onChange(105);
+selectWith('none').opts.onChange(24);
+compute([input.winter, input.winterOther]);
+out.afterNdsi.qualities = qualities.splice(0);
 MonitorEO.series = seriesOf;
-selectWith('atmosphere').opts.onChange('vegetation');
+selectWith('snow').opts.onChange('vegetation');
 selectWith(27).opts.onChange(27);
 selectWith('none').opts.onChange(8);
 // in Spanish
@@ -434,6 +442,11 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	assert not any(cf_quality[f] for f in ('clouds', 'water', 'snow', 'aerosols'))
 	assert all(ndvi_quality[f] for f in ('clouds', 'water', 'snow')) and out['cf']['csv']  # no aerosols in Sentinel-2
 	assert not [x for x in out['cf']['texts'] if 'removes what' in x]
+	# the SCF right after the NDSI (the first variable of the theme Snow, which unchecked the snow filter): the NDVI on
+	# the right axis still without the snow, as in the QGIS plugin
+	scf_quality, ndvi_quality = out['afterNdsi']['qualities']
+	assert out['afterNdsi']['snow'] is False and scf_quality['snow'] is False  # the fixed filters of the SCF
+	assert ndvi_quality['snow'] and ndvi_quality['clouds'], ndvi_quality
 	# in Spanish: the options and the names of the steps of the year
 	assert out['es']['between'][0]['label'] == es['doyLines'] and out['es']['between'][2]['label'] == 'Mediana'
 	chart = out['es']['chart']

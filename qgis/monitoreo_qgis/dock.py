@@ -1945,10 +1945,10 @@ class MonitorEODock(QDockWidget):
 		profile = self.doy_args(var) if doy else {}
 		if profile is None:
 			return
-		if profile.get('other_variable') and 'quality' in var:
+		if profile.get('other_variable'):
 			# each axis with the filters the user chose, not the greyed out ones of the variable of the left axis (all of
-			# them with the SCF or the CF, which ignore them; that of what it measures with the NDSI...), as 'auto': each
-			# variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not that of the NDVI
+			# them with the SCF, the CF and the data by ID, which ignore them; that of what it measures with the NDSI...),
+			# as 'auto': each variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not the NDVI
 			var = dict(var, quality=self.quality_args(own=True, auto=True))
 		name = data_name(var) + (f" and {profile['other_variable']} ({profile['other_sensor']})"
 		                         if profile.get('other_variable') else '')
