@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import assets, catalog, composite, figures, fire, maps, references, trends
+from . import assets, catalog, composite, figures, fire, maps, references, timeseries, trends
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -90,20 +90,21 @@ LICENSES = {
 }
 LICENSE = 'CC-BY-4.0'
 
-# type of analysis of each tool (region_stats with zones too: gradients, see _analysis), and its name in the viewer
+# type of analysis of each tool (region_stats with zones too: gradients; time_series with its seasonal profile by day of
+# the year: profile; see _analysis), and its name in the viewer
 ANALYSES = {'time_series': 'series', 'trend_table': 'trend', 'download_trend': 'trend', 'compare_series': 'comparison',
             'download_comparison': 'comparison', 'burn_severity': 'burn_severity', 'download_image': 'map',
             'timelapse': 'animation', 'area_by_class': 'areas', 'map_figure': 'map', 'transect': 'gradients'}
 ANALYSIS_NAMES = {'series': 'Time series', 'trend': 'Trend', 'comparison': 'Comparison of periods',
                   'burn_severity': 'Burn severity', 'map': 'Map', 'animation': 'Animation',
-                  'areas': 'Area by class', 'gradients': 'Gradients'}
+                  'areas': 'Area by class', 'gradients': 'Gradients', 'profile': 'Seasonal profile'}
 ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse)
 # the chart of the CSV of each tool (the others, from its columns: burn_severity has the chart of the severity classes
 # with the dNBR and the RdNBR, and a table of the statistics of each region with the RBR, without classes)
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
           'transect': 'transect'}
 CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'doy',
-               'table')
+               'doy_profile', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -336,6 +337,20 @@ def is_static(args):
 	return bool((_entry(args.get('variable'), args.get('sensor')) or {}).get('static'))
 
 
+def is_profile(tool, args):
+	"""Whether a call of TOOL with ARGS is the seasonal profile by day of the year (time_series with doy and interannual
+	or other_variable, see report.is_profile): its chart is doy_profile, a line per variable, not a line per year."""
+	from .report import is_profile as profile  # report imports this module
+	return tool == 'time_series' and profile(args or {})
+
+
+def _other_args(args):
+	"""The arguments of the variable of the right axis of a profile by day of the year (other_variable, a variable of
+	the catalog; its sensor, by default that of the first one), as those of a variable."""
+	return dict(args, variable=args.get('other_variable'), sensor=args.get('other_sensor') or args.get('sensor'),
+	            collection=None, image=None)
+
+
 def default_title(tool, args):
 	"""A title in English of the result of a call."""
 	var, season = _var(args), season_text(args.get('season'))
@@ -343,6 +358,9 @@ def default_title(tool, args):
 	other = period_text(args['other_start'], args['other_end']) \
 		if args.get('other_start') and args.get('other_end') else ''
 	step = args.get('step') or ('annual' if tool in ('trend_table', 'download_trend', 'timelapse') else 'monthly')
+	if is_profile(tool, args):  # e.g. 'Monthly profile of NDSI (Sentinel-2) and NDVI (Sentinel-2) by day of the year, ...'
+		from .report import profile_title
+		return profile_title(args)
 	if tool == 'time_series':
 		return f'{STEPS.get(step, step).capitalize()} time series of {var}, {period}{season}' + (
 			', by day of the year' if args.get('doy') else '')
@@ -709,9 +727,11 @@ def _columns(path):
 
 
 def _chart_type(tool, path):
+	cols = _columns(path)
+	if set(timeseries.PROFILE_COLUMNS) <= cols:  # a seasonal profile by day of the year, also without its call
+		return 'doy_profile'
 	if tool in CHARTS:
 		return CHARTS[tool]
-	cols = _columns(path)
 	return ('zones' if 'zone_label' in cols else 'series' if {'date', 'value'} <= cols else 'trends' if 'slope' in cols else
 	        'comparison' if 'difference' in cols else 'burn_severity' if {'class', 'ha'} <= cols else 'table')
 
@@ -734,6 +754,60 @@ def _area_classes(args, path):
 			_ramp_colour(ramp, (i + 0.5) / len(first)) if 'value_from' in r else trend.get(code)
 		out.append({'class': code, 'label': r['label'], 'colour': colour})
 	return out
+
+
+def _axis_range(lim):
+	"""The range of a y axis as report.json has it: [min, max] of YLIM (two numbers, or a text 'min, max': see
+	services.check_ylim), or None (from the data; also if YLIM is not a range)."""
+	from .services import check_ylim
+	try:
+		lim = check_ylim(lim)
+	except ValueError:
+		return None
+	return [float(lim[0]), float(lim[1])] if lim else None
+
+
+def _profile_axes(args, res, path, unit):
+	"""What the viewer draws the seasonal profile by day of the year with (the chart doy_profile, see is_profile): the
+	variables of its CSV (variables, as its column variable names them) in the order of the axes, the first one on the
+	left and the other one on the right; their names as the titles write them (labels, e.g. 'NDSI (Sentinel-2)'); the
+	titles of the y axes with the unit of each one (ylabel, other_ylabel); their ranges (ylim, other_ylim: [min, max],
+	or None from the data; by default -1 to 1 for the spectral indices, see services.time_series) and the metric between
+	the years (interannual). From the result RES, else (an answer of the MCP server, or a CSV without its call) from the
+	call ARGS and the CSV PATH; UNIT: that of the result (of the first variable)."""
+	from .report import _profile_ylims  # report imports this module
+	rows = _read_csv(path)
+	names = [str(n) for n in res.get('variables') or []] or \
+		list(dict.fromkeys(r['variable'] for r in rows if r.get('variable')))
+	labels = [_var(args)] + ([_var(_other_args(args))] if args.get('other_variable') else [])
+	names = names[:2] or labels
+	if len(labels) != len(names) or not all(labels):  # a CSV without its call: the names of its variables
+		labels = list(names)
+	given = res.get('units') or {}
+	written = {r.get('variable'): r.get('unit') for r in rows}  # in UDUNITS ('1', 'degC')
+	shown = {v: k for k, v in catalog.UDUNITS.items()}
+	between = str(res.get('interannual') or args.get('interannual') or (rows[0].get('interannual') if rows else None)
+	              or 'median').lower()
+
+	def unit_of(k):
+		if names[k] in given:
+			return unit_text(given[names[k]])
+		if k == 0 and unit:
+			return unit_text(unit)
+		e = _entry(args.get('other_variable'), args.get('other_sensor') or args.get('sensor')) if k else None
+		if e:
+			return unit_text(catalog.unit_of(e.get('unit'), args.get('metric') or 'mean', between,
+			                                  args.get('stat') or 'mean'))
+		u = str(written.get(names[k]) or '').strip()
+		return unit_text(shown.get(u) or catalog.custom_unit(u))
+
+	titles = []
+	for k, label in enumerate(labels):
+		u = unit_of(k)
+		titles.append(f'{label} [{u}]' if u else label)
+	ylim, other_ylim = (_axis_range(lim) for lim in _profile_ylims(args, res))
+	return {'variables': names, 'labels': labels, 'ylabel': titles[0], 'other_ylabel': titles[1] if len(titles) > 1
+	        else None, 'ylim': ylim, 'other_ylim': other_ylim if len(names) > 1 else None, 'interannual': between}
 
 
 def _results(item, files, n):
@@ -780,6 +854,7 @@ def _results(item, files, n):
 	if res.get('csv'):
 		path = files.add(res['csv'], 'data', f'Table (CSV): {title}', 'CSV')
 		chart = item.get('chart') or ('transitions' if res.get('mode') == 'transitions' else
+		                              'doy_profile' if is_profile(tool, args) else
 		                              'doy' if tool == 'time_series' and args.get('doy') else
 		                              _chart_type(tool, res['csv']))
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
@@ -788,8 +863,11 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
-		if chart == 'doy':
+		if chart == 'doy':  # the range of its y axis, if one was given (ylim)
 			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
+			entry['ylim'] = _axis_range(res['ylim'] if 'ylim' in res else args.get('ylim'))
+		if chart == 'doy_profile':
+			entry.update(_profile_axes(args, res, res['csv'], unit))
 		if chart in ('transect', 'zones'):  # the title of the y axis, and the statistics of the zones
 			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
 			if chart == 'zones':
@@ -873,7 +951,14 @@ def _region(spec, items):
 
 
 def _variables(items):
+	"""The variables of the results ITEMS (also that of the right axis of a profile by day of the year)."""
 	out = {}
+
+	def add(var, sensor):
+		e = _entry(var, sensor) or {}
+		out.setdefault((var, sensor), {'variable': var, 'sensor': SENSORS.get(sensor, sensor), 'name': _vname(e),
+		                               'unit': unit_text(e.get('unit'))})
+
 	for it in items:
 		a = it['args']
 		var = a.get('variable') or (fire_variable(a) if it.get('tool') == 'burn_severity' else None)
@@ -881,14 +966,11 @@ def _variables(items):
 			what = 'Earth Engine image' if a.get('image') else 'Earth Engine image collection'
 			out.setdefault((_var(a), None), {'variable': _var(a), 'sensor': '', 'name': what,
 			                                 'unit': unit_text(catalog.custom_unit(data_unit(a)))})
-			continue
-		if not var:
-			continue
-		sensor = a.get('sensor') or ('Sentinel-2' if it.get('tool') == 'burn_severity' else None)
-		e = _entry(var, sensor) or {}
-		name, unit = _vname(e), unit_text(e.get('unit'))
-		out.setdefault((var, sensor), {'variable': var, 'sensor': SENSORS.get(sensor, sensor), 'name': name,
-		                               'unit': unit})
+		elif var:
+			add(var, a.get('sensor') or ('Sentinel-2' if it.get('tool') == 'burn_severity' else None))
+		if is_profile(it.get('tool'), a) and a.get('other_variable'):
+			o = _other_args(a)
+			add(o['variable'], o['sensor'])
 	return list(out.values())
 
 
@@ -896,6 +978,8 @@ def _analysis(item):
 	"""The type of analysis of a result ITEM of a report (see ANALYSES)."""
 	if item.get('tool') == 'region_stats' and isinstance((item.get('args') or {}).get('zones'), dict):
 		return 'gradients'  # the statistics of each elevation band, as the profiles along a line
+	if is_profile(item.get('tool'), item.get('args')):
+		return 'profile'  # the seasonal profile by day of the year of one or two variables
 	return ANALYSES.get(item.get('tool'), 'map')
 
 
@@ -1122,6 +1206,34 @@ def _legend_problems(legend, where):
 	return [f"{where}: unknown legend type {legend.get('type')}"]
 
 
+def _axes_problems(r, where):
+	"""Problems of the y axes of a chart by day of the year R: each range (ylim, other_ylim) is [min, max] or None; a
+	profile (doy_profile) has one or two variables (the names of its CSV), each with its name and its axis title, and
+	the range of the right axis only with two."""
+	def is_range(lim):
+		if not (isinstance(lim, list) and len(lim) == 2) or not all(
+				isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in lim):
+			return False
+		return lim[0] < lim[1]
+
+	p = [f'{where}: {k} is [min, max] of the y axis, or null' for k in ('ylim', 'other_ylim')
+	     if r.get(k) is not None and not is_range(r[k])]
+	if r.get('chart') != 'doy_profile':
+		return p
+	names = r.get('variables')
+	if not (isinstance(names, list) and 1 <= len(names) <= 2 and all(isinstance(n, str) and n for n in names)):
+		return p + [f'{where}: variables is a list of one or two names']
+	labels = r.get('labels')
+	if not (isinstance(labels, list) and len(labels) == len(names) and all(isinstance(x, str) and x for x in labels)):
+		p.append(f'{where}: labels has a name for each variable')
+	for k, key in enumerate(('ylabel', 'other_ylabel')):
+		if k < len(names) and not (isinstance(r.get(key), str) and r[key]):
+			p.append(f'{where}: {key} is the title of the axis of {names[k]}')
+	if len(names) < 2 and (r.get('other_ylabel') is not None or r.get('other_ylim') is not None):
+		p.append(f'{where}: other_ylabel and other_ylim are those of a second variable')
+	return p
+
+
 def _license_problems(lic, where):
 	ok = isinstance(lic, dict) and lic.get('name') and re.fullmatch(r'https://\S+', str(lic.get('url', '')))
 	return [] if ok else [f'{where} has a name and an https url']
@@ -1212,6 +1324,8 @@ def check_report(report, folder=None):
 				p.append(f'{where}: its CSV is not in files')
 			if r.get('png') and r['png'] not in paths:
 				p.append(f'{where}: its PNG is not in files')
+			if r.get('chart') in ('doy', 'doy_profile'):
+				p += _axes_problems(r, where)
 		else:
 			p.append(f'{where}: kind is map, chart, animation or figure')
 	for f in report['files']:

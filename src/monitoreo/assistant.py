@@ -284,7 +284,10 @@ the maps, ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CO
 each land cover. Choose the map of the year closest to the period of the result (CORINE only in Europe), and say \
 which map and year you used.
 - Change over time: time_series (step "monthly" or "annual"; long series over big regions take minutes); to \
-compare the years (phenology, snow seasons), doy true: a line per year over the days of the year. Map of a \
+compare the years (phenology, snow seasons), doy true: a line per year over the days of the year. The seasonal \
+profile of one or two indices on two axes («NDSI and NDVI by day of the year»): doy with interannual (the metric \
+between the years of each step: "median" by default, "mean", "p25"...) and other_variable (and other_sensor) for \
+the right axis; ylim and other_ylim [min, max] only when the user asks for other axes (indices: -1 to 1). Map of a \
 period: map_layer; its statistics: region_stats. Interannual value (e.g. the mean of the annual medians): temporal \
 "annual" (or "monthly"), metric that of each year ("median") and interannual that between the years ("mean"); \
 temporal takes no other values. Any statistic of any variable: mean, median, min, max, std (standard deviation), \

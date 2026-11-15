@@ -172,7 +172,7 @@ cited <- function(df, res) {
 #' @keywords internal
 NULL
 
-utils::globalVariables(c("date", "value", "region", "doy", "year"))
+utils::globalVariables(c("date", "value", "region", "doy", "year", "variable", "plotted"))
 
 # The data that a function computes: a variable of the catalog and its sensor (with them, collection is one of the
 # collections of that variable), or instead the data of Earth Engine given by its ID (collection or image, with band,
@@ -727,11 +727,37 @@ mo_sf <- function(x, name = NULL) {
 #' @param step \code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.
 #' @param doy \code{TRUE}: the chart (\code{chart}, and that of \code{mo_plot()}) with a line per year over the days
 #'   of the year, and the columns year and doy (day of the year), to compare the years; not with
-#'   \code{step = "annual"}.
+#'   \code{step = "annual"}. With \code{interannual} or \code{other_variable}, the seasonal profile instead.
+#' @param interannual with \code{doy}: the seasonal profile, a line per variable over the days of the year instead of
+#'   a line per year: for each step of the year (each month, 16-day period or calendar day), this metric of its
+#'   values in the years of the period (e.g. the median NDVI of each month of 2018-2024): \code{"mean"},
+#'   \code{"median"}, \code{"min"}, \code{"max"}, \code{"std"} (sample standard deviation), \code{"cv"}
+#'   (coefficient of variation, in \%) or \code{"pN"} (percentile N, e.g. \code{"p25"}). Default with
+#'   \code{other_variable}: \code{"median"}.
+#' @param other_variable,other_sensor with \code{doy}: a second variable of the catalog with dates (not data of Earth
+#'   Engine by its ID) and its sensor (default: \code{sensor}), computed as the first one (the same region, period,
+#'   season, step, metric, statistic, pixel filters and scale) and drawn on the right y axis of the seasonal profile,
+#'   e.g. the NDSI on the left and the NDVI on the right.
+#' @param ylim,other_ylim with \code{doy}: \code{c(min, max)} of the left and of the right y axis. In the seasonal
+#'   profile, by default -1 to 1 for the spectral indices of the catalog (NDVI, EVI, NDSI, NDWI, LSWI, NBR and NDCI;
+#'   not the NDSI of MODIS, a snow cover from 0 to 100) when neither \code{metric}, \code{stat} nor
+#'   \code{interannual} changes their scale (std, cv, count, sum); else, and in the chart with a line per year, from
+#'   the data.
 #' @param chart optional path of a PNG chart.
-#' @return A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
-#'   (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
-#'   credits (see \code{mo_references()}).
+#' @return A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
+#'   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
+#'   [\%]"), scale, csv, references and credits (see \code{mo_references()}), and with \code{doy} ylim (\code{NULL}:
+#'   from the data).
+#'
+#'   With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
+#'   (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period
+#'   of the year, "0", "1", ..., or the day, "MM-DD"; doy, the day of the year where it is drawn; label, e.g. "Jan"
+#'   or "Jan 17"; value, \code{interannual} of the values of that step in the years of the period; n_years, how many
+#'   years had a value) with the attributes rows (the values of each year, of both variables, each with its variable
+#'   when there are two), variables (their names), units and scales (of each variable), interannual, ylabel and
+#'   other_ylabel (the titles of the y axes), ylim and other_ylim (\code{NULL}: from the data), title, unit, scale,
+#'   csv, references and credits (also those of the other variable). \code{mo_plot()} draws it, the other variable on
+#'   a right y axis.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -748,47 +774,100 @@ mo_sf <- function(x, name = NULL) {
 #' # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
 #' pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
 #'                      start = "2015-01-01", end = "2024-12-31")
+#' # the seasonal profile of the NDSI and the NDVI on two y axes, from -1 to 1: the median of the years of each month;
+#' # snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
+#' p <- mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
+#'                     interannual = "median", other_variable = "NDVI", quality = list(snow = "auto"))
+#' mo_plot(p)
 #' }
 #' @export
 mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
                            where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
-                           unit = NULL, doy = FALSE, chart = NULL) {
+                           unit = NULL, doy = FALSE, chart = NULL, interannual = NULL, other_variable = NULL,
+                           other_sensor = NULL, ylim = NULL, other_ylim = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+  if (!is.null(other_variable) && grepl("/", other_variable, fixed = TRUE)) {
+    stop("other_variable ", other_variable, ": the variable of the right axis is a variable of the catalog of ",
+         "MonitorEO (e.g. NDVI, see mo_variables()), not data of Earth Engine by its ID", call. = FALSE)
+  }
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, csv = csv, collection = collection, where = where,
                                 image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit, doy = isTRUE(doy), chart = if (is.null(chart)) NULL else path.expand(chart))
-  df <- rows_df(res$rows)
+                                unit = unit, doy = isTRUE(doy), chart = if (is.null(chart)) NULL else path.expand(chart),
+                                interannual = interannual, other_variable = other_variable,
+                                other_sensor = other_sensor, ylim = axis_range(ylim, "ylim"),
+                                other_ylim = axis_range(other_ylim, "other_ylim"))
+  profiled <- !is.null(res$variables)  # the seasonal profile (doy with interannual or other_variable)
+  df <- rows_df(if (profiled) res$profile else res$rows)
   attr(df, "title") <- res$title
   attr(df, "unit") <- res$unit
   attr(df, "ylabel") <- res$ylabel
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
+  attr(df, "ylim") <- axis_numbers(res$ylim)  # with doy: the range of the y axis, if given or by default
+  if (profiled) {
+    attr(df, "rows") <- rows_df(res$rows)
+    attr(df, "variables") <- as.character(unlist(res$variables))
+    attr(df, "units") <- unlist(res$units)
+    attr(df, "scales") <- unlist(res$scales)
+    attr(df, "interannual") <- res$interannual
+    attr(df, "other_ylabel") <- res$other_ylabel
+    attr(df, "other_ylim") <- axis_numbers(res$other_ylim)
+  }
   cited(df, res)
 }
+
+# The range of a y axis (ylim or other_ylim, named NAME) of mo_time_series() for Python: two numbers, as a list, or
+# NULL; a clear error with the words of R otherwise (Python checks that the first is the smaller).
+axis_range <- function(x, name) {
+  if (is.null(x)) return(NULL)
+  if (!is.numeric(x) || length(x) != 2 || any(!is.finite(x))) {
+    stop(name, ": give two numbers, the lowest and the highest value of the y axis, e.g. c(-1, 1)", call. = FALSE)
+  }
+  as.list(unname(as.numeric(x)))
+}
+
+# The range of a y axis that Python returns (a tuple, or None: from the data) as c(min, max), or NULL.
+axis_numbers <- function(x) if (length(x) == 2) as.numeric(unlist(x)) else NULL
 
 #' Chart of a time series
 #'
 #' With ggplot2 if it is installed, else with base graphics. A series of \code{mo_time_series(doy = TRUE)} (with the
 #' columns year and doy) is drawn with a line per year over the days of the year, from January to December, from the
 #' oldest year (light) to the newest (dark, thicker), with a panel per region (with base graphics, a line type per
-#' region).
+#' region), and the y axis of its \code{ylim}, if it was given.
+#'
+#' A seasonal profile of \code{mo_time_series(doy = TRUE)} with \code{interannual} or \code{other_variable} (with the
+#' columns variable, doy and n_years) is drawn with a line per variable over the days of the year: the first variable
+#' on the left y axis (blue) and the other one on a right y axis (red), each axis in the colour of its line, with the
+#' ranges of the attributes ylim and other_ylim (-1 to 1 by default for the spectral indices; else, or when they are
+#' \code{NULL}, from the data) and a line at 0 where an axis has it; a panel per region (with base graphics, a line
+#' type per region). With ggplot2 the right axis is a secondary axis (\code{ggplot2::sec_axis()}): the values of the
+#' other variable are drawn with the linear transform from the range of the right axis to that of the left one; with
+#' base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the right
+#' (\code{axis(4)}).
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
-#' @importFrom graphics axis legend lines
+#' @importFrom graphics abline axis legend lines mtext par
 #' @examples
 #' \dontrun{
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
+#' # the NDSI (left) and the NDVI (right) of each month, the median of the years, from -1 to 1; the snow of the NDSI kept
+#' mo_plot(mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
+#'                        other_variable = "NDVI", quality = list(snow = "auto")))
 #' }
 #' @export
 mo_plot <- function(ts) {
   title <- attr(ts, "title")
   unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
-  by_doy <- all(c("year", "doy") %in% names(ts))  # a line per year over the days of the year (doy = TRUE)
   starts <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)  # the day of the year of the first of each month
+  gg <- requireNamespace("ggplot2", quietly = TRUE)
+  if (all(c("variable", "doy", "n_years") %in% names(ts))) return(plot_profile(ts, title, unit, starts, gg))
+  by_doy <- all(c("year", "doy") %in% names(ts))  # a line per year over the days of the year (doy = TRUE)
+  ylim <- attr(ts, "ylim")  # with doy, the range of the y axis if it was given (NULL: from the data)
   regions <- unique(ts$region)
-  if (by_doy && requireNamespace("ggplot2", quietly = TRUE)) {
+  if (by_doy && gg) {
     ts$year <- factor(ts$year)
     p <- ggplot2::ggplot(ts, ggplot2::aes(x = doy, y = value, colour = year, group = year)) +
       ggplot2::geom_line(linewidth = 0.4) +
@@ -797,13 +876,15 @@ mo_plot <- function(ts) {
       ggplot2::scale_colour_viridis_d(begin = 0, end = 0.85, direction = -1) +  # the newest year the darkest
       ggplot2::scale_x_continuous(limits = c(1, 366), breaks = starts, labels = month.abb) +
       ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal()
+    if (!is.null(ylim)) p <- p + ggplot2::coord_cartesian(ylim = ylim, expand = FALSE)
     return(if (length(regions) > 1) p + ggplot2::facet_wrap(~region, ncol = 1) else p)
   }
   if (by_doy) {
     years <- sort(unique(ts$year))
     cols <- grDevices::hcl.colors(length(years) + 1, "viridis", rev = TRUE)[-1]  # without its lightest yellow
     widths <- ifelse(seq_along(years) == length(years), 2.5, 1)
-    plot(ts$doy, ts$value, type = "n", xlim = c(1, 366), main = title, xlab = "", ylab = unit, xaxt = "n")
+    plot(ts$doy, ts$value, type = "n", xlim = c(1, 366), ylim = ylim, yaxs = if (is.null(ylim)) "r" else "i",
+         main = title, xlab = "", ylab = unit, xaxt = "n")
     axis(1, at = starts, labels = month.abb)
     for (i in seq_along(regions)) {
       for (k in seq_along(years)) {
@@ -816,7 +897,7 @@ mo_plot <- function(ts) {
     if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
     return(invisible(ts))
   }
-  if (requireNamespace("ggplot2", quietly = TRUE)) {
+  if (gg) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
       ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal())
@@ -827,6 +908,107 @@ mo_plot <- function(ts) {
     lines(s$date, s$value, col = i, type = "o", pch = 20)
   }
   if (length(regions) > 1) legend("topleft", legend = regions, col = seq_along(regions), lty = 1, bty = "n")
+  invisible(ts)
+}
+
+# The colours of the lines of the left and of the right axis of the seasonal profile (charts.PROFILE_COLOURS of Python)
+profile_colours <- c("#1f77b4", "#d62728")
+
+# The range of a y axis of the seasonal profile: LIM if it was given, else that of the values V with a margin of 5 %
+# on each side (as matplotlib, in the chart of Python), and c(0, 1) without values.
+profile_range <- function(v, lim = NULL) {
+  if (length(lim) == 2) return(as.numeric(lim))
+  v <- v[is.finite(v)]
+  if (length(v) == 0) return(c(0, 1))
+  r <- range(v)
+  pad <- if (r[2] > r[1]) 0.05 * diff(r) else if (r[1] == 0) 0.05 else 0.05 * abs(r[1])
+  r + c(-pad, pad)
+}
+
+# mo_plot() of a seasonal profile of mo_time_series() (doy with interannual or other_variable), as the chart of Python
+# (charts.doy_profile_png): a line per variable over the days of the year (STARTS, the first day of each month), the
+# first variable on the left y axis (YLABEL) and the other on a right y axis, each in the colour of its line, with the
+# ranges ylim and other_ylim (or from the data) and a line at 0 where an axis has it; TITLE over it. GG: with ggplot2
+# (else with base graphics). The rows of one variable (ts[ts$variable == ..., ]) are drawn on one axis, with the
+# range and the title of the axis of that variable; without the attributes (e.g. after subset()), the variables are
+# those of the rows, the titles of the axes their names and the ranges from the data.
+plot_profile <- function(ts, title, ylabel, starts, gg) {
+  vars <- attr(ts, "variables")
+  if (is.null(vars)) vars <- unique(ts$variable)
+  keep <- which(vars %in% ts$variable)
+  keep <- keep[seq_len(min(length(keep), 2))]
+  vars <- vars[keep]
+  two <- length(vars) == 2
+  # the range and the title of the axis of the K-th variable (the left one, 1, or the right one, 2)
+  axis_of <- function(x, k) if (!is.na(k) && k <= length(x)) x[[k]] else NULL
+  lims <- list(attr(ts, "ylim"), attr(ts, "other_ylim"))
+  titles <- list(ylabel, attr(ts, "other_ylabel"))
+  cols <- profile_colours[pmin(keep, 2)]  # of the lines (each variable its own), and of the axes when there are two
+  axis_col <- if (two) cols[1] else "black"  # the colour of the left axis
+  lim <- profile_range(ts$value[ts$variable %in% vars[1]], axis_of(lims, keep[1]))
+  other_lim <- if (two) profile_range(ts$value[ts$variable %in% vars[2]], axis_of(lims, keep[2])) else lim
+  # the values of the right axis on the scale of the left one, and back (the secondary axis of ggplot2)
+  to_left <- function(v) lim[1] + (v - other_lim[1]) * diff(lim) / diff(other_lim)
+  to_right <- function(y) other_lim[1] + (y - lim[1]) * diff(other_lim) / diff(lim)
+  ylabels <- vapply(seq_along(vars), function(i) {
+    t <- axis_of(titles, keep[i])
+    if (is.null(t)) vars[i] else t
+  }, "")
+  zero <- lim[1] < 0 && 0 < lim[2]
+  other_zero <- two && other_lim[1] < 0 && 0 < other_lim[2] && !isTRUE(all.equal(lim, other_lim))
+  d <- ts[ts$variable %in% vars, ]
+  d$plotted <- if (two) ifelse(d$variable == vars[2], to_left(d$value), d$value) else d$value
+  d$variable <- factor(d$variable, levels = vars)
+  regions <- unique(d$region)
+  if (gg) {
+    p <- ggplot2::ggplot(d, ggplot2::aes(x = doy, y = plotted, colour = variable, group = variable))
+    if (zero) p <- p + ggplot2::geom_hline(yintercept = 0, colour = "#888888", linewidth = 0.3)
+    if (other_zero) {
+      p <- p + ggplot2::geom_hline(yintercept = to_left(0), colour = cols[2], linewidth = 0.3, linetype = "dotted")
+    }
+    p <- p + ggplot2::geom_line(linewidth = 0.7, na.rm = TRUE) + ggplot2::geom_point(size = 1.2, na.rm = TRUE) +
+      ggplot2::scale_colour_manual(values = stats::setNames(cols, vars)) +
+      ggplot2::scale_x_continuous(breaks = starts, labels = month.abb) +
+      ggplot2::scale_y_continuous(ylabels[1], sec.axis = if (two) ggplot2::sec_axis(to_right, name = ylabels[2])
+                                  else ggplot2::waiver()) +
+      ggplot2::coord_cartesian(xlim = c(1, 366), ylim = lim, expand = FALSE) +
+      ggplot2::labs(title = title, x = NULL, colour = NULL) + ggplot2::theme_minimal() +
+      ggplot2::theme(legend.position = "top")
+    if (two) {  # each axis in the colour of its line
+      p <- p + ggplot2::theme(axis.title.y.left = ggplot2::element_text(colour = cols[1]),
+                              axis.text.y.left = ggplot2::element_text(colour = cols[1]),
+                              axis.title.y.right = ggplot2::element_text(colour = cols[2]),
+                              axis.text.y.right = ggplot2::element_text(colour = cols[2]))
+    }
+    return(if (length(regions) > 1) p + ggplot2::facet_wrap(~region, ncol = 1) else p)
+  }
+  draw <- function(name, col) {
+    for (i in seq_along(regions)) {
+      s <- d[d$region == regions[i] & d$variable == name, ]
+      s <- s[order(s$doy), ]
+      lines(s$doy, s$value, col = col, lty = i, lwd = 1.6, type = "o", pch = 20)
+    }
+  }
+  if (two) {
+    op <- par(mar = c(3, 4, 4, 4) + 0.1)  # room for the right axis
+    on.exit(par(op), add = TRUE)
+  }
+  plot(NA, xlim = c(1, 366), ylim = lim, xaxs = "i", yaxs = "i", main = title, xlab = "", ylab = ylabels[1],
+       xaxt = "n", yaxt = "n", col.lab = axis_col)
+  axis(1, at = starts, labels = month.abb)
+  axis(2, col.axis = axis_col)
+  if (zero) abline(h = 0, col = "#888888", lwd = 0.8)
+  draw(vars[1], cols[1])
+  if (two) {  # the other variable over it, on its own scale, with its axis on the right
+    par(new = TRUE)
+    plot(NA, xlim = c(1, 366), ylim = other_lim, xaxs = "i", yaxs = "i", axes = FALSE, xlab = "", ylab = "")
+    if (other_zero) abline(h = 0, col = cols[2], lty = 3, lwd = 0.8)
+    draw(vars[2], cols[2])
+    axis(4, col.axis = cols[2])
+    mtext(ylabels[2], side = 4, line = 2.5, col = cols[2])
+  }
+  legend("topleft", legend = vars, col = cols, lwd = 1.6, pch = 20, bty = "n")
+  if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
   invisible(ts)
 }
 

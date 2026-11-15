@@ -373,3 +373,17 @@ def test_time_series_by_day_of_the_year(tmp_path):
 	                           chart=str(tmp_path / 'doy.png'))
 	assert {r['year'] for r in res['rows']} == {2022, 2023} and res['rows'][1]['doy'] == 32
 	assert res['title'].endswith('by day of the year') and (res['chart'] is None or os.path.getsize(res['chart']) > 0)
+
+
+def test_seasonal_profile_of_two_indices(tmp_path):
+	"""The NDSI and the NDVI of Sentinel-2 by month of the year, the median of two years, on two axes from -1 to 1: the
+	snow of the winter and the green of the summer, with its CSV, README and chart."""
+	res = services.time_series(GUAJARES, 'NDSI', 'Sentinel-2', '2022-01-01', '2023-12-31', step='monthly', doy=True,
+	                           interannual='median', other_variable='NDVI', csv=str(tmp_path / 'profile.csv'),
+	                           chart=str(tmp_path / 'profile.png'))
+	assert res['variables'] == ['NDSI Sentinel-2', 'NDVI Sentinel-2'] and res['interannual'] == 'median'
+	assert tuple(res['ylim']) == tuple(res['other_ylim']) == (-1, 1)
+	assert len(res['profile']) == 24 and {r['n_years'] for r in res['profile']} <= {0, 1, 2}
+	values = [r['value'] for r in res['profile'] if r['value'] is not None]
+	assert len(values) > 12 and all(-1 <= v <= 1 for v in values)
+	assert os.path.getsize(res['csv']) > 0 and (res['chart'] is None or os.path.getsize(res['chart']) > 0)

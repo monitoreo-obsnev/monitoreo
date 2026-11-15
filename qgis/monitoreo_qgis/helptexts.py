@@ -281,6 +281,41 @@ HELP = {
 		'standard deviation / mean, in %, to compare regions or variables with different means).</p>'
 		'<p>It is also the statistic of the <b>Trend table of the region</b> and of the comparison of periods.</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
+	'doy':
+		'<p>Checked, with a step shorter than a year, the chart of the series is drawn over the days of the year, from '
+		'January to December. With <b>Between years</b> <b>A line per year</b>: a line for each year, from the oldest '
+		'(light) to the newest (dark and thicker), to compare the years: when the snow comes and goes, how green each '
+		'spring is. Each line is a calendar year, so a season that crosses the new year (the snow of October to May) is '
+		'split between two lines.</p>'
+		'<p>With a metric in <b>Between years</b> or a variable in <b>Right axis</b>: the <b>seasonal profile</b>, a line '
+		'per variable (see their help).</p>'
+		+ manual('Concepts#a-line-per-year-over-the-days-of-the-year'),
+	'doy_interannual':
+		'<p>Only with <b>Chart</b> checked. <b>A line per year</b>: a line for each year. A metric: the <b>seasonal '
+		'profile</b>, a line per variable: for each step of the year (each month with the step Monthly, each 16-day '
+		'period from January 1 or from the first day of the season, each calendar day with the step Daily), that metric '
+		'of its values in the years of the period, e.g. the <b>Median</b> of the NDVI of each month of 2018-2024, drawn '
+		'at the median day of the year of the step. <b>Percentile 25</b> and <b>Percentile 75</b> bound the usual '
+		'years. The <b>Standard deviation</b> (of a sample, n - 1) and the <b>Coefficient of variation</b> (100 × '
+		'standard deviation / mean, in %) between the years show how much each step of the year changes from one year '
+		'to another; they need two years with values.</p>'
+		'<p>The window, its table and its CSV have the profile: a row per region, variable and step of the year, with '
+		'its value, its day of the year and the number of years with a value (Years).</p>'
+		+ manual('QGIS-plugin#5-compute-the-time-series'),
+	'doy_other':
+		'<p>Only with <b>Chart</b> checked: a second variable of the catalog, on a <b>right axis</b> (red), with the '
+		'variable of the panel on the left axis (blue), e.g. the NDSI and the NDVI of Sentinel-2: when the snow melts '
+		'and the vegetation greens. It is computed as the first one: the same region, period, season, step, metric of '
+		'each step, statistic of the region, pixel filters and pixels (<b>Only the pixels where</b> and the land cover '
+		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean). With '
+		'the SCF or the CF in the panel, whose filters are fixed (greyed out), the variable here takes the filters checked '
+		'before choosing them. When '
+		'MODIS has two collections (Terra and Aqua), the first one of the catalog, named in the tip of each item. With a '
+		'variable here, <b>Between years</b> is a metric (the Median, if it was A line per year).</p>'
+		'<p>The y axis of a spectral index (NDVI, EVI, NDSI, NDWI, LSWI, NBR, NDCI) goes from -1 to 1, unless a metric '
+		'changes its scale (standard deviation, coefficient of variation). The NDSI of MODIS (MOD10A1, MYD10A1) is the '
+		'NDSI snow cover, from 0 to 100: its axis, as that of the other variables, goes from their values.</p>'
+		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'series_list':
 		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '
 		'press <b>Show</b> to open its window again, with its chart (if it has one), its table and the buttons to save '

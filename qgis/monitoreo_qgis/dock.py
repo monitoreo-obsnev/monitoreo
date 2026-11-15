@@ -44,6 +44,11 @@ METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum
 STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + SPREADS + PERCENTILES
 TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
             ('Each month, then between years', 'monthly')]
+# the chart by day of the year: a line per year, or the seasonal profile, a metric between the years of the values of
+# each step of the year (services.time_series with doy and interannual; timeseries.over_years)
+DOY_INTERANNUAL = [('A line per year', None), ('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'),
+                   ('Maximum', 'max'), ('Percentile 25', 'p25'), ('Percentile 75', 'p75'),
+                   ('Standard deviation', 'std'), ('Coefficient of variation (%)', 'cv')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
 AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks)', 'breaks'),
@@ -693,7 +698,30 @@ class MonitorEODock(QDockWidget):
 		self.doy = QCheckBox('a line per year, over the days of the year')
 		self.doy.setToolTip('The chart with a line per year (from January to December), to compare the years: the '
 		                    'snow seasons, the greening of each spring... Not with the annual step')
-		f.addRow('Chart', self.doy)
+		f.addRow('Chart', info(self.doy, HELP['doy']))
+		# the seasonal profile instead of a line per year: a metric between the years of each step of the year, and a
+		# second variable of the catalog with dates on a right axis (services.time_series: interannual, other_variable)
+		self.doy_interannual = combo(DOY_INTERANNUAL, None)
+		self.doy_interannual.setToolTip('A line per year, or a line per variable: this metric of the values of each '
+		                                'step of the year (each month, 16-day period or day) in the years of the period')
+		self.doy_other = QComboBox()
+		self.doy_other.addItem('None', None)
+		self.doy_other.setToolTip('A second variable on a right axis, computed as the first one (e.g. the NDSI and the '
+		                          'NDVI)')
+		shown = set()
+		for v in self.all_variables:  # the variables with dates, once each (of MODIS Terra and Aqua, the first one)
+			if v.get('static') or (v['variable'], v['sensor']) in shown:
+				continue
+			shown.add((v['variable'], v['sensor']))
+			self.doy_other.addItem(f"{v['variable']} ({v['sensor']})", {'variable': v['variable'], 'sensor': v['sensor']})
+			self.doy_other.setItemData(self.doy_other.count() - 1, f"{v['name']} ({v['unit']}), {v['dates']}, "
+			                           f"{v['collection']}", Qt.ItemDataRole.ToolTipRole)
+		f.addRow('Between years', info(self.doy_interannual, HELP['doy_interannual']))
+		f.addRow('Right axis', info(self.doy_other, HELP['doy_other']))
+		self.doy.toggled.connect(self.doy_changed)
+		self.doy_interannual.currentIndexChanged.connect(self.doy_interannual_changed)
+		self.doy_other.currentIndexChanged.connect(self.doy_other_changed)
+		self.doy_changed()
 		b = QPushButton('Compute the time series')
 		b.clicked.connect(self.run_series)
 		f.addRow(b)
@@ -1740,10 +1768,20 @@ class MonitorEODock(QDockWidget):
 		if other:
 			return self.run_comparison(region, var, other, step, metric, stat, tmp)
 		doy = self.doy.isChecked() and step != 'annual'  # a line per year: not with a value per year
+		profile = self.doy_args(var) if doy else {}
+		if profile is None:
+			return
+		if profile.get('other_variable') and 'quality' in var and \
+				(self.variable.currentData() or {}).get('fixed_filters') is not None:
+			# the variable of the right axis with the filters the user chose (or the defaults), not the greyed out ones of
+			# the SCF or the CF of the left axis, which ignores them (as the burn severity does for its NBR)
+			var = dict(var, quality=self.quality_args(own=True))
+		name = data_name(var) + (f" and {profile['other_variable']} ({profile['other_sensor']})"
+		                         if profile.get('other_variable') else '')
 
 		def work():
 			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'series.csv'),
-			                            doy=doy, **var)
+			                            doy=doy, **profile, **var)
 
 		def done(res):
 			from .results import SeriesDialog, chart_png
@@ -1764,7 +1802,37 @@ class MonitorEODock(QDockWidget):
 				res['rgb'] = services.has_rgb(var['variable'], var['sensor'], var['collection'])
 			self.add_result(res)
 
-		self.run_task(f"Time series of {data_name(var)}", work, done)
+		self.run_task(f"Time series of {name}", work, done)
+
+	def doy_args(self, var):
+		"""The options of the chart by day of the year of the time series of VAR: {} for a line per year, or those of the
+		seasonal profile (interannual, and other_variable and other_sensor for a variable on the right axis), or None
+		(with a message) if the right axis has the variable of the left one."""
+		between, other = self.doy_interannual.currentData(), self.doy_other.currentData()
+		args = {'interannual': between} if between else {}
+		if other:
+			if (var.get('variable'), var.get('sensor')) == (other['variable'], other['sensor']):
+				self.message(f"Right axis: {other['variable']} ({other['sensor']}) is already the variable of the left "
+				             'axis: choose another one, or None', 'Warning')
+				return None
+			args.update(other_variable=other['variable'], other_sensor=other['sensor'])
+		return args
+
+	def doy_changed(self):
+		"""Between years and Right axis: only with the chart by day of the year."""
+		for w in (self.doy_interannual, self.doy_other):
+			w.setEnabled(self.doy.isChecked())
+
+	def doy_interannual_changed(self):
+		"""A line per year: no variable on the right axis (a line per variable needs a metric between the years)."""
+		if self.doy_interannual.currentData() is None and self.doy_other.currentData():
+			self.doy_other.setCurrentIndex(0)
+
+	def doy_other_changed(self):
+		"""A variable on the right axis: a line per variable, with the median between the years if it was a line per year
+		(as services.time_series)."""
+		if self.doy_other.currentData() and self.doy_interannual.currentData() is None:
+			self.doy_interannual.setCurrentIndex(self.doy_interannual.findData('median'))
 
 	def run_comparison(self, region, var, other, step, metric, stat, tmp):
 		if step not in trends.STEPS:

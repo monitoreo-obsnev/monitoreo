@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, assets, catalog, fire, references, services
+from . import __version__, assets, catalog, fire, references, sensors, services
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
 	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
 
@@ -39,6 +39,10 @@ TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 
 METHODS = {
 	'time_series': 'For each time step, the temporal metric of the images of the step on each pixel and, over the '
 	               'region, the spatial statistic of those values.',
+	'time_series_profile': 'For each time step, the temporal metric of the images of the step on each pixel and, over '
+	                       'the region, the spatial statistic of those values; then, for each step of the year (each '
+	                       'month, 16-day period or calendar day), the metric between the years of its values in the '
+	                       'years of the period (the seasonal profile), drawn at the median day of the year of the step.',
 	'region_stats': 'The temporal metric of the images of the period on each pixel and its statistics over the region.',
 	'map_layer': 'The temporal metric of the images of the period on each pixel.',
 	'trend_table': 'For each part of the year, its value in each year (the spatial statistic of the temporal metric) '
@@ -129,6 +133,10 @@ STATS = {'mean': 'mean', 'median': 'median', 'min': 'minimum', 'max': 'maximum',
 TABLES = {
 	'time_series': (('rows',), [('region', 'Region'), ('date', 'Date'), ('value', 'Value{u}'),
 	                            ('n_images', 'Images'), ('n_pixels', 'Valid pixels')]),
+	# the seasonal profile of time_series with doy and interannual or other_variable (see is_profile)
+	'time_series_profile': (('profile',), [('region', 'Region'), ('variable', 'Variable'), ('label', 'Step of the year'),
+	                                       ('doy', 'Day of the year'), ('value', 'Value{u}'), ('unit', 'Unit'),
+	                                       ('n_years', 'Years')]),
 	'trend_table': (('trends', 'rows'), [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Years'),
 	                                     ('slope', "Sen's slope{uy}"), ('tau', "Kendall's τ"),
 	                                     ('p_value', 'p-value'), ('significant', 'Significant')]),
@@ -286,12 +294,103 @@ def item_title(tool, args, result=None):
 		other = period_text(args['other_start'], args['other_end']) if args.get('other_start') else ''
 		return TITLES[tool].format(var=v, period=period_text(args['start'], args['end']), other=other,
 		                           season=season_text(args.get('season')))
+	if tool == 'time_series' and is_profile(args):
+		return profile_title(args)
 	if tool in ('time_series', 'trend_table', 'compare_series', 'burn_severity', 'download_image', 'download_trend',
 	            'download_comparison', 'area_by_class', 'transect') or (tool == 'region_stats' and args.get('zones')):
 		return default_title(tool, args) + (' (GeoTIFF)' if tool == 'download_image' else '')
 	if tool == 'download_variables':
 		return f"Variables in GeoTIFF: {args.get('name', '')}" + (' (plan, not downloaded)' if args.get('dry_run') else '')
 	return (result or {}).get('title') or tool
+
+
+def is_profile(args):
+	"""Whether a call of time_series with ARGS is the seasonal profile by day of the year (doy with interannual or
+	other_variable: see services.time_series), not a line per year."""
+	return bool(args.get('doy') and (args.get('interannual') or args.get('other_variable')))
+
+
+def _interannual(args, result=None):
+	"""The metric between the years of a profile by day of the year (that of its RESULT, or of its call: by default the
+	median)."""
+	return (result or {}).get('interannual') or args.get('interannual') or 'median'
+
+
+def _other_args(args):
+	"""The arguments of the variable of the right axis of a profile by day of the year (other_variable), as those of a
+	variable."""
+	return dict(args, variable=args.get('other_variable'), sensor=args.get('other_sensor') or args.get('sensor'),
+	            collection=None, image=None)
+
+
+def profile_title(args):
+	"""The title in English of a seasonal profile by day of the year (see is_profile), e.g. 'Monthly profile of NDSI
+	(Sentinel-2) and NDVI (Sentinel-2) by day of the year, 2018-2024: median of the years'."""
+	step = args.get('step') or 'monthly'
+	names = _var(args) + (f" and {_var(_other_args(args))}" if args.get('other_variable') else '')
+	period = period_text(args['start'], args['end']) if args.get('start') and args.get('end') else ''
+	return (f'{STEPS.get(step, step).capitalize()} profile of {names} by day of the year'
+	        + (f', {period}' if period else '') + season_text(args.get('season'))
+	        + f': {_stat(_interannual(args))} of the years')
+
+
+def _profile_ylims(args, result=None):
+	"""The ranges of the left and right y axes of a profile by day of the year: those of its RESULT, else those of its
+	call (ylim, other_ylim) or their defaults (see services.time_series)."""
+	result = result or {}
+	out = []
+	for key, a in (('ylim', args), ('other_ylim', _other_args(args) if args.get('other_variable') else None)):
+		if key in result:
+			out.append(result[key])
+			continue
+		try:
+			lim = services.check_ylim(args.get(key), key)
+		except ValueError:
+			lim = None
+		if lim is None and a is not None and a.get('variable') and not (a.get('collection') or a.get('image')):
+			try:
+				e = catalog.find(a['variable'], a.get('sensor'))
+			except (KeyError, ValueError, TypeError):
+				e = None
+			lim = catalog.index_ylim(e, a.get('metric') or 'mean', a.get('stat') or 'mean', _interannual(args, result))
+		out.append(lim)
+	return out
+
+
+def _axis_text(lim):
+	return f'{_num(lim[0])} to {_num(lim[1])}' if lim else 'from the data'
+
+
+def _profile_facts(args, result):
+	"""How a seasonal profile by day of the year was computed: the metric between the years of each step of the year, the
+	variable of the right axis and the axes of the chart."""
+	step = args.get('step') or 'monthly'
+	parts = {'monthly': 'each month (1-12)', '16-day': 'each 16-day period from 1 January (or from the first day of the '
+	                                                    'season)', 'daily': 'each calendar day'}.get(step, step)
+	between = _interannual(args, result)
+	facts = []
+	if args.get('other_variable'):
+		e = _entry(args['other_variable'], args.get('other_sensor') or args.get('sensor'))
+		if e:
+			facts.append(('Other variable (right axis)', f"{e.get('name', '')} ({e.get('index', '')}), "
+			                                             f"{SENSORS.get(e['sensor'], e['sensor'])}, pixel of "
+			                                             f"{e.get('m', '?')} m, collection {e.get('col', '')}; the same "
+			                                             'region, period, step, metrics and pixel filters chosen, as '
+			                                             'they apply to it (see Discarded pixels)'))
+	facts.append(('Between the years', f'{_stat(between)} of the values of {parts} in the years of the period (n_years: '
+	                                   'the years with a value)'))
+	ylim, other = _profile_ylims(args, result)
+	first = _var(args)
+	if args.get('other_variable'):
+		axes = f'{first} on the left axis ({_axis_text(ylim)}), {_var(_other_args(args))} on the right axis ' \
+		       f'({_axis_text(other)})'
+	else:
+		axes = f'{first} on the y axis ({_axis_text(ylim)})'
+	where = {'monthly': 'each month at the median day of the year of its first day in the years',
+	         '16-day': 'each 16-day period at the day of its first day in a common year',
+	         'daily': 'each calendar day at its day in a leap year'}.get(step, step)
+	facts.append(('Chart', f'a line per variable over the days of the year ({where}): {axes}'))
+	return facts
 
 
 def item_facts(tool, args, result=None, names=None):
@@ -354,17 +453,19 @@ def item_facts(tool, args, result=None, names=None):
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
-	if tool == 'time_series' and args.get('doy'):
+	if tool == 'time_series' and is_profile(args):
+		facts += _profile_facts(args, result)
+	elif tool == 'time_series' and args.get('doy'):
 		facts.append(('Chart', 'a line per year over the days of the year (that of the first day of each step)'))
 	if custom and not static:
 		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
 		                                  'for the variables of its catalog)'))
 	if entry and not static:
-		filters = dict(entry.get('pixel_filters') or {})
-		if entry.get('fixed_filters') is None:  # the SCF: always clouds and water, whatever the quality
-			filters.update({k: bool(v) for k, v in (args.get('quality') or {}).items() if k in FILTERS})
-		on = [FILTERS[k] for k, v in filters.items() if v and k in FILTERS]
-		facts.append(('Discarded pixels', ', '.join(on) if on else 'none'))
+		facts.append(('Discarded pixels', _discarded(entry, args.get('quality'))))
+		other = _entry(args.get('other_variable'), args.get('other_sensor') or args.get('sensor')) \
+			if tool == 'time_series' and is_profile(args) else None
+		if other:  # the same filters chosen, as they apply to the variable of the right axis
+			facts.append(('Discarded pixels (right axis)', _discarded(other, args.get('quality'))))
 	if result.get('scale'):
 		facts.append(('Pixel size of the computation', f"{_num(result['scale'])} m"))
 	if tool == 'trend_table':
@@ -435,7 +536,8 @@ def item_facts(tool, args, result=None, names=None):
 	if tool in METHODS:
 		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else
-		                 'region_stats_zones' if tool == 'region_stats' and args.get('zones') else tool]
+		                 'region_stats_zones' if tool == 'region_stats' and args.get('zones') else
+		                 'time_series_profile' if tool == 'time_series' and is_profile(args) else tool]
 		facts.append(('Method', METHODS['static'] if static and not args.get('zones') else method))
 	elif tool == 'area_by_class':
 		kind = ('transitions' if args.get('other_year') else 'landcover') if args.get('landcover') else \
@@ -538,6 +640,8 @@ def item_table(tool, result, args=None):
 	"""The table of a result: (columns, rows) with the values already formatted, or None."""
 	if tool == 'area_by_class' and isinstance(result, dict) and result.get('mode') == 'transitions':
 		tool = 'area_by_class_transitions'  # the pairs of classes of two years
+	if tool == 'time_series' and isinstance(result, dict) and isinstance(result.get('profile'), list):
+		return _profile_table(result)
 	if tool not in TABLES:
 		return None
 	keys, cols = TABLES[tool]
@@ -558,6 +662,26 @@ def item_table(tool, result, args=None):
 	labels = [label.format(u=u, uy=uy) for _, label in cols]
 	body = [[r.get(k) if k in ('region', 'label', 'date', 'file') else
 	         ', '.join(FILTERS.get(x, x) for x in r[k]) if isinstance(r.get(k), list) else _num(r.get(k))
+	         for k, _ in cols] for r in rows]
+	return labels, body
+
+
+def _profile_table(result):
+	"""The table of a seasonal profile by day of the year (the result of time_series with its profile): its unit in the
+	title of the values with one variable, in a column with two."""
+	keys, cols = TABLES['time_series_profile']
+	rows = result.get('profile') or []
+	if not rows:
+		return None
+	units = result.get('units') or {}
+	names = list(dict.fromkeys(r.get('variable') for r in rows))
+	one = len(names) <= 1
+	unit = unit_text(units.get(names[0]) if names and names[0] in units else result.get('unit')) if one else ''
+	cols = [c for c in cols if not (c[0] == 'region' and len({str(r.get('region')) for r in rows}) <= 1)
+	        and not (c[0] in ('variable', 'unit') and one)]
+	labels = [label.format(u=f' ({unit})' if unit else '') for _, label in cols]
+	body = [[r.get(k) if k in ('region', 'variable', 'label') else
+	         unit_text(units.get(r.get('variable'))) or 'dimensionless' if k == 'unit' else _num(r.get(k))
 	         for k, _ in cols] for r in rows]
 	return labels, body
 
@@ -912,6 +1036,15 @@ def _table(labels, rows):
 	body = ''.join('<tr>' + ''.join(f'<td{" class=text" if isinstance(v, str) and not _numeric(v) else ""}>'
 	                                f'{_e(v)}</td>' for v in r) + '</tr>' for r in rows)
 	return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+def _discarded(entry, quality):
+	"""The pixels discarded by the filters of the variable of the catalog ENTRY (see _entry) with QUALITY, as the
+	services apply them (sensors.filters: 'auto' resolved for each variable, the fixed filters of the SCF and the CF
+	whatever the quality, none for a band its sensor has not): their names, or 'none'."""
+	on = sensors.filters(catalog.find(None, ref=entry['ref']), quality if isinstance(quality, dict) else None)
+	names = [FILTERS[k] for k, v in on.items() if v and k in FILTERS]
+	return ', '.join(names) if names else 'none'
 
 
 def _entry(variable, sensor, collection=None):

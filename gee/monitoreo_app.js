@@ -13449,6 +13449,236 @@ var MonitorEO = (function () {
 		run(0);
 	}
 
+	// By day of the year (timeseries.with_doy and doy_profile): a line per year, or the seasonal profile, a metric
+	// between the years (overYears) of the values of each step of the year, a line per variable -------------------
+
+	var INTERANNUAL = ['mean', 'median', 'min', 'max', 'std', 'cv'];  // timeseries.INTERANNUAL, and pN
+	var INTERANNUAL_TEXT = 'mean, median, min, max, std (sample standard deviation), cv (coefficient of variation, %) ' +
+		'or pN (percentile N, e.g. p25)';
+	var PROFILE_COLUMNS = ['region', 'variable', 'part', 'doy', 'label', 'value', 'n_years'];
+	// timeseries.PROFILE_META: the columns of the CSV of a profile after PROFILE_COLUMNS
+	var PROFILE_META = ['sensor', 'step', 'metric', 'stat', 'interannual', 'unit', 'scale_m'];
+	var MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	var COMMON_YEAR = 2023;  // a year of 365 days, for the names of the days of the year
+	var LEAP_YEAR = 2024;  // a year of 366 days, for the days of the year of the calendar days
+	var MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];  // charts.MONTH_STARTS
+	// catalog.SPECTRAL_INDICES, INDEX_RANGE and SCALE_METRICS: the default range of the y axis of a profile (indexYlim)
+	var SPECTRAL_INDICES = ['NDVI', 'EVI', 'NDSI', 'NDWI', 'LSWI', 'NBR', 'NDCI'];
+	var INDEX_RANGE = [-1, 1];
+	var SCALE_METRICS = ['std', 'cv', 'count', 'sum'];
+
+	// The day of the year (1-366) of the date D (UTC)
+	function dayOfYear(d) {
+		return Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
+	}
+
+	// timeseries.with_doy: ROWS with the year and the day of the year (1-366) of the first day of each step
+	function withDoy(rows) {
+		rows.forEach(function (r) {
+			var d = date(String(r.date).slice(0, 10));
+			r.year = d.getUTCFullYear();
+			r.doy = dayOfYear(d);
+		});
+		return rows;
+	}
+
+	// timeseries.check_interannual: METRIC between the years in lower case, or an error
+	function checkInterannual(metric) {
+		var m = String(metric === null || metric === undefined ? '' : metric).trim().toLowerCase();
+		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
+		if (INTERANNUAL.indexOf(m) >= 0 || (p && Number(p[1]) >= 0 && Number(p[1]) <= 100)) return m;
+		throw new Error('unknown metric between the years (interannual) ' + metric + ': use ' + INTERANNUAL_TEXT);
+	}
+
+	// timeseries.over_years: METRIC of VALUES (one per year; the null left out), or null without values: the mean;
+	// the median (the mean of the two middle values when they are even); min; max; std, the sample standard deviation
+	// (n - 1; null with fewer than 2 values); cv, 100 \u00d7 std / |mean| (null with fewer than 2 values or a mean of 0); pN,
+	// the percentile N with linear interpolation between the closest ranks. The sums add the values in their order,
+	// one by one, as Python, so that both give the same numbers
+	function overYears(values, metric) {
+		var m = checkInterannual(metric);
+		var xs = values.filter(function (v) { return v !== null && v !== undefined; }).map(Number);
+		var n = xs.length;
+		if (!n) return null;
+		function mean() {
+			var total = 0;
+			for (var i = 0; i < n; i++) total += xs[i];
+			return total / n;
+		}
+		function std() {
+			var mu = mean(), total = 0;
+			for (var i = 0; i < n; i++) {
+				var d = xs[i] - mu;
+				total += d * d;
+			}
+			return Math.sqrt(total / (n - 1));
+		}
+		if (m === 'mean') return mean();
+		if (m === 'min' || m === 'max') return Math[m].apply(null, xs);
+		if (m === 'std' || m === 'cv') {
+			if (n < 2) return null;
+			if (m === 'std') return std();
+			var mu = mean();
+			return mu === 0 ? null : 100 * std() / Math.abs(mu);
+		}
+		var s = xs.slice().sort(function (a, b) { return a - b; });
+		if (m === 'median') return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+		var rank = Number(m.slice(1)) / 100 * (n - 1);
+		var lo = Math.floor(rank), hi = Math.min(lo + 1, n - 1);
+		return s[lo] + (s[hi] - s[lo]) * (rank - lo);
+	}
+
+	// timeseries.day_label: the name in English of the day of the year DOY in a common year ('Jan 17'; 366: 'Dec 31')
+	function dayLabel(doy) {
+		var d = addDays(ymd(COMMON_YEAR, 1, 1), Math.min(Math.max(Math.floor(Number(doy)), 1), 365) - 1);
+		return MONTH_ABBR[d.getUTCMonth()] + ' ' + d.getUTCDate();
+	}
+
+	// timeseries._split_month: [month, first day] of the SEASON (['MM-DD', 'MM-DD']) when it starts and ends in the same
+	// month and crosses the new year (15 October to 14 October), whose windows have two parts of that month; else null
+	function splitMonth(season) {
+		if (!season) return null;
+		var a = String(season[0]).split('-').map(Number), b = String(season[1]).split('-').map(Number);
+		return a[0] === b[0] && a[1] > b[1] ? a : null;
+	}
+
+	function pad2(n) {
+		return (n < 10 ? '0' : '') + n;
+	}
+
+	// timeseries._part_of: the step of the year of the first day DAY of a step of STEP: the month (1-12), or 'MM-DD' for
+	// the part of a month from the first day of a SEASON that starts and ends in it ('10-15'); the number of the 16-day
+	// period from the start of its window of WINS (1 January, or the first day of the SEASON), 0, 1, 2, ..., the closest
+	// one to DAY and none after the last one of the window; or the calendar day 'MM-DD'
+	function partOf(day, step, wins, season) {
+		if (step === 'monthly') {
+			var split = splitMonth(season);
+			if (split && day.getUTCMonth() + 1 === split[0] && day.getUTCDate() >= split[1]) {
+				return pad2(split[0]) + '-' + pad2(split[1]);
+			}
+			return day.getUTCMonth() + 1;
+		}
+		if (step === 'daily') return iso(day).slice(5);
+		var year = day.getUTCFullYear(), end = null;
+		for (var i = 0; i < wins.length; i++) {
+			if (wins[i][1] <= day && day < wins[i][2]) {
+				year = wins[i][0];
+				end = wins[i][2];
+				break;
+			}
+		}
+		var first = season ? md(year, season[0]) : ymd(year, 1, 1);
+		var part = Math.floor(Math.round((day - first) / 864e5) / 16 + 0.5);
+		return end ? Math.min(part, Math.floor((Math.round((end - first) / 864e5) - 1) / 16)) : part;
+	}
+
+	// timeseries._part_doy: the day of the year where the step of the year PART of STEP is drawn: monthly the median
+	// (rounded, .5 up) of the days of the year DOYS of its rows; daily that of the calendar day in a leap year (29
+	// February 60, 1 March 61); 16-day that of the first day of the period in a common year (the first day of the window
+	// + 16 \u00d7 PART days), which goes on after 31 December
+	function partDoy(part, step, season, doys) {
+		if (step === 'daily') return dayOfYear(ymd(LEAP_YEAR, Number(part.slice(0, 2)), Number(part.slice(3))));
+		if (step === '16-day') {
+			var first = season ? md(COMMON_YEAR, season[0]) : ymd(COMMON_YEAR, 1, 1);
+			return (dayOfYear(first) - 1 + 16 * part) % 365 + 1;
+		}
+		doys = doys.slice().sort(function (a, b) { return a - b; });
+		var k = doys.length;
+		return Math.floor((k % 2 ? doys[(k - 1) / 2] : (doys[k / 2 - 1] + doys[k / 2]) / 2) + 0.5);
+	}
+
+	// timeseries._part_label: the name in English of the step of the year PART of STEP drawn on the day DOY: the month,
+	// or its two parts in a season that starts and ends in it ('Oct 15-31', 'Oct 1-14'); the calendar day; the day of DOY
+	function partName(part, step, season, doy) {
+		if (step === 'monthly') {
+			var split = splitMonth(season);
+			if (typeof part === 'string') {
+				return MONTH_ABBR[split[0] - 1] + ' ' + split[1] + '-' + daysInMonth(COMMON_YEAR, split[0]);
+			}
+			if (split && part === split[0]) return MONTH_ABBR[part - 1] + ' 1-' + (split[1] - 1);
+			return MONTH_ABBR[part - 1];
+		}
+		if (step === 'daily') return MONTH_ABBR[Number(part.slice(0, 2)) - 1] + ' ' + Number(part.slice(3));
+		return dayLabel(doy);
+	}
+
+	// timeseries.doy_profile: the seasonal profile of the time series ROWS ([{region, date, value, ...}], with variable
+	// when they are of two variables, else VARIABLE, its name) of a STEP shorter than a year: [{region, variable, part,
+	// doy, label, value, n_years}] (PROFILE_COLUMNS), a row per region, variable and step of the year (partOf), whose
+	// value is INTERANNUAL (overYears) of its values in the years (n_years: how many are not null); doy is where it is
+	// drawn (partDoy), label its name (partName). The features of the same name are numbered from the second one
+	// ('Sierra Nevada (2)'): the rows of each date come in the order of the features (series). Sorted by region,
+	// variable (in the order of ROWS), doy and part. S needs period and season only for the 16-day and monthly steps
+	function doyProfile(rows, s, step, interannual, variable) {
+		if (STEPS.indexOf(step) < 0 || step === 'annual') {
+			throw new Error('the profile by day of the year needs a step shorter than a year: daily, 16-day or monthly, ' +
+				'not ' + step);
+		}
+		interannual = checkInterannual(interannual);
+		var season = step !== 'daily' && s ? s.season || null : null;
+		var wins = step === '16-day' ? windows(s.period, season) : [];
+		var groups = {}, keys = [], names = [], seen = {};
+		rows.forEach(function (r) {
+			var text = String(r.date).slice(0, 10), day = date(text);
+			var name = r.variable || variable || '';
+			if (names.indexOf(name) < 0) names.push(name);
+			var region = String(r.region), id = [region, name, text].join('\u0000');
+			seen[id] = (seen[id] || 0) + 1;
+			if (seen[id] > 1) region += ' (' + seen[id] + ')';
+			var part = partOf(day, step, wins, season);
+			var key = [region, name, part].join('\u0000');
+			if (!groups.hasOwnProperty(key)) {
+				groups[key] = {region: region, name: name, part: part, items: []};
+				keys.push(key);
+			}
+			groups[key].items.push([text, r.doy || dayOfYear(day), r.value === undefined ? null : r.value]);
+		});
+		var out = keys.map(function (key) {
+			var g = groups[key];
+			var items = g.items.slice().sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+			var doy = partDoy(g.part, step, season, items.map(function (x) { return x[1]; }));
+			var values = items.map(function (x) { return x[2]; }).filter(function (v) { return v !== null; });
+			return {region: g.region, variable: g.name, part: String(g.part), doy: doy,
+				label: partName(g.part, step, season, doy), value: overYears(values, interannual), n_years: values.length};
+		});
+		out.sort(function (a, b) {
+			return a.region < b.region ? -1 : a.region > b.region ? 1 :
+				names.indexOf(a.variable) - names.indexOf(b.variable) || a.doy - b.doy ||
+				(a.part < b.part ? -1 : a.part > b.part ? 1 : 0);
+		});
+		return out;
+	}
+
+	// catalog.index_ylim: the default range [min, max] of the y axis of a profile of the variable of the catalog ENTRY
+	// aggregated with the metrics after it (of the images, between the years, over the region): INDEX_RANGE for a
+	// spectral index whose values go from -1 to 1 (maxp, or else max, at most 2: not the NDSI of MODIS, 0 to 100), unless
+	// one of the metrics changes their scale (SCALE_METRICS); else null (from the data), also for the data of Earth
+	// Engine. The catalog of the app has no max: a normalized difference without maxp (the LSWI of Sentinel-2) goes to
+	// 1, as its max in catalog.json
+	function indexYlim(entry) {
+		var metrics = Array.prototype.slice.call(arguments, 1);
+		if (!entry || entry.custom || SPECTRAL_INDICES.indexOf(entry.index) < 0) return null;
+		var top = entry.maxp !== null && entry.maxp !== undefined ? entry.maxp : entry.max;
+		if ((top === null || top === undefined) && entry.fk === 'nd') top = 1;
+		if (top === null || top === undefined || Number(top) > 2) return null;
+		if (metrics.some(function (m) {
+			return SCALE_METRICS.indexOf(String(m === null || m === undefined ? '' : m).trim().toLowerCase()) >= 0;
+		})) return null;
+		return INDEX_RANGE.slice();
+	}
+
+	// catalog.UDUNITS and catalog.udunits (without per_year): the unit of the catalog (e.g. '[\u00b0C]') in UDUNITS ('degC'),
+	// or '' if unknown; the units of the data of Earth Engine are already in UDUNITS ('mm day-1')
+	var UDUNITS = {'[unitless]': '1', '[\u00b0C]': 'degC', '[kg/m\u00b2/8 days]': 'kg m-2 (8 day)-1', '[J/m\u00b2/day]': 'J m-2 day-1',
+		'[mg m\u207b\u00b3]': 'mg m-3', '[%]': '%', '[m]': 'm', '[\u00b0]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
+		'[mm/day]': 'mm day-1', '[kPa]': 'kPa'};
+
+	function udunits(unit) {
+		var text = String(unit || '').replace(/\u00ba/g, '\u00b0').trim();
+		var u = UDUNITS.hasOwnProperty(text) ? UDUNITS[text] : '';
+		return !u && text.charAt(0) !== '[' && UDUNITS_TEXT.test(text) ? text : u;
+	}
+
 	// Trends and comparisons (trends.py) ----------------------------------------------------------------------------
 
 	var TREND_STEPS = ['monthly', '16-day', 'annual'];
@@ -14174,6 +14404,10 @@ var MonitorEO = (function () {
 		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
+		INTERANNUAL: INTERANNUAL, PROFILE_COLUMNS: PROFILE_COLUMNS, PROFILE_META: PROFILE_META, MONTH_ABBR: MONTH_ABBR,
+		MONTH_STARTS: MONTH_STARTS, SPECTRAL_INDICES: SPECTRAL_INDICES, INDEX_RANGE: INDEX_RANGE,
+		SCALE_METRICS: SCALE_METRICS, withDoy: withDoy, checkInterannual: checkInterannual, overYears: overYears,
+		dayLabel: dayLabel, doyProfile: doyProfile, indexYlim: indexYlim, UDUNITS: UDUNITS, udunits: udunits,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
@@ -14260,6 +14494,13 @@ var MonitorEO = (function () {
 				'fotograma, con el paquete de Python, QGIS o el asistente (timelapse).',
 			animGif: 'Descargar el GIF', animSlider: 'Fotograma en el mapa',
 			doy: 'Una l\u00ednea por a\u00f1o, sobre los d\u00edas del a\u00f1o', dayOfYear: 'D\u00eda del a\u00f1o',
+			doyLines: 'Una l\u00ednea por a\u00f1o', doyOther: 'Otro \u00edndice (eje derecho)', noOther: 'Ninguno',
+			ofTheYears: '%s de los a\u00f1os', rightAxis: 'Eje derecho',
+			doyNote: 'Cada punto: %s de los valores de ese paso del a\u00f1o en los a\u00f1os del periodo (n_years en el ' +
+				'CSV: los a\u00f1os con valor), en la mediana de sus d\u00edas del a\u00f1o.',
+			sameOther: '%s ya es la variable del eje izquierdo: elige otra para el eje derecho.',
+			scalesNote: 'Calculado con p\u00edxeles de %s m (%s) y de %s m (%s).',
+			otherConflict: 'Ojo: el filtro de %s quita lo que mide %s (eje derecho).',
 			catalogSearch: 'Buscar en el cat\u00e1logo de Earth Engine', catalogHint: 'palabras en ingl\u00e9s, p. ej. snow cover',
 			catalogFound: '%s conjuntos (colecciones con datos en el periodo, im\u00e1genes fijas de cualquier fecha): elige uno',
 			catalogNone: 'Ninguno: prueba otras palabras en ingl\u00e9s.',
@@ -14425,6 +14666,13 @@ var MonitorEO = (function () {
 				'with the Python package, QGIS or the assistant (timelapse).',
 			animGif: 'Download the GIF', animSlider: 'Frame on the map',
 			doy: 'A line per year, over the days of the year', dayOfYear: 'Day of the year',
+			doyLines: 'A line per year', doyOther: 'Other index (right axis)', noOther: 'None',
+			ofTheYears: '%s of the years', rightAxis: 'Right axis',
+			doyNote: 'Each point: %s of the values of that step of the year in the years of the period (n_years in ' +
+				'the CSV: the years with a value), at the median of their days of the year.',
+			sameOther: '%s is already the variable of the left axis: choose another one for the right axis.',
+			scalesNote: 'Computed on pixels of %s m (%s) and of %s m (%s).',
+			otherConflict: 'Note: the %s filter removes what %s measures (right axis).',
 			catalogSearch: 'Search the Earth Engine data catalog', catalogHint: 'words in English, e.g. snow cover',
 			catalogFound: '%s datasets (collections with data in the period, fixed images of any date): choose one',
 			catalogNone: 'None: try other words in English.',
@@ -14562,6 +14810,9 @@ var MonitorEO = (function () {
 		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
+		// the filters chosen by the user while a variable with fixed filters (SCF, CF, data by ID) is selected: those of
+		// the variable of the right axis of a profile (otherQuality), as chosen_filters of the QGIS plugin
+		chosenQuality: null,
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
 		// the land cover mask, a condition of where: its map, year (null: the default of the map) and land covers left out
 		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
@@ -14569,6 +14820,9 @@ var MonitorEO = (function () {
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median', doy: false,  // doy: the series with a line per year
+		// or, by day of the year, its seasonal profile: the metric between the years ('years': a line per year) and the
+		// variable of the right axis ('none', or its ref)
+		doyBetween: 'years', doyOther: 'none',
 		areaKind: 'landcover', areaMap: 'WorldCover', areaYear: null, areaBreaks: '',  // area by class
 		areaChangeOn: false, areaOther: null,  // the changes of the land cover map to another year
 		zoneRef: null, zoneBreaks: '1500, 2000, 2500, 3000', drawingLine: false,  // gradients: the bands and the line
@@ -15119,6 +15373,8 @@ var MonitorEO = (function () {
 		state.ref = ref;
 		var e = entry();
 		var fixed = mo.fixedFilters(e);  // the SCF: clouds and water, always
+		if (fixed && !state.chosenQuality) state.chosenQuality = JSON.parse(JSON.stringify(state.quality));
+		if (!fixed) state.chosenQuality = null;
 		mo.FILTERS.forEach(function (f) {
 			state.quality[f] = fixed ? fixed.indexOf(f) >= 0 : (mo.MEASURES[f] || []).indexOf(e.index) < 0;
 		});
@@ -15127,12 +15383,14 @@ var MonitorEO = (function () {
 		render();
 	}
 
-	// services._ylabel: title of the y axis of the charts of the entry E (with the statistic STAT of the region), the
-	// unit after its axis title if it has one (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation,
-	// after its name
-	function axisTitle(e, metric, stat) {
-		var unit = unitText(e, metric, null, stat);
-		if ((!e.static && mo.isCv(metric)) || mo.isCv(stat)) return (t('cvAxis') + ' ' + (unit || '')).trim();
+	// services._ylabel: title of the y axis of the charts of the entry E (with the statistic STAT of the region, and the
+	// metric between the years INTERANNUAL of a profile by day of the year), the unit after its axis title if it has one
+	// (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation, after its name
+	function axisTitle(e, metric, stat, interannual) {
+		var unit = unitText(e, metric, interannual || null, stat);
+		if ((!e.static && (mo.isCv(metric) || mo.isCv(interannual))) || mo.isCv(stat)) {
+			return (t('cvAxis') + ' ' + (unit || '')).trim();
+		}
 		return e.axis ? (e.axis + ' ' + (unit || '')).trim() : unit;
 	}
 
@@ -15405,9 +15663,12 @@ var MonitorEO = (function () {
 		};
 	}
 
-	function title(e, extra) {
+	// The title of a result of the entry E (or of what LABEL names: the variables of a profile by day of the year),
+	// the region and its condition (where), and EXTRA
+	function title(e, extra, label) {
 		var where = whereText();
-		return [mo.entryName(e), state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || []).join(' \u00b7 ');
+		return [label || mo.entryName(e), state.regionName + (where ? ' (' + where + ')' : '')].concat(extra || [])
+			.join(' \u00b7 ');
 	}
 
 	// The name of a file of the result NAME (its title) of the entry E, ending in SUFFIX: the data of Earth Engine by
@@ -16044,6 +16305,165 @@ var MonitorEO = (function () {
 			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}});
 	}
 
+	var PROFILE_COLOURS = ['#1f77b4', '#d62728'];  // charts.PROFILE_COLOURS: the line of the left axis, of the right axis
+	// the metrics between the years of the seasonal profile by day of the year, as in the QGIS plugin
+	var BETWEEN = ['mean', 'median', 'min', 'max', 'p25', 'p75', 'std', 'cv'];
+
+	// The name of the step of the year of the row R of a profile (its label, in English: 'Mar', 'Jan 17') in the language
+	// of the app
+	function stepName(r) {
+		if (state.lang === 'en') return r.label;
+		var p = r.label.split(' ');
+		var month = mo.partLabel('monthly', mo.MONTH_ABBR.indexOf(p[0]) + 1, 'es');
+		return p.length > 1 ? p[1] + ' ' + month.slice(0, 3) : month;
+	}
+
+	// The seasonal profile PROF (mo.doyProfile) of the feature REGION over the days of the year, a line per variable of
+	// NAMES: the first on the left axis (blue), the other on the right axis (red), each axis (AXES: its title and range,
+	// null from the data) in the colour of its line when there are two, as charts.doy_profile_png; titled NAME, and the
+	// feature when there are SEVERAL
+	function profileChart(prof, names, axes, name, region, several) {
+		var parts = [], values = {}, at = {};  // a point per step of the year (part), on its day: 29 February and 1 March
+		prof.forEach(function (r) {
+			if (r.region !== region) return;
+			if (!at.hasOwnProperty(r.part)) {
+				parts.push(r.part);
+				at[r.part] = {doy: r.doy, label: stepName(r)};
+			}
+			values[r.variable + '|' + r.part] = r.value;
+		});
+		parts.sort(function (a, b) { return at[a].doy - at[b].doy || (a < b ? -1 : a > b ? 1 : 0); });
+		var cols = [{id: 'doy', label: t('dayOfYear'), type: 'number'}].concat(names.map(function (n, k) {
+			return {id: 'v' + k, label: n, type: 'number'};
+		}));
+		var data = parts.map(function (p) {
+			return {c: [{v: at[p].doy, f: at[p].label}].concat(names.map(function (n) {
+				var v = values[n + '|' + p];
+				return {v: v === undefined ? null : v};
+			}))};
+		});
+		var series = {}, vAxes = {};
+		names.forEach(function (n, k) {
+			var colour = PROFILE_COLOURS[k];
+			series[k] = {targetAxisIndex: k, color: colour};
+			vAxes[k] = {title: axes[k].title};
+			if (axes[k].ylim) vAxes[k].viewWindow = {min: axes[k].ylim[0], max: axes[k].ylim[1]};
+			if (names.length > 1) vAxes[k].titleTextStyle = vAxes[k].textStyle = {color: colour};
+		});
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name + (several ? ' \u00b7 ' + region : ''),
+			interpolateNulls: true, lineWidth: 1.6, pointSize: 4, series: series, vAxes: vAxes, legend: {position: 'bottom'},
+			hAxis: {title: t('dayOfYear'), viewWindow: {min: 1, max: 366}, ticks: mo.MONTH_STARTS.map(function (d, i) {
+				return {v: d, f: partName('monthly', i + 1)};
+			})}});
+	}
+
+	// Whether the series by day of the year is its seasonal profile (services.time_series with doy and interannual or
+	// other_variable), not a line per year
+	function isProfile() {
+		return state.doy && state.step !== 'annual' && (state.doyBetween !== 'years' || state.doyOther !== 'none');
+	}
+
+	// The pixel filters of the variable of the right axis OE of a profile: those of the panel; with a variable of fixed
+	// filters in the panel (SCF, CF, data by ID: its greyed out filters are not a choice), those the user chose before
+	// selecting it, or else the defaults of OE (as in the panel: not the snow of the NDSI), as the QGIS plugin
+	function otherQuality(oe) {
+		var e = entry();
+		if (!e || !mo.fixedFilters(e)) return state.quality;
+		var q = {cloud_score: state.quality.cloud_score};
+		mo.FILTERS.forEach(function (f) {
+			q[f] = state.chosenQuality ? state.chosenQuality[f] : (mo.MEASURES[f] || []).indexOf(oe.index) < 0;
+		});
+		return q;
+	}
+
+	// The spec of the variable of the right axis of a profile, computed as the variable of the panel of spec S: the same
+	// period, season, pixel filters of the panel (otherQuality) and pixels of the region (where, the land cover mask),
+	// with its own rules (the SCF and the CF only take the metric mean), as services._other_spec; null without it
+	function otherSpec(s) {
+		if (state.doyOther === 'none') return null;
+		try {
+			mo.spec({ref: state.doyOther, metric: state.stepMetric});  // its only metric (SCF, CF), before Earth Engine
+			var o = mo.spec({ref: state.doyOther, period: s.period.slice(), season: s.season,
+				quality: otherQuality(mo.byRef(state.doyOther)),
+				metric: 'mean', where: whereArgs()});
+			mo.checkDates(o, 'time series');
+			return o;
+		} catch (err) {
+			throw new Error(t('rightAxis') + ': ' + (err.message || String(err)));
+		}
+	}
+
+	// The seasonal profile by day of the year of the variable of the panel (spec S of the entry E) and of the variable
+	// of the right axis, if one is chosen, computed as the first one (services.time_series with doy, interannual and
+	// other_variable): for each step of the year, the metric between the years of its values (mo.doyProfile), a line per
+	// variable over the days of the year, each on its y axis (from -1 to 1 for the spectral indices: mo.indexYlim); a
+	// chart for each feature, and the CSV of the profile (its columns and those of how it was computed, as Python)
+	function computeProfile(e, s) {
+		var o = otherSpec(s);
+		var oe = o ? mo.entryOf(o) : null;
+		if (oe && !ready(oe)) return;
+		var entries = [e].concat(oe ? [oe] : []);
+		var names = entries.map(mo.entryName);
+		if (oe && names[0] === names[1]) throw new Error(fmt(t('sameOther'), names[1]));
+		var between = state.doyBetween === 'years' ? 'median' : state.doyBetween;  // a right axis: the median by default
+		var step = state.step, metric = state.stepMetric, stat = state.stat;
+		var name = title(e, [metricName(metric) + ' ' + t('s_' + step).toLowerCase(), metricName(stat).toLowerCase(),
+			fmt(t('ofTheYears'), metricName(between).toLowerCase())], names.join(' ' + t('and') + ' '));
+		var id = start();
+		function fetch(spec, done) {  // the days with images of each variable, daily
+			if (step !== 'daily') return fetchSeries(spec, metric, mo.seriesBins(spec, step), id, done);
+			mo.dailyDays(spec, state.region.geometry()).evaluate(guardedAsync(id, function (days) {
+				fetchSeries(spec, metric, mo.dailyBins(days), id, done);
+			}));
+		}
+		function draw(parts, scales) {
+			var rows = [];
+			parts.forEach(function (p, k) {
+				mo.withDoy(p).forEach(function (r) {
+					r.variable = names[k];
+					rows.push(r);
+				});
+			});
+			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+			var prof = mo.doyProfile(rows, s, step, between, names[0]);
+			var axes = entries.map(function (x) {
+				return {title: axisTitle(x, metric, stat, between), ylim: mo.indexYlim(x, metric, stat, between)};
+			});
+			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
+				var k = names.indexOf(r.variable);
+				r.sensor = entries[k].custom ? '' : entries[k].sensor;
+				r.step = step;
+				r.metric = metric;
+				r.stat = stat;
+				r.interannual = between;
+				r.unit = mo.udunits(mo.unitOf(entries[k], metric, between, stat));
+				r.scale_m = scales[k];
+			});
+			var note = names.length > 1 ? fmt(t('scalesNote'), num(scales[0]), names[0], num(scales[1]), names[1]) :
+				fmt(t('scaleNote'), num(scales[0]));
+			var regions = regionsOf(prof);
+			show(regions.map(function (g) {  // each feature
+				return profileChart(prof, names, axes, name, g, regions.length > 1);
+			}).concat([
+				ui.Label(fmt(t('doyNote'), metricName(between).toLowerCase()), SMALL),
+				ui.Label(note + ' ' + t('chartHelp'), SMALL),
+				csvWidget(prof, mo.PROFILE_COLUMNS.concat(mo.PROFILE_META), name, e)]));
+		}
+		function safely(f) {  // the errors of what runs after an answer of Earth Engine, in the results panel
+			return function (rows, scale) {
+				try {
+					f(rows, scale);
+				} catch (err) {
+					message(err.message || String(err), true);
+				}
+			};
+		}
+		fetch(s, safely(function (rows, scale) {
+			if (!o) return draw([rows], [scale]);
+			fetch(o, safely(function (other, otherScale) { draw([rows, other], [scale, otherScale]); }));
+		}));
+	}
+
 	// The time series of S (or, with PARTS, the values of each part of the year in each year: trends and comparisons):
 	// done(rows, scale)
 	function fetchSeries(s, metric, steps, id, done) {
@@ -16063,6 +16483,7 @@ var MonitorEO = (function () {
 		if (!ready(e)) return;
 		if (state.compareOn) return compareSeries();
 		var s = specOf();
+		if (isProfile()) return computeProfile(e, s);
 		var name = title(e, [metricName(state.stepMetric) + ' ' + t('s_' + state.step).toLowerCase(),
 			metricName(state.stat).toLowerCase()]);
 		var id = start();
@@ -16070,11 +16491,7 @@ var MonitorEO = (function () {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
-				if (doy) rows.forEach(function (r) {  // the year and the day of the year of each step (as with_doy)
-					var d = mo.date(r.date);
-					r.year = d.getUTCFullYear();
-					r.doy = Math.round((d - Date.UTC(r.year, 0, 1)) / 864e5) + 1;
-				});
+				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
 				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
 					[seriesChart(rows, e, name)]).concat([
@@ -16171,9 +16588,41 @@ var MonitorEO = (function () {
 		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
 		var stats = STATS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('stat')), select(stats, state.stat, function (v) { state.stat = v; })));
-		w.push(check(t('doy'), state.doy, function (v) { state.doy = v; }));
+		w.push(check(t('doy'), state.doy, function (v) {
+			state.doy = v;
+			render();
+		}));
+		if (state.doy) w = w.concat(doyWidgets());
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
+	}
+
+	// The options of the series by day of the year: the metric between the years of its seasonal profile (or a line per
+	// year) and the variable of the right axis (one of the catalog with dates). A line per year is of one variable: a
+	// variable on the right axis takes the median of the years, and a line per year leaves that variable out
+	function doyWidgets() {
+		var between = [{value: 'years', label: t('doyLines')}].concat(BETWEEN.map(function (m) {
+			return {value: m, label: metricName(m)};
+		}));
+		var others = [{value: 'none', label: t('noOther')}].concat(variableItems().filter(function (i) {
+			return !mo.byRef(i.value).static;
+		}));
+		var w = [row(ui.Label(t('interannual')), select(between, state.doyBetween, function (v) {
+			state.doyBetween = v;
+			if (v === 'years') state.doyOther = 'none';
+			render();
+		})), ui.Label(t('doyOther')), select(others, state.doyOther, function (v) {
+			state.doyOther = v;
+			if (v !== 'none' && state.doyBetween === 'years') state.doyBetween = 'median';
+			render();
+		}, '340px')];
+		if (state.doyOther !== 'none') {  // the pixel filters of the panel on the variable of the right axis
+			var oe = mo.byRef(state.doyOther);
+			mo.conflicts(oe, otherQuality(oe)).forEach(function (f) {
+				w.push(ui.Label(fmt(t('otherConflict'), t(f), mo.entryName(oe)), {fontSize: '12px', color: '#b06000'}));
+			});
+		}
+		return w;
 	}
 
 	// Trends --------------------------------------------------------------------------------------------------------

@@ -127,6 +127,30 @@ VECTOR_KINDS = {'.gpkg': 'polygons (GeoPackage, EPSG:4326, layer perimeter)', '.
 # the animations (services.timelapse)
 ANIMATION_KINDS = {'.gif': 'animation (GIF), a frame per time step', '.mp4': 'animation (MP4 video, H.264), a frame '
                                                                           'per time step'}
+# the columns of the CSV of the seasonal profile by day of the year (time_series with doy and interannual or
+# other_variable: timeseries.PROFILE_COLUMNS and PROFILE_META) that differ ({i}: the metric between the years)
+COLUMNS_PROFILE = {
+	'region': 'name of the feature of the region (its name, or its number); those of the same name are numbered from '
+	          'the second one, e.g. Sierra Nevada (2)',
+	'variable': 'variable of the line: its name and sensor (e.g. NDVI Sentinel-2); the first one on the left y axis of '
+	            'the chart, the other one on the right y axis',
+	'part': 'step of the year: the month (1-12) with a monthly step (in a season that starts and ends in the same '
+	        'month, the part of that month from the first day of the season is MM-DD, e.g. 10-15); the number of the '
+	        '16-day period from 1 January, or from the first day of the season (0, 1, 2, ...), the closest one to the '
+	        'first day of the step, with a 16-day step; the calendar day (MM-DD) with a daily step',
+	'doy': 'day of the year (1-366) where the step is drawn: monthly, the median of the days of the year of its first '
+	       'day in the years; 16-day, that of its first day in a year of 365 days; daily, that of the calendar day in a '
+	       'year of 366 days (29 February is 60, 1 March 61)',
+	'label': 'name of the step of the year: Jan to Dec (Oct 1-14 and Oct 15-31 for the two parts of a month), or a day '
+	         '(e.g. Jan 17) in a year of 365 days',
+	'value': '{i} of the values of the step in the years of the period{u}: each one the spatial statistic, over the '
+	         'feature, of the temporal metric of the images of the step on each pixel',
+	'n_years': 'years with a value in the step (0: no value in any year, value empty)',
+	'interannual': 'metric between the years of each step of the year',
+	'unit': 'unit of the variable of the row in UDUNITS (1: dimensionless)',
+	'scale_m': 'pixel size of the computation of the variable of the row (m)',
+	'sensor': 'sensor of the variable of the row',
+}
 # the columns of the CSV of the RdNBR (burn_severity with index RdNBR, a CSV with the column rdnbr_min) that differ
 COLUMNS_RDNBR = {
 	'class': 'severity class of Miller & Thode 2007, their Table 4 (0 unchanged; 1 low; 2 moderate; 3 high)',
@@ -293,12 +317,24 @@ def text(tool, args, result, computed=None):
 	unit, ud = _unit(result, args), _udunits(result, args)
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit + '/year' if unit else 'per year'})"
 	zu = _zone_unit(given) if tool == 'region_stats' else ''
-	if ud:
+	profile = tool == 'time_series' and report.is_profile(given)
+	between = report._interannual(given, result) if profile else None
+	units = dict(result.get('units') or {}) if profile else {}
+	from . import catalog
+	if len(units) > 1:  # two variables, each in its unit, on its axis
+		each = '; '.join(f"{name}, {publish.unit_text(un) or 'dimensionless'} (UDUNITS "
+		                 f"{catalog.udunits(un) or 'unknown'})" for name, un in units.items())
+		u = ' (in the unit of the variable of the row: ' + ', '.join(
+			f"{name} {publish.unit_text(un) or 'dimensionless'}" for name, un in units.items()) + ')'
+		out += _section('Units')
+		out.append(_wrap(f'Each variable is in its own unit, on its own y axis of the chart: {each}. The column unit of '
+		                 'the CSV gives that of the variable of each row, in UDUNITS (the units of the CF conventions; 1 '
+		                 'is dimensionless).'))
+	elif ud:
 		out += _section('Units')
 		per_year = f"; its change per year, {band_udunits('slope', ud)}" if 'trend' in tool else ''
-		from . import catalog
 		what = 'The values are coefficients of variation (100 × standard deviation / mean), in %' \
-			if catalog.is_cv(*_metrics(given)) else f"The variable is {'in ' + unit if unit else 'dimensionless'}"
+			if catalog.is_cv(*_metrics(given), between) else f"The variable is {'in ' + unit if unit else 'dimensionless'}"
 		where = 'The colour ramp of the animation is in this unit.' if tool == 'timelapse' else \
 			'The columns unit and slope_unit of the CSV and the units of the bands of the GeoTIFF are in UDUNITS (1 is ' \
 			'dimensionless).'
@@ -308,12 +344,14 @@ def text(tool, args, result, computed=None):
 		if ext == '.csv':
 			out += _section('Columns of', os.path.basename(f))
 			header = _csv_header(f)
-			columns = dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
+			columns = dict(COLUMNS, **COLUMNS_PROFILE) if profile and 'n_years' in header else \
+				dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
 				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
 				if tool == 'area_by_class' else \
 				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
 				if tool == 'transect' else COLUMNS
-			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy, zu=zu)) for c in header]
+			out += [_wrap(f'{c}: {columns.get(c, "")}'.rstrip(': ').format(u=u, uy=uy, zu=zu, i=_between_text(between)))
+			        for c in header]
 			out.append(_wrap('Empty cells: no data (no valid pixels or no images).'))
 		elif ext in ('.tif', '.tiff'):
 			bands, grid = _bands(f)
@@ -350,6 +388,16 @@ def text(tool, args, result, computed=None):
 		out.append(_wrap('Credits of the data: ' + '; '.join(cited['credits']) + '.'))
 	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')]
 	return '\n'.join(out) + '\n'
+
+
+def _between_text(metric):
+	"""The metric between the years of a profile as said in the columns: 'Median', 'Percentile 25', 'Sample standard
+	deviation', 'Coefficient of variation (%, 100 × sample standard deviation / |mean|)' (see timeseries.over_years)."""
+	from . import report
+	m = str(metric or 'median')
+	text = 'coefficient of variation (%, 100 × sample standard deviation / |mean|)' if m == 'cv' else \
+		'sample standard deviation' if m == 'std' else report._stat(m)
+	return text[:1].upper() + text[1:]
 
 
 def _files(result, keys):

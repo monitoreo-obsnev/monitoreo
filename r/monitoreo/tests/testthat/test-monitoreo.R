@@ -515,6 +515,207 @@ test_that("the time series by day of the year: doy reaches the services, mo_plot
   expect_identical(base(ts), ts)
 })
 
+test_that("the seasonal profile by day of the year: its options reach the services, mo_plot draws two y axes", {
+  sent <- NULL
+  vars <- c("NDVI Landsat", "SCF Landsat")
+  starts <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)
+  profile <- list()
+  for (g in c("buffer", "park")) for (v in vars) for (m in 1:12) {
+    winter <- cos(2 * pi * (m - 1) / 12)
+    value <- if (m == 12) NULL else if (v == vars[1]) 0.3 - winter / 4 else max(0, 80 * winter)
+    profile[[length(profile) + 1]] <- list(region = g, variable = v, part = as.character(m), doy = starts[m],
+                                           label = month.abb[m], value = value, n_years = if (m == 12) 0L else 3L)
+  }
+  yearly <- lapply(vars, function(v) list(region = "buffer", date = "2021-01-01", value = 0.05, n_pixels = 5L,
+                                          n_images = 1L, year = 2021L, doy = 1L, variable = v))
+  # what Python returns (its tuples and dictionaries as lists): the NDVI from -1 to 1, the SCF (in %) from the data
+  answer <- list(rows = yearly, profile = profile, variables = as.list(vars),
+                 units = stats::setNames(list("[unitless]", "[%]"), vars), scales = stats::setNames(list(30, 30), vars),
+                 interannual = "p25", unit = "[unitless]", ylabel = "[unitless]",
+                 other_ylabel = "Snow Cover Frequency (SCF) [%]", ylim = list(-1, 1), other_ylim = NULL,
+                 title = paste("NDVI Landsat and SCF Landsat | 2021-01-01 / 2023-12-31 | monthly mean, spatial mean |",
+                               "p25 of the years by day of the year"), scale = 30, csv = "profile.csv",
+                 references = list(list(text = "Tucker, C. J. (1979). Red and photographic infrared.")),
+                 credits = list("Landsat imagery courtesy of the U.S. Geological Survey"))
+  local_mocked_bindings(services = function() list(time_series = function(...) {
+    sent <<- list(...)
+    answer
+  }), .package = "monitoreo")
+  region <- mo_bbox(-3.45, 37.02, -3.30, 37.12)
+  p <- mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2023-12-31", doy = TRUE, interannual = "p25",
+                      other_variable = "SCF", ylim = c(-1, 1))
+  expect_true(sent$doy)
+  expect_equal(sent[c("interannual", "other_variable", "ylim")],
+               list(interannual = "p25", other_variable = "SCF", ylim = list(-1, 1)))  # two numbers, a list
+  expect_true(all(c("other_sensor", "other_ylim") %in% names(sent)))  # sent by name, NULL: those of Python
+  expect_null(sent$other_sensor)
+  expect_null(sent$other_ylim)
+  # the profile is the data.frame, the values of each year an attribute
+  expect_equal(names(p), c("region", "variable", "part", "doy", "label", "value", "n_years"))
+  expect_equal(nrow(p), 48)
+  expect_equal(p$part[1:12], as.character(1:12))
+  expect_equal(p$label[1:12], month.abb)
+  expect_true(is.na(p$value[12]) && p$n_years[12] == 0)  # a step without a value in any year, kept
+  expect_equal(attr(p, "variables"), vars)
+  expect_equal(attr(p, "units"), c("NDVI Landsat" = "[unitless]", "SCF Landsat" = "[%]"))
+  expect_equal(attr(p, "scales"), c("NDVI Landsat" = 30, "SCF Landsat" = 30))
+  expect_equal(attr(p, "interannual"), "p25")
+  expect_equal(attr(p, "ylim"), c(-1, 1))
+  expect_null(attr(p, "other_ylim"))  # from the data
+  expect_equal(attr(p, "other_ylabel"), "Snow Cover Frequency (SCF) [%]")
+  expect_equal(attr(p, "csv"), "profile.csv")
+  expect_equal(attr(p, "rows")$variable, vars)
+  expect_s3_class(attr(p, "rows")$date, "Date")
+  expect_match(capture.output(mo_references(p))[1], "^Tucker")
+  # a line per year with a range of the y axis: sent as two numbers, kept for mo_plot
+  answer <- list(rows = lapply(2021:2022, function(y) list(region = "park", date = sprintf("%d-07-01", y),
+                                                            value = 0.4, n_pixels = 5L, n_images = 1L, year = y,
+                                                            doy = 182L)),
+                 title = "Monthly NDVI (Landsat), mean | by day of the year", unit = "[unitless]",
+                 ylabel = "[unitless]", ylim = list(0, 1), scale = 30, references = list(), credits = list())
+  ts <- mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2022-12-31", doy = TRUE, ylim = c(0, 1))
+  expect_equal(sent$ylim, list(0, 1))
+  expect_null(sent$interannual)
+  expect_equal(names(ts), c("region", "date", "value", "n_pixels", "n_images", "year", "doy"))
+  expect_equal(attr(ts, "ylim"), c(0, 1))
+  expect_null(attr(ts, "variables"))
+  # a range that is not two numbers, or data of Earth Engine on the right axis: an error of R, before Python
+  sent <- NULL
+  expect_error(mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2022-12-31", doy = TRUE, ylim = 1),
+               "ylim: give two numbers, the lowest and the highest value of the y axis, e.g. c(-1, 1)", fixed = TRUE)
+  expect_error(mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2022-12-31", doy = TRUE,
+                              other_variable = "SCF", other_ylim = c("0", "100")), "^other_ylim: give two numbers")
+  expect_error(mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2022-12-31", doy = TRUE,
+                              other_ylim = c(0, NA)), "^other_ylim: give two numbers")
+  expect_error(mo_time_series(region, "NDVI", "Landsat", "2021-01-01", "2022-12-31", doy = TRUE,
+                              other_variable = "MODIS/061/MOD13Q1"),
+               paste("other_variable MODIS/061/MOD13Q1: the variable of the right axis is a variable of the catalog",
+                     "of MonitorEO (e.g. NDVI, see mo_variables()), not data of Earth Engine by its ID"), fixed = TRUE)
+  expect_null(sent)
+  skip_if_not_installed("ggplot2")
+  g <- mo_plot(p)
+  expect_s3_class(g, "ggplot")
+  expect_equal(rlang::as_label(g$mapping$x), "doy")  # over the days of the year
+  expect_equal(rlang::as_label(g$mapping$colour), "variable")  # a line per variable
+  expect_equal(g$coordinates$limits$y, c(-1, 1))  # the left axis: the NDVI from -1 to 1
+  # the right axis, the SCF from the data (0 to 80) with a margin of 5 %: its values drawn with the linear transform
+  # from its range to that of the left axis, and its axis (sec_axis) back
+  scf <- g$data[g$data$variable == vars[2], ]
+  expect_equal(scf$plotted, -1 + (scf$value + 4) * 2 / 88)
+  y <- g$scales$get_scales("y")
+  expect_s3_class(y$secondary.axis, "AxisSecondary")
+  expect_equal(y$secondary.axis$trans(c(-1, 0, 1)), c(-4, 40, 84))
+  expect_equal(y$secondary.axis$name, "Snow Cover Frequency (SCF) [%]")
+  expect_equal(y$name, "[unitless]")
+  expect_equal(unname(g$scales$get_scales("colour")$palette(2)), c("#1f77b4", "#d62728"))  # left, right
+  # a line at 0 of each axis: that of the right one, dotted, where its 0 is on the left one
+  zeros <- Filter(function(l) inherits(l$geom, "GeomHline"), g$layers)
+  expect_equal(unname(vapply(zeros, function(l) l$data$yintercept, 0)), c(0, -1 + 4 * 2 / 88))
+  expect_s3_class(g$facet, "FacetWrap")  # a panel per region
+  # the rows of one variable: one axis, with its own range and title, in the colour of its line
+  right <- mo_plot(p[p$variable == vars[2], ])
+  expect_equal(right$coordinates$limits$y, c(-4, 84))
+  expect_false(inherits(right$scales$get_scales("y")$secondary.axis, "AxisSecondary"))
+  expect_equal(right$scales$get_scales("y")$name, "Snow Cover Frequency (SCF) [%]")
+  expect_equal(unname(right$scales$get_scales("colour")$palette(1)), "#d62728")
+  # without the attributes (subset()): the variables of the rows, their names as titles, the ranges from the data
+  bare <- mo_plot(subset(p, region == "park"))
+  expect_equal(bare$scales$get_scales("y")$secondary.axis$name, vars[2])
+  expect_equal(bare$coordinates$limits$y, c(0.05, 0.55) + c(-1, 1) * 0.025)
+  # a line per year in the range that was given
+  expect_equal(mo_plot(ts)$coordinates$limits$y, c(0, 1))
+  # with base graphics (without ggplot2): the right axis drawn last, on its own scale
+  base <- mo_plot
+  environment(base) <- list2env(list(requireNamespace = function(...) FALSE), parent = environment(mo_plot))
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_identical(base(p), p)
+  expect_equal(graphics::par("usr"), c(1, 366, -4, 84))
+  expect_identical(base(p[p$variable == vars[1], ]), p[p$variable == vars[1], ])
+  expect_equal(graphics::par("usr"), c(1, 366, -1, 1))
+  expect_identical(base(ts), ts)
+  expect_equal(graphics::par("usr")[3:4], c(0, 1))
+})
+
+test_that("the seasonal profile of two indices from Python, without Earth Engine: both axes from -1 to 1", {
+  skip_if_no_python()
+  # the series of each variable from a fake timeseries.series (the NDSI in winter, the NDVI in summer, nothing in
+  # February 2022), and the region not computed, as in tests/test_doy_profile.py; restored at the end
+  reticulate::py_run_string(paste(sep = "\n",
+    "import datetime as _mo_dt, math as _mo_math",
+    "from monitoreo import services as _mo_services, timeseries as _mo_timeseries",
+    "_mo_saved = (_mo_services.areas.region, _mo_timeseries.series)",
+    "def _mo_series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None, steps=None):",
+    "    rows = []",
+    "    for a, _ in _mo_timeseries.bins(spec, step):",
+    "        d = _mo_dt.date.fromisoformat(a)",
+    "        winter = _mo_math.cos(2 * _mo_math.pi * (d.month - 1) / 12)",
+    "        v = {'NDSI': winter / 2, 'NDVI': 0.3 - winter / 4}[spec['index']] + (d.year - 2021) / 100",
+    "        rows += [{'region': g, 'date': a, 'value': None if a.startswith('2022-02') else v, 'n_pixels': 5,",
+    "                  'n_images': 1} for g in ('park', 'buffer')]",
+    "    return sorted(rows, key=lambda r: (r['region'], r['date'])), scale or 10.0",
+    "def _mo_fail(region):",
+    "    raise RuntimeError('computed before checking the call')",
+    "def _mo_restore():",
+    "    _mo_services.areas.region, _mo_timeseries.series = _mo_saved",
+    "_mo_services.areas.region = lambda region: 'regions'",
+    "_mo_timeseries.series = _mo_series"))
+  on.exit(reticulate::py_run_string("_mo_restore()"), add = TRUE)
+  csv <- tempfile(fileext = ".csv")
+  p <- mo_time_series(mo_bbox(-3.62, 36.86, -3.50, 36.93), "NDSI", "Sentinel-2", "2021-01-01", "2023-12-31",
+                      doy = TRUE, other_variable = "NDVI", csv = csv)
+  vars <- c("NDSI Sentinel-2", "NDVI Sentinel-2")
+  expect_equal(names(p), c("region", "variable", "part", "doy", "label", "value", "n_years"))
+  expect_equal(nrow(p), 48)  # 12 months, 2 variables, 2 regions
+  expect_equal(unique(p$variable), vars)
+  expect_equal(p$part[1:12], as.character(1:12))
+  expect_equal(p$label[1:12], month.abb)
+  expect_equal(p$value[1], 0.51)  # the median of the January of 2021, 2022 and 2023: 0.50, 0.51 and 0.52
+  expect_equal(p$n_years[1:2], c(3, 2))  # February of 2022 without a value
+  expect_equal(attr(p, "variables"), vars)
+  expect_equal(attr(p, "interannual"), "median")  # by default with other_variable
+  expect_equal(attr(p, "ylim"), c(-1, 1))  # spectral indices of the catalog: -1 to 1 by default
+  expect_equal(attr(p, "other_ylim"), c(-1, 1))
+  expect_equal(attr(p, "units"), c("NDSI Sentinel-2" = "[unitless]", "NDVI Sentinel-2" = "[unitless]"))
+  expect_equal(attr(p, "scales"), c("NDSI Sentinel-2" = 10, "NDVI Sentinel-2" = 10))
+  expect_match(attr(p, "title"), "^NDSI Sentinel-2 and NDVI Sentinel-2 \\| .*\\| median of the years by day of the year$")
+  rows <- attr(p, "rows")
+  expect_equal(nrow(rows), 144)  # 36 months, 2 variables, 2 regions
+  expect_equal(unique(rows$variable), vars)
+  expect_true(all(c("year", "doy") %in% names(rows)))
+  expect_s3_class(rows$date, "Date")
+  table <- utils::read.csv(csv)  # the profile, what the chart shows
+  expect_equal(names(table), c("region", "variable", "part", "doy", "label", "value", "n_years", "sensor", "step",
+                               "metric", "stat", "interannual", "unit", "scale_m"))
+  expect_equal(nrow(table), 48)
+  expect_true(file.exists(attr(p, "readme")))
+  refs <- attr(p, "references")
+  expect_true(any(grepl("^Hall, D. K., Riggs, G. A., & Salomonson", refs)))  # the NDSI
+  expect_true(any(grepl("^Tucker, C. J. \\(1979\\)", refs)))  # and the NDVI, the other variable
+  # the errors of Python come before Earth Engine (the region is not even computed), in the words of the call
+  reticulate::py_run_string("_mo_services.areas.region = _mo_fail")
+  run <- function(...) mo_time_series(mo_bbox(-3.62, 36.86, -3.50, 36.93), "NDSI", "Sentinel-2", "2021-01-01",
+                                      "2022-12-31", ...)
+  expect_error(run(interannual = "median"), "interannual: only for the chart by day of the year (doy)", fixed = TRUE)
+  expect_error(run(ylim = c(-1, 1), other_ylim = c(0, 1)), "ylim, other_ylim: only for the chart by day of the year",
+               fixed = TRUE)
+  expect_error(run(doy = TRUE, step = "annual", other_variable = "NDVI"), "needs a step shorter than a year")
+  expect_error(run(doy = TRUE, interannual = "sum"), "unknown metric between the years (interannual) sum",
+               fixed = TRUE)
+  expect_error(run(doy = TRUE, other_sensor = "Modis"), "give other_variable")
+  expect_error(run(doy = TRUE, metric = "median", other_variable = "SCF", other_sensor = "Landsat"),
+               "other_variable (the right axis): SCF (Landsat) only takes the metric 'mean'", fixed = TRUE)
+  expect_error(run(doy = TRUE, other_variable = "ELEVATION", other_sensor = "Copernicus"),
+               "is a fixed layer, without dates")
+  expect_error(run(doy = TRUE, other_variable = "NDSI"), "NDSI Sentinel-2 is already the variable of the left axis")
+  expect_error(run(doy = TRUE, interannual = "median", ylim = c(1, 0)),
+               "ylim: the first number of the y axis (1) must be smaller than the second (0)", fixed = TRUE)
+  skip_if_not_installed("ggplot2")
+  g <- mo_plot(p)
+  expect_equal(g$coordinates$limits$y, c(-1, 1))
+  expect_equal(g$scales$get_scales("y")$secondary.axis$trans(c(-1, 1)), c(-1, 1))  # both from -1 to 1
+})
+
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {
   skip_if_no_python()
   # the classes of Miller & Thode 2007 (Table 4, / 1000) with the colours of their maps in the other tools

@@ -5,6 +5,11 @@
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
+    monitoreo series VARIABLE ... --doy [--interannual median] [--other-variable V [--other-sensor S]] [--ylim -1 1]
+                     [--other-ylim -1 1]             the seasonal profile by day of the year: the metric between the
+                                                     years of the values of each step of the year (each month, 16 days
+                                                     or day), of one variable or of two on two y axes (e.g. NDSI and
+                                                     NDVI)
     monitoreo image VARIABLE --sensor S --region JSON --start D --end D [--out F.tif] [--rgb F.tif] [--metric median]
                     [--resolution M]                 GeoTIFF of the map of a variable aggregated in time (--out), of the
                                                      true colour of the same images (--rgb: bands red, green and blue)
@@ -242,15 +247,20 @@ def _table(rows, cols):
 		print('  '.join(str(r.get(c, '')).ljust(widths[c]) for c in cols))
 
 
-def _bbox_args(argv):
-	"""ARGV with --bbox=W,S,E,N and --bbox W,S,E,N as --bbox W S E N: argparse reads -3.6,36.9,... (a west below 0) as
-	an option, but -3.6 alone as a number."""
+# the options of several numbers, which also take them with commas (see _list_args)
+LIST_OPTIONS = ('--bbox', '--ylim', '--other-ylim')
+
+
+def _list_args(argv):
+	"""ARGV with --bbox=W,S,E,N and --bbox W,S,E,N as --bbox W S E N, and so the other LIST_OPTIONS (--ylim=-1,1 as
+	--ylim -1 1): argparse reads -3.6,36.9,... (a west below 0) as an option, but -3.6 alone as a number."""
 	out = []
 	for a in argv:
-		if a.startswith('--bbox='):
-			out += ['--bbox'] + a[len('--bbox='):].split(',')
-		elif out and out[-1] == '--bbox' and ',' in a:
-			out += a.split(',')
+		name, equals, value = a.partition('=')
+		if equals and name in LIST_OPTIONS:
+			out += [name] + [x for x in value.split(',') if x.strip()]
+		elif out and out[-1] in LIST_OPTIONS and ',' in a:
+			out += [x for x in a.split(',') if x.strip()]
 		else:
 			out.append(a)
 	return out
@@ -326,6 +336,22 @@ def main(argv=None):
 	p.add_argument('--png')
 	p.add_argument('--doy', action='store_true', help='the chart with a line per year over the days of the year, to '
 	                                                  'compare the years (not with --step annual)')
+	p.add_argument('--interannual', metavar='METRIC',
+	               help='with --doy, the seasonal profile instead: a line per variable, this metric of the values of each '
+	                    'step of the year (each month, 16-day period or day) in the years of the period: mean, median, '
+	                    'min, max, std (sample standard deviation), cv (coefficient of variation, in %%) or pN '
+	                    '(percentile N, e.g. p25) (default with --other-variable: median)')
+	p.add_argument('--other-variable', metavar='VARIABLE',
+	               help='with --doy: a second variable of the catalog on a right y axis of the profile (e.g. NDVI, with '
+	                    'NDSI as VARIABLE), computed as VARIABLE: the same region, period, step, metrics and pixel '
+	                    'filters')
+	p.add_argument('--other-sensor', help='the sensor of --other-variable (default: --sensor)')
+	p.add_argument('--ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
+	               help='with --doy: the range of the (left) y axis, e.g. --ylim -1 1; in the profile, by default -1 to 1 '
+	                    'for the spectral indices (NDVI, EVI, NDSI, NDWI, LSWI, NBR, NDCI; not the NDSI of Modis, the '
+	                    'snow cover 0-100) when no metric changes their scale (std, cv, count, sum), else from the data')
+	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
+	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	computes['image'] = image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, '
 	                                                             'aggregated in time, and of the true colour of the '
 	                                                             'same images')
@@ -552,7 +578,7 @@ def main(argv=None):
 	p.add_argument('--browser', action='store_true', help='open it in the browser instead of in a window of its own')
 	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
-	args = parser.parse_args(_bbox_args(sys.argv[1:] if argv is None else argv))
+	args = parser.parse_args(_list_args(sys.argv[1:] if argv is None else argv))
 	if args.cmd in computes and not (args.cmd == 'areas' and args.landcover):  # what it computes, or its error before
 		args.source = _source(args, computes[args.cmd])  # Earth Engine
 	elif args.cmd == 'areas':
@@ -562,6 +588,15 @@ def main(argv=None):
 	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
 		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '
 		           'describes an ID of Earth Engine')
+	if args.cmd == 'series':  # the options of the chart by day of the year, before Earth Engine
+		given = [o for o, v in (('--interannual', args.interannual), ('--other-variable', args.other_variable),
+		                        ('--other-sensor', args.other_sensor), ('--ylim', args.ylim),
+		                        ('--other-ylim', args.other_ylim)) if v]
+		if given and not args.doy:
+			computes['series'].error(f"{', '.join(given)}: only with --doy (the chart by day of the year)")
+		if (args.other_sensor or args.other_ylim) and not args.other_variable:
+			computes['series'].error('--other-sensor and --other-ylim are those of the variable of the right axis: give '
+			                         '--other-variable')
 	if args.cmd == 'image' and not (args.out or args.rgb):
 		image.error('give --out (GeoTIFF of the variable), --rgb (GeoTIFF of its true colour) or both')
 	if args.cmd == 'image' and args.rgb and not args.variable:
@@ -731,12 +766,41 @@ def _compute(args, services):
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
-		                           progress=progress, where=_where(args), doy=args.doy, **args.source)
+		                           progress=progress, where=_where(args), doy=args.doy, interannual=args.interannual,
+		                           other_variable=args.other_variable, other_sensor=args.other_sensor, ylim=args.ylim,
+		                           other_ylim=args.other_ylim, **args.source)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
 		sys.exit(_error(e, args))
+	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
+	if args.doy and (args.interannual or args.other_variable):  # the seasonal profile: what the chart and the CSV have
+		_profile(res, services, files)
+		return
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
-	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+	      + files)
+
+
+def _axis(lim):
+	"""The range LIM of a y axis, (min, max) or None, in words."""
+	return f'{lim[0]:g} to {lim[1]:g}' if lim else 'from the data'
+
+
+def _profile(res, services, files):
+	"""The table of a seasonal profile by day of the year (services.time_series with --doy and --interannual or
+	--other-variable), its title and, for each variable, its pixel size, unit and y axis; then FILES (CSV and chart)."""
+	names = res.get('variables') or []
+	two = len(names) > 1
+	_table(_fmt(res['profile']), [c for c in services.timeseries.PROFILE_COLUMNS if c != 'variable' or two])
+	units, scales = res.get('units') or {}, res.get('scales') or {}
+	if two:
+		scale = ', '.join(f'{n} {scales[n]:g} m' if scales.get(n) else n for n in names)
+		unit = ', '.join(f"{n} {units.get(n) or '(no unit)'}" for n in names)
+		what = (f" | scale {scale} | units {unit} | left y axis ({names[0]}) {_axis(res.get('ylim'))}, right y axis "
+		        f"({names[1]}) {_axis(res.get('other_ylim'))}")
+	else:
+		what = (f" | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')
+		        + f" | y axis {_axis(res.get('ylim'))}")
+	print(f"\n{res['title']}{what}{files}")
 
 
 def _image(args, services):

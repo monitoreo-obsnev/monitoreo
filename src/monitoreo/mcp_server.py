@@ -84,7 +84,12 @@ median, mean, min, max and pN. A map whose preview Earth Engine cannot make in s
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
-pixel). Comparison of a reference period with another: compare_series, compare_map and download_comparison. Hectares and %
+pixel). By day of the year: time_series with doy, a line per year (phenology, snow seasons), or the seasonal profile of
+one or two variables on two y axes with interannual (the metric between the years of each month, 16 days or day,
+default median) and other_variable (and other_sensor), e.g. the median NDSI and NDVI of each month of 2018-2024; its
+y axes go from -1 to 1 for the spectral indices (not the NDSI of MODIS, the snow cover 0-100), else from the data,
+or as ylim and other_ylim say. Comparison of a reference period with another: compare_series, compare_map and
+download_comparison. Hectares and %
 of each class of a land cover map of a year, of the map of a variable cut at some values, or of the trend on each
 pixel (significant decrease, no trend, increase): area_by_class. Gradients: the statistics of a map by elevation band
 (region_stats with zones) and its profile along a line, with the elevation (transect). Animations
@@ -327,6 +332,31 @@ def _preview(res):
 		return [Image(data=f.read(), format='png')]
 
 
+# what the answer of time_series has of a seasonal profile by day of the year, besides the profile itself
+PROFILE_KEYS = ('variables', 'units', 'scales', 'interannual', 'other_ylabel', 'other_ylim')
+
+
+def _profile_answer(summary, res):
+	"""Put in SUMMARY, the answer of time_series, what its result RES has of a seasonal profile by day of the year
+	(services.time_series with doy and interannual or other_variable): its variables with their units, pixel sizes and
+	axes (PROFILE_KEYS), the profile (what the chart and the CSV show: its first MAX_ROWS_SHOWN rows) and the values of
+	each year (rows) only when they fit too, as compare_series answers its profile."""
+	summary.update({k: res.get(k) for k in PROFILE_KEYS})
+	profile, rows = res['profile'], res['rows']
+	summary['profile'] = profile[:MAX_ROWS_SHOWN]
+	notes = []
+	if len(profile) > MAX_ROWS_SHOWN:
+		notes.append(f'{len(profile)} rows of the profile: the first {MAX_ROWS_SHOWN} are shown, all of them are in the '
+		             'CSV file')
+	if len(profile) + len(rows) <= MAX_ROWS_SHOWN:
+		summary['rows'] = rows
+	elif rows:
+		notes.append(f'the {len(rows)} values of each year are not shown (time_series with doy, without interannual nor '
+		             'other_variable, gives them for each variable)')
+	if notes:
+		summary['note'] = '; '.join(notes)
+
+
 @tool
 def about(lang: str = 'en'):
 	"""What MonitorEO-OBSNEV is, who funds it and how to cite it (description, acknowledgements, citation and DOI, and
@@ -470,28 +500,40 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 quality: Optional[dict] = None, scale: Optional[float] = None, collection: Optional[str] = None,
                 image: Optional[str] = None, band: Optional[str] = None, band_scale: Optional[float] = None,
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
-                doy: bool = False):
+                doy: bool = False, interannual: Optional[str] = None, other_variable: Optional[str] = None,
+                other_sensor: Optional[str] = None, ylim: Optional[List[float]] = None,
+                other_ylim: Optional[List[float]] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, std, cv, pN) and over the region with
 	STAT (mean, median, min, max, std, cv, pN; cv: coefficient of variation, 100 * std / mean, in %), with the number
 	of images and of valid pixels of each value. Writes a CSV
 	table and a PNG chart (paths in the answer) and returns the chart. Required: region, start and end, and variable
 	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
-	clouds); scale: pixel size of the statistics in metres. doy: the chart with a line per year over the days of the
-	year, to compare the years (not with step annual)."""
+	clouds); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
+	step annual); with interannual (the metric between the years of each step, default median) or other_variable (and
+	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default -1, 1 for
+	indices)."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()
-	stem = _stem(_data(variable, sensor, source), step, metric, start, end)
+	profiled = bool(doy and (interannual or other_variable))  # the seasonal profile (report.is_profile)
+	other = f'{other_variable}_{other_sensor or sensor}' if profiled and other_variable else None
+	stem = _stem('profile' if profiled else None, _data(variable, sensor, source), other, step, metric, start, end)
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                           where=where, doy=doy, **source)
+	                           where=where, doy=doy, interannual=interannual, other_variable=other_variable,
+	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
 	                                    'references', 'credits')}
-	summary['rows'] = rows[:MAX_ROWS_SHOWN]
-	if len(rows) > MAX_ROWS_SHOWN:
-		summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
+	if doy:
+		summary['ylim'] = res.get('ylim')
+	if profiled and isinstance(res.get('profile'), list):
+		_profile_answer(summary, res)
+	else:
+		summary['rows'] = rows[:MAX_ROWS_SHOWN]
+		if len(rows) > MAX_ROWS_SHOWN:
+			summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
 	out = [_text(summary)]
 	if res['chart']:
 		with open(res['chart'], 'rb') as f:

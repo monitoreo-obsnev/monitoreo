@@ -205,16 +205,37 @@ services.transect = transect
 
 
 def time_series(region, csv=None, **opts):
+	"""services.time_series of the NDVI of Sentinel-2 (monthly, 2022-2023) and, with doy and interannual or
+	other_variable, its seasonal profile as services makes it (timeseries.doy_profile, catalog.index_ylim), the other
+	variable (a decreasing NDSI that crosses 0) on the right axis. The values of each month change from 2022 to 2023,
+	so that their standard deviation is not 0."""
 	calls.append(dict(opts, region=region, tool='time_series'))
-	rows = [{'region': 'extent', 'date': f'{y}-{m:02d}-01', 'value': 0.1 * m, 'n_pixels': 10, 'n_images': 2}
-	        for y in (2022, 2023) for m in range(1, 13)]
+	from monitoreo import catalog, timeseries
+	other = opts.get('other_variable')
+	names = ['NDVI Sentinel-2'] + ([f"{other} {opts['other_sensor']}"] if other else [])
+	rows = [{'region': 'extent', 'date': f'{y}-{m:02d}-01', 'value': 0.1 * m + 0.04 * (y - 2022) if k == 0 else 0.6 - 0.1 * m + 0.02 * (y - 2022),
+	         'n_pixels': 10, 'n_images': 2} for k in range(len(names)) for y in (2022, 2023) for m in range(1, 13)]
+	if other:
+		for i, r in enumerate(rows):
+			r['variable'] = names[i // 24]
 	if opts.get('doy'):
 		import datetime
 		for r in rows:
 			d = datetime.date.fromisoformat(r['date'])
 			r['year'], r['doy'] = d.year, d.timetuple().tm_yday
-	return {'rows': rows, 'csv': csv, 'chart': None, 'scale': 250.0, 'unit': '[unitless]', 'ylabel': 'NDVI',
-	        'title': 'NDVI', 'n_steps': 24, 'regions': ['extent'], 'references': [], 'credits': []}
+	out = {'rows': rows, 'csv': csv, 'chart': None, 'scale': 250.0, 'unit': '[unitless]', 'ylabel': 'NDVI',
+	       'title': 'NDVI', 'n_steps': 24, 'regions': ['extent'], 'references': [], 'credits': []}
+	if opts.get('doy'):
+		out['ylim'] = None
+	if opts.get('doy') and (opts.get('interannual') or other):
+		between = opts.get('interannual') or 'median'
+		lim = lambda index, sensor: catalog.index_ylim(catalog.find(index, sensor), opts['metric'], opts['stat'], between)
+		out.update(profile=timeseries.doy_profile(rows, None, opts['step'], between, names[0]), variables=names,
+		           units={n: '[unitless]' for n in names}, scales=dict(zip(names, (10.0, 20.0))), interannual=between,
+		           ylim=lim('NDVI', 'Sentinel-2'), other_ylim=lim(other, opts['other_sensor']) if other else None,
+		           other_ylabel=f'{other} [unitless]' if other else None,
+		           title=f"{' and '.join(names)} | {between} of the years by day of the year")
+	return out
 
 
 services.time_series = time_series
@@ -384,6 +405,151 @@ wait()
 assert calls[-1]['doy'] is False  # a value per year: no line per year
 dock.doy.setChecked(False)
 print('series by day of the year:', sorted(chart.series))
+
+# the seasonal profile: Between years (a metric of the values of each step of the year in the years of the period) and
+# Right axis (a second variable), only with the chart by day of the year; its window with a y axis for each variable
+from monitoreo_qgis import results  # noqa: E402
+from monitoreo_qgis.helptexts import HELP  # noqa: E402
+
+assert results.PROFILE_COLOURS == charts.PROFILE_COLOURS and results.MONTH_STARTS == charts.MONTH_STARTS
+assert 'seasonal profile' in HELP['doy_interannual'] and 'right axis' in HELP['doy_other'] and HELP['doy']
+assert not dock.doy_interannual.isEnabled() and not dock.doy_other.isEnabled()  # the chart by date
+dock.step.setCurrentIndex(dock.step.findData('monthly'))
+dock.doy.setChecked(True)
+assert dock.doy_interannual.isEnabled() and dock.doy_other.isEnabled()
+between = [dock.doy_interannual.itemData(i) for i in range(dock.doy_interannual.count())]
+assert between == [None, 'mean', 'median', 'min', 'max', 'p25', 'p75', 'std', 'cv'], between
+assert dock.doy_interannual.currentText() == 'A line per year' and dock.doy_other.currentText() == 'None'
+others = [dock.doy_other.itemData(i) for i in range(1, dock.doy_other.count())]
+pairs = [(o['variable'], o['sensor']) for o in others]
+assert ('NDSI', 'Sentinel-2') in pairs and ('NDVI', 'Modis') in pairs and len(pairs) == len(set(pairs))  # each once
+assert not {'ELEVATION', 'SLOPE', 'RBR', 'RdNBR', 'BIO01'} & {v for v, _ in pairs}  # only the variables with dates
+ndsi = dock.doy_other.findText('NDSI (Sentinel-2)')
+assert ndsi > 0 and 'COPERNICUS/S2' in dock.doy_other.itemData(ndsi, Qt.ItemDataRole.ToolTipRole)
+assert 'MOD10A1' in dock.doy_other.itemData(dock.doy_other.findText('NDSI (Modis)'), Qt.ItemDataRole.ToolTipRole)
+# a line per year: neither interannual nor other_variable
+dock.run_series()
+wait()
+assert calls[-1]['doy'] is True and not {'interannual', 'other_variable', 'other_sensor'} & set(calls[-1]), calls[-1]
+# a variable on the right axis: the median between the years (as services.time_series), then sent with it
+dock.doy_other.setCurrentIndex(ndsi)
+assert dock.doy_interannual.currentData() == 'median'
+dock.run_series()
+wait()
+sent = calls[-1]
+assert sent['doy'] is True and sent['interannual'] == 'median' and sent['variable'] == 'NDVI', sent
+assert (sent['other_variable'], sent['other_sensor']) == ('NDSI', 'Sentinel-2'), sent
+res = dock.series[-1]
+assert res['label'].startswith('NDVI Sentinel-2 and NDSI Sentinel-2 | median of the years'), res['label']
+dlg = dock.series_dialogs[len(dock.series) - 1]
+try:
+	import matplotlib  # noqa: F401
+	plotted = True
+except ImportError:
+	plotted = False
+assert (results.chart_png(res, os.path.join(TMP, 'profile.png')) is not None) == plotted  # matplotlib, else Qt
+assert (dlg.chart is None) == plotted
+chart = dlg.chart or results.ChartWidget(res['rows'], res['title'], results.ylabel(res), profile=res['profile'],
+                                         other_unit=results.other_ylabel(res), ylim=res['ylim'],
+                                         other_ylim=res['other_ylim'])
+assert chart.profile and chart.names == ['NDVI Sentinel-2', 'NDSI Sentinel-2'], chart.names
+assert sorted(chart.series) == ['NDSI Sentinel-2', 'NDVI Sentinel-2'] and len(chart.series['NDSI Sentinel-2']) == 12
+assert chart.axis_range(0) == (-1.0, 1.0) and chart.axis_range(1) == (-1.0, 1.0)  # spectral indices: -1 to 1
+assert (chart.unit, chart.other_unit) == ('NDVI', 'NDSI [unitless]'), (chart.unit, chart.other_unit)
+assert chart.pen(0, 'NDVI Sentinel-2').color() == QColor(results.PROFILE_COLOURS[0])
+assert chart.pen(1, 'NDSI Sentinel-2').color() == QColor(results.PROFILE_COLOURS[1])
+first = chart.series['NDSI Sentinel-2'][0]  # January: on day 1, the median of 0.50 (2022) and 0.52 (2023)
+assert first[0] == 1 and abs(first[1] - 0.51) < 1e-9, first
+chart.resize(700, 360)
+image = chart.grab().toImage()
+
+
+def near(colour, x0, x1):
+	"""How many pixels of the columns X0 to X1 of IMAGE are of COLOUR (#rrggbb), or nearly."""
+	c = QColor(colour).getRgb()[:3]
+	pixels = (QColor(image.pixel(x, y)).getRgb()[:3] for x in range(x0, x1) for y in range(image.height()))
+	return sum(1 for px in pixels if sum(abs(a - b) for a, b in zip(px, c)) < 60)
+
+
+w = image.width()
+assert near(results.PROFILE_COLOURS[1], w - 70, w) > 20  # the right axis in red: its numbers and its title
+assert near(results.PROFILE_COLOURS[0], 0, 70) > 20  # the left one in blue
+assert near(results.PROFILE_COLOURS[1], 80, w - 80) > 50 and near(results.PROFILE_COLOURS[0], 80, w - 80) > 50
+table = dlg.findChild(QTableWidget)
+headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+assert headers == ['Region', 'Variable', 'Step of the year', 'Day of the year', 'Value', 'Unit', 'Years'], headers
+assert table.rowCount() == 24 and [table.item(0, j).text() for j in (1, 2, 3, 5, 6)] == \
+	['NDVI Sentinel-2', 'Jan', '1', '[unitless]', '2'], [table.item(0, j).text() for j in range(7)]
+assert table.item(12, 1).text() == 'NDSI Sentinel-2' and table.item(12, 4).text() == '0.51', table.item(12, 4).text()
+text = results.series_text(res)
+assert 'left axis: NDVI Sentinel-2, [unitless], pixels of 10 m, y from -1 to 1' in text, text
+assert 'right axis: NDSI Sentinel-2, [unitless], pixels of 20 m, y from -1 to 1' in text, text
+assert 'median of 48 values of each year in 24 steps of the year' in text, text
+print('profile on two axes:', chart.names, '| table', table.rowCount(), 'rows')
+# two regions: a dash for each, the colour of its axis
+two = results.ChartWidget([], 'NDVI', 'NDVI', profile=[dict(r, region=g) for g in ('park', 'buffer')
+                                                        for r in res['profile']], other_unit='NDSI')
+assert two.pen(0, 'park · NDVI Sentinel-2').style() != two.pen(2, 'buffer · NDVI Sentinel-2').style()
+assert two.pen(0, 'park · NDSI Sentinel-2').color() == QColor(results.PROFILE_COLOURS[1])
+two.resize(600, 320)
+two.grab()
+# A line per year again: no variable on the right axis
+dock.doy_interannual.setCurrentIndex(0)
+assert dock.doy_other.currentData() is None
+# a metric between the years without a right axis: one variable, one axis; the standard deviation is not in -1 to 1
+dock.doy_interannual.setCurrentIndex(dock.doy_interannual.findData('std'))
+dock.run_series()
+wait()
+sent = calls[-1]
+assert sent['interannual'] == 'std' and not {'other_variable', 'other_sensor'} & set(sent), sent
+res = dock.series[-1]
+one = dock.series_dialogs[len(dock.series) - 1].chart or results.ChartWidget(
+	res['rows'], res['title'], results.ylabel(res), profile=res['profile'], other_unit=results.other_ylabel(res) or '',
+	ylim=res['ylim'], other_ylim=res['other_ylim'])
+assert one.names == ['NDVI Sentinel-2'] and res['ylim'] is None and one.axis_range(0) != (-1.0, 1.0)
+assert results.other_ylabel(res) is None and 'left axis' not in results.series_text(res)
+one.resize(600, 320)
+one.grab()
+assert results.value_range([0.2, 0.4], (-1, 1)) == (-1.0, 1.0) and results.value_range([], None) is None
+# the same variable on both axes: a warning, and nothing computed
+dock.doy_other.setCurrentIndex(dock.doy_other.findText('NDVI (Sentinel-2)'))
+made = len(calls)
+dock.run_series()
+wait()
+assert len(calls) == made and 'is already the variable of the left axis' in messages[-1], messages[-1]
+# the annual step: no chart by day of the year, so none of its options
+dock.doy_other.setCurrentIndex(ndsi)
+dock.step.setCurrentIndex(dock.step.findData('annual'))
+dock.run_series()
+wait()
+assert calls[-1]['doy'] is False and not {'interannual', 'other_variable'} & set(calls[-1]), calls[-1]
+dock.doy_other.setCurrentIndex(0)
+dock.doy_interannual.setCurrentIndex(0)
+dock.doy.setChecked(False)
+assert not dock.doy_interannual.isEnabled()
+dock.step.setCurrentIndex(dock.step.findData('monthly'))
+print('options of the profile:', between)
+# the CF of Sentinel-2 on the left axis (its filters greyed out, none checked) and the NDVI on the right one: the filters
+# chosen before the CF (those of the NDVI), not those of the CF, as services.time_series gives the NDVI without quality
+chosen = dock.quality_args()
+dock.variable.setCurrentIndex(dock.variable.findText('CF · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
+assert dock.variable.currentText().startswith('CF · Sentinel-2') and not any(w.isChecked() for w in dock.filters.values())
+dock.doy.setChecked(True)
+dock.doy_other.setCurrentIndex(dock.doy_other.findText('NDVI (Sentinel-2)'))
+dock.run_series()
+wait()
+sent = calls[-1]
+assert (sent['variable'], sent['other_variable']) == ('CF', 'NDVI') and sent['quality'] == chosen, sent
+assert any(sent['quality'][f] for f in ('clouds', 'water', 'snow')), sent['quality']
+dock.doy_other.setCurrentIndex(0)  # without a right axis: the filters of the panel, as before
+dock.run_series()
+wait()
+assert not any(calls[-1]['quality'][f] for f in ('clouds', 'water', 'snow', 'aerosols')), calls[-1]['quality']
+dock.doy_interannual.setCurrentIndex(0)
+dock.doy.setChecked(False)
+dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
+assert dock.quality_args() == chosen
+print('right axis of the CF: the filters', sorted(f for f in chosen if chosen[f] is True))
 
 # the search of the Earth Engine data catalog, in the theme of the data by its ID (the copy of its index)
 dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))

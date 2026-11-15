@@ -48,7 +48,10 @@ export(mo_trend_table)
 export(mo_variables)
 export(mo_wdpa)
 importFrom(graphics,
+  abline,
   axis,
   legend,
-  lines
+  lines,
+  mtext,
+  par
 )
