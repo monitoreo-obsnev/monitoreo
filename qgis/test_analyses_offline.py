@@ -271,6 +271,40 @@ scf = dock.variable.findText('SCF · Landsat', Qt.MatchFlag.MatchStartsWith)
 if scf >= 0:
 	dock.variable.setCurrentIndex(scf)
 	assert dock.anim_metric.currentData() == 'mean' and not dock.anim_metric.isEnabled()
+
+# the pixel filter of what the variable measures: unchecked and greyed out (snow with the NDSI, water with the NDWI),
+# the others as the user leaves them, and those chosen back with another variable, also after the fixed ones of the SCF
+def pick(text):
+	dock.variable.setCurrentIndex(dock.variable.findText(text, Qt.MatchFlag.MatchStartsWith))
+	assert dock.variable.currentText().startswith(text), text
+
+
+def state():
+	return {k: (w.isChecked(), w.isEnabled()) for k, w in dock.filters.items()}
+
+
+pick('NDVI · Sentinel-2')
+for w in dock.filters.values():
+	w.setChecked(True)
+pick('NDSI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (True, True), 'snow': (False, False), 'aerosols': (True, True)}
+assert 'NDSI' in dock.filters['snow'].toolTip() and not dock.filters['clouds'].toolTip()
+assert not dock.quality_args()['snow'] and dock.quality_args(own=True)['snow']
+dock.filters['aerosols'].setChecked(False)  # changed with the NDSI: kept
+pick('NDWI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (False, False), 'snow': (True, True), 'aerosols': (False, True)}
+if scf >= 0:
+	dock.variable.setCurrentIndex(scf)
+	assert state() == {'clouds': (True, False), 'water': (True, False), 'snow': (False, False),
+	                   'aerosols': (False, False)}
+	assert {k: v for k, v in dock.quality_args(own=True).items() if k != 'cloud_score'} == \
+		dict(clouds=True, water=True, snow=True, aerosols=False)
+pick('NDVI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (True, True), 'snow': (True, True), 'aerosols': (False, True)}
+assert all(not w.toolTip() for w in dock.filters.values())
+dock.filters['aerosols'].setChecked(True)
+print('pixel filters: that of what the variable measures greyed out, the others kept')
+
 dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
 assert [dock.anim_step.itemData(i) for i in range(dock.anim_step.count())] == ['annual', 'monthly', '16-day', 'daily']
 print('group Animation:', [dock.anim_step.itemText(i) for i in range(dock.anim_step.count())])

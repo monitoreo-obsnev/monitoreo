@@ -287,8 +287,9 @@ HELP = {
 		'<p>Removes from each image, before computing, the pixels that its quality bands mark with clouds (and their '
 		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '
 		'Landsat 8 and 9 and in the NDVI, EVI and LAI of MODIS.</p>'
-		'<p>Uncheck the filter of what the variable measures: <b>snow</b> with the NDSI and <b>water</b> with the '
-		'NDWI, the Chl-a and the NDCI.</p>',
+		'<p>The filter of what the variable measures is unchecked and greyed out: <b>snow</b> with the NDSI, '
+		'<b>water</b> with the NDWI, the Chl-a and the NDCI, and <b>aerosols</b> with the ARSL. The filters you had '
+		'come back with another variable.</p>',
 	'cloud_score':
 		'<p>Only for Sentinel-2, and with the check box <b>clouds</b> checked. Checked, clouds are removed with '
 		'Google\'s Cloud Score+: a pixel is clear if its score is at least 0.6. Unchecked, with the scene '
