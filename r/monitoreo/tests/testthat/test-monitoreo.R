@@ -528,7 +528,8 @@ test_that("the seasonal profile by day of the year: its options reach the servic
   }
   yearly <- lapply(vars, function(v) list(region = "buffer", date = "2021-01-01", value = 0.05, n_pixels = 5L,
                                           n_images = 1L, year = 2021L, doy = 1L, variable = v))
-  # what Python returns (its tuples and dictionaries as lists): the NDVI from -1 to 1, the SCF (in %) from the data
+  # what Python returns (its tuples and dictionaries as lists): the NDVI in the range given (-1 to 1), the SCF (in %)
+  # from the data
   answer <- list(rows = yearly, profile = profile, variables = as.list(vars),
                  units = stats::setNames(list("[unitless]", "[%]"), vars), scales = stats::setNames(list(30, 30), vars),
                  interannual = "p25", unit = "[unitless]", ylabel = "[unitless]",
@@ -637,7 +638,7 @@ test_that("the seasonal profile by day of the year: its options reach the servic
   expect_equal(graphics::par("usr")[3:4], c(0, 1))
 })
 
-test_that("the seasonal profile of two indices from Python, without Earth Engine: both axes from -1 to 1", {
+test_that("the seasonal profile of two indices from Python, without Earth Engine: each axis from its values", {
   skip_if_no_python()
   # the series of each variable from a fake timeseries.series (the NDSI in winter, the NDVI in summer, nothing in
   # February 2022), and the region not computed, as in tests/test_doy_profile.py; restored at the end
@@ -674,8 +675,8 @@ test_that("the seasonal profile of two indices from Python, without Earth Engine
   expect_equal(p$n_years[1:2], c(3, 2))  # February of 2022 without a value
   expect_equal(attr(p, "variables"), vars)
   expect_equal(attr(p, "interannual"), "median")  # by default with other_variable
-  expect_equal(attr(p, "ylim"), c(-1, 1))  # spectral indices of the catalog: -1 to 1 by default
-  expect_equal(attr(p, "other_ylim"), c(-1, 1))
+  expect_null(attr(p, "ylim"))  # none given: each axis from the values of its own variable
+  expect_null(attr(p, "other_ylim"))
   expect_equal(attr(p, "units"), c("NDSI Sentinel-2" = "[unitless]", "NDVI Sentinel-2" = "[unitless]"))
   expect_equal(attr(p, "scales"), c("NDSI Sentinel-2" = 10, "NDVI Sentinel-2" = 10))
   expect_match(attr(p, "title"), "^NDSI Sentinel-2 and NDVI Sentinel-2 \\| .*\\| median of the years by day of the year$")
@@ -712,8 +713,16 @@ test_that("the seasonal profile of two indices from Python, without Earth Engine
                "ylim: the first number of the y axis (1) must be smaller than the second (0)", fixed = TRUE)
   skip_if_not_installed("ggplot2")
   g <- mo_plot(p)
-  expect_equal(g$coordinates$limits$y, c(-1, 1))
-  expect_equal(g$scales$get_scales("y")$secondary.axis$trans(c(-1, 1)), c(-1, 1))  # both from -1 to 1
+  # each axis from the minimum to the maximum of its own variable, with a margin of 5 %: the NDSI on the left, the
+  # NDVI on the right (the secondary axis: the linear transform from the range of the left axis to its own)
+  own <- function(v) {
+    r <- range(p$value[p$variable == v], na.rm = TRUE)
+    r + c(-1, 1) * 0.05 * diff(r)
+  }
+  expect_equal(g$coordinates$limits$y, own(vars[1]))
+  expect_equal(g$scales$get_scales("y")$secondary.axis$trans(own(vars[1])), own(vars[2]))
+  expect_false(isTRUE(all.equal(own(vars[1]), own(vars[2]))))
+  expect_false(isTRUE(all.equal(own(vars[1]), c(-1, 1))))
 })
 
 test_that("burn severity with the RdNBR: its legend, sensors and errors, without Earth Engine", {

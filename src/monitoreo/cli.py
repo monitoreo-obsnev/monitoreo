@@ -347,9 +347,8 @@ def main(argv=None):
 	                    'filters')
 	p.add_argument('--other-sensor', help='the sensor of --other-variable (default: --sensor)')
 	p.add_argument('--ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
-	               help='with --doy: the range of the (left) y axis, e.g. --ylim -1 1; in the profile, by default -1 to 1 '
-	                    'for the spectral indices (NDVI, EVI, NDSI, NDWI, LSWI, NBR, NDCI; not the NDSI of Modis, the '
-	                    'snow cover 0-100) when no metric changes their scale (std, cv, count, sum), else from the data')
+	               help='with --doy: the range of the (left) y axis, e.g. --ylim -1 1 (default: from the minimum to the '
+	                    'maximum of the values of its variable)')
 	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	computes['image'] = image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, '

@@ -22,17 +22,18 @@ region), and the y axis of its \code{ylim}, if it was given.
 A seasonal profile of \code{mo_time_series(doy = TRUE)} with \code{interannual} or \code{other_variable} (with the
 columns variable, doy and n_years) is drawn with a line per variable over the days of the year: the first variable
 on the left y axis (blue) and the other one on a right y axis (red), each axis in the colour of its line, with the
-ranges of the attributes ylim and other_ylim (-1 to 1 by default for the spectral indices; else, or when they are
-\code{NULL}, from the data) and a line at 0 where an axis has it; a panel per region (with base graphics, a line
-type per region). With ggplot2 the right axis is a secondary axis (\code{ggplot2::sec_axis()}): the values of the
-other variable are drawn with the linear transform from the range of the right axis to that of the left one; with
-base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the right
-(\code{axis(4)}).
+ranges of the attributes ylim and other_ylim if they were given (else, \code{NULL}, each axis from the minimum to
+the maximum of the values of its own variable) and a line at 0 where an axis has it; a panel per region (with base
+graphics, a line type per region). With ggplot2 the right axis is a secondary axis (\code{ggplot2::sec_axis()}):
+the values of the other variable are drawn with the linear transform from the range of the right axis to that of
+the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
+right (\code{axis(4)}).
 }
 \examples{
 \dontrun{
 mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
-# the NDSI (left) and the NDVI (right) of each month, the median of the years, from -1 to 1; the snow of the NDSI kept
+# the NDSI (left) and the NDVI (right) of each month, the median of the years, each axis from its values; the snow
+# of the NDSI kept
 mo_plot(mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
                        other_variable = "NDVI", quality = list(snow = "auto")))
 }

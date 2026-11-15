@@ -738,11 +738,8 @@ mo_sf <- function(x, name = NULL) {
 #'   Engine by its ID) and its sensor (default: \code{sensor}), computed as the first one (the same region, period,
 #'   season, step, metric, statistic, pixel filters and scale) and drawn on the right y axis of the seasonal profile,
 #'   e.g. the NDSI on the left and the NDVI on the right.
-#' @param ylim,other_ylim with \code{doy}: \code{c(min, max)} of the left and of the right y axis. In the seasonal
-#'   profile, by default -1 to 1 for the spectral indices of the catalog (NDVI, EVI, NDSI, NDWI, LSWI, NBR and NDCI;
-#'   not the NDSI of MODIS, a snow cover from 0 to 100) when neither \code{metric}, \code{stat} nor
-#'   \code{interannual} changes their scale (std, cv, count, sum); else, and in the chart with a line per year, from
-#'   the data.
+#' @param ylim,other_ylim with \code{doy}: \code{c(min, max)} of the left and of the right y axis, only if given; by
+#'   default each axis goes from the minimum to the maximum of the values of its own variable.
 #' @param chart optional path of a PNG chart.
 #' @return A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
 #'   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
@@ -774,8 +771,8 @@ mo_sf <- function(x, name = NULL) {
 #' # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
 #' pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
 #'                      start = "2015-01-01", end = "2024-12-31")
-#' # the seasonal profile of the NDSI and the NDVI on two y axes, from -1 to 1: the median of the years of each month;
-#' # snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
+#' # the seasonal profile of the NDSI and the NDVI on two y axes, each from its values: the median of the years of each
+#' # month; snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
 #' p <- mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
 #'                     interannual = "median", other_variable = "NDVI", quality = list(snow = "auto"))
 #' mo_plot(p)
@@ -805,7 +802,7 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   attr(df, "ylabel") <- res$ylabel
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
-  attr(df, "ylim") <- axis_numbers(res$ylim)  # with doy: the range of the y axis, if given or by default
+  attr(df, "ylim") <- axis_numbers(res$ylim)  # with doy: the range of the y axis, if given (NULL: from the data)
   if (profiled) {
     attr(df, "rows") <- rows_df(res$rows)
     attr(df, "variables") <- as.character(unlist(res$variables))
@@ -841,19 +838,20 @@ axis_numbers <- function(x) if (length(x) == 2) as.numeric(unlist(x)) else NULL
 #' A seasonal profile of \code{mo_time_series(doy = TRUE)} with \code{interannual} or \code{other_variable} (with the
 #' columns variable, doy and n_years) is drawn with a line per variable over the days of the year: the first variable
 #' on the left y axis (blue) and the other one on a right y axis (red), each axis in the colour of its line, with the
-#' ranges of the attributes ylim and other_ylim (-1 to 1 by default for the spectral indices; else, or when they are
-#' \code{NULL}, from the data) and a line at 0 where an axis has it; a panel per region (with base graphics, a line
-#' type per region). With ggplot2 the right axis is a secondary axis (\code{ggplot2::sec_axis()}): the values of the
-#' other variable are drawn with the linear transform from the range of the right axis to that of the left one; with
-#' base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the right
-#' (\code{axis(4)}).
+#' ranges of the attributes ylim and other_ylim if they were given (else, \code{NULL}, each axis from the minimum to
+#' the maximum of the values of its own variable) and a line at 0 where an axis has it; a panel per region (with base
+#' graphics, a line type per region). With ggplot2 the right axis is a secondary axis (\code{ggplot2::sec_axis()}):
+#' the values of the other variable are drawn with the linear transform from the range of the right axis to that of
+#' the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
+#' right (\code{axis(4)}).
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
 #' @importFrom graphics abline axis legend lines mtext par
 #' @examples
 #' \dontrun{
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
-#' # the NDSI (left) and the NDVI (right) of each month, the median of the years, from -1 to 1; the snow of the NDSI kept
+#' # the NDSI (left) and the NDVI (right) of each month, the median of the years, each axis from its values; the snow
+#' # of the NDSI kept
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
 #'                        other_variable = "NDVI", quality = list(snow = "auto")))
 #' }

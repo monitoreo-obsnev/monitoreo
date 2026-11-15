@@ -206,11 +206,12 @@ services.transect = transect
 
 def time_series(region, csv=None, **opts):
 	"""services.time_series of the NDVI of Sentinel-2 (monthly, 2022-2023) and, with doy and interannual or
-	other_variable, its seasonal profile as services makes it (timeseries.doy_profile, catalog.index_ylim), the other
-	variable (a decreasing NDSI that crosses 0) on the right axis. The values of each month change from 2022 to 2023,
+	other_variable, its seasonal profile as services makes it (timeseries.doy_profile; no range of the y axes unless
+	given, each axis from the values of its own variable), the other variable (a decreasing NDSI that crosses 0) on
+	the right axis. The values of each month change from 2022 to 2023,
 	so that their standard deviation is not 0."""
 	calls.append(dict(opts, region=region, tool='time_series'))
-	from monitoreo import catalog, timeseries
+	from monitoreo import timeseries
 	other = opts.get('other_variable')
 	names = ['NDVI Sentinel-2'] + ([f"{other} {opts['other_sensor']}"] if other else [])
 	rows = [{'region': 'extent', 'date': f'{y}-{m:02d}-01', 'value': 0.1 * m + 0.04 * (y - 2022) if k == 0 else 0.6 - 0.1 * m + 0.02 * (y - 2022),
@@ -229,10 +230,9 @@ def time_series(region, csv=None, **opts):
 		out['ylim'] = None
 	if opts.get('doy') and (opts.get('interannual') or other):
 		between = opts.get('interannual') or 'median'
-		lim = lambda index, sensor: catalog.index_ylim(catalog.find(index, sensor), opts['metric'], opts['stat'], between)
 		out.update(profile=timeseries.doy_profile(rows, None, opts['step'], between, names[0]), variables=names,
 		           units={n: '[unitless]' for n in names}, scales=dict(zip(names, (10.0, 20.0))), interannual=between,
-		           ylim=lim('NDVI', 'Sentinel-2'), other_ylim=lim(other, opts['other_sensor']) if other else None,
+		           ylim=services.check_ylim(opts.get('ylim')), other_ylim=services.check_ylim(opts.get('other_ylim')),
 		           other_ylabel=f'{other} [unitless]' if other else None,
 		           title=f"{' and '.join(names)} | {between} of the years by day of the year")
 	return out
@@ -454,7 +454,12 @@ chart = dlg.chart or results.ChartWidget(res['rows'], res['title'], results.ylab
                                          other_ylim=res['other_ylim'])
 assert chart.profile and chart.names == ['NDVI Sentinel-2', 'NDSI Sentinel-2'], chart.names
 assert sorted(chart.series) == ['NDSI Sentinel-2', 'NDVI Sentinel-2'] and len(chart.series['NDSI Sentinel-2']) == 12
-assert chart.axis_range(0) == (-1.0, 1.0) and chart.axis_range(1) == (-1.0, 1.0)  # spectral indices: -1 to 1
+# each axis from the minimum to the maximum of the values of its own variable (with a margin of 5 %), not -1 to 1
+for k, name in enumerate(chart.names):
+	own = [r['value'] for r in res['profile'] if r['variable'] == name and r['value'] is not None]
+	low, high = chart.axis_range(k)
+	assert low < min(own) < max(own) < high and high - low < 1.2 * (max(own) - min(own)), (name, low, high, own)
+assert res['ylim'] is None and res['other_ylim'] is None and chart.axis_range(0) != chart.axis_range(1)
 assert (chart.unit, chart.other_unit) == ('NDVI', 'NDSI [unitless]'), (chart.unit, chart.other_unit)
 assert chart.pen(0, 'NDVI Sentinel-2').color() == QColor(results.PROFILE_COLOURS[0])
 assert chart.pen(1, 'NDSI Sentinel-2').color() == QColor(results.PROFILE_COLOURS[1])
@@ -482,8 +487,11 @@ assert table.rowCount() == 24 and [table.item(0, j).text() for j in (1, 2, 3, 5,
 	['NDVI Sentinel-2', 'Jan', '1', '[unitless]', '2'], [table.item(0, j).text() for j in range(7)]
 assert table.item(12, 1).text() == 'NDSI Sentinel-2' and table.item(12, 4).text() == '0.51', table.item(12, 4).text()
 text = results.series_text(res)
-assert 'left axis: NDVI Sentinel-2, [unitless], pixels of 10 m, y from -1 to 1' in text, text
-assert 'right axis: NDSI Sentinel-2, [unitless], pixels of 20 m, y from -1 to 1' in text, text
+assert 'left axis: NDVI Sentinel-2, [unitless], pixels of 10 m · ' in text and 'y from' not in text, text
+assert 'right axis: NDSI Sentinel-2, [unitless], pixels of 20 m · ' in text, text
+given = dict(res, ylim=(0.0, 1.5))  # a range given: that of the axis
+assert 'pixels of 10 m, y from 0 to 1.5 · ' in results.series_text(given)
+assert results.ChartWidget([], 'NDVI', 'NDVI', profile=res['profile'], ylim=(0.0, 1.5)).axis_range(0) == (0.0, 1.5)
 assert 'median of 48 values of each year in 24 steps of the year' in text, text
 print('profile on two axes:', chart.names, '| table', table.rowCount(), 'rows')
 # two regions: a dash for each, the colour of its axis
@@ -496,7 +504,7 @@ two.grab()
 # A line per year again: no variable on the right axis
 dock.doy_interannual.setCurrentIndex(0)
 assert dock.doy_other.currentData() is None
-# a metric between the years without a right axis: one variable, one axis; the standard deviation is not in -1 to 1
+# a metric between the years without a right axis: one variable, one axis, from the standard deviations
 dock.doy_interannual.setCurrentIndex(dock.doy_interannual.findData('std'))
 dock.run_series()
 wait()

@@ -835,12 +835,6 @@ def check_ylim(ylim, name='ylim'):
 	return lo, hi
 
 
-def _default_ylim(spec, *metrics):
-	"""The default range of the y axis of the profile by day of the year of SPEC aggregated with METRICS: -1 to 1 for
-	the spectral indices of the catalog (see catalog.index_ylim), else None (from the data)."""
-	return catalog.index_ylim(variables.entry_of(spec), *metrics) if variables.kind(spec) == 'catalog' else None
-
-
 def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 	"""The spec of the other variable of a profile by day of the year (the right axis): a variable of the catalog with
 	dates, with the period, season, metric, pixel filters and pixels of the region (where, exclude_landcover) of the
@@ -882,16 +876,16 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	timeseries.doy_profile), INTERANNUAL (default median) of its values in the years of the period, a line per
 	variable over the days of the year. OTHER_VARIABLE (and OTHER_SENSOR, default SENSOR) is a second variable of the
 	catalog with dates, computed as the first one (region, period, season, step, metric, statistic, pixel filters,
-	scale), drawn on a right axis (e.g. NDSI and NDVI). YLIM and OTHER_YLIM: (min, max) of the left and right y axes;
-	in the profile, by default -1 to 1 for the spectral indices of the catalog (not the NDSI of MODIS, 0-100) when no
-	metric changes their scale (std, cv, count, sum: see catalog.index_ylim), else from the data. The CSV of the profile
-	has its rows (timeseries.PROFILE_COLUMNS and PROFILE_META), not those of each year.
+	scale), drawn on a right axis (e.g. NDSI and NDVI). YLIM and OTHER_YLIM: (min, max) of the left and right y axes,
+	only when given; else each axis goes from the minimum to the maximum of the values of its own variable. The CSV of
+	the profile has its rows (timeseries.PROFILE_COLUMNS and PROFILE_META), not those of each year.
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'ylabel', 'title',
-	'n_steps', 'regions'}; with DOY also 'ylim', and the rows have year and doy; with the profile also 'profile'
-	([{region, variable, part, doy, label, value, n_years}]), 'variables' (the names of the variables, as in the rows
-	and the profile, e.g. ['NDSI Sentinel-2', 'NDVI Sentinel-2']), 'units' and 'scales' ({name: unit or pixel size}),
-	'interannual', 'other_ylabel' and 'other_ylim' (None without OTHER_VARIABLE), and the rows of both variables, each
-	with its 'variable' when there are two."""
+	'n_steps', 'regions'}; with DOY also 'ylim' (YLIM, or None: from the data), and the rows have year and doy; with
+	the profile also 'profile' ([{region, variable, part, doy, label, value, n_years}]), 'variables' (the names of
+	the variables, as in the rows and the profile, e.g. ['NDSI Sentinel-2', 'NDVI Sentinel-2']), 'units' and 'scales'
+	({name: unit or pixel size}), 'interannual', 'other_ylabel' (None without OTHER_VARIABLE) and 'other_ylim'
+	(OTHER_YLIM, or None: from the data), and the rows of both variables, each with its 'variable' when there are
+	two."""
 	given = [k for k, v in zip(DOY_OPTIONS, (interannual, other_variable, other_sensor, ylim, other_ylim))
 	         if v is not None and v != '' and v != [] and v != ()]
 	if given and not doy:
@@ -942,7 +936,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	       'ylabel': _ylabel(spec, stat, interannual if profiled else None), 'title': title,
 	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
 	if doy:
-		out['ylim'] = ylim if ylim or not profiled else _default_ylim(spec, metric, stat, interannual)
+		out['ylim'] = ylim
 	if profiled:
 		units, scales = {names[0]: unit}, {names[0]: used_scale}
 		out.update(profile=timeseries.doy_profile(rows, spec, step, interannual, names[0]), variables=names,
@@ -952,7 +946,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 		if other:
 			units[names[1]], scales[names[1]] = _unit(other, stat, interannual), other_scale
 			out['other_ylabel'] = _ylabel(other, stat, interannual)
-			out['other_ylim'] = other_ylim or _default_ylim(other, metric, stat, interannual)
+			out['other_ylim'] = other_ylim
 			for k, name in (('ylabel', names[0]), ('other_ylabel', names[1])):  # two axes: each says its variable
 				if name.split()[0] not in str(out[k] or ''):
 					out[k] = f'{name} {out[k] or ""}'.strip()

@@ -312,9 +312,8 @@ HELP = {
 		'before choosing them. When '
 		'MODIS has two collections (Terra and Aqua), the first one of the catalog, named in the tip of each item. With a '
 		'variable here, <b>Between years</b> is a metric (the Median, if it was A line per year).</p>'
-		'<p>The y axis of a spectral index (NDVI, EVI, NDSI, NDWI, LSWI, NBR, NDCI) goes from -1 to 1, unless a metric '
-		'changes its scale (standard deviation, coefficient of variation). The NDSI of MODIS (MOD10A1, MYD10A1) is the '
-		'NDSI snow cover, from 0 to 100: its axis, as that of the other variables, goes from their values.</p>'
+		'<p>Each y axis goes from the minimum to the maximum of the values of its own variable, so that both lines fill '
+		'the chart, whatever their units.</p>'
 		+ manual('QGIS-plugin#5-compute-the-time-series'),
 	'series_list':
 		'<p>Time series, trend tables, comparisons and burn severities computed in this QGIS session. Choose one and '

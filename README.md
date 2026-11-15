@@ -94,7 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **All tools**: The seasonal profile by day of the year of one or two variables (e.g. the NDSI and the NDVI on two y axes): for each month, 16 days or day of the year, a metric between the years that you choose (mean, median, minimum, maximum, a percentile, standard deviation or coefficient of variation), the axes of the spectral indices from −1 to 1 by default (or the range you give), with its CSV, README and references of both variables.
+- **All tools**: The seasonal profile by day of the year of one or two variables (e.g. the NDSI and the NDVI on two y axes): for each month, 16 days or day of the year, a metric between the years that you choose (mean, median, minimum, maximum, a percentile, standard deviation or coefficient of variation), each y axis from the minimum to the maximum of the values of its own variable (or the range you give), with its CSV, README and references of both variables.
 
 ### [v0.3.37](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.37) · 2026-11-14 · package 0.3.47
 

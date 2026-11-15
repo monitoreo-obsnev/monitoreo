@@ -1,6 +1,6 @@
 """The seasonal profile by day of the year (time_series with doy and interannual or other_variable): for each step of
 the year (each month, 16-day period or calendar day) the metric between the years that the user chooses of its values,
-a line per variable, e.g. the NDSI and the NDVI on two y axes, -1 to 1 by default for the spectral indices. Without
+a line per variable, e.g. the NDSI and the NDVI on two y axes, each from the values of its own variable. Without
 Earth Engine: the series of each variable come from a fake timeseries.series, and every error comes before it."""
 
 import csv
@@ -199,19 +199,6 @@ def test_the_order_of_the_profile_and_its_errors():
 		timeseries.doy_profile(rows, None, 'monthly', 'sum')
 
 
-def test_the_default_range_of_the_y_axis():
-	ndvi, ndsi_modis = catalog.find('NDVI', 'Sentinel-2'), catalog.find('NDSI', 'Modis')
-	assert catalog.index_ylim(ndvi, 'mean', 'mean', 'median') == (-1, 1)
-	assert catalog.index_ylim(catalog.find('LSWI', 'Sentinel-2'), 'mean') == (-1, 1)  # max 1, without maxp
-	assert catalog.index_ylim(ndsi_modis, 'mean') is None  # the NDSI snow cover, 0 to 100
-	assert catalog.index_ylim(catalog.find('NDSI', 'Landsat'), 'p95') == (-1, 1)
-	for spread in ('std', 'cv', 'count', 'sum'):
-		assert catalog.index_ylim(ndvi, 'mean', spread) is None
-	assert catalog.index_ylim(catalog.find('LST', 'Modis'), 'mean') is None
-	assert catalog.index_ylim(catalog.find('SCF', 'Landsat'), 'mean') is None
-	assert catalog.index_ylim(None, 'mean') is None
-
-
 def test_a_range_of_the_y_axis_is_checked():
 	assert services.check_ylim([-1, 1]) == (-1.0, 1.0) and services.check_ylim((0, '0.5')) == (0.0, 0.5)
 	assert services.check_ylim('-0.2, 1') == (-0.2, 1.0) and services.check_ylim('[-1 1]') == (-1.0, 1.0)
@@ -220,6 +207,13 @@ def test_a_range_of_the_y_axis_is_checked():
 	for bad in ([1, -1], [1, 1], [1], [1, 2, 3], 'a b', [True, 2], [float('nan'), 1], 5, {'min': 0, 'max': 1}):
 		with pytest.raises(ValueError, match='other_ylim'):
 			services.check_ylim(bad, 'other_ylim')
+
+
+def test_no_default_range_of_the_y_axes():
+	"""Each y axis goes from the values of its own variable unless a range is given: no default range by variable."""
+	for name in ('SPECTRAL_INDICES', 'INDEX_RANGE', 'SCALE_METRICS', 'index_ylim'):
+		assert not hasattr(catalog, name), name
+	assert not hasattr(services, '_default_ylim')
 
 
 # time_series ------------------------------------------------------------------------------------------------------
@@ -273,7 +267,7 @@ def test_two_indices_on_two_axes(ee, tmp_path):
 	assert out['variables'] == ['NDSI Sentinel-2', 'NDVI Sentinel-2'] and out['interannual'] == 'median'
 	assert out['units'] == {'NDSI Sentinel-2': '[unitless]', 'NDVI Sentinel-2': '[unitless]'}
 	assert out['scales'] == {'NDSI Sentinel-2': 10.0, 'NDVI Sentinel-2': 10.0}
-	assert out['ylim'] == (-1, 1) and out['other_ylim'] == (-1, 1)
+	assert out['ylim'] is None and out['other_ylim'] is None  # each axis from the values of its own variable
 	assert (out['ylabel'], out['other_ylabel']) == ('NDSI Sentinel-2 [unitless]', 'NDVI Sentinel-2 [unitless]')  # each axis
 	assert out['title'] == ('NDSI Sentinel-2 and NDVI Sentinel-2 | 2021-01-01 / 2023-12-31 | monthly mean, spatial mean '
 	                        '| median of the years by day of the year')
@@ -327,7 +321,7 @@ def test_the_same_options_for_the_other_variable(ee):
 def test_one_index_with_a_metric_between_the_years(ee, tmp_path):
 	out = services.time_series(REGION, 'NDVI', 'Sentinel-2', '2021-01-01', '2023-12-31', doy=True, interannual='mean',
 	                           csv=str(tmp_path / 'p.csv'))
-	assert len(ee) == 1 and out['variables'] == ['NDVI Sentinel-2'] and out['ylim'] == (-1, 1)
+	assert len(ee) == 1 and out['variables'] == ['NDVI Sentinel-2'] and out['ylim'] is None
 	assert out['other_ylim'] is None and out['other_ylabel'] is None
 	assert 'variable' not in out['rows'][0] and {r['variable'] for r in out['profile']} == {'NDVI Sentinel-2'}
 	assert out['title'].endswith('| monthly mean, spatial mean | mean of the years by day of the year')
@@ -403,7 +397,7 @@ def test_data_of_earth_engine_with_an_index_of_the_catalog(ee):
 	out = services.time_series(REGION, collection='IDAHO_EPSCOR/TERRACLIMATE', band='pr', unit='mm', start='2021-01-01',
 	                           end='2022-12-31', doy=True, other_variable='NDVI', other_sensor='Modis')
 	assert out['variables'] == ['IDAHO_EPSCOR/TERRACLIMATE pr', 'NDVI Modis']
-	assert out['ylim'] is None and out['other_ylim'] == (-1, 1) and out['units']['IDAHO_EPSCOR/TERRACLIMATE pr'] == 'mm'
+	assert out['ylim'] is None and out['other_ylim'] is None and out['units']['IDAHO_EPSCOR/TERRACLIMATE pr'] == 'mm'
 	with pytest.raises(ValueError, match='give its sensor'):
 		services.time_series(REGION, collection='IDAHO_EPSCOR/TERRACLIMATE', band='pr', start='2021-01-01',
 		                     end='2022-12-31', doy=True, other_variable='NDVI')
@@ -428,8 +422,14 @@ def test_the_chart_of_two_indices(ee, figure, tmp_path):
 	axes = figure[-1].axes
 	assert len(axes) == 4  # a panel per region, each with its left and right axes
 	from monitoreo import charts
-	for left, right in (axes[0:2], axes[2:4]):
-		assert left.get_ylim() == (-1, 1) and right.get_ylim() == (-1, 1) and left.get_xlim() == (1, 366)
+	for region, (left, right) in zip(('buffer', 'park'), (axes[0:2], axes[2:4])):
+		# each axis from the minimum to the maximum of the values of its own variable (with the margin of matplotlib)
+		for name, a in zip(out['variables'], (left, right)):
+			values = [r['value'] for r in out['profile'] if r['region'] == region and r['variable'] == name
+			          and r['value'] is not None]
+			low, high = a.get_ylim()
+			assert low <= min(values) < max(values) <= high and high - low < 1.2 * (max(values) - min(values)), name
+		assert left.get_ylim() != right.get_ylim() and left.get_xlim() == (1, 366)
 		assert list(left.get_xticks()) == charts.MONTH_STARTS
 		assert [ln.get_color() for ln in left.get_lines() if ln.get_label() == 'NDSI Sentinel-2'] == ['#1f77b4']
 		assert [ln.get_color() for ln in right.get_lines() if ln.get_label() == 'NDVI Sentinel-2'] == ['#d62728']
@@ -490,7 +490,7 @@ def test_the_report_of_a_profile():
 	assert facts['Other variable (right axis)'].startswith('Normalized Difference Vegetation Index (NDVI), Sentinel-2')
 	assert facts['Between the years'].startswith('median of the values of each month (1-12) in the years')
 	assert facts['Chart'].endswith('NDSI (Sentinel-2) on the left axis (-0.5 to 1), NDVI (Sentinel-2) on the right axis '
-	                               '(-1 to 1)')  # the given range and the default one
+	                               '(from the data)')  # the given range, and none: from the values of the NDVI
 	assert facts['Method'] == report.METHODS['time_series_profile']
 	modis = dict(report.item_facts('time_series', dict(args, sensor='Modis', ylim=None, other_variable=None,
 	                                                   interannual='cv', step='16-day'), {}))
@@ -542,7 +542,8 @@ def test_the_readme_of_a_profile(ee, tmp_path):
 		assert f' {column}: ' in text, column
 	assert 'part: step of the year: the month (1-12)' in text and 'n_years: years with a value in the step' in text
 	assert 'Between the years: median of the values of each month (1-12)' in text
-	assert 'NDSI (Sentinel-2) on the left axis (-1 to 1), NDVI (Sentinel-2) on the right axis (-1 to 1)' in text
+	assert ('NDSI (Sentinel-2) on the left axis (from the data), NDVI (Sentinel-2) on the right axis (from the '
+	        'data)') in text
 	assert 'other_variable="NDVI"' in text and 'Tucker, C. J. (1979)' in text and 'Wu, Q. (2020)' in text
 	one = services.time_series(REGION, 'NDVI', 'Sentinel-2', '2021-01-01', '2023-12-31', doy=True, interannual='cv',
 	                           csv=str(tmp_path / 'cv.csv'))

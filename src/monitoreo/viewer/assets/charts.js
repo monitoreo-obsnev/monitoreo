@@ -343,9 +343,9 @@ MO.chart = (() => {
 	// other_variable): for each step of the year (each month, 16-day period or calendar day), the metric between the
 	// years of its values, at its day of the year, a line per variable (result.variables, as the column variable of its
 	// CSV names them). The first one on the left axis and the other one on the right axis, each with its own scale (the
-	// range of the result, ylim and other_ylim: -1 to 1 for the spectral indices; else from the data) and, with two,
-	// its title and labels in the colour of its line; a line at 0 where it is inside an axis (that of the right axis,
-	// dotted, only if its range is not that of the left one), as charts.doy_profile_png of Python.
+	// range of the result, ylim and other_ylim, if given; else from the minimum to the maximum of its variable) and,
+	// with two, its title and labels in the colour of its line; a line at 0 where it is inside an axis (that of the
+	// right axis, dotted, only if its range is not that of the left one), as charts.doy_profile_png of Python.
 	function doyProfileSpec(rows, result) {
 		const names = (result.variables || []).length ? result.variables.slice(0, 2) :
 			[...new Set(rows.map((r) => r.variable))].slice(0, 2);

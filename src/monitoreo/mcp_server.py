@@ -86,10 +86,9 @@ pixel size, over its ecoregions: the input variables of a model). Seasonal trend
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
 pixel). By day of the year: time_series with doy, a line per year (phenology, snow seasons), or the seasonal profile of
 one or two variables on two y axes with interannual (the metric between the years of each month, 16 days or day,
-default median) and other_variable (and other_sensor), e.g. the median NDSI and NDVI of each month of 2018-2024; its
-y axes go from -1 to 1 for the spectral indices (not the NDSI of MODIS, the snow cover 0-100), else from the data,
-or as ylim and other_ylim say. Comparison of a reference period with another: compare_series, compare_map and
-download_comparison. Hectares and %
+default median) and other_variable (and other_sensor), e.g. the median NDSI and NDVI of each month of 2018-2024; each
+y axis goes from the minimum to the maximum of its own variable, or as ylim and other_ylim say. Comparison of a
+reference period with another: compare_series, compare_map and download_comparison. Hectares and %
 of each class of a land cover map of a year, of the map of a variable cut at some values, or of the trend on each
 pixel (significant decrease, no trend, increase): area_by_class. Gradients: the statistics of a map by elevation band
 (region_stats with zones) and its profile along a line, with the elevation (transect). Animations
@@ -511,8 +510,7 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
 	clouds); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
 	step annual); with interannual (the metric between the years of each step, default median) or other_variable (and
-	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default -1, 1 for
-	indices)."""
+	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default: the data's)."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit)
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()

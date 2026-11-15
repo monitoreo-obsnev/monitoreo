@@ -1889,10 +1889,10 @@
 	}
 
 	// The seasonal profile PROF (mo.doyProfile) of the feature REGION over the days of the year, a line per variable of
-	// NAMES: the first on the left axis (blue), the other on the right axis (red), each axis (AXES: its title and range,
-	// null from the data) in the colour of its line when there are two, as charts.doy_profile_png; titled NAME, and the
-	// feature when there are SEVERAL
-	function profileChart(prof, names, axes, name, region, several) {
+	// NAMES: the first on the left axis (blue), the other on the right axis (red), each axis (its title in TITLES) from
+	// the minimum to the maximum of the values of its own variable and in the colour of its line when there are two, as
+	// charts.doy_profile_png; titled NAME, and the feature when there are SEVERAL
+	function profileChart(prof, names, titles, name, region, several) {
 		var parts = [], values = {}, at = {};  // a point per step of the year (part), on its day: 29 February and 1 March
 		prof.forEach(function (r) {
 			if (r.region !== region) return;
@@ -1916,8 +1916,7 @@
 		names.forEach(function (n, k) {
 			var colour = PROFILE_COLOURS[k];
 			series[k] = {targetAxisIndex: k, color: colour};
-			vAxes[k] = {title: axes[k].title};
-			if (axes[k].ylim) vAxes[k].viewWindow = {min: axes[k].ylim[0], max: axes[k].ylim[1]};
+			vAxes[k] = {title: titles[k]};
 			if (names.length > 1) vAxes[k].titleTextStyle = vAxes[k].textStyle = {color: colour};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name + (several ? ' · ' + region : ''),
@@ -1966,7 +1965,7 @@
 	// The seasonal profile by day of the year of the variable of the panel (spec S of the entry E) and of the variable
 	// of the right axis, if one is chosen, computed as the first one (services.time_series with doy, interannual and
 	// other_variable): for each step of the year, the metric between the years of its values (mo.doyProfile), a line per
-	// variable over the days of the year, each on its y axis (from -1 to 1 for the spectral indices: mo.indexYlim); a
+	// variable over the days of the year, each on its y axis (from the minimum to the maximum of its values); a
 	// chart for each feature, and the CSV of the profile (its columns and those of how it was computed, as Python)
 	function computeProfile(e, s) {
 		var o = otherSpec(s);
@@ -1996,9 +1995,7 @@
 			});
 			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
-			var axes = entries.map(function (x) {
-				return {title: axisTitle(x, metric, stat, between), ylim: mo.indexYlim(x, metric, stat, between)};
-			});
+			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
 				var k = names.indexOf(r.variable);
 				r.sensor = entries[k].custom ? '' : entries[k].sensor;
@@ -2013,7 +2010,7 @@
 				fmt(t('scaleNote'), num(scales[0]));
 			var regions = regionsOf(prof);
 			show(regions.map(function (g) {  // each feature
-				return profileChart(prof, names, axes, name, g, regions.length > 1);
+				return profileChart(prof, names, titles, name, g, regions.length > 1);
 			}).concat([
 				ui.Label(fmt(t('doyNote'), metricName(between).toLowerCase()), SMALL),
 				ui.Label(note + ' ' + t('chartHelp'), SMALL),

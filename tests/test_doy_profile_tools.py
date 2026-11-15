@@ -72,7 +72,7 @@ def test_the_command_line_draws_two_indices_on_two_axes(connected, capsys, tmp_p
 	assert last.startswith('NDSI Sentinel-2 and NDVI Sentinel-2 | 2021-01-01 / 2023-12-31 | monthly mean, spatial '
 	                       'mean | median of the years by day of the year')
 	assert ' | scale NDSI Sentinel-2 10 m, NDVI Sentinel-2 10 m | units NDSI Sentinel-2 [unitless], NDVI Sentinel-2 ' \
-	       '[unitless] | left y axis (NDSI Sentinel-2) -1 to 1, right y axis (NDVI Sentinel-2) -0.5 to 1' in last
+	       '[unitless] | left y axis (NDSI Sentinel-2) from the data, right y axis (NDVI Sentinel-2) -0.5 to 1' in last
 	assert f' | CSV {csv}' in last
 	with open(csv, encoding='utf-8') as f:
 		assert f.readline().strip().split(',') == timeseries.PROFILE_COLUMNS + timeseries.PROFILE_META
@@ -87,7 +87,7 @@ def test_the_command_line_with_one_index_and_a_metric_between_the_years(connecte
 	assert out[0].split() == [c for c in timeseries.PROFILE_COLUMNS if c != 'variable']  # one variable
 	assert out[2].split()[:4] == ['park', '1', '17', 'Jan']  # the second 16-day period, on 17 January
 	assert out[-1].endswith('| p25 of the years by day of the year | scale 10 m | unit [unitless] | y axis -0.5 to 0.8')
-	cli.main(SERIES + ['--doy', '--interannual', 'cv'])  # a metric that changes the scale: the y axis from the data
+	cli.main(SERIES + ['--doy', '--interannual', 'cv'])  # without --ylim: the y axis from the data
 	last = capsys.readouterr().out.splitlines()[-1]
 	assert last.endswith('| cv of the years by day of the year | scale 10 m | unit [%] | y axis from the data')
 
@@ -159,7 +159,7 @@ def test_the_help_of_the_command_line(capsys):
 	for option in ('--interannual METRIC', '--other-variable VARIABLE', '--other-sensor OTHER_SENSOR', '--ylim MIN MAX',
 	               '--other-ylim MIN MAX'):
 		assert option in text, option
-	assert 'by default -1 to 1 for the spectral indices' in text and 'not the NDSI of Modis' in text
+	assert 'default: from the minimum to the maximum of the values of its variable' in text and '-1 to 1' not in text
 	assert '--other-variable' in cli.__doc__ and 'seasonal profile' in cli.__doc__
 
 
@@ -179,7 +179,7 @@ def test_the_mcp_server_answers_the_profile(mcp, tmp_path):
 	res = json.loads(out[0])
 	assert res['variables'] == NAMES and res['interannual'] == 'median'
 	assert res['units'] == {n: '[unitless]' for n in NAMES} and res['scales'] == {n: 10.0 for n in NAMES}
-	assert res['ylim'] == [-1, 1] and res['other_ylim'] == [-0.5, 1]  # the default of the indices, and the one given
+	assert res['ylim'] is None and res['other_ylim'] == [-0.5, 1]  # from the data, and the one given
 	assert (res['ylabel'], res['other_ylabel']) == ('NDSI Sentinel-2 [unitless]', 'NDVI Sentinel-2 [unitless]')
 	assert len(res['profile']) == 2 * 12 and list(res['profile'][0]) == timeseries.PROFILE_COLUMNS
 	assert res['profile'][0]['label'] == 'Jan' and res['profile'][0]['n_years'] == 3
@@ -246,10 +246,11 @@ def test_the_mcp_server_takes_the_axes_as_lists_of_numbers(mcp, ee):
 def test_the_mcp_server_says_it(mcp):
 	text = ' '.join(mcp.INSTRUCTIONS.split())
 	assert 'the seasonal profile of one or two variables on two y axes with interannual' in text
-	assert 'other_variable (and other_sensor)' in text and 'not the NDSI of MODIS, the snow cover 0-100' in text
+	assert 'other_variable (and other_sensor)' in text and '-1 to 1' not in text
+	assert 'each y axis goes from the minimum to the maximum of its own variable, or as ylim and other_ylim say' in text
 	doc = ' '.join(mcp.time_series.__doc__.split())
 	assert 'with interannual (the metric between the years of each step, default median) or other_variable' in doc
-	assert 'ylim, other_ylim: [min, max] of the y axes (default -1, 1 for indices)' in doc
+	assert "ylim, other_ylim: [min, max] of the y axes (default: the data's)" in doc
 
 
 # The assistant -------------------------------------------------------------------------------------------------------
@@ -265,6 +266,8 @@ def test_the_assistant_knows_the_profile(mcp):
 	assert 'The seasonal profile of one or two indices on two axes («NDSI and NDVI by day of the year»): doy with ' \
 	       'interannual' in text
 	assert 'other_variable (and other_sensor) for the right axis' in text
+	assert '(else each axis goes from the minimum to the maximum of the values of its own variable)' in text
+	assert 'indices: -1 to 1' not in text
 	tools = _model_tools(mcp)
 	series = next(t['function'] for t in tools if t['function']['name'] == 'time_series')
 	props = series['parameters']['properties']
@@ -314,8 +317,8 @@ def test_the_assistant_shows_the_profile(mcp, monkeypatch, tmp_path):
 	facts = dict(card['facts'])
 	assert facts['Other variable (right axis)'].startswith('Normalized Difference Vegetation Index (NDVI)')
 	assert facts['Between the years'].startswith('median of the values of each month')
-	assert facts['Chart'].endswith('NDSI (Sentinel-2) on the left axis (-1 to 1), NDVI (Sentinel-2) on the right axis '
-	                               '(-1 to 1)')
+	assert facts['Chart'].endswith('NDSI (Sentinel-2) on the left axis (from the data), NDVI (Sentinel-2) on the right '
+	                               'axis (from the data)')
 	if card['image']:  # with matplotlib, the chart
 		assert card['image'].startswith('data:image/png')
 	assert [f['name'].rsplit('.', 1)[-1] for f in card['files']] == ['csv', 'txt']  # the CSV and its README

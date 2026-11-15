@@ -374,7 +374,8 @@ def doy_profile_png(profile, path=None, title=None, ylabel=None, other_ylabel=No
 		if len(regions) > 1:
 			ax.set_title(str(g), fontsize=9, loc='left')
 		if i == 0:
-			ax.legend(lines, [ln.get_label() for ln in lines], fontsize=8, frameon=False, loc='best')
+			ax.legend(lines, [ln.get_label() for ln in lines], fontsize=8, frameon=False, ncol=len(lines),
+			          loc='lower right', bbox_to_anchor=(1, 1))  # above the axes: it covers no point of either
 	if title:
 		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
 	fig.tight_layout()

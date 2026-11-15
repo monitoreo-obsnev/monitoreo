@@ -3,7 +3,7 @@ results, without Earth Engine: its chart doy_profile in report.json (publish: th
 the axes, their names and axis titles, the ranges of both y axes, the metric between the years, its analysis and its
 variables, from the result of the services, from an answer of the MCP server or from its CSV alone; check_report) and
 its Vega-Lite spec (src/monitoreo/viewer/assets/charts.js in Node: one line per variable on two independent y axes,
--1 to 1 for the spectral indices, the region chosen, the table)."""
+each from the values of its own variable unless a range is given, the region chosen, the table)."""
 
 import datetime as dt
 import json
@@ -73,7 +73,7 @@ def test_two_indices_on_two_axes_in_the_report(series, tmp_path):
 	assert r['variables'] == ['NDSI Sentinel-2', 'NDVI Sentinel-2']  # as the column variable of its CSV
 	assert r['labels'] == ['NDSI (Sentinel-2)', 'NDVI (Sentinel-2)']
 	assert (r['ylabel'], r['other_ylabel']) == ('NDSI (Sentinel-2)', 'NDVI (Sentinel-2)')  # unitless: no unit
-	assert r['ylim'] == r['other_ylim'] == [-1.0, 1.0] and r['interannual'] == 'median'
+	assert r['ylim'] is None and r['other_ylim'] is None and r['interannual'] == 'median'  # each from its values
 	with open(tmp_path / 'profile' / r['csv'], encoding='utf-8') as f:
 		assert f.readline().strip().split(',') == timeseries.PROFILE_COLUMNS + timeseries.PROFILE_META
 	assert rep['analyses'] == [{'id': 'profile', 'name': 'Seasonal profile'}]
@@ -97,8 +97,8 @@ def test_the_axes_of_the_snow_cover_of_modis_and_of_one_index(series, tmp_path):
 
 
 def test_an_answer_of_the_mcp_server_and_a_csv_without_its_call(series, tmp_path):
-	"""The answer of the MCP server may not have the names, units and ranges of the axes: from the call (the default
-	-1 to 1 of the indices, the unit of the catalog) and the CSV; a CSV alone is drawn as a profile by its columns."""
+	"""The answer of the MCP server may not have the names, units and ranges of the axes: from the call (the ranges
+	given, else none, and the unit of the catalog) and the CSV; a CSV alone is drawn as a profile by its columns."""
 	args = dict(TWO, interannual='p25')
 	res = _call(tmp_path, args, 'two')
 	answer = {'csv': res['csv'], 'unit': res['unit'], 'title': res['title']}
@@ -111,7 +111,10 @@ def test_an_answer_of_the_mcp_server_and_a_csv_without_its_call(series, tmp_path
 	                            'interannual')} == {
 		'chart': 'doy_profile', 'variables': ['NDSI Sentinel-2', 'NDVI Sentinel-2'],
 		'labels': ['NDSI (Sentinel-2)', 'NDVI (Sentinel-2)'], 'ylabel': 'NDSI (Sentinel-2)',
-		'other_ylabel': 'NDVI (Sentinel-2)', 'ylim': [-1.0, 1.0], 'other_ylim': [-1.0, 1.0], 'interannual': 'p25'}
+		'other_ylabel': 'NDVI (Sentinel-2)', 'ylim': None, 'other_ylim': None, 'interannual': 'p25'}
+	given = _publish(tmp_path, [{'tool': 'time_series', 'args': dict(args, other_ylim='0, 0.8'),
+	                             'result': answer}], 'call')[0]['results'][0]
+	assert (given['ylim'], given['other_ylim']) == (None, [0.0, 0.8])  # the range of the call
 	assert csv['chart'] == 'doy_profile' and csv['labels'] == csv['variables'] == mcp['variables']
 	assert csv['interannual'] == 'p25' and csv['ylabel'] == 'NDSI Sentinel-2'  # from its CSV
 	assert csv['ylim'] is None and csv['other_ylim'] is None  # without its call: from the data
@@ -244,7 +247,8 @@ def test_the_viewer_draws_two_indices_on_two_axes(series, tmp_path):
 		assert line['transform'] == point['transform'] == [{'filter': {'field': 'variable', 'equal': name}}]
 		y = line['encoding']['y']
 		assert y['field'] == 'value' and y['title'] == title
-		assert y['scale'] == {'domain': [-1, 1], 'nice': False, 'zero': False} and line['mark']['clip'] is True
+		assert y['scale'] == {'zero': False} and line['mark']['clip'] is False  # from its values, not from 0
+		assert 'domain' not in y['scale']
 		assert y['axis']['orient'] == orient and y['axis']['titleColor'] == y['axis']['labelColor'] == colour
 		x = line['encoding']['x']
 		assert x['field'] == 'doy' and x['scale']['domain'] == [1, 366] and x['axis']['values'][:3] == [1, 32, 60]
@@ -254,7 +258,7 @@ def test_the_viewer_draws_two_indices_on_two_axes(series, tmp_path):
 	colour = left['line']['encoding']['color']
 	assert colour['scale'] == {'domain': ['NDSI (Sentinel-2)', 'NDVI (Sentinel-2)'], 'range': ['#2a78d6', '#e34948']}
 	assert colour['legend'] is not None  # both names
-	# a line at 0 on the left axis only: both axes go from -1 to 1
+	# a line at 0 on the left axis only: the NDSI goes from -0.5 to 0.5, the NDVI from 0.05 to 0.57, without 0
 	assert left['rule']['encoding']['y']['datum'] == 0 and 'rule' not in right
 	jan = [r for r in first['data']['values'] if r['variable'] == 'NDSI Sentinel-2'][0]
 	assert (jan['label'], jan['doy'], jan['n_years'], jan['serie']) == ('Jan', 1, 3, 'NDSI (Sentinel-2)')

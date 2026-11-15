@@ -772,7 +772,7 @@ def _profile_axes(args, res, path, unit):
 	variables of its CSV (variables, as its column variable names them) in the order of the axes, the first one on the
 	left and the other one on the right; their names as the titles write them (labels, e.g. 'NDSI (Sentinel-2)'); the
 	titles of the y axes with the unit of each one (ylabel, other_ylabel); their ranges (ylim, other_ylim: [min, max],
-	or None from the data; by default -1 to 1 for the spectral indices, see services.time_series) and the metric between
+	or None: from the values of each variable, see services.time_series) and the metric between
 	the years (interannual). From the result RES, else (an answer of the MCP server, or a CSV without its call) from the
 	call ARGS and the CSV PATH; UNIT: that of the result (of the first variable)."""
 	from .report import _profile_ylims  # report imports this module

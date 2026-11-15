@@ -120,11 +120,8 @@ Engine by its ID) and its sensor (default: \code{sensor}), computed as the first
 season, step, metric, statistic, pixel filters and scale) and drawn on the right y axis of the seasonal profile,
 e.g. the NDSI on the left and the NDVI on the right.}
 
-\item{ylim, other_ylim}{with \code{doy}: \code{c(min, max)} of the left and of the right y axis. In the seasonal
-profile, by default -1 to 1 for the spectral indices of the catalog (NDVI, EVI, NDSI, NDWI, LSWI, NBR and NDCI;
-not the NDSI of MODIS, a snow cover from 0 to 100) when neither \code{metric}, \code{stat} nor
-\code{interannual} changes their scale (std, cv, count, sum); else, and in the chart with a line per year, from
-the data.}
+\item{ylim, other_ylim}{with \code{doy}: \code{c(min, max)} of the left and of the right y axis, only if given; by
+default each axis goes from the minimum to the maximum of the values of its own variable.}
 }
 \value{
 A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
@@ -163,8 +160,8 @@ ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31
 # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
 pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                      start = "2015-01-01", end = "2024-12-31")
-# the seasonal profile of the NDSI and the NDVI on two y axes, from -1 to 1: the median of the years of each month;
-# snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
+# the seasonal profile of the NDSI and the NDVI on two y axes, each from its values: the median of the years of each
+# month; snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
 p <- mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
                     interannual = "median", other_variable = "NDVI", quality = list(snow = "auto"))
 mo_plot(p)

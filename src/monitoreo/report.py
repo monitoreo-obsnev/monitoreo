@@ -336,24 +336,18 @@ def profile_title(args):
 
 def _profile_ylims(args, result=None):
 	"""The ranges of the left and right y axes of a profile by day of the year: those of its RESULT, else those of its
-	call (ylim, other_ylim) or their defaults (see services.time_series)."""
+	call (ylim, other_ylim), or None when not given (each axis from the values of its own variable: see
+	services.time_series)."""
 	result = result or {}
 	out = []
-	for key, a in (('ylim', args), ('other_ylim', _other_args(args) if args.get('other_variable') else None)):
+	for key in ('ylim', 'other_ylim'):
 		if key in result:
 			out.append(result[key])
 			continue
 		try:
-			lim = services.check_ylim(args.get(key), key)
+			out.append(services.check_ylim(args.get(key), key) if key == 'ylim' or args.get('other_variable') else None)
 		except ValueError:
-			lim = None
-		if lim is None and a is not None and a.get('variable') and not (a.get('collection') or a.get('image')):
-			try:
-				e = catalog.find(a['variable'], a.get('sensor'))
-			except (KeyError, ValueError, TypeError):
-				e = None
-			lim = catalog.index_ylim(e, a.get('metric') or 'mean', a.get('stat') or 'mean', _interannual(args, result))
-		out.append(lim)
+			out.append(None)
 	return out
 
 

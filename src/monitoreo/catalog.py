@@ -333,29 +333,6 @@ REGION_STATS = ('mean', 'std', 'cv', 'min', 'p5', 'p50', 'p95', 'max')
 # zone, as in the QGIS plugin and the Earth Engine app
 REGION_STATS_ZONES = ('mean', 'std', 'cv', 'min', 'p5', 'p25', 'p50', 'p75', 'p95', 'max')
 
-# The spectral indices of the catalog whose values go from -1 to 1 (normalized differences, and the EVI): the y axis of
-# their charts by day of the year goes from INDEX_RANGE by default (see index_ylim), but that of the NDSI of MODIS, the
-# NDSI snow cover of MOD10A1 and MYD10A1, from 0 to 100
-SPECTRAL_INDICES = ('NDVI', 'EVI', 'NDSI', 'NDWI', 'LSWI', 'NBR', 'NDCI')
-INDEX_RANGE = (-1, 1)
-# the metrics (of the images, between the years or over a region) whose values are not in the range of the variable
-SCALE_METRICS = ('std', 'cv', 'count', 'sum')
-
-
-def index_ylim(entry, *metrics):
-	"""The default range (min, max) of the y axis of a chart of the variable of the catalog ENTRY aggregated with
-	METRICS (of the images, between the years, over the region): INDEX_RANGE for a spectral index (SPECTRAL_INDICES)
-	whose values go from -1 to 1 (the top of its colour ramp, maxp, or else max, at most 2: not the NDSI of MODIS, 0 to
-	100), unless one of METRICS changes their scale (SCALE_METRICS); else None (from the data)."""
-	if not entry or entry.get('index') not in SPECTRAL_INDICES:
-		return None
-	top = entry.get('maxp') if entry.get('maxp') is not None else entry.get('max')
-	if top is None or top > 2:
-		return None
-	if any(str(m or '').strip().lower() in SCALE_METRICS for m in metrics):
-		return None
-	return INDEX_RANGE
-
 
 def is_cv(*metrics):
 	"""Whether any of METRICS (a metric of the images, between the years or over a region) is the coefficient of

@@ -1,8 +1,8 @@
 """The seasonal profile by day of the year in the Earth Engine app (gee/core.js and gee/ui.js, in Node, without Earth
-Engine): mo.overYears, mo.doyProfile, mo.indexYlim and mo.udunits give the numbers of timeseries.over_years,
-timeseries.doy_profile, catalog.index_ylim and catalog.udunits on the same values, and the panel, with «A line per
-year, over the days of the year» checked, draws the metric between the years chosen of one or two variables (e.g. the
-NDSI and the NDVI) on two y axes, -1 to 1 for the spectral indices, with the CSV of the profile of services.time_series."""
+Engine): mo.overYears, mo.doyProfile and mo.udunits give the numbers of timeseries.over_years, timeseries.doy_profile
+and catalog.udunits on the same values, and the panel, with «A line per year, over the days of the year» checked,
+draws the metric between the years chosen of one or two variables (e.g. the NDSI and the NDVI) on two y axes, each
+from the values of its own variable, with the CSV of the profile of services.time_series."""
 
 import json
 import os
@@ -45,23 +45,18 @@ out.withDoy = mo.withDoy(input.dated);
 out.profiles = input.profiles.map(function (c) {
 	return attempt(function () { return mo.doyProfile(mo.withDoy(c.rows), c.spec, c.step, c.interannual, c.variable); });
 });
-out.ylims = mo.variables().map(function (e) {
-	return [e.ref, input.ylimMetrics.map(function (ms) { return mo.indexYlim.apply(null, [e].concat(ms)); })];
+out.defaultRange = ['SPECTRAL_INDICES', 'INDEX_RANGE', 'SCALE_METRICS', 'indexYlim'].filter(function (k) {
+	return k in mo;
 });
-out.customYlim = mo.indexYlim(mo.customEntry({asset: 'MODIS/061/MOD13Q1', band: 'NDVI', m: 250}), 'mean');
 out.udunits = input.units.map(mo.udunits);
 out.constants = {UDUNITS: mo.UDUNITS, INTERANNUAL: mo.INTERANNUAL, PROFILE_COLUMNS: mo.PROFILE_COLUMNS,
-	PROFILE_META: mo.PROFILE_META, MONTH_ABBR: mo.MONTH_ABBR, MONTH_STARTS: mo.MONTH_STARTS,
-	SPECTRAL_INDICES: mo.SPECTRAL_INDICES, INDEX_RANGE: mo.INDEX_RANGE, SCALE_METRICS: mo.SCALE_METRICS};
+	PROFILE_META: mo.PROFILE_META, MONTH_ABBR: mo.MONTH_ABBR, MONTH_STARTS: mo.MONTH_STARTS};
 process.stdout.write(JSON.stringify(out));
 """
 
 METRICS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p0', 'p25', 'p50', 'p75', 'p100', 'p2.5', 'p90', 'P75',
            ' Median ']
 BAD = ['mode', 'sum', 'count', 'p101', 'p-5', 'px', '']
-YLIM_METRICS = [['mean', 'mean', 'median'], ['median', 'mean', 'p25'], ['mean', 'std', 'median'],
-                ['median', 'mean', 'cv'], ['count', 'mean', 'mean'], ['sum', 'mean', 'p75'], ['p90', 'median', 'max'],
-                [' STD ', 'mean', 'mean'], ['mean', 'mean', 'min']]
 UNITS = ['[unitless]', '[%]', '[°C]', '[º]', ' [mm/month] ', 'mm day-1', 'mm', '', None, '[weird]', 'm²', '1']
 
 
@@ -146,7 +141,7 @@ def _profiles():
 def core():
 	data = {'values': _values(), 'metrics': METRICS, 'bad': BAD, 'days': list(range(-1, 368)) + [0.5, 59.5, 365.9],
 	        'dated': [{'date': d} for d in ('2023-01-01', '2024-02-29', '2024-12-31', '2025-07-01T00:00:00')],
-	        'profiles': _profiles(), 'ylimMetrics': YLIM_METRICS, 'units': UNITS}
+	        'profiles': _profiles(), 'units': UNITS}
 	return data, _node(CORE, data)
 
 
@@ -199,19 +194,10 @@ def test_the_profile_is_that_of_python(core):
 	assert 'needs a step shorter than a year' in annual['error'] and 'interannual' in mode['error']
 
 
-def test_the_default_y_axis_is_that_of_python(core):
-	"""-1 to 1 for the spectral indices of every variable of the catalog of the app as in catalog.json, also the LSWI of
-	Sentinel-2, without maxp in it (its max is 1: a normalized difference); not the NDSI of MODIS (0-100), nor with a
-	metric that changes the scale; none for the data of Earth Engine."""
+def test_no_default_range_of_the_y_axes(core):
+	"""Each y axis of the profile goes from the values of its own variable, as in Python: no default range by variable."""
 	data, out = core
-	entries = {e['ref']: e for e in catalog.variables()}
-	for ref, got in out['ylims']:
-		want = [catalog.index_ylim(entries[ref], *ms) for ms in YLIM_METRICS]
-		assert got == [list(w) if w else None for w in want], (ref, entries[ref]['index'], entries[ref]['sensor'])
-	ylims = dict(out['ylims'])
-	assert ylims[4][0] == [-1, 1] and ylims[6][0] is None and ylims[27][:2] == [[-1, 1], [-1, 1]]
-	assert ylims[27][2:5] == [None, None, None]
-	assert out['customYlim'] is None
+	assert out['defaultRange'] == []
 
 
 def test_the_units_and_constants_are_those_of_python(core):
@@ -223,8 +209,6 @@ def test_the_units_and_constants_are_those_of_python(core):
 	assert c['PROFILE_COLUMNS'] == timeseries.PROFILE_COLUMNS and c['PROFILE_META'] == timeseries.PROFILE_META
 	assert c['MONTH_ABBR'] == timeseries.MONTH_ABBR == charts.MONTH_LABELS
 	assert c['MONTH_STARTS'] == charts.MONTH_STARTS
-	assert c['SPECTRAL_INDICES'] == list(catalog.SPECTRAL_INDICES)
-	assert c['INDEX_RANGE'] == list(catalog.INDEX_RANGE) and c['SCALE_METRICS'] == list(catalog.SCALE_METRICS)
 
 
 # The panel of the app (the harness PANEL of test_themes, driven as a user would) ---------------------------------
@@ -282,10 +266,10 @@ selectWith('none').opts.onChange(27);
 out.afterOther = selectWith('years').opts.value;
 selectWith('years').opts.onChange('p25');
 out.p25 = compute([input.first, input.other]);
-// a metric that changes the scale: the axes from the data
+// the coefficient of variation, in %
 selectWith('years').opts.onChange('cv');
 out.cv = compute([input.first, input.other]);
-// the NDSI of MODIS on the right axis (0-100): only the left axis from -1 to 1
+// the NDSI of MODIS on the right axis (the NDSI snow cover, 0-100)
 selectWith('years').opts.onChange('median');
 selectWith('none').opts.onChange(6);
 out.modis = compute([input.first, input.modis]);
@@ -374,7 +358,8 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	dated = {e['ref'] for e in catalog.variables() if not e.get('static') and not e.get('two_periods')}
 	assert opts['others'][0] == 'none' and set(opts['others'][1:]) == dated and opts['other'] == 'none'
 	assert out['afterOther'] == 'median'
-	# NDSI and NDVI of Sentinel-2, the percentile 25 of the years: a chart for each feature, two axes from -1 to 1
+	# NDSI and NDVI of Sentinel-2, the percentile 25 of the years: a chart for each feature, two axes, each from the
+	# values of its own variable (no viewWindow)
 	names = ['NDSI Sentinel-2', 'NDVI Sentinel-2']
 	meta = {n: {'sensor': 'Sentinel-2', 'unit': '1', 'scale_m': 10} for n in names}
 	p25 = out['p25']
@@ -393,14 +378,14 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	assert almeria['series'] == {'0': {'targetAxisIndex': 0, 'color': '#1f77b4'},
 	                             '1': {'targetAxisIndex': 1, 'color': '#d62728'}}
 	for k, colour in (('0', '#1f77b4'), ('1', '#d62728')):
-		assert almeria['vAxes'][k] == {'title': '[unitless]', 'viewWindow': {'min': -1, 'max': 1},
-		                               'titleTextStyle': {'color': colour}, 'textStyle': {'color': colour}}
+		assert almeria['vAxes'][k] == {'title': '[unitless]', 'titleTextStyle': {'color': colour},
+		                               'textStyle': {'color': colour}}
 	assert almeria['hAxis']['viewWindow'] == {'min': 1, 'max': 366}
 	assert almeria['hAxis']['ticks'] == [{'v': d, 'f': m} for d, m in zip(charts.MONTH_STARTS, timeseries.MONTH_ABBR)]
 	assert p25['texts'][0].startswith('Each point: percentile 25 of the values of that step of the year')
 	assert p25['texts'][1].startswith('Computed on pixels of 10 m (NDSI Sentinel-2) and of 10 m (NDVI Sentinel-2).')
 	assert p25['file'].startswith('NDSI_Sentinel-2_and_NDVI_Sentinel-2_Map_view_Mean_monthly_mean_percentile_25')
-	# the coefficient of variation between the years: in %, the axes from the data
+	# the coefficient of variation between the years: in %
 	cv = out['cv']
 	assert cv['csv'] == _app_profile([first, other], names, None, 'monthly', 'cv',
 	                                 {n: dict(meta[n], unit='%') for n in names})
@@ -413,15 +398,14 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	                     'NDSI Modis': {'sensor': 'Modis', 'unit': '1', 'scale_m': 500}})
 	assert modis['csv'] == want
 	axes = modis['charts'][0]['vAxes']
-	assert axes['0']['viewWindow'] == {'min': -1, 'max': 1} and 'viewWindow' not in axes['1']
+	assert 'viewWindow' not in axes['0'] and 'viewWindow' not in axes['1']
 	assert modis['texts'][1].startswith('Computed on pixels of 10 m (NDSI Sentinel-2) and of 500 m (NDSI Modis).')
 	# one variable: one axis, still the profile (the mean of the years)
 	one = out['one']
 	assert one['csv'] == _app_profile([first], ['NDSI Sentinel-2'], None, 'monthly', 'mean', meta)
 	chart = one['charts'][0]
 	assert [c['label'] for c in chart['cols']] == ['Day of the year', 'NDSI Sentinel-2']
-	assert list(chart['vAxes']) == ['0'] and chart['vAxes']['0'] == {'title': '[unitless]',
-	                                                                  'viewWindow': {'min': -1, 'max': 1}}
+	assert list(chart['vAxes']) == ['0'] and chart['vAxes']['0'] == {'title': '[unitless]'}
 	assert one['texts'][1].startswith('Computed on pixels of 10 m.')
 	# a line per year again: of one variable, as before
 	assert out['lines']['other'] == 'none' and out['lines']['chart']['type'] == 'LineChart'

@@ -13462,10 +13462,6 @@ var MonitorEO = (function () {
 	var COMMON_YEAR = 2023;  // a year of 365 days, for the names of the days of the year
 	var LEAP_YEAR = 2024;  // a year of 366 days, for the days of the year of the calendar days
 	var MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];  // charts.MONTH_STARTS
-	// catalog.SPECTRAL_INDICES, INDEX_RANGE and SCALE_METRICS: the default range of the y axis of a profile (indexYlim)
-	var SPECTRAL_INDICES = ['NDVI', 'EVI', 'NDSI', 'NDWI', 'LSWI', 'NBR', 'NDCI'];
-	var INDEX_RANGE = [-1, 1];
-	var SCALE_METRICS = ['std', 'cv', 'count', 'sum'];
 
 	// The day of the year (1-366) of the date D (UTC)
 	function dayOfYear(d) {
@@ -13647,24 +13643,6 @@ var MonitorEO = (function () {
 				(a.part < b.part ? -1 : a.part > b.part ? 1 : 0);
 		});
 		return out;
-	}
-
-	// catalog.index_ylim: the default range [min, max] of the y axis of a profile of the variable of the catalog ENTRY
-	// aggregated with the metrics after it (of the images, between the years, over the region): INDEX_RANGE for a
-	// spectral index whose values go from -1 to 1 (maxp, or else max, at most 2: not the NDSI of MODIS, 0 to 100), unless
-	// one of the metrics changes their scale (SCALE_METRICS); else null (from the data), also for the data of Earth
-	// Engine. The catalog of the app has no max: a normalized difference without maxp (the LSWI of Sentinel-2) goes to
-	// 1, as its max in catalog.json
-	function indexYlim(entry) {
-		var metrics = Array.prototype.slice.call(arguments, 1);
-		if (!entry || entry.custom || SPECTRAL_INDICES.indexOf(entry.index) < 0) return null;
-		var top = entry.maxp !== null && entry.maxp !== undefined ? entry.maxp : entry.max;
-		if ((top === null || top === undefined) && entry.fk === 'nd') top = 1;
-		if (top === null || top === undefined || Number(top) > 2) return null;
-		if (metrics.some(function (m) {
-			return SCALE_METRICS.indexOf(String(m === null || m === undefined ? '' : m).trim().toLowerCase()) >= 0;
-		})) return null;
-		return INDEX_RANGE.slice();
 	}
 
 	// catalog.UDUNITS and catalog.udunits (without per_year): the unit of the catalog (e.g. '[\u00b0C]') in UDUNITS ('degC'),
@@ -14405,9 +14383,8 @@ var MonitorEO = (function () {
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
 		INTERANNUAL: INTERANNUAL, PROFILE_COLUMNS: PROFILE_COLUMNS, PROFILE_META: PROFILE_META, MONTH_ABBR: MONTH_ABBR,
-		MONTH_STARTS: MONTH_STARTS, SPECTRAL_INDICES: SPECTRAL_INDICES, INDEX_RANGE: INDEX_RANGE,
-		SCALE_METRICS: SCALE_METRICS, withDoy: withDoy, checkInterannual: checkInterannual, overYears: overYears,
-		dayLabel: dayLabel, doyProfile: doyProfile, indexYlim: indexYlim, UDUNITS: UDUNITS, udunits: udunits,
+		MONTH_STARTS: MONTH_STARTS, withDoy: withDoy, checkInterannual: checkInterannual, overYears: overYears,
+		dayLabel: dayLabel, doyProfile: doyProfile, UDUNITS: UDUNITS, udunits: udunits,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
@@ -16319,10 +16296,10 @@ var MonitorEO = (function () {
 	}
 
 	// The seasonal profile PROF (mo.doyProfile) of the feature REGION over the days of the year, a line per variable of
-	// NAMES: the first on the left axis (blue), the other on the right axis (red), each axis (AXES: its title and range,
-	// null from the data) in the colour of its line when there are two, as charts.doy_profile_png; titled NAME, and the
-	// feature when there are SEVERAL
-	function profileChart(prof, names, axes, name, region, several) {
+	// NAMES: the first on the left axis (blue), the other on the right axis (red), each axis (its title in TITLES) from
+	// the minimum to the maximum of the values of its own variable and in the colour of its line when there are two, as
+	// charts.doy_profile_png; titled NAME, and the feature when there are SEVERAL
+	function profileChart(prof, names, titles, name, region, several) {
 		var parts = [], values = {}, at = {};  // a point per step of the year (part), on its day: 29 February and 1 March
 		prof.forEach(function (r) {
 			if (r.region !== region) return;
@@ -16346,8 +16323,7 @@ var MonitorEO = (function () {
 		names.forEach(function (n, k) {
 			var colour = PROFILE_COLOURS[k];
 			series[k] = {targetAxisIndex: k, color: colour};
-			vAxes[k] = {title: axes[k].title};
-			if (axes[k].ylim) vAxes[k].viewWindow = {min: axes[k].ylim[0], max: axes[k].ylim[1]};
+			vAxes[k] = {title: titles[k]};
 			if (names.length > 1) vAxes[k].titleTextStyle = vAxes[k].textStyle = {color: colour};
 		});
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name + (several ? ' \u00b7 ' + region : ''),
@@ -16396,7 +16372,7 @@ var MonitorEO = (function () {
 	// The seasonal profile by day of the year of the variable of the panel (spec S of the entry E) and of the variable
 	// of the right axis, if one is chosen, computed as the first one (services.time_series with doy, interannual and
 	// other_variable): for each step of the year, the metric between the years of its values (mo.doyProfile), a line per
-	// variable over the days of the year, each on its y axis (from -1 to 1 for the spectral indices: mo.indexYlim); a
+	// variable over the days of the year, each on its y axis (from the minimum to the maximum of its values); a
 	// chart for each feature, and the CSV of the profile (its columns and those of how it was computed, as Python)
 	function computeProfile(e, s) {
 		var o = otherSpec(s);
@@ -16426,9 +16402,7 @@ var MonitorEO = (function () {
 			});
 			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
-			var axes = entries.map(function (x) {
-				return {title: axisTitle(x, metric, stat, between), ylim: mo.indexYlim(x, metric, stat, between)};
-			});
+			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
 				var k = names.indexOf(r.variable);
 				r.sensor = entries[k].custom ? '' : entries[k].sensor;
@@ -16443,7 +16417,7 @@ var MonitorEO = (function () {
 				fmt(t('scaleNote'), num(scales[0]));
 			var regions = regionsOf(prof);
 			show(regions.map(function (g) {  // each feature
-				return profileChart(prof, names, axes, name, g, regions.length > 1);
+				return profileChart(prof, names, titles, name, g, regions.length > 1);
 			}).concat([
 				ui.Label(fmt(t('doyNote'), metricName(between).toLowerCase()), SMALL),
 				ui.Label(note + ' ' + t('chartHelp'), SMALL),
