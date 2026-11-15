@@ -534,7 +534,7 @@ def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str
 def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
               step: str = 'annual', metric: str = 'median', season: Optional[List[str]] = None,
               quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
-              fps: float = 2, dimensions: int = 600, video: bool = False, collection: Optional[str] = None,
+              fps: float = 1, dimensions: int = 600, video: bool = False, collection: Optional[str] = None,
               band: Optional[str] = None, band_scale: Optional[float] = None, band_offset: Optional[float] = None,
               unit: Optional[str] = None, where: Optional[list] = None):
 	"""Animation of a variable over a region (a timelapse): a frame per step ('annual', 'monthly', '16-day' or 'daily')
@@ -542,7 +542,7 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	frame (vmin to vmax; by default from the percentiles 5 and 95 of the map of the whole period or, for the metrics
 	sum and count, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit
 	and the credits of the data and of the region; the pixels without data in a step are light grey. At most 120
-	frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an MP4 too; it needs ffmpeg) and
+	frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an MP4 too; it needs ffmpeg: without it, note says so and the GIF is the file) and
 	returns its last frame as a picture, the date and the number of images of each frame, and the colour ramp. It
 	takes some minutes (Earth Engine makes each frame). fps: frames per second; dimensions: width or height of the map
 	in pixels (64 to 1200). Not for the fixed layers, which have no dates. Required: region, start and end, and
@@ -554,7 +554,7 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	res = services.timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
 	                         fps=fps, dimensions=dimensions, path=path, where=where, **source)
 	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'file',
-	                                    'gif', 'readme', 'references', 'credits')}
+	                                    'gif', 'note', 'readme', 'references', 'credits')}
 	summary['frames'] = res.get('frames') or []
 	return [_text(summary)] + _last_frame(res.get('gif'))
 

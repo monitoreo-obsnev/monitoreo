@@ -364,7 +364,7 @@ HELP = {
 		'maximum, a percentile, the standard deviation or the coefficient of variation (%).</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'anim_fps':
-		'<p>Frames per second of the GIF: 2 shows each year for half a second.</p>'
+		'<p>Frames per second of the GIF: 1 (by default) shows each year for a second, 0.5 for two seconds.</p>'
 		+ manual('QGIS-plugin#12-animation-timelapse'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '

@@ -17,7 +17,7 @@ mo_timelapse(
   quality = NULL,
   vmin = NULL,
   vmax = NULL,
-  fps = 2,
+  fps = 1,
   dimensions = 600L,
   collection = NULL,
   where = NULL,
@@ -59,7 +59,7 @@ only for the variables of the catalog: the data given as \code{collection} or \c
 
 \item{vmin, vmax}{range of the colour ramp (default: percentiles 5 and 95 of the map).}
 
-\item{fps}{frames per second.}
+\item{fps}{frames per second (1: each frame for a second).}
 
 \item{dimensions}{width or height of the map in pixels (64 to 1200).}
 
@@ -94,7 +94,7 @@ reaches the CSV, the README and the GeoTIFF. The variables of the catalog have t
 aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 }
 \value{
-A list (file, gif, frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
+A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
   or, if bigger, that of the data; readme, references, credits).
 }
