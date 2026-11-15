@@ -5,7 +5,14 @@
                      the data of Earth Engine outside the catalog, catalog.OTHER_THEMES), a slim copy of the index of
                      the GEE Community Catalog (community.json.gz) and the texts of about.py
   monitoreo_app.js   catalog.js, core.js and ui.js in a single script: paste it in a new script of the Code Editor and
-                     publish it as an app (Apps > New App)
+                     publish it as an app (Apps > New App); the fallback of the git route below
+
+The app is published from the git repository of its scripts in Earth Engine, users/monitoreo-obsnev/monitoreo (see
+modules and gee/push_app.py): Earth Engine refuses any file of a repository over 512 KiB and monitoreo_app.js is
+bigger, so there the app is the script app (core.js and ui.js) and the catalog is in the modules catalog_1,
+catalog_2... that it requires. They are written from the catalog.js, core.js and ui.js there are, without Earth Engine:
+
+  python gee/build.py --modules DIR
 
 Run it after changing catalog.json, about.py, community.json.gz, core.js or ui.js (Earth Engine is needed for the
 band names):
@@ -28,7 +35,9 @@ import base64
 import io
 import json
 import os
+import re
 import sys
+import textwrap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
@@ -40,6 +49,10 @@ FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col
           'terrain', 'image_asset', 'theme']
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
+REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine
+MAX_FILE = 524288  # bytes: the biggest file Earth Engine takes in a push to a repository (measured; any push size)
+LIMIT = 500000  # bytes of each file of the repository of the app, with a margin under MAX_FILE
+MODULE = re.compile(r'app|catalog_[0-9]+')  # the names of the files that modules writes
 
 
 def entries():
@@ -137,20 +150,120 @@ def write_catalog(data):
 		f.write(f'var CATALOG = {catalog_text(data)};\n')
 
 
+def ascii_js(text):
+	"""TEXT in ASCII only, with \\u escapes (valid in the strings, regular expressions and comments of these files; a
+	character beyond U+FFFF as its two surrogates): pasting the script in the Code Editor cannot then garble the
+	accents, nor can Earth Engine read the files of its repository in another encoding."""
+	out = []
+	for c in text:
+		n = ord(c)
+		if n < 128:
+			out.append(c)
+		elif n < 0x10000:
+			out.append(f'\\u{n:04x}')
+		else:
+			n -= 0x10000
+			out.append(f'\\u{0xd800 + (n >> 10):04x}\\u{0xdc00 + (n & 0x3ff):04x}')
+	return ''.join(out)
+
+
+def _read(name):
+	with open(os.path.join(HERE, name), encoding='utf-8') as f:
+		return f.read()
+
+
 def app():
 	"""Write monitoreo_app.js: catalog.js, core.js and ui.js in a single script."""
-	parts = []
-	for name in ('catalog.js', 'core.js', 'ui.js'):
-		with open(os.path.join(HERE, name), encoding='utf-8') as f:
-			parts.append(f.read())
-	# ASCII only, with \u escapes (valid in the strings, regular expressions and comments of these files): pasting the
-	# script in the Code Editor cannot then garble the accents
-	text = '\n'.join(parts)
-	text = ''.join(c if ord(c) < 128 else f'\\u{ord(c):04x}' for c in text)
+	text = ascii_js('\n'.join(_read(name) for name in ('catalog.js', 'core.js', 'ui.js')))
 	with open(os.path.join(HERE, 'monitoreo_app.js'), 'w', encoding='ascii') as f:
 		f.write('// MonitorEO for the Earth Engine Code Editor and Earth Engine Apps. Written by gee/build.py from\n'
 		        '// catalog.js, core.js and ui.js of https://github.com/monitoreo-obsnev/monitoreo: do not edit.\n\n')
 		f.write(text)
+
+
+def _js(value, depth=0):
+	"""VALUE in JSON (a valid expression of JavaScript) with a line for each key of an object and each element of an
+	array of objects or arrays, down to DEPTH 3: a line is a variable, a dataset or a text of the about, not a whole
+	key of the catalog."""
+	if depth < 3 and isinstance(value, dict) and value:
+		return '{\n' + ',\n'.join(json.dumps(k, ensure_ascii=False) + ':' + _js(v, depth + 1)
+		                          for k, v in value.items()) + '\n}'
+	if depth < 3 and isinstance(value, list) and any(isinstance(v, (dict, list)) for v in value):
+		return '[\n' + ',\n'.join(_js(v, depth + 1) for v in value) + '\n]'
+	return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
+
+
+def _catalog_module(n, keys, entries):
+	head = (f'MonitorEO for Earth Engine Apps: part {n} of the catalog (catalog.js), with its keys {", ".join(keys)}, '
+	        'required by the script app of this repository. Written by gee/build.py from catalog.js of '
+	        'https://github.com/monitoreo-obsnev/monitoreo: do not edit.')
+	return (''.join(f'// {line}\n' for line in textwrap.wrap(head, 117, break_on_hyphens=False)) +
+	        'exports.part = {\n' + ',\n'.join(entries[k] for k in keys) + '\n};\n')
+
+
+def catalog_modules(data, limit=LIMIT):
+	"""The modules of the catalog DATA (that of catalog.js) for the git repository of the app, [text of catalog_1,
+	text of catalog_2...]: its keys, in their order, packed greedily into modules that set exports.part (an object
+	with some keys of the catalog), each of at most LIMIT bytes, in ASCII. ValueError if a key alone does not fit."""
+	entries = {k: ascii_js(json.dumps(k) + ':' + _js(v, 1)) for k, v in data.items()}
+	out, keys = [], []
+	for k in data:
+		if keys and len(_catalog_module(len(out) + 1, keys + [k], entries)) > limit:
+			out.append(_catalog_module(len(out) + 1, keys, entries))
+			keys = []
+		keys.append(k)
+		if len(keys) == 1 and len(_catalog_module(len(out) + 1, keys, entries)) > limit:
+			raise ValueError(f'the key {k!r} of the catalog alone takes '
+			                 f'{len(_catalog_module(len(out) + 1, keys, entries))} bytes in a module, over the limit of '
+			                 f'{limit} bytes of a file of the repository of the app: split it in gee/build.py')
+	if keys:
+		out.append(_catalog_module(len(out) + 1, keys, entries))
+	return out
+
+
+def modules(repo=REPO, limit=LIMIT):
+	"""The files of the git repository REPO of the app in Earth Engine, {name: text}, from the catalog.js, core.js and
+	ui.js there are (without Earth Engine): app, the script published (the catalog filled from the modules, then
+	core.js and ui.js as they are), and catalog_1, catalog_2..., the modules of the catalog (catalog_modules). Earth
+	Engine refuses any file over 512 KiB (MAX_FILE), so each is in ASCII (with the \\u escapes of monitoreo_app.js)
+	and of at most LIMIT bytes. The app requires each module by its literal path (REPO:catalog_1), as Earth Engine
+	needs to bundle them when it publishes the app. ValueError if a file does not fit in LIMIT."""
+	if not re.fullmatch(r'[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+', repo):
+		raise ValueError(f'{repo!r} is not the path of a repository of Earth Engine (e.g. {REPO})')
+	parts = catalog_modules(read_catalog(), limit)
+	names = [f'catalog_{n}' for n in range(1, len(parts) + 1)]
+	requires = ',\n'.join(f"\trequire('{repo}:{name}')" for name in names)
+	head = (f'// MonitorEO for Earth Engine Apps: the script app of the repository {repo}, published\n'
+	        f'// with Apps > the pencil of MonitorEO > Overwrite from repository script path {repo}:app.\n'
+	        '// Written by gee/build.py from catalog.js, core.js and ui.js of\n'
+	        '// https://github.com/monitoreo-obsnev/monitoreo: do not edit. The catalog is in the modules catalog_1,\n'
+	        '// catalog_2... that it requires: Earth Engine refuses any file of a repository over 512 KiB.\n'
+	        '\n'
+	        'var CATALOG = {};\n'
+	        f'[\n{requires}\n].forEach(function (m) {{\n'
+	        '\tfor (var key in m.part) CATALOG[key] = m.part[key];\n'
+	        '});\n\n')
+	files = {'app': head + ascii_js('\n'.join(_read(name) for name in ('core.js', 'ui.js')))}
+	files.update(zip(names, parts))
+	for name, text in files.items():
+		if len(text.encode('ascii')) > limit:
+			raise ValueError(f'the file {name} of the repository of the app takes {len(text)} bytes, over the limit of '
+			                 f'{limit}: split it in gee/build.py')
+	return files
+
+
+def write_modules(directory, files):
+	"""Write FILES ({name: text}, those of modules) into DIRECTORY, and remove the files of an older build that are
+	not among them (a catalog_N no longer needed); the other files stay. The names removed."""
+	os.makedirs(directory, exist_ok=True)
+	removed = sorted(n for n in os.listdir(directory)
+	                 if MODULE.fullmatch(n) and n not in files and os.path.isfile(os.path.join(directory, n)))
+	for name in removed:
+		os.remove(os.path.join(directory, name))
+	for name, text in files.items():
+		with open(os.path.join(directory, name), 'w', encoding='ascii', newline='\n') as f:
+			f.write(text)
+	return removed
 
 
 def main():
@@ -164,7 +277,23 @@ def main():
 	parser.add_argument('--about-only', action='store_true',
 	                    help='write the about of catalog.js again (version, date of the release, links of suggestions; '
 	                         'its logos as they were) and monitoreo_app.js, without Earth Engine: at each release')
+	parser.add_argument('--modules', metavar='DIR',
+	                    help='only write the files of the git repository of the app in Earth Engine (app, catalog_1, '
+	                         'catalog_2...) into DIR, from the catalog.js, core.js and ui.js there are, without Earth '
+	                         'Engine (gee/push_app.py publishes them)')
+	parser.add_argument('--repo', default=REPO,
+	                    help=f'with --modules, the repository of Earth Engine the app requires its modules from '
+	                         f'(default: {REPO})')
 	args = parser.parse_args()
+	if args.modules:
+		files = modules(args.repo)
+		removed = write_modules(args.modules, files)
+		for name, text in files.items():
+			print(f'wrote {name} ({len(text)} bytes)')
+		if removed:
+			print(f"removed {', '.join(removed)}")
+		print(f'the app is {args.repo}:app')
+		return
 	if args.app_only:
 		app()
 		print('wrote monitoreo_app.js (catalog.js as it was)')
