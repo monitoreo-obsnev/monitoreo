@@ -86,6 +86,19 @@ test_that("the land cover maps of the land cover masks, without Earth Engine", {
   expect_true(length(lc$references) > 0)
 })
 
+test_that("the classes of the categorical layers (ecoregions, biomes), without Earth Engine", {
+  skip_if_no_python()
+  b <- mo_classes("BIOME")
+  expect_s3_class(b, "data.frame")
+  expect_equal(nrow(b), 15)
+  expect_equal(b$name[b$code == 99], "Rock and Ice")  # a code of MonitorEO
+  expect_equal(mo_classes("BIOME", lang = "es")$name[b$code == 12], "Bosques, bosques abiertos y matorrales mediterráneos")
+  e <- mo_classes("ECOREGION", text = "Iberian")
+  expect_true(all(grepl("Iberian", e$name)) && all(e$group == 12))
+  expect_equal(nrow(mo_classes("ECOREGION")), 847)
+  expect_error(mo_classes("NDVI", "Modis"), "not a categorical layer")
+})
+
 test_that("the GEE Community Catalog by its themes, without Earth Engine", {
   skip_if_no_python()
   th <- mo_community_themes()
@@ -248,7 +261,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   modules <- list(
     monitoreo.maps = list(vis_params = function(...) list(min = 0, max = 1), rgb_vis = function(...) list()),
     monitoreo.variable = list(kind = variables$kind, is_static = variables$is_static, check_rgb = variables$check_rgb,
-                              native_scale = function(spec) 30),
+                              is_categorical = variables$is_categorical, native_scale = function(spec) 30),
+    monitoreo.categorical = list(present = function(entry, geometry) list(12L, 13L), vis = function(entry, codes) {
+      sent$classes <<- codes
+      list(min = 12, max = 13, palette = list("fe0000", "cc6767"))
+    }),
     monitoreo.references = list(cite = function(tool, args) {
       sent$cite <<- args
       list(references = list(), credits = list())
@@ -275,6 +292,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   expect_equal(mo_image(region, "NDVI", "Modis", "2020-01-01", "2020-12-31")$name,
                "NDVI Modis median 2020-01-01 2020-12-31")
   expect_equal(mo_image(region, "ELEVATION", "Copernicus")$name, "ELEVATION Copernicus")
+  # a categorical layer: the colour of each class of those in the region, not the percentiles of its codes
+  biome <- mo_image(region, "BIOME", "RESOLVE")
+  expect_equal(biome$name, "BIOME RESOLVE")
+  expect_equal(biome$vis$palette, list("fe0000", "cc6767"))
+  expect_equal(sent$classes, list(12L, 13L))
 })
 
 test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {
@@ -431,6 +453,16 @@ test_that("the area of each class: its arguments reach the services, a data.fram
   expect_equal(nrow(attr(x, "by_landcover")), 1)
   mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "ELEVATION", "Copernicus", breaks = c(1500, 2000))
   expect_equal(sent[[13]], list(1500, 2000))  # breaks
+  # the classes of a categorical layer: the ecoregions with their biome, and the hectares of each biome
+  answer <- list(mode = "classes", title = "Area of each class of ECOREGION RESOLVE", unit = "", scale = 1000,
+                 rows = list(list(region = "park", class = 805L, label = "805 Southwest Iberian ...", group = 12L,
+                                  group_label = "12 Mediterranean Forests, Woodlands & Scrub", ha = 100, percent = 100)),
+                 by_group = list(list(region = "park", group = 12L, label = "12 Mediterranean Forests, Woodlands & Scrub",
+                                      ha = 100, percent = 100)), references = list(), credits = list())
+  x <- mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "ECOREGION", "RESOLVE")
+  expect_null(sent[[13]])  # no breaks
+  expect_equal(attr(x, "mode"), "classes")
+  expect_equal(attr(x, "by_group")$group, 12L)
   expect_error(mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", trend = TRUE), "sensor")
 })
 

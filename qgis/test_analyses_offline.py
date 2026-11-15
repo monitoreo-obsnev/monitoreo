@@ -363,7 +363,7 @@ assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', '
 assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
 dlg = dock.series_dialogs[len(dock.series) - 1]
 table = dlg.findChild(QTableWidget)
-assert [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())][:3] == ['Region', 'Band', 'Percentile 25']
+assert [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())][:3] == ['Region', 'Zone', 'Percentile 25']
 from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer  # noqa: E402
 lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')
 f = QgsFeature()

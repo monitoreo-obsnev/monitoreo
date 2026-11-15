@@ -1618,13 +1618,14 @@ def test_tools_of_the_mcp_server():
 	"""The tools of the MCP server as the model gets them: those of the data of Earth Engine by their ID, with their
 	arguments, but compact (see assistant._compact and _description), as the small models of Ollama have 16,384 tokens
 	of context for the instructions, the tools and the conversation: their size before those data (39,337 characters)
-	is the limit, with some room."""
+	is the limit, with some room; and the tool list_classes (the codes of the classes of the categorical layers, which
+	the model needs to find an ecoregion by its name), some 400 more."""
 	from monitoreo import mcp_server as mcp
 	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
 	names = [t['function']['name'] for t in tools]
 	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
 	text = json.dumps(tools)
-	assert len(text) < 42000, len(text)
+	assert len(text) < 42500, len(text)
 	assert '"title"' not in text and '{"type": "null"}' not in text and '"default": null' not in text
 	source = ' '.join(mcp.SOURCE_DOC.split())
 	assert source[:60] not in text  # said once in the instructions

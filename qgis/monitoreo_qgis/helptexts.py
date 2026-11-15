@@ -152,7 +152,8 @@ HELP = {
 		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
-		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
+		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim), <b>Terrain</b> (elevation, slope) and '
+		'<b>Ecosystems</b> (the ecoregions and biomes of RESOLVE, categorical layers of classes). '
 		'<b>All the variables</b> lists every one.</p>'
 		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
 		'<b>Burn severity of a fire</b>, in <b>Fire</b>.</p>'
@@ -236,6 +237,10 @@ HELP = {
 		'<p>A variable with dates (NDVI, PRECIP...) is its mean over the <b>Period</b> above, the same pixels for '
 		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
 		'and exports keep only those pixels, and their README says which.</p>'
+		'<p>A categorical layer (<b>ECOREGION</b> or <b>BIOME · RESOLVE</b>, theme Ecosystems) has classes, not values: '
+		'its condition keeps the pixels of some classes (<b>is one of the classes</b>) or leaves them out (<b>is none '
+		'of the classes</b>), given by their codes, e.g. <code>12</code> for the Mediterranean biome (<b>Classes…</b> '
+		'lists them). A pixel is kept when the classes kept cover half of it or more.</p>'
 		+ manual('Concepts#filtering-the-study-area'),
 	'landcover_map':
 		'<p>Leaves out of every result (maps, series, trends, comparisons, exports and the burn severity) the pixels '
@@ -363,7 +368,10 @@ HELP = {
 		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
 		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
 		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '
-		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li></ul>'
+		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li>'
+		'<li><b>Classes of a categorical layer</b>: with <b>ECOREGION</b> or <b>BIOME · RESOLVE</b> as the variable '
+		'(theme Ecosystems), its own classes with area in the region, with their colours: the ecoregions with their '
+		'biome, or the biomes.</li></ul>'
 		'<p>The area of each pixel is its true area; the % is of the area with a class.</p>'
 		+ manual('Concepts#area-by-class'),
 	'zones':
@@ -371,13 +379,17 @@ HELP = {
 		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, or of a variable of '
 		'WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: below 1500 m, 1500 to 2000 m, ... '
 		'They show how the variable changes with the altitude, e.g. the snow or the greenness from the valley to the '
-		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'summits.</p>'
+		'<p>With a categorical layer (<b>ECOREGION</b> or <b>BIOME · RESOLVE</b>), each of its classes in the region is '
+		'a zone, without breaks: the variable in each ecoregion or biome. A categorical layer as the variable gives the '
+		'majority class of each zone.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'transect':
 		'<p><b>Profile along the line</b>: the map of the variable (with the options of the group <b>Map</b>) and the '
 		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments (at least '
 		'a pixel of the data long, so fewer on lines shorter than 100 pixels): the mean of the pixels that each segment '
 		'crosses. Draw it in a new temporary layer of lines, from the valley to the summit, across a fire or along a '
-		'river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'river.</p><p>Not for a categorical layer (ECOREGION, BIOME), whose values are class codes.</p>'
+		+ manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'catalog_search':
 		'<p>Searches the <b>Earth Engine data catalog</b> by words in English (in the title, ID, keywords or description '
 		'of each dataset: at least half of them): the collections of images with data in the <b>Period</b> and the '
@@ -637,6 +649,11 @@ def variable_help(v, info=None):
 	if d.get('static'):  # elevation, slope: only maps
 		lines += [d['notes'].get('ft', ''), '<b>A fixed layer, without dates</b>: only its map (Map and Export to Google '
 		          'Drive); the period, the metrics, the time series and the trends do not apply.']
+	if d.get('categorical'):  # the ecoregions, the biomes: class codes
+		lines.append(f"<b>A categorical layer, of {d['n_classes']} classes</b>: its map has the colour of each class and "
+		             'the legend of those in the region; the statistic of a region is its majority class; Area by class '
+		             'gives the area of each class (Classes of a categorical layer), Gradients its classes as zones, and '
+		             '«Only the pixels where» keeps or leaves out some classes. No profile along a line.')
 	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + \
 		cite_html(d.get('references'), d.get('credits'),
 		          'References of its formula and its data (cite them with its results)') + \

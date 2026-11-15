@@ -22,12 +22,12 @@ from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea,
-                                 QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
+                                 QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import assets, catalog, fire, landcover, services, steps, trends  # noqa: E402
+from monitoreo import assets, catalog, categorical, fire, landcover, services, steps, trends  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
@@ -52,7 +52,9 @@ DOY_INTERANNUAL = [('A line per year', None), ('Mean', 'mean'), ('Median', 'medi
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
 AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks)', 'breaks'),
-              ('Trend of the variable', 'trend')]
+              ('Trend of the variable', 'trend'), ('Classes of a categorical layer (the variable)', 'classes')]
+# a condition of «Only the pixels where» on a categorical layer (ECOREGION, BIOME): its classes to keep or to leave out
+CLASS_CONDITIONS = [('is one of the classes', 'classes'), ('is none of the classes', 'exclude')]
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
@@ -658,10 +660,14 @@ class MonitorEODock(QDockWidget):
 		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
-		# where: up to two conditions on variables, the only pixels of the region that pass them all
+		# where: up to two conditions on variables, the only pixels of the region that pass them all; on a categorical
+		# layer (ECOREGION, BIOME), its classes to keep or to leave out instead of a min and a max
 		self.where = []
 		for i, default in enumerate(('ELEVATION · Copernicus', 'SLOPE · Copernicus')):
 			on, var, lo, hi, unit = QCheckBox(), QComboBox(), QLineEdit(), QLineEdit(), QLabel('')
+			keep, codes, pick = combo(CLASS_CONDITIONS, 'classes'), QLineEdit(), QPushButton('Classes…')
+			codes.setPlaceholderText('codes, e.g. 12, 4')
+			pick.setToolTip('Choose a class of the layer from its list (code and name): its code is added to the codes')
 			for v in services.list_variables(lang='en'):
 				if not v.get('two_periods'):
 					var.addItem(f"{v['variable']} · {v['sensor']}", v)
@@ -676,14 +682,17 @@ class MonitorEODock(QDockWidget):
 			row.addWidget(var, 1)
 			f.addRow('Only the pixels where' if i == 0 else 'and where', info(row, HELP['where']) if i == 0 else row)
 			row = QHBoxLayout()
-			for w in (QLabel('between'), lo, QLabel('and'), hi, unit):
+			between, also = QLabel('between'), QLabel('and')
+			for w in (between, lo, also, hi, unit, keep, codes, pick):
 				row.addWidget(w)
 			row.addStretch()
 			f.addRow('', row)
-			condition = {'on': on, 'variable': var, 'min': lo, 'max': hi, 'unit': unit}
+			condition = {'on': on, 'variable': var, 'min': lo, 'max': hi, 'unit': unit, 'keep': keep, 'codes': codes,
+			             'pick': pick, 'labels': (between, also)}
 			self.where.append(condition)
 			on.toggled.connect(self.where_changed)
 			var.currentIndexChanged.connect(self.where_changed)
+			pick.clicked.connect(lambda checked=False, c=condition: self.pick_class(c))
 		main.addWidget(box)
 
 		box = QGroupBox('Time series')
@@ -832,8 +841,8 @@ class MonitorEODock(QDockWidget):
 
 		box = QGroupBox('Gradients (elevation bands and profiles)')
 		f = QFormLayout(box)
-		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim
-		for v in self.all_variables:
+		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim, and the
+		for v in self.all_variables:  # categorical layers (ECOREGION, BIOME), whose classes are the zones (no breaks)
 			if v.get('static'):
 				self.zone_variable.addItem(f"{v['variable']} · {v['sensor']}", v)
 		self.zone_variable.setCurrentIndex(max(0, self.zone_variable.findText('ELEVATION', Qt.MatchFlag.MatchStartsWith)))
@@ -843,6 +852,8 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.zone_variable, 1)
 		row.addWidget(self.zone_breaks, 1)
 		f.addRow('Bands of', info(row, HELP['zones']))
+		self.zone_variable.currentIndexChanged.connect(lambda i: self.zone_variable_changed())
+		self.zone_variable_changed()
 		b = QPushButton('Statistics of each band')
 		b.setToolTip('The percentiles 25, 50 and 75 and the mean of the map of the variable (with the options of the group '
 		             'Map) in each band of the elevation (or of another fixed layer), over each feature of the region')
@@ -1583,6 +1594,13 @@ class MonitorEODock(QDockWidget):
 			if not c['on'].isChecked():
 				continue
 			v = c['variable'].currentData()
+			if v.get('categorical'):  # its classes to keep or to leave out (checked here, without Earth Engine)
+				entry = catalog.find(v['variable'], v['sensor'])
+				if not c['codes'].text().strip():
+					raise ValueError(f"Only the pixels where: give the codes of the classes of {v['variable']} (Classes…)")
+				codes = categorical.check(entry, c['codes'].text(), c['keep'].currentData())
+				out.append({'variable': v['variable'], 'sensor': v['sensor'], c['keep'].currentData(): codes})
+				continue
 			limits = {}
 			for key in ('min', 'max'):
 				text = c[key].text().strip().replace(',', '.')
@@ -1608,10 +1626,29 @@ class MonitorEODock(QDockWidget):
 		variable with dates filtering a fixed layer)."""
 		for c in self.where:
 			v = c['variable'].currentData() or {}
-			c['unit'].setText(v.get('unit') or '')
-			for key in ('variable', 'min', 'max'):
+			klass = bool(v.get('categorical'))  # class codes: the classes to keep or to leave out, not min and max
+			c['unit'].setText('' if klass else v.get('unit') or '')
+			for key in ('variable', 'min', 'max', 'keep', 'codes', 'pick'):
 				c[key].setEnabled(c['on'].isChecked())
+			for w in (c['min'], c['max']) + c['labels']:
+				w.setVisible(not klass)
+			for key in ('keep', 'codes', 'pick'):
+				c[key].setVisible(klass)
 		self.variable_changed()
+
+	def pick_class(self, c):
+		"""The list of the classes of the categorical layer of the condition C of «Only the pixels where» (code and name),
+		to add the code of the class chosen to its codes."""
+		v = c['variable'].currentData() or {}
+		if not v.get('categorical'):
+			return
+		items = [f"{x['code']} {x['name']}" for x in services.list_classes(v['variable'], v['sensor'])]
+		item, ok = QInputDialog.getItem(self, f"Classes of {v['variable']}", 'Class (code and name):', items, 0, False)
+		if ok and item:
+			given = [x.strip() for x in c['codes'].text().replace(';', ',').split(',') if x.strip()]
+			code = item.split(' ', 1)[0]
+			if code not in given:
+				c['codes'].setText(', '.join(given + [code]))
 
 	# Tasks ------------------------------------------------------------------------------------------------------
 
@@ -1995,9 +2032,17 @@ class MonitorEODock(QDockWidget):
 				self.area_year.count() > 1:
 			self.area_year.setCurrentIndex(min(self.area_year.currentIndex() + 1, self.area_year.count() - 1))
 
+	def zone_variable_changed(self):
+		"""The breaks of the bands of a fixed layer, greyed out for a categorical layer (ECOREGION, BIOME): its classes
+		are the zones."""
+		klass = bool((self.zone_variable.currentData() or {}).get('categorical'))
+		self.zone_breaks.setEnabled(not klass)
+		self.zone_breaks.setToolTip('The classes of the layer are the zones: no breaks' if klass else '')
+
 	def area_kind_changed(self):
 		"""The map and year for the classes of a land cover map, the breaks for the classes of the variable; neither
-		for its trend (that of the group Trends: its parts of the year and its metric)."""
+		for its trend (that of the group Trends: its parts of the year and its metric) nor for the classes of a
+		categorical layer (its own)."""
 		kind = self.area_kind.currentData()
 		for w in (self.area_map_row, self.area_map_label):
 			w.setVisible(kind == 'landcover')
@@ -2030,7 +2075,13 @@ class MonitorEODock(QDockWidget):
 				return
 			region, var = args
 			what = data_name(var)
-			if kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
+			if kind == 'classes':  # a categorical layer (ECOREGION, BIOME): its own classes
+				if not (self.variable.currentData() or {}).get('categorical'):
+					self.message('The classes of a categorical layer: choose ECOREGION or BIOME (theme Ecosystems) as '
+					             'the variable', 'Warning')
+					return
+				opts = dict(var)
+			elif kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
 				opts = dict(var, breaks=self.area_breaks.text())
 				if not (self.variable.currentData() or {}).get('static'):
 					opts.update(metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
@@ -2088,8 +2139,11 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		z = self.zone_variable.currentData() or {}
-		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor'), 'breaks': self.zone_breaks.text()}
-		stats = ['p25', 'p50', 'p75', 'mean']
+		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor')}
+		if not z.get('categorical'):  # the bands of a fixed layer; those of a categorical layer are its classes
+			zones['breaks'] = self.zone_breaks.text()
+		klass = bool((self.variable.currentData() or {}).get('categorical'))
+		stats = ['mode'] if klass else ['p25', 'p50', 'p75', 'mean']  # class codes: the majority class of each zone
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 
 		def work():
@@ -2099,7 +2153,9 @@ class MonitorEODock(QDockWidget):
 		def done(res):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'zones.png')
-			try:  # in the main thread; without matplotlib, the table only
+			try:  # in the main thread; without matplotlib, the table only (no chart of class codes)
+				if klass or not res['rows']:
+					raise ImportError
 				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
 				res['chart'] = path
 			except ImportError:
@@ -2257,7 +2313,12 @@ class MonitorEODock(QDockWidget):
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS could not open {res['file']}")
-		if res['min'] is None:
+		if res.get('classes') is not None:  # a categorical layer: a colour per class, with its code and name
+			if res['classes']:
+				paletted(layer, 1, res['classes'])
+			else:
+				self.message(f"{name}: no class in the region", 'Warning', 10)
+		elif res['min'] is None:
 			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
 		else:
 			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
@@ -2330,7 +2391,10 @@ class MonitorEODock(QDockWidget):
 			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
 		# the unit of a map of values (see unit_text); that of a true colour, as it comes
 		unit = unit_text(res) if res.get('palette') else str(res.get('unit') or '')
-		if res.get('palette'):
+		if res.get('classes') is not None:  # a categorical layer: its classes in the region, with their colours
+			unit = ''
+			colours = f"{len(res['classes'])} classes: " + '; '.join(f"{c['label']} {c['color']}" for c in res['classes'])
+		elif res.get('palette'):
 			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
 			           f"{', '.join('#' + c for c in res['palette'])}")
 			shown = f"from {res['min']:.4g} to {res['max']:.4g} {unit}"

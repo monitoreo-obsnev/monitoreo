@@ -96,6 +96,18 @@ def test_cite():
 	aqua = _ids(references.cite('burn_severity', dict(fire, sensor='Modis', collection='MODIS/061/MYD09GA')))
 	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'mod09ga061'} <= set(terra) and 'myd09ga061' not in terra
 	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'myd09ga061'} <= set(aqua) and 'mod09ga061' not in aqua
+	# the categorical layers of RESOLVE (ECOREGION, BIOME): Dinerstein et al. 2017 and the credit of its licence (CC BY
+	# 4.0), for the layer, a condition of where on it and its zones
+	resolve = 'Ecoregions2017 © Resolve, CC BY 4.0, rasterized by MonitorEO'
+	for args in ({'variable': 'BIOME', 'sensor': 'RESOLVE'}, {'variable': 'NDVI', 'sensor': 'Modis', 'start': '2020-01-01',
+	                                                          'end': '2020-12-31', 'where': [{'variable': 'ECOREGION',
+	                                                                                          'sensor': 'RESOLVE',
+	                                                                                          'exclude': [793]}]}):
+		c = references.cite('map_layer', args)
+		assert 'dinerstein2017' in _ids(c) and resolve in c['credits'], args
+	zones = references.cite('region_stats', {'variable': 'NDVI', 'sensor': 'Modis', 'start': '2020-01-01',
+	                                         'end': '2020-12-31', 'zones': {'variable': 'BIOME', 'sensor': 'RESOLVE'}})
+	assert 'dinerstein2017' in _ids(zones) and resolve in zones['credits']
 
 	modis = _ids(references.cite('map_layer', {'variable': 'EVI', 'sensor': 'Modis',
 	                                           'collection': 'MODIS/061/MYD13Q1', 'region': {'ecoregion_id': 793}}))

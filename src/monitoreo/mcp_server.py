@@ -48,7 +48,7 @@ result has references and credits: the references (with DOI) of the formula or a
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
 (Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions, FAO GAUL, Global Islands), of
 Google Earth Engine and of MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus
-Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL). When the results go into a report, a paper or a map, end it with
+Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL, RESOLVE). When the results go into a report, a paper or a map, end it with
 those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
@@ -70,6 +70,17 @@ ERA5-Land and TerraClimate, monthly; of CHIRPS, daily), air temperature (TMEAN, 
 of TerraClimate) and water balance of TerraClimate (PET, AET, CWD, SOILM, VPD): the totals of a period (e.g. the
 annual precipitation) are the metric "sum" (step "annual" for each year); the 19 bioclimatic variables of WorldClim
 (BIO01 to BIO19, climate of 1960-1990) are fixed layers, without dates, like the elevation.
+Ecosystems: the ecoregions and biomes of RESOLVE Ecoregions 2017 (variables ECOREGION and BIOME, sensor "RESOLVE":
+846 ecoregions and Rock and Ice in 14 biomes, Rock and Ice being the biome 99 of MonitorEO; nominal pixel of 1 km) are
+categorical fixed layers, without dates: their values are class codes (the ECO_ID of each ecoregion, the BIOME_NUM of
+each biome), not quantities. Their maps (map_layer, download_image) have the colour of each class and the legend of the
+classes in the region (classes); their statistic over a region is the majority class (region_stats: stats "mode",
+with mode_label); the hectares and % of each class: area_by_class with variable and sensor, without breaks nor trend
+(the ecoregions with their biome, and by_group, the hectares of each biome); zones by class: region_stats with zones
+{"variable": "BIOME", "sensor": "RESOLVE"} (no breaks); only some classes of a region: a condition of where with
+classes (the codes to keep) or exclude (those to leave out), e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes":
+[12]}. list_classes gives their codes and names (find an ecoregion by name with text). No transect, time series, trends
+or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an
@@ -141,7 +152,7 @@ the EECUs of the month are left), tell the user; with the shared account, tell t
 Engine account and Google Cloud project (connect).
 
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
-Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes) when
+Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes, list_classes) when
 the user writes in Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + \
 	about_.MANUAL + \
 	"""/English (English) and """ + about_.MANUAL + """ (Spanish). Its page Publications (""" + about_.MANUAL + \
@@ -155,7 +166,9 @@ WHERE_DOC = """
 	where: only the pixels of the region whose variables pass these conditions (all of them), each the variable
 	aggregated over the period of the result (or its own "period": [start, end]) with metric (default mean), temporal
 	and interannual, between min and max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
-	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]."""
+	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]; on a
+	categorical layer (ECOREGION, BIOME of sensor RESOLVE), with classes (the codes to keep) or exclude (those to leave
+	out) instead of min and max, e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]} (list_classes)."""
 
 LANDCOVER_DOC = """ A condition can instead leave out some land covers of a land cover map of a year
 	(landcover_maps lists the maps, their years and the land covers), e.g. {"landcover": "CORINE", "year": 2018,
@@ -201,7 +214,7 @@ def tool(fn):
 
 
 NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
-                   'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets')
+                   'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')
 
 
 def _eecu_warning(out):
@@ -399,9 +412,9 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
                    theme: Optional[str] = None) -> str:
 	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, ERA5-Land,
-	TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit; rgb (true) when its images have a
-	true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire, energy, atmosphere,
-	climate, terrain) or by text in the name (English or Spanish). lang: en or es."""
+	TerraClimate, CHIRPS, WorldClim, RESOLVE), collection, theme, resolution, dates and unit; rgb (true) when its images
+	have a true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire, energy,
+	atmosphere, climate, terrain, ecosystems) or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang, theme=theme))
 
 
@@ -415,6 +428,14 @@ def describe_variable(variable: str, sensor: Optional[str] = None, collection: O
 		raise ValueError(f'{variable} is not a variable of the catalog (list_variables): describe_asset describes an ID '
 		                 'of Earth Engine')
 	return _text(services.describe_variable(variable, sensor, collection))
+
+
+@tool
+def list_classes(variable: str, sensor: str = 'RESOLVE', text: Optional[str] = None, limit: Optional[int] = None,
+                 lang: str = 'en') -> str:
+	"""The classes of ECOREGION or BIOME (sensor RESOLVE): code (for classes or exclude of where), name and biome;
+	text finds them by name."""
+	return _text(services.list_classes(variable, sensor, text, limit, lang))
 
 
 @tool
@@ -670,8 +691,8 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	res = services.area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
 	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
-	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'changed_ha', 'unchanged_ha',
-	                                    'rows', 'csv', 'chart', 'readme', 'references', 'credits')
+	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
+	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'references', 'credits')
 	           if res.get(k) is not None}
 	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
 		summary['note'] = f"{len(summary['rows'])} rows: the first {MAX_ROWS_SHOWN} are shown, all of them in the CSV"

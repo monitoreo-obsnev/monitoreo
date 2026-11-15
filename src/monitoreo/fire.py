@@ -121,8 +121,11 @@ def legend(index='dNBR'):
 
 def class_label(c):
 	"""The label of a class (one of legend()) in a legend, with the values of its index: «Low severity (dNBR 0.1 to
-	0.27)», «High severity (RdNBR ≥ 0.641)»."""
+	0.27)», «High severity (RdNBR ≥ 0.641)»; a class without them (of a categorical layer, see
+	monitoreo.categorical.legend), its label as it is."""
 	num = lambda v: '0' if v == 0 else f'{v:.4g}'  # noqa: E731
+	if not any(k in c for k in ('dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max')):
+		return c['label']
 	key = 'rdnbr' if 'rdnbr_min' in c or 'rdnbr_max' in c else 'dnbr'
 	low, high = c.get(f'{key}_min'), c.get(f'{key}_max')
 	values = f'< {num(high)}' if low is None else f'≥ {num(low)}' if high is None else f'{num(low)} to {num(high)}'

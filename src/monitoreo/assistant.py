@@ -100,7 +100,7 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'describe_asset', 'community_themes',
-          'community_datasets', 'landcover_maps', 'find_datasets')  # their answers go to the model
+          'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')  # their answers go to the model
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
@@ -176,7 +176,8 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
           'find_datasets': 'Searching the Earth Engine data catalog for «{text}»',
-          'landcover_maps': 'Looking at the land cover maps of the land cover masks'}
+          'landcover_maps': 'Looking at the land cover maps of the land cover masks',
+          'list_classes': 'Looking at the classes of {variable}'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
@@ -259,6 +260,16 @@ and TMAX, 4.6 km, 1958-2024) and water balance of "TerraClimate" ("PET", "AET", 
 "annual" for each year, or in maps temporal "annual" with interannual "mean" for the mean annual total. \
 Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-1990, 1 km): fixed layers, \
 without dates, like the elevation.
+- Ecosystems: the ecoregions and biomes of RESOLVE Ecoregions 2017, variables "ECOREGION" and "BIOME", sensor \
+"RESOLVE" (846 ecoregions and Rock and Ice in 14 biomes; Rock and Ice is the biome 99; 1 km): fixed layers whose \
+values are class codes, without dates (no start and end). A map of the biomes or ecoregions of an area: map_layer \
+(with the legend of its classes); the area of each ecoregion or biome: area_by_class with the variable and sensor, \
+without breaks; the class of most of an area: region_stats (its statistic is the majority class); a variable by biome \
+or by ecoregion («the NDVI of each biome»): region_stats with zones {{"variable": "BIOME", "sensor": "RESOLVE"}} \
+(no breaks); only the pixels of some classes («the NDVI of the Mediterranean biome»): a condition of where \
+{{"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]}} (or "exclude" to leave them out). list_classes gives the \
+codes and names of the classes (an ecoregion by its name, with text): never make up a code. They have no transect, \
+time series, trends or comparisons.
 - Other data of Earth Engine, outside the catalog: any image or collection of images of Earth Engine by its ID (the \
 path of its asset), instead of variable and sensor, when the user asks for it or no variable of the catalog fits. \
 Never make up an ID: the user gives it, find_datasets finds those of the Earth Engine data catalog (by words in \
@@ -461,7 +472,8 @@ def variables_text():
 	for v in services.list_variables(lang='en'):
 		years = re.findall(r'(?<!\d)(?:19|20)\d\d(?!\d)', v['dates'])
 		var = variables.setdefault(v['variable'], {'name': v['name'], 'theme': v['theme'], 'sensors': {},
-		                                           'two_periods': v.get('two_periods', False)})
+		                                           'two_periods': v.get('two_periods', False),
+		                                           'categorical': v.get('categorical', False)})
 		s = var['sensors'].setdefault(v['sensor'], {'m': v['resolution_m'], 'first': None, 'last': None, 'now': False})
 		s['m'] = min(s['m'], v['resolution_m'])
 		if years:
@@ -475,6 +487,9 @@ def variables_text():
 		                    for name, s in var['sensors'].items())
 		# the two-period indices (RBR, RdNBR) are the index of burn_severity of their own name
 		only = f' Only burn_severity with index "{code}" (two periods).' if var.get('two_periods') else ''
+		if var.get('categorical'):  # class codes, without dates: not the years of the data
+			sensors = '; '.join(f"{name} {s['m']:g} m" for name, s in var['sensors'].items())
+			only = ' A fixed layer of class codes (categorical): list_classes gives its classes.'
 		lines.append(f"- {code}: {var['name'].strip().rstrip('.')}; theme {var['theme']}. {sensors}.{only}")
 	return '\n'.join(lines)
 
@@ -1851,7 +1866,8 @@ class Assistant:
 			card['table'] = {'labels': labels, 'rows': rows[:MAX_ROWS_SHOWN], 'more': max(0, len(rows) - MAX_ROWS_SHOWN)}
 		if isinstance(result, dict):
 			style = report.map_style(tool, args, result)
-			if style and style.get('classes'):  # the burn severity: the classes of the USGS or of Miller & Thode 2007
+			# the burn severity (the classes of the USGS or of Miller & Thode 2007) and a categorical layer (its classes)
+			if style and style.get('classes'):
 				card['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']}
 				                              for c in style['classes']]}
 			elif style and style.get('text'):  # the true colour of the images: the range of its reflectance
@@ -1897,7 +1913,9 @@ class Assistant:
 		       'rgb': true_colour(m)}
 		if not dated(m['args']):  # a fixed layer (elevation, slope): the value of a pixel, without its time series
 			out['map']['series'] = False
-		if result.get('palette'):
+		if report._map_classes(result):  # a categorical layer: the colour of each class in the region
+			out['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']} for c in result['classes']]}
+		elif result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
 			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
 		elif m['tool'] == 'rgb_map':  # the true colour of the images: the range of its reflectance, without colours
@@ -1931,11 +1949,16 @@ class Assistant:
 		out = {'lon': lon, 'lat': lat, 'value': None, 'unit': report.unit_text(unit, per_year='/ year' in unit),
 		       'label': 'value'}
 		if not dated(a):  # a fixed layer (elevation, slope): its value at the point, and no time series
-			error, texts, _ = await self.call('region_stats', {**base, 'region': point, 'stats': ['mean']})
+			klass = services._categorical(a.get('variable'), a.get('sensor'), a)
+			stat = 'mode' if klass else 'mean'  # a categorical layer: the class at the point (its code and name)
+			error, texts, _ = await self.call('region_stats', {**base, 'region': point, 'stats': [stat]})
 			if error:
 				raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 			stats = json.loads(texts[0]) if texts else []
 			rows = stats.get('rows') if isinstance(stats, dict) else stats
+			if klass:
+				return {**out, 'unit': '', 'label': 'class', 'value': rows[0].get('mode') if rows else None,
+				        'text': rows[0].get('mode_label') if rows else None}
 			return {**out, 'value': rows[0].get('mean') if rows else None}
 		start, end = min(a['start'], a.get('other_start') or a['start']), max(a['end'], a.get('other_end') or a['end'])
 		if m['tool'] == 'trend_map':  # the trend at the pixel: Mann-Kendall and Sen of its part of the year

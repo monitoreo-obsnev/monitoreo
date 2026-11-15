@@ -2,8 +2,9 @@
 the Earth Engine collections), datasets (how to cite each Earth Engine dataset, as its page of the Earth Engine catalog
 suggests: references and the credit line of its terms of use), methods (references of the methods: trends, burn
 severity, pixel filters, Earth Engine), references (the bibliography: citation and DOI or URL of each reference, by
-its ID) and variables (each with the references of its formula or algorithm). monitoreo.references gathers the
-references of each result."""
+its ID), variables (each with the references of its formula or algorithm), landcover (the land cover maps of the land
+cover masks) and classes (the tables of classes of the categorical layers, ECOREGION and BIOME: the code, name and
+colour of each class; see monitoreo.categorical). monitoreo.references gathers the references of each result."""
 
 import json
 import os
@@ -280,8 +281,48 @@ EXTRA.update({
 	147: (None, dict(RDNBR_MODIS, index='RdNBR', col='MODIS/061/MYD09GA', dr='2002/07/04-now')),  # MODIS Aqua
 })
 
+# The ecoregions and biomes of RESOLVE Ecoregions 2017 (Dinerstein et al. 2017): categorical fixed layers, whose values
+# are class codes (the ECO_ID of each ecoregion, the BIOME_NUM of each biome), with their tables of classes in classes of
+# catalog.json (see monitoreo.categorical). The polygons are rasterized once, the ECO_ID of each pixel, and the biome
+# comes from it with the table, so that both layers have the same boundaries.
+CLASS_UNIT = '[class]'  # the unit of a categorical layer: its values are class codes, without a unit
+RESOLVE = {
+	'type': 'Ecosistemas', 'type_en': 'Ecosystems', 'type_fr': 'Ecosystems', 'type_de': 'Ecosystems',
+	'sensor': 'RESOLVE', 'col': 'RESOLVE/ECOREGIONS/2017', 'm': 1000, 'tr': 'fixed',
+	'dr': 'fixed layer, without dates (RESOLVE Ecoregions 2017)', 'unit': CLASS_UNIT, 'scale': 1, 'offset': 0,
+	'pg': '#38a700', 'large_areas': True,
+	'static': True,  # without dates: maps and their statistics, no time series, trends or comparisons
+	'references': ['dinerstein2017'],
+	'notes': {
+		'ft': 'RESOLVE Ecoregions 2017 (Dinerstein et al. 2017): 846 terrestrial ecoregions and Rock and Ice in 14 '
+		      'biomes, polygons rasterized by MonitorEO: the ECO_ID of the polygon of each pixel (reduceToImage with the '
+		      'first feature; the pixels outside every polygon, e.g. the sea and the big lakes, have no data), and the '
+		      'biome of each pixel from its ECO_ID with the table of classes of MonitorEO, so that both layers have the '
+		      'same boundaries. Nominal pixel of 1 km (that of the downloads and statistics by default; maps are '
+		      'rasterized at their own pixel, which does not make the boundaries more accurate); on pixels more than '
+		      'twice as big, the majority class (mode) of its pixels of 1 km. Its values are class codes, not '
+		      'quantities: maps with a legend of the classes, the area of each class (area_by_class), the majority '
+		      'class over a region (region_stats), zones by class and conditions of where that keep or leave out some '
+		      'classes (list_classes gives their codes); they are never interpolated nor averaged. Rock and Ice (ECO_ID '
+		      '0) is the biome 99, a code of MonitorEO, as in the WWF terrestrial ecoregions of 2001 (in the data it has '
+		      'BIOME_NUM 11, that of Tundra, with BIOME_NAME N/A). The biome of each ecoregion is that of the data: e.g. '
+		      'ECO_ID 316 Godavari-Krishna mangroves is in biome 13, Deserts & Xeric Shrublands. A fixed layer, '
+		      'without dates: maps, GeoTIFFs and statistics of the region, but no time series, trends or comparisons; '
+		      'the period, metrics and pixel filters do not apply. Licence CC BY 4.0.',
+	},
+}
+EXTRA.update({
+	149: (None, {'index': 'ECOREGION', 'template': 'RESOLVE', 'ft': 'ECO_ID', 'band': 'ECO_ID', 'classes': 'ecoregions',
+	             'f': 'ECO_ID of the polygon of each pixel (reduceToImage, first)', 'vname': 'Ecorregión',
+	             'vname_en': 'Ecoregion', 'vname_fr': 'Ecoregion', 'vname_de': 'Ecoregion'}),
+	150: (None, {'index': 'BIOME', 'template': 'RESOLVE', 'ft': 'BIOME_NUM', 'band': 'BIOME_NUM', 'classes': 'biomes',
+	             'f': 'BIOME_NUM of the ECO_ID of each pixel (remap with the table of classes; Rock and Ice: 99)',
+	             'vname': 'Bioma', 'vname_en': 'Biome', 'vname_fr': 'Biome', 'vname_de': 'Biome'}),
+})
+
 TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
-             'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM}  # fields of EXTRA
+             'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
+             'RESOLVE': RESOLVE}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -298,7 +339,12 @@ UDUNITS = {
 	'[mm/month]': 'mm month-1',  # monthly precipitation and water balance
 	'[mm/day]': 'mm day-1',  # daily precipitation
 	'[kPa]': 'kPa',  # the vapour pressure deficit
+	# the class codes of a categorical layer (ECOREGION, BIOME): no unit, not even 1 (dimensionless), as the flag values
+	# of the CF conventions, whose meaning is in their flag_values and flag_meanings, not in a units attribute; the
+	# files say what each code is (the classes in the README and the metadata of the GeoTIFF), and give no unit
+	CLASS_UNIT: '',
 }
+NO_UDUNITS = (CLASS_UNIT,)  # the units of the catalog without a UDUNITS name, on purpose (see UDUNITS)
 
 RGB_UNIT = '[unitless]'  # the true colour of the images: surface reflectance (see sensors.RGB)
 
@@ -392,6 +438,7 @@ THEMES = [
 	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD']
 	            + [f'BIO{i:02d}' for i in range(1, 20)]},
 	{'key': 'terrain', 'en': 'Terrain', 'es': 'Relieve', 'indices': ['ELEVATION', 'SLOPE']},
+	{'key': 'ecosystems', 'en': 'Ecosystems', 'es': 'Ecosistemas', 'indices': ['ECOREGION', 'BIOME']},
 ]
 
 # The themes of the menus for the data of Earth Engine outside the catalog (no variables of it): any image or collection
@@ -406,6 +453,34 @@ OTHER_THEMES = [
 	 'help': 'the datasets of the GEE Community Catalog by its own themes: list its themes and their datasets, describe '
 	         'one, then compute it with its ID as a collection or an image, and its band'},
 ]  # 'help' in the words of every tool (no function or argument of one of them): the command line and R show it too
+
+
+def classes_table(key):
+	"""The table of classes KEY of catalog.json ('ecoregions' or 'biomes'; see monitoreo.categorical): {'name',
+	'dataset', 'property', 'fields', 'group', 'notes', 'classes': {code: [values of its fields]}}."""
+	return load()['classes'][key]
+
+
+def biomes(lang='en'):
+	"""The biomes of RESOLVE Ecoregions 2017 (the classes of BIOME): [{'code', 'name' (in Spanish with LANG 'es'),
+	'colour'}], from the lowest code; Rock and Ice is 99, a code of MonitorEO (in the data, the ECO_ID 0 has BIOME_NUM
+	11, that of Tundra, with BIOME_NAME N/A)."""
+	t = classes_table('biomes')
+	out = []
+	for code, values in sorted(t['classes'].items(), key=lambda x: int(x[0])):
+		row = dict(zip(t['fields'], values))
+		out.append({'code': int(code), 'name': (row.get('name_es') if lang == 'es' else None) or row['name'],
+		            'colour': row['colour']})
+	return out
+
+
+def ecoregions_of_biome(code):
+	"""The ECO_IDs of the ecoregions of the biome CODE (as the table of classes gives them, those of the data; 99, Rock
+	and Ice, is the ECO_ID 0), from the lowest: the polygons of a biome are those of these ECO_IDs (not those of its
+	BIOME_NUM, which for Rock and Ice is 11)."""
+	t = classes_table('ecoregions')
+	i = t['fields'].index('group')
+	return sorted(int(eco) for eco, values in t['classes'].items() if int(values[i]) == int(code))
 
 
 def theme_of(index):

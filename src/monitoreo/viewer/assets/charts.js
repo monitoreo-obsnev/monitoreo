@@ -10,7 +10,7 @@ MO.chart = (() => {
 		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max',
 		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'percent',
 		'value_from', 'value_to', 'year', 'zone', 'zone_from', 'zone_to', 'p25', 'p50', 'p75', 'p5', 'p95', 'distance_m',
-		'lon', 'lat', 'elevation', 'n_pixels', 'doy', 'n_years']);
+		'lon', 'lat', 'elevation', 'n_pixels', 'doy', 'n_years', 'mode', 'group', 'count']);
 	const COLUMNS = {
 		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
 		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
@@ -25,14 +25,15 @@ MO.chart = (() => {
 		zone_label: 'Zone', p25: 'Percentile 25', p50: 'Median (percentile 50)', p75: 'Percentile 75',
 		p5: 'Percentile 5', p95: 'Percentile 95', distance_m: 'Distance (m)', lon: 'Longitude', lat: 'Latitude',
 		elevation: 'Elevation (m)', variable: 'Variable', part: 'Step of the year', doy: 'Day of the year',
-		n_years: 'Years',
+		n_years: 'Years', mode: 'Majority class', mode_label: 'Majority class (name)', group: 'Biome (code)',
+		group_label: 'Biome', count: 'Pixels',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
 		trends: ['region', 'label', 'slope', 'p_value', 'significant', 'tau', 'z', 'n', 'intercept', 'first_year', 'last_year'],
 		comparison: ['region', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other'],
 		burn_severity: ['region', 'label', 'class', 'dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max', 'ha'],
-		areas: ['region', 'label', 'landcover', 'value_from', 'value_to', 'ha', 'percent'],
+		areas: ['region', 'label', 'group_label', 'landcover', 'value_from', 'value_to', 'ha', 'percent'],
 		transitions: ['region', 'from_label', 'to_label', 'ha', 'percent'],
 		transect: ['distance_m', 'value', 'elevation', 'lon', 'lat'],
 		doy: ['region', 'date', 'value', 'n_images', 'n_pixels'],

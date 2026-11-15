@@ -30,6 +30,14 @@ def test_units():
 	units = {e['unit'] for e in catalog.variables()}
 	assert not [u for u in units if 'º' in u], 'the degree sign is °, not the ordinal indicator º'
 	assert units <= set(catalog.UDUNITS), f'units without UDUNITS: {units - set(catalog.UDUNITS)}'
+	# every unit has its UDUNITS name, but the class codes of the categorical layers (ECOREGION, BIOME), which have no
+	# unit, not even 1 (dimensionless): as the flag values of the CF conventions, their files carry no unit, and say what
+	# each code is (the classes in the README and in the metadata of the GeoTIFF)
+	assert [u for u in units if not catalog.udunits(u)] == [catalog.CLASS_UNIT] == list(catalog.NO_UDUNITS)
+	assert catalog.udunits('[class]') == '' and catalog.udunits('[class]', per_year=True) == ''
+	klass = variable.describe(services.make_spec('BIOME', 'RESOLVE'))
+	assert (klass['unit'], klass['udunits'], klass['categorical']) == ('[class]', '', True)
+	assert readme.band_udunits('value', klass['udunits']) == ''  # the band of its GeoTIFF: no unit
 	assert catalog.udunits('[°C]') == 'degC' and catalog.udunits('[ºC]') == 'degC'  # also old answers
 	assert catalog.udunits('[unitless]') == '1' and catalog.udunits('[unitless]', per_year=True) == 'year-1'
 	assert catalog.udunits('[kg/m²/8 days]', per_year=True) == 'kg m-2 (8 day)-1 year-1'

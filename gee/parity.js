@@ -118,6 +118,21 @@ var CASES = {
 			done(error, st);
 		});
 	},
+	// the area of each class of a categorical layer (services.area_by_class without breaks): the classes with area, the
+	// ecoregions with their biome, on the grid of classes.scale_for in the UTM zone of the centre of the regions
+	class_areas: function (c, regions, done) {
+		var s = mo.spec(c.spec), e = mo.entryOf(s), geom = regions.geometry();
+		ee.Dictionary({info: mo.regionInfo(regions)}).evaluate(function (d, error) {
+			if (error) return done(error);
+			var cen = d.info.centroid, scale = mo.areaScale(Number(e.m), d.info.area);
+			mo.classHectares(mo.image(s, geom).rename('class'), regions, scale, mo.utmOf(cen[0], cen[1]))
+				.evaluate(function (fc, err) {
+					if (err) return done(err);
+					var legend = mo.classAreaLegend(e, fc.features, 'en');
+					done(null, {rows: mo.areaRows(fc.features, legend, {}), scale: scale});
+				});
+		});
+	},
 	// the true colour of the images of a variable (services.rgb_map): the percentiles 2 and 98 of its bands
 	rgb_percentiles: function (c, regions, done) {
 		var s = mo.spec(c.spec), geom = regions.geometry();

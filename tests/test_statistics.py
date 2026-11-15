@@ -36,10 +36,11 @@ def test_every_statistic_is_a_metric():
 	assert set(composite.SPREAD) == {'std', 'cv'}
 
 
-@pytest.mark.parametrize('e', [e for e in catalog.variables() if not e.get('two_periods')],
+@pytest.mark.parametrize('e', [e for e in catalog.variables() if not e.get('two_periods') and not e.get('classes')],
                          ids=lambda e: f"{e['index']}-{e['sensor']}-{e['ref']}")
 def test_every_variable_of_the_catalog_takes_every_statistic(e):
-	"""Every variable of the catalog (all of them are continuous) takes every statistic as the metric of its images,
+	"""Every continuous variable of the catalog (not the categorical layers, ECOREGION and BIOME, whose statistic over a
+	region is the majority class: tests/test_categorical.py) takes every statistic as the metric of its images,
 	between the years and over the region; those with a single metric (the frequencies of snow and clouds, the mean of
 	their images) take it between the years and over the region. The unit of a coefficient of variation is %."""
 	start, end = _dates(e)
