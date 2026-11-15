@@ -800,6 +800,17 @@ def test_two_periods_and_the_rdnbr_in_the_instructions():
 	assert 'unchanged, low, moderate and high severity' in text and 'one year after the fire' in text
 
 
+def test_the_topographic_wetness_index_in_the_instructions():
+	# a fixed layer whose dates name no year: «without dates», not «since ?»; its sensor and how to ask for it
+	lines = {line.split(':')[0]: line for line in assistant.variables_text().splitlines()}
+	assert lines['- TWI'] == '- TWI: Topographic wetness index; theme Terrain. MERIT Hydro 90 m without dates.'
+	assert lines['- ELEVATION'].endswith('Copernicus 30 m since 2011 until 2015.')  # its dates name the years
+	text = ' '.join(assistant.instructions().split())
+	assert 'for the terrain, "Copernicus" or "MERIT Hydro"' in text
+	assert 'variable "TWI", sensor "MERIT Hydro"' in text
+	assert '{"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}' in text  # in where
+
+
 def test_fix_args_of_the_rdnbr_of_modis():
 	# the collection of MODIS Aqua of the RdNBR reaches burn_severity with its sensor; not a collection of the others
 	tools = assistant.model_tools(TOOLS + [{'name': 'burn_severity', 'description': '', 'inputSchema': {

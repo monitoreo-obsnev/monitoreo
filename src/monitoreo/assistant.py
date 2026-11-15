@@ -240,7 +240,8 @@ regions: MODIS, or a monthly or annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS" or \
-"WorldClim". The variable, as in the catalog (NDVI, EVI, NDWI, LST, PRECIP...).
+"WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
+PRECIP...).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
@@ -249,6 +250,12 @@ are always removed, whatever the quality), so pass no quality. For the snow seas
 - Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
 "Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.
+- Topographic wetness index (how wet the soil tends to be because of the relief alone: high in the valley bottoms and \
+flats where the water of the slopes converges, low on the ridges and steep slopes; ln(a / tan β) of MERIT Hydro, \
+90 m, unitless, most land between 5 and 15, rivers and lakes the highest): variable "TWI", sensor "MERIT Hydro". A \
+fixed layer, without dates, like the elevation: map_layer, region_stats or download_image without start and end. It \
+also works in where («the NDVI only in the wet bottoms»: {{"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}}) \
+and as the zones of region_stats.
 - Cloud frequency (how often there are clouds: % of the observations with clouds): variable "CF", sensor "Modis" \
 (daily: the climate of clouds), "Sentinel-2" or "Landsat" (only when they pass); always with metric "mean" and \
 no quality (no pixel filter applies).
@@ -456,13 +463,15 @@ def instructions(today=None, big=False):
 
 
 def variables_text():
-	"""The variables of the catalog, a line each: name, theme and, for each sensor, pixel size and first year."""
+	"""The variables of the catalog, a line each: name, theme and, for each sensor, pixel size and first year (or
+	'without dates', a fixed layer whose dates name no year, as the topographic wetness index)."""
 	variables = {}
 	for v in services.list_variables(lang='en'):
 		years = re.findall(r'(?<!\d)(?:19|20)\d\d(?!\d)', v['dates'])
 		var = variables.setdefault(v['variable'], {'name': v['name'], 'theme': v['theme'], 'sensors': {},
 		                                           'two_periods': v.get('two_periods', False)})
-		s = var['sensors'].setdefault(v['sensor'], {'m': v['resolution_m'], 'first': None, 'last': None, 'now': False})
+		s = var['sensors'].setdefault(v['sensor'], {'m': v['resolution_m'], 'first': None, 'last': None, 'now': False,
+		                                            'static': bool(v.get('static'))})
 		s['m'] = min(s['m'], v['resolution_m'])
 		if years:
 			s['first'] = min(s['first'] or '9999', min(years))
@@ -470,8 +479,9 @@ def variables_text():
 		s['now'] = s['now'] or bool(re.search(r'now|hoy', v['dates'], re.I))
 	lines = []
 	for code, var in variables.items():
-		sensors = '; '.join(f"{'MODIS' if name == 'Modis' else name} {s['m']:g} m since {s['first'] or '?'}"
-		                    + ('' if s['now'] or not s['last'] else f" until {s['last']}")
+		sensors = '; '.join(f"{'MODIS' if name == 'Modis' else name} {s['m']:g} m "
+		                    + ('without dates' if s['static'] and not s['first'] else f"since {s['first'] or '?'}"
+		                       + ('' if s['now'] or not s['last'] else f" until {s['last']}"))
 		                    for name, s in var['sensors'].items())
 		# the two-period indices (RBR, RdNBR) are the index of burn_severity of their own name
 		only = f' Only burn_severity with index "{code}" (two periods).' if var.get('two_periods') else ''

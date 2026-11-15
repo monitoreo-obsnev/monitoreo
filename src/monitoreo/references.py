@@ -10,7 +10,8 @@ those of a call of a tool:
         'credits': ['Contains modified Copernicus Sentinel data 2018-2024']}
 
 A reference has its citation (APA) and its DOI (or, without one, its URL); 'text' is the citation with the link. The
-credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat, Copernicus DEM).
+credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat, Copernicus DEM,
+MERIT Hydro).
 Every result of monitoreo.services carries both, and the reports (monitoreo.report, monitoreo.publish) list them.
 
 References:

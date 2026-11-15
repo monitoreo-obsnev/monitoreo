@@ -31,6 +31,7 @@ LAGUNAS = {'bbox': [-3.40, 37.03, -3.33, 37.07]}  # the glacial lakes of Sierra 
 ABOVE_800 = {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'ref': 106, 'min': 800}  # where: the app takes the ref
 FLAT = {'variable': 'SLOPE', 'sensor': 'Copernicus', 'ref': 107, 'max': 20}
 GREEN = {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'ref': 27, 'min': 0.3}
+WET = {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'ref': 148, 'min': 10}  # the topographic wetness index: wet bottoms
 
 CASES = {
 	# only the pixels of the region that pass conditions on variables (where): fixed layers and one with dates
@@ -45,6 +46,11 @@ CASES = {
 	                                                      'where': [dict(GREEN, sensor='Modis', ref=25)]},
 	                             'other': ['2020-01-01', '2020-12-31']},
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
+	# the topographic wetness index of MERIT Hydro (from two bands of its image), and as a condition of a variable
+	'map_twi': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 148}},
+	'map_s2_where_twi': {'kind': 'percentiles', 'region': GUAJARES,
+	                     'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
+	                              'where': [WET]}},
 	# land cover masks (a condition of where): CORINE at 10 m (the class of each pixel) and Dynamic World under MODIS
 	# (the share of each pixel of 250 m), with a series that keeps the same pixels in every step
 	'map_s2_landcover_corine': {'kind': 'percentiles', 'region': GUAJARES,

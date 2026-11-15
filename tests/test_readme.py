@@ -94,11 +94,12 @@ def test_fixed_layers_and_scf():
 	from monitoreo import report
 	region = {'wdpa_id': 389011}
 	for tool in ('download_image', 'map_layer', 'region_stats'):
-		args = {'region': region, 'variable': 'SLOPE', 'sensor': 'Copernicus', 'start': '2025-01-01',
-		        'end': '2025-12-31', 'metric': 'median', 'quality': {'clouds': True}}
-		facts = dict(report.item_facts(tool, args))
-		assert not {'Period', 'Temporal metric', 'Discarded pixels'} & set(facts), tool
-		assert facts['Method'] == report.METHODS['static'] and '2025' not in report.item_title(tool, args)
+		for index, sensor in (('SLOPE', 'Copernicus'), ('TWI', 'MERIT Hydro')):
+			args = {'region': region, 'variable': index, 'sensor': sensor, 'start': '2025-01-01',
+			        'end': '2025-12-31', 'metric': 'median', 'quality': {'clouds': True}}
+			facts = dict(report.item_facts(tool, args))
+			assert not {'Period', 'Temporal metric', 'Discarded pixels'} & set(facts), (tool, index)
+			assert facts['Method'] == report.METHODS['static'] and '2025' not in report.item_title(tool, args)
 	scf = dict(report.item_facts('download_image', {'region': region, 'variable': 'SCF', 'sensor': 'Landsat',
 	                                                'start': '2001-01-01', 'end': '2024-12-31', 'metric': 'mean',
 	                                                'quality': {'clouds': False, 'snow': True}}))
@@ -106,6 +107,11 @@ def test_fixed_layers_and_scf():
 	d = variable.describe({'index': 'ELEVATION', 'sensor': 'Copernicus', 'period': ['2018-01-01', '2021-12-31'],
 	                       'season': ['06-01', '08-31'], 'metric': None, 'quality': {}})
 	assert d['udunits'] == 'm' and not {'period', 'season', 'metric'} & set(d)
+	# the topographic wetness index: unitless, its formula of two bands and its note (how it was computed)
+	d = variable.describe({'index': 'TWI', 'sensor': 'MERIT Hydro', 'period': ['2018-01-01', '2021-12-31'],
+	                       'metric': None, 'quality': {}})
+	assert (d['udunits'], d['formula'], d['collection']) == ('1', 'TWI(elv,upa)', 'MERIT/Hydro/v1_0_1')
+	assert 'ln(a / tan β)' in d['note'] and not {'period', 'season', 'metric'} & set(d)
 
 
 def test_trend_bands(tmp_path):

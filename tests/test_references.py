@@ -139,6 +139,13 @@ def test_cite():
 	for index, more in (('ELEVATION', set()), ('SLOPE', {'zevenbergen1987'})):
 		c = references.cite('map_layer', {'variable': index, 'sensor': 'Copernicus', 'region': {'wdpa_id': 389011}})
 		assert {'esa_copernicus_dem', 'rizzoli2017'} | more <= set(_ids(c)) and c['credits'][0].startswith(dem), index
+	# the topographic wetness index: its formula, its upstream area per metre of contour and its slope, and MERIT
+	# Hydro with its licence; not the Copernicus DEM, which it does not use
+	twi = references.cite('map_layer', {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'region': {'wdpa_id': 389011}})
+	assert {'beven1979', 'marthews2015', 'zevenbergen1987', 'yamazaki2019'} <= set(_ids(twi))
+	assert not {'esa_copernicus_dem', 'rizzoli2017'} & set(_ids(twi))
+	assert twi['credits'] == ['MERIT Hydro v1.0.1 © its developers (Yamazaki et al. 2019), licence CC BY-NC 4.0 or '
+	                          'ODbL 1.0']
 	assert 'esa_copernicus_dem' in _ids(got)  # the slope of the recipe, from the DEM image
 	# the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow), of the period only
 	scf = references.cite('time_series', {'variable': 'SCF', 'sensor': 'Landsat', 'start': '2022-01-01',

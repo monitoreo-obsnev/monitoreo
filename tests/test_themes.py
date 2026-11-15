@@ -4,6 +4,7 @@ an error (about.feedback), without Earth Engine."""
 
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -12,7 +13,7 @@ import urllib.parse
 
 import pytest
 
-from monitoreo import about, assets, catalog, community, services, variable
+from monitoreo import about, assets, catalog, community, sensors, services, variable
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -41,7 +42,7 @@ def test_list_variables_by_theme():
 	fire = services.list_variables(theme='fire')
 	assert {v['variable'] for v in fire} == {'NBR', 'RBR', 'RdNBR'} and fire[0]['theme'] == 'Fire'
 	assert services.list_variables(theme='Nieve', lang='es')[0]['theme'] == 'Nieve'
-	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE'}
+	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'TWI'}
 	with pytest.raises(ValueError, match='unknown theme'):
 		services.list_variables(theme='mountains')
 	assert services.describe_variable('LST', 'Modis')['theme'] == 'Energy and temperature'
@@ -155,6 +156,11 @@ global.ee = new Proxy({}, {get: function (t, p) { return p === 'data' ? data : c
 });
 CATALOG.community = input.community;  // those of the package, whatever the catalog.js there is
 CATALOG.other_themes = input.other_themes;
+// the topographic wetness index as gee/build.py writes it from the package (fk and fb: the kind of its formula and
+// its bands), whatever the catalog.js there is
+if (input.twi) {
+	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.twi.ref; }).concat([input.twi]);
+}
 var mo = global.MonitorEO;
 function attempt(f) {
 	try {
@@ -216,6 +222,13 @@ out.info = input.infos.map(function (c) {
 	return got;
 });
 out.otherThemes = mo.otherThemes().map(function (th) { return th.key; });
+out.twi = (input.twiRes || []).map(function (res) {
+	var s = mo.spec({ref: input.twi.ref});
+	log = [];
+	mo.image(s, object(), res);
+	return log.slice();
+});
+out.twiConstants = mo.TWI;
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -346,6 +359,29 @@ ASSETS = {'WORLDCLIM/V1/BIO': {'type': 'Image', 'properties': {'system:title': '
           'users/someone/an_image': {'type': 'Image', 'properties': {}}}
 
 
+# The topographic wetness index of MERIT Hydro (ref 148) on its pixels (90 m), on finer ones (bilinear, after the
+# index) and on bigger ones (the mean of the index of its pixels)
+TWI_RES = [90, 30, 1000]
+
+
+def _twi_entry():
+	"""The entry of the topographic wetness index in gee/catalog.js, as gee/build.py writes it (entries): its FIELDS,
+	and the kind of its formula and its bands (sensors.parse_formula, which needs no Earth Engine for it)."""
+	build = _build()
+	e = catalog.find('TWI', 'MERIT Hydro')
+	kind, bands = sensors.parse_formula(e)
+	return dict({k: e.get(k) for k in build.FIELDS}, fk=kind, fb=bands)
+
+
+def _python_twi_chain(res, monkeypatch):
+	"""The calls of Earth Engine of variable.image of the topographic wetness index on pixels of RES metres."""
+	spec = services.make_spec('TWI', 'MERIT Hydro')
+	rec = []
+	monkeypatch.setattr(variable, 'ee', _Root(rec))
+	variable.image(spec, _Obj(rec), res)
+	return rec
+
+
 @pytest.fixture(scope='module')
 def app():
 	"""The answers of gee/core.js (with catalog.js) in Node, with an object ee that computes nothing, and the themes
@@ -369,7 +405,7 @@ def app():
 	        'themes': COMMUNITY_THEMES, 'records': [legacy, 'projects/someone/assets/nothing'],
 	        'sources': ['IDAHO_EPSCOR/TERRACLIMATE', 'projects/sat-io/open-datasets/FABDEM', 'users/someone/an_image'],
 	        'infos': INFOS, 'assets': ASSETS, 'community': _build().community_index(),
-	        'other_themes': catalog.OTHER_THEMES}
+	        'other_themes': catalog.OTHER_THEMES, 'twi': _twi_entry(), 'twiRes': TWI_RES}
 	run = subprocess.run(['node', '-e', NODE, GEE], input=json.dumps(data), capture_output=True, text=True, timeout=120)
 	assert run.returncode == 0, run.stderr
 	return json.loads(run.stdout)
@@ -386,6 +422,26 @@ def test_the_app_builds_the_images_of_the_data_of_earth_engine_as_the_package(ap
 	assert ['mosaic'] in app['chains'][4] and ['copyProperties', '<ee>', ['system:time_start']] in app['chains'][0]
 	assert app['filters'] == {f: False for f in ('clouds', 'water', 'snow', 'aerosols')} and app['fixed'] == []
 	assert app['rgb'] is None  # not even for a collection of the catalog given by its ID
+
+
+def test_the_app_builds_the_twi_as_the_package(app, monkeypatch):
+	"""staticImage and twiImage of gee/core.js call Earth Engine as variable._fixed and variable._twi for the
+	topographic wetness index of MERIT Hydro: the same calls, in the same order, with the same constants (sensors.TWI):
+	the index on the grid of MERIT Hydro, and only then bilinear on finer pixels or the mean on bigger ones, with no
+	scale, offset or terrain after it."""
+	assert _twi_entry()['fk'] == 'twi' and _twi_entry()['fb'] == ['elv', 'upa'] and _twi_entry()['image_asset']
+	assert app['twiConstants'] == sensors.TWI
+	for res, js in zip(TWI_RES, app['twi']):
+		assert js == _python_twi_chain(res, monkeypatch), res
+	twi = [['Image', 'MERIT/Hydro/v1_0_1'], ['select', 'elv'], ['Image.pixelArea'], ['select', 'upa'],
+	       ['multiply', 1e6], ['max', '<ee>'], ['sqrt'], ['divide', '<ee>'], ['Terrain.slope', '<ee>'],
+	       ['multiply', math.pi / 180], ['tan'], ['max', 0.001], ['divide', '<ee>'], ['log'], ['projection'],
+	       ['setDefaultProjection', '<ee>']]
+	native, finer, coarser = app['twi']
+	assert native == twi + [['toFloat'], ['rename', 'value']]
+	assert finer == twi + [['resample', 'bilinear'], ['toFloat'], ['rename', 'value']]
+	assert coarser == twi + [['Reducer.mean'], ['reduceResolution', '<ee>', True, 65535], ['toFloat'],
+	                         ['rename', 'value']]
 
 
 def test_the_app_takes_the_ids_and_units_as_the_package(app):
@@ -641,6 +697,11 @@ var GEE = process.argv[process.argv.length - 1];
 });
 CATALOG.community = input.community;  // those of the package, whatever the catalog.js there is
 CATALOG.other_themes = input.other_themes;
+// the topographic wetness index as gee/build.py writes it from the package (fk and fb: the kind of its formula and
+// its bands), whatever the catalog.js there is
+if (input.twi) {
+	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.twi.ref; }).concat([input.twi]);
+}
 vm.runInThisContext(fs.readFileSync(path.join(GEE, 'ui.js'), 'utf8'), {filename: 'ui.js'});
 
 var controls = root.children[0], results = root.children[2], legend = map.children[0];

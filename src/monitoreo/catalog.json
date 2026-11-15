@@ -4,13 +4,13 @@
   "type": "group of variables",
   "index": "variable",
   "vname": "name",
-  "sensor": "Sentinel-2, Landsat or Modis (Copernicus: the elevation model of catalog.EXTRA)",
+  "sensor": "Sentinel-2, Landsat or Modis (Copernicus: the elevation model of catalog.EXTRA; MERIT Hydro: the hydrography of its topographic wetness index)",
   "col": "Earth Engine collection (LANDSAT = Landsat 5, 7, 8 and 9)",
   "m": "native pixel size (m)",
   "tr": "revisit time",
   "dr": "dates",
   "unit": "unit",
-  "ft": "formula: a band, an expression of the bands, N(b1,b2) for the normalized difference, or SCF(green,nir,swir1) for the snow of the snow cover frequency (sensors.SCF)",
+  "ft": "formula: a band, an expression of the bands, N(b1,b2) for the normalized difference, SCF(green,nir,swir1) for the snow of the snow cover frequency (sensors.SCF), or TWI(elevation band,upstream area band) for the topographic wetness index of MERIT Hydro, TWI(elv,upa) (sensors.TWI)",
   "scale": "scale factor of the bands",
   "offset": "offset of the bands",
   "clouds_bandQA": "QA band for clouds",
@@ -21,7 +21,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
-  "static": "fixed layer, without dates (catalog.EXTRA: elevation and slope): an image (col and band, with terrain slope), with maps and their statistics but no time series, trends or comparisons",
+  "static": "fixed layer, without dates (catalog.EXTRA: elevation, slope, topographic wetness index and the bioclimatic variables of WorldClim): an image (col and band, with terrain slope; the topographic wetness index from two bands, see ft), with maps and their statistics but no time series, trends or comparisons",
   "notes": "comments of the fields",
   "references": "articles of the formula or algorithm of the variable (their IDs in references)"
  },
@@ -171,6 +171,12 @@
     "esa_copernicus_dem"
    ],
    "credit": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
+  },
+  "MERIT/Hydro/v1_0_1": {
+   "references": [
+    "yamazaki2019"
+   ],
+   "credit": "MERIT Hydro v1.0.1 © its developers (Yamazaki et al. 2019), licence CC BY-NC 4.0 or ODbL 1.0"
   },
   "USGS/SRTMGL1_003": {
    "references": [
@@ -522,6 +528,18 @@
   "zevenbergen1987": {
    "citation": "Zevenbergen, L. W., & Thorne, C. R. (1987). Quantitative analysis of land surface topography. Earth Surface Processes and Landforms, 12(1), 47–56.",
    "doi": "10.1002/esp.3290120107"
+  },
+  "beven1979": {
+   "citation": "Beven, K. J., & Kirkby, M. J. (1979). A physically based, variable contributing area model of basin hydrology. Hydrological Sciences Bulletin, 24(1), 43–69.",
+   "doi": "10.1080/02626667909491834"
+  },
+  "marthews2015": {
+   "citation": "Marthews, T. R., Dadson, S. J., Lehner, B., Abele, S., & Gedney, N. (2015). High-resolution global topographic index values for use in large-scale hydrological modelling. Hydrology and Earth System Sciences, 19(1), 91–104.",
+   "doi": "10.5194/hess-19-91-2015"
+  },
+  "yamazaki2019": {
+   "citation": "Yamazaki, D., Ikeshima, D., Sosa, J., Bates, P. D., Allen, G. H., & Pavelsky, T. M. (2019). MERIT Hydro: A high-resolution global hydrography map based on latest topography dataset. Water Resources Research, 55(6), 5053–5073.",
+   "doi": "10.1029/2019WR024873"
   },
   "roy2026": {
    "citation": "Roy, S., Majumdar, S., & Swetnam, T. (2026). A community data commons for equitable Earth Science. EarthArXiv (preprint, accepted in Earth's Future).",

@@ -41,6 +41,25 @@ def test_a_condition_with_its_own_period():
 	                                               where=[{'variable': 'SLOPE', 'sensor': 'Copernicus', 'max': 20}]))
 
 
+WET = {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'min': 10}  # the wet valley bottoms
+
+
+def test_the_topographic_wetness_index_as_a_condition():
+	"""The topographic wetness index, a fixed layer, filters a result with dates and one without them, with no period;
+	the error of a condition with dates on a result without them names it among the fixed layers."""
+	(wet, lo, hi), = variable.where_specs(spec(WET))
+	assert (wet['index'], wet['sensor'], lo, hi) == ('TWI', 'MERIT Hydro', 10, None) and not wet.get('period')
+	assert wet['metric'] is None  # no metric: a fixed layer
+	(wet, lo, hi), = variable.where_specs(services.make_spec('ELEVATION', 'Copernicus', where=[WET]))
+	assert wet['index'] == 'TWI' and not wet.get('period')
+	with pytest.raises(ValueError, match=r'or filter by other fixed layers \(ELEVATION, SLOPE, TWI, the BIO variables'):
+		variable.where_specs(services.make_spec('TWI', 'MERIT Hydro', where=[DRY]))
+	assert report.where_text([WET]) == 'TWI (MERIT Hydro) ≥ 10'
+	cited = references.cite('time_series', {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
+	                                        'start': '2020-01-01', 'end': '2020-12-31', 'where': [WET]})
+	assert {'beven1979', 'yamazaki2019'} <= {r['id'] for r in cited['references']}
+
+
 @pytest.mark.parametrize('condition, message', [
 	({'variable': 'ELEVATION', 'sensor': 'Copernicus'}, 'min, max or both'),
 	({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'min': 1, 'above': 2}, 'unknown keys above'),
