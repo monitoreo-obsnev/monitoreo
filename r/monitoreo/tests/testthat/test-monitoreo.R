@@ -16,6 +16,14 @@ test_that("catalog and regions", {
   expect_true(mo_describe("SLOPE", "Copernicus")$static)  # elevation and slope: fixed layers, without dates
   expect_error(mo_time_series(mo_bbox(-3.4, 37.0, -3.3, 37.1), "ELEVATION", "Copernicus", "2020-01-01", "2020-12-31"),
                "fixed layer, without dates")
+  # the topographic wetness index of MERIT Hydro: a fixed layer too, of the theme Terrain
+  twi <- mo_describe("TWI", "MERIT Hydro")
+  expect_true(twi$static)
+  expect_equal(twi$unit, "[unitless]")
+  expect_equal(mo_variables(sensor = "merit hydro")$variable, "TWI")  # case and spaces do not matter
+  expect_true("TWI" %in% mo_variables(theme = "terrain")$variable)
+  expect_error(mo_time_series(mo_bbox(-3.4, 37.0, -3.3, 37.1), "TWI", "MERIT Hydro", "2020-01-01", "2020-12-31"),
+               "fixed layer, without dates")
   expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
                "only takes the metric 'mean'")
   # true colour: the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS, refused before Earth Engine
@@ -35,6 +43,16 @@ test_that("catalog and regions", {
   expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
   expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
   expect_error(mo_admin(1, level = 3))
+  expect_equal(mo_ecoregion(793), list(ecoregion_id = list(793L)))
+  expect_equal(mo_ecoregion(lon = -3.3, lat = 37.1), list(ecoregion_at = list(-3.3, 37.1)))
+  # a biome of RESOLVE 2017 by its code or at a point, and only its part within another region
+  expect_equal(mo_biome(12), list(biome_id = list(12L)))
+  expect_equal(mo_biome(c(12, 4))$biome_id, list(12L, 4L))
+  expect_equal(mo_biome(lon = -3.3, lat = 37.1)$biome_at, list(-3.3, 37.1))
+  expect_null(mo_biome(12)$within)
+  expect_equal(mo_biome(12, within = mo_country("esp")),
+               list(biome_id = list(12L), within = list(country = list("ESP"))))
+  expect_equal(mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))$within$bbox[[1]], -4)
 })
 
 test_that("references", {
@@ -84,6 +102,19 @@ test_that("the land cover maps of the land cover masks, without Earth Engine", {
   expect_true(any(grepl("^511 ", corine$classes$water)))
   expect_match(mo_landcover_maps("es")$classes$name[lc$classes$key == "water"], "Agua")
   expect_true(length(lc$references) > 0)
+})
+
+test_that("the classes of the categorical layers (ecoregions, biomes), without Earth Engine", {
+  skip_if_no_python()
+  b <- mo_classes("BIOME")
+  expect_s3_class(b, "data.frame")
+  expect_equal(nrow(b), 15)
+  expect_equal(b$name[b$code == 99], "Rock and Ice")  # a code of MonitorEO
+  expect_equal(mo_classes("BIOME", lang = "es")$name[b$code == 12], "Bosques, bosques abiertos y matorrales mediterráneos")
+  e <- mo_classes("ECOREGION", text = "Iberian")
+  expect_true(all(grepl("Iberian", e$name)) && all(e$group == 12))
+  expect_equal(nrow(mo_classes("ECOREGION")), 847)
+  expect_error(mo_classes("NDVI", "Modis"), "not a categorical layer")
 })
 
 test_that("the GEE Community Catalog by its themes, without Earth Engine", {
@@ -211,6 +242,52 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
   expect_length(calls, 0)
 })
 
+test_that("several bands of the data by their ID: combined with band_reducer, with the errors of the package", {
+  calls <- list()
+  answer <- function(tool) function(...) {
+    calls[[tool]] <<- list(...)
+    list(rows = list(), yearly = list(), profile = list(), title = tool, unit = "mm", references = list(),
+         credits = list())
+  }
+  tools <- c("time_series", "map_layer", "region_stats", "download_image", "trend_table", "compare_series")
+  local_mocked_bindings(services = function() stats::setNames(lapply(tools, answer), tools), .package = "monitoreo")
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  mo_time_series(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = c("aet", "def"), band_reducer = "sum",
+                 band_scale = 0.1, unit = "mm", start = "2020-01-01", end = "2020-12-31")
+  expect_equal(calls$time_series[c("band", "band_reducer", "band_scale")],
+               list(band = c("aet", "def"), band_reducer = "sum", band_scale = 0.1))
+  mo_region_stats(region, image = "WORLDCLIM/V1/BIO", band = "bio05, bio06", band_reducer = "mean")
+  expect_equal(calls$region_stats[c("band", "band_reducer")], list(band = "bio05, bio06", band_reducer = "mean"))
+  mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+               end = "2020-12-31")
+  expect_true("band_reducer" %in% names(calls$map_layer) && is.null(calls$map_layer[["band_reducer"]]))
+  calls <- list()
+  # the words and the order of monitoreo.variable.check_bands
+  expect_error(mo_trend_table(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = c("aet", "def"),
+                              start = "2001-01-01", end = "2020-12-31"),
+               paste("IDAHO_EPSCOR/TERRACLIMATE: give band_reducer, 'sum' or 'mean', to combine its 2 bands (aet, def)",
+                     "into one value on each pixel"), fixed = TRUE)
+  expect_error(mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", band_reducer = "sum",
+                            start = "2020-01-01", end = "2020-12-31"),
+               "band_reducer combines several bands: give two or more in band (a list, or a text with commas)",
+               fixed = TRUE)
+  expect_error(mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "aet,def",
+                            band_reducer = "median", start = "2020-01-01", end = "2020-12-31"),
+               "unknown band_reducer median: use sum, mean", fixed = TRUE)
+  expect_error(mo_region_stats(region, image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio05"), band_reducer = "mean"),
+               "band bio05 is given twice: give each band once", fixed = TRUE)
+  expect_error(mo_download_image(region, image = "COPERNICUS/DEM/GLO30", band = c("DEM", "edm"), terrain = "slope",
+                                 path = "x.tif"),
+               "terrain is the slope or the aspect of one band (an elevation): give one band, without band_reducer",
+               fixed = TRUE)
+  expect_error(mo_map_layer(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", band_reducer = "sum"),
+               "band_reducer: only for the data of Earth Engine given by its ID")
+  expect_error(mo_time_series(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = " , ", start = "2020-01-01",
+                              end = "2020-12-31"),
+               "give band: the band of IDAHO_EPSCOR/TERRACLIMATE (one, or several with band_reducer", fixed = TRUE)
+  expect_length(calls, 0)
+})
+
 test_that("the statistics of the region, also the coefficient of variation, of the images and between the years", {
   sent <- NULL
   answer <- function(...) {
@@ -248,7 +325,12 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   modules <- list(
     monitoreo.maps = list(vis_params = function(...) list(min = 0, max = 1), rgb_vis = function(...) list()),
     monitoreo.variable = list(kind = variables$kind, is_static = variables$is_static, check_rgb = variables$check_rgb,
+                              data_name = variables$data_name, is_categorical = variables$is_categorical,
                               native_scale = function(spec) 30),
+    monitoreo.categorical = list(present = function(entry, geometry) list(12L, 13L), vis = function(entry, codes) {
+      sent$classes <<- codes
+      list(min = 12, max = 13, palette = list("fe0000", "cc6767"))
+    }),
     monitoreo.references = list(cite = function(tool, args) {
       sent$cite <<- args
       list(references = list(), credits = list())
@@ -267,6 +349,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   slope <- mo_image(region, image = "ee.ImageCollection('projects/sat-io/open-datasets/FABDEM')", band = "b1",
                     terrain = "slope")
   expect_equal(slope$name, "projects/sat-io/open-datasets/FABDEM b1 slope")
+  # several bands combined on each pixel: the reducer and the bands, sent as a list with band_reducer
+  both <- mo_image(region, image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio06"), band_reducer = "mean",
+                   band_scale = 0.1, unit = "degC")
+  expect_equal(both$name, "WORLDCLIM/V1/BIO mean of bio05, bio06")
+  expect_equal(sent$composite_image[c("band", "band_reducer")], list(band = c("bio05", "bio06"), band_reducer = "mean"))
   pr <- mo_image(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
                  end = "2020-12-31", metric = "sum", unit = "mm")
   expect_equal(pr$name, "IDAHO_EPSCOR/TERRACLIMATE pr sum 2020-01-01 2020-12-31")
@@ -275,6 +362,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   expect_equal(mo_image(region, "NDVI", "Modis", "2020-01-01", "2020-12-31")$name,
                "NDVI Modis median 2020-01-01 2020-12-31")
   expect_equal(mo_image(region, "ELEVATION", "Copernicus")$name, "ELEVATION Copernicus")
+  # a categorical layer: the colour of each class of those in the region, not the percentiles of its codes
+  biome <- mo_image(region, "BIOME", "RESOLVE")
+  expect_equal(biome$name, "BIOME RESOLVE")
+  expect_equal(biome$vis$palette, list("fe0000", "cc6767"))
+  expect_equal(sent$classes, list(12L, 13L))
 })
 
 test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {
@@ -431,6 +523,16 @@ test_that("the area of each class: its arguments reach the services, a data.fram
   expect_equal(nrow(attr(x, "by_landcover")), 1)
   mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "ELEVATION", "Copernicus", breaks = c(1500, 2000))
   expect_equal(sent[[13]], list(1500, 2000))  # breaks
+  # the classes of a categorical layer: the ecoregions with their biome, and the hectares of each biome
+  answer <- list(mode = "classes", title = "Area of each class of ECOREGION RESOLVE", unit = "", scale = 1000,
+                 rows = list(list(region = "park", class = 805L, label = "805 Southwest Iberian ...", group = 12L,
+                                  group_label = "12 Mediterranean Forests, Woodlands & Scrub", ha = 100, percent = 100)),
+                 by_group = list(list(region = "park", group = 12L, label = "12 Mediterranean Forests, Woodlands & Scrub",
+                                      ha = 100, percent = 100)), references = list(), credits = list())
+  x <- mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "ECOREGION", "RESOLVE")
+  expect_null(sent[[13]])  # no breaks
+  expect_equal(attr(x, "mode"), "classes")
+  expect_equal(attr(x, "by_group")$group, 12L)
   expect_error(mo_area_by_class(mo_bbox(-3.45, 37.02, -3.30, 37.12), "NDVI", trend = TRUE), "sensor")
 })
 

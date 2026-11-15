@@ -8,11 +8,17 @@ The tools compute them like the variables of the catalog, with these arguments i
                  like the variables of the catalog, with time series, trends and comparisons
     image        the ID of an image, or of a collection of tiles (mosaicked, e.g. a DEM): a fixed layer without dates,
                  with maps and their statistics (no time series, trends or comparisons)
-    band         the band (one)
+    band         the band: one ('pr'), or several (a list, ['aet', 'def'], or a text with commas, 'aet, def') with
+                 band_reducer
+    band_reducer how several bands are combined into one value on each pixel where all of them have data: 'sum' (e.g.
+                 12 monthly bands into the annual total) or 'mean' (e.g. the depth bands of a soil), on the pixels of
+                 the first band
     band_scale   factor of the stored values (e.g. 0.0001 for the NDVI of MODIS); band_offset, what is added after it
+                 (to each band, before they are combined)
     unit         the unit of the values (after band_scale and band_offset) in UDUNITS, e.g. 'mm', 'degC', 'kg m-2'
-                 (the words of the STAC records too: 'C' is degC, 'W/m^2' is W m-2, 'unitless' is 1; '' is none)
-    terrain      'slope' or 'aspect' of the band of an image, in degrees (its unit is then degree)
+                 (the words of the STAC records too: 'C' is degC, 'W/m^2' is W m-2, 'unitless' is 1; '' is none); that
+                 of every band, so of their sum or mean (a sum of bands is not turned from a rate into a total)
+    terrain      'slope' or 'aspect' of the band of an image, in degrees (its unit is then degree); one band only
 
 describe(asset) tells what an ID is before computing it: an image or a collection (so which argument), its bands, its
 dates and pixel size and, for the datasets of the Earth Engine data catalog, what their STAC record says of each band
@@ -381,7 +387,8 @@ def describe(asset):
 	'title', 'source' (Earth Engine data catalog, GEE Community Catalog or other), 'page', 'provider', 'licence',
 	'dates', 'cadence', 'theme', 'bands': [{'band', 'description', 'units' (as its record says), 'unit' (in UDUNITS,
 	None if unknown), 'band_scale', 'band_offset', 'resolution_m', 'data_type', 'classes'}], 'arguments' (those to
-	compute its first band), 'notes', 'references', 'credits'}."""
+	compute its first band), 'notes' (with several bands: how to combine them, band_reducer), 'references',
+	'credits'}."""
 	from . import references
 	asset = normalize(asset)
 	meta = info(asset)
@@ -447,6 +454,10 @@ def describe(asset):
 	if any(b.get('classes') or b.get('bitmask') for b in bands):
 		notes.append('Bands with classes or bit flags (e.g. land cover or quality) are codes, not quantities: use the '
 		             'metric mode (or min/max), not the mean or the median.')
+	if len(bands) > 1:
+		notes.append("Several bands can be combined into one value on each pixel: band=[...] with band_reducer 'sum' "
+		             "(e.g. monthly bands into a total) or 'mean' (e.g. the depth bands of a soil), with the same "
+		             'band_scale, band_offset and unit for all of them.')
 	out['bands'] = bands
 	first = bands[0] if bands else {}
 	out['arguments'] = {k: v for k, v in {use: asset, 'band': first.get('band'), 'band_scale': first.get('band_scale'),

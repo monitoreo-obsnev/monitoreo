@@ -14,10 +14,11 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 79  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 82  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
-	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim and the RdNBR of
-	# Sentinel-2, Landsat and MODIS (Terra and Aqua)
+	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
+	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, and the
+	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -42,6 +43,9 @@ def test_app_has_the_catalog():
 		for k, v in app[e['ref']].items():
 			if k not in ('fk', 'fb'):  # the formula with the band names of Earth Engine
 				assert v == e.get(k), f"run gee/build.py: {k} of {e['ref']} {e['index']} differs in the app"
+	# the topographic wetness index: the kind of its formula and its two bands, and an image (not a collection)
+	twi = app[148]
+	assert (twi['fk'], twi['fb'], twi['image_asset']) == ('twi', ['elv', 'upa'], True), 'run gee/build.py'
 	# the script of the app (monitoreo_app.js) carries that catalog, in ASCII
 	with open(path.replace('catalog.js', 'monitoreo_app.js'), encoding='ascii') as f:
 		script = f.read()
@@ -165,7 +169,7 @@ def test_cloud_frequency_and_climate_in_the_catalog():
 	assert catalog.find('BIO12', 'WorldClim')['unit'] == '[mm]'
 	spec = services.make_spec('BIO01', 'WorldClim')
 	assert variable.is_static(spec) and variable._static_spec(spec)['scale'] == 0.1
-	assert all(catalog.udunits(e['unit']) for e in catalog.variables())
+	assert all(catalog.udunits(e['unit']) for e in catalog.variables() if e['unit'] not in catalog.NO_UDUNITS)
 
 
 def test_elevation_and_slope_in_the_catalog():
@@ -176,7 +180,8 @@ def test_elevation_and_slope_in_the_catalog():
 			'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 30, unit, terrain, True)
 		assert sensors.fixed_filters(e) == [] and not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
 		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
-	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144))
+	# the topographic wetness index (148) and the categorical layers of RESOLVE (ECOREGION, BIOME), fixed layers too
+	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144)) + [148, 149, 150]
 	# no metric, period nor season: one spec, named without them
 	spec = services.make_spec('SLOPE', 'Copernicus')
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)
@@ -199,6 +204,70 @@ def test_elevation_and_slope_in_the_catalog():
 	assert [(r['variable'], r['static']) for r in services.list_variables(sensor='Copernicus')] == [
 		('ELEVATION', True), ('SLOPE', True)]
 	assert 'static' not in services.describe_variable('NDVI', 'Sentinel-2')
+
+
+def test_twi_in_the_catalog():
+	# the topographic wetness index (TWI) of MERIT Hydro: a fixed layer, without dates, of the theme Terrain, computed
+	# from two bands of an image (formula TWI(elv,upa)), not from one band as the other fixed layers
+	e = catalog.find('TWI', 'MERIT Hydro')
+	assert (e['ref'], e['col'], e['band'], e['m'], e['unit'], e['static'], e['image_asset']) == (
+		148, 'MERIT/Hydro/v1_0_1', 'elv', 90, '[unitless]', True, True)
+	assert (e['tr'], e['scale'], e['offset'], e['large_areas'], e['type'], e['type_en']) == (
+		'fixed', 1, 0, True, 'Topografía', 'Topography')
+	assert (e['vname'], e['vname_en'], e['minp'], e['maxp'], e['pm']) == (
+		'Índice topográfico de humedad', 'Topographic wetness index', 4, 20, catalog.SOIL_PALETTE)
+	assert e['dr'] == 'fixed layer, without dates (MERIT Hydro v1.0.1, from MERIT DEM)' and e['pg']
+	assert e.get('terrain') is None and e['theme'] == 'terrain' and catalog.udunits(e['unit']) == '1'
+	assert e['ft'] == 'TWI(elv,upa)' and e['f'] == ('ln(a / max(tan(slope(elv)), 0.001)), '
+	                                                'a = max(upa × 10^6, pixel area) / sqrt(pixel area)')
+	# its own references and notes, not those of the Copernicus DEM of the template it copies
+	assert e['references'] == ['beven1979', 'marthews2015', 'zevenbergen1987']
+	note = e['notes']['ft']
+	assert 'Copernicus' not in note and 'TanDEM-X' not in note
+	for words in ('ln(a / tan β)', 'D8', '90 m', '3.5 to', 'between 5 and 15', 'mean of the logarithms',
+	              'rivers and lakes are kept', 'CC BY-NC 4.0 or ODbL 1.0', 'A fixed layer, without dates'):
+		assert words in note, words
+	assert catalog.find('twi', 'merit hydro')['ref'] == catalog.find('TWI', 'MERITHydro')['ref'] == 148
+	# the formula: the two bands as written (no need to ask Earth Engine for the band names of the image)
+	assert sensors.is_twi(e) and not sensors.is_twi(catalog.find('SLOPE', 'Copernicus'))
+	assert sensors.parse_formula(e) == ('twi', ['elv', 'upa'])
+	assert sensors.TWI == {'area_scale': 1e6, 'min_tan_slope': 0.001}
+	assert sensors.fixed_filters(e) == [] and sensors.rgb_of(e) is None
+	assert not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
+	# not a terrain of the data by its ID (slope, aspect): only the catalog computes it
+	assert 'twi' not in variable.TERRAIN
+	# no metric, period nor season, as the other fixed layers
+	spec = services.make_spec('TWI', 'MERIT Hydro', '2020-01-01', '2020-12-31', metric='p95')
+	assert spec['metric'] is None and spec['name'] == 'TWI_MERIT_Hydro' and variable.is_static(spec)
+	image = variable._static_spec(spec)
+	assert (image['image'], image['band'], image['terrain'], image['formula']) == (
+		'MERIT/Hydro/v1_0_1', 'elv', None, ('twi', ['elv', 'upa']))
+	assert variable._types['MERIT/Hydro/v1_0_1'] == 'IMAGE'  # image_asset: no need to ask Earth Engine
+	assert services._title(spec) == 'TWI MERIT Hydro' and services._named(spec, 'median') == 'TWI MERIT Hydro'
+	assert services._ylabel(spec) == '[unitless]'
+	assert services._file_stem('TWI', 'MERIT Hydro', 'median', None, None, {}) == 'TWI_MERIT Hydro'
+	d = variable.describe(spec)
+	assert (d['formula'], d['udunits'], d['native_resolution']) == ('TWI(elv,upa)', '1', 90)
+	region = {'bbox': [-3.4, 37.0, -3.3, 37.1]}
+	with pytest.raises(ValueError, match='TWI .MERIT Hydro. is a fixed layer, without dates'):
+		services.time_series(region, 'TWI', 'MERIT Hydro', '2020-01-01', '2020-12-31')
+	with pytest.raises(ValueError, match='fixed layer, without dates.* no comparisons'):
+		services.compare_series(region, 'TWI', 'MERIT Hydro', '2020-01-01', '2020-12-31', '2021-01-01', '2021-12-31')
+	d = services.describe_variable('TWI', 'MERIT Hydro')
+	assert d['static'] and d['fixed_filters'] == [] and d['group'] == 'Topography' and 'D8' in d['notes']['ft']
+	assert [(r['variable'], r['static'], r['theme']) for r in services.list_variables(sensor='MERIT Hydro')] == [
+		('TWI', True, 'Terrain')]
+	assert {r['variable'] for r in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'TWI'}
+
+
+def test_list_variables_compares_sensors_as_find():
+	# the sensor of list_variables, as that of catalog.find: in any case and with or without its spaces
+	for sensor in ('MERIT Hydro', 'merit hydro', 'MERITHydro', 'MERIT  Hydro'):
+		assert [r['variable'] for r in services.list_variables(sensor=sensor)] == ['TWI'], sensor
+		assert catalog.find('TWI', sensor)['ref'] == 148
+	assert [r['variable'] for r in services.list_variables(sensor='Cop ernicus')] == ['ELEVATION', 'SLOPE']
+	assert catalog.name_key('ERA5-Land') == catalog.name_key('era5-land') == 'era5-land'
+	assert services.list_variables(sensor='MERIT-Hydro') == []  # a hyphen is not a space
 
 
 def test_rbr_report():

@@ -279,6 +279,18 @@ print('group Animation:', [dock.anim_step.itemText(i) for i in range(dock.anim_s
 dock.region_kind.setCurrentIndex(dock.region_kind.findData('extent'))
 iface.canvas.setDestinationCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
 iface.canvas.setExtent(QgsRectangle(-3.45, 37.02, -3.30, 37.12))
+# the biome at the center of the map, after the ecoregion (the layer and the map extent stay the first two): only its
+# part in the map extent, the region {'biome_at': its center, 'within': the extent}
+kinds = [dock.region_kind.itemData(i) for i in range(dock.region_kind.count())]
+assert kinds[:2] == ['layer', 'extent'] and kinds.index('biome') == kinds.index('ecoregion') + 1, kinds
+extent = dock.region()
+dock.region_kind.setCurrentIndex(kinds.index('biome'))
+biome = dock.region()
+(w, s, e, n), (lon, lat) = extent['bbox'], biome['biome_at']
+assert biome['within'] == extent and abs(lon - (w + e) / 2) < 1e-9 and abs(lat - (s + n) / 2) < 1e-9, biome
+assert dock.region_kind.currentText() == 'Biome at the center of the map'
+dock.region_kind.setCurrentIndex(kinds.index('extent'))
+print('region: the biome at the center of the map, within the extent', biome)
 dock.anim_step.setCurrentIndex(dock.anim_step.findData('monthly'))
 dock.anim_metric.setCurrentIndex(dock.anim_metric.findData('max'))
 dock.anim_fps.setValue(4)
@@ -305,8 +317,9 @@ print('window of the animation:', dlg.windowTitle(), '| frames', dlg.movie.frame
 
 # Area by class: the fields of each kind, the arguments sent and the window
 kinds = [dock.area_kind.itemData(i) for i in range(dock.area_kind.count())]
-assert kinds == ['landcover', 'breaks', 'trend'], kinds
-for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', False, True), ('trend', False, False)):
+assert kinds == ['landcover', 'breaks', 'trend', 'classes'], kinds  # classes: of a categorical layer (BIOME...)
+for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', False, True), ('trend', False, False),
+                                      ('classes', False, False)):
 	dock.area_kind.setCurrentIndex(dock.area_kind.findData(kind))
 	assert dock.area_map_row.isVisibleTo(dock) == map_shown and dock.area_breaks.isVisibleTo(dock) == breaks_shown, kind
 dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
@@ -363,7 +376,7 @@ assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', '
 assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
 dlg = dock.series_dialogs[len(dock.series) - 1]
 table = dlg.findChild(QTableWidget)
-assert [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())][:3] == ['Region', 'Band', 'Percentile 25']
+assert [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())][:3] == ['Region', 'Zone', 'Percentile 25']
 from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsProject, QgsVectorLayer  # noqa: E402
 lines = QgsVectorLayer('LineString?crs=EPSG:4326', 'lines', 'memory')
 f = QgsFeature()

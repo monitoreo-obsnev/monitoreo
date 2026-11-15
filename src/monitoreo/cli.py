@@ -2,6 +2,9 @@
 
     monitoreo list [--sensor S] [--text T]           variables of the catalog
     monitoreo info VARIABLE [--sensor S]             everything about a variable
+    monitoreo classes VARIABLE [--sensor S] [--text T] [--limit N] [--lang es]
+                                                     the classes of a categorical layer (ECOREGION, BIOME of sensor
+                                                     RESOLVE): code, name, colour and biome (without Earth Engine)
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
@@ -17,17 +20,22 @@
     monitoreo stats VARIABLE --sensor S --region JSON [--start D --end D] [--metric median] [--stats mean,cv,p90]
                                                      statistics of the map of a variable over each feature of the
                                                      region: mean, median, min, max, std, cv (coefficient of
-                                                     variation, %) and percentiles; also the fixed layers
+                                                     variation, %) and percentiles; also the fixed layers; of a
+                                                     categorical layer (ECOREGION, BIOME), the majority class (mode)
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
     monitoreo areas --region JSON --landcover MAP [--year Y] [--other-year Y2] [--csv F] [--png F]
     monitoreo areas VARIABLE --sensor S --region JSON [--start D --end D] --breaks 0.2,0.4,0.6 | --trend
+    monitoreo areas ECOREGION --sensor RESOLVE --region JSON
                                                      hectares and % of each class of a land cover map, of the map of a
-                                                     variable cut at some values, or of the trend on each pixel
+                                                     variable cut at some values, of the trend on each pixel, or of the
+                                                     classes of a categorical layer (ECOREGION, BIOME)
     monitoreo stats VARIABLE ... --zones '{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000]}'
-                                                     the statistics of each band of another variable (elevation)
+                                                     the statistics of each band of another variable (elevation), or
+                                                     of each class of a categorical layer: --zones '{"variable":
+                                                     "BIOME", "sensor": "RESOLVE"}'
     monitoreo transect VARIABLE --sensor S --line '[[lon, lat], ...]' [--start D --end D] [--csv F] [--png F]
                                                      profile of a variable along a line, with the elevation
     monitoreo figure VARIABLE --sensor S --region JSON [--start D --end D] --out F.png|F.pdf|F.svg [--dpi 300]
@@ -42,6 +50,8 @@
                                                      compare); image and stats also take --image ID (a fixed image,
                                                      without dates) and
                                                      --terrain slope|aspect (in degrees: its unit is then degree)
+    monitoreo series --collection ID --band B1,B2 --band-reducer sum|mean ...
+                                                     several bands combined on each pixel: their sum or their mean
     monitoreo datasets [TEXT] [--start D] [--end D] [--bbox W S E N] [--kind image|image_collection] [--limit N]
                                                      search the Earth Engine data catalog by words (in English), dates
                                                      and area (without Earth Engine)
@@ -74,7 +84,11 @@
                                                      at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}', '{"country": "ESP"}',
-'{"island_at": [2.9, 39.6]}' or '{"bbox": [-3.5, 37, -3, 37.2]}'. The Earth Engine
+'{"island_at": [2.9, 39.6]}', '{"biome_at": [-3.3, 37.1]}' (the biome of RESOLVE Ecoregions 2017 at a point; by its
+code, 1 to 14 or 99, '{"biome_id": 12}': monitoreo classes BIOME lists them) or '{"bbox": [-3.5, 37, -3, 37.2]}';
+any region takes "within", another region, to keep only its part inside it, e.g. the Mediterranean biome in Spain:
+'{"biome_id": 12, "within": {"country": "ESP"}}' (a whole biome spans continents: give it within a region, or MODIS
+or the climate at an annual step). The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
@@ -98,7 +112,9 @@ WHERE_HELP = ('only the pixels of the region whose variables pass these conditio
               '\'[{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500}]\' (each its variable aggregated '
               'over the period, between min and max), or without some land covers of a land cover map of a year, e.g. '
               '\'[{"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}]\' (monitoreo landcover lists '
-              'the maps and the land covers; see the wiki, Concepts)')
+              'the maps and the land covers), or only some classes of a categorical layer (classes), or without them '
+              '(exclude), e.g. \'[{"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]}]\' (monitoreo classes '
+              'BIOME lists them; see the wiki, Concepts)')
 
 
 def _landcover(args, services):
@@ -144,8 +160,8 @@ STAT_HELP = ('how the pixels of each feature of the region are summarized: mean,
 INTERANNUAL_HELP = ('with --temporal annual, monthly or 16-day: how the years are summarized, any metric (e.g. cv: how '
                     'much the values change from year to year, in %%)')
 # the options of the data of Earth Engine given by its ID, instead of VARIABLE and --sensor (see monitoreo asset)
-SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_scale': '--band-scale', 'band_offset': '--band-offset',
-                  'unit': '--unit', 'terrain': '--terrain'}
+SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_reducer': '--band-reducer', 'band_scale': '--band-scale',
+                  'band_offset': '--band-offset', 'unit': '--unit', 'terrain': '--terrain'}
 
 
 def _source_options(p, image=False):
@@ -160,17 +176,24 @@ def _source_options(p, image=False):
 		               help='instead of VARIABLE and --sensor: the ID of an image of Earth Engine, or of a collection of '
 		                    'tiles (their mosaic), e.g. WORLDCLIM/V1/BIO: a fixed layer, without dates')
 	p.add_argument('--band', help='the band of --collection' + (' or --image' if image else '') +
-	                              ' (one; monitoreo asset ID lists them)')
-	p.add_argument('--band-scale', type=float, metavar='F', help='factor of the stored values of the band (e.g. 0.1)')
+	                              ' (one, or several separated by commas with --band-reducer, e.g. aet,def; monitoreo '
+	                              'asset ID lists them)')
+	p.add_argument('--band-reducer', choices=('sum', 'mean'),
+	               help='how several --band are combined into one value on each pixel where all of them have data: '
+	                    'their sum (e.g. 12 monthly bands into the annual total) or their mean (e.g. the depth bands '
+	                    'of a soil), on the pixels of the first band')
+	p.add_argument('--band-scale', type=float, metavar='F',
+	               help='factor of the stored values of the band (e.g. 0.1; of each band, before they are combined)')
 	p.add_argument('--band-offset', type=float, metavar='F',
 	               help='what is added to the values of the band after --band-scale')
 	p.add_argument('--unit', help="unit of the values (after --band-scale and --band-offset) in UDUNITS, e.g. mm, degC, "
-	                              "'kg m-2', 'mm day-1' or 1 (dimensionless)" +
-	                              ('; with --terrain, none or degree' if image else ''))
+	                              "'kg m-2', 'mm day-1' or 1 (dimensionless); with several bands, that of every band "
+	                              '(their sum is not turned from a rate into a total: 12 monthly bands in mm sum to '
+	                              'mm)' + ('; with --terrain, none or degree' if image else ''))
 	if image:
 		p.add_argument('--terrain', choices=('slope', 'aspect'),
-		               help='the slope or the aspect of the band of --image (e.g. of a DEM), in degrees (its unit is '
-		                    'then degree: give no --unit, or degree, not that of the band)')
+		               help='the slope or the aspect of the band of --image (e.g. of a DEM; one band), in degrees (its '
+		                    'unit is then degree: give no --unit, or degree, not that of the band)')
 
 
 # the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
@@ -178,10 +201,10 @@ def _source_options(p, image=False):
 OTHER_THEMES = {
 	'earth_engine': 'any image or collection of images of Earth Engine by its ID: monitoreo asset ID describes it (its '
 	                'bands, units and dates); then compute it with --collection (or --image, in monitoreo image) and '
-	                '--band',
+	                '--band (several with --band-reducer)',
 	'community': 'the datasets of the GEE Community Catalog by its own themes: monitoreo community lists its themes '
 	             'and, with --theme or --text, their datasets; monitoreo asset ID describes one; then compute it with '
-	             '--collection (or --image, in monitoreo image) and --band'}
+	             '--collection (or --image, in monitoreo image) and --band (several with --band-reducer)'}
 
 
 def _other_theme(theme):
@@ -199,16 +222,19 @@ def _error(e, args):
 	text = f'ERROR: {e}'
 	asset = None if 'variable' in args.source else args.source.get('collection')
 	if asset and 'give it as an image' in str(e):
+		reducer = args.source.get('band_reducer')
 		text += (f'; in the command line, --image {asset} instead of --collection' if hasattr(args, 'image') else
-		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
+		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')}"
+		         f"{f' --band-reducer {reducer}' if reducer else ''} (a GeoTIFF)")
 	return text
 
 
 def _source(args, parser):
 	"""The data that a command computes, as the keywords of services: VARIABLE and --sensor (a variable of the catalog;
-	--collection, one of its collections), or --collection or --image and --band (any data of Earth Engine by its ID),
-	with --band-scale, --band-offset, --unit and, for an image, --terrain. Else the error of PARSER, before Earth
-	Engine."""
+	--collection, one of its collections), or --collection or --image and --band (any data of Earth Engine by its ID;
+	several bands, separated by commas, with --band-reducer), with --band-scale, --band-offset, --unit and, for an image
+	of one band, --terrain. Else the error of PARSER, before Earth Engine (those of the bands in the words of the
+	services: variable.check_bands)."""
 	given = {k: getattr(args, k, None) for k in SOURCE_OPTIONS}
 	given = {k: v for k, v in given.items() if v is not None and v != ''}
 	image = 'image' in given
@@ -234,7 +260,13 @@ def _source(args, parser):
 	if args.collection and image:
 		parser.error('give --collection (images with dates) or --image (a fixed image), not both')
 	if 'band' not in given:
-		parser.error(f'give --band: the band of {asset} (one; monitoreo asset {asset} lists them)')
+		parser.error(f'give --band: the band of {asset} (one, or several separated by commas with --band-reducer; '
+		             f'monitoreo asset {asset} lists them)')
+	from . import variable
+	try:  # several bands without --band-reducer, --band-reducer with one band, a band twice, --terrain with several
+		variable.check_bands(dict(given), asset)
+	except ValueError as e:
+		parser.error(str(e))
 	if 'terrain' in given and not image:
 		parser.error('--terrain is for --image (a fixed layer, e.g. a DEM), not for --collection')
 	return dict(given, **({'collection': args.collection} if args.collection else {}))
@@ -276,13 +308,23 @@ def main(argv=None):
 	sub = parser.add_subparsers(dest='cmd', required=True)
 	p = sub.add_parser('list', help='variables of the catalog')
 	p.add_argument('--sensor')
-	p.add_argument('--theme', help='only those of a theme: vegetation, water, snow, fire, energy, atmosphere, climate '
-	                               'or terrain (other data of Earth Engine: monitoreo asset and monitoreo community)')
+	p.add_argument('--theme', help='only those of a theme: vegetation, water, snow, fire, energy, atmosphere, climate, '
+	                               'terrain or ecosystems (other data of Earth Engine: monitoreo asset and monitoreo '
+	                               'community)')
 	p.add_argument('--text')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	info = p = sub.add_parser('info', help='everything about a variable')
 	p.add_argument('variable')
 	p.add_argument('--sensor')
+	p = sub.add_parser('classes', help='the classes of a categorical layer (ECOREGION, BIOME of sensor RESOLVE): their '
+	                                   'code (for --where with classes or exclude, and for --zones), name, colour and '
+	                                   'biome (without Earth Engine)')
+	p.add_argument('variable', help='a categorical layer: ECOREGION or BIOME')
+	p.add_argument('--sensor', default='RESOLVE', help='its sensor (default: RESOLVE)')
+	p.add_argument('--text', help='only those with these words at the start of a word of their code, name or biome, '
+	                              'e.g. Iberian')
+	p.add_argument('--limit', type=int, help='at most this number of classes (default: all)')
+	p.add_argument('--lang', default='en', choices=('en', 'es'), help='language of the names of the biomes')
 	p = sub.add_parser('parks', help='protected areas of WDPA by name')
 	p.add_argument('text')
 	p.add_argument('--limit', type=int, default=20)
@@ -324,7 +366,8 @@ def main(argv=None):
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
 	p.add_argument('--sensor', help=SENSOR_HELP)
 	_source_options(p)
-	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\' or, with within, '
+	                                                '\'{"biome_id": 12, "within": {"country": "ESP"}}\'')
 	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', required=True)
 	p.add_argument('--end', required=True)
@@ -359,8 +402,8 @@ def main(argv=None):
 	_source_options(p, image=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
-	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
-	                               'nor for --image)')
+	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
+	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
@@ -378,21 +421,26 @@ def main(argv=None):
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
 	p.add_argument('--sensor', help=SENSOR_HELP)
 	_source_options(p, image=True)
-	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\' or the biome at '
+	                                                'a point, \'{"biome_at": [-3.3, 37.1]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
-	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
-	                               'nor for --image)')
+	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
+	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
 	p.add_argument('--stats', help='the statistics over each feature, separated by commas: mean, median, min, max, std '
 	                               '(standard deviation), cv (coefficient of variation, in %%) and pN (percentile N) '
-	                               f"(default: {','.join(REGION_STATS)}; with --zones, {','.join(REGION_STATS_ZONES)})")
+	                               f"(default: {','.join(REGION_STATS)}; with --zones, {','.join(REGION_STATS_ZONES)}); "
+	                               'of a categorical layer (ECOREGION, BIOME), mode (the majority class, the default) '
+	                               'and count')
 	p.add_argument('--scale', type=float, help='pixel size of the statistics in metres (default: that of the data, or '
 	                                           'bigger over big regions)')
 	p.add_argument('--zones', help='the statistics of each band of another variable instead, a JSON dictionary, e.g. '
-	                               '\'{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000, 2500]}\'')
+	                               '\'{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000, 2500]}\', '
+	                               'or of each class of a categorical layer, without breaks, e.g. \'{"variable": "BIOME", '
+	                               '"sensor": "RESOLVE"}\' (optionally "classes": the codes of those to keep)')
 	p.add_argument('--csv', help='CSV file of the statistics')
 	p.add_argument('--png', help='with --zones, chart of the statistics of each zone (PNG)')
 	computes['transect'] = p = sub.add_parser('transect', help='profile of the map of a variable along a line, with the '
@@ -432,11 +480,13 @@ def main(argv=None):
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
-	areas = computes['areas'] = p = sub.add_parser('areas', help='hectares and % of each class of a land cover map, of '
-	                                                             'the map of a variable cut at some values, or of the '
-	                                                             'trend of a variable on each pixel')
+	areas = computes['areas'] = p = sub.add_parser('areas', help='hectares and %% of each class of a land cover map, of '
+	                                                             'the map of a variable cut at some values, of the '
+	                                                             'trend of a variable on each pixel, or of the classes '
+	                                                             'of a categorical layer')
 	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor; none with '
-	                                           '--landcover')
+	                                           '--landcover; a categorical layer (ECOREGION, BIOME of sensor RESOLVE) '
+	                                           'without --breaks nor --trend: its own classes')
 	p.add_argument('--sensor', help=SENSOR_HELP)
 	_source_options(p, image=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
@@ -637,6 +687,16 @@ def main(argv=None):
 	if args.cmd == 'info':
 		print(json.dumps(services.describe_variable(args.variable, args.sensor), ensure_ascii=False, indent=1))
 		return
+	if args.cmd == 'classes':  # the table of classes of catalog.json: without Earth Engine
+		try:
+			rows = services.list_classes(args.variable, args.sensor, args.text, args.limit, args.lang)
+		except (KeyError, ValueError) as e:
+			sys.exit(f'ERROR: {e}')
+		_table(rows, ['code', 'name', 'colour'] + (['group', 'group_name'] if rows and 'group' in rows[0] else []))
+		layer = {'variable': args.variable.upper(), 'sensor': args.sensor}
+		where = json.dumps([dict(layer, classes=[rows[0]['code'] if rows else 12])])
+		print(f"\n{len(rows)} classes | e.g. --where '{where}' or --zones '{json.dumps(layer)}'")
+		return
 	if args.cmd == 'community':  # the copy of its index in MonitorEO: without Earth Engine
 		return _community(args, services)
 	if args.cmd == 'datasets':  # the copy of the index of the Earth Engine data catalog: without Earth Engine
@@ -647,7 +707,8 @@ def main(argv=None):
 		_table([{k: r.get(k, '') for k in ('id', 'type', 'start', 'end', 'title')} for r in rows],
 		       ['id', 'type', 'start', 'end', 'title'])
 		print(f'\n{len(rows)} datasets of the Earth Engine data catalog | monitoreo asset ID describes one (its bands, '
-		      'units and how to cite it); then compute it with --collection or --image and --band')
+		      'units and how to cite it); then compute it with --collection or --image and --band (several with '
+		      '--band-reducer)')
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
@@ -703,7 +764,7 @@ def _community(args, services):
 		sys.exit(f'ERROR: {e}')
 	_table(rows, ['id', 'type', 'title'])
 	print(f'\n{len(rows)} datasets of the GEE Community Catalog | monitoreo asset ID describes one (its bands, units '
-	      'and how to cite it); then compute it with --collection or --image and --band')
+	      'and how to cite it); then compute it with --collection or --image and --band (several with --band-reducer)')
 
 
 def _asset(args, services):
@@ -752,8 +813,9 @@ def _compute(args, services):
 			                          **args.source)
 		except ValueError as e:
 			sys.exit(_error(e, args))
-		print(f"{res['file']}: {res['name']} | colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
-		      + (f" | README {res['readme']}" if res.get('readme') else ''))
+		colours = f"{len(res['classes'])} classes" if res.get('classes') is not None else \
+			f"colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()  # a categorical layer: its classes
+		print(f"{res['file']}: {res['name']} | {colours}" + (f" | README {res['readme']}" if res.get('readme') else ''))
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
@@ -818,9 +880,15 @@ def _image(args, services):
 				variables.check_rgb(services.make_spec(**same))
 			res = services.download_image(region, resolution=resolution, path=args.out, progress=tiles, **same)
 			images = 'fixed image' if res.get('images') is None else f"{res['images']} images"  # no dates: none
-			print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
-			      f"{res['resolution']:g} m | {images} | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
-			      f"{res['unit']}".rstrip() if res['min'] is not None else f"{res['file']}: no valid pixel")
+			if res.get('classes') is not None:  # a categorical layer: the classes in the file
+				print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
+				      f"{res['resolution']:g} m | {len(res['classes'])} classes: "
+				      + '; '.join(c['label'] for c in res['classes'][:10]) + ('...' if len(res['classes']) > 10 else '')
+				      if res['classes'] else f"{res['file']}: no valid pixel")
+			else:
+				print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
+				      f"{res['resolution']:g} m | {images} | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
+				      f"{res['unit']}".rstrip() if res['min'] is not None else f"{res['file']}: no valid pixel")
 			resolution = res['resolution']
 		if args.rgb:
 			res = services.download_rgb(region, resolution=resolution, path=args.rgb, progress=tiles, **same)
@@ -843,8 +911,10 @@ def _stats(args, services):
 		                            csv=args.csv, chart=args.png, **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
-	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + list(res.get('stats') or stats or [])
-	       + ['n_pixels'])
+	shown = list(res.get('stats') or stats or [])
+	if any('mode_label' in r for r in res['rows']):  # a categorical layer: the name of the majority class too
+		shown.insert(shown.index('mode') + 1 if 'mode' in shown else len(shown), 'mode_label')
+	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + shown + ['n_pixels'])
 	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats or []) else ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
 
@@ -870,7 +940,8 @@ def _areas(args, services):
 		      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | Sankey {res['chart']}" if res.get('chart')
 		                                                              else ''))
 		return
-	cols = ['region', 'class', 'label'] + (['landcover'] if res['mode'] == 'landcover' else []) + ['ha', 'percent']
+	cols = ['region', 'class', 'label'] + (['landcover'] if res['mode'] == 'landcover' else []) + \
+		(['group_label'] if res.get('by_group') is not None else []) + ['ha', 'percent']  # the biome of an ecoregion
 	_table([{k: (f'{v:.1f}' if k in ('ha', 'percent') and isinstance(v, float) else v) for k, v in r.items()}
 	        for r in res['rows'] if r.get('ha')], cols)
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m | % of the area with classes"

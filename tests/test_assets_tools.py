@@ -88,6 +88,29 @@ def test_the_command_line_computes_a_collection_by_its_id(computed, capsys):
 	assert computed.count('init') == 5  # they compute in Earth Engine
 
 
+def test_the_command_line_combines_bands(computed, capsys, tmp_path):
+	"""--band with several bands separated by commas and --band-reducer: they reach the services as written (the
+	services split them), with band_reducer."""
+	from monitoreo import cli
+	cli.main(['series', '--collection', TERRACLIMATE, '--band', 'aet,def', '--band-reducer', 'sum', '--band-scale',
+	          '0.1', '--unit', 'mm'] + ARGS)
+	[call] = _calls(computed)
+	assert (call['tool'], call['band'], call['band_reducer'], call['band_scale']) == ('time_series', 'aet,def', 'sum',
+	                                                                                  0.1)
+	tif = str(tmp_path / 'bio.tif')
+	cli.main(['image', '--image', 'WORLDCLIM/V1/BIO', '--band', 'bio05, bio06', '--band-reducer', 'mean',
+	          '--band-scale', '0.1', '--unit', 'degC', '--region', json.dumps(REGION), '--out', tif])
+	call = _calls(computed)[-1]
+	assert (call['image'], call['band'], call['band_reducer']) == ('WORLDCLIM/V1/BIO', 'bio05, bio06', 'mean')
+	cli.main(['series', '--collection', TERRACLIMATE, '--band', 'pr'] + ARGS)  # one band: no band_reducer
+	assert 'band_reducer' not in _calls(computed)[-1]
+	with pytest.raises(SystemExit):
+		cli.main(['series', '--help'])
+	text = ' '.join(capsys.readouterr().out.split())
+	assert '--band-reducer {sum,mean}' in text and 'several separated by commas with --band-reducer' in text
+	assert 'monitoreo series --collection ID --band B1,B2 --band-reducer sum|mean' in cli.__doc__
+
+
 def test_the_command_line_computes_an_image_by_its_id(computed, capsys, tmp_path):
 	from monitoreo import cli
 	tif = str(tmp_path / 'bio01.tif')
@@ -128,8 +151,24 @@ def test_the_command_line_computes_an_image_by_its_id(computed, capsys, tmp_path
 	                         f'{TERRACLIMATE} describes an ID of Earth Engine'),
 	(['trend', 'NDVI', '--sensor', 'Modis', '--band', 'NDVI'] + ARGS, '--band: only for the data of Earth Engine given '
 	                                                                  'by its ID (--collection instead of VARIABLE'),
-	(['trend', '--collection', TERRACLIMATE] + ARGS, f'give --band: the band of {TERRACLIMATE} (one; monitoreo asset '
+	(['trend', '--collection', TERRACLIMATE] + ARGS, f'give --band: the band of {TERRACLIMATE} (one, or several '
+	                                                 f'separated by commas with --band-reducer; monitoreo asset '
 	                                                 f'{TERRACLIMATE} lists them)'),
+	# several bands: combined with --band-reducer, in the words of the services (variable.check_bands)
+	(['series', '--collection', TERRACLIMATE, '--band', 'aet,def'] + ARGS,
+	 f"{TERRACLIMATE}: give band_reducer, 'sum' or 'mean', to combine its 2 bands (aet, def) into one value on each "
+	 'pixel'),
+	(['series', '--collection', TERRACLIMATE, '--band', 'pr', '--band-reducer', 'sum'] + ARGS,
+	 'band_reducer combines several bands: give two or more in band (a list, or a text with commas)'),
+	(['series', '--collection', TERRACLIMATE, '--band', 'aet, aet', '--band-reducer', 'sum'] + ARGS,
+	 'band aet is given twice: give each band once'),
+	(['image', '--image', 'COPERNICUS/DEM/GLO30', '--band', 'DEM,DEM2', '--band-reducer', 'mean', '--terrain', 'slope',
+	  '--out', 'x.tif'] + ARGS, 'terrain is the slope or the aspect of one band (an elevation): give one band, without '
+	                            'band_reducer'),
+	(['series', '--collection', TERRACLIMATE, '--band', 'aet,def', '--band-reducer', 'median'] + ARGS,
+	 "invalid choice: 'median'"),
+	(['series', 'NDVI', '--sensor', 'Modis', '--band-reducer', 'sum'] + ARGS,
+	 '--band-reducer: only for the data of Earth Engine given by its ID'),
 	(['series', 'NDVI', '--sensor', 'Modis', '--band', 'NDVI', '--unit', '1'] + ARGS,
 	 '--band, --unit: only for the data of Earth Engine given by its ID'),
 	(['compare', '--collection', TERRACLIMATE, '--band', 'pr', '--sensor', 'TerraClimate', '--other-start',
@@ -281,6 +320,11 @@ def test_the_command_line_says_how_to_give_an_image(computed, monkeypatch):
 	with pytest.raises(SystemExit) as e:
 		cli.main(['trend', '--collection', 'WORLDCLIM/V1/BIO', '--band', 'bio01'] + ARGS)
 	assert str(e.value.code).endswith('monitoreo image --image WORLDCLIM/V1/BIO --band bio01 (a GeoTIFF)')
+	with pytest.raises(SystemExit) as e:  # several bands: with their --band-reducer
+		cli.main(['series', '--collection', 'WORLDCLIM/V1/BIO', '--band', 'bio05,bio06', '--band-reducer', 'mean'] +
+		         ARGS)
+	assert str(e.value.code).endswith('monitoreo image --image WORLDCLIM/V1/BIO --band bio05,bio06 --band-reducer '
+	                                  'mean (a GeoTIFF)')
 	said['error'] = 'X/TILES is a collection of images without dates (tiles): give it as an image (their mosaic)'
 	with pytest.raises(SystemExit) as e:
 		cli.main(['image', '--collection', 'X/TILES', '--band', 'b1', '--out', 'x.tif'] + ARGS)
@@ -398,6 +442,26 @@ def test_the_server_takes_the_arguments_of_the_data(faked, mcp):
 	                    _files(faked[-1])[0])
 
 
+def test_several_bands_by_their_id_reach_the_services(faked, mcp, tmp_path):
+	"""band as a list (also through the server, whose schema takes a text or a list) or as a text with commas, with
+	band_reducer: they reach the services, and the files are named by the reducer and the bands."""
+	several = {'collection': TERRACLIMATE, 'band': ['aet', 'def'], 'band_reducer': 'sum', 'band_scale': 0.1,
+	           'unit': 'mm'}
+	mcp.time_series(REGION, **several, start=YEARS[0], end=YEARS[1])
+	assert {k: faked[-1].get(k) for k in several} == several
+	assert re.fullmatch(r'TERRACLIMATE_sum_aet_def_monthly_mean_2001-01-01_2020-12-31_\d{8}-\d{6}\.csv',
+	                    _files(faked[-1])[0])
+	months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+	asyncio.run(mcp.server.call_tool('download_image', {'region': REGION, 'image': 'users/someone/monthly_rain', 'band':
+	                                                    months, 'band_reducer': 'sum', 'unit': 'mm'}))
+	assert (faked[-1]['band'], faked[-1]['band_reducer']) == (months, 'sum')
+	assert re.fullmatch(r'monthly_rain_sum12_jan-dec_\d{8}-\d{6}\.tif', _files(faked[-1])[0])  # more than 3: how many
+	asyncio.run(mcp.server.call_tool('map_layer', {'region': REGION, 'image': 'WORLDCLIM/V1/BIO',
+	                                               'band': 'bio05, bio06', 'band_reducer': 'mean'}))
+	assert (faked[-1]['band'], faked[-1]['band_reducer']) == ('bio05, bio06', 'mean')
+	assert re.fullmatch(r'map_BIO_mean_bio05_bio06_\d{8}-\d{6}\.png', _files(faked[-1])[0])
+
+
 def test_the_catalog_still_reaches_the_services(faked, mcp):
 	"""The variables of the catalog as before: the same names of the files, collection one of those of the variable."""
 	mcp.time_series(REGION, 'NDVI', 'Modis', start=YEARS[0], end=YEARS[1], collection='MODIS/061/MOD13Q1')
@@ -445,6 +509,25 @@ def test_the_catalog_still_reaches_the_services(faked, mcp):
 	('trend_table', dict(variable='ELEVATION', sensor='Copernicus', start='', end=''),
 	 'ELEVATION (Copernicus) is a fixed layer, without dates'),  # and those of the catalog
 	('time_series', dict(variable='NDVI', sensor='Modis', start='', end=''), 'give start and end'),
+	# several bands: combined with band_reducer, in the words of the services (variable.check_bands)
+	('time_series', dict(collection=TERRACLIMATE, band=['aet', 'def'], start=YEARS[0], end=YEARS[1]),
+	 f"{TERRACLIMATE}: give band_reducer, 'sum' or 'mean', to combine its 2 bands (aet, def) into one value on each "
+	 'pixel'),
+	('map_layer', dict(collection=TERRACLIMATE, band='pr', band_reducer='sum'), 'band_reducer combines several bands: '
+	                                                                             'give two or more in band'),
+	('map_layer', dict(collection=TERRACLIMATE, band='aet,def', band_reducer='median'),
+	 'unknown band_reducer median: use sum, mean'),
+	('region_stats', dict(image='WORLDCLIM/V1/BIO', band=['bio05', 'bio05'], band_reducer='mean'),
+	 'band bio05 is given twice: give each band once'),
+	('download_image', dict(image='COPERNICUS/DEM/GLO30', band=['DEM', 'edm'], band_reducer='mean', terrain='slope'),
+	 'terrain is the slope or the aspect of one band (an elevation): give one band, without band_reducer'),
+	('map_layer', dict(variable='NDVI', sensor='Modis', band_reducer='sum'),
+	 'band_reducer: only for the data of Earth Engine given by its ID'),
+	('time_series', dict(collection=TERRACLIMATE, band=[], start=YEARS[0], end=YEARS[1]),
+	 f'give band: the band of {TERRACLIMATE} (one, or several with band_reducer; describe_asset lists them)'),
+	('time_series', dict(image='WORLDCLIM/V1/BIO', band=['bio05', 'bio06'], band_reducer='mean', start=YEARS[0],
+	                     end=YEARS[1]),
+	 'WORLDCLIM/V1/BIO (the mean of the bands bio05 and bio06) is given as a fixed image, without dates'),
 ])
 def test_the_mcp_server_refuses_what_it_cannot_compute(faked, mcp, tool, kw, message):
 	with pytest.raises(mcp.ToolError, match='^ValueError: ' + re.escape(message)):
@@ -519,8 +602,15 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 		assert schema(name)['required'] == (['region'] + dates if name in DATED else ['region']), name
 		params = inspect.signature(getattr(mcp, name)).parameters
 		assert all(params[d].kind is inspect.Parameter.KEYWORD_ONLY for d in dates if name in DATED), name
-	assert {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain'} <= \
+	assert {'collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain'} <= \
 		set(schema('map_layer')['properties'])
+	# band: a text or a list of texts (several bands, with band_reducer)
+	kinds = [a.get('type') for a in schema('map_layer')['properties']['band']['anyOf']]
+	assert 'string' in kinds and 'array' in kinds, kinds
+	for words in ('band (one, or a list of several with band_reducer "sum"', 'the depth bands of a soil image',
+	              '12 monthly bands in mm sum to mm'):
+		assert words in text, words
+	assert 'band_reducer "sum" or "mean"' in ' '.join(mcp.SOURCE_DOC.split())
 	assert schema('rgb_map')['required'] == ['region', 'variable', 'sensor', 'start', 'end']  # the catalog only
 	assert schema('describe_asset')['required'] == ['asset']
 	assert not schema('community_datasets').get('required') and not schema('community_themes').get('required')
@@ -528,8 +618,8 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 	for name, service in COMPUTE.items():  # every argument goes to services: by position or among those of the data
 		params, given = set(inspect.signature(getattr(mcp, name)).parameters), \
 			set(inspect.signature(getattr(services, service)).parameters)
-		assert params - given <= {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain',
-		                          'where', 'figure'}, name  # figure: map_layer also calls services.map_figure
+		assert params - given <= {'collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit',
+		                          'terrain', 'where', 'figure'}, name  # figure: map_layer also calls services.map_figure
 	assert 'ee.ImageCollection' in mcp.describe_asset.__doc__ and 'references and credits' in mcp.describe_asset.__doc__
 	# the slope and the aspect are in degrees, whatever the unit of the band (that describe_asset gives: m for a DEM)
 	assert 'in degrees (its unit is then degree: give no unit, or "degree", not that of the band)' in \

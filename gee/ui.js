@@ -30,7 +30,9 @@
 			islandHelp: 'Pulsa en el mapa sobre la isla (de más de 1 km²).', ramsar: 'Solo sitios Ramsar',
 			mode_draw: 'Polígono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el área', none: 'Ninguna área protegida con ese nombre.',
-			clickHelp: 'Pulsa en el mapa sobre la ecorregión.', useView: 'Usar la vista del mapa',
+			clickHelp: 'Pulsa en el mapa sobre la ecorregión.', useView: 'Usar la vista del mapa', mode_biome: 'Bioma',
+			biomeHelp: 'Pulsa en el mapa sobre el bioma: su parte en la vista del mapa (un bioma entero abarca ' +
+				'continentes).', noBiome: 'Ningún bioma en ese punto (¿el mar?).',
 			drawHelp: 'Dibuja un polígono en el mapa: un clic por vértice y doble clic para cerrarlo.',
 			drawAgain: 'Dibujar otro', regionIs: 'Región: ', noRegion: 'Elige primero una región.',
 			mapView: 'Vista del mapa', polygon: 'Polígono dibujado', loadingRegion: 'Cargando la región…',
@@ -51,6 +53,21 @@
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
 			staticNote: 'Capa fija, sin fechas: solo el mapa y su GeoTIFF. El periodo, las métricas, las series ' +
 				'temporales, las tendencias y la comparación de periodos no se aplican.',
+			categoricalNote: 'Capa categórica: sus valores son códigos de clases, no cantidades. Su mapa tiene el color de ' +
+				'cada clase y la leyenda de las de la región; Superficie por clase da la superficie de cada una; en ' +
+				'Gradientes, sus clases son zonas; y «Solo los píxeles donde» guarda o quita algunas. Sin perfiles.',
+			whereKeep: 'es una de las clases', whereExclude: 'no es ninguna de las clases', whereCodes: 'códigos, p. ej. 12, 4',
+			whereFind: 'buscar una clase por su nombre', whereFound: 'Clases (código y nombre): %s',
+			whereClassNote: 'Un píxel se guarda si las clases guardadas cubren la mitad de él o más.',
+			noCodes: 'Da los códigos de las clases (búscalos por su nombre).',
+			moreClasses: 'y %s clases más', classesShown: '%s clases en la región.',
+			areaClassesNote: 'Las clases de la capa categórica elegida como variable (ECOREGION o BIOME, tema Ecosistemas) ' +
+				'con superficie en la región; las ecorregiones con su bioma.',
+			notCategorical: 'Elige una capa categórica como variable (ECOREGION o BIOME, tema Ecosistemas).',
+			zoneClassTitle: '%s por clases de %s', zoneNoCategorical: 'Una capa categórica como variable no tiene ' +
+				'percentiles por franjas: su estadística es la clase mayoritaria (en el paquete de Python, region_stats).',
+			profileCategorical: 'Una capa categórica (sus valores son códigos de clases) no tiene perfil a lo largo de ' +
+				'una línea: usa Superficie por clase.',
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada píxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, así que su métrica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
@@ -78,6 +95,7 @@
 			swipeNote: 'Izquierda: periodo de referencia (%s); derecha: el otro (%s). Los dos mapas se mueven juntos.',
 			areas: 'Superficie por clase', areaOf: 'Superficie de cada clase de %s', areaKind: 'Clases de', k_landcover: 'Un mapa de usos del suelo',
 			k_breaks: 'La variable, cortada en unos valores', k_trend: 'La tendencia de la variable',
+			k_classes: 'Las clases de una capa categórica',
 			areaMap: 'Mapa y año', areaBreaks: 'Cortes', breaksHint: 'p. ej. 1500, 2000, 2500',
 			computeAreas: 'Calcular las superficies', areaClass: 'Clase', areaPercent: '% de la superficie con clases',
 			areaNote: 'Píxeles de %s m. El % es de la superficie con una clase (no cuentan los píxeles sin datos).',
@@ -181,6 +199,14 @@
 			unit: 'Unidad (UDUNITS)', unitHint: 'p. ej. mm, degC, kg m-2, 1',
 			bandNote: 'Valor = valor guardado × escala + desplazamiento, en la unidad dada. Earth Engine no los da: ' +
 				'búscalos en la página del conjunto de datos.',
+			combine: 'Combinar bandas', combine_one: 'Una banda', combine_sum: 'Suma de las bandas',
+			combine_mean: 'Media de las bandas', bands: 'Bandas',
+			combineNote: 'Cada banda × escala + desplazamiento; después, en cada píxel con datos en todas ellas, su suma ' +
+				'o su media, en la unidad de las bandas (12 bandas mensuales en mm suman mm), sobre los píxeles de la ' +
+				'primera.',
+			combineTwo: 'Marca dos o más bandas para combinarlas (o elige Una banda).',
+			combineScales: 'Las bandas marcadas tienen píxeles de distinto tamaño: se combinan sobre los de la primera ' +
+				'(%s m).',
 			customFilters: 'Estos datos guardan su propia máscara: los filtros de píxeles de MonitorEO son para las ' +
 				'variables de su catálogo.',
 			datasetPage: 'Página del conjunto de datos', src_data: 'Catálogo de datos de Earth Engine',
@@ -202,7 +228,9 @@
 			islandHelp: 'Click on the map over the island (of more than 1 km²).', ramsar: 'Ramsar sites only',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
-			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view',
+			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view', mode_biome: 'Biome',
+			biomeHelp: 'Click on the map over the biome: its part in the map view (a whole biome spans continents).',
+			noBiome: 'No biome at that point (the sea?).',
 			drawHelp: 'Draw a polygon on the map: a click per vertex and a double click to close it.',
 			drawAgain: 'Draw another', regionIs: 'Region: ', noRegion: 'Choose a region first.',
 			mapView: 'Map view', polygon: 'Drawn polygon', loadingRegion: 'Loading the region…',
@@ -223,6 +251,21 @@
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
 			staticNote: 'Fixed layer, without dates: only the map and its GeoTIFF. The period, metrics, time series, ' +
 				'trends and comparison of periods do not apply.',
+			categoricalNote: 'Categorical layer: its values are class codes, not quantities. Its map has the colour of ' +
+				'each class and the legend of those in the region; Area by class gives the area of each one; in ' +
+				'Gradients, its classes are zones; and «Only the pixels where» keeps or leaves out some. No profiles.',
+			whereKeep: 'is one of the classes', whereExclude: 'is none of the classes', whereCodes: 'codes, e.g. 12, 4',
+			whereFind: 'find a class by its name', whereFound: 'Classes (code and name): %s',
+			whereClassNote: 'A pixel is kept when the classes kept cover half of it or more.',
+			noCodes: 'Give the codes of the classes (find them by their name).',
+			moreClasses: 'and %s more classes', classesShown: '%s classes in the region.',
+			areaClassesNote: 'The classes of the categorical layer chosen as the variable (ECOREGION or BIOME, theme ' +
+				'Ecosystems) with area in the region; the ecoregions with their biome.',
+			notCategorical: 'Choose a categorical layer as the variable (ECOREGION or BIOME, theme Ecosystems).',
+			zoneClassTitle: '%s by classes of %s', zoneNoCategorical: 'A categorical layer as the variable has no ' +
+				'percentiles by zones: its statistic is the majority class (in the Python package, region_stats).',
+			profileCategorical: 'A categorical layer (its values are class codes) has no profile along a line: use Area ' +
+				'by class.',
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
@@ -250,6 +293,7 @@
 			swipeNote: 'Left: reference period (%s); right: the other one (%s). Both maps move together.',
 			areas: 'Area by class', areaOf: 'Area of each class of %s', areaKind: 'Classes of', k_landcover: 'A land cover map',
 			k_breaks: 'The variable, cut at some values', k_trend: 'The trend of the variable',
+			k_classes: 'The classes of a categorical layer',
 			areaMap: 'Map and year', areaBreaks: 'Breaks', breaksHint: 'e.g. 1500, 2000, 2500',
 			computeAreas: 'Compute the areas', areaClass: 'Class', areaPercent: '% of the area with classes',
 			areaNote: 'Pixels of %s m. The % is of the area with a class (the pixels without data are not counted).',
@@ -353,6 +397,13 @@
 			unit: 'Unit (UDUNITS)', unitHint: 'e.g. mm, degC, kg m-2, 1',
 			bandNote: 'Value = stored value × scale + offset, in the unit given. Earth Engine does not give them: read ' +
 				'them in the page of the dataset.',
+			combine: 'Combine bands', combine_one: 'One band', combine_sum: 'Sum of the bands',
+			combine_mean: 'Mean of the bands', bands: 'Bands',
+			combineNote: 'Each band × scale + offset; then, on each pixel with data in all of them, their sum or their ' +
+				'mean, in the unit of the bands (12 monthly bands in mm sum to mm), on the pixels of the first.',
+			combineTwo: 'Check two or more bands to combine them (or choose One band).',
+			combineScales: 'The bands checked have pixels of different sizes: they are combined on those of the first ' +
+				'(%s m).',
 			customFilters: 'These data keep their own mask: the pixel filters of MonitorEO are for the variables of its ' +
 				'catalog.',
 			datasetPage: 'Page of the dataset', src_data: 'Earth Engine data catalog',
@@ -384,6 +435,9 @@
 		// the variable of the right axis of a profile (otherQuality), as chosen_filters of the QGIS plugin
 		chosenQuality: null,
 		whereOn: false, whereRef: null, whereMin: '1500', whereMax: '',  // where: one condition (default: ELEVATION)
+		// on a categorical layer (ECOREGION, BIOME): its classes to keep ('classes') or to leave out ('exclude'), by
+		// their codes, and the text of the search of a class by its name
+		whereKeep: 'classes', whereCodes: '', whereFind: '',
 		// the land cover mask, a condition of where: its map, year (null: the default of the map) and land covers left out
 		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
@@ -399,12 +453,13 @@
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
-		// its band, use (collection or image), scale, offset and unit as written, why the last ID could not be read
-		// (error), and the theme and dataset of the GEE Community Catalog chosen
+		// its band, or how several are combined (combine: 'one', 'sum' or 'mean', the band_reducer of the package) and
+		// those checked (chosen), use (collection or image), scale, offset and unit as written, why the last ID could
+		// not be read (error), and the theme and dataset of the GEE Community Catalog chosen
 		catalogText: '', catalogFound: null,  // the search of the Earth Engine data catalog (theme earth_engine)
 		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
-			band: null, scale: '', offset: '', unit: '', title: null, source: null, page: null, licence: null,
-			error: null, communityTheme: null, communityId: null}
+			band: null, combine: 'one', chosen: [], scale: '', offset: '', unit: '', title: null, source: null,
+			page: null, licence: null, error: null, communityTheme: null, communityId: null}
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -582,7 +637,7 @@
 			if (state.region !== fc) return;
 			state.info = d.info;
 			state.info.n = d.n;
-			state.info.crs = mo.utmOf(d.info.centroid[0], d.info.centroid[1]);
+			state.info.crs = mo.regionCrs(d.info);  // areas.auto_crs: the UTM zone of the centre, or EPSG:6933 if wide
 			render();
 		});
 		fc.geometry().bounds(1000).evaluate(function (b) {
@@ -596,11 +651,20 @@
 	}
 
 	map.onClick(function (coords) {
-		if (state.mode !== 'ecoregion' && state.mode !== 'island') return;
-		var fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
+		if (state.mode !== 'ecoregion' && state.mode !== 'island' && state.mode !== 'biome') return;
+		var biome = state.mode === 'biome', fc;
+		if (biome) {  // a whole biome spans continents: its part in the map view, the region {biome_at, within: bbox}
+			var inside = mo.bboxRegion(map.getBounds()).geometry(mo.WITHIN_MAX_ERROR);
+			fc = mo.withinRegion(mo.biomeAt(coords.lon, coords.lat, inside), inside);
+		} else {
+			fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
+		}
+		if (biome) message(t('loadingRegion'));
 		fc.aggregate_array('name').evaluate(function (names, error) {
 			if (error) return fail(error);
-			if (names && names.length) setRegion(fc, names[0]);
+			if (!(names && names.length)) return biome ? message(t('noBiome'), true) : null;
+			if (biome) results.style().set('shown', false);
+			setRegion(fc, biome ? names[0] + ' · ' + t('mapView') : names[0]);
 		});
 	});
 
@@ -673,7 +737,7 @@
 
 	function regionWidgets() {
 		var w = [header(t('region'))];
-		var modes = ['wdpa', 'admin', 'ecoregion', 'island', 'view', 'draw'].map(function (m) {
+		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'view', 'draw'].map(function (m) {
 			return {value: m, label: t('mode_' + m)};
 		});
 		w.push(select(modes, state.mode, function (m) {
@@ -717,6 +781,8 @@
 			w.push(ui.Label(t('islandHelp'), SMALL));
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
+		} else if (state.mode === 'biome') {
+			w.push(ui.Label(t('biomeHelp'), SMALL));
 		} else if (state.mode === 'view') {
 			w.push(button(t('useView'), function () {
 				var b = map.getBounds();
@@ -759,19 +825,30 @@
 		return Number(text);
 	}
 
-	// The entry of the data of Earth Engine of the panel (mo.customEntry: its ID read, band, use, scale, offset and
-	// unit), or, while it cannot be computed (no ID read, a scale or a unit that are not), one with the reason
-	// (problem), so that the panel can still be drawn and ready() says what is missing
+	// The bands of the data read that are checked to be combined, in the order of the data (jan to dec)
+	function chosenBands() {
+		var d = state.data;
+		return d.bands.filter(function (b) { return d.chosen.indexOf(b) >= 0; });
+	}
+
+	// The entry of the data of Earth Engine of the panel (mo.customEntry: its ID read, band or the bands checked and
+	// their reducer, use, scale, offset and unit), or, while it cannot be computed (no ID read, fewer than two bands
+	// checked to combine, a scale or a unit that are not), one with the reason (problem), so that the panel can still be
+	// drawn and ready() says what is missing
 	function dataEntry() {
 		var d = state.data;
+		var several = d.combine === 'sum' || d.combine === 'mean';
+		var band = several ? chosenBands() : d.band, first = several ? band[0] : d.band;
 		try {
 			if (!d.asset) throw new Error(t('readFirst'));
-			return mo.customEntry({asset: d.asset, type: d.type, dated: d.dated, band: d.band, use: d.use,
-				m: d.scales[d.band], scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')),
-				unit: d.unit});
+			if (several && band.length < 2) throw new Error(t('combineTwo'));
+			return mo.customEntry({asset: d.asset, type: d.type, dated: d.dated, band: band,
+				reducer: several ? d.combine : null, use: d.use, m: d.scales[first],
+				scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')), unit: d.unit});
 		} catch (err) {
-			return {custom: true, static: d.use === 'image', col: d.asset || '', band: d.band || '', m: d.scales[d.band] || 1,
-				unit: '', problem: err.message || String(err)};
+			return {custom: true, static: d.use === 'image', col: d.asset || '', band: band || '',
+				reducer: several ? d.combine : null, m: d.scales[first] || 1, unit: '',
+				problem: err.message || String(err)};
 		}
 	}
 
@@ -800,6 +877,8 @@
 				d[k] = info[k] === undefined ? null : info[k];
 			});
 			d.band = info.bands[0] || null;
+			d.combine = 'one';  // one band again, none checked to combine: those of another ID
+			d.chosen = [];
 			d.scale = d.offset = d.unit = '';  // Earth Engine does not say them (they are in the page of the dataset)
 			render();
 		});
@@ -875,16 +954,44 @@
 		w.push(ui.Label([d.title, t(source[d.source] || 'src_asset'), t('type_' + d.type),
 			d.licence ? t('licence') + ': ' + d.licence : t('licenceInPage')].join(' · '), SMALL));
 		if (d.page) w.push(ui.Label(t('datasetPage'), {fontSize: '12px', margin: '0 8px'}, d.page));
-		w.push(row(ui.Label(t('band')), select(d.bands.map(function (b) {
-			return {value: b, label: b + ' · ' + num(d.scales[b]) + ' m'};
-		}), d.band, function (v) {
-			// the scale, offset and unit are those of each band (bio01 of WorldClim is stored in tenths of a degree,
-			// bio12 in mm): empty again, as the QGIS plugin fills them from the record of the band, which the app
-			// cannot read
-			if (v !== d.band) d.scale = d.offset = d.unit = '';
-			d.band = v;
-			render();
-		}, '220px')));
+		// one band, or several combined on each pixel (their sum or mean: band_reducer in the package)
+		if (d.bands.length > 1 || d.combine !== 'one') {
+			w.push(row(ui.Label(t('combine')), select(['one', 'sum', 'mean'].map(function (x) {
+				return {value: x, label: t('combine_' + x)};
+			}), d.combine, function (v) {
+				if (v !== 'one' && !d.chosen.length && d.band) d.chosen = [d.band];  // the band chosen, then the others
+				d.combine = v;
+				render();
+			}, '220px')));
+		}
+		if (d.combine === 'one') {
+			w.push(row(ui.Label(t('band')), select(d.bands.map(function (b) {
+				return {value: b, label: b + ' · ' + num(d.scales[b]) + ' m'};
+			}), d.band, function (v) {
+				// the scale, offset and unit are those of each band (bio01 of WorldClim is stored in tenths of a degree,
+				// bio12 in mm): empty again, as the QGIS plugin fills them from the record of the band, which the app
+				// cannot read
+				if (v !== d.band) d.scale = d.offset = d.unit = '';
+				d.band = v;
+				render();
+			}, '220px')));
+		} else {
+			// the bands to combine, with their pixel size: the scale, offset and unit are those of all of them
+			w.push(ui.Label(t('bands'), SMALL));
+			d.bands.forEach(function (b) {
+				w.push(check(b + ' · ' + num(d.scales[b]) + ' m', d.chosen.indexOf(b) >= 0, function (v) {
+					d.chosen = d.chosen.filter(function (x) { return x !== b; });
+					if (v) d.chosen.push(b);
+					render();
+				}));
+			});
+			var chosen = chosenBands();
+			var sizes = chosen.map(function (b) { return Number(d.scales[b]); });
+			if (sizes.some(function (s) { return s !== sizes[0]; })) {  // combined on the pixels of the first band
+				w.push(ui.Label(fmt(t('combineScales'), num(sizes[0])), {fontSize: '12px', color: '#b06000'}));
+			}
+			w.push(ui.Label(t('combineNote'), SMALL));
+		}
 		var use = select(['collection', 'image'].map(function (x) { return {value: x, label: t('use_' + x)}; }),
 			d.dated ? d.use : 'image', function (v) {
 				d.use = v;
@@ -1010,6 +1117,7 @@
 				.filter(function (x) { return x; }).join(' · '), SMALL));
 			if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
 			if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
+			if (mo.isCategorical(e)) w.push(ui.Label(t('categoricalNote'), SMALL));
 		}
 		var dates = [header(t('period'))];  // greyed out for a fixed layer without dates (elevation, slope)
 		dates.push(row(box(state.period[0], function (v) { state.period[0] = v.trim(); }), ui.Label(t('to')),
@@ -1063,10 +1171,35 @@
 				state.whereRef = ref;
 				render();
 			}, '340px'));
-			w.push(row(ui.Label(t('between')), box(state.whereMin, function (v) { state.whereMin = v.trim(); }, '70px'),
-				ui.Label(t('and')), box(state.whereMax, function (v) { state.whereMax = v.trim(); }, '70px'),
-				ui.Label(mo.byRef(whereRef()).unit || '')));
-			w.push(ui.Label(t('whereNote'), SMALL));
+			var we = mo.byRef(whereRef());
+			if (mo.isCategorical(we)) {  // its classes to keep or to leave out, by their codes (found by their names)
+				w.push(row(select([{value: 'classes', label: t('whereKeep')}, {value: 'exclude', label: t('whereExclude')}],
+					state.whereKeep, function (v) { state.whereKeep = v; }, '200px'),
+					ui.Textbox({placeholder: t('whereCodes'), value: state.whereCodes, style: {width: '120px'},
+						onChange: function (v) { state.whereCodes = v.trim(); }})));
+				var found = ui.Label('', SMALL);
+				var search = ui.Textbox({placeholder: t('whereFind'), value: state.whereFind, style: {width: '200px'},
+					onChange: function (v) {
+						state.whereFind = v;
+						var hits = v ? mo.findClasses(we, v, 12, state.lang) : [];
+						found.setValue(hits.length ? fmt(t('whereFound'), hits.map(function (c) {
+							return c.code + ' ' + c.name;
+						}).join('; ')) : '');
+					}});
+				w.push(search);
+				w.push(found);
+				if (we.classes === 'biomes') {  // few: all of them, with their codes
+					w.push(ui.Label(mo.layerClasses(we, state.lang).map(function (c) {
+						return c.code + ' ' + c.name;
+					}).join('; '), SMALL));
+				}
+				w.push(ui.Label(t('whereClassNote'), SMALL));
+			} else {
+				w.push(row(ui.Label(t('between')), box(state.whereMin, function (v) { state.whereMin = v.trim(); }, '70px'),
+					ui.Label(t('and')), box(state.whereMax, function (v) { state.whereMax = v.trim(); }, '70px'),
+					ui.Label(we.unit || '')));
+				w.push(ui.Label(t('whereNote'), SMALL));
+			}
 		}
 		return w;
 	}
@@ -1089,6 +1222,12 @@
 		var lc = landcoverArgs();
 		if (!state.whereOn) return lc ? [lc] : null;
 		var c = {ref: whereRef()};
+		var we = mo.byRef(c.ref);
+		if (mo.isCategorical(we)) {  // its classes to keep or to leave out (checked now, as the package does)
+			if (!state.whereCodes) throw new Error(t('noCodes'));
+			c[state.whereKeep] = mo.checkClasses(we, state.whereCodes, state.whereKeep);
+			return lc ? [c, lc] : [c];
+		}
 		[['min', state.whereMin], ['max', state.whereMax]].forEach(function (x) {
 			var text = String(x[1] || '').replace(',', '.');
 			if (!text) return;
@@ -1157,6 +1296,11 @@
 		var lc = state.landcoverOn && state.landcoverExclude.length ? mo.landcoverText(landcoverArgs(), state.lang) : null;
 		if (!state.whereOn) return lc;
 		var e = mo.byRef(whereRef());
+		if (mo.isCategorical(e)) {  // e.g. «BIOME (RESOLVE) is 12 Mediterranean Forests, Woodlands & Scrub»
+			var c = {ref: e.ref};
+			c[state.whereKeep] = state.whereCodes;
+			return mo.classText(c, state.lang) + (lc ? ', ' + lc : '');
+		}
 		var parts = [];
 		if (state.whereMin) parts.push('≥ ' + state.whereMin);
 		if (state.whereMax) parts.push('≤ ' + state.whereMax);
@@ -1339,6 +1483,7 @@
 			var region = state.region;
 			img = function (scale) { return mo.image(s, geom, scale).clipToCollection(region); };
 			name = title(e);
+			if (mo.isCategorical(e)) return addClassMap(e, img, name);  // class codes: a colour per class
 		} else if (state.compareOn) {
 			var o = specOf(state.other, state.mapMetric);
 			o.temporal = s.temporal;
@@ -1406,6 +1551,25 @@
 			}
 			show(widgets);
 		}
+	}
+
+	// The map of a categorical layer E (ECOREGION, BIOME; services.map_layer): the colour of each class, the legend of
+	// the classes in the region (at most CLASSES_SHOWN, then how many more) and its GeoTIFF (IMG: a function of the pixel
+	// size; the majority class on pixels more than twice as big as those of the data)
+	var CLASSES_SHOWN = 25;
+
+	function addClassMap(e, img, name) {
+		var id = start();
+		mo.classesIn(e, state.region.geometry()).evaluate(guardedAsync(id, function (ids) {
+			var codes = mo.presentCodes(e, ids);
+			map.addLayer(img(), mo.classVis(e, codes), name);
+			var shown = mo.categoryLegend(e, codes, state.lang), cut = shown.slice(0, CLASSES_SHOWN);
+			var more = shown.length > cut.length ? [fmt(t('moreClasses'), shown.length - cut.length)] : [];
+			classLegend(name, cut.map(function (c) { return c.label; }).concat(more),
+				cut.map(function (c) { return c.color.slice(1); }).concat(more.length ? ['ffffff'] : []));
+			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(fmt(t('classesShown'), shown.length), SMALL),
+				downloadWidget(img, e, ['value'], name)]);
+		}));
 	}
 
 	// The swipe of a comparison (as the split maps of geemap): the reference period on the left and the other one on the
@@ -1507,7 +1671,16 @@
 			var e = entry();
 			if (!ready(e)) return;
 			native = Number(e.m);
-			if (kind === 'breaks') {
+			if (kind === 'classes') {  // its own classes, on its pixels of the data (the legend: those with area)
+				if (!mo.isCategorical(e)) return message(t('notCategorical'), true);
+				img = mo.image(specOf(null, state.mapMetric), geom).rename('class');
+				legend = null;
+				name = fmt(t('areaOf'), title(e));
+			} else if (kind === 'breaks') {
+				if (mo.isCategorical(e)) {  // classes.mode_of: a categorical layer has its own classes
+					return message('the classes of ' + e.index + ' (' + e.sensor + ') are its own (a categorical layer, ' +
+						'of class codes): give no breaks', true);
+				}
 				var cuts = mo.checkBreaks(state.areaBreaks);
 				var s = specOf(null, state.mapMetric);
 				s.temporal = state.temporal;
@@ -1533,6 +1706,10 @@
 		var scale = mo.areaScale(native, state.info.area);
 		var id = start();
 		mo.classHectares(img, regions, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+			if (kind === 'classes') {  // the classes with area, with their colours (services.area_by_class)
+				legend = mo.classAreaLegend(entry(), fc.features, state.lang);
+				colours = legend.map(function (c) { return mo.categoryColour(entry(), c[0]); });
+			}
 			var rows = mo.areaRows(fc.features, legend, extra);
 			var regionNames = regionsOf(rows);
 			var shown = rows.filter(function (r) { return r.ha > 0; });
@@ -1541,8 +1718,10 @@
 			var table = [[t('areaClass'), t('hectares'), {role: 'style'}]].concat(shown.map(function (r) {
 				return [(regionNames.length > 1 ? r.region + ': ' : '') + r.label, r.ha, colour[r.label]];
 			}));
+			var group = kind === 'classes' ? mo.categoryGroupEntry(entry()) : null;  // the biome of each ecoregion
 			var cols = ['region', 'class', 'label'].concat(kind === 'landcover' ? ['landcover'] :
-				kind === 'breaks' ? ['value_from', 'value_to'] : []).concat(['ha', 'percent']);
+				kind === 'breaks' ? ['value_from', 'value_to'] : group ? ['group', 'group_label'] : [])
+				.concat(['ha', 'percent']);
 			show([ui.Label(name, {fontWeight: 'bold'}),
 				ui.Chart(table, 'BarChart', {legend: {position: 'none'}, hAxis: {title: t('hectares')}}),
 				ui.Chart([[t('areaClass'), t('hectares'), t('areaPercent')]].concat(shown.map(function (r) {
@@ -1550,7 +1729,12 @@
 						r.percent === null ? '' : num(r.percent, 3)];
 				})), 'Table'),
 				ui.Label(fmt(t('areaNote'), num(scale)) + (kind === 'trend' ? ' ' + t('areaTrendNote') : ''), SMALL),
-				csvWidget(rows, cols, name, kind === 'landcover' ? null : entry())]);
+				csvWidget(rows, cols, name, kind === 'landcover' ? null : entry())].concat(group ? [
+				ui.Chart([[t('areaClass'), t('hectares'), t('areaPercent')]].concat(
+					mo.classGroupRows(fc.features, legend, group, state.lang).map(function (r) {
+						return [(regionNames.length > 1 ? r.region + ': ' : '') + r.label, num(r.ha, 4),
+							r.percent === null ? '' : num(r.percent, 3)];
+					})), 'Table')] : []));
 		}));
 	}
 
@@ -1589,7 +1773,7 @@
 
 	function areaWidgets() {
 		var w = [header(t('areas'))];
-		var kinds = ['landcover', 'breaks', 'trend'].map(function (k) { return {value: k, label: t('k_' + k)}; });
+		var kinds = ['landcover', 'breaks', 'trend', 'classes'].map(function (k) { return {value: k, label: t('k_' + k)}; });
 		w.push(row(ui.Label(t('areaKind')), select(kinds, state.areaKind, function (v) {
 			state.areaKind = v;
 			render();
@@ -1621,11 +1805,14 @@
 		} else if (state.areaKind === 'breaks') {
 			w.push(row(ui.Label(t('areaBreaks')), ui.Textbox({placeholder: t('breaksHint'), value: state.areaBreaks,
 				onChange: function (v) { state.areaBreaks = v; }, style: {width: '190px'}})));
+		} else if (state.areaKind === 'classes') {
+			w.push(ui.Label(t('areaClassesNote'), SMALL));
 		} else {
 			w.push(ui.Label(t('areaTrendNote'), SMALL));
 		}
 		w.push(button(t('computeAreas'), guarded(areaByClass)));
-		return state.areaKind === 'trend' && entry().static ? disable(w) : w;
+		return (state.areaKind === 'trend' && entry().static) || (state.areaKind === 'breaks' && mo.isCategorical(entry())) ?
+			disable(w) : w;
 	}
 
 	// Gradients (services.region_stats with zones, services.transect) ----------------------------------------------
@@ -1651,8 +1838,10 @@
 	function zoneStatistics() {
 		var e = entry();
 		if (!ready(e)) return;
-		var cuts = mo.checkBreaks(state.zoneBreaks);
+		if (mo.isCategorical(e)) return message(t('zoneNoCategorical'), true);
 		var z = zoneEntry();
+		if (mo.isCategorical(z)) return classZoneStatistics(e, z);  // its classes are the zones
+		var cuts = mo.checkBreaks(state.zoneBreaks);
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
@@ -1684,10 +1873,34 @@
 		}));
 	}
 
+	// The percentiles 25, 50 and 75 and the mean of the map in each class of the categorical layer Z (ECOREGION, BIOME)
+	// with pixels in each feature (services.region_stats with zones {variable, sensor}, without breaks): a table and its
+	// CSV
+	function classZoneStatistics(e, z) {
+		var geom = state.region.geometry();
+		var m = mapImage(geom);
+		var scale = mo.autoScale(e, state.info.area);
+		var zone = mo.classZone(mo.spec({ref: z.ref, quality: {}}), geom, scale);
+		var name = fmt(t('zoneClassTitle'), m.name, z.index);
+		var id = start();
+		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
+			var rows = mo.classZoneRows(fc.features, z, state.lang);
+			var regionNames = regionsOf(rows);
+			show([ui.Label(name, {fontWeight: 'bold'}),
+				ui.Chart([[t('areaClass'), 'p25', 'p50', 'p75', metricName('mean')]].concat(rows.map(function (r) {
+					return [(regionNames.length > 1 ? r.region + ': ' : '') + r.zone_label, num(r.p25), num(r.p50),
+						num(r.p75), num(r.mean)];
+				})), 'Table'),
+				ui.Label(fmt(t('zoneNote'), num(scale)), SMALL),
+				csvWidget(rows, ['region', 'zone', 'zone_label', 'p25', 'p50', 'p75', 'mean', 'n_pixels'], name, e)]);
+		}));
+	}
+
 	// The profile of the map along the LINE drawn, with the elevation: 100 segments (at least a pixel of the data)
 	function profile(line) {
 		var e = entry();
 		if (e.problem) return message(e.problem, true);
+		if (mo.isCategorical(e)) return message(t('profileCategorical'), true);
 		var m = mapImage(line.buffer(1000));
 		var native = Number(e.m);
 		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];

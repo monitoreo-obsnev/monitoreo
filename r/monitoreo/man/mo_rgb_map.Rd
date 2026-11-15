@@ -23,20 +23,23 @@ mo_rgb_map(
 )
 }
 \arguments{
-\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
-\code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
-\link{regions}). Several features give a result per feature.}
+\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
+\code{mo_admin()}, \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or
+\code{mo_sf()} (see \link{regions}); a biome only within another region with \code{mo_biome(within = )}.
+Several features give a result per feature.}
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
 take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 \code{image}, with \code{band} (see \code{mo_asset()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
-or \code{image} instead of \code{variable}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30) or \code{"MERIT Hydro"} (the
+topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_variables()}); \code{NULL} with
+\code{collection} or \code{image} instead of \code{variable}.}
 
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
+\code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
 which only have maps and their statistics.}
 
 \item{metric}{temporal metric of the images, one that gives colours: \code{"median"} (default), \code{"mean"},
@@ -70,13 +73,16 @@ image, and its bands.}
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
-\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
-WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"}, the \code{"BIO"}
+variables of WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
 land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
 covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
-\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.}
+\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}. A condition on a
+categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
+classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
+Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
 }
 \value{
 A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,

@@ -96,6 +96,18 @@ def test_cite():
 	aqua = _ids(references.cite('burn_severity', dict(fire, sensor='Modis', collection='MODIS/061/MYD09GA')))
 	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'mod09ga061'} <= set(terra) and 'myd09ga061' not in terra
 	assert {'miller2007', 'howe2022', 'veraverbeke2010', 'myd09ga061'} <= set(aqua) and 'mod09ga061' not in aqua
+	# the categorical layers of RESOLVE (ECOREGION, BIOME): Dinerstein et al. 2017 and the credit of its licence (CC BY
+	# 4.0), for the layer, a condition of where on it and its zones
+	resolve = 'Ecoregions2017 © Resolve, CC BY 4.0, rasterized by MonitorEO'
+	for args in ({'variable': 'BIOME', 'sensor': 'RESOLVE'}, {'variable': 'NDVI', 'sensor': 'Modis', 'start': '2020-01-01',
+	                                                          'end': '2020-12-31', 'where': [{'variable': 'ECOREGION',
+	                                                                                          'sensor': 'RESOLVE',
+	                                                                                          'exclude': [793]}]}):
+		c = references.cite('map_layer', args)
+		assert 'dinerstein2017' in _ids(c) and resolve in c['credits'], args
+	zones = references.cite('region_stats', {'variable': 'NDVI', 'sensor': 'Modis', 'start': '2020-01-01',
+	                                         'end': '2020-12-31', 'zones': {'variable': 'BIOME', 'sensor': 'RESOLVE'}})
+	assert 'dinerstein2017' in _ids(zones) and resolve in zones['credits']
 
 	modis = _ids(references.cite('map_layer', {'variable': 'EVI', 'sensor': 'Modis',
 	                                           'collection': 'MODIS/061/MYD13Q1', 'region': {'ecoregion_id': 793}}))
@@ -139,6 +151,13 @@ def test_cite():
 	for index, more in (('ELEVATION', set()), ('SLOPE', {'zevenbergen1987'})):
 		c = references.cite('map_layer', {'variable': index, 'sensor': 'Copernicus', 'region': {'wdpa_id': 389011}})
 		assert {'esa_copernicus_dem', 'rizzoli2017'} | more <= set(_ids(c)) and c['credits'][0].startswith(dem), index
+	# the topographic wetness index: its formula, its upstream area per metre of contour and its slope, and MERIT
+	# Hydro with its licence; not the Copernicus DEM, which it does not use
+	twi = references.cite('map_layer', {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'region': {'wdpa_id': 389011}})
+	assert {'beven1979', 'marthews2015', 'zevenbergen1987', 'yamazaki2019'} <= set(_ids(twi))
+	assert not {'esa_copernicus_dem', 'rizzoli2017'} & set(_ids(twi))
+	assert twi['credits'] == ['MERIT Hydro v1.0.1 © its developers (Yamazaki et al. 2019), licence CC BY-NC 4.0 or '
+	                          'ODbL 1.0']
 	assert 'esa_copernicus_dem' in _ids(got)  # the slope of the recipe, from the DEM image
 	# the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow), of the period only
 	scf = references.cite('time_series', {'variable': 'SCF', 'sensor': 'Landsat', 'start': '2022-01-01',

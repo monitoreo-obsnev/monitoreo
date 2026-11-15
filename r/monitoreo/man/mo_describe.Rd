@@ -11,9 +11,10 @@ mo_describe(variable, sensor = NULL, collection = NULL)
 take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 \code{image}, with \code{band} (see \code{mo_asset()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
-or \code{image} instead of \code{variable}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30) or \code{"MERIT Hydro"} (the
+topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_variables()}); \code{NULL} with
+\code{collection} or \code{image} instead of \code{variable}.}
 
 \item{collection}{with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
 e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take

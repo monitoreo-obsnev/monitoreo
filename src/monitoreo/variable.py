@@ -9,6 +9,13 @@ image       a fixed image (or a collection of tiles, mosaicked): image and band 
             is then degree). Like the fixed layers of the catalog, it has no dates: maps and their statistics, no time
             series, trends or comparisons.
 
+The band of a collection or an image is one ('pr') or several (a list, ['aet', 'def'], or a text with commas,
+'aet, def') with band_reducer, 'sum' or 'mean' (see BAND_REDUCERS): each band times scale plus offset, then, on each
+pixel where every band has data, their sum (e.g. 12 monthly bands into the annual total) or their mean (e.g. the
+depth bands of a soil), on the pixels of the first band. The unit is that of every band, so of their sum or mean: a
+sum of bands is not turned from a rate into a total (12 monthly bands in mm give mm; the temporal metric 'sum' still
+turns 'mm month-1' into 'mm', see catalog.unit_of). No terrain with several bands.
+
 The data of Earth Engine outside the catalog (any ID of the Earth Engine data catalog, of the GEE Community Catalog or
 of a project the account can read: see monitoreo.assets) keep their own mask: the pixel filters of MonitorEO (quality)
 are for the variables of the catalog.
@@ -18,9 +25,11 @@ interannual over period and season (see composite). Other keys:
   quality            pixel filters (clouds, water, snow, aerosols) and scene filter of the catalog variables
                      (see sensors.QUALITY; by default all the pixel filters of MonitorEO)
   resample           'auto' (bilinear when the output pixels are smaller than those of the data), 'nearest',
-                     'bilinear' or 'bicubic'
+                     'bilinear' or 'bicubic'; a categorical layer (ECOREGION, BIOME: class codes), only 'auto' or
+                     'nearest' (rasterized at the output pixel)
   aggregate          fixed images on pixels more than twice as big as theirs: 'auto' or 'mean' (mean of the
-                     pixels of the data inside each output pixel) or 'none' (Earth Engine pyramids)
+                     pixels of the data inside each output pixel) or 'none' (Earth Engine pyramids); a categorical
+                     layer, 'auto' or 'mode' (the majority class of its pixels) or 'none' (see monitoreo.categorical)
   exclude_landcover  classes of ESA WorldCover 2021 (10 m) set to NoData, e.g. [40, 50, 80]: crops, built-up, water
   where              the pixels of the study area to keep: a list of conditions, all of them true, each a variable of
                      the catalog aggregated over the period and season of the spec (none for the fixed layers) with
@@ -28,28 +37,37 @@ interannual over period and season (see composite). Other keys:
                      {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual",
                      "max": 600}]; also metric, temporal, interannual, season and quality (see where_specs). A
                      condition can also leave out some land covers after a land cover map of a year (see
-                     monitoreo.landcover), e.g. {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}
+                     monitoreo.landcover), e.g. {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]},
+                     and a condition on a categorical layer keeps some of its classes (classes) or leaves them out
+                     (exclude), e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]} (see
+                     monitoreo.categorical)
 """
 
 import datetime as dt
+import math
 import re
 
 import ee
 
-from . import catalog, composite, landcover, sensors
+from . import catalog, categorical, composite, landcover, sensors
 
 WORLDCOVER = 'ESA/WorldCover/v200'
 SENSOR_ABBR = {'Sentinel-2': 'S2', 'Landsat': 'L', 'Modis': 'MODIS'}
-KEYS = {'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'unit', 'terrain',
-        'metric', 'metrics', 'temporal', 'interannual', 'period', 'season', 'quality', 'resample', 'aggregate',
-        'exclude_landcover', 'where'}
+KEYS = {'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer', 'scale', 'offset', 'unit',
+        'terrain', 'metric', 'metrics', 'temporal', 'interannual', 'period', 'season', 'quality', 'resample',
+        'aggregate', 'exclude_landcover', 'where'}
 DEFAULTS = {'temporal': 'period', 'interannual': 'mean', 'resample': 'auto', 'aggregate': 'auto', 'quality': {},
             'season': None, 'exclude_landcover': None, 'where': None}
 WHERE_KEYS = {'variable', 'sensor', 'collection', 'ref', 'metric', 'temporal', 'interannual', 'season', 'quality',
               'period',
-              'min', 'max'}  # of a condition of where
+              'min', 'max', 'classes', 'exclude'}  # of a condition of where (classes, exclude: of a categorical layer)
 
 TERRAIN = ('slope', 'aspect')  # of the band of an image (ee.Terrain), in degrees whatever the unit of the band
+# how several bands of the data of Earth Engine by their ID are combined on each pixel (band_reducer): their sum or
+# their mean (ee.Reducer.sum and mean over the bands)
+BAND_REDUCERS = ('sum', 'mean')
+TERRAIN_BANDS = ('terrain is the slope or the aspect of one band (an elevation): give one band, without '
+                 'band_reducer')
 # Units given in other words, in UDUNITS: those of the STAC records (monitoreo.assets.UNITS: 'C', 'W/m^2', 'mm/d') too
 UNIT_WORDS = {'°C': 'degC', '°F': 'degF', '°': 'degree', 'deg C': 'degC', 'deg F': 'degF'}
 DIMENSIONLESS = ('unitless', 'dimensionless', 'fraction', 'index')  # in any case: '1'
@@ -75,12 +93,53 @@ def _metric_label(spec):
 	return f"{spec['temporal']}-{m}_{str(spec['interannual']).lower()}"
 
 
+def bands_of(spec):
+	"""The bands of the data of Earth Engine of SPEC: its band, one ('pr'), a list (['aet', 'def']) or a text with
+	commas ('aet, def'), as a list of names without blanks ([] if none)."""
+	band = spec.get('band')
+	if band is None:
+		return []
+	items = band if isinstance(band, (list, tuple)) else str(band).split(',')
+	return [str(b).strip() for b in items if str(b).strip()]
+
+
+def _reducer(spec):
+	return str(spec.get('band_reducer') or '').strip().lower()
+
+
+def band_text(spec):
+	"""The bands of SPEC in titles: the band ('pr'), or the reducer of several ('sum of aet, def')."""
+	bands = bands_of(spec)
+	if len(bands) < 2:
+		return bands[0] if bands else ''
+	return f"{_reducer(spec) or '?'} of {', '.join(bands)}"
+
+
+def band_words(spec):
+	"""The bands of SPEC in sentences: 'band pr', or 'the sum of the bands aet and def'."""
+	bands = bands_of(spec)
+	if len(bands) < 2:
+		return f"band {bands[0] if bands else '?'}"
+	return f"the {_reducer(spec) or '?'} of the bands {', '.join(bands[:-1])} and {bands[-1]}"
+
+
+def band_stem(spec):
+	"""The bands of SPEC in file names: the band ('pr'), the reducer and the bands ('sum_aet_def') or, for more than 3,
+	the reducer, how many and the first and the last ('sum12_jan-dec')."""
+	bands = bands_of(spec)
+	if len(bands) < 2:
+		return bands[0] if bands else ''
+	if len(bands) > 3:
+		return f"{_reducer(spec)}{len(bands)}_{bands[0]}-{bands[-1]}"
+	return '_'.join([_reducer(spec)] + bands)
+
+
 def data_name(spec):
 	"""The name of the data of Earth Engine of SPEC (kind 'collection' or 'image') in titles and records: its ID, its
-	band and its terrain ('COPERNICUS/DEM/GLO30_2024_1 DEM slope'), so that the slope of a DEM is not named as its
-	elevation."""
+	band (or the reducer of its bands, see band_text) and its terrain ('COPERNICUS/DEM/GLO30_2024_1 DEM slope',
+	'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def'), so that the slope of a DEM is not named as its elevation."""
 	k = kind(spec)
-	return ' '.join(str(x) for x in (_asset_id(spec.get(k)), spec.get('band'), spec.get('terrain')) if x)
+	return ' '.join(str(x) for x in (_asset_id(spec.get(k)), band_text(spec), spec.get('terrain')) if x)
 
 
 def _default_name(spec):
@@ -88,10 +147,41 @@ def _default_name(spec):
 	if k == 'catalog':
 		base = f"{spec['index']}_{SENSOR_ABBR.get(spec.get('sensor'), spec.get('sensor') or '')}".rstrip('_')
 	else:
-		base = f"{spec.get(k).split('/')[-1]}_{spec.get('band') or ''}".rstrip('_')
+		base = f"{spec.get(k).split('/')[-1]}_{band_stem(spec)}".rstrip('_')
 		if spec.get('terrain'):
 			base += '_' + spec['terrain']
 	return base
+
+
+def check_bands(spec, asset):
+	"""Check the bands of the data of Earth Engine ASSET of SPEC (kind 'collection' or 'image') and keep them as the
+	specs do (SPEC is changed): one band as given (a text), several as a list with band_reducer ('sum' or 'mean'),
+	required with two or more and refused with one, and never with terrain. ValueError, before Earth Engine, in the
+	words of every tool (those of customEntry in gee/core.js too), in this order."""
+	bands = bands_of(spec)
+	if not bands:
+		raise ValueError(f"variable {spec.get('name') or asset}: give the band of {asset} (one, or several with "
+		                 'band_reducer; describe_asset lists them)')
+	reducer = _reducer(spec)
+	if reducer and reducer not in BAND_REDUCERS:
+		raise ValueError(f"unknown band_reducer {spec['band_reducer']}: use {', '.join(BAND_REDUCERS)}")
+	for i, b in enumerate(bands):
+		if b in bands[:i]:
+			raise ValueError(f'band {b} is given twice: give each band once')
+	if len(bands) > 1 and spec.get('terrain'):  # the slope of a sum of bands is not that of an elevation
+		raise ValueError(TERRAIN_BANDS)
+	if len(bands) > 1 and not reducer:
+		raise ValueError(f"{asset}: give band_reducer, 'sum' or 'mean', to combine its {len(bands)} bands "
+		                 f"({', '.join(bands)}) into one value on each pixel")
+	if len(bands) == 1 and reducer:
+		raise ValueError('band_reducer combines several bands: give two or more in band (a list, or a text with '
+		                 'commas)')
+	spec.pop('band_reducer', None)  # not in the specs of one band: their records (recipe.spec_key) stay the same
+	if len(bands) > 1:
+		spec.update(band=bands, band_reducer=reducer)
+	elif spec['band'] != bands[0]:  # a list of one, 'pr,' or ' pr ': its band, a text (as customEntry of the app)
+		spec['band'] = bands[0]
+	return spec
 
 
 def specs(var, defaults=None, two_periods=False):
@@ -115,11 +205,12 @@ def specs(var, defaults=None, two_periods=False):
 	if k == 'catalog' and base.get('unit') is not None:
 		raise ValueError(f"{e['index']} ({e['sensor']}) has its unit in the catalog ({e['unit']}): unit is for the "
 		                 'data of Earth Engine outside it (collection or image)')
+	if k == 'catalog' and base.get('band_reducer') not in (None, ''):  # a recipe does not go through make_spec
+		raise ValueError('band_reducer: only for the data of Earth Engine given by their ID (collection or image, '
+		                 f"instead of variable and sensor); {e['index']} is a variable of the catalog")
 	if k != 'catalog':
 		base[k] = _asset_id(base[k])
-		if not base.get('band'):
-			raise ValueError(f"variable {base.get('name') or base[k]}: give the band of {base[k]} (one; describe_asset "
-			                 'lists them)')
+		check_bands(base, base[k])
 		if base.get('terrain') and k != 'image':  # a recipe does not go through services.make_spec
 			raise ValueError('terrain is for an image (image=, e.g. a DEM), not for a collection')
 		if base.get('terrain') and base['terrain'] not in TERRAIN:  # now, not when Earth Engine computes it
@@ -130,6 +221,8 @@ def specs(var, defaults=None, two_periods=False):
 	if e.get('two_periods') and not two_periods:
 		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
 		                 f"it with burn_severity and index '{e['index']}'")
+	if categorical.is_categorical(e):  # class codes: never interpolated nor averaged
+		categorical.check_options(e, base.get('resample'), base.get('aggregate'))
 	if k == 'image' or e.get('static'):  # a fixed image (elevation, slope): no metric, period or season
 		metrics = [None]
 	else:
@@ -152,6 +245,7 @@ def specs(var, defaults=None, two_periods=False):
 	if base.get('where'):
 		where_specs(base)  # check its conditions now, without Earth Engine
 		landcover_conditions(base)
+		class_conditions(base)
 	out = []
 	for m in metrics:
 		s = dict(base, metric=m)
@@ -179,23 +273,28 @@ def where_specs(spec):
 	"""[(spec of its variable, min, max)] of each condition of SPEC['where']: the variable of the catalog aggregated
 	over the period and season of SPEC (or over the period of the condition, [start, end], if it has one), with the
 	metric, temporal, interannual and quality of the condition (by default the mean, or the only metric of the
-	variable, of the whole period). The fixed layers (elevation, slope, WorldClim) have no period, so they can filter
-	any result; a variable with dates needs a period, of the result or of the condition. The land cover conditions
-	(see landcover_conditions) are not variables: they are left out here."""
+	variable, of the whole period). The fixed layers (elevation, slope, TWI, WorldClim) have no period, so they can
+	filter any result; a variable with dates needs a period, of the result or of the condition. The land cover
+	conditions (see landcover_conditions) are not variables, and those on a categorical layer (classes or exclude: see
+	class_conditions) are not values between min and max: they are left out here (those, checked)."""
 	out = []
 	for c in _conditions(spec):
 		if landcover.is_landcover(c):
 			continue
 		if not isinstance(c, dict) or not c.get('variable'):
-			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max, '
-			                 'or with landcover, year and exclude (the land covers to leave out)')
+			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max (or, '
+			                 'for a categorical layer, classes or exclude), or with landcover, year and exclude (the land '
+			                 'covers to leave out)')
 		unknown = set(c) - WHERE_KEYS
 		if unknown:
 			raise ValueError(f"a condition of where has unknown keys {', '.join(sorted(unknown))}: use "
 			                 f"{', '.join(sorted(WHERE_KEYS))}")
+		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
+		if categorical.is_categorical(e) or c.get('classes') is not None or c.get('exclude') is not None:
+			categorical.condition(c, e)  # checked (an error on a variable with values): see class_conditions
+			continue
 		if c.get('min') is None and c.get('max') is None:
 			raise ValueError(f"the condition on {c['variable']} of where needs min, max or both")
-		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
 		var = {'index': e['index'], 'sensor': e['sensor'], 'collection': c.get('collection'), 'ref': c.get('ref'),
 		       'quality': c.get('quality') or {}, 'temporal': c.get('temporal') or 'period',
 		       'interannual': c.get('interannual') or 'mean', 'season': c.get('season', spec.get('season'))}
@@ -204,7 +303,8 @@ def where_specs(spec):
 			if not period:
 				raise ValueError(f"the condition on {e['index']} ({e['sensor']}) needs a period: this result has none "
 				                 '(a fixed layer without dates), so give the condition its own, "period": [start, end], '
-				                 'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)')
+				                 'or filter by other fixed layers '
+				                 '(ELEVATION, SLOPE, TWI, the BIO variables of WorldClim)')
 			if not isinstance(period, (list, tuple)) or len(period) != 2:
 				raise ValueError(f'the period of the condition on {e["index"]} is [start, end]')
 			var.update(period=[str(d) for d in period], metric=c.get('metric') or e.get('metric') or 'mean')
@@ -226,11 +326,27 @@ def landcover_conditions(spec):
 	return out
 
 
+def class_conditions(spec):
+	"""[(entry, codes, keep)] of the conditions of SPEC['where'] on a categorical layer (see
+	monitoreo.categorical.condition: keep True, only the pixels of those classes; False, without them), checked
+	(ValueError if one is wrong)."""
+	out = []
+	for c in _conditions(spec):
+		if landcover.is_landcover(c) or not isinstance(c, dict) or not c.get('variable'):
+			continue
+		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
+		if categorical.is_categorical(e):
+			out.append(categorical.condition(c, e))
+	return out
+
+
 def mask(spec, region, res):
 	"""The image (1) of the pixels of SPEC that pass its conditions (where) and are not of the land covers it
 	excludes (exclude_landcover, and the land cover conditions of where), masked elsewhere; None without conditions. A
-	pixel where a condition has no data is left out."""
+	pixel where a condition has no data is left out; the conditions on a categorical layer keep the pixels where the
+	classes kept cover half of them or more (see monitoreo.categorical.keep)."""
 	masks = [landcover.keep(c, region, res) for c in landcover_conditions(spec)]
+	masks += [categorical.keep(e, codes, kept, res) for e, codes, kept in class_conditions(spec)]
 	for cs, lo, hi in where_specs(spec):
 		value = image(cs, region, res)
 		m = ee.Image(1).updateMask(value.mask())
@@ -284,7 +400,9 @@ def _codes():
 def given_unit(unit, asset, terrain=None):
 	"""The unit in UDUNITS of the data of Earth Engine ASSET outside the catalog with UNIT given by the user (see
 	_udunits_text), or '' if none was given (None, '' or blank); with TERRAIN (the slope or the aspect of the band of
-	an image), 'degree', whatever the unit of the band: ValueError if another one is given."""
+	an image), 'degree', whatever the unit of the band: ValueError if another one is given. Several bands combined
+	(band_reducer) have the unit of every band: their sum is not turned from a rate into a total, as the temporal
+	metric 'sum' is (catalog.unit_of)."""
 	text = _udunits_text(unit, asset) if unit is not None and str(unit).strip() else ''
 	if terrain:
 		if text not in ('', 'degree'):
@@ -292,6 +410,12 @@ def given_unit(unit, asset, terrain=None):
 			                 'unit of its band)')
 		return 'degree'
 	return text
+
+
+def is_categorical(spec):
+	"""Whether SPEC is a categorical layer of the catalog (ECOREGION, BIOME: its values are class codes, see
+	monitoreo.categorical); also a fixed layer (is_static)."""
+	return kind(spec) == 'catalog' and categorical.is_categorical(entry_of(spec))
 
 
 def is_static(spec):
@@ -305,7 +429,7 @@ def is_static(spec):
 def check_dates(spec, what='time series, trends or comparisons'):
 	"""Error if SPEC is a fixed layer without dates, for WHAT needs them."""
 	if kind(spec) == 'image':
-		raise ValueError(f"{spec['image']} (band {spec.get('band')}) is given as a fixed image, without dates "
+		raise ValueError(f"{spec['image']} ({band_words(spec)}) is given as a fixed image, without dates "
 		                 f"(image=): it has maps, GeoTIFFs and statistics of the region (map_layer, download_image, "
 		                 f"region_stats), but no {what}. A collection of images with dates is given as collection=")
 	if is_static(spec):
@@ -316,12 +440,13 @@ def check_dates(spec, what='time series, trends or comparisons'):
 
 def _static_spec(spec):
 	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band, terrain, scale and
-	offset)."""
+	offset, and its formula: see sensors.parse_formula; the TWI, from two bands)."""
 	e = entry_of(spec)
-	if e.get('image_asset'):  # known to be an image (WorldClim): no need to ask Earth Engine
+	if e.get('image_asset'):  # known to be an image (WorldClim, MERIT Hydro): no need to ask Earth Engine
 		_types[e['col']] = 'IMAGE'
 	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'), scale=e.get('scale'),
-	            offset=e.get('offset'))  # e.g. the temperatures of WorldClim are in tenths of a degree
+	            offset=e.get('offset'),  # e.g. the temperatures of WorldClim are in tenths of a degree
+	            formula=sensors.parse_formula(e))
 
 
 def _span(spec):
@@ -356,18 +481,36 @@ def native_scale(spec):
 	# every time, not only the first (its answers are cached in monitoreo.assets): the same ID given as an image and
 	# then as a collection shares the pixel size, but not what can be computed with it
 	check_asset(spec)
-	key = (spec.get(k), spec.get('band'))
-	if key not in _native:
+	band = spec.get('band')
+	key = (spec.get(k), tuple(band) if isinstance(band, (list, tuple)) else band)
+	if key not in _native:  # several bands: the pixels of the first (those of the result, see _combine)
 		src = ee.Image(spec['image']) if k == 'image' and _is_image(spec['image']) else \
-			_with_band(ee.ImageCollection(spec.get(k)), spec['band']).first()
-		_native[key] = src.select(spec['band']).projection().nominalScale().getInfo()
+			_with_band(ee.ImageCollection(spec.get(k)), band).first()
+		_native[key] = src.select(bands_of(spec)[0]).projection().nominalScale().getInfo()
 	return _native[key]
 
 
 def _with_band(col, band):
-	"""The images of the collection COL that have BAND: some collections change their bands from image to image
-	(Sentinel-1: VV and VH, or HH and HV), and select would fail on those without it."""
-	return col.filter(ee.Filter.listContains('system:band_names', band))
+	"""The images of the collection COL that have BAND (or all the bands of a list of them): some collections change
+	their bands from image to image (Sentinel-1: VV and VH, or HH and HV), and select would fail on those without
+	it."""
+	for b in band if isinstance(band, (list, tuple)) else [band]:
+		col = col.filter(ee.Filter.listContains('system:band_names', b))
+	return col
+
+
+def _projection(img, bands):
+	"""The projection of IMG, that of the first of its BANDS if several: projection() of an image whose bands have
+	different projections fails."""
+	return img.select(bands[0]).projection() if len(bands) > 1 else img.projection()
+
+
+def _combine(img, reducer, proj):
+	"""The bands of IMG combined on each pixel with REDUCER ('sum' or 'mean', see BAND_REDUCERS) into one band, only
+	where every band has data (reduce would leave out the bands without data, and a sum would be smaller there), with
+	the projection PROJ, that of the first band (reduce does not keep that of the bands)."""
+	img = img.updateMask(img.mask().reduce(ee.Reducer.min()))
+	return img.reduce(getattr(ee.Reducer, reducer)()).setDefaultProjection(proj)
 
 
 def _is_image(asset):
@@ -378,25 +521,58 @@ def _is_image(asset):
 
 
 def _resample(spec, res, native):
+	# (a categorical layer never comes here: categorical.image rasterizes it at the output pixel, the mode on big ones)
 	method = str(spec.get('resample') or 'auto').lower()
 	if method == 'auto':
 		return 'bilinear' if res < native else None
 	return None if method == 'nearest' else method
 
 
+def _twi(image_id, elv_band, area_band):
+	"""The topographic wetness index (TWI) of the image IMAGE_ID (MERIT Hydro, see sensors.TWI): ln(a / tan β), with a
+	the upstream drainage area of AREA_BAND (km²) per metre of contour (at least the area of the pixel, divided by the
+	square root of its area: in m) and β the slope of the elevation ELV_BAND (ee.Terrain.slope, in degrees), tan β at
+	least sensors.TWI['min_tan_slope'] (the flats). On the grid of the elevation, so that the bilinear interpolation
+	and the mean of the bigger pixels (_fixed) are those of the TWI, not of the upstream area. The same calls of Earth
+	Engine, in the same order, as twiImage of gee/core.js (tests/test_themes.py compares them)."""
+	src = ee.Image(image_id)
+	elv = src.select(elv_band)
+	px = ee.Image.pixelArea()
+	a = src.select(area_band).multiply(sensors.TWI['area_scale']).max(px).divide(px.sqrt())
+	tan = ee.Terrain.slope(elv).multiply(math.pi / 180).tan().max(sensors.TWI['min_tan_slope'])
+	return a.divide(tan).log().setDefaultProjection(elv.projection())
+
+
 def _fixed(spec, res):
-	"""Image of a spec of kind 'image'."""
-	if _is_image(spec['image']):
-		img = ee.Image(spec['image']).select(spec['band'])
+	"""Image of a spec of kind 'image' (also those of the fixed layers of the catalog, see _static_spec; several bands:
+	combined on each pixel, see _combine)."""
+	formula, twi_bands = spec.get('formula') or ('static', None)
+	if formula == 'twi':  # the topographic wetness index, from two bands: no scale, offset or terrain
+		img = _twi(spec['image'], *twi_bands)
+		native = native_scale(spec)
 	else:
-		col = ee.ImageCollection(spec['image'])
-		if kind(spec) != 'catalog':  # data by its ID: only the tiles with the band (those of the catalog all have it)
-			col = _with_band(col, spec['band'])
-		col = col.select(spec['band'])
-		img = col.mosaic().setDefaultProjection(col.first().projection())
-	native = native_scale(spec)
-	img = img.multiply(float(spec.get('scale') or 1)).add(float(spec.get('offset') or 0))
+		bands, proj = bands_of(spec), None
+		if _is_image(spec['image']):
+			img = ee.Image(spec['image']).select(spec['band'])
+			if len(bands) > 1:
+				proj = _projection(img, bands)
+		else:
+			col = ee.ImageCollection(spec['image'])
+			if kind(spec) != 'catalog':  # data by its ID: only the tiles with the band (those of the catalog all have it)
+				col = _with_band(col, spec['band'])
+			col = col.select(spec['band'])
+			img = col.mosaic()
+			proj = _projection(col.first(), bands)
+			img = img.setDefaultProjection(proj)
+		native = native_scale(spec)
+		img = img.multiply(float(spec.get('scale') or 1)).add(float(spec.get('offset') or 0))  # each band, before
+		if len(bands) > 1:
+			img = _combine(img, spec['band_reducer'], proj)
 	method = _resample(spec, res, native)
+	if formula == 'twi' and not method and res <= 2 * native and str(spec.get('resample') or 'auto').lower() == 'auto':
+		# also on pixels as big as those of MERIT Hydro (the default) or up to twice: interpolated from the TWI of its
+		# grid (its default projection), not computed on the output pixels with the slope and the area of their own
+		method = 'bilinear'
 	if method:
 		img = img.resample(method)
 	terrain = spec.get('terrain')
@@ -411,14 +587,18 @@ def _fixed(spec, res):
 
 
 def _from_collection(spec, region, res):
-	"""Collection of single band images ('value') of a spec of kind 'collection'."""
+	"""Collection of single band images ('value') of a spec of kind 'collection' (several bands: combined on each pixel
+	of each image, see _combine; only the images with all of them)."""
 	start, end = _span(spec)
 	scale, offset = float(spec.get('scale') or 1), float(spec.get('offset') or 0)
 	method = _resample(spec, res, native_scale(spec))
+	bands = bands_of(spec)
 
 	def prep(img):
 		img = ee.Image(img)
-		out = img.select(spec['band']).multiply(scale).add(offset)
+		out = img.select(spec['band']).multiply(scale).add(offset)  # each band, before they are combined
+		if len(bands) > 1:
+			out = _combine(out, spec['band_reducer'], _projection(img, bands))
 		if method:
 			out = out.resample(method)
 		return out.toFloat().rename('value').copyProperties(img, ['system:time_start'])
@@ -474,6 +654,8 @@ def image(spec, region, res, rgb=False):
 		                           spec['season'], bands).select(sensors.RGB_BANDS)
 	if kind(spec) == 'image':
 		img = _fixed(spec, res)
+	elif is_categorical(spec):  # before is_static: polygons (a collection of features) rasterized, never interpolated
+		img = categorical.image(entry_of(spec), res, spec.get('aggregate'))
 	elif is_static(spec):
 		img = _fixed(_static_spec(spec), res)
 	else:  # its collection is masked already (see collection)
@@ -503,8 +685,8 @@ def describe(spec, rgb=False):
 			d[key] = spec[key]
 	if k != 'catalog':  # the data of Earth Engine as given, without the pixel filters of MonitorEO
 		d.update({'variable': data_name(spec), k: spec[k], 'band': spec.get('band'),
-		          'scale': spec.get('scale'), 'offset': spec.get('offset'), 'terrain': spec.get('terrain'),
-		          'pixel_filters': {}})
+		          'band_reducer': spec.get('band_reducer'), 'scale': spec.get('scale'), 'offset': spec.get('offset'),
+		          'terrain': spec.get('terrain'), 'pixel_filters': {}})
 		if spec.get('unit') or catalog.is_cv(d.get('metric'), d.get('interannual')):
 			unit = catalog.unit_of(catalog.custom_unit(spec.get('unit')), d.get('metric'), d.get('interannual'))
 			d.update({'unit': unit, 'udunits': catalog.udunits(unit)})
@@ -520,6 +702,10 @@ def describe(spec, rgb=False):
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):
 			d['note'] = e['notes']['ft']
+		if categorical.is_categorical(e):  # class codes, without a unit: the table that says what each one is
+			t = categorical.of(e)
+			d.update({'categorical': True, 'classes': e['classes'], 'classes_table': t['name'],
+			          'property': t['property']})
 	if spec.get('where'):
 		d['where'] = spec['where']  # the pixels of the study area kept
 	if rgb:

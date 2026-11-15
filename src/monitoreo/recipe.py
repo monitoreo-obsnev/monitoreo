@@ -6,6 +6,7 @@ A recipe is a dictionary, or a YAML file, with the grids and the variables:
 
     project: my-project                # Earth Engine project (default: EE_PROJECT; none: the shared account)
     crs: auto                          # CRS of the grids: auto = WGS 84 / UTM of the centre of the study area
+                                       # (EPSG:6933, equal area, if it spans more than 40 degrees of longitude)
     study: {resolution: 10, buffer: 0, drive: false}
     ecoregion: {resolution: 100, crs: null, drive: true}     # optional; crs null = that of the study area
     drive_folder: MonitorEO            # folder of Google Drive of the export tasks (grids with drive: true)
@@ -15,6 +16,8 @@ A recipe is a dictionary, or a YAML file, with the grids and the variables:
     variables:
       - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}  # a file per metric
       - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}  # in degrees (unit degree)
+      - {name: bio_temp, image: WORLDCLIM/V1/BIO, band: [bio05, bio06], band_reducer: mean, scale: 0.1,
+         unit: degC}  # several bands combined on each pixel: their sum or their mean (see monitoreo.variable)
 
 The study grid covers the rectangle of the study area grown by buffer metres and 2 pixels; the ecoregion grid, the
 rectangle of the ecoregions, with NoData outside them. Their edges are multiples of the pixel size. The files of
@@ -49,8 +52,8 @@ ECO_FOLDER = 'ecoregion'
 MARGIN_PIXELS = 2
 GRIDS = ('study', 'ecoregion')
 KEYS = {'project', 'crs', 'study', 'ecoregion', 'variables', 'drive_folder', 'drive_dir'} | (variables.KEYS - {
-	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'unit', 'terrain', 'metric',
-	'metrics'})
+	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer', 'scale', 'offset', 'unit',
+	'terrain', 'metric', 'metrics'})
 
 
 def _quiet(*args, **kwargs):
@@ -141,8 +144,8 @@ def _study_area(area, layer, res, crs):
 	(LAYER) or a region of areas.region."""
 	if isinstance(area, dict):
 		geom = areas.region(area).geometry()
-		if crs == 'auto':
-			crs = areas.utm_of(*geom.centroid(1).coordinates().getInfo())
+		if crs == 'auto':  # the UTM zone of its centre or, for a region too wide for one, an equal-area CRS
+			crs = areas.auto_crs(geom, 1)
 		ring = geom.bounds(res / 2, crs).getInfo()['coordinates'][0]
 		xs, ys = [p[0] for p in ring], [p[1] for p in ring]
 		return geom, crs, (min(xs), min(ys), max(xs), max(ys)), json.dumps(area)

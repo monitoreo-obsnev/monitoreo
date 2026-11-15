@@ -297,6 +297,10 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// sensors.TWI: the topographic wetness index (TWI) of MERIT Hydro, ln(a / tan β): the upstream area of MERIT Hydro
+	// is in km² (area_scale: m² in a km²), and tan β is at least min_tan_slope on the flats (see twiImage)
+	var TWI = {area_scale: 1e6, min_tan_slope: 0.001};
+
 	// catalog.THEMES: the themes of the menu, each with its variables (indices) and its own analyses
 	function themes() {
 		return CATALOG.themes || [];
@@ -361,8 +365,8 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
-	// none for the fixed layers without dates (elevation, slope), for the cloud frequency and for the data of Earth
-	// Engine outside the catalog (they keep their own mask: see variable.py)
+	// none for the fixed layers without dates (elevation, slope, topographic wetness index, WorldClim), for the cloud
+	// frequency and for the data of Earth Engine outside the catalog (they keep their own mask: see variable.py)
 	function fixedFilters(entry) {
 		if (entry.static || entry.custom || isCf(entry)) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
@@ -684,6 +688,10 @@ var MonitorEO = (function () {
 	// variable.DIMENSIONLESS: the names of a unit without dimensions, in any case ('1' in UDUNITS)
 	var DIMENSIONLESS = ['unitless', 'dimensionless', 'fraction', 'index'];
 	var TERRAIN = ['slope', 'aspect'];  // variable.TERRAIN: of the band of an image (ee.Terrain), in degrees
+	// variable.BAND_REDUCERS: how several bands of the data by their ID are combined on each pixel (their sum or mean)
+	var BAND_REDUCERS = ['sum', 'mean'];
+	var TERRAIN_BANDS = 'terrain is the slope or the aspect of one band (an elevation): give one band, without ' +
+		'band_reducer';  // variable.TERRAIN_BANDS
 
 	// assets.normalize: the ID of an asset as the tools take it, without quotes, spaces or a call of the Code Editor
 	// around it (ee.ImageCollection("X") is X) and without the prefix of the public catalog
@@ -726,18 +734,78 @@ var MonitorEO = (function () {
 		return unit === '1' ? '[unitless]' : unit;
 	}
 
+	// variable.bands_of: the bands of BAND, one ('pr'), a list (['aet', 'def']) or a text with commas ('aet, def'), as
+	// a list of names without blanks ([] if none)
+	function bandsOf(band) {
+		if (band === null || band === undefined) return [];
+		var items = Array.isArray(band) ? band : String(band).split(',');
+		return items.map(function (b) { return String(b).trim(); }).filter(function (b) { return b; });
+	}
+
+	// The bands of the entry E (customEntry, or a fixed layer of the catalog: its band)
+	function entryBands(e) {
+		return e.bands || bandsOf(e.band);
+	}
+
+	// variable.band_text: the bands of the entry E in titles: the band ('pr'), or the reducer of several ('sum of aet,
+	// def')
+	function bandText(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return bands.length ? bands[0] : '';
+		return (e.reducer || '?') + ' of ' + bands.join(', ');
+	}
+
+	// variable.band_words: the bands of the entry E in sentences: 'band pr', or 'the sum of the bands aet and def'
+	function bandWords(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return 'band ' + (bands.length ? bands[0] : '?');
+		return 'the ' + (e.reducer || '?') + ' of the bands ' + bands.slice(0, -1).join(', ') + ' and ' +
+			bands[bands.length - 1];
+	}
+
+	// variable.band_stem: the bands of the entry E in file names: the band ('pr'), the reducer and the bands
+	// ('sum_aet_def') or, for more than 3, the reducer, how many and the first and the last ('sum12_jan-dec')
+	function bandStem(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return bands.length ? bands[0] : '';
+		var reducer = e.reducer || '';
+		if (bands.length > 3) return reducer + bands.length + '_' + bands[0] + '-' + bands[bands.length - 1];
+		return [reducer].concat(bands).join('_');
+	}
+
 	// variable.specs for the kinds collection and image: the entry of the data of Earth Engine of ID O.asset, computed
 	// like a variable of the catalog. O.use: 'collection' (images with dates, aggregated in time: fromCollection) or
 	// 'image' (a fixed layer without dates: staticImage, the mosaic of the tiles if O.type is 'image_collection'); O.band
-	// (one); O.scale and O.offset of its stored values; O.unit of the values (in UDUNITS); O.terrain ('slope' or
-	// 'aspect' of the band, image only, in degrees); O.m, the pixel size of the band (m, as variable.native_scale: see
-	// assetInfo); O.dated, false for a collection whose images have no dates (see assetInfo). An error with what is
-	// wrong (no band, an image or a collection of tiles given as a collection, a unit not in UDUNITS)
+	// (one, or several: a list or a text with commas, with O.reducer, 'sum' or 'mean', see variable.check_bands); O.scale
+	// and O.offset of its stored values (of each band, before they are combined); O.unit of the values (in UDUNITS);
+	// O.terrain ('slope' or 'aspect' of the band, image of one band only, in degrees); O.m, the pixel size of the band
+	// (of the first band if several: m, as variable.native_scale, see assetInfo); O.dated, false for a collection whose
+	// images have no dates (see assetInfo). An error with what is wrong (no band, several without a reducer, an image
+	// or a collection of tiles given as a collection, a unit not in UDUNITS), in the words of the package. Its band is
+	// that of variable.specs (a text, or the list of several), with bands (the list) and reducer (null for one band)
 	function customEntry(o) {
 		var asset = assetId(o.asset);
 		if (!asset) throw new Error('give the ID of an image or a collection of images of Earth Engine');
-		var band = String(o.band === null || o.band === undefined ? '' : o.band).trim();
-		if (!band) throw new Error('give the band of ' + asset + ' (one)');
+		var bands = bandsOf(o.band);
+		if (!bands.length) throw new Error('give the band of ' + asset + ' (one, or several with band_reducer)');
+		// variable.check_bands, in its order
+		var reducer = String(o.reducer === null || o.reducer === undefined ? '' : o.reducer).trim().toLowerCase();
+		if (reducer && BAND_REDUCERS.indexOf(reducer) < 0) {
+			throw new Error('unknown band_reducer ' + o.reducer + ': use ' + BAND_REDUCERS.join(', '));
+		}
+		bands.forEach(function (b, i) {
+			if (bands.indexOf(b) < i) throw new Error('band ' + b + ' is given twice: give each band once');
+		});
+		if (bands.length > 1 && o.terrain) throw new Error(TERRAIN_BANDS);  // the slope of a sum is not of an elevation
+		if (bands.length > 1 && !reducer) {
+			throw new Error(asset + ": give band_reducer, 'sum' or 'mean', to combine its " + bands.length +
+				' bands (' + bands.join(', ') + ') into one value on each pixel');
+		}
+		if (bands.length === 1 && reducer) {
+			throw new Error('band_reducer combines several bands: give two or more in band (a list, or a text with ' +
+				'commas)');
+		}
+		var several = bands.length > 1;
 		var use = o.use === 'image' ? 'image' : 'collection';
 		// variable.specs, in its order: the terrain, then the unit
 		var terrain = o.terrain ? String(o.terrain) : null;  // only for an image, in degrees
@@ -767,21 +835,31 @@ var MonitorEO = (function () {
 			throw new Error(asset + ' is a collection of images without dates (tiles): give it as an image (their ' +
 				'mosaic, a fixed layer, without dates)');
 		}
-		var m = Number(o.m);
+		var m = Number(o.m);  // of the first band: the pixels of the result
 		if (!(m > 0)) {
-			throw new Error('the pixel size of the band ' + band + ' of ' + asset + ' is unknown: read its ID first');
+			throw new Error('the pixel size of the band ' + bands[0] + ' of ' + asset +
+				' is unknown: read its ID first');
 		}
-		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset, band: band,
+		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset,
+			band: several ? bands : bands[0], bands: bands, reducer: several ? reducer : null,
 			scale: number(o.scale, 1) || 1, offset: number(o.offset, 0),  // variable._fixed: float(scale or 1)
 			unit: unit ? customUnit(unit) : '', terrain: terrain, m: m, type: o.type || null, use: use};
 	}
 
 	// services._title: what names the data of the entry E in the titles: the variable and sensor of the catalog (NDVI
-	// Sentinel-2), or the ID and band of the data of Earth Engine, and its terrain (IDAHO_EPSCOR/TERRACLIMATE pr,
-	// COPERNICUS/DEM/GLO30 DEM slope)
+	// Sentinel-2), or the ID and band (or the reducer of its bands, see bandText) of the data of Earth Engine, and its
+	// terrain (IDAHO_EPSCOR/TERRACLIMATE pr, IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, COPERNICUS/DEM/GLO30 DEM slope)
 	function entryName(e) {
-		return e.custom ? [e.col, e.band, e.terrain].filter(function (x) { return x; }).join(' ') :
+		return e.custom ? [e.col, bandText(e), e.terrain].filter(function (x) { return x; }).join(' ') :
 			e.index + ' ' + e.sensor;
+	}
+
+	// services._what: what names the data of Earth Engine of the entry E in the names of the files: the end of its ID,
+	// its band (or the reducer of its bands, see bandStem) and its terrain (TERRACLIMATE_pr, TERRACLIMATE_sum_aet_def,
+	// GLO30_DEM_slope)
+	function dataStem(e) {
+		return [String(e.col).replace(/\/+$/, '').split('/').pop(), bandStem(e), e.terrain]
+			.filter(function (x) { return x; }).join('_');
 	}
 
 	// assets._not_readable, for the app: it computes with the Cloud project of the app
@@ -867,22 +945,42 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// variable._with_band: the images of COL that have BAND (Sentinel-1 has VV and VH, or HH and HV)
+	// variable._with_band: the images of COL that have BAND, or all the bands of a list of them (Sentinel-1 has VV and
+	// VH, or HH and HV)
 	function withBand(col, band) {
-		return col.filter(ee.Filter.listContains('system:band_names', band));
+		(Array.isArray(band) ? band : [band]).forEach(function (b) {
+			col = col.filter(ee.Filter.listContains('system:band_names', b));
+		});
+		return col;
+	}
+
+	// variable._projection: the projection of IMG, that of the first of its BANDS if several (projection() of an image
+	// whose bands have different projections fails)
+	function projection(img, bands) {
+		return bands.length > 1 ? img.select(bands[0]).projection() : img.projection();
+	}
+
+	// variable._combine: the bands of IMG combined on each pixel with REDUCER ('sum' or 'mean') into one band, only
+	// where every band has data, with the projection PROJ of the first band
+	function combine(img, reducer, proj) {
+		img = img.updateMask(img.mask().reduce(ee.Reducer.min()));
+		return img.reduce(ee.Reducer[reducer]()).setDefaultProjection(proj);
 	}
 
 	// variable._from_collection: single band images ('value', float) of the band of the collection of the entry E
 	// (customEntry) over REGION between START and END (excluded), with the scale and offset of its stored values,
 	// bilinear on output pixels of RES metres finer than those of the data (variable._resample), and the date of each
-	// image. No pixel filters: the data keep their own mask
+	// image; several bands: each with the scale and offset, then combined on each pixel (combine), only the images
+	// with all of them. No pixel filters: the data keep their own mask
 	function fromCollection(e, region, start, end, res) {
 		var scale = number(e.scale, 1) || 1, offset = number(e.offset, 0);
 		var bilinear = Boolean(res) && res < Number(e.m);
+		var bands = entryBands(e);
 		var col = ee.ImageCollection(e.col).filterBounds(region).filterDate(start, end);
 		return withBand(col, e.band).map(function (img) {
 			img = ee.Image(img);
-			var out = img.select(e.band).multiply(scale).add(offset);
+			var out = img.select(e.band).multiply(scale).add(offset);  // each band, before they are combined
+			if (bands.length > 1) out = combine(out, e.reducer, projection(img, bands));
 			if (bilinear) out = out.resample('bilinear');
 			return out.toFloat().rename('value').copyProperties(img, ['system:time_start']);
 		});
@@ -989,29 +1087,59 @@ var MonitorEO = (function () {
 		var e = entryOf(s);
 		what = what || 'time series, trends or comparisons';
 		if (e.custom) {
-			throw new Error(e.col + ' (band ' + e.band + ') is given as a fixed image, without dates (image=): it has ' +
-				'maps, GeoTIFFs and statistics of the region (map_layer, download_image, region_stats), but no ' + what +
-				'. A collection of images with dates is given as collection=');
+			throw new Error(e.col + ' (' + bandWords(e) + ') is given as a fixed image, without dates (image=): it ' +
+				'has maps, GeoTIFFs and statistics of the region (map_layer, download_image, region_stats), but no ' +
+				what + '. A collection of images with dates is given as collection=');
 		}
 		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
 			'statistics of the region, but no ' + what);
 	}
 
+	// variable._twi: the topographic wetness index (TWI) of the entry E (MERIT Hydro, formula TWI(elv,upa), whose bands
+	// are e.fb), ln(a / tan β): a, the upstream drainage area (km²) per metre of contour (at least the area of the
+	// pixel, divided by the square root of its area: in m); β, the slope of the elevation (ee.Terrain.slope, in
+	// degrees), tan β at least TWI.min_tan_slope (the flats). On the grid of the elevation, so that the bilinear
+	// interpolation and the mean of the bigger pixels (staticImage) are those of the TWI, not of the upstream area. The
+	// same calls of Earth Engine, in the same order, as the package (tests/test_themes.py compares them)
+	function twiImage(e) {
+		var src = ee.Image(e.col);
+		var elv = src.select(e.fb[0]);
+		var px = ee.Image.pixelArea();
+		var a = src.select(e.fb[1]).multiply(TWI.area_scale).max(px).divide(px.sqrt());
+		var tan = ee.Terrain.slope(elv).multiply(Math.PI / 180).tan().max(TWI.min_tan_slope);
+		return a.divide(tan).log().setDefaultProjection(elv.projection());
+	}
+
 	// variable._fixed for the fixed layers of the catalog and the images of Earth Engine given as image (customEntry):
-	// the image, or the mosaic of the tiles of its collection, its terrain (slope or aspect, in degrees), bilinear on
-	// pixels RES finer than those of the data and, on pixels RES more than twice as big, the mean of its pixels
+	// the image, or the mosaic of the tiles of its collection (several bands: each with the scale and offset, then
+	// combined on each pixel, see combine), its terrain (slope or aspect, in degrees), bilinear on pixels RES finer than
+	// those of the data and, on pixels RES more than twice as big, the mean of its pixels; the topographic wetness index
+	// (formula kind 'twi') from two bands of its image instead (twiImage)
 	function staticImage(e, res) {
-		var img;
-		if (e.image_asset) {  // an image (WorldClim), not a collection
-			img = ee.Image(e.col).select(e.band);
+		var img, proj = null, bands;
+		if (e.fk === 'twi') {  // the topographic wetness index, from two bands: no scale, offset or terrain
+			img = twiImage(e);
 		} else {
-			var col = ee.ImageCollection(e.col);
-			if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
-			col = col.select(e.band);
-			img = col.mosaic().setDefaultProjection(col.first().projection());
+			bands = entryBands(e);
+			if (e.image_asset) {  // an image (WorldClim), not a collection
+				img = ee.Image(e.col).select(e.band);
+				if (bands.length > 1) proj = projection(img, bands);
+			} else {
+				var col = ee.ImageCollection(e.col);
+				if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
+				col = col.select(e.band);
+				img = col.mosaic();
+				proj = projection(col.first(), bands);
+				img = img.setDefaultProjection(proj);
+			}
+			img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
+			if (bands.length > 1) img = combine(img, e.reducer, proj);
 		}
-		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
-		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
+		// variable._resample: pixels finer than the data; the TWI also on pixels up to twice as big (its default: those of
+		// the data), interpolated from the TWI of the grid of MERIT Hydro, not computed on the output pixels
+		if (e.fk === 'twi' ? (res || Number(e.m)) <= 2 * Number(e.m) : res && res < Number(e.m)) {
+			img = img.resample('bilinear');
+		}
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
 		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
@@ -1120,6 +1248,293 @@ var MonitorEO = (function () {
 			x[1] + ')';
 	}
 
+	// Categorical layers (categorical.py): fixed layers whose values are class codes, not quantities (the field
+	// classes of an entry, the key of its table in CATALOG.classes): the ecoregions (ECOREGION, the ECO_ID of each
+	// pixel) and biomes (BIOME) of RESOLVE Ecoregions 2017. The polygons are rasterized once (the ECO_ID of the polygon
+	// of each pixel) and the biome comes from it with the table, so both layers have the same boundaries; on pixels more
+	// than twice as big as m, the majority class (mode); a condition of where keeps some classes ({ref, classes}) or
+	// leaves them out ({ref, exclude}) ------------------------------------------------------------------------------
+
+	var CLASS_SHARE = LANDCOVER_SHARE;  // categorical.SHARE: a pixel is kept when the classes kept cover this or more
+	var CLASS_STATS = ['mode', 'count'];  // categorical.STATS: the statistics of a categorical layer over a region
+	var CLASS_GAP = 'bdbdbd';  // categorical.GAP: the colour of the codes without a class in the palette of classVis
+	var CLASS_EXAMPLE = '{"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]}';  // categorical.EXAMPLE
+	var classCache = {};
+
+	// categorical.table: the table of classes KEY ('ecoregions' or 'biomes')
+	function classTable(key) {
+		return CATALOG.classes[key];
+	}
+
+	// categorical.is_categorical: whether the entry E is a categorical layer (it has a table of classes)
+	function isCategorical(e) {
+		return Boolean(e && e.classes);
+	}
+
+	// categorical._rows: {code: {field: value}} of the table KEY (read once)
+	function classRows(key) {
+		if (!classCache[key]) {
+			var t = classTable(key), out = {};
+			Object.keys(t.classes).forEach(function (code) {
+				var row = {};
+				t.fields.forEach(function (f, i) { row[f] = t.classes[code][i]; });
+				out[Number(code)] = row;
+			});
+			classCache[key] = out;
+		}
+		return classCache[key];
+	}
+
+	function uniqueSorted(values) {
+		var out = [];
+		values.forEach(function (v) {
+			v = Math.round(Number(v));
+			if (out.indexOf(v) < 0) out.push(v);
+		});
+		return out.sort(function (a, b) { return a - b; });
+	}
+
+	// categorical.codes: the codes of the classes of the categorical entry E, from the lowest
+	function classCodes(e) {
+		return Object.keys(classRows(e.classes)).map(Number).sort(function (a, b) { return a - b; });
+	}
+
+	// categorical.name: the name of the class CODE of E (in Spanish with LANG 'es', if the table has it)
+	function categoryName(e, code, lang) {
+		var row = classRows(e.classes)[Number(code)];
+		if (!row) return String(code);
+		return (lang === 'es' && row.name_es) || row.name;
+	}
+
+	// categorical.label: the class CODE of E in a legend, «12 Mediterranean Forests, Woodlands & Scrub»
+	function categoryLabel(e, code, lang) {
+		return Math.round(Number(code)) + ' ' + categoryName(e, code, lang);
+	}
+
+	// categorical.colour: the colour of the class CODE of E (hex, without #), CLASS_GAP if it has none
+	function categoryColour(e, code) {
+		var row = classRows(e.classes)[Number(code)];
+		return row ? row.colour : CLASS_GAP;
+	}
+
+	// categorical.group_of: the group of the class CODE of E (the biome of an ecoregion), or null
+	function categoryGroupOf(e, code) {
+		var row = classRows(e.classes)[Number(code)];
+		return row && row.group !== undefined ? row.group : null;
+	}
+
+	// categorical.group_entry: the categorical entry of the groups of the classes of E (BIOME for ECOREGION), or null
+	function categoryGroupEntry(e) {
+		var key = classTable(e.classes).group;
+		if (!key) return null;
+		return variables().filter(function (v) { return v.classes === key && v.col === e.col; })[0] || null;
+	}
+
+	// categorical.classes: [{code, name, colour}] of the classes of E and, with groups, group and group_name
+	function layerClasses(e, lang) {
+		var group = categoryGroupEntry(e), rows = classRows(e.classes);
+		return classCodes(e).map(function (code) {
+			var row = rows[code];
+			var c = {code: code, name: (lang === 'es' && row.name_es) || row.name, colour: row.colour};
+			if (group) {
+				c.group = row.group;
+				c.group_name = categoryName(group, row.group, lang);
+			}
+			return c;
+		});
+	}
+
+	// categorical._code: X as the code of a class (an integer), or an Error
+	function classCode(x) {
+		var text = String(x).trim(), f = Number(text);
+		if (text === '' || !isFinite(f) || f !== Math.round(f)) {
+			throw new Error('the codes of the classes are whole numbers, e.g. [12]; not ' +
+				(typeof x === 'string' ? repr(x) : String(x)));
+		}
+		return f;
+	}
+
+	// categorical.check: VALUES (a code, a list of codes or a text with commas) as the codes of classes of E, each once,
+	// in their order; an Error if one is not a code of its table, or if there are none (WHAT: classes or exclude)
+	function checkClasses(e, values, what) {
+		what = what || 'classes';
+		if (typeof values === 'string') {
+			values = values.replace(/;/g, ',').split(',').filter(function (v) { return v.trim(); });
+		} else if (typeof values === 'number') {
+			values = [values];
+		}
+		if (!Array.isArray(values) || !values.length) {
+			throw new Error('the ' + what + ' of ' + e.index + ' (' + e.sensor + ') are a list of codes of its classes, ' +
+				'e.g. [12]: list_classes gives them');
+		}
+		var out = [];
+		values.forEach(function (v) {
+			var c = classCode(v);
+			if (out.indexOf(c) < 0) out.push(c);
+		});
+		var known = classRows(e.classes);
+		var unknown = out.filter(function (c) { return !known.hasOwnProperty(c); });
+		if (unknown.length) {
+			throw new Error(e.index + ' (' + e.sensor + ') has no classes ' + unknown.join(', ') + ': list_classes gives ' +
+				'the codes of its classes');
+		}
+		return out;
+	}
+
+	// categorical._plain: TEXT in lower case without accents, to search the names
+	function plainText(text) {
+		var s = String(text).toLowerCase();
+		return s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : s;
+	}
+
+	// categorical.find: the classes of E (layerClasses) with every word of TEXT at the start of a word of their code,
+	// name (in English or Spanish) or group, at most LIMIT
+	function findClasses(e, text, limit, lang) {
+		var rows = layerClasses(e, lang);
+		if (text !== undefined && text !== null && text !== '') {
+			var words = plainText(text).split(/\s+/).filter(function (w) { return w; });
+			var group = categoryGroupEntry(e);
+			rows = rows.filter(function (c) {
+				var names = [String(c.code), c.name, categoryName(e, c.code, 'en'), categoryName(e, c.code, 'es')];
+				if (group) names = names.concat([c.group_name || '', categoryName(group, c.group, 'en'), String(c.group)]);
+				var all = plainText(names.join(' '));
+				return words.every(function (w) {
+					return new RegExp('(^|[^a-z0-9])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(all);
+				});
+			});
+		}
+		return limit ? rows.slice(0, Number(limit)) : rows;
+	}
+
+	// categorical.legend: [{value, label, color ('#rrggbb')}] of the classes VALUES of E (default: all of them), from
+	// the lowest code, as the legend of the burn severity
+	function categoryLegend(e, values, lang) {
+		var codes = values === null || values === undefined ? classCodes(e) : uniqueSorted(values);
+		return codes.map(function (v) {
+			return {value: v, label: categoryLabel(e, v, lang), color: '#' + categoryColour(e, v)};
+		});
+	}
+
+	// categorical.vis: {min (the lowest code), max (the highest), palette (the colour of each code from min to max)} of
+	// the classes VALUES of E (default: all of them), so that each code gets the colour of its class
+	function classVis(e, values) {
+		var codes = values && values.length ? uniqueSorted(values) : classCodes(e);
+		var lo = codes[0], hi = codes[codes.length - 1], palette = [];
+		for (var c = lo; c <= hi; c++) palette.push(categoryColour(e, c));
+		if (hi === lo) return {min: lo, max: lo + 1, palette: palette.concat(palette)};  // Earth Engine needs max > min
+		return {min: lo, max: hi, palette: palette};
+	}
+
+	// categorical._ecoregions: the ECO_ID of each pixel of the dataset of E (the first polygon of the pixel), integer,
+	// masked where there is none (ECO_ID 0, Rock and Ice, is a class)
+	function ecoregionImage(e) {
+		var base = classTable('ecoregions');
+		return ee.FeatureCollection(e.col).reduceToImage([base.property], ee.Reducer.first()).toInt();
+	}
+
+	// categorical.image: the classes of the categorical entry E (band 'value', integer), rasterized at the output pixel
+	// of RES metres and, on pixels more than twice as big as m, the majority class (mode) of its pixels of m
+	function categoricalImage(e, res) {
+		var img = ecoregionImage(e);
+		if (e.classes !== 'ecoregions') {  // the groups of the ecoregions (the biomes), from the ECO_ID of each pixel
+			if (classTable('ecoregions').group !== e.classes) {
+				throw new Error('the classes of ' + e.index + ' are not those of the ecoregions nor their groups');
+			}
+			var rows = classRows('ecoregions');
+			var ids = Object.keys(rows).map(Number).sort(function (a, b) { return a - b; });
+			img = img.remap(ids, ids.map(function (i) { return rows[i].group; }));
+		}
+		var m = Number(e.m);
+		if (res && Number(res) > 2 * m) {
+			img = img.setDefaultProjection(ee.Projection('EPSG:4326').atScale(m)).reduceResolution(ee.Reducer.mode(), false,
+				65535);
+		}
+		return img.toInt().rename('value');
+	}
+
+	// categorical.present, in two parts: the ee.List of the ECO_ID of the polygons that touch REGION, to evaluate
+	// (classesIn), and the codes of the classes of E of those ECO_ID (presentCodes: for the biomes, those of the
+	// ecoregions there), from the lowest
+	function classesIn(e, region) {
+		return ee.FeatureCollection(e.col).filterBounds(region).aggregate_array(classTable('ecoregions').property)
+			.distinct();
+	}
+
+	function presentCodes(e, ids) {
+		var got = uniqueSorted(ids || []);
+		if (e.classes === 'ecoregions') return got;
+		var rows = classRows('ecoregions');
+		return uniqueSorted(got.filter(function (i) { return rows[i]; }).map(function (i) { return rows[i].group; }));
+	}
+
+	// categorical.condition: [entry, codes, keep] of the condition C of where on a categorical layer ({ref, classes}:
+	// keep true, only the pixels of those classes; {ref, exclude}: keep false, without them); an Error if it is wrong
+	function classCondition(c, e) {
+		e = e || byRef(c.ref);
+		var given = ['classes', 'exclude'].filter(function (k) { return c[k] !== undefined && c[k] !== null; });
+		if (!isCategorical(e)) {
+			throw new Error('classes and exclude are for a categorical layer (ECOREGION, BIOME): ' + e.index + ' (' +
+				e.sensor + ') takes min and max');
+		}
+		if ((c.min !== undefined && c.min !== null) || (c.max !== undefined && c.max !== null)) {
+			throw new Error(e.index + ' (' + e.sensor + ') is a categorical layer, whose values are class codes: a ' +
+				'condition on it takes classes (the classes to keep) or exclude (those to leave out), not min or max');
+		}
+		if (given.length === 2) throw new Error('the condition on ' + e.index + ' of where takes classes or exclude, not both');
+		if (!given.length) {
+			throw new Error('the condition on ' + e.index + ' of where needs classes (the classes to keep) or exclude ' +
+				'(those to leave out), e.g. ' + CLASS_EXAMPLE);
+		}
+		return [e, checkClasses(e, c[given[0]], given[0]), given[0] === 'classes'];
+	}
+
+	// categorical.keep: the image (1) of the pixels of RES metres kept by a condition on the categorical entry E: with
+	// KEPT, where the classes VALUES cover CLASS_SHARE of the pixel or more; else, where they cover less; masked where the
+	// layer has no data
+	function classKeep(e, values, kept, res) {
+		var inside = categoricalImage(e).remap(values, values.map(function () { return 1; }), 0);
+		var m = Number(e.m);
+		if (res && Number(res) > 2 * m) {
+			inside = inside.setDefaultProjection(ee.Projection('EPSG:4326').atScale(m)).reduceResolution(ee.Reducer.mean(),
+				true, 65535);
+		}
+		return ee.Image(1).updateMask(inside.mask()).and(kept ? inside.gte(CLASS_SHARE) : inside.lt(CLASS_SHARE));
+	}
+
+	// categorical.text: the condition C on a categorical layer in words, in LANG, e.g. «BIOME (RESOLVE) is 12
+	// Mediterranean Forests, Woodlands & Scrub»
+	function classText(c, lang) {
+		var x;
+		try {
+			x = classCondition(c);
+		} catch (err) {
+			return JSON.stringify(c);
+		}
+		var names = x[1].map(function (v) { return categoryLabel(x[0], v, lang); });
+		var or = lang === 'es' ? ' o ' : ' or ';
+		var which = names.length > 1 ? names.slice(0, -1).join(', ') + or + names[names.length - 1] : names[0];
+		if (lang === 'es') return x[0].index + ' (' + x[0].sensor + ') ' + (x[2] ? 'es' : 'no es') + ' ' + which;
+		return x[0].index + ' (' + x[0].sensor + ') is ' + (x[2] ? '' : 'not ') + which;
+	}
+
+	// categorical.check_stats: an Error for a statistic over a region of the categorical entry E that is not one of
+	// CLASS_STATS
+	function checkClassStats(e, stats) {
+		stats.forEach(function (s) {
+			if (CLASS_STATS.indexOf(String(s).trim().toLowerCase()) < 0) {
+				throw new Error(e.index + ' (' + e.sensor + ') is a categorical layer: its statistic over a region is the ' +
+					'majority class (mode), not ' + s + '; for the area of each class, area_by_class');
+			}
+		});
+	}
+
+	// variable.class_conditions: [[entry, codes, keep]] of the conditions of S.where on a categorical layer
+	function classConditions(s) {
+		return (s.where || []).filter(function (c) {
+			return !isLandcover(c) && isCategorical(byRef(c.ref));
+		}).map(function (c) { return classCondition(c); });
+	}
+
 	// variable.pin_where: the conditions WHERE with the period START to END for those without a period of their own
 	// (a land cover condition has its year)
 	function pinWhere(where, start, end) {
@@ -1135,7 +1550,16 @@ var MonitorEO = (function () {
 	// optionally metric, temporal, interannual, quality, season, period}): the variable aggregated over the period of
 	// S, or its own; the fixed layers have no period
 	function whereSpecs(s) {
-		return (s.where || []).filter(function (c) { return !isLandcover(c); }).map(function (c) {
+		return (s.where || []).filter(function (c) {
+			if (isLandcover(c)) return false;
+			var e = byRef(c.ref);
+			if (isCategorical(e) || (c.classes !== undefined && c.classes !== null) ||
+				(c.exclude !== undefined && c.exclude !== null)) {
+				classCondition(c, e);  // checked (an error on a variable with values): see classConditions
+				return false;
+			}
+			return true;
+		}).map(function (c) {
 			var e = byRef(c.ref);
 			if ((c.min === null || c.min === undefined) && (c.max === null || c.max === undefined)) {
 				throw new Error('the condition on ' + e.index + ' of where needs min, max or both');
@@ -1146,7 +1570,7 @@ var MonitorEO = (function () {
 				var period = c.period || s.period;
 				if (!period) {
 					throw new Error('the condition on ' + e.index + ' (' + e.sensor + ') needs a period: give it its own, ' +
-						'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)');
+						'or filter by other fixed layers (ELEVATION, SLOPE, TWI, the BIO variables of WorldClim)');
 				}
 				cs.period = period.slice();
 				cs.metric = c.metric || e.metric || 'mean';
@@ -1155,12 +1579,19 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// variable.mask: the image (1) of the pixels of S that pass its conditions (where, also those of land cover),
-	// masked elsewhere; null without conditions. A pixel where a condition has no data is left out
+	// variable.mask: the image (1) of the pixels of S that pass its conditions (where, also those of land cover and
+	// those on a categorical layer), masked elsewhere; null without conditions. A pixel where a condition has no data is
+	// left out
 	function whereMask(s, region, res) {
+		// on the pixels RES of the result, by default those of its data (the package always computes a result on its
+		// pixels): a condition on a fixed layer of bigger pixels (the TWI of 90 m under Sentinel-2) is then interpolated
+		// as in the package, not taken from the nearest pixel of the layer
+		res = res || (s.where && s.where.length ? Number(entryOf(s).m) : res);
 		var masks = (s.where || []).filter(isLandcover).map(function (c) {
 			return landcoverKeep(c, region, res);
-		}).concat(whereSpecs(s).map(function (w) {
+		}).concat(classConditions(s).map(function (x) {
+			return classKeep(x[0], x[1], x[2], res);
+		})).concat(whereSpecs(s).map(function (w) {
 			var value = image(w[0], region, res);
 			var m = ee.Image(1).updateMask(value.mask());
 			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
@@ -1214,8 +1645,8 @@ var MonitorEO = (function () {
 			return composite(col, s.metric, s.temporal, s.interannual, s.period, s.season, ['value'].concat(RGB_BANDS))
 				.select(RGB_BANDS);
 		}
-		if (isStatic(s)) {
-			var img = staticImage(entryOf(s), res);
+		if (isStatic(s)) {  // a categorical layer: its polygons rasterized (never interpolated), before staticImage
+			var img = isCategorical(entryOf(s)) ? categoricalImage(entryOf(s), res) : staticImage(entryOf(s), res);
 			var m = whereMask(s, region, res);
 			return m ? img.updateMask(m) : img;
 		}
@@ -1234,11 +1665,38 @@ var MonitorEO = (function () {
 		2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']};
 	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
 	var WDPA_MAX_ERROR = 10;
+	var BIOME_MAX_ERROR = 100;  // areas.BIOME_MAX_ERROR: metres, the tolerance of the union of a biome's ecoregions
+	var BIOME_CODES = '1 to 14 or 99 (Rock and Ice)';  // areas.BIOME_CODES: the codes of the biomes, in the messages
+	var WITHIN_MAX_ERROR = 100;  // areas.WITHIN_MAX_ERROR: metres, the union of the region of within, the part inside
+	// areas.GLOBAL_CRS and WIDE_DEGREES: the CRS (equal area, metres) of the regions whose bounds span more degrees of
+	// longitude than that (or cross the antimeridian), too wide for a UTM zone
+	var GLOBAL_CRS = 'EPSG:6933';
+	var WIDE_DEGREES = 40;
+	// areas.PACIFIC_CRS: the span of a region across the antimeridian (360 in EPSG:4326) is that of its bounds in a
+	// Mercator centred on the Pacific, PACIFIC_M_PER_DEGREE metres of x per degree
+	var PACIFIC_CRS = 'EPSG:3832';
+	var PACIFIC_M_PER_DEGREE = 6378137 * 3.141592653589793 / 180;
 
 	// areas.utm_of
 	function utmOf(lon, lat) {
 		var zone = Math.min(Math.floor((lon + 180) / 6) + 1, 60);
 		return 'EPSG:' + ((lat >= 0 ? 32600 : 32700) + zone);
+	}
+
+	// areas.crs_for: the automatic CRS of a region from INFO (regionInfo: its centroid, the coordinates of its bounds
+	// and, across the antimeridian, those of its bounds in PACIFIC_CRS): GLOBAL_CRS when it spans more than
+	// WIDE_DEGREES of longitude (360 across the antimeridian without pacific), else the UTM zone of the centre (also
+	// without bounds)
+	function regionCrs(info) {
+		var ring = (info.bounds || [[]])[0];
+		var lons = ring.map(function (p) { return p[0]; });
+		var span = lons.length ? Math.max.apply(null, lons) - Math.min.apply(null, lons) : 0;
+		if (span > 359 && info.pacific) {  // across the antimeridian: its real span, in the Mercator of the Pacific
+			var xs = info.pacific[0].map(function (p) { return p[0]; });
+			span = (Math.max.apply(null, xs) - Math.min.apply(null, xs)) / PACIFIC_M_PER_DEGREE;
+		}
+		if (span > WIDE_DEGREES) return GLOBAL_CRS;
+		return utmOf(info.centroid[0], info.centroid[1]);
 	}
 
 	function named(fc, field) {
@@ -1332,6 +1790,95 @@ var MonitorEO = (function () {
 
 	function ecoregionAt(lon, lat) {
 		return named(ee.FeatureCollection(ECOREGIONS).filterBounds(ee.Geometry.Point([lon, lat])), 'ECO_NAME');
+	}
+
+	// areas._whole: X as a whole number, or null if it is not one
+	function wholeNumber(x) {
+		var text = String(x).trim(), f = Number(text);
+		return text !== '' && isFinite(f) && f === Math.round(f) ? f : null;
+	}
+
+	// catalog.biomes: the biomes of RESOLVE Ecoregions 2017 (the classes of BIOME), [{code, name (in Spanish with LANG
+	// 'es'), colour}], from the lowest code
+	function biomes(lang) {
+		var rows = classRows('biomes');
+		return Object.keys(rows).map(Number).sort(function (a, b) { return a - b; }).map(function (code) {
+			var row = rows[code];
+			return {code: code, name: (lang === 'es' && row.name_es) || row.name, colour: row.colour};
+		});
+	}
+
+	// areas.biome_name: the name of the biome CODE (in Spanish with LANG 'es'), or null
+	function biomeName(code, lang) {
+		var c = wholeNumber(code), b = biomes(lang).filter(function (x) { return x.code === c; })[0];
+		return b ? b.name : null;
+	}
+
+	// catalog.ecoregions_of_biome: the ECO_IDs of the ecoregions of the biome CODE in the table of classes (99, Rock
+	// and Ice, is the ECO_ID 0), from the lowest
+	function ecoregionsOfBiome(code) {
+		var rows = classRows('ecoregions');
+		return Object.keys(rows).map(Number).filter(function (eco) { return Number(rows[eco].group) === Number(code); })
+			.sort(function (a, b) { return a - b; });
+	}
+
+	// areas.biome_codes: V (a code of a biome, a list of them or a text with commas) as the codes of the biomes, each
+	// once, in their order; an Error if one is not a code of the table of the biomes, or if there are none
+	function biomeCodes(v) {
+		var values = typeof v === 'string' ? v.replace(/;/g, ',').split(',').filter(function (x) { return x.trim(); }) :
+			Array.isArray(v) ? v : [v];
+		if (!values.length) {
+			throw new Error('biome_id takes the codes of the biomes of RESOLVE Ecoregions 2017, ' + BIOME_CODES +
+				', e.g. 12: list_classes of BIOME gives them');
+		}
+		var known = biomes().map(function (b) { return b.code; }), out = [];
+		values.forEach(function (x) {
+			var c = wholeNumber(x);
+			if (c === null || known.indexOf(c) < 0) {
+				var shown = c !== null ? String(c) : typeof x === 'string' ? repr(x) : String(x);
+				throw new Error('biome_id takes the codes of the biomes of RESOLVE Ecoregions 2017, ' + BIOME_CODES +
+					', not ' + shown + ': list_classes of BIOME gives them');
+			}
+			if (out.indexOf(c) < 0) out.push(c);
+		});
+		return out;
+	}
+
+	// areas._biome: the biome CODE as a single feature named by its name (and with its code, biome): the union of the
+	// ecoregions of its ECO_IDs in the table of classes, dissolved with a tolerance of BIOME_MAX_ERROR m; with INSIDE
+	// (an ee.Geometry), only the ecoregions that touch it
+	function biomeFeature(code, inside) {
+		var eco = ee.FeatureCollection(ECOREGIONS).filter(ee.Filter.inList('ECO_ID', ecoregionsOfBiome(code)));
+		if (inside) eco = eco.filterBounds(inside);
+		var union = eco.geometry(BIOME_MAX_ERROR).dissolve(BIOME_MAX_ERROR);
+		return ee.Feature(union, {name: biomeName(code), biome: code});
+	}
+
+	// areas.region of {biome_id: V}: a feature per biome of V (see biomeCodes), only their ecoregions that touch INSIDE
+	// if given (then withinRegion keeps their part inside it)
+	function biomeRegion(v, inside) {
+		return ee.FeatureCollection(biomeCodes(v).map(function (c) { return biomeFeature(c, inside); }));
+	}
+
+	// areas._biome_at, the region {biome_at: [LON, LAT]}: the biome of the ecoregion at the point as biomeFeature
+	// (two at a boundary; none in the sea); of each biome, its feature if one of its ecoregions is there (If: only that
+	// one is joined)
+	function biomeAt(lon, lat, inside) {
+		var at = ee.FeatureCollection(ECOREGIONS).filterBounds(ee.Geometry.Point([lon, lat]));
+		var feats = biomes().map(function (b) {
+			return ee.Algorithms.If(at.filter(ee.Filter.inList('ECO_ID', ecoregionsOfBiome(b.code))).size(),
+				biomeFeature(b.code, inside), null);
+		});
+		return ee.FeatureCollection(ee.List(feats).removeAll([null]));
+	}
+
+	// areas._within: the part of each feature of FC inside INSIDE (the geometry of the region of within, with the
+	// tolerance WITHIN_MAX_ERROR: e.g. bboxRegion(bounds).geometry(WITHIN_MAX_ERROR)), with its properties; the
+	// features outside it are left out
+	function withinRegion(fc, inside) {
+		return fc.filterBounds(inside).map(function (f) {
+			return f.intersection(ee.Feature(inside), WITHIN_MAX_ERROR);
+		});
 	}
 
 	function bboxRegion(bbox, name) {
@@ -1539,6 +2086,72 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// services._class_zone: the image of the zones of the categorical layer ZS (a spec; band 'zone': the code of the
+	// class of each pixel), only of the classes CODES if given
+	function classZone(zs, region, scale, codes) {
+		var zone = image(zs, region, scale);
+		if (codes && codes.length) zone = zone.remap(codes, codes);
+		return zone.rename('zone');
+	}
+
+	// services.region_stats with the zones of the categorical entry ZE: the rows of the zones with pixels of the
+	// evaluated FEATURES of zoneStats (zone: the code of the class; zone_label: its code and name, in LANG)
+	function classZoneRows(features, ze, lang) {
+		var out = [];
+		features.forEach(function (f) {
+			(f.properties.groups || []).slice().sort(function (a, b) { return a.zone - b.zone; }).forEach(function (g) {
+				var z = Math.round(g.zone);
+				var row = {region: String(f.properties.name), zone: z, zone_label: categoryLabel(ze, z, lang), zone_from: null,
+					zone_to: null};
+				ZONE_STATS.forEach(function (s) { row[s] = g[s] === undefined ? null : g[s]; });
+				row.n_pixels = g.count || 0;
+				out.push(row);
+			});
+		});
+		return out;
+	}
+
+	// services.area_by_class of the categorical entry E: the legend ([class, label, {group, group_label}]: the
+	// ecoregions with their biome) of the classes with area in some evaluated feature of classHectares, in LANG
+	function classAreaLegend(e, features, lang) {
+		var present = [];
+		features.forEach(function (f) {
+			(f.properties.groups || []).forEach(function (g) {
+				if (g.sum) present.push(Math.round(g['class']));
+			});
+		});
+		var group = categoryGroupEntry(e);
+		return uniqueSorted(present).map(function (c) {
+			var more = {};
+			if (group) {
+				more.group = categoryGroupOf(e, c);
+				more.group_label = categoryLabel(group, more.group, lang);
+			}
+			return [c, categoryLabel(e, c, lang), more];
+		});
+	}
+
+	// classes.by_group: the hectares of the classes of LEGEND (classAreaLegend) in each evaluated feature of
+	// classHectares summed by group (the biome of each ecoregion; GROUP, its entry): [{region, group, label, ha,
+	// percent}], only those with area
+	function classGroupRows(features, legend, group, lang) {
+		var out = [];
+		features.forEach(function (f) {
+			var ha = {};
+			(f.properties.groups || []).forEach(function (g) { ha[Math.round(g['class'])] = g.sum; });
+			var total = legend.reduce(function (a, c) { return a + (ha[c[0]] || 0); }, 0);
+			var acc = {};
+			legend.forEach(function (c) {
+				if (ha[c[0]]) acc[c[2].group] = (acc[c[2].group] || 0) + ha[c[0]];
+			});
+			uniqueSorted(Object.keys(acc)).forEach(function (g) {
+				out.push({region: String(f.properties.name), group: g, label: categoryLabel(group, g, lang), ha: acc[g],
+					percent: total ? 100 * acc[g] / total : null});
+			});
+		});
+		return out;
+	}
+
 	// services.transect: the distances where the line of LENGTH metres is cut every STEP metres, none within a
 	// millionth of a step of its end (with STEP = LENGTH / N, N × STEP may fall a hair short of LENGTH)
 	function transectCuts(length, step) {
@@ -1681,13 +2294,23 @@ var MonitorEO = (function () {
 		return days.map(function (d) { return [d, iso(addDays(date(d), 1))]; });
 	}
 
-	// What autoScale and the CRS need, to evaluate once: {area: of the biggest region (m²), centroid: [lon, lat] (for
-	// utmOf), total: area of all the regions and boundsArea: of their bounding box (m²)}
+	// What autoScale and the CRS need, to evaluate once: {area: of the biggest region (m²), centroid: [lon, lat] and
+	// bounds: the coordinates of their bounding box (for regionCrs), total: area of all the regions and boundsArea: of
+	// their bounding box (m²)}
+	// the longitude of the corner I of the bounds of GEOM (0: west, 2: east), on the server
+	function boundsLon(geom, i) {
+		return ee.Number(ee.List(ee.List(ee.List(geom.bounds(1000).coordinates()).get(0)).get(i)).get(0));
+	}
+
 	function regionInfo(regions) {
 		var geom = regions.geometry();
 		return ee.Dictionary({
 			area: regions.map(function (f) { return ee.Feature(null, {a: f.geometry().area(1)}); }).aggregate_max('a'),
 			centroid: geom.centroid(1000).coordinates(),
+			bounds: geom.bounds(1000).coordinates(),
+			// areas.auto_crs: across the antimeridian (bounds of 360 degrees), its bounds in PACIFIC_CRS too, for its span
+			pacific: ee.Algorithms.If(boundsLon(geom, 2).subtract(boundsLon(geom, 0)).gt(359),
+				geom.bounds(1000, PACIFIC_CRS).coordinates(), null),
 			total: geom.area(1000),
 			boundsArea: geom.bounds(1000).area(1000)
 		});
@@ -1982,7 +2605,7 @@ var MonitorEO = (function () {
 	// or '' if unknown; the units of the data of Earth Engine are already in UDUNITS ('mm day-1')
 	var UDUNITS = {'[unitless]': '1', '[°C]': 'degC', '[kg/m²/8 days]': 'kg m-2 (8 day)-1', '[J/m²/day]': 'J m-2 day-1',
 		'[mg m⁻³]': 'mg m-3', '[%]': '%', '[m]': 'm', '[°]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
-		'[mm/day]': 'mm day-1', '[kPa]': 'kPa'};
+		'[mm/day]': 'mm day-1', '[kPa]': 'kPa', '[class]': ''};  // [class]: class codes, without a unit (catalog.UDUNITS)
 
 	function udunits(unit) {
 		var text = String(unit || '').replace(/º/g, '°').trim();
@@ -2406,6 +3029,8 @@ var MonitorEO = (function () {
 		function given(v) {
 			return v !== null && v !== undefined;
 		}
+		// a class without them (of a categorical layer, see categoryLegend): its label as it is
+		if (!['dnbr_min', 'dnbr_max', 'rdnbr_min', 'rdnbr_max'].some(function (k) { return k in c; })) return c.label;
 		var key = 'rdnbr_min' in c || 'rdnbr_max' in c ? 'rdnbr' : 'dnbr';
 		var low = c[key + '_min'], high = c[key + '_max'];
 		var values = !given(low) ? '< ' + num(high) : !given(high) ? '≥ ' + num(low) :
@@ -2688,10 +3313,12 @@ var MonitorEO = (function () {
 		otherThemes: otherThemes,
 		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
 		UNITS: UNITS, UNIT_WORDS: UNIT_WORDS, DIMENSIONLESS: DIMENSIONLESS, udunitsText: udunitsText,
-		customUnit: customUnit, customEntry: customEntry, entryName: entryName,
+		customUnit: customUnit, customEntry: customEntry, entryName: entryName, dataStem: dataStem,
+		BAND_REDUCERS: BAND_REDUCERS, bandsOf: bandsOf, bandText: bandText, bandWords: bandWords, bandStem: bandStem,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
-		staticImage: staticImage, iso: iso, date: date, windows: windows, bins: bins, reducer: reducer,
+		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, windows: windows, bins: bins,
+		reducer: reducer,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
@@ -2701,9 +3328,20 @@ var MonitorEO = (function () {
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
 		isLandcover: isLandcover, landcoverCheck: landcoverCheck, landcoverCodes: landcoverCodes,
 		landcoverSource: landcoverSource, landcoverKeep: landcoverKeep, landcoverText: landcoverText,
+		CLASS_SHARE: CLASS_SHARE, CLASS_STATS: CLASS_STATS, CLASS_GAP: CLASS_GAP, classTable: classTable,
+		isCategorical: isCategorical, classCodes: classCodes, categoryName: categoryName, categoryLabel: categoryLabel,
+		categoryColour: categoryColour, categoryGroupOf: categoryGroupOf, categoryGroupEntry: categoryGroupEntry,
+		layerClasses: layerClasses, checkClasses: checkClasses, findClasses: findClasses,
+		categoryLegend: categoryLegend, classVis: classVis, categoricalImage: categoricalImage, classesIn: classesIn,
+		presentCodes: presentCodes, classCondition: classCondition, classKeep: classKeep, classText: classText,
+		checkClassStats: checkClassStats, classConditions: classConditions, classZone: classZone,
+		classZoneRows: classZoneRows, classAreaLegend: classAreaLegend, classGroupRows: classGroupRows,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
-		islandAt: islandAt,
+		islandAt: islandAt, BIOME_MAX_ERROR: BIOME_MAX_ERROR, WITHIN_MAX_ERROR: WITHIN_MAX_ERROR,
+		GLOBAL_CRS: GLOBAL_CRS, WIDE_DEGREES: WIDE_DEGREES, regionCrs: regionCrs, biomes: biomes, biomeName: biomeName,
+		ecoregionsOfBiome: ecoregionsOfBiome, biomeCodes: biomeCodes, biomeFeature: biomeFeature,
+		biomeRegion: biomeRegion, biomeAt: biomeAt, withinRegion: withinRegion,
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,

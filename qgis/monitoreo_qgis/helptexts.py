@@ -8,6 +8,7 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import about, references, sensors, services  # noqa: E402
+from monitoreo import variable as variables  # noqa: E402
 
 MANUAL = f'{about.MANUAL}/QGIS-plugin'  # the English page of the plugin in the wiki
 FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
@@ -93,6 +94,10 @@ HELP = {
 		'<li><b>Country</b>: a whole country, by its ISO3 code (FAO GAUL 2025). Big: use MODIS or a coarse pixel.</li>'
 		'<li><b>Ecoregion at the center of the map</b>: the RESOLVE 2017 ecoregion that contains the center of the '
 		'view.</li>'
+		'<li><b>Biome at the center of the map</b>: the RESOLVE 2017 biome (the union of its ecoregions) that '
+		'contains the center of the view, only its part in the map extent: a whole biome spans continents. Zoom out '
+		'for more of it, with MODIS or a coarse pixel. For its pixels in a country, choose the country and, in '
+		'<b>Only the pixels where</b>, the layer BIOME with its class.</li>'
 		'<li><b>Island at the center of the map</b>: the island of more than 1 km² (Global Islands, Sayre et al. '
 		'2019) that contains the center of the view.</li></ul>' + manual('Concepts#regions'),
 	'layer':
@@ -152,7 +157,9 @@ HELP = {
 		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
-		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
+		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim), <b>Terrain</b> (elevation, slope, '
+		'topographic wetness index) and <b>Ecosystems</b> (the ecoregions and biomes of RESOLVE, categorical layers of '
+		'classes). '
 		'<b>All the variables</b> lists every one.</p>'
 		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
 		'<b>Burn severity of a fire</b>, in <b>Fire</b>.</p>'
@@ -190,14 +197,32 @@ HELP = {
 		'reads metadata, without computing.</p>'
 		'<p>It is computed like a variable over the region, with the period, the season, the metrics and the '
 		'conditions of <b>Only the pixels where</b>, but without the pixel filters of MonitorEO (clouds, water, snow, '
-		'aerosols) nor true colour: these data keep only their own mask. The results are named by the ID and the band, '
-		'have the unit given and cite the dataset as its record says.</p>'
+		'aerosols) nor true colour: these data keep only their own mask. Several of its bands can be combined on each '
+		'pixel, their sum or their mean (<b>Combine bands</b>). The results are named by the ID and the band (or the '
+		'bands combined), have the unit given and cite the dataset as its record says.</p>'
 		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
 	'asset_band':
-		'<p>The band that is computed (one). <b>Read</b> lists them, with their description, unit and pixel size in '
-		'their tooltips; you can also write it. Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
+		'<p>The band that is computed (one; several with <b>Combine bands</b>). <b>Read</b> lists them, with their '
+		'description, unit and pixel size in their tooltips; you can also write it (several separated by commas, to '
+		'combine them, before Read). Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
 		'<b>Unit (UDUNITS)</b> as its record says.</p>'
 		f'<p>{CLASSES}</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'band_reducer':
+		'<p>One band, or several combined into one value on each pixel:</p>'
+		'<ul><li><b>Sum of the bands</b>: e.g. the 12 monthly bands of an image into the annual total, or the actual '
+		'evapotranspiration and the climatic water deficit of TerraClimate into the potential one.</li>'
+		'<li><b>Mean of the bands</b>: e.g. the depth bands of a soil property.</li></ul>'
+		'<p>Each band is multiplied by the <b>Band scale</b> and the <b>Band offset</b> is added to it, then they are '
+		'combined, only on the pixels where every band has data, on the pixels of the first band. The '
+		'<b>Unit (UDUNITS)</b> is that of every band, so of their sum or mean: a sum of bands is not turned from a '
+		'rate into a total (12 monthly bands in mm sum to mm; give mm, not mm month-1).</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'asset_bands':
+		'<p>The bands combined with <b>Combine bands</b>: check two or more of those that <b>Read</b> lists, with '
+		'their pixel size. The first one checked gives the pixels of the result and fills the <b>Band scale</b>, '
+		'<b>Band offset</b> and <b>Unit (UDUNITS)</b>, which apply to every band: a note says when the bands checked '
+		'differ in pixel size or in the unit, scale or offset of their records.</p>'
 		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
 	'asset_use':
 		'<ul><li><b>Images with dates (collection)</b>: a collection of images over time (e.g. the monthly '
@@ -231,11 +256,16 @@ HELP = {
 		+ manual('Concepts#earth-engine-data-by-its-id'),
 	'where':
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
-		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, and <b>SLOPE · '
-		'Copernicus</b> with max 20, those with slopes under 20°. Give a min, a max or both, in the unit shown.</p>'
+		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, <b>SLOPE · '
+		'Copernicus</b> with max 20, those with slopes under 20°, and <b>TWI · MERIT Hydro</b> with min 10, the wet '
+		'valley bottoms. Give a min, a max or both, in the unit shown.</p>'
 		'<p>A variable with dates (NDVI, PRECIP...) is its mean over the <b>Period</b> above, the same pixels for '
 		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
 		'and exports keep only those pixels, and their README says which.</p>'
+		'<p>A categorical layer (<b>ECOREGION</b> or <b>BIOME · RESOLVE</b>, theme Ecosystems) has classes, not values: '
+		'its condition keeps the pixels of some classes (<b>is one of the classes</b>) or leaves them out (<b>is none '
+		'of the classes</b>), given by their codes, e.g. <code>12</code> for the Mediterranean biome (<b>Classes…</b> '
+		'lists them). A pixel is kept when the classes kept cover half of it or more.</p>'
 		+ manual('Concepts#filtering-the-study-area'),
 	'landcover_map':
 		'<p>Leaves out of every result (maps, series, trends, comparisons, exports and the burn severity) the pixels '
@@ -363,21 +393,29 @@ HELP = {
 		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
 		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
 		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '
-		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li></ul>'
+		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li>'
+		'<li><b>Classes of a categorical layer</b>: with <b>ECOREGION</b> or <b>BIOME · RESOLVE</b> as the variable '
+		'(theme Ecosystems), its own classes with area in the region, with their colours: the ecoregions with their '
+		'biome, or the biomes.</li></ul>'
 		'<p>The area of each pixel is its true area; the % is of the area with a class.</p>'
 		+ manual('Concepts#area-by-class'),
 	'zones':
 		'<p><b>Statistics of each band</b>: the percentiles 25, 50 and 75 and the mean of the map of the variable (with '
-		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, or of a variable of '
-		'WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: below 1500 m, 1500 to 2000 m, ... '
+		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, of the topographic '
+		'wetness index, or of a variable of WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: '
+		'below 1500 m, 1500 to 2000 m, ... '
 		'They show how the variable changes with the altitude, e.g. the snow or the greenness from the valley to the '
-		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'summits.</p>'
+		'<p>With a categorical layer (<b>ECOREGION</b> or <b>BIOME · RESOLVE</b>), each of its classes in the region is '
+		'a zone, without breaks: the variable in each ecoregion or biome. A categorical layer as the variable gives the '
+		'majority class of each zone.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'transect':
 		'<p><b>Profile along the line</b>: the map of the variable (with the options of the group <b>Map</b>) and the '
 		'elevation along a line of a layer of lines (the selected one, or its first one), cut in 100 segments (at least '
 		'a pixel of the data long, so fewer on lines shorter than 100 pixels): the mean of the pixels that each segment '
 		'crosses. Draw it in a new temporary layer of lines, from the valley to the summit, across a fire or along a '
-		'river.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
+		'river.</p><p>Not for a categorical layer (ECOREGION, BIOME), whose values are class codes.</p>'
+		+ manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'catalog_search':
 		'<p>Searches the <b>Earth Engine data catalog</b> by words in English (in the title, ID, keywords or description '
 		'of each dataset: at least half of them): the collections of images with data in the <b>Period</b> and the '
@@ -592,16 +630,22 @@ def band_lines(b):
 def data_help(v, info=None):
 	"""Help of the data of Earth Engine given by their ID: with V the entry of those data in the list Variable of the
 	panel (dock.custom_entry), what is chosen and, once read (INFO: what services.describe_asset said of it), what its
-	record says of it and of its band, its notes and how to cite it; then the general text. With a variable of the
-	catalog, the general text."""
+	record says of it and of its band (of each band combined, with band_reducer), its notes and how to cite it; then
+	the general text. With a variable of the catalog, the general text."""
 	v = v or {}
 	if not v.get('custom') or not v.get('asset'):
 		return HELP['asset']
-	band = v.get('band')
+	band, reducer = v.get('band'), v.get('band_reducer')
+	bands = list(v.get('bands') or ([band] if band else []))
 	use = 'images with dates (collection)' if v.get('use') == 'collection' else 'a fixed image (image)'
-	lines = [f"<b>{esc(v['asset'])}</b>" + (f", band <b>{esc(band)}</b>" if band else ', no band chosen') +
-	         f", as {use}.",
-	         f"Values: stored × {esc(v.get('band_scale') or '1')} + {esc(v.get('band_offset') or '0')}; unit: "
+	if reducer:  # several bands combined on each pixel: 'the sum of the bands aet and def'
+		what = (f", <b>{esc(variables.band_words({'band': bands, 'band_reducer': reducer}))}</b> on each pixel"
+		        if len(bands) > 1 else ', fewer than two bands checked to combine')
+	else:
+		what = f", band <b>{esc(band)}</b>" if band else ', no band chosen'
+	lines = [f"<b>{esc(v['asset'])}</b>{what}, as {use}.",
+	         f"Values: stored × {esc(v.get('band_scale') or '1')} + {esc(v.get('band_offset') or '0')}"
+	         f"{' (each band, before they are combined)' if reducer else ''}; unit: "
 	         f"{esc(v.get('unit') or 'not given')}. No pixel filters: these data keep only their own mask."]
 	if v.get('static'):
 		lines.append('<b>A fixed image, without dates</b>: only its map (Map and Export to Google Drive); the period, '
@@ -610,7 +654,7 @@ def data_help(v, info=None):
 	if info:
 		lines.append(data_summary(info))
 		for b in info.get('bands') or []:
-			if b.get('band') == band:
+			if b.get('band') in bands:  # the band chosen, or each of those combined
 				lines += band_lines(b)
 		# its notes, but that on the bands with classes in the words of the panel (CLASSES): describe_asset names the
 		# metric mode, which the panel does not offer
@@ -637,6 +681,11 @@ def variable_help(v, info=None):
 	if d.get('static'):  # elevation, slope: only maps
 		lines += [d['notes'].get('ft', ''), '<b>A fixed layer, without dates</b>: only its map (Map and Export to Google '
 		          'Drive); the period, the metrics, the time series and the trends do not apply.']
+	if d.get('categorical'):  # the ecoregions, the biomes: class codes
+		lines.append(f"<b>A categorical layer, of {d['n_classes']} classes</b>: its map has the colour of each class and "
+		             'the legend of those in the region; the statistic of a region is its majority class; Area by class '
+		             'gives the area of each class (Classes of a categorical layer), Gradients its classes as zones, and '
+		             '«Only the pixels where» keeps or leaves out some classes. No profile along a line.')
 	return HELP['variable'] + ''.join(f'<p>{line}</p>' for line in lines) + \
 		cite_html(d.get('references'), d.get('credits'),
 		          'References of its formula and its data (cite them with its results)') + \

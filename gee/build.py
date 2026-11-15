@@ -1,7 +1,8 @@
 """Build the app of MonitorEO for the Earth Engine Code Editor from the Python package of this repository:
 
   catalog.js         the catalog (catalog.json with the corrections and the NBR of catalog.py), with the band of every
-                     name of the formulas resolved as sensors.parse_formula does, the themes of the menu (also those of
+                     name of the formulas resolved as sensors.parse_formula does, the tables of classes of the
+                     categorical layers (classes: the ecoregions and biomes), the themes of the menu (also those of
                      the data of Earth Engine outside the catalog, catalog.OTHER_THEMES), a slim copy of the index of
                      the GEE Community Catalog (community.json.gz) and the texts of about.py
   monitoreo_app.js   catalog.js, core.js and ui.js in a single script: paste it in a new script of the Code Editor and
@@ -46,7 +47,7 @@ from monitoreo import __released__, __version__, about, catalog, community, eeca
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
-          'terrain', 'image_asset', 'theme']
+          'terrain', 'image_asset', 'theme', 'classes']  # classes: the key of the table of a categorical layer
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
 REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine
@@ -317,6 +318,7 @@ def main():
 	services.init(args.project)
 	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
 	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
+	        'classes': catalog.load()['classes'],  # the classes of the categorical layers (monitoreo.categorical)
 	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index(),
 	        'eecatalog': eecatalog_index()}
 	write_catalog(data)

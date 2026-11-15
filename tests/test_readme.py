@@ -30,6 +30,14 @@ def test_units():
 	units = {e['unit'] for e in catalog.variables()}
 	assert not [u for u in units if 'º' in u], 'the degree sign is °, not the ordinal indicator º'
 	assert units <= set(catalog.UDUNITS), f'units without UDUNITS: {units - set(catalog.UDUNITS)}'
+	# every unit has its UDUNITS name, but the class codes of the categorical layers (ECOREGION, BIOME), which have no
+	# unit, not even 1 (dimensionless): as the flag values of the CF conventions, their files carry no unit, and say what
+	# each code is (the classes in the README and in the metadata of the GeoTIFF)
+	assert [u for u in units if not catalog.udunits(u)] == [catalog.CLASS_UNIT] == list(catalog.NO_UDUNITS)
+	assert catalog.udunits('[class]') == '' and catalog.udunits('[class]', per_year=True) == ''
+	klass = variable.describe(services.make_spec('BIOME', 'RESOLVE'))
+	assert (klass['unit'], klass['udunits'], klass['categorical']) == ('[class]', '', True)
+	assert readme.band_udunits('value', klass['udunits']) == ''  # the band of its GeoTIFF: no unit
 	assert catalog.udunits('[°C]') == 'degC' and catalog.udunits('[ºC]') == 'degC'  # also old answers
 	assert catalog.udunits('[unitless]') == '1' and catalog.udunits('[unitless]', per_year=True) == 'year-1'
 	assert catalog.udunits('[kg/m²/8 days]', per_year=True) == 'kg m-2 (8 day)-1 year-1'
@@ -94,11 +102,12 @@ def test_fixed_layers_and_scf():
 	from monitoreo import report
 	region = {'wdpa_id': 389011}
 	for tool in ('download_image', 'map_layer', 'region_stats'):
-		args = {'region': region, 'variable': 'SLOPE', 'sensor': 'Copernicus', 'start': '2025-01-01',
-		        'end': '2025-12-31', 'metric': 'median', 'quality': {'clouds': True}}
-		facts = dict(report.item_facts(tool, args))
-		assert not {'Period', 'Temporal metric', 'Discarded pixels'} & set(facts), tool
-		assert facts['Method'] == report.METHODS['static'] and '2025' not in report.item_title(tool, args)
+		for index, sensor in (('SLOPE', 'Copernicus'), ('TWI', 'MERIT Hydro')):
+			args = {'region': region, 'variable': index, 'sensor': sensor, 'start': '2025-01-01',
+			        'end': '2025-12-31', 'metric': 'median', 'quality': {'clouds': True}}
+			facts = dict(report.item_facts(tool, args))
+			assert not {'Period', 'Temporal metric', 'Discarded pixels'} & set(facts), (tool, index)
+			assert facts['Method'] == report.METHODS['static'] and '2025' not in report.item_title(tool, args)
 	scf = dict(report.item_facts('download_image', {'region': region, 'variable': 'SCF', 'sensor': 'Landsat',
 	                                                'start': '2001-01-01', 'end': '2024-12-31', 'metric': 'mean',
 	                                                'quality': {'clouds': False, 'snow': True}}))
@@ -106,6 +115,11 @@ def test_fixed_layers_and_scf():
 	d = variable.describe({'index': 'ELEVATION', 'sensor': 'Copernicus', 'period': ['2018-01-01', '2021-12-31'],
 	                       'season': ['06-01', '08-31'], 'metric': None, 'quality': {}})
 	assert d['udunits'] == 'm' and not {'period', 'season', 'metric'} & set(d)
+	# the topographic wetness index: unitless, its formula of two bands and its note (how it was computed)
+	d = variable.describe({'index': 'TWI', 'sensor': 'MERIT Hydro', 'period': ['2018-01-01', '2021-12-31'],
+	                       'metric': None, 'quality': {}})
+	assert (d['udunits'], d['formula'], d['collection']) == ('1', 'TWI(elv,upa)', 'MERIT/Hydro/v1_0_1')
+	assert 'ln(a / tan β)' in d['note'] and not {'period', 'season', 'metric'} & set(d)
 
 
 def test_trend_bands(tmp_path):

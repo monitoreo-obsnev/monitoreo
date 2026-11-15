@@ -26,8 +26,9 @@ Any image or collection of images of Earth Engine given by its ID (of the Earth 
 Community Catalog, \code{mo_community()}, or of a project that your account can read) is computed by the functions
 of MonitorEO instead of a variable of the catalog: as \code{collection} (images with dates, aggregated in time like
 the variables of the catalog, with time series, trends and comparisons) or as \code{image} (a fixed image, or the
-mosaic of a collection of tiles: maps, their statistics and GeoTIFFs), with \code{band} and, if they are needed,
-\code{band_scale}, \code{band_offset} and \code{unit} (in UDUNITS). \code{mo_asset()} tells which, before computing:
+mosaic of a collection of tiles: maps, their statistics and GeoTIFFs), with \code{band} (one, or several combined
+on each pixel with \code{band_reducer}) and, if they are needed, \code{band_scale}, \code{band_offset} and
+\code{unit} (in UDUNITS). \code{mo_asset()} tells which, before computing:
 it reads the metadata of the ID in Earth Engine (without computing; \code{mo_init()} first) and, for the Earth
 Engine data catalog, its STAC record (the units, scale and offset of its bands, its licence and how to cite it).
 The pixel filters of MonitorEO are for the variables of its catalog: these data keep only their own mask.
@@ -47,6 +48,10 @@ pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", 
 aet <- do.call(mo_time_series, c(list(mo_wdpa(389011), start = "2020-01-01", end = "2024-12-31"), a$arguments))
 # a fixed image: the annual mean temperature of WorldClim (stored in tenths of degree)
 mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+# several bands combined on each pixel: the mean of the maximum temperature of the warmest month (bio05) and the
+# minimum temperature of the coldest month (bio06)
+mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio06"), band_reducer = "mean",
+                band_scale = 0.1, unit = "degC")
 }
 }
 \references{

@@ -2,9 +2,11 @@
 
 They take plain values (text, numbers, lists, dictionaries) and return plain values or files, so every tool
 computes exactly the same. A variable is given by its name in the catalog of MonitorEO (variable='NDVI',
-sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collection= and band=, or image= and band=).
-A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'bbox': [w, s, e, n]},
-{'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file': 'area.gpkg'}.
+sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collection= and band=, or image= and band=;
+several bands, band=['aet', 'def'], are combined on each pixel with band_reducer='sum' or 'mean': see make_spec).
+A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'biome_id': 12} (a biome of
+RESOLVE Ecoregions 2017), {'bbox': [w, s, e, n]}, {'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file':
+'area.gpkg'}; with within, only its part inside another region: {'biome_at': [lon, lat], 'within': {'country': 'ESP'}}.
 
 Besides time series, maps and statistics, the variables are downloaded as GeoTIFFs: one map (download_image, or
 export_image to Google Drive), the true colour of the same images (rgb_map and download_rgb: the red, green and blue
@@ -14,6 +16,12 @@ dates, pixel filters and metric; see has_rgb) or a recipe of several variables o
 download_trend) and the comparison of a reference period with another (compare_series, compare_map,
 download_comparison) are described in monitoreo.trends. The results of an analysis are published
 for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
+
+The categorical layers (ECOREGION and BIOME, sensor RESOLVE: the ecoregions and biomes of RESOLVE Ecoregions 2017; see
+monitoreo.categorical) are fixed layers whose values are class codes: their maps have a legend of the classes in the
+region ('classes'), their statistic over a region is the majority class (region_stats: 'mode'), area_by_class gives the
+area of each class, they give zones by class (region_stats with zones) and conditions of where with classes or exclude,
+and list_classes lists their classes (code, name, colour), without Earth Engine.
 
 Call init() first. With a project (init(project) or the variable EE_PROJECT) it computes with the Google account of
 `earthengine authenticate` and the quota of that project; without one, with the shared account of MonitorEO, whose
@@ -41,7 +49,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, charts, classes, composite, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, categorical, charts, classes, composite, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -531,13 +539,14 @@ def _name(e, lang, field):
 def list_variables(sensor=None, text=None, lang='en', theme=None):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
-	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb),
-	optionally of one SENSOR, of one THEME (its key or its
-	name) or with TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
+	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb;
+	categorical and n_classes for a layer of class codes, see list_classes), optionally of one SENSOR (compared as
+	catalog.find does: 'merit hydro' and 'MERITHydro' are 'MERIT Hydro'), of one THEME (its key or its name) or with
+	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
 	wanted = _theme(theme) if theme else None
 	for e in catalog.variables():
-		if sensor and e['sensor'].lower() != str(sensor).lower():
+		if sensor and catalog.name_key(e['sensor']) != catalog.name_key(sensor):
 			continue
 		if wanted and e.get('theme') != wanted['key']:
 			continue
@@ -552,7 +561,10 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 		if sensors.fixed_filters(e) is not None:
 			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 		if e.get('static'):
-			row['static'] = True  # elevation, slope: without dates, only maps and their statistics
+			row['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
+		if categorical.is_categorical(e):  # its values are class codes (the ecoregions, the biomes): see list_classes
+			row['categorical'] = True
+			row['n_classes'] = len(categorical.codes(e))
 		if sensors.rgb_of(e):
 			row['rgb'] = True  # its images have a true colour (rgb_map, download_rgb)
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
@@ -587,6 +599,41 @@ def landcover_maps(lang='en'):
 	return out
 
 
+def list_classes(variable, sensor=None, text=None, limit=None, lang='en'):
+	"""The classes of a categorical layer of the catalog (VARIABLE and SENSOR: ECOREGION or BIOME, sensor RESOLVE; see
+	monitoreo.categorical): [{code (for classes and exclude of a condition of where, or the classes of zones), name (in
+	LANG 'es', the Spanish name of the biomes), colour (hex, without #) and, for the ecoregions, group and group_name
+	(their biome)}], from the lowest code; with TEXT, those with its words at the start of a word of their code, name or
+	biome (in any case, with or without accents), at most LIMIT. Without Earth Engine."""
+	e = catalog.find(variable, sensor)
+	if not categorical.is_categorical(e):
+		raise ValueError(f"{e['index']} ({e['sensor']}) is not a categorical layer: list_classes is for the layers of "
+		                 'class codes, ECOREGION and BIOME (sensor RESOLVE)')
+	return categorical.find(e, text, limit, lang)
+
+
+def _categorical(variable, sensor=None, source=None):
+	"""The entry of the catalog of VARIABLE and SENSOR when it is a categorical layer (see monitoreo.categorical), else
+	None (also for the data of Earth Engine outside the catalog, and for a variable not in it, which make_spec refuses):
+	without Earth Engine."""
+	ref = (source or {}).get('ref')
+	if not variable and ref is None:  # a variable of the catalog is given by its name, or by its ref alone
+		return None
+	try:
+		e = catalog.find(variable, sensor, (source or {}).get('collection'), ref)
+	except (KeyError, ValueError, TypeError):
+		return None
+	return e if categorical.is_categorical(e) else None
+
+
+def _class_map(spec, regions):
+	"""(vis, legend) of the map of the categorical layer SPEC over REGIONS (see monitoreo.categorical): the colour of
+	each class, and the legend of the classes in the region (all of them if it has none)."""
+	entry = variables.entry_of(spec)
+	present = categorical.present(entry, regions.geometry())
+	return categorical.vis(entry, present), categorical.legend(entry, present)
+
+
 def _theme(theme):
 	low = str(theme).strip().lower()
 	for t in catalog.THEMES:
@@ -601,7 +648,9 @@ def _theme(theme):
 def describe_variable(variable_name, sensor=None, collection=None, ref=None, lang='en'):
 	"""Everything about a variable of the catalog: formula, collection, scale, unit, pixel filters, notes, ... and what
 	to cite with its data: 'references' (the articles of its formula or algorithm, its Earth Engine datasets as their
-	catalog pages suggest and the pixel filters) and 'credits' (see monitoreo.references)."""
+	catalog pages suggest and the pixel filters) and 'credits' (see monitoreo.references). A categorical layer (class
+	codes) has categorical, n_classes, classes_table and its classes, if they are at most categorical.DESCRIBE_MAX
+	(else classes_note: list_classes gives them)."""
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
 	out['name'] = _name(e, lang, 'vname')
@@ -616,7 +665,9 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	if sensors.fixed_filters(e) is not None:
 		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 	if e.get('static'):
-		out['static'] = True  # elevation, slope: without dates, only maps and their statistics
+		out['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
+	if categorical.is_categorical(e):  # class codes: its classes (or how to list them, when they are many)
+		out.update(categorical.describe(e, lang))
 	out['rgb'] = sensors.rgb_of(e) is not None  # its images have a true colour (rgb_map, download_rgb)
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
@@ -633,9 +684,10 @@ def describe_asset(asset):
 	variable of the catalog: {'asset', 'type' (image or image_collection), 'use' (the argument that takes it: collection
 	or image), 'how', 'title', 'source', 'page', 'provider', 'licence', 'dates', 'bands': [{'band', 'description',
 	'units', 'unit' (in UDUNITS), 'band_scale', 'band_offset', 'resolution_m', 'classes'}], 'arguments' (to compute its
-	first band, e.g. {'collection': ..., 'band': ..., 'band_scale': ..., 'unit': ...}), 'notes', 'references',
-	'credits'}. It reads the metadata of the asset in Earth Engine (without computing) and, for the Earth Engine data
-	catalog, its STAC record (see monitoreo.assets)."""
+	first band, e.g. {'collection': ..., 'band': ..., 'band_scale': ..., 'unit': ...}; several bands are combined with
+	band=[...] and band_reducer='sum' or 'mean'), 'notes', 'references', 'credits'}. It reads the metadata of the
+	asset in Earth Engine (without computing) and, for the Earth Engine data catalog, its STAC record (see
+	monitoreo.assets)."""
 	from . import assets
 	return assets.describe(asset)
 
@@ -654,7 +706,8 @@ def find_datasets(text=None, start=None, end=None, bbox=None, kind=None, limit=2
 	(the images, fixed layers without dates, whatever their dates), over BBOX ([w, s, e, n], degrees), of one KIND
 	('image' or 'image_collection'), at most LIMIT (100): [{'id', 'title', 'type', 'start', 'end' (none: it goes on),
 	'bbox', 'provider', 'keywords', 'gsd' (m), 'description', 'page'}], those with most words first. describe_asset
-	gives the bands of one; then compute it with collection= or image= and band=. Without Earth Engine."""
+	gives the bands of one; then compute it with collection= or image= and band= (several with band_reducer=). Without
+	Earth Engine."""
 	from . import eecatalog
 	return eecatalog.search(text, start, end, bbox, kind, limit)
 
@@ -665,7 +718,7 @@ def community_datasets(theme=None, text=None, kind=None, limit=None):
 	'type' (image or image_collection), 'theme', 'provider', 'license', 'tags', 'docs' (its page, with its bands and
 	how to cite it)}], of one THEME (see community_themes; its name in English or Spanish), with TEXT in their title,
 	ID, provider or tags, of one KIND ('image' or 'image_collection'), at most LIMIT. describe_asset gives the bands of
-	one; then compute it with collection= or image= and band=."""
+	one; then compute it with collection= or image= and band= (several with band_reducer=)."""
 	from . import community
 	return community.datasets(theme, text, kind, limit)
 
@@ -688,17 +741,20 @@ def find_admin_units(text, level=1, country=None, limit=20):
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',
               season=None, quality=None, collection=None, band=None, image=None, ref=None, band_scale=None,
-              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False, unit=None):
+              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False, unit=None,
+              band_reducer=None):
 	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
 	variables that compare two periods, RBR, for burn_severity). WHERE: the pixels of the study area to keep, a list of
 	conditions on variables (see variable.where_specs), e.g. [{'variable': 'ELEVATION', 'sensor': 'Copernicus',
 	'min': 1500}], or land covers to leave out after a land cover map of a year (see landcover_maps), e.g.
 	{'landcover': 'CORINE', 'year': 2018, 'exclude': ['water', 'built']}; every tool that takes a region takes it.
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see monitoreo.assets and describe_asset):
-	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND and
-	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is
-	none) and, for an image, TERRAIN ('slope' or 'aspect' of the band of an image, in degrees: its unit is then
-	degree). An ID of Earth Engine given as VARIABLE is an error that says how to give it."""
+	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND (one,
+	or several: a list, or a text with commas, with BAND_REDUCER 'sum' or 'mean', which combines them into one value
+	on each pixel where all of them have data) and optionally BAND_SCALE and BAND_OFFSET (of its stored values, of each
+	band before they are combined), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is none; that of every band, so
+	of their sum or mean) and, for an image of one band, TERRAIN ('slope' or 'aspect' of the band of an image, in
+	degrees: its unit is then degree). An ID of Earth Engine given as VARIABLE is an error that says how to give it."""
 	if variable and '/' in str(variable):  # no variable of the catalog has '/': an ID of Earth Engine, whatever SENSOR
 		raise ValueError(f'{variable} is not a variable of the catalog: give an ID of Earth Engine as a collection or '
 		                 'an image (describe_asset says which), with its band, instead of the variable')
@@ -711,10 +767,10 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 		if ref is not None and not variable:
 			var['index'] = catalog.find(None, ref=ref)['index']
 	elif image:
-		var.update({'image': image, 'band': band, 'terrain': terrain})
+		var.update({'image': image, 'band': band, 'terrain': terrain, 'band_reducer': band_reducer})
 		var.pop('metric')
 	elif collection:
-		var.update({'collection': collection, 'band': band})
+		var.update({'collection': collection, 'band': band, 'band_reducer': band_reducer})
 	if band_scale is not None:
 		var['scale'] = band_scale
 	if band_offset is not None:
@@ -722,8 +778,9 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	if unit is not None and str(unit).strip() != '':
 		var['unit'] = unit
 	if variable or ref is not None:  # a variable of the catalog has its own band, scale, offset and unit
-		extra = [k for k, v in (('image', image), ('band', band), ('band_scale', band_scale),
-		                        ('band_offset', band_offset), ('terrain', terrain)) if v not in (None, '')]
+		extra = [k for k, v in (('image', image), ('band', band), ('band_reducer', band_reducer),
+		                        ('band_scale', band_scale), ('band_offset', band_offset), ('terrain', terrain))
+		         if v not in (None, '')]
 		if extra:
 			raise ValueError(f"{', '.join(extra)}: only for the data of Earth Engine given by their ID (collection or "
 			                 f"image, instead of variable and sensor); {variable or ref} is a variable of the catalog")
@@ -789,7 +846,7 @@ def _source_name(variable, source):
 		return variable
 	if not (source.get('collection') or source.get('image')):
 		return ''
-	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'terrain')})
+	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'band_reducer', 'terrain')})
 
 
 def _ylabel(spec, stat=None, interannual=None):
@@ -1029,11 +1086,18 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	Engine tiles (XYZ, valid for some hours; their values cannot be queried: download_image for that) and colour
 	ramp (from the map, or from the catalog if QUICK: computing it over big regions and long periods takes long).
 	Writes a PNG preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail
-	None and the reason in thumbnail_error).
+	None and the reason in thumbnail_error). A categorical layer (ECOREGION, BIOME) has the colour of each class and,
+	instead of a colour ramp (min, max and palette None), the legend of its classes in the region, classes: [{'value',
+	'label', 'color'}].
 	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	img = whole.clipToCollection(regions) if clip else whole
+	if variables.is_categorical(spec):  # class codes: the colour of each class, and the legend of those in the region
+		vis, legend = _class_map(spec, regions)
+		out = {'url': maps.tile_url(img, vis), 'min': None, 'max': None, 'palette': None, 'classes': legend,
+		       'name': _named(spec, metric), 'unit': _unit(spec), 'bounds': _bounds(regions), 'thumbnail': None}
+		return _preview(out, whole, vis, regions, res, thumbnail, clip)
 	entry = ramp_entry(spec)
 	# the data of Earth Engine outside the catalog have no range in it, nor the standard deviation and the coefficient
 	# of variation in that of the variable: always from the map
@@ -1052,7 +1116,8 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	geemap: PATH (.png, by default, .pdf or .svg) with the map (DIMENSIONS pixels of Earth Engine, with the outline of
 	the region) on its longitudes and latitudes, a scale bar, a north arrow, the colour ramp (VMIN to VMAX, by default
 	those of the map) with its unit, the TITLE (default: that of the map) and the credits of the data and the citation
-	of MonitorEO; WIDTH inches at DPI (see monitoreo.figures). It needs matplotlib.
+	of MonitorEO; WIDTH inches at DPI (see monitoreo.figures). It needs matplotlib. A categorical layer (ECOREGION,
+	BIOME) has the legend of its classes in the region instead of the colour ramp (classes, as map_layer).
 	Returns {'file', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale', 'dpi'}."""
 	figures.check(path, dpi)
 	try:
@@ -1062,7 +1127,11 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	geom = regions.geometry()
-	vis = maps.vis_params(whole.clipToCollection(regions), geom, ramp_entry(spec), res, vmin, vmax, palette)
+	legend = None
+	if variables.is_categorical(spec):  # the colour of each class, and their legend instead of the colour ramp
+		vis, legend = _class_map(spec, regions)
+	else:
+		vis = maps.vis_params(whole.clipToCollection(regions), geom, ramp_entry(spec), res, vmin, vmax, palette)
 	bounds = figures.padded(_bounds(regions))
 	img = maps.coarse(whole, res, bounds, dimensions).clipToCollection(regions)  # see maps.coarse
 	png = maps.thumbnail(maps.with_outline(img, vis, regions), ee.Geometry.Rectangle(bounds, 'EPSG:4326', False), None,
@@ -1074,7 +1143,10 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	credits = list(cited.get('credits') or []) + [f'Computed with MonitorEO in Google Earth Engine. {about.CITATION}']
 	name = _named(spec, metric)
 	path = path or _slug(f"figure_{_file_stem(variable, sensor, metric, start, end, source)}") + '.png'
-	figures.map_figure(png, bounds, vis, unit_text(_unit(spec)), title or name, credits, path, dpi, width)
+	figures.map_figure(png, bounds, vis, unit_text(_unit(spec)), title or name, credits, path, dpi, width, legend)
+	if legend is not None:
+		return dict(file=path, min=None, max=None, palette=None, classes=legend, name=name, unit=_unit(spec),
+		            bounds=bounds, scale=res, dpi=int(dpi))
 	return dict(vis, file=path, name=name, unit=_unit(spec), bounds=bounds, scale=res, dpi=int(dpi))
 
 
@@ -1170,8 +1242,11 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 	"""PNG (bytes) of the map of a variable over REGION, with the outline of the region."""
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
-	vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), ramp_entry(spec), res, vmin, vmax,
-	                      palette)
+	if variables.is_categorical(spec):  # the colour of each class
+		vis = _class_map(spec, regions)[0]
+	else:
+		vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), ramp_entry(spec), res, vmin, vmax,
+		                      palette)
 	img = maps.coarse(whole, res, _bounds(regions), dimensions).clipToCollection(regions)  # see maps.coarse
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
@@ -1253,20 +1328,28 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
                  chart=None, **source):
 	"""Statistics over each feature of REGION of the map of a variable aggregated in time: STATS, any of mean,
 	median, min, max, std (standard deviation), cv (coefficient of variation, in %: 100 × std / mean) and pN
-	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim); by
-	default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
+	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, topographic wetness
+	index, WorldClim); by default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
 	With ZONES, those of each zone of each feature instead: the classes of another variable cut at some values, e.g.
 	the elevation bands {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000, 2500]} (also
 	'metric', 'temporal', 'interannual' and 'period' of a variable with dates, by default aggregated over the period of
 	the result, as the conditions of where), with the rows of every zone of every feature (zone, zone_label,
 	zone_from, zone_to); a CSV of the rows and, with ZONES, a CHART (PNG) of the median (or else the mean, or the first
 	statistic) of each zone and its percentiles 25 and 75 (or else 5 and 95, if STATS has them and not those; with
-	neither, no band; its legend says which).
+	neither, no band; its legend says which). The zones of a categorical layer (ECOREGION, BIOME) are its classes,
+	without breaks, e.g. {'variable': 'BIOME', 'sensor': 'RESOLVE'} (optionally 'classes', the codes of those to
+	keep): the rows of the classes with pixels in each feature (zone, its code; zone_label, its code and name).
+	A categorical layer as the variable has class codes, so its statistic is the majority class: STATS 'mode' (by
+	default) and 'count', with mode_label (its code and name) in the rows; for the area of each class, area_by_class.
 	{'rows': [{region, mean, std, cv, min, p5, p50, p95, max, n_pixels}], 'stats', 'scale', 'unit' (of the map: that of
 	cv is %), 'title', 'csv', 'chart'}."""
-	stats = [stats] if isinstance(stats, str) else list(stats or (REGION_STATS_ZONES if zones else REGION_STATS))
+	klass = _categorical(variable, sensor, source)  # class codes: their statistic is the majority class
+	stats = [stats] if isinstance(stats, str) else list(stats or (['mode'] if klass else REGION_STATS_ZONES if zones
+	                                                                  else REGION_STATS))
 	for s in stats:
 		composite.check_metric(s)  # before Earth Engine
+	if klass:
+		categorical.check_stats(klass, stats)
 	zone_cuts = zones_of(zones)
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, False, None, source)
@@ -1274,7 +1357,22 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 	red, names = composite.region_reducer(stats)
 	crs = timeseries.region_crs(regions)
 	rows = []
-	if zone_cuts:
+	if isinstance(zone_cuts, dict):  # the classes of a categorical layer: the rows of those with pixels
+		zspec = _zone_spec(zones, spec)
+		zentry = variables.entry_of(zspec)
+		zone = _class_zone(zspec, regions.geometry(), scale, zone_cuts['classes'])
+		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), scale=scale, crs=crs,
+		                                      tileScale=4)
+		for f in fc.getInfo()['features']:
+			p = f['properties']
+			for g in sorted(p.get('groups') or [], key=lambda g: int(round(g['zone']))):
+				z = int(round(g['zone']))
+				row = {'region': str(p.get('name')), 'zone': z, 'zone_label': categorical.label(zentry, z),
+				       'zone_from': None, 'zone_to': None}
+				row.update({s: composite.value_of(g, s, names) for s in stats})
+				row['n_pixels'] = g.get('count', 0)
+				rows.append(row)
+	elif zone_cuts:
 		zspec = _zone_spec(zones, spec)
 		legend = classes.break_classes(zone_cuts, unit_text_of(_unit(zspec)))
 		zone = classes.classify_breaks(variables.image(zspec, regions.geometry(), scale), zone_cuts)
@@ -1296,17 +1394,22 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 			row.update({s: composite.value_of(p, s, names) for s in stats})
 			row['n_pixels'] = p.get('count')
 			rows.append(row)
+	if klass and 'mode' in stats:  # the majority class: its code (a whole number) and its name
+		for row in rows:
+			mode = row.get('mode')
+			row['mode'] = int(round(mode)) if mode is not None else None
+			row['mode_label'] = categorical.label(klass, row['mode']) if mode is not None else None
 	title = _named(spec, metric) + (f" by {zone_name(zones)}" if zone_cuts else '')
 	out = {'rows': rows, 'stats': stats, 'scale': scale, 'unit': _unit(spec), 'title': title, 'csv': None, 'chart': None}
-	if zone_cuts:
+	if zone_cuts and not klass:
 		out['ylabel'] = _ylabel(spec)
 	if csv:
 		columns = ['region'] + (['zone', 'zone_label', 'zone_from', 'zone_to'] if zone_cuts else []) + stats + \
-			['n_pixels']
+			(['mode_label'] if klass and 'mode' in stats else []) + ['n_pixels']
 		out['csv'] = timeseries.write_csv(rows, csv, {'variable': _source_name(variable, source),
 		                                              'sensor': sensor or '', 'unit': catalog.udunits(out['unit']),
 		                                              'scale_m': scale}, columns)
-	if chart and zone_cuts and rows:
+	if chart and zone_cuts and rows and not klass:  # (no chart of class codes: the table says the class of each zone)
 		try:
 			charts.zones_png(rows, stats, chart, title, _ylabel(spec), zone_name(zones))
 			out['chart'] = chart
@@ -1330,6 +1433,10 @@ def transect(line, variable=None, sensor=None, start=None, end=None, metric='med
 	coords = transect_line(line)
 	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                 season=season, quality=quality, **source)
+	if variables.is_categorical(spec):  # the mean of class codes along a line means nothing
+		e = variables.entry_of(spec)
+		raise ValueError(f"{e['index']} ({e['sensor']}) is a categorical layer, whose values are class codes: no "
+		                 'profile along a line (the mean of each segment); area_by_class gives the area of each class')
 	geom = ee.Geometry.LineString(coords)
 	length = float(geom.length(1).getInfo())
 	native = float(variables.native_scale(spec))
@@ -1410,27 +1517,52 @@ def transect_line(line):
 
 
 def zones_of(zones):
-	"""The breaks of ZONES (see region_stats), checked before Earth Engine, or None without zones."""
+	"""The breaks of ZONES (see region_stats), checked before Earth Engine, or None without zones; for the zones of a
+	categorical layer (ECOREGION, BIOME: its classes, without breaks), {'classes': the codes of those kept, or None for
+	all of them}."""
 	if not zones:
 		return None
 	if not isinstance(zones, dict) or not (zones.get('variable') or zones.get('index')):
 		raise ValueError('zones is a variable of the catalog and its breaks, e.g. {"variable": "ELEVATION", "sensor": '
-		                 '"Copernicus", "breaks": [1500, 2000, 2500]}')
+		                 '"Copernicus", "breaks": [1500, 2000, 2500]}, or a categorical layer, whose classes are the '
+		                 'zones: {"variable": "BIOME", "sensor": "RESOLVE"}')
 	unknown = set(zones) - {'variable', 'index', 'sensor', 'collection', 'breaks', 'metric', 'temporal', 'interannual',
-	                        'period', 'quality'}
+	                        'period', 'quality', 'classes'}
 	if unknown:
 		raise ValueError(f"zones has unknown keys {', '.join(sorted(unknown))}: give variable, sensor and breaks (and "
-		                 'metric, temporal, interannual or period for a variable with dates)')
+		                 'metric, temporal, interannual or period for a variable with dates; classes for a categorical '
+		                 'layer)')
 	period = zones.get('period')
 	if period and (not isinstance(period, (list, tuple)) or len(period) != 2):
 		raise ValueError(f"the period of zones on {zones.get('variable') or zones.get('index')} is [start, end]")
+	klass = _categorical(zones.get('variable') or zones.get('index'), zones.get('sensor'), zones)
+	if klass:  # its classes are the zones
+		if zones.get('breaks') not in (None, '', []):
+			raise ValueError(f"the zones of {klass['index']} ({klass['sensor']}) are its classes (a categorical layer, of "
+			                 'class codes): give no breaks (classes, optionally, the codes of those to keep)')
+		cs = zones.get('classes')
+		return {'classes': None if cs in (None, '', []) else categorical.check(klass, cs)}
+	if zones.get('classes') not in (None, '', []):
+		raise ValueError(f"classes are for the zones of a categorical layer (ECOREGION, BIOME): "
+		                 f"{zones.get('variable') or zones.get('index')} takes breaks")
 	return classes.check_breaks(zones.get('breaks') or [])
 
 
 def zone_name(zones):
-	"""The zones in words, e.g. «ELEVATION (Copernicus) bands»."""
+	"""The zones in words, e.g. «ELEVATION (Copernicus) bands», «BIOME (RESOLVE) classes»."""
 	v = zones.get('variable') or zones.get('index')
-	return f"{v} ({zones['sensor']}) bands" if zones.get('sensor') else f'{v} bands'
+	kind = 'classes' if _categorical(v, zones.get('sensor'), zones) else 'bands'
+	return f"{v} ({zones['sensor']}) {kind}" if zones.get('sensor') else f'{v} {kind}'
+
+
+def _class_zone(zspec, region, scale, codes=None):
+	"""The image of the zones of the categorical layer ZSPEC over REGION on pixels of SCALE metres (band 'zone': the code
+	of the class of each pixel; on pixels more than twice as big as those of the layer, the majority class), only of
+	the classes CODES if given (as zoneClass of the Earth Engine app)."""
+	zone = variables.image(zspec, region, scale)
+	if codes:
+		zone = zone.remap(codes, codes)
+	return zone.rename('zone')
 
 
 def _zone_spec(zones, spec):
@@ -1464,7 +1596,10 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	also the fixed layers) cut at those values, e.g. [0.2, 0.4, 0.6] (below 0.2, 0.2 to 0.4, 0.4 to 0.6, 0.6 or more);
 	or TREND, the trend of a variable on each pixel (as trend_map: STEP, PART and METRIC of each year, by default the
 	mean), in significant
-	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA). The area of each pixel is
+	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA); or, for a categorical
+	layer (ECOREGION, BIOME, sensor RESOLVE) without breaks nor trend, its own classes (mode 'classes'): those with area
+	in some feature, the ecoregions with their biome (group, group_label) and the hectares of each biome
+	('by_group'), with the colours of the classes. The area of each pixel is
 	its true area, on pixels of SCALE metres (default: those of the data, bigger over big regions); the % is of the
 	area with a class (the pixels without data are not counted). Writes the table to CSV and a bar chart to CHART (PNG).
 	With a land cover map and OTHER_YEAR, its changes from YEAR to OTHER_YEAR instead (see monitoreo.classes): the
@@ -1475,7 +1610,8 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	Returns {'rows': [{region, class, label, ..., ha, percent}] (every class in each feature, also in the features with
 	the same name), 'mode', 'classes': [{class, label, colour}], 'scale', 'unit', 'title', 'csv', 'chart'} and, for a
 	land cover map, 'by_landcover' (the hectares of each broad land cover in each feature)."""
-	mode = classes.mode_of(landcover, breaks, trend)
+	klass = None if landcover else _categorical(variable, sensor, source)
+	mode = classes.mode_of(landcover, breaks, trend, klass)
 	if mode == 'landcover' and (variable or sensor or source.get('collection') or source.get('image')):
 		raise ValueError('a land cover map has its own classes: give landcover and year, without a variable nor sensor')
 	if other_year not in (None, ''):
@@ -1508,6 +1644,13 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 		colours = {label: _ramp_colour(palette, (i + 0.5) / len(legend)) for i, (_, label, _) in enumerate(legend)}
 		extra = {}
 		title = f"Area of each class of {_named(spec, metric)}"
+	elif mode == 'classes':  # its own classes, on its pixels of the data (the mode would favour the biggest classes)
+		spec, regions, value, res0 = _build(region, variable, sensor, start, end, metric, temporal, interannual,
+		                                    season, quality, False, None, source)
+		res = scale or classes.scale_for(float(res0), regions)
+		img = value.rename('class')
+		legend, colours, extra, unit = None, {}, {}, ''  # the legend: the classes with area (after Earth Engine)
+		title = f"Area of each class of {_named(spec, metric)}"
 	else:
 		metric = metric or 'mean'  # the metric of each year of the trends
 		spec, regions, trend_img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric,
@@ -1520,17 +1663,27 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 		title = f"Area of each class of the trend of {name} (p < {alpha:g})"
 	crs = timeseries.region_crs(regions)
 	ha = classes.hectares(img, regions, res, crs)
+	group = None
+	if mode == 'classes':  # the classes with area in some feature, each with its colour (and its group: the biome)
+		group = categorical.group_entry(klass)
+		present = sorted({c for _, by in ha for c, h in by.items() if h})
+		legend = [(c, categorical.label(klass, c), {} if group is None else
+		           {'group': categorical.group_of(klass, c),
+		            'group_label': categorical.label(group, categorical.group_of(klass, c))}) for c in present]
+		colours = {label: categorical.colour(klass, c) for c, label, _ in legend}
 	rows = classes.rows(ha, legend, extra)
 	out = {'rows': rows, 'mode': mode, 'scale': res, 'unit': unit, 'title': title, 'csv': None, 'chart': None,
 	       'classes': [{'class': c, 'label': label, 'colour': colours.get(label)} for c, label, _ in legend]}
 	if mode == 'landcover':
 		out['by_landcover'] = classes.by_landcover(ha, legend)
+	if group is not None:
+		out['by_group'] = classes.by_group(ha, legend, group)
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'scale_m': res}
 		if mode != 'landcover' and spec.get('period') and not variables.is_static(spec):
 			meta['period'] = '/'.join(spec['period'])
-		out['csv'] = timeseries.write_csv(rows, csv, meta if mode != 'landcover' else {'scale_m': res},
-		                                  classes.COLUMNS[mode])
+		columns = [c for c in classes.COLUMNS[mode] if group is not None or c not in ('group', 'group_label')]
+		out['csv'] = timeseries.write_csv(rows, csv, meta if mode != 'landcover' else {'scale_m': res}, columns)
 	if chart and rows:
 		try:
 			charts.areas_png(rows, colours, chart, title)
@@ -1590,7 +1743,8 @@ def export_image(region, variable=None, sensor=None, start=None, end=None, metri
                  interannual='mean', season=None, quality=None, resolution=None, crs='auto', folder='MonitorEO',
                  name=None, clip=True, **source):
 	"""Export the map of a variable over REGION to a GeoTIFF in FOLDER of Google Drive, on a grid of RESOLUTION
-	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region).
+	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
+	region wider than 40 degrees of longitude: see areas.auto_crs).
 	Returns {'operation', 'file', 'folder', 'grid'}."""
 	spec, regions, img, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                 quality, clip, resolution, source)
@@ -1601,11 +1755,11 @@ def export_image(region, variable=None, sensor=None, start=None, end=None, metri
 
 
 def _grid(regions, res, crs):
-	"""Grid of RES metres in CRS ('auto' = WGS 84 / UTM of the centre) that covers REGIONS."""
+	"""Grid of RES metres in CRS ('auto' = WGS 84 / UTM of the centre or, for regions too wide for one, an equal-area
+	CRS in metres: areas.auto_crs) that covers REGIONS."""
 	geom = regions.geometry()
 	if str(crs).lower() == 'auto':
-		lon, lat = geom.centroid(1).coordinates().getInfo()
-		crs = areas.utm_of(lon, lat)
+		crs = areas.auto_crs(geom, 1)
 	ring = geom.bounds(res, crs).getInfo()['coordinates'][0]
 	xs, ys = [p[0] for p in ring], [p[1] for p in ring]
 	return Grid.around(crs, res, min(xs), min(ys), max(xs), max(ys))
@@ -1613,11 +1767,11 @@ def _grid(regions, res, crs):
 
 def _what(variable, sensor, source):
 	"""The variable of a file name: 'NDVI_Modis', or the end of the ID of the data of Earth Engine and its band
-	('TERRACLIMATE_pr')."""
+	('TERRACLIMATE_pr'), or the reducer of its bands ('TERRACLIMATE_sum_aet_def': see variable.band_stem)."""
 	if not variable and (source.get('collection') or source.get('image')):
 		from . import assets  # the ID as the tools take it (ee.ImageCollection("X") is X), as the MCP server names it
 		asset = assets.normalize(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
-		return '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
+		return '_'.join(str(x) for x in (asset, variables.band_stem(source), source.get('terrain')) if x)
 	return f"{variable}_{sensor or ''}"
 
 
@@ -1640,10 +1794,13 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
                    max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
-	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region), directly: Earth
-	Engine computes it in tiles of TILE pixels, WORKERS at a time (PROGRESS(done, total) after each one). With
-	MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times bigger. Fine for small regions; for big ones at
-	full resolution, export_image (Google Drive).
+	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
+	region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
+	a time (PROGRESS(done, total) after each one). With MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times
+	bigger. Fine for small regions; for big ones at full resolution, export_image (Google Drive).
+	A categorical layer (ECOREGION, BIOME) has class codes: on pixels more than twice as big as those of the data, the
+	majority class (see monitoreo.categorical), and classes (the legend of the classes in the file, [{'value', 'label',
+	'color'}]) instead of min, max and palette (None).
 	Returns {'file', 'grid', 'resolution', 'native_resolution' (that of the data), 'images', 'name', 'unit', 'min',
 	'max' (percentiles 5 and 95 of the values, as the maps of MonitorEO), 'palette'}."""
 	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
@@ -1658,10 +1815,13 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	desc = variables.describe(spec)
 	download(img, grid, path, tile=tile, workers=workers, progress=progress,
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
+	out = {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
+	       'images': variables.n_images(spec, regions.geometry()), 'name': _named(spec, metric), 'unit': _unit(spec)}
+	if variables.is_categorical(spec):  # class codes: the legend of the classes in the file
+		return dict(out, min=None, max=None, palette=None,
+		            classes=categorical.legend(variables.entry_of(spec), _values(path)))
 	vmin, vmax = _percentiles(path)
-	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
-	        'images': variables.n_images(spec, regions.geometry()), 'name': _named(spec, metric),
-	        'unit': _unit(spec), 'min': vmin, 'max': vmax, 'palette': maps.ramp(variable_entry(spec))}
+	return dict(out, min=vmin, max=vmax, palette=maps.ramp(variable_entry(spec)))
 
 
 @_cited
@@ -1703,6 +1863,20 @@ def _fit_grid(regions, res, crs, max_pixels=None):
 		res *= math.ceil(math.sqrt(grid.pixels / max_pixels))
 		grid = _grid(regions, res, grid.crs)
 	return grid, res
+
+
+def _values(path, band=1):
+	"""The different valid values of a band of a GeoTIFF (the codes of the classes of a categorical layer), as whole
+	numbers, from the lowest."""
+	import numpy as np
+	from osgeo import gdal
+	gdal.UseExceptions()
+	ds = gdal.Open(path)
+	b = ds.GetRasterBand(band)
+	a = b.ReadAsArray()
+	a = a[(a != b.GetNoDataValue()) & np.isfinite(a)]
+	ds = None
+	return [int(v) for v in np.unique(np.round(a))]
 
 
 def _percentiles(path, lo=5, hi=95, band=1):
@@ -2336,10 +2510,12 @@ SOURCE_DOC = """
 
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see describe_asset and community_datasets):
 	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles: maps and their
-	statistics, without dates), with BAND (one) and, optionally, BAND_SCALE and BAND_OFFSET (of its stored values), UNIT
-	(of the values after them, in UDUNITS: 'mm', 'degC', '1' if dimensionless) and, for an image, TERRAIN ('slope' or
-	'aspect' of the band of an image, in degrees: its unit is then degree). Also WHERE and EXCLUDE_LANDCOVER (the
-	pixels of the region to keep): see make_spec."""
+	statistics, without dates), with BAND (one, or several with BAND_REDUCER 'sum' or 'mean': each band times
+	BAND_SCALE plus BAND_OFFSET, then combined on each pixel; e.g. 12 monthly bands in mm summed into the annual total,
+	in mm) and, optionally, BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values after them, in
+	UDUNITS: 'mm', 'degC', '1' if dimensionless; that of every band, so of their sum or mean) and, for an image of one
+	band, TERRAIN ('slope' or 'aspect' of the band of an image, in degrees: its unit is then degree). Also WHERE and
+	EXCLUDE_LANDCOVER (the pixels of the region to keep): see make_spec."""
 
 
 def _with_source_doc(names):

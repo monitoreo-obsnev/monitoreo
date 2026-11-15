@@ -27,9 +27,10 @@ mo_burn_severity(
 )
 }
 \arguments{
-\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
-\code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
-\link{regions}). Several features give a result per feature.}
+\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
+\code{mo_admin()}, \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or
+\code{mo_sf()} (see \link{regions}); a biome only within another region with \code{mo_biome(within = )}.
+Several features give a result per feature.}
 
 \item{start, end}{the period before the fire.}
 
@@ -50,7 +51,8 @@ only for the variables of the catalog: the data given as \code{collection} or \c
 
 \item{resolution}{pixel size in metres (default: that of the data).}
 
-\item{crs}{\code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.}
+\item{crs}{\code{"auto"} (UTM zone of the region; EPSG:6933, equal area, for a region wider than 40 degrees of
+longitude) or a code such as \code{"EPSG:25830"}.}
 
 \item{csv}{optional path of a CSV file with the table: that of the classes (dNBR, RdNBR) or of the statistics
 (RBR).}
@@ -60,13 +62,16 @@ only for the variables of the catalog: the data given as \code{collection} or \c
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
-\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
-WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"}, the \code{"BIO"}
+variables of WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
 land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
 covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
-\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.}
+\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}. A condition on a
+categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
+classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
+Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
 
 \item{collection}{only with \code{index = "RdNBR"} and \code{sensor = "Modis"}: \code{"MODIS/061/MOD09GA"} (Terra,
 the default, since 2000-02-24) or \code{"MODIS/061/MYD09GA"} (Aqua, since 2002-07-04).}

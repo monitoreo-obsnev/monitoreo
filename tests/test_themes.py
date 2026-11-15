@@ -4,6 +4,7 @@ an error (about.feedback), without Earth Engine."""
 
 import importlib.util
 import json
+import math
 import os
 import re
 import shutil
@@ -12,7 +13,7 @@ import urllib.parse
 
 import pytest
 
-from monitoreo import about, assets, catalog, community, services, variable
+from monitoreo import about, assets, catalog, community, sensors, services, variable
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -41,7 +42,7 @@ def test_list_variables_by_theme():
 	fire = services.list_variables(theme='fire')
 	assert {v['variable'] for v in fire} == {'NBR', 'RBR', 'RdNBR'} and fire[0]['theme'] == 'Fire'
 	assert services.list_variables(theme='Nieve', lang='es')[0]['theme'] == 'Nieve'
-	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE'}
+	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'TWI'}
 	with pytest.raises(ValueError, match='unknown theme'):
 		services.list_variables(theme='mountains')
 	assert services.describe_variable('LST', 'Modis')['theme'] == 'Energy and temperature'
@@ -118,7 +119,7 @@ def test_the_slim_community_index_of_the_app():
 		assert (index['licences'][row[5]] if row[5] is not None else None) == licence
 	text = build.catalog_text({'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': index})
 	assert json.loads(text)['community'] == json.loads(json.dumps(index))
-	assert text.count('\n') < 1200  # the datasets one per line, not a line per value
+	assert text.count('\n') < 1250  # the datasets one per line, not a line per value (the themes: a line per index)
 
 
 NODE = r"""
@@ -155,6 +156,11 @@ global.ee = new Proxy({}, {get: function (t, p) { return p === 'data' ? data : c
 });
 CATALOG.community = input.community;  // those of the package, whatever the catalog.js there is
 CATALOG.other_themes = input.other_themes;
+// the topographic wetness index as gee/build.py writes it from the package (fk and fb: the kind of its formula and
+// its bands), whatever the catalog.js there is
+if (input.twi) {
+	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.twi.ref; }).concat([input.twi]);
+}
 var mo = global.MonitorEO;
 function attempt(f) {
 	try {
@@ -189,6 +195,12 @@ var collection = mo.spec({entry: mo.customEntry({asset: 'IDAHO_EPSCOR/TERRACLIMA
 var slope = mo.spec({entry: mo.customEntry({asset: 'COPERNICUS/DEM/GLO30', type: 'image_collection', dated: true,
 	band: 'DEM', use: 'image', m: 30, terrain: 'slope'})});
 out.names = [mo.entryName(mo.entryOf(image)), mo.entryName(mo.entryOf(collection)), mo.entryName(mo.entryOf(slope))];
+// several bands combined on each pixel: their names in the titles, the sentences and the files
+out.combined = input.combined.map(function (o) {
+	var e = mo.customEntry(o);
+	return {name: mo.entryName(e), words: mo.bandWords(e), stem: mo.dataStem(e), band: e.band, bands: e.bands,
+		reducer: e.reducer, checkDates: attempt(function () { mo.checkDates(mo.spec({entry: e}), 'time series'); })};
+});
 out.slopeUnit = mo.entryOf(slope).unit;
 out.unitTables = {units: mo.UNITS, words: mo.UNIT_WORDS, dimensionless: mo.DIMENSIONLESS};
 out.checkDates = attempt(function () { mo.checkDates(image, 'time series'); });
@@ -216,6 +228,13 @@ out.info = input.infos.map(function (c) {
 	return got;
 });
 out.otherThemes = mo.otherThemes().map(function (th) { return th.key; });
+out.twi = (input.twiRes || []).map(function (res) {
+	var s = mo.spec({ref: input.twi.ref});
+	log = [];
+	mo.image(s, object(), res);
+	return log.slice();
+});
+out.twiConstants = mo.TWI;
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -282,6 +301,15 @@ CHAINS = [
 	 'period': None, 'res': 5000},
 	{'entry': {'asset': 'projects/sat-io/open-datasets/FABDEM', 'type': 'image_collection', 'band': 'b1',
 	           'use': 'image', 'm': 30, 'terrain': 'slope'}, 'period': None, 'res': 10},
+	# several bands combined on each pixel (band_reducer): a collection (their sum, on finer pixels: bilinear), an
+	# image (their mean, on bigger pixels) and a collection of tiles given as an image (the mosaic of both bands)
+	{'entry': {'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'type': 'image_collection', 'band': ['aet', 'def'],
+	           'reducer': 'sum', 'use': 'collection', 'm': 4638.3, 'scale': 0.1, 'unit': 'mm'},
+	 'period': ['2020-01-01', '2020-12-31'], 'res': 1000},
+	{'entry': {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': 'bio05, bio06', 'reducer': 'mean', 'use': 'image',
+	           'm': 927.67, 'scale': 0.1, 'unit': 'degC'}, 'period': None, 'res': 5000},
+	{'entry': {'asset': 'projects/sat-io/open-datasets/FABDEM', 'type': 'image_collection', 'band': ['b1', 'b2'],
+	           'reducer': 'sum', 'use': 'image', 'm': 30}, 'period': None, 'res': 30},
 ]
 
 
@@ -290,14 +318,15 @@ def _python_spec(c):
 	start, end = c['period'] or (None, None)
 	return services.make_spec(None, None, start, end, **{e['use']: e['asset']}, band=e['band'],
 	                          band_scale=e.get('scale'), band_offset=e.get('offset'), unit=e.get('unit'),
-	                          terrain=e.get('terrain'))
+	                          terrain=e.get('terrain'), band_reducer=e.get('reducer'))
 
 
 def _python_chain(c, monkeypatch):
 	"""The calls of Earth Engine of variable.collection or variable.image for the case C of CHAINS."""
 	e = c['entry']
 	spec = _python_spec(c)
-	monkeypatch.setitem(variable._native, (e['asset'], e['band']), e['m'])
+	band = spec['band']  # several: their tuple (variable.native_scale)
+	monkeypatch.setitem(variable._native, (e['asset'], tuple(band) if isinstance(band, list) else band), e['m'])
 	monkeypatch.setitem(variable._types, e['asset'], 'IMAGE' if e['type'] == 'image' else 'IMAGE_COLLECTION')
 	# what Earth Engine says of the ID (variable.check_asset): its type, and the date of its first image (those given
 	# as a collection have dates)
@@ -346,6 +375,47 @@ ASSETS = {'WORLDCLIM/V1/BIO': {'type': 'Image', 'properties': {'system:title': '
           'users/someone/an_image': {'type': 'Image', 'properties': {}}}
 
 
+# The topographic wetness index of MERIT Hydro (ref 148) on its pixels (90 m), on finer ones (bilinear, after the
+# index) and on bigger ones (the mean of the index of its pixels)
+TWI_RES = [90, 30, 1000]
+
+
+def _twi_entry():
+	"""The entry of the topographic wetness index in gee/catalog.js, as gee/build.py writes it (entries): its FIELDS,
+	and the kind of its formula and its bands (sensors.parse_formula, which needs no Earth Engine for it)."""
+	build = _build()
+	e = catalog.find('TWI', 'MERIT Hydro')
+	kind, bands = sensors.parse_formula(e)
+	return dict({k: e.get(k) for k in build.FIELDS}, fk=kind, fb=bands)
+
+
+def _python_twi_chain(res, monkeypatch):
+	"""The calls of Earth Engine of variable.image of the topographic wetness index on pixels of RES metres."""
+	spec = services.make_spec('TWI', 'MERIT Hydro')
+	rec = []
+	monkeypatch.setattr(variable, 'ee', _Root(rec))
+	variable.image(spec, _Obj(rec), res)
+	return rec
+
+
+# several bands of the data by their ID, combined on each pixel (band_reducer: reducer in the app)
+MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+COMBINED = [{'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'type': 'image_collection', 'band': ['aet', 'def'], 'reducer': 'sum',
+             'use': 'collection', 'm': 4638.3, 'scale': 0.1, 'unit': 'mm'},
+            {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': 'bio05, bio06, bio07', 'reducer': 'MEAN',
+             'use': 'image', 'm': 927.67, 'scale': 0.1, 'unit': 'degC'},
+            {'asset': 'users/someone/rain', 'type': 'image', 'band': MONTHS, 'reducer': 'sum', 'use': 'image', 'm': 1000,
+             'unit': 'mm'},
+            {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': ['bio12'], 'use': 'image', 'm': 927.67},
+            {'asset': 'WORLDCLIM/V1/BIO', 'type': 'image', 'band': ' bio12, ', 'use': 'image', 'm': 927.67}]
+# what customEntry refuses of several bands, in the words of variable.check_bands and in its order
+BAND_ERRORS = [{'asset': 'A/B', 'band': ['a', 'b'], 'm': 30}, {'asset': 'A/B', 'band': 'a', 'reducer': 'sum', 'm': 30},
+               {'asset': 'A/B', 'band': 'a,b', 'reducer': 'median', 'm': 30},
+               {'asset': 'A/B', 'band': ['a', 'b', 'a'], 'reducer': 'sum', 'm': 30},
+               {'asset': 'A/B', 'band': 'a,b', 'use': 'image', 'terrain': 'slope', 'm': 30},
+               {'asset': 'A/B', 'band': ' , ', 'm': 30}]
+
+
 @pytest.fixture(scope='module')
 def app():
 	"""The answers of gee/core.js (with catalog.js) in Node, with an object ee that computes nothing, and the themes
@@ -365,11 +435,12 @@ def app():
 	                    'band': 'b1', 'use': 'collection', 'm': 30},
 	                   {'asset': 'COPERNICUS/DEM/GLO30', 'type': 'image_collection', 'dated': True, 'band': 'DEM',
 	                    'use': 'image', 'm': 30, 'terrain': 'slope', 'unit': 'm'},
-	                   {'asset': 'A/B', 'band': 'b', 'use': 'collection', 'm': 30, 'terrain': 'slope'}],
+	                   {'asset': 'A/B', 'band': 'b', 'use': 'collection', 'm': 30, 'terrain': 'slope'}] + BAND_ERRORS,
+	        'combined': COMBINED,
 	        'themes': COMMUNITY_THEMES, 'records': [legacy, 'projects/someone/assets/nothing'],
 	        'sources': ['IDAHO_EPSCOR/TERRACLIMATE', 'projects/sat-io/open-datasets/FABDEM', 'users/someone/an_image'],
 	        'infos': INFOS, 'assets': ASSETS, 'community': _build().community_index(),
-	        'other_themes': catalog.OTHER_THEMES}
+	        'other_themes': catalog.OTHER_THEMES, 'twi': _twi_entry(), 'twiRes': TWI_RES}
 	run = subprocess.run(['node', '-e', NODE, GEE], input=json.dumps(data), capture_output=True, text=True, timeout=120)
 	assert run.returncode == 0, run.stderr
 	return json.loads(run.stdout)
@@ -384,8 +455,40 @@ def test_the_app_builds_the_images_of_the_data_of_earth_engine_as_the_package(ap
 	assert ['resample', 'bilinear'] in app['chains'][1] and ['resample', 'bilinear'] not in app['chains'][0]
 	assert ['Reducer.mean'] in app['chains'][3] and ['Terrain.slope', '<ee>'] in app['chains'][4]
 	assert ['mosaic'] in app['chains'][4] and ['copyProperties', '<ee>', ['system:time_start']] in app['chains'][0]
+	# several bands: each times the scale plus the offset, then only where all have data, their sum or mean on the
+	# pixels of the first band, before the resampling and the mean of bigger pixels
+	aet, bio, tiles = app['chains'][5:8]
+	assert ['select', ['aet', 'def']] in aet and ['select', 'aet'] in aet and ['Reducer.min'] in aet
+	assert aet.index(['add', 0.0]) < aet.index(['Reducer.min']) < aet.index(['Reducer.sum']) < \
+		aet.index(['setDefaultProjection', '<ee>']) < aet.index(['resample', 'bilinear'])
+	assert [['filter', '<ee>']] * 2 == [x for x in aet if x[0] == 'filter']  # only the images with both bands
+	assert ['select', ['bio05', 'bio06']] in bio and ['select', 'bio05'] in bio and ['Reducer.mean'] in bio
+	assert bio.index(['reduce', '<ee>'], bio.index(['Reducer.mean'])) < bio.index(['reduceResolution', '<ee>', True,
+	                                                                                 65535])
+	assert ['mosaic'] in tiles and ['select', 'b1'] in tiles and ['Reducer.sum'] in tiles
 	assert app['filters'] == {f: False for f in ('clouds', 'water', 'snow', 'aerosols')} and app['fixed'] == []
 	assert app['rgb'] is None  # not even for a collection of the catalog given by its ID
+
+
+def test_the_app_builds_the_twi_as_the_package(app, monkeypatch):
+	"""staticImage and twiImage of gee/core.js call Earth Engine as variable._fixed and variable._twi for the
+	topographic wetness index of MERIT Hydro: the same calls, in the same order, with the same constants (sensors.TWI):
+	the index on the grid of MERIT Hydro, and only then bilinear on finer pixels or the mean on bigger ones, with no
+	scale, offset or terrain after it."""
+	assert _twi_entry()['fk'] == 'twi' and _twi_entry()['fb'] == ['elv', 'upa'] and _twi_entry()['image_asset']
+	assert app['twiConstants'] == sensors.TWI
+	for res, js in zip(TWI_RES, app['twi']):
+		assert js == _python_twi_chain(res, monkeypatch), res
+	twi = [['Image', 'MERIT/Hydro/v1_0_1'], ['select', 'elv'], ['Image.pixelArea'], ['select', 'upa'],
+	       ['multiply', 1e6], ['max', '<ee>'], ['sqrt'], ['divide', '<ee>'], ['Terrain.slope', '<ee>'],
+	       ['multiply', math.pi / 180], ['tan'], ['max', 0.001], ['divide', '<ee>'], ['log'], ['projection'],
+	       ['setDefaultProjection', '<ee>']]
+	native, finer, coarser = app['twi']
+	# on the pixels of the data (the default) and finer ones, interpolated from the TWI of the grid of MERIT Hydro, not
+	# computed on the output pixels with the slope and the area of their own
+	assert native == finer == twi + [['resample', 'bilinear'], ['toFloat'], ['rename', 'value']]
+	assert coarser == twi + [['Reducer.mean'], ['reduceResolution', '<ee>', True, 65535], ['toFloat'],
+	                         ['rename', 'value']]
 
 
 def test_the_app_takes_the_ids_and_units_as_the_package(app):
@@ -435,7 +538,7 @@ def test_the_app_refuses_the_data_of_earth_engine_as_the_package(app, monkeypatc
 	# the only metric of the SCF, the mean: also for the steps of a series and the years of the trends
 	assert app['onlyMetric'] == [{'error': "SCF (Landsat) only takes the metric 'mean'"}] * 3
 	no_band, image_as_collection, bad_unit, bad_terrain, no_size, no_id, tiles_as_collection, slope_in_metres, \
-		terrain_of_collection = app['errors']
+		terrain_of_collection = app['errors'][:9]
 	assert 'give the band of A/B' in no_band['error']
 	monkeypatch.setattr(variable, '_types', {})
 	monkeypatch.setattr(assets, 'asset_type', lambda asset: 'image')
@@ -463,6 +566,41 @@ def test_the_app_refuses_the_data_of_earth_engine_as_the_package(app, monkeypatc
 	assert bad_unit == {'error': str(error.value)}
 	assert bad_terrain == {'error': 'unknown terrain curvature: use slope, aspect'}
 	assert 'read its ID first' in no_size['error'] and 'give the ID' in no_id['error']
+
+
+def test_the_app_combines_bands_as_the_package(app, monkeypatch):
+	"""Several bands of the data by their ID in the app (customEntry with reducer): the same bands, names of titles,
+	sentences and files and the same errors as the package (variable.check_bands, band_text, band_words, band_stem)."""
+	monkeypatch.setattr(assets, 'asset_type', lambda asset: 'image')
+	for o, js in zip(COMBINED, app['combined']):
+		spec = services.make_spec(None, None, '2020-01-01', '2020-12-31', **{o['use']: o['asset']}, band=o['band'],
+		                          band_reducer=o.get('reducer'), band_scale=o.get('scale'), unit=o.get('unit'))
+		assert js['name'] == services._title(spec).split(' | ')[0], o
+		assert js['words'] == variable.band_words(spec), o
+		assert js['stem'] == services._what(None, None, {o['use']: o['asset'], 'band': o['band'],
+		                                                 'band_reducer': o.get('reducer')}), o
+		assert (js['band'], js['bands'], js['reducer']) == (spec['band'], variable.bands_of(spec),
+		                                                   spec.get('band_reducer')), o
+		if o['use'] == 'image':
+			with pytest.raises(ValueError) as error:
+				variable.check_dates(spec, 'time series')
+			assert js['checkDates'] == {'error': str(error.value)}, o
+	assert [c['name'] for c in app['combined'][:3]] == ['IDAHO_EPSCOR/TERRACLIMATE sum of aet, def',
+	                                                    'WORLDCLIM/V1/BIO mean of bio05, bio06, bio07',
+	                                                    'users/someone/rain sum of ' + ', '.join(MONTHS)]
+	assert [c['stem'] for c in app['combined']] == ['TERRACLIMATE_sum_aet_def', 'BIO_mean_bio05_bio06_bio07',
+	                                                'rain_sum12_jan-dec', 'BIO_bio12', 'BIO_bio12']
+	assert app['combined'][3]['band'] == app['combined'][4]['band'] == 'bio12' and app['combined'][3]['reducer'] is None
+	for o, js in zip(BAND_ERRORS, app['errors'][9:]):
+		with pytest.raises(ValueError) as error:
+			services.make_spec(None, None, '2020-01-01', '2020-12-31', **{o.get('use', 'collection'): o['asset']},
+			                   band=o['band'], band_reducer=o.get('reducer'), terrain=o.get('terrain'))
+		if o['band'] == ' , ':  # no band: the words of each (the package names the describe_asset of its tools)
+			assert js['error'] == 'give the band of A/B (one, or several with band_reducer)'
+			assert 'give the band of A/B (one, or several with band_reducer' in str(error.value)
+		else:
+			assert js == {'error': str(error.value)}, o
+	assert app['errors'][13] == {'error': variable.TERRAIN_BANDS}
 
 
 def test_the_app_reads_the_ids_as_the_package(app, monkeypatch):
@@ -641,6 +779,11 @@ var GEE = process.argv[process.argv.length - 1];
 });
 CATALOG.community = input.community;  // those of the package, whatever the catalog.js there is
 CATALOG.other_themes = input.other_themes;
+// the topographic wetness index as gee/build.py writes it from the package (fk and fb: the kind of its formula and
+// its bands), whatever the catalog.js there is
+if (input.twi) {
+	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.twi.ref; }).concat([input.twi]);
+}
 vm.runInThisContext(fs.readFileSync(path.join(GEE, 'ui.js'), 'utf8'), {filename: 'ui.js'});
 
 var controls = root.children[0], results = root.children[2], legend = map.children[0];
@@ -764,6 +907,24 @@ field('e.g. mm, degC, kg m-2, 1').opts.onChange('m²');
 button('Compute the time series').opts.onClick();
 out.badUnit = last();
 field('e.g. mm, degC, kg m-2, 1').opts.onChange('mm');
+// several bands combined on each pixel: Combine bands, the band chosen checked first, then another one
+var combine = selectWith('one');
+out.combine = {items: combine.opts.items.map(function (i) { return i.value; }), value: combine.opts.value};
+combine.opts.onChange('sum');
+function bandChecks() {
+	return find(controls, 'Checkbox', function (w) { return / · [0-9.,]+ m$/.test(w.opts.label); });
+}
+out.combine.checks = bandChecks().map(function (w) { return [w.opts.label, w.opts.value]; });
+out.combine.bandSelect = Boolean(selectWith('pr'));
+out.combine.controls = texts(controls);
+button('Add to the map').opts.onClick();
+out.combine.one = last();  // one band checked: not yet
+bandChecks()[0].opts.onChange(true);  // aet
+answer = {value_p5: 2, value_p95: 80};
+button('Add to the map').opts.onClick();
+out.combine.map = {layer: layers[layers.length - 1], legend: legendTitle()};
+selectWith('one').opts.onChange('one');
+out.combine.back = {band: selectWith('pr').opts.value, checks: bandChecks().length};
 // the same collection as a fixed image (the mosaic of its images): no dates
 selectWith('image').opts.onChange('image');
 out.fixed = {controls: texts(controls), series: button('Compute the time series').disabled,
@@ -936,6 +1097,19 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 		services.make_spec(None, None, '2025-01-01', '2025-12-31', collection='IDAHO_EPSCOR/TERRACLIMATE', band='pr',
 		                   unit='m²')
 	assert out['badUnit']['texts'] == [str(error.value)]
+	# several bands combined on each pixel (Combine bands): the band chosen checked first, the bands with their pixel
+	# size, the note; one band checked is not enough; the result named by the reducer and the bands, in their order
+	combined = out['combine']
+	assert combined['items'] == ['one', 'sum', 'mean'] and combined['value'] == 'one'
+	assert combined['checks'] == [['aet · 4638.3 m', False], ['pr · 4638.3 m', True]]
+	assert not combined['bandSelect'] and any(t.startswith(en['combineNote']) for t in combined['controls'])
+	assert not any(t.startswith(en['combineScales'][:30]) for t in combined['controls'])  # the same pixel size
+	assert combined['one']['texts'] == [en['combineTwo']]
+	assert combined['map']['layer'].startswith('IDAHO_EPSCOR/TERRACLIMATE sum of aet, pr · Map view · Median')
+	assert combined['map']['legend'].endswith('[mm]')
+	assert combined['back'] == {'band': 'pr', 'checks': 0}  # one band again, the one chosen
+	assert {'combine', 'combine_one', 'combine_sum', 'combine_mean', 'combineNote', 'combineTwo',
+	        'combineScales'} <= set(en)
 	# as a fixed image (the mosaic of its images): only the map, without dates
 	fixed = out['fixed']
 	assert fixed['series'] and fixed['trends'] == [True, True] and fixed['compare'] and fixed['metric']

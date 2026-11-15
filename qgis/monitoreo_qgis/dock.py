@@ -22,12 +22,13 @@ from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
                                  QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea,
-                                 QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
+                                 QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import assets, catalog, fire, landcover, services, steps, trends  # noqa: E402
+from monitoreo import assets, catalog, categorical, fire, landcover, services, steps, trends  # noqa: E402
+from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
@@ -52,10 +53,15 @@ DOY_INTERANNUAL = [('A line per year', None), ('Mean', 'mean'), ('Median', 'medi
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
 ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
 AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks)', 'breaks'),
-              ('Trend of the variable', 'trend')]
+              ('Trend of the variable', 'trend'), ('Classes of a categorical layer (the variable)', 'classes')]
+# a condition of «Only the pixels where» on a categorical layer (ECOREGION, BIOME): its classes to keep or to leave out
+CLASS_CONDITIONS = [('is one of the classes', 'classes'), ('is none of the classes', 'exclude')]
+# the biome at the center of the map: its part in the map extent (a whole biome spans continents), the region
+# {'biome_at': [lon, lat], 'within': {'bbox': the extent}}
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
-           ('Ecoregion at the center of the map', 'ecoregion'), ('Island at the center of the map', 'island')]
+           ('Ecoregion at the center of the map', 'ecoregion'), ('Biome at the center of the map', 'biome'),
+           ('Island at the center of the map', 'island')]
 FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
 # MODIS, only for the burn indices that have it (services.BURN_SENSORS: the RdNBR): the daily surface reflectance of
 # Terra or of Aqua (500 m), given to services.burn_severity as the sensor 'Modis' and the collection of each
@@ -82,7 +88,9 @@ MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB)
 # variables (collection=), or a fixed image without dates, like the elevation (image=)
 USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
 # their arguments besides collection, which the maps of a result keep (add_result_map)
-SOURCE = ('image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain')
+SOURCE = ('image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain')
+# how their bands are computed: one, or several combined on each pixel (band_reducer of monitoreo.variable)
+REDUCERS = [('One band', ''), ('Sum of the bands', 'sum'), ('Mean of the bands', 'mean')]
 NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own mask: the pixel filters are for the '
               'variables of the catalog')
 READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
@@ -333,11 +341,29 @@ def _nice(x):
 
 def data_name(var, sensor=True):
 	"""What the arguments VAR compute, for the titles of the tasks: the variable of the catalog with its sensor (with
-	SENSOR: NDVI (Sentinel-2)), or the ID and band of the data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE
-	pr), which have no variable nor sensor."""
+	SENSOR: NDVI (Sentinel-2)), or the ID and band (or the reducer of its bands: monitoreo.variable.band_text) of the
+	data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE pr, IDAHO_EPSCOR/TERRACLIMATE sum of aet, def), which
+	have no variable nor sensor."""
 	if var.get('variable'):
 		return f"{var['variable']} ({var['sensor']})" if sensor else var['variable']
-	return f"{var.get('collection') or var.get('image') or '?'} {var.get('band') or ''}".strip()
+	return f"{var.get('collection') or var.get('image') or '?'} {variables.band_text(var)}".strip()
+
+
+def bands_note(records):
+	"""What the panel says of the bands checked to combine (RECORDS: theirs in services.describe_asset) when they
+	differ: in pixel size (they are combined on those of the first band), or in the unit, scale or offset of their
+	records (the Band scale, Band offset and Unit of the panel are those of every band); '' if they do not."""
+	notes = []
+	sizes = [r.get('resolution_m') for r in records]
+	if len(set(sizes)) > 1 and sizes[0]:
+		notes.append(f'The bands checked have pixels of different sizes: they are combined on those of the first '
+		             f'({sizes[0]:g} m).')
+	differ = [what for key, what in (('units', 'units'), ('band_scale', 'scales'), ('band_offset', 'offsets'))
+	          if len({str(r.get(key)) for r in records}) > 1]
+	if differ:
+		notes.append(f"Their records give different {' and '.join(differ)}: the Band scale, Band offset and Unit "
+		             'apply to every band, so combine bands of the same quantity.')
+	return ' '.join(notes)
 
 
 def burn_label(title, collection=None):
@@ -658,10 +684,14 @@ class MonitorEODock(QDockWidget):
 		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
-		# where: up to two conditions on variables, the only pixels of the region that pass them all
+		# where: up to two conditions on variables, the only pixels of the region that pass them all; on a categorical
+		# layer (ECOREGION, BIOME), its classes to keep or to leave out instead of a min and a max
 		self.where = []
 		for i, default in enumerate(('ELEVATION · Copernicus', 'SLOPE · Copernicus')):
 			on, var, lo, hi, unit = QCheckBox(), QComboBox(), QLineEdit(), QLineEdit(), QLabel('')
+			keep, codes, pick = combo(CLASS_CONDITIONS, 'classes'), QLineEdit(), QPushButton('Classes…')
+			codes.setPlaceholderText('codes, e.g. 12, 4')
+			pick.setToolTip('Choose a class of the layer from its list (code and name): its code is added to the codes')
 			for v in services.list_variables(lang='en'):
 				if not v.get('two_periods'):
 					var.addItem(f"{v['variable']} · {v['sensor']}", v)
@@ -676,14 +706,17 @@ class MonitorEODock(QDockWidget):
 			row.addWidget(var, 1)
 			f.addRow('Only the pixels where' if i == 0 else 'and where', info(row, HELP['where']) if i == 0 else row)
 			row = QHBoxLayout()
-			for w in (QLabel('between'), lo, QLabel('and'), hi, unit):
+			between, also = QLabel('between'), QLabel('and')
+			for w in (between, lo, also, hi, unit, keep, codes, pick):
 				row.addWidget(w)
 			row.addStretch()
 			f.addRow('', row)
-			condition = {'on': on, 'variable': var, 'min': lo, 'max': hi, 'unit': unit}
+			condition = {'on': on, 'variable': var, 'min': lo, 'max': hi, 'unit': unit, 'keep': keep, 'codes': codes,
+			             'pick': pick, 'labels': (between, also)}
 			self.where.append(condition)
 			on.toggled.connect(self.where_changed)
 			var.currentIndexChanged.connect(self.where_changed)
+			pick.clicked.connect(lambda checked=False, c=condition: self.pick_class(c))
 		main.addWidget(box)
 
 		box = QGroupBox('Time series')
@@ -832,8 +865,8 @@ class MonitorEODock(QDockWidget):
 
 		box = QGroupBox('Gradients (elevation bands and profiles)')
 		f = QFormLayout(box)
-		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim
-		for v in self.all_variables:
+		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim, and the
+		for v in self.all_variables:  # categorical layers (ECOREGION, BIOME), whose classes are the zones (no breaks)
 			if v.get('static'):
 				self.zone_variable.addItem(f"{v['variable']} · {v['sensor']}", v)
 		self.zone_variable.setCurrentIndex(max(0, self.zone_variable.findText('ELEVATION', Qt.MatchFlag.MatchStartsWith)))
@@ -843,6 +876,8 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.zone_variable, 1)
 		row.addWidget(self.zone_breaks, 1)
 		f.addRow('Bands of', info(row, HELP['zones']))
+		self.zone_variable.currentIndexChanged.connect(lambda i: self.zone_variable_changed())
+		self.zone_variable_changed()
 		b = QPushButton('Statistics of each band')
 		b.setToolTip('The percentiles 25, 50 and 75 and the mean of the map of the variable (with the options of the group '
 		             'Map) in each band of the elevation (or of another fixed layer), over each feature of the region')
@@ -1034,7 +1069,30 @@ class MonitorEODock(QDockWidget):
 		self.asset_band.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
 		self.asset_band.setEditText(s.value(SETTINGS + 'asset_band', ''))
 		self.asset_band.lineEdit().setPlaceholderText('press Read, or write it')
-		form.addRow('Band', info(self.asset_band, HELP['asset_band']))
+		self.band_field = QWidget()  # one band (or several written with commas, before Read), hidden with the list
+		row = info(self.asset_band, HELP['asset_band'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.band_field.setLayout(row)
+		form.addRow('Band', self.band_field)
+		self.band_label = form.labelForField(self.band_field)
+		# one band, or several combined on each pixel (their sum or mean: band_reducer of monitoreo.variable)
+		reducer = s.value(SETTINGS + 'band_reducer', '')
+		self.band_reducer = combo(REDUCERS, reducer if reducer in dict(REDUCERS).values() else '')
+		form.addRow('Combine bands', info(self.band_reducer, HELP['band_reducer']))
+		self.asset_bands = QgsCheckableComboBox()  # the bands read, checked to be combined
+		self.asset_bands.setDefaultText('check two or more bands')
+		self.saved_bands = [b for b in str(s.value(SETTINGS + 'asset_bands', '') or '').split(',') if b]  # until Read
+		self.filling_bands = False  # while the bands read are listed
+		self.bands_field = QWidget()
+		row = info(self.asset_bands, HELP['asset_bands'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.bands_field.setLayout(row)
+		form.addRow('Bands', self.bands_field)
+		self.bands_label = form.labelForField(self.bands_field)
+		self.bands_note = QLabel()  # the bands checked that differ in pixel size, unit, scale or offset
+		self.bands_note.setWordWrap(True)
+		self.bands_note.setStyleSheet('font-size: 11px; color: #b06000;')
+		form.addRow(self.bands_note)
 		use = s.value(SETTINGS + 'asset_use', 'collection')
 		self.asset_use = combo(USES, use if use in dict(USES).values() else 'collection')
 		form.addRow('Use as', info(self.asset_use, HELP['asset_use']))
@@ -1057,6 +1115,12 @@ class MonitorEODock(QDockWidget):
 		self.asset_id.textChanged.connect(lambda text: self.custom_changed())
 		self.asset_band.currentIndexChanged.connect(lambda i: self.band_changed())
 		self.asset_band.currentTextChanged.connect(lambda text: self.custom_changed())
+		self.band_reducer.currentIndexChanged.connect(lambda i: self.reducer_changed())
+		# each band checked or unchecked, at once (checkedItemsChanged only comes when its list closes)
+		model = self.asset_bands.model()
+		checked = getattr(model, 'itemCheckStateChanged', None) or self.asset_bands.checkedItemsChanged
+		checked.connect(lambda *args: self.bands_checked())
+		self.show_bands()
 		self.asset_use.currentIndexChanged.connect(lambda i: self.custom_changed())
 		for w in (self.band_scale, self.band_offset, self.asset_unit):
 			w.textChanged.connect(lambda text: self.custom_changed())
@@ -1168,6 +1232,9 @@ class MonitorEODock(QDockWidget):
 		# the data of Earth Engine outside the catalog: the last ID, band, use, scale, offset and unit, as written
 		s.setValue(SETTINGS + 'asset', self.asset_id.text().strip())
 		s.setValue(SETTINGS + 'asset_band', self.asset_band.currentText().strip())
+		s.setValue(SETTINGS + 'band_reducer', self.band_reducer.currentData())  # and the bands checked to combine
+		s.setValue(SETTINGS + 'asset_bands', ','.join(self.checked_bands() if self.asset_bands.count() else
+		                                              self.saved_bands))
 		s.setValue(SETTINGS + 'asset_use', self.asset_use.currentData())
 		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset), ('asset_unit', self.asset_unit)):
 			s.setValue(SETTINGS + key, w.text().strip())
@@ -1182,21 +1249,17 @@ class MonitorEODock(QDockWidget):
 		"""Region of the services from the widgets (read in the main thread)."""
 		kind = self.region_kind.currentData()
 		wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
-		if kind == 'extent':
+		if kind in ('extent', 'ecoregion', 'biome', 'island'):
 			canvas = self.iface.mapCanvas()
 			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
 			r = tr.transformBoundingBox(canvas.extent())
-			return {'bbox': [r.xMinimum(), r.yMinimum(), r.xMaximum(), r.yMaximum()]}
-		if kind == 'ecoregion':
-			canvas = self.iface.mapCanvas()
-			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
+			extent = {'bbox': [r.xMinimum(), r.yMinimum(), r.xMaximum(), r.yMaximum()]}
+			if kind == 'extent':
+				return extent
 			c = tr.transform(canvas.extent().center())
-			return {'ecoregion_at': [c.x(), c.y()]}
-		if kind == 'island':
-			canvas = self.iface.mapCanvas()
-			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
-			c = tr.transform(canvas.extent().center())
-			return {'island_at': [c.x(), c.y()]}
+			if kind == 'biome':  # its part in the map extent: a whole biome spans continents
+				return {'biome_at': [c.x(), c.y()], 'within': extent}
+			return {f'{kind}_at': [c.x(), c.y()]}
 		if kind == 'wdpa':
 			if self.wdpa.currentData() is None:
 				raise ValueError('search for a protected area and choose it in the list')
@@ -1260,20 +1323,30 @@ class MonitorEODock(QDockWidget):
 
 	def data_args(self):
 		"""The data of Earth Engine of the panel as the services take them instead of variable and sensor:
-		{'collection' or 'image': its ID, 'band'} and the 'band_scale', 'band_offset' and 'unit' written (see
-		monitoreo.assets)."""
+		{'collection' or 'image': its ID, 'band'} (or the list of the bands checked, with 'band_reducer') and the
+		'band_scale', 'band_offset' and 'unit' written (see monitoreo.assets)."""
 		asset = self.asset_text()
 		if not asset:
 			raise ValueError('Earth Engine data: write the ID of an image or a collection of images (or choose a '
 			                 'dataset) and press Read')
-		band = self.asset_band.currentText().strip()
-		if not band:
+		reducer = self.band_reducer.currentData()
+		bands = self.chosen_bands()
+		if not bands:
 			raise ValueError(f'Earth Engine data: choose or write the band of {asset} (Read lists them)')
+		if reducer and len(bands) < 2:
+			raise ValueError(f'Earth Engine data: check two or more bands of {asset} to combine them (or choose One '
+			                 'band in Combine bands)')
+		if not reducer and len(bands) > 1:
+			raise ValueError(f"Earth Engine data: to combine the bands {', '.join(bands)} of {asset}, choose Sum or "
+			                 'Mean of the bands in Combine bands; or write one band')
 		read = self.described()
 		names = [b.get('band') for b in (read or {}).get('bands') or []]
-		if read and band not in names:
-			raise ValueError(f"Earth Engine data: {asset} has no band {band}: choose one of {', '.join(names)}")
-		args = {self.asset_use.currentData(): asset, 'band': band}
+		for band in bands:
+			if read and band not in names:
+				raise ValueError(f"Earth Engine data: {asset} has no band {band}: choose one of {', '.join(names)}")
+		args = {self.asset_use.currentData(): asset, 'band': bands if reducer else bands[0]}
+		if reducer:
+			args['band_reducer'] = reducer
 		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset)):
 			text = w.text().strip().replace(',', '.')
 			if text:
@@ -1300,10 +1373,14 @@ class MonitorEODock(QDockWidget):
 		"""The data of Earth Engine of the panel as an entry of the list Variable, so that the panel treats them as a
 		variable: an image is a fixed layer without dates (static: no series, trends, comparisons nor exports of
 		series), they have no pixel filters (fixed_filters: none) nor true colour (rgb), and they have no variable nor
-		sensor of the catalog (custom)."""
+		sensor of the catalog (custom); several bands combined, with their list (bands) and band_reducer."""
 		asset, band, use = self.asset_text(), self.asset_band.currentText().strip(), self.asset_use.currentData()
-		return {'custom': True, 'asset': asset, 'band': band, 'use': use, 'static': use == 'image',
-		        'fixed_filters': [], 'rgb': False, 'name': f'{asset} {band}'.strip() or 'Earth Engine data',
+		reducer = self.band_reducer.currentData() or None
+		bands = self.chosen_bands() if reducer else ([band] if band else [])
+		what = variables.band_text({'band': bands, 'band_reducer': reducer})  # 'pr', or 'sum of aet, def'
+		return {'custom': True, 'asset': asset, 'band': band, 'bands': bands, 'band_reducer': reducer, 'use': use,
+		        'static': use == 'image', 'fixed_filters': [], 'rgb': False,
+		        'name': f'{asset} {what}'.strip() or 'Earth Engine data',
 		        'band_scale': self.band_scale.text().strip(), 'band_offset': self.band_offset.text().strip(),
 		        'unit': self.asset_unit.text().strip()}
 
@@ -1356,10 +1433,21 @@ class MonitorEODock(QDockWidget):
 			return
 		self.asset_info = d
 		typed = self.asset_band.currentText().strip()
+		# the bands checked to combine (those of the settings, or written with commas, before the first Read)
+		checked = self.checked_bands() if self.asset_bands.count() else \
+			(self.saved_bands or variables.bands_of({'band': typed}))
 		if self.asset_id.text() != d['asset']:
 			self.asset_id.setText(d['asset'])
 		bands = d.get('bands') or []
 		names = [b['band'] for b in bands]
+		self.filling_bands = True
+		self.asset_bands.clear()
+		for b in bands:
+			self.asset_bands.addItemWithCheckState(
+				f"{b['band']}" + (f" · {b['resolution_m']:g} m" if b.get('resolution_m') else ''),
+				Qt.CheckState.Checked if b['band'] in checked else Qt.CheckState.Unchecked, b['band'])
+		self.filling_bands = False
+		self.saved_bands = []
 		self.asset_band.blockSignals(True)
 		self.asset_band.clear()
 		for b in bands:
@@ -1375,7 +1463,9 @@ class MonitorEODock(QDockWidget):
 		self.asset_use.setEnabled(not image)  # an image has no dates: never a collection
 		self.asset_use.setToolTip('An image has no dates: only a fixed image (maps and their statistics)' if image
 		                          else 'As its record suggests; a collection of tiles (e.g. a DEM) is a fixed image')
+		self.first_band = None  # the scale, offset and unit of the band chosen, as its record says
 		self.band_changed()
+		self.show_bands()
 		self.asset_label.setText(data_summary(d))
 		self.custom_changed()
 		self.message(f"{d['asset']}: {data_use(d)} ({len(names)} band{'' if len(names) == 1 else 's'})", 'Success', 10)
@@ -1387,12 +1477,61 @@ class MonitorEODock(QDockWidget):
 		self.asset_use.setToolTip('')
 		self.asset_label.setText(READ_HINT)
 
+	def checked_bands(self):
+		"""The bands checked in the list Bands, in the order of the data (jan to dec)."""
+		return [self.asset_bands.itemData(i) for i in range(self.asset_bands.count())
+		        if self.asset_bands.itemCheckState(i) == Qt.CheckState.Checked]
+
+	def chosen_bands(self):
+		"""The bands of the panel: those checked in Bands to combine them (Sum or Mean of the bands) once read, or else
+		those written in Band (one, or several separated by commas)."""
+		if self.band_reducer.currentData() and self.asset_bands.count():
+			return self.checked_bands()
+		if self.band_reducer.currentData() and self.saved_bands:  # those saved, until Read lists the bands again
+			return list(self.saved_bands)
+		return variables.bands_of({'band': self.asset_band.currentText()})
+
+	def show_bands(self):
+		"""The checkable list Bands when the bands read are combined (Sum or Mean of the bands); Band otherwise (one
+		band, or several written with commas before Read)."""
+		listed = bool(self.band_reducer.currentData()) and self.asset_bands.count() > 0
+		for w in (self.bands_field, self.bands_label):
+			w.setVisible(listed)
+		for w in (self.band_field, self.band_label):
+			w.setVisible(not listed)
+		self.bands_note.setVisible(listed and bool(self.bands_note.text()))
+
+	def bands_checked(self):
+		"""A band checked or unchecked in Bands (not while they are listed): its scale, offset and unit, the note and
+		the entry of the list Variable."""
+		if not self.filling_bands:
+			self.band_changed()
+			self.custom_changed()
+
+	def reducer_changed(self):
+		"""One band, or several combined: the band chosen is the first one checked if none was."""
+		if self.band_reducer.currentData() and self.asset_bands.count() and not self.checked_bands():
+			i = self.asset_bands.findData(self.asset_band.currentText().strip())
+			if i >= 0:
+				self.asset_bands.setItemCheckState(i, Qt.CheckState.Checked)  # also band_changed
+		self.band_changed()
+		self.show_bands()
+		self.custom_changed()
+
 	def band_changed(self):
-		"""The scale, offset and unit of the band chosen, as the record of its data says (services.describe_asset);
-		if it gives its unit but not in UDUNITS, the field says it."""
+		"""The scale, offset and unit of the band chosen (of the first one checked, to combine several), as the record
+		of its data says (services.describe_asset), when it changes; if it gives its unit but not in UDUNITS, the field
+		says it. With several, a note if they differ in pixel size, unit, scale or offset."""
 		b = self.asset_band.currentData()
-		if not isinstance(b, dict):  # a band written, not read
+		if self.band_reducer.currentData() and self.asset_bands.count():
+			records = {r['band']: r for r in (self.described() or {}).get('bands') or []}
+			chosen = [records[x] for x in self.checked_bands() if x in records]
+			self.bands_note.setText(bands_note(chosen))
+			self.show_bands()
+			b = chosen[0] if chosen else None
+		if not isinstance(b, dict) or b.get('band') == getattr(self, 'first_band', None):  # written, or the same
 			return
+		self.first_band = b.get('band')
 		self.band_scale.setText(number(b.get('band_scale')))
 		self.band_offset.setText(number(b.get('band_offset')))
 		self.asset_unit.setText(b.get('unit') or '')
@@ -1583,6 +1722,13 @@ class MonitorEODock(QDockWidget):
 			if not c['on'].isChecked():
 				continue
 			v = c['variable'].currentData()
+			if v.get('categorical'):  # its classes to keep or to leave out (checked here, without Earth Engine)
+				entry = catalog.find(v['variable'], v['sensor'])
+				if not c['codes'].text().strip():
+					raise ValueError(f"Only the pixels where: give the codes of the classes of {v['variable']} (Classes…)")
+				codes = categorical.check(entry, c['codes'].text(), c['keep'].currentData())
+				out.append({'variable': v['variable'], 'sensor': v['sensor'], c['keep'].currentData(): codes})
+				continue
 			limits = {}
 			for key in ('min', 'max'):
 				text = c[key].text().strip().replace(',', '.')
@@ -1608,10 +1754,29 @@ class MonitorEODock(QDockWidget):
 		variable with dates filtering a fixed layer)."""
 		for c in self.where:
 			v = c['variable'].currentData() or {}
-			c['unit'].setText(v.get('unit') or '')
-			for key in ('variable', 'min', 'max'):
+			klass = bool(v.get('categorical'))  # class codes: the classes to keep or to leave out, not min and max
+			c['unit'].setText('' if klass else v.get('unit') or '')
+			for key in ('variable', 'min', 'max', 'keep', 'codes', 'pick'):
 				c[key].setEnabled(c['on'].isChecked())
+			for w in (c['min'], c['max']) + c['labels']:
+				w.setVisible(not klass)
+			for key in ('keep', 'codes', 'pick'):
+				c[key].setVisible(klass)
 		self.variable_changed()
+
+	def pick_class(self, c):
+		"""The list of the classes of the categorical layer of the condition C of «Only the pixels where» (code and name),
+		to add the code of the class chosen to its codes."""
+		v = c['variable'].currentData() or {}
+		if not v.get('categorical'):
+			return
+		items = [f"{x['code']} {x['name']}" for x in services.list_classes(v['variable'], v['sensor'])]
+		item, ok = QInputDialog.getItem(self, f"Classes of {v['variable']}", 'Class (code and name):', items, 0, False)
+		if ok and item:
+			given = [x.strip() for x in c['codes'].text().replace(';', ',').split(',') if x.strip()]
+			code = item.split(' ', 1)[0]
+			if code not in given:
+				c['codes'].setText(', '.join(given + [code]))
 
 	# Tasks ------------------------------------------------------------------------------------------------------
 
@@ -1995,9 +2160,17 @@ class MonitorEODock(QDockWidget):
 				self.area_year.count() > 1:
 			self.area_year.setCurrentIndex(min(self.area_year.currentIndex() + 1, self.area_year.count() - 1))
 
+	def zone_variable_changed(self):
+		"""The breaks of the bands of a fixed layer, greyed out for a categorical layer (ECOREGION, BIOME): its classes
+		are the zones."""
+		klass = bool((self.zone_variable.currentData() or {}).get('categorical'))
+		self.zone_breaks.setEnabled(not klass)
+		self.zone_breaks.setToolTip('The classes of the layer are the zones: no breaks' if klass else '')
+
 	def area_kind_changed(self):
 		"""The map and year for the classes of a land cover map, the breaks for the classes of the variable; neither
-		for its trend (that of the group Trends: its parts of the year and its metric)."""
+		for its trend (that of the group Trends: its parts of the year and its metric) nor for the classes of a
+		categorical layer (its own)."""
 		kind = self.area_kind.currentData()
 		for w in (self.area_map_row, self.area_map_label):
 			w.setVisible(kind == 'landcover')
@@ -2030,7 +2203,13 @@ class MonitorEODock(QDockWidget):
 				return
 			region, var = args
 			what = data_name(var)
-			if kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
+			if kind == 'classes':  # a categorical layer (ECOREGION, BIOME): its own classes
+				if not (self.variable.currentData() or {}).get('categorical'):
+					self.message('The classes of a categorical layer: choose ECOREGION or BIOME (theme Ecosystems) as '
+					             'the variable', 'Warning')
+					return
+				opts = dict(var)
+			elif kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
 				opts = dict(var, breaks=self.area_breaks.text())
 				if not (self.variable.currentData() or {}).get('static'):
 					opts.update(metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
@@ -2088,8 +2267,11 @@ class MonitorEODock(QDockWidget):
 			return
 		region, var = args
 		z = self.zone_variable.currentData() or {}
-		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor'), 'breaks': self.zone_breaks.text()}
-		stats = ['p25', 'p50', 'p75', 'mean']
+		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor')}
+		if not z.get('categorical'):  # the bands of a fixed layer; those of a categorical layer are its classes
+			zones['breaks'] = self.zone_breaks.text()
+		klass = bool((self.variable.currentData() or {}).get('categorical'))
+		stats = ['mode'] if klass else ['p25', 'p50', 'p75', 'mean']  # class codes: the majority class of each zone
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 
 		def work():
@@ -2099,7 +2281,9 @@ class MonitorEODock(QDockWidget):
 		def done(res):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'zones.png')
-			try:  # in the main thread; without matplotlib, the table only
+			try:  # in the main thread; without matplotlib, the table only (no chart of class codes)
+				if klass or not res['rows']:
+					raise ImportError
 				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
 				res['chart'] = path
 			except ImportError:
@@ -2257,7 +2441,12 @@ class MonitorEODock(QDockWidget):
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS could not open {res['file']}")
-		if res['min'] is None:
+		if res.get('classes') is not None:  # a categorical layer: a colour per class, with its code and name
+			if res['classes']:
+				paletted(layer, 1, res['classes'])
+			else:
+				self.message(f"{name}: no class in the region", 'Warning', 10)
+		elif res['min'] is None:
 			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
 		else:
 			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
@@ -2330,7 +2519,11 @@ class MonitorEODock(QDockWidget):
 			raise RuntimeError('QGIS could not open the tiles of Earth Engine')
 		# the unit of a map of values (see unit_text); that of a true colour, as it comes
 		unit = unit_text(res) if res.get('palette') else str(res.get('unit') or '')
-		if res.get('palette'):
+		if res.get('classes') is not None:  # a categorical layer: its classes in the region, with their colours
+			unit = ''
+			colours = f"{len(res['classes'])} classes: " + '; '.join(f"{c['label']} {c['color']}" for c in res['classes'])
+			shown = f"{len(res['classes'])} classes"
+		elif res.get('palette'):
 			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
 			           f"{', '.join('#' + c for c in res['palette'])}")
 			shown = f"from {res['min']:.4g} to {res['max']:.4g} {unit}"

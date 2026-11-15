@@ -24,6 +24,7 @@ mo_map_figure(
   where = NULL,
   image = NULL,
   band = NULL,
+  band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
@@ -31,20 +32,23 @@ mo_map_figure(
 )
 }
 \arguments{
-\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
-\code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
-\link{regions}). Several features give a result per feature.}
+\item{region}{a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
+\code{mo_admin()}, \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or
+\code{mo_sf()} (see \link{regions}); a biome only within another region with \code{mo_biome(within = )}.
+Several features give a result per feature.}
 
 \item{variable}{a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
 take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 \code{image}, with \code{band} (see \code{mo_asset()}).}
 
-\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
-or \code{image} instead of \code{variable}.}
+\item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation and the
+slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30) or \code{"MERIT Hydro"} (the
+topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_variables()}); \code{NULL} with
+\code{collection} or \code{image} instead of \code{variable}.}
 
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
+\code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
 which only have maps and their statistics.}
 
 \item{path}{the figure: \code{.png}, \code{.pdf} or \code{.svg}.}
@@ -81,32 +85,43 @@ image, and its bands.}
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
-\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
-WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+\code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"}, the \code{"BIO"}
+variables of WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
 land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
 covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
-\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.}
+\code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}. A condition on a
+categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
+classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
+Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
 
 \item{image}{without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
 mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
 their statistics and GeoTIFFs, but no time series, trends or comparisons.}
 
-\item{band}{the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).}
+\item{band}{the band of \code{collection} or \code{image} (\code{mo_asset()} lists them): one, e.g. \code{"pr"}, or
+several combined on each pixel with \code{band_reducer}, as a character vector, e.g. \code{c("aet", "def")}, or
+a text with commas, \code{"aet, def"}.}
+
+\item{band_reducer}{how several bands are combined into one value on each pixel where all of them have data:
+\code{"sum"} (e.g. the 12 monthly bands of an image into the annual total) or \code{"mean"} (e.g. the depth bands
+of a soil), on the pixels of the first band; required with two bands or more, and not with one.}
 
 \item{band_scale, band_offset}{factor and offset of the stored values of \code{band}: the values are
 value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
-e.g. \code{band_scale = 0.1}.}
+e.g. \code{band_scale = 0.1}; with several bands, of each band before they are combined.}
 
 \item{unit}{the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
-aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
+reaches the CSV, the README and the GeoTIFF. With several bands, that of every band, so of their sum or mean: a
+sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
+catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
+\code{"degree"}.}
 
-\item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
-values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
-band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+\item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation; one band)
+instead of its values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"};
+not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
 }
 \value{
 A list (file, min, max, palette, name, unit, bounds, scale, dpi, readme, references, credits).

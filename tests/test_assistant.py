@@ -408,6 +408,11 @@ def test_layers(tmp_path, monkeypatch):
 	assert a.with_layer({'region': {'layer': 'name'}})['region'] == args['region']  # the example, copied
 	assert a.with_layer({'region': {'capa': 'nombre'}})['region'] == args['region']
 	assert a.with_layer({'region': {'bbox': [0, 0, 1, 1]}}) == {'region': {'bbox': [0, 0, 1, 1]}}
+	# a study area within another region keeps its within, and a study area as the within of another region is its file
+	assert a.with_layer({'region': {'layer': 'mis_parcelas', 'within': {'biome_id': 12}}})['region'] == \
+		dict(args['region'], within={'biome_id': 12})
+	assert a.with_layer({'region': {'biome_id': 12, 'within': {'layer': 'mis_parcelas'}}})['region'] == \
+		{'biome_id': 12, 'within': args['region']}
 	assert report.region_text(args['region'], a.all_names()).startswith('Study area «mis_parcelas» (2 polygons')
 	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
 	a.remove_layer('parcelas')
@@ -798,6 +803,17 @@ def test_two_periods_and_the_rdnbr_in_the_instructions():
 	text = ' '.join(assistant.instructions().split())
 	assert 'index "RdNBR"' in text and 'Miller & Thode 2007' in text and '"MODIS/061/MYD09GA"' in text
 	assert 'unchanged, low, moderate and high severity' in text and 'one year after the fire' in text
+
+
+def test_the_topographic_wetness_index_in_the_instructions():
+	# a fixed layer whose dates name no year: «without dates», not «since ?»; its sensor and how to ask for it
+	lines = {line.split(':')[0]: line for line in assistant.variables_text().splitlines()}
+	assert lines['- TWI'] == '- TWI: Topographic wetness index; theme Terrain. MERIT Hydro 90 m without dates.'
+	assert lines['- ELEVATION'].endswith('Copernicus 30 m since 2011 until 2015.')  # its dates name the years
+	text = ' '.join(assistant.instructions().split())
+	assert 'for the terrain, "Copernicus" or "MERIT Hydro"' in text
+	assert 'variable "TWI", sensor "MERIT Hydro"' in text
+	assert '{"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}' in text  # in where
 
 
 def test_fix_args_of_the_rdnbr_of_modis():
@@ -1405,8 +1421,9 @@ def test_fixed_layers():
 # The data of Earth Engine outside the catalog: the tools that find and describe them, and the compute tools with
 # their arguments instead of variable and sensor (as the MCP server lists them)
 OPTIONAL = {'anyOf': [{'type': 'string'}, {'type': 'null'}]}
-SOURCE_PROPS = {'variable': OPTIONAL, 'sensor': OPTIONAL, 'collection': OPTIONAL, 'image': OPTIONAL, 'band': OPTIONAL,
-                'band_scale': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
+SOURCE_PROPS = {'variable': OPTIONAL, 'sensor': OPTIONAL, 'collection': OPTIONAL, 'image': OPTIONAL,
+                'band': {'anyOf': [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}, {'type': 'null'}]},
+                'band_reducer': OPTIONAL, 'band_scale': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
                 'band_offset': {'anyOf': [{'type': 'number'}, {'type': 'null'}]}, 'unit': OPTIONAL}
 DATA_TOOLS = [
 	{'name': 'describe_asset', 'description': 'An image or collection of Earth Engine by its ID.', 'inputSchema': {
@@ -1590,6 +1607,47 @@ def test_series_and_fixed_image_of_earth_engine(tmp_path):
 	                            'end': '2020-12-31'})
 
 
+def test_several_bands_of_earth_engine():
+	"""Several bands of the data by their ID combined on each pixel (band_reducer): band is a text for the model (with
+	commas), a list in a text is decoded, band_reducer goes away with one band or next to a variable; the card names
+	the reducer and the bands, and the maps of the steps and the pixels keep them."""
+	tools = assistant.model_tools(DATA_TOOLS)
+	props = {t['function']['name']: t['function']['parameters']['properties'] for t in tools}['map_layer']
+	assert props['band'] == {'type': 'string'} and props['band_reducer'] == {'type': 'string'}  # compact: no anyOf
+	several = {'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'aet,def', 'band_reducer': 'sum'}
+	assert assistant.fix_args('map_layer', several, tools) == several
+	assert assistant.fix_args('map_layer', dict(several, band='["aet", "def"]'), tools) == \
+		dict(several, band=['aet', 'def'])
+	assert assistant.fix_args('map_layer', dict(several, band=['aet', 'def']), tools) == \
+		dict(several, band=['aet', 'def'])
+	assert assistant.fix_args('map_layer', dict(several, band='pr'), tools) == {  # small models fill every argument
+		'collection': several['collection'], 'band': 'pr'}
+	assert assistant.fix_args('map_layer', {'variable': 'AET', 'sensor': 'TerraClimate', 'band_reducer': 'sum'},
+	                          tools) == {'variable': 'AET', 'sensor': 'TerraClimate'}
+	assert 'band_reducer' in assistant.SOURCE
+	region = {'bbox': [-3.5, 37, -3, 37.2]}
+	args = {'region': region, 'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': ['aet', 'def'], 'band_reducer': 'sum',
+	        'band_scale': 0.1, 'unit': 'mm', 'start': '2018-01-01', 'end': '2020-12-31', 'step': 'monthly',
+	        'metric': 'sum'}
+
+	async def run():
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		a.results.append({'id': 1, 'tool': 'time_series', 'args': args, 'result': {**SERIES, 'unit': 'mm'},
+		                  'image': None, 'title': a.titled('time_series', args)})
+		return a, a.card(a.results[0]), await a.period_map(a.results[0]), await a.step_map(1, '2019-03-01/2019-03-31')
+
+	a, card, shown, step = asyncio.run(run())
+	assert card['title'].startswith('Monthly time series of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def')
+	assert dict(card['facts'])['Data'] == ('Earth Engine image collection IDAHO_EPSCOR/TERRACLIMATE, the sum of the '
+	                                       'bands aet and def on each pixel; values × 0.1 + 0 (each band, before the '
+	                                       'sum); unit mm')
+	same = {k: args[k] for k in ('region', 'collection', 'band', 'band_reducer', 'band_scale', 'unit')}
+	assert a.calls[0] == ('map_layer', {**same, 'start': '2020-01-01', 'end': '2020-12-31', 'metric': 'median',
+	                                    'quick': True})
+	assert a.calls[1][1]['band'] == ['aet', 'def'] and a.calls[1][1]['band_reducer'] == 'sum'
+	assert shown['heading'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, 2020')
+
+
 def test_data_of_the_catalog_or_by_its_id():
 	"""A call of the model with a variable of the catalog keeps none of the arguments of the data of Earth Engine by
 	their ID (small models fill them all, and the MCP server refuses them mixed; the collection of a variable was
@@ -1618,13 +1676,14 @@ def test_tools_of_the_mcp_server():
 	"""The tools of the MCP server as the model gets them: those of the data of Earth Engine by their ID, with their
 	arguments, but compact (see assistant._compact and _description), as the small models of Ollama have 16,384 tokens
 	of context for the instructions, the tools and the conversation: their size before those data (39,337 characters)
-	is the limit, with some room."""
+	is the limit, with some room; and the tool list_classes (the codes of the classes of the categorical layers, which
+	the model needs to find an ecoregion by its name), some 400 more."""
 	from monitoreo import mcp_server as mcp
 	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
 	names = [t['function']['name'] for t in tools]
 	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
 	text = json.dumps(tools)
-	assert len(text) < 42000, len(text)
+	assert len(text) < 42500, len(text)
 	assert '"title"' not in text and '{"type": "null"}' not in text and '"default": null' not in text
 	source = ' '.join(mcp.SOURCE_DOC.split())
 	assert source[:60] not in text  # said once in the instructions

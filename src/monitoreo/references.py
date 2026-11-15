@@ -1,6 +1,7 @@
 """What to cite with each result of MonitorEO: the references of the variable (the articles of its formula or algorithm
 and its Earth Engine datasets, cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of the
-method (trends, burn severity), of the region (protected areas, ecoregions), of Google Earth Engine and of MonitorEO.
+method (trends, burn severity), of the region (protected areas, ecoregions and biomes, administrative units, islands,
+and those of the region of its within), of Google Earth Engine and of MonitorEO.
 They are in catalog.json (references, datasets, methods and the references of each variable); this module gathers
 those of a call of a tool:
 
@@ -10,7 +11,8 @@ those of a call of a tool:
         'credits': ['Contains modified Copernicus Sentinel data 2018-2024']}
 
 A reference has its citation (APA) and its DOI (or, without one, its URL); 'text' is the citation with the link. The
-credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat, Copernicus DEM).
+credits are the lines that the terms of use of some data ask for (Copernicus Sentinel, USGS Landsat, Copernicus DEM,
+MERIT Hydro).
 Every result of monitoreo.services carries both, and the reports (monitoreo.report, monitoreo.publish) list them.
 
 References:
@@ -205,9 +207,9 @@ def of_variable(entry, quality=None, period=None, formula=True):
 	return ids + more, credits
 
 
-def _entry(variable, sensor=None, collection=None):
+def _entry(variable, sensor=None, collection=None, ref=None):
 	try:
-		return catalog.find(variable, sensor, collection)
+		return catalog.find(variable, sensor, collection, ref)
 	except (KeyError, ValueError, TypeError):
 		return None
 
@@ -245,11 +247,12 @@ def of_spec(var, period=None, formula=True):
 
 
 def _region(region):
+	"""The datasets of the REGION of a call (see areas.region): those of its kind and those of its within."""
 	cols = []
 	if isinstance(region, dict):
 		if 'wdpa_id' in region or 'wdpa_name' in region:
 			cols.append(WDPA)
-		if 'ecoregion_id' in region or 'ecoregion_at' in region:
+		if any(k in region for k in ('ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at')):
 			cols.append(ECOREGIONS)
 		if 'country' in region:
 			cols.append(areas.GAUL_COUNTRIES)
@@ -258,6 +261,8 @@ def _region(region):
 				cols.append(areas.GAUL[level])
 		if 'island_at' in region:
 			cols.append(areas.ISLANDS)
+		if isinstance(region.get('within'), dict):  # the region of within: e.g. FAO GAUL for a biome in a country
+			cols += [c for c in _region(region['within']) if c not in cols]
 	return cols
 
 
@@ -308,7 +313,14 @@ def _uses_cv(tool, args, recipe=None):
 		return True
 	if tool == 'region_stats':
 		stats = args.get('stats')
-		default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
+		name = args.get('index') or args.get('variable')
+		e = _entry(name, args.get('sensor'), args.get('collection')) if name else None
+		if e is None and args.get('ref') is not None:
+			e = _entry(None, None, None, args['ref'])
+		if e and e.get('classes'):  # a categorical layer: its statistic is the majority class (as region_stats)
+			default = ('mode',)
+		else:
+			default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
 		stats = [stats] if isinstance(stats, str) else list(stats or default)
 		if any(cv(s) for s in stats):
 			return True
