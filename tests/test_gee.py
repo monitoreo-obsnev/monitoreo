@@ -164,18 +164,32 @@ CASES = {
 	'map_custom_dem_slope': {'kind': 'percentiles', 'region': GUAJARES,
 	                         'spec': {'custom': {'asset': 'COPERNICUS/DEM/GLO30', 'band': 'DEM', 'use': 'image',
 	                                             'terrain': 'slope'}}},
+	# several bands combined on each pixel (band_reducer): the sum of the actual evapotranspiration and the climatic
+	# water deficit of TerraClimate (each stored in tenths of mm), a monthly series, and the mean of the maximum
+	# temperature of the warmest month and the minimum temperature of the coldest month of WorldClim 1.4
+	'series_custom_terraclimate_aet_plus_def': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly',
+	                                            'metric': 'mean', 'stat': 'mean',
+	                                            'spec': {'custom': {'asset': 'IDAHO_EPSCOR/TERRACLIMATE',
+	                                                                'band': ['aet', 'def'], 'reducer': 'sum',
+	                                                                'use': 'collection', 'scale': 0.1, 'unit': 'mm'},
+	                                                     'period': ['2020-01-01', '2020-12-31']}},
+	'map_custom_worldclim_bio05_bio06_mean': {'kind': 'percentiles', 'region': GUAJARES,
+	                                          'spec': {'custom': {'asset': 'WORLDCLIM/V1/BIO',
+	                                                              'band': ['bio05', 'bio06'], 'reducer': 'mean',
+	                                                              'use': 'image', 'scale': 0.1, 'unit': 'degC'}}},
 }
 
 
 def _spec_args(s):
 	"""The arguments of the services for the spec S of a case: a variable of the catalog (ref) or, with custom, data of
-	Earth Engine by its ID (collection or image, band, band_scale, band_offset, unit, terrain)."""
+	Earth Engine by its ID (collection or image, band, band_reducer, band_scale, band_offset, unit, terrain)."""
 	out = {'metric': s.get('metric', 'mean'), 'season': s.get('season'), 'quality': s.get('quality'),
 	       'where': s.get('where')}
 	c = s.get('custom')
 	if c:
-		out.update({c['use']: c['asset'], 'band': c['band'], 'band_scale': c.get('scale'),
-		            'band_offset': c.get('offset'), 'unit': c.get('unit'), 'terrain': c.get('terrain')})
+		out.update({c['use']: c['asset'], 'band': c['band'], 'band_reducer': c.get('reducer'),
+		            'band_scale': c.get('scale'), 'band_offset': c.get('offset'), 'unit': c.get('unit'),
+		            'terrain': c.get('terrain')})
 	else:
 		out['ref'] = s['ref']
 	return out

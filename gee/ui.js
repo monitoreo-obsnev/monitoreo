@@ -181,6 +181,14 @@
 			unit: 'Unidad (UDUNITS)', unitHint: 'p. ej. mm, degC, kg m-2, 1',
 			bandNote: 'Valor = valor guardado × escala + desplazamiento, en la unidad dada. Earth Engine no los da: ' +
 				'búscalos en la página del conjunto de datos.',
+			combine: 'Combinar bandas', combine_one: 'Una banda', combine_sum: 'Suma de las bandas',
+			combine_mean: 'Media de las bandas', bands: 'Bandas',
+			combineNote: 'Cada banda × escala + desplazamiento; después, en cada píxel con datos en todas ellas, su suma ' +
+				'o su media, en la unidad de las bandas (12 bandas mensuales en mm suman mm), sobre los píxeles de la ' +
+				'primera.',
+			combineTwo: 'Marca dos o más bandas para combinarlas (o elige Una banda).',
+			combineScales: 'Las bandas marcadas tienen píxeles de distinto tamaño: se combinan sobre los de la primera ' +
+				'(%s m).',
 			customFilters: 'Estos datos guardan su propia máscara: los filtros de píxeles de MonitorEO son para las ' +
 				'variables de su catálogo.',
 			datasetPage: 'Página del conjunto de datos', src_data: 'Catálogo de datos de Earth Engine',
@@ -353,6 +361,13 @@
 			unit: 'Unit (UDUNITS)', unitHint: 'e.g. mm, degC, kg m-2, 1',
 			bandNote: 'Value = stored value × scale + offset, in the unit given. Earth Engine does not give them: read ' +
 				'them in the page of the dataset.',
+			combine: 'Combine bands', combine_one: 'One band', combine_sum: 'Sum of the bands',
+			combine_mean: 'Mean of the bands', bands: 'Bands',
+			combineNote: 'Each band × scale + offset; then, on each pixel with data in all of them, their sum or their ' +
+				'mean, in the unit of the bands (12 monthly bands in mm sum to mm), on the pixels of the first.',
+			combineTwo: 'Check two or more bands to combine them (or choose One band).',
+			combineScales: 'The bands checked have pixels of different sizes: they are combined on those of the first ' +
+				'(%s m).',
 			customFilters: 'These data keep their own mask: the pixel filters of MonitorEO are for the variables of its ' +
 				'catalog.',
 			datasetPage: 'Page of the dataset', src_data: 'Earth Engine data catalog',
@@ -399,12 +414,13 @@
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
-		// its band, use (collection or image), scale, offset and unit as written, why the last ID could not be read
-		// (error), and the theme and dataset of the GEE Community Catalog chosen
+		// its band, or how several are combined (combine: 'one', 'sum' or 'mean', the band_reducer of the package) and
+		// those checked (chosen), use (collection or image), scale, offset and unit as written, why the last ID could
+		// not be read (error), and the theme and dataset of the GEE Community Catalog chosen
 		catalogText: '', catalogFound: null,  // the search of the Earth Engine data catalog (theme earth_engine)
 		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
-			band: null, scale: '', offset: '', unit: '', title: null, source: null, page: null, licence: null,
-			error: null, communityTheme: null, communityId: null}
+			band: null, combine: 'one', chosen: [], scale: '', offset: '', unit: '', title: null, source: null,
+			page: null, licence: null, error: null, communityTheme: null, communityId: null}
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -759,19 +775,30 @@
 		return Number(text);
 	}
 
-	// The entry of the data of Earth Engine of the panel (mo.customEntry: its ID read, band, use, scale, offset and
-	// unit), or, while it cannot be computed (no ID read, a scale or a unit that are not), one with the reason
-	// (problem), so that the panel can still be drawn and ready() says what is missing
+	// The bands of the data read that are checked to be combined, in the order of the data (jan to dec)
+	function chosenBands() {
+		var d = state.data;
+		return d.bands.filter(function (b) { return d.chosen.indexOf(b) >= 0; });
+	}
+
+	// The entry of the data of Earth Engine of the panel (mo.customEntry: its ID read, band or the bands checked and
+	// their reducer, use, scale, offset and unit), or, while it cannot be computed (no ID read, fewer than two bands
+	// checked to combine, a scale or a unit that are not), one with the reason (problem), so that the panel can still be
+	// drawn and ready() says what is missing
 	function dataEntry() {
 		var d = state.data;
+		var several = d.combine === 'sum' || d.combine === 'mean';
+		var band = several ? chosenBands() : d.band, first = several ? band[0] : d.band;
 		try {
 			if (!d.asset) throw new Error(t('readFirst'));
-			return mo.customEntry({asset: d.asset, type: d.type, dated: d.dated, band: d.band, use: d.use,
-				m: d.scales[d.band], scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')),
-				unit: d.unit});
+			if (several && band.length < 2) throw new Error(t('combineTwo'));
+			return mo.customEntry({asset: d.asset, type: d.type, dated: d.dated, band: band,
+				reducer: several ? d.combine : null, use: d.use, m: d.scales[first],
+				scale: numberOf(d.scale, t('bandScale')), offset: numberOf(d.offset, t('bandOffset')), unit: d.unit});
 		} catch (err) {
-			return {custom: true, static: d.use === 'image', col: d.asset || '', band: d.band || '', m: d.scales[d.band] || 1,
-				unit: '', problem: err.message || String(err)};
+			return {custom: true, static: d.use === 'image', col: d.asset || '', band: band || '',
+				reducer: several ? d.combine : null, m: d.scales[first] || 1, unit: '',
+				problem: err.message || String(err)};
 		}
 	}
 
@@ -800,6 +827,8 @@
 				d[k] = info[k] === undefined ? null : info[k];
 			});
 			d.band = info.bands[0] || null;
+			d.combine = 'one';  // one band again, none checked to combine: those of another ID
+			d.chosen = [];
 			d.scale = d.offset = d.unit = '';  // Earth Engine does not say them (they are in the page of the dataset)
 			render();
 		});
@@ -875,16 +904,44 @@
 		w.push(ui.Label([d.title, t(source[d.source] || 'src_asset'), t('type_' + d.type),
 			d.licence ? t('licence') + ': ' + d.licence : t('licenceInPage')].join(' · '), SMALL));
 		if (d.page) w.push(ui.Label(t('datasetPage'), {fontSize: '12px', margin: '0 8px'}, d.page));
-		w.push(row(ui.Label(t('band')), select(d.bands.map(function (b) {
-			return {value: b, label: b + ' · ' + num(d.scales[b]) + ' m'};
-		}), d.band, function (v) {
-			// the scale, offset and unit are those of each band (bio01 of WorldClim is stored in tenths of a degree,
-			// bio12 in mm): empty again, as the QGIS plugin fills them from the record of the band, which the app
-			// cannot read
-			if (v !== d.band) d.scale = d.offset = d.unit = '';
-			d.band = v;
-			render();
-		}, '220px')));
+		// one band, or several combined on each pixel (their sum or mean: band_reducer in the package)
+		if (d.bands.length > 1 || d.combine !== 'one') {
+			w.push(row(ui.Label(t('combine')), select(['one', 'sum', 'mean'].map(function (x) {
+				return {value: x, label: t('combine_' + x)};
+			}), d.combine, function (v) {
+				if (v !== 'one' && !d.chosen.length && d.band) d.chosen = [d.band];  // the band chosen, then the others
+				d.combine = v;
+				render();
+			}, '220px')));
+		}
+		if (d.combine === 'one') {
+			w.push(row(ui.Label(t('band')), select(d.bands.map(function (b) {
+				return {value: b, label: b + ' · ' + num(d.scales[b]) + ' m'};
+			}), d.band, function (v) {
+				// the scale, offset and unit are those of each band (bio01 of WorldClim is stored in tenths of a degree,
+				// bio12 in mm): empty again, as the QGIS plugin fills them from the record of the band, which the app
+				// cannot read
+				if (v !== d.band) d.scale = d.offset = d.unit = '';
+				d.band = v;
+				render();
+			}, '220px')));
+		} else {
+			// the bands to combine, with their pixel size: the scale, offset and unit are those of all of them
+			w.push(ui.Label(t('bands'), SMALL));
+			d.bands.forEach(function (b) {
+				w.push(check(b + ' · ' + num(d.scales[b]) + ' m', d.chosen.indexOf(b) >= 0, function (v) {
+					d.chosen = d.chosen.filter(function (x) { return x !== b; });
+					if (v) d.chosen.push(b);
+					render();
+				}));
+			});
+			var chosen = chosenBands();
+			var sizes = chosen.map(function (b) { return Number(d.scales[b]); });
+			if (sizes.some(function (s) { return s !== sizes[0]; })) {  // combined on the pixels of the first band
+				w.push(ui.Label(fmt(t('combineScales'), num(sizes[0])), {fontSize: '12px', color: '#b06000'}));
+			}
+			w.push(ui.Label(t('combineNote'), SMALL));
+		}
 		var use = select(['collection', 'image'].map(function (x) { return {value: x, label: t('use_' + x)}; }),
 			d.dated ? d.use : 'image', function (v) {
 				d.use = v;

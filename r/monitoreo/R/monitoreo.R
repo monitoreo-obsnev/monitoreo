@@ -123,17 +123,24 @@ cited <- function(df, res) {
 #' @param image without \code{variable}, the ID of any image of Earth Engine, or of a collection of tiles (their
 #'   mosaic, e.g. a DEM), e.g. \code{"WORLDCLIM/V1/BIO"}, with \code{band}: a fixed layer without dates, with maps,
 #'   their statistics and GeoTIFFs, but no time series, trends or comparisons.
-#' @param band the band (one) of \code{collection} or \code{image} (\code{mo_asset()} lists them).
+#' @param band the band of \code{collection} or \code{image} (\code{mo_asset()} lists them): one, e.g. \code{"pr"}, or
+#'   several combined on each pixel with \code{band_reducer}, as a character vector, e.g. \code{c("aet", "def")}, or
+#'   a text with commas, \code{"aet, def"}.
+#' @param band_reducer how several bands are combined into one value on each pixel where all of them have data:
+#'   \code{"sum"} (e.g. the 12 monthly bands of an image into the annual total) or \code{"mean"} (e.g. the depth bands
+#'   of a soil), on the pixels of the first band; required with two bands or more, and not with one.
 #' @param band_scale,band_offset factor and offset of the stored values of \code{band}: the values are
 #'   value * \code{band_scale} + \code{band_offset} (\code{mo_asset()} gives them for the Earth Engine data catalog),
-#'   e.g. \code{band_scale = 0.1}.
+#'   e.g. \code{band_scale = 0.1}; with several bands, of each band before they are combined.
 #' @param unit the unit of the values of \code{band} (after \code{band_scale} and \code{band_offset}), written in
 #'   UDUNITS, e.g. \code{"mm"}, \code{"degC"}, \code{"kg m-2"}, \code{"mm day-1"} or \code{"1"} (dimensionless); it
-#'   reaches the CSV, the README and the GeoTIFF. The variables of the catalog have their own, and the slope or the
-#'   aspect of \code{terrain} (in the functions that take it) \code{"degree"}.
-#' @param terrain with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation) instead of its
-#'   values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
-#'   band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).
+#'   reaches the CSV, the README and the GeoTIFF. With several bands, that of every band, so of their sum or mean: a
+#'   sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
+#'   catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
+#'   \code{"degree"}.
+#' @param terrain with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation; one band)
+#'   instead of its values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"};
+#'   not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 #'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
 #'   which only have maps and their statistics.
@@ -176,16 +183,17 @@ utils::globalVariables(c("date", "value", "region", "doy", "year", "variable", "
 
 # The data that a function computes: a variable of the catalog and its sensor (with them, collection is one of the
 # collections of that variable), or instead the data of Earth Engine given by its ID (collection or image, with band,
-# band_scale, band_offset, unit and, for an image, terrain; see mo_asset()). A clear error before Earth Engine, with
+# one or several with band_reducer, band_scale, band_offset, unit and, for an image of one band, terrain; see
+# mo_asset()). A clear error before Earth Engine, with
 # the words of the MCP server and the command line, when neither is given or they are mixed: Python would only say
 # that the spec has no index, or compute the variable and leave the image, band or terrain aside without a word. An ID
 # of Earth Engine given as the variable (none of the catalog has a '/') is told apart first, sensor or not: asking for
 # its sensor, or calling it a variable of the catalog, would send the user the wrong way.
 check_data <- function(variable, sensor, collection = NULL, image = NULL, band = NULL, band_scale = NULL,
-                       band_offset = NULL, unit = NULL, terrain = NULL) {
-  has <- function(x) !is.null(x) && !identical(x, "")
-  custom <- c(image = has(image), band = has(band), band_scale = has(band_scale), band_offset = has(band_offset),
-              unit = has(unit), terrain = has(terrain))
+                       band_offset = NULL, unit = NULL, terrain = NULL, band_reducer = NULL) {
+  has <- function(x) !is.null(x) && length(x) > 0 && !identical(x, "")
+  custom <- c(image = has(image), band = has(band), band_reducer = has(band_reducer), band_scale = has(band_scale),
+              band_offset = has(band_offset), unit = has(unit), terrain = has(terrain))
   custom <- names(custom)[custom]
   if (has(variable)) {
     if (grepl("/", variable, fixed = TRUE)) {
@@ -213,8 +221,31 @@ check_data <- function(variable, sensor, collection = NULL, image = NULL, band =
   if (has(collection) && has(image)) {
     stop("give collection (a collection of images with dates) or image (a fixed image), not both", call. = FALSE)
   }
-  if (!has(band)) {
-    stop("give band: the band of ", if (has(collection)) collection else image, " (one; mo_asset() lists them)",
+  asset <- if (has(collection)) collection else image
+  # the bands, as monitoreo.variable.bands_of: one, a vector or a text with commas, without blanks
+  bands <- if (has(band)) trimws(unlist(strsplit(as.character(unlist(band)), ",", fixed = TRUE))) else character()
+  bands <- bands[nzchar(bands)]
+  if (length(bands) == 0) {
+    stop("give band: the band of ", asset, " (one, or several with band_reducer; mo_asset() lists them)",
+         call. = FALSE)
+  }
+  # monitoreo.variable.check_bands, in its order and words
+  reducer <- if (has(band_reducer)) tolower(trimws(as.character(band_reducer))) else ""
+  if (nzchar(reducer) && !reducer %in% c("sum", "mean")) {
+    stop("unknown band_reducer ", band_reducer, ": use sum, mean", call. = FALSE)
+  }
+  twice <- bands[duplicated(bands)]
+  if (length(twice) > 0) stop("band ", twice[1], " is given twice: give each band once", call. = FALSE)
+  if (length(bands) > 1 && has(terrain)) {
+    stop("terrain is the slope or the aspect of one band (an elevation): give one band, without band_reducer",
+         call. = FALSE)
+  }
+  if (length(bands) > 1 && !nzchar(reducer)) {
+    stop(asset, ": give band_reducer, 'sum' or 'mean', to combine its ", length(bands), " bands (",
+         paste(bands, collapse = ", "), ") into one value on each pixel", call. = FALSE)
+  }
+  if (length(bands) == 1 && nzchar(reducer)) {
+    stop("band_reducer combines several bands: give two or more in band (a list, or a text with commas)",
          call. = FALSE)
   }
   if (has(terrain) && !has(image)) {
@@ -411,8 +442,9 @@ mo_describe <- function(variable, sensor = NULL, collection = NULL) {
 #' Community Catalog, \code{mo_community()}, or of a project that your account can read) is computed by the functions
 #' of MonitorEO instead of a variable of the catalog: as \code{collection} (images with dates, aggregated in time like
 #' the variables of the catalog, with time series, trends and comparisons) or as \code{image} (a fixed image, or the
-#' mosaic of a collection of tiles: maps, their statistics and GeoTIFFs), with \code{band} and, if they are needed,
-#' \code{band_scale}, \code{band_offset} and \code{unit} (in UDUNITS). \code{mo_asset()} tells which, before computing:
+#' mosaic of a collection of tiles: maps, their statistics and GeoTIFFs), with \code{band} (one, or several combined
+#' on each pixel with \code{band_reducer}) and, if they are needed, \code{band_scale}, \code{band_offset} and
+#' \code{unit} (in UDUNITS). \code{mo_asset()} tells which, before computing:
 #' it reads the metadata of the ID in Earth Engine (without computing; \code{mo_init()} first) and, for the Earth
 #' Engine data catalog, its STAC record (the units, scale and offset of its bands, its licence and how to cite it).
 #' The pixel filters of MonitorEO are for the variables of its catalog: these data keep only their own mask.
@@ -446,6 +478,10 @@ mo_describe <- function(variable, sensor = NULL, collection = NULL) {
 #' aet <- do.call(mo_time_series, c(list(mo_wdpa(389011), start = "2020-01-01", end = "2024-12-31"), a$arguments))
 #' # a fixed image: the annual mean temperature of WorldClim (stored in tenths of degree)
 #' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = "bio01", band_scale = 0.1, unit = "degC")
+#' # several bands combined on each pixel: the mean of the maximum temperature of the warmest month (bio05) and the
+#' # minimum temperature of the coldest month (bio06)
+#' mo_region_stats(mo_wdpa(389011), image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio06"), band_reducer = "mean",
+#'                 band_scale = 0.1, unit = "degC")
 #' }
 #' @export
 mo_asset <- function(asset) {
@@ -780,21 +816,21 @@ mo_sf <- function(x, name = NULL) {
 #' @export
 mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
-                           where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
-                           unit = NULL, doy = FALSE, chart = NULL, interannual = NULL, other_variable = NULL,
-                           other_sensor = NULL, ylim = NULL, other_ylim = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                           where = NULL, image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
+                           band_offset = NULL, unit = NULL, doy = FALSE, chart = NULL, interannual = NULL,
+                           other_variable = NULL, other_sensor = NULL, ylim = NULL, other_ylim = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(other_variable) && grepl("/", other_variable, fixed = TRUE)) {
     stop("other_variable ", other_variable, ": the variable of the right axis is a variable of the catalog of ",
          "MonitorEO (e.g. NDVI, see mo_variables()), not data of Earth Engine by its ID", call. = FALSE)
   }
   res <- services()$time_series(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, csv = csv, collection = collection, where = where,
-                                image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit, doy = isTRUE(doy), chart = if (is.null(chart)) NULL else path.expand(chart),
-                                interannual = interannual, other_variable = other_variable,
-                                other_sensor = other_sensor, ylim = axis_range(ylim, "ylim"),
-                                other_ylim = axis_range(other_ylim, "other_ylim"))
+                                image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                band_offset = band_offset, unit = unit, doy = isTRUE(doy),
+                                chart = if (is.null(chart)) NULL else path.expand(chart), interannual = interannual,
+                                other_variable = other_variable, other_sensor = other_sensor,
+                                ylim = axis_range(ylim, "ylim"), other_ylim = axis_range(other_ylim, "other_ylim"))
   profiled <- !is.null(res$variables)  # the seasonal profile (doy with interannual or other_variable)
   df <- rows_df(if (profiled) res$profile else res$rows)
   attr(df, "title") <- res$title
@@ -1043,11 +1079,12 @@ plot_profile <- function(ts, title, ylabel, starts, gg) {
 mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                          temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
                          vmax = NULL, thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                         band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
-  services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
-                       vmax, thumbnail = thumbnail, collection = collection, where = where, image = image,
-                       band = band, band_scale = band_scale, band_offset = band_offset, unit = unit,
+                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
+  services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin, vmax,
+                       thumbnail = thumbnail, collection = collection, where = where, image = image, band = band,
+                       band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset, unit = unit,
                        terrain = terrain)
 }
 
@@ -1094,13 +1131,13 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' @export
 mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", metric = "median",
                          season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 1, dimensions = 600L,
-                         collection = NULL, where = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
-                         unit = NULL) {
-  check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit)
+                         collection = NULL, where = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
+                         band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
                        dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
-                       collection = collection, where = where, band = band, band_scale = band_scale,
-                       band_offset = band_offset, unit = unit)
+                       collection = collection, where = where, band = band, band_reducer = band_reducer,
+                       band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
 #' Figure of the map of a variable for a report or a paper
@@ -1124,12 +1161,14 @@ mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, pat
 mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, path, metric = "median",
                           temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
                           vmax = NULL, title = NULL, dpi = 300L, collection = NULL, where = NULL, image = NULL,
-                          band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+                          band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                          terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
   services()$map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
                         vmax, path = path.expand(path), title = title, dpi = as.integer(dpi), collection = collection,
-                        where = where, image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                        unit = unit, terrain = terrain)
+                        where = where, image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                        band_offset = band_offset, unit = unit, terrain = terrain)
 }
 
 #' True colour map of the images of a variable over a region, as Earth Engine tiles
@@ -1261,14 +1300,16 @@ rgb_caption <- function(l) {
 #' @export
 mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                      temporal = "period", interannual = "mean", season = NULL, quality = NULL, clip = TRUE,
-                     collection = NULL, where = NULL, rgb = FALSE, image = NULL, band = NULL, band_scale = NULL,
-                     band_offset = NULL, unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+                     collection = NULL, where = NULL, rgb = FALSE, image = NULL, band = NULL, band_reducer = NULL,
+                     band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
   s <- services()
   maps <- reticulate::import("monitoreo.maps", convert = TRUE)
   variables <- reticulate::import("monitoreo.variable", convert = TRUE)
-  data <- list(collection = collection, where = where, image = image, band = band, band_scale = band_scale,
-               band_offset = band_offset, unit = unit, terrain = terrain)  # NULL: None, as the services take them
+  # NULL: None, as the services take them
+  data <- list(collection = collection, where = where, image = image, band = band, band_reducer = band_reducer,
+               band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
   spec <- do.call(s$make_spec, c(list(variable, sensor, start, end, metric = metric, temporal = temporal,
                                       interannual = interannual, season = season, quality = quality), data))
   # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none (the data
@@ -1288,10 +1329,10 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
     if (isTRUE(rgb)) "rgb_map" else "composite_image",
     c(list(region = region, variable = variable, sensor = sensor, start = start, end = end, metric = metric,
            temporal = temporal, interannual = interannual, quality = quality), data))
-  # the variable and its sensor, or the ID and band of the data of Earth Engine; no metric nor period for the fixed
-  # layers (elevation, slope, images)
+  # the variable and its sensor, or the ID and band (or the reducer of its bands) of the data of Earth Engine; no metric
+  # nor period for the fixed layers (elevation, slope, images)
   kind <- variables$kind(spec)
-  what <- if (kind == "catalog") c(variable, sensor) else c(spec[[kind]], spec[["band"]], spec[["terrain"]])
+  what <- if (kind == "catalog") c(variable, sensor) else variables$data_name(spec)
   dated <- !is.null(start) && !isTRUE(variables$is_static(spec))
   name <- paste(c(what, if (dated) c(metric, start, end)), collapse = " ")
   list(image = out[[1]], region = out[[2]], vis = vis, name = if (isTRUE(rgb)) paste0(name, ", true colour") else name,
@@ -1343,16 +1384,19 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' @export
 mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                             temporal = "period", season = NULL, quality = NULL, scale = NULL, collection = NULL,
-                            where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                            terrain = NULL, interannual = "mean", stats = NULL, zones = NULL, csv = NULL,
-                            chart = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+                            where = NULL, image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
+                            band_offset = NULL, unit = NULL, terrain = NULL, interannual = "mean", stats = NULL,
+                            zones = NULL, csv = NULL, chart = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
   if (!is.null(zones$breaks)) zones$breaks <- as.list(as.numeric(zones$breaks))
   res <- services()$region_stats(region, variable, sensor, start, end, metric, temporal, interannual = interannual,
-                                 season = season, quality = quality, stats = if (is.null(stats)) NULL else as.list(stats),
-                                 scale = scale, collection = collection, where = where, image = image, band = band,
-                                 band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain,
-                                 zones = zones, csv = if (is.null(csv)) NULL else path.expand(csv),
+                                 season = season, quality = quality,
+                                 stats = if (is.null(stats)) NULL else as.list(stats), scale = scale,
+                                 collection = collection, where = where, image = image, band = band,
+                                 band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                                 unit = unit, terrain = terrain, zones = zones,
+                                 csv = if (is.null(csv)) NULL else path.expand(csv),
                                  chart = if (is.null(chart)) NULL else path.expand(chart))
   df <- rows_df(res$rows)
   attr(df, "title") <- res$title
@@ -1386,14 +1430,16 @@ mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL
 mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                         temporal = "period", interannual = "mean", season = NULL, quality = NULL, spacing = NULL,
                         points = 100L, csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL,
-                        band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+                        band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                        terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
   if (is.matrix(line)) line <- lapply(seq_len(nrow(line)), function(i) as.numeric(line[i, ]))
   res <- services()$transect(line, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                              spacing, as.integer(points), csv = if (is.null(csv)) NULL else path.expand(csv),
                              chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
-                             where = where, image = image, band = band, band_scale = band_scale,
-                             band_offset = band_offset, unit = unit, terrain = terrain)
+                             where = where, image = image, band = band, band_reducer = band_reducer,
+                             band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
   df <- rows_df(res$rows)
   for (k in c("title", "unit", "length_m", "spacing", "csv", "chart")) attr(df, k) <- res[[k]]
   cited(df, res)
@@ -1451,17 +1497,18 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
                              year = NULL, breaks = NULL, trend = FALSE, metric = NULL, temporal = "period",
                              interannual = "mean", step = "annual", part = NULL, alpha = 0.05, season = NULL,
                              quality = NULL, scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL,
-                             image = NULL, band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                             terrain = NULL, other_year = NULL) {
-  if (is.null(landcover)) check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+                             image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
+                             unit = NULL, terrain = NULL, other_year = NULL) {
+  if (is.null(landcover)) check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+                                     band_reducer = band_reducer)
   res <- services()$area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                                   landcover, if (is.null(year)) NULL else as.integer(year),
                                   if (is.null(breaks)) NULL else as.list(as.numeric(breaks)), isTRUE(trend), step,
                                   if (is.null(part)) NULL else as.integer(part), alpha, scale = scale,
                                   csv = if (is.null(csv)) NULL else path.expand(csv),
                                   chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
-                                  where = where, image = image, band = band, band_scale = band_scale,
-                                  band_offset = band_offset, unit = unit, terrain = terrain,
+                                  where = where, image = image, band = band, band_reducer = band_reducer,
+                                  band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain,
                                   other_year = if (is.null(other_year)) NULL else as.integer(other_year))
   df <- rows_df(res$rows)
   for (k in c("title", "mode", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -1498,11 +1545,13 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
 mo_export_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                             temporal = "period", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
                             folder = "MonitorEO", name = NULL, collection = NULL, where = NULL, image = NULL,
-                            band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
-  services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
-                          quality = quality, resolution = resolution, crs = crs, folder = folder, name = name,
-                          collection = collection, where = where, image = image, band = band,
+                            band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                            terrain = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
+  services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season, quality = quality,
+                          resolution = resolution, crs = crs, folder = folder, name = name, collection = collection,
+                          where = where, image = image, band = band, band_reducer = band_reducer,
                           band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
 }
 
@@ -1533,14 +1582,15 @@ mo_export_image <- function(region, variable = NULL, sensor = NULL, start = NULL
 #'                       start = "1958-01-01", end = "2024-12-31")
 #' }
 #' @export
-mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly",
-                                  metric = "mean", stat = "mean", season = NULL, quality = NULL, scale = NULL,
-                                  folder = "MonitorEO", name = NULL, collection = NULL, where = NULL, image = NULL,
-                                  band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
+                                  stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
+                                  name = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                                  band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality, scale,
                                   folder, name, collection = collection, where = where, image = image, band = band,
-                                  band_scale = band_scale, band_offset = band_offset, unit = unit)
+                                  band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                                  unit = unit)
 }
 
 #' Download the map of a variable to a GeoTIFF on this computer
@@ -1572,16 +1622,17 @@ mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start,
 #'                            path = "bio12.tif")
 #' }
 #' @export
-mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, path,
-                              metric = "median", temporal = "period", interannual = "mean", season = NULL,
-                              quality = NULL, resolution = NULL, crs = "auto", clip = TRUE, collection = NULL,
-                              where = NULL, image = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
+mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, path, metric = "median",
+                              temporal = "period", interannual = "mean", season = NULL, quality = NULL,
+                              resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL,
+                              image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
                               unit = NULL, terrain = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain)
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
+             band_reducer = band_reducer)
   services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                             resolution, crs, path.expand(path), clip, collection = collection, where = where,
-                            image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                            unit = unit, terrain = terrain)
+                            image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                            band_offset = band_offset, unit = unit, terrain = terrain)
 }
 
 #' Download the true colour of the images of a variable to a GeoTIFF on this computer
@@ -1720,12 +1771,13 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL,
                            chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                           band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                           band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
                                 collection = collection, where = where, image = image, band = band,
-                                band_scale = band_scale, band_offset = band_offset, unit = unit)
+                                band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                                unit = unit)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -1773,12 +1825,13 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
 mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", part = NULL,
                          output = "slope", metric = "mean", season = NULL, quality = NULL, alpha = NULL,
                          thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                         band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
                        quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection, where = where,
-                       image = image, band = band, band_scale = band_scale, band_offset = band_offset, unit = unit)
+                       image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                       band_offset = band_offset, unit = unit)
 }
 
 #' Download the trend of a part of the year on each pixel to a GeoTIFF
@@ -1818,13 +1871,13 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
 mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", part = NULL,
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
                               crs = "auto", collection = NULL, where = NULL, image = NULL, band = NULL,
-                              band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                              band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
-                            resolution, crs, path.expand(path), collection = collection, where = where,
-                            image = image, band = band, band_scale = band_scale, band_offset = band_offset,
-                            unit = unit)
+                            resolution, crs, path.expand(path), collection = collection, where = where, image = image,
+                            band = band, band_reducer = band_reducer, band_scale = band_scale,
+                            band_offset = band_offset, unit = unit)
 }
 
 #' Compare two periods over each feature of a region
@@ -1859,12 +1912,13 @@ mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end
 mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
                               step = "monthly", metric = "mean", stat = "mean", season = NULL, quality = NULL,
                               scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL,
-                              band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                              band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
                                    season = season, quality = quality, scale = scale, csv = csv, chart = chart,
                                    collection = collection, where = where, image = image, band = band,
-                                   band_scale = band_scale, band_offset = band_offset, unit = unit)
+                                   band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                                   unit = unit)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -1894,13 +1948,13 @@ mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end
 #' @export
 mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
                            metric = "median", temporal = "period", season = NULL, quality = NULL, thumbnail = NULL,
-                           collection = NULL, where = NULL, image = NULL, band = NULL, band_scale = NULL,
-                           band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                           collection = NULL, where = NULL, image = NULL, band = NULL, band_reducer = NULL,
+                           band_scale = NULL, band_offset = NULL, unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                          season = season, quality = quality, thumbnail = thumbnail, collection = collection,
-                         where = where, image = image, band = band, band_scale = band_scale,
-                         band_offset = band_offset, unit = unit)
+                         where = where, image = image, band = band, band_reducer = band_reducer,
+                         band_scale = band_scale, band_offset = band_offset, unit = unit)
 }
 
 #' Download the comparison of two periods to a GeoTIFF
@@ -1930,12 +1984,14 @@ mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, o
 mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end, path,
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
                                    resolution = NULL, crs = "auto", collection = NULL, where = NULL, image = NULL,
-                                   band = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
-  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit)
+                                   band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
+                                   unit = NULL) {
+  check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                  season = season, quality = quality, resolution = resolution, crs = crs,
                                  path = path.expand(path), collection = collection, where = where, image = image,
-                                 band = band, band_scale = band_scale, band_offset = band_offset, unit = unit)
+                                 band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                 band_offset = band_offset, unit = unit)
 }
 
 #' Burn severity of a fire (dNBR, RBR and RdNBR)

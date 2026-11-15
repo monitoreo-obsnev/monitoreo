@@ -42,6 +42,8 @@
                                                      compare); image and stats also take --image ID (a fixed image,
                                                      without dates) and
                                                      --terrain slope|aspect (in degrees: its unit is then degree)
+    monitoreo series --collection ID --band B1,B2 --band-reducer sum|mean ...
+                                                     several bands combined on each pixel: their sum or their mean
     monitoreo datasets [TEXT] [--start D] [--end D] [--bbox W S E N] [--kind image|image_collection] [--limit N]
                                                      search the Earth Engine data catalog by words (in English), dates
                                                      and area (without Earth Engine)
@@ -144,8 +146,8 @@ STAT_HELP = ('how the pixels of each feature of the region are summarized: mean,
 INTERANNUAL_HELP = ('with --temporal annual, monthly or 16-day: how the years are summarized, any metric (e.g. cv: how '
                     'much the values change from year to year, in %%)')
 # the options of the data of Earth Engine given by its ID, instead of VARIABLE and --sensor (see monitoreo asset)
-SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_scale': '--band-scale', 'band_offset': '--band-offset',
-                  'unit': '--unit', 'terrain': '--terrain'}
+SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_reducer': '--band-reducer', 'band_scale': '--band-scale',
+                  'band_offset': '--band-offset', 'unit': '--unit', 'terrain': '--terrain'}
 
 
 def _source_options(p, image=False):
@@ -160,17 +162,24 @@ def _source_options(p, image=False):
 		               help='instead of VARIABLE and --sensor: the ID of an image of Earth Engine, or of a collection of '
 		                    'tiles (their mosaic), e.g. WORLDCLIM/V1/BIO: a fixed layer, without dates')
 	p.add_argument('--band', help='the band of --collection' + (' or --image' if image else '') +
-	                              ' (one; monitoreo asset ID lists them)')
-	p.add_argument('--band-scale', type=float, metavar='F', help='factor of the stored values of the band (e.g. 0.1)')
+	                              ' (one, or several separated by commas with --band-reducer, e.g. aet,def; monitoreo '
+	                              'asset ID lists them)')
+	p.add_argument('--band-reducer', choices=('sum', 'mean'),
+	               help='how several --band are combined into one value on each pixel where all of them have data: '
+	                    'their sum (e.g. 12 monthly bands into the annual total) or their mean (e.g. the depth bands '
+	                    'of a soil), on the pixels of the first band')
+	p.add_argument('--band-scale', type=float, metavar='F',
+	               help='factor of the stored values of the band (e.g. 0.1; of each band, before they are combined)')
 	p.add_argument('--band-offset', type=float, metavar='F',
 	               help='what is added to the values of the band after --band-scale')
 	p.add_argument('--unit', help="unit of the values (after --band-scale and --band-offset) in UDUNITS, e.g. mm, degC, "
-	                              "'kg m-2', 'mm day-1' or 1 (dimensionless)" +
-	                              ('; with --terrain, none or degree' if image else ''))
+	                              "'kg m-2', 'mm day-1' or 1 (dimensionless); with several bands, that of every band "
+	                              '(their sum is not turned from a rate into a total: 12 monthly bands in mm sum to '
+	                              'mm)' + ('; with --terrain, none or degree' if image else ''))
 	if image:
 		p.add_argument('--terrain', choices=('slope', 'aspect'),
-		               help='the slope or the aspect of the band of --image (e.g. of a DEM), in degrees (its unit is '
-		                    'then degree: give no --unit, or degree, not that of the band)')
+		               help='the slope or the aspect of the band of --image (e.g. of a DEM; one band), in degrees (its '
+		                    'unit is then degree: give no --unit, or degree, not that of the band)')
 
 
 # the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
@@ -178,10 +187,10 @@ def _source_options(p, image=False):
 OTHER_THEMES = {
 	'earth_engine': 'any image or collection of images of Earth Engine by its ID: monitoreo asset ID describes it (its '
 	                'bands, units and dates); then compute it with --collection (or --image, in monitoreo image) and '
-	                '--band',
+	                '--band (several with --band-reducer)',
 	'community': 'the datasets of the GEE Community Catalog by its own themes: monitoreo community lists its themes '
 	             'and, with --theme or --text, their datasets; monitoreo asset ID describes one; then compute it with '
-	             '--collection (or --image, in monitoreo image) and --band'}
+	             '--collection (or --image, in monitoreo image) and --band (several with --band-reducer)'}
 
 
 def _other_theme(theme):
@@ -199,16 +208,19 @@ def _error(e, args):
 	text = f'ERROR: {e}'
 	asset = None if 'variable' in args.source else args.source.get('collection')
 	if asset and 'give it as an image' in str(e):
+		reducer = args.source.get('band_reducer')
 		text += (f'; in the command line, --image {asset} instead of --collection' if hasattr(args, 'image') else
-		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')} (a GeoTIFF)")
+		         f"; in the command line, monitoreo image --image {asset} --band {args.source.get('band')}"
+		         f"{f' --band-reducer {reducer}' if reducer else ''} (a GeoTIFF)")
 	return text
 
 
 def _source(args, parser):
 	"""The data that a command computes, as the keywords of services: VARIABLE and --sensor (a variable of the catalog;
-	--collection, one of its collections), or --collection or --image and --band (any data of Earth Engine by its ID),
-	with --band-scale, --band-offset, --unit and, for an image, --terrain. Else the error of PARSER, before Earth
-	Engine."""
+	--collection, one of its collections), or --collection or --image and --band (any data of Earth Engine by its ID;
+	several bands, separated by commas, with --band-reducer), with --band-scale, --band-offset, --unit and, for an image
+	of one band, --terrain. Else the error of PARSER, before Earth Engine (those of the bands in the words of the
+	services: variable.check_bands)."""
 	given = {k: getattr(args, k, None) for k in SOURCE_OPTIONS}
 	given = {k: v for k, v in given.items() if v is not None and v != ''}
 	image = 'image' in given
@@ -234,7 +246,13 @@ def _source(args, parser):
 	if args.collection and image:
 		parser.error('give --collection (images with dates) or --image (a fixed image), not both')
 	if 'band' not in given:
-		parser.error(f'give --band: the band of {asset} (one; monitoreo asset {asset} lists them)')
+		parser.error(f'give --band: the band of {asset} (one, or several separated by commas with --band-reducer; '
+		             f'monitoreo asset {asset} lists them)')
+	from . import variable
+	try:  # several bands without --band-reducer, --band-reducer with one band, a band twice, --terrain with several
+		variable.check_bands(dict(given), asset)
+	except ValueError as e:
+		parser.error(str(e))
 	if 'terrain' in given and not image:
 		parser.error('--terrain is for --image (a fixed layer, e.g. a DEM), not for --collection')
 	return dict(given, **({'collection': args.collection} if args.collection else {}))
@@ -647,7 +665,8 @@ def main(argv=None):
 		_table([{k: r.get(k, '') for k in ('id', 'type', 'start', 'end', 'title')} for r in rows],
 		       ['id', 'type', 'start', 'end', 'title'])
 		print(f'\n{len(rows)} datasets of the Earth Engine data catalog | monitoreo asset ID describes one (its bands, '
-		      'units and how to cite it); then compute it with --collection or --image and --band')
+		      'units and how to cite it); then compute it with --collection or --image and --band (several with '
+		      '--band-reducer)')
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
@@ -703,7 +722,7 @@ def _community(args, services):
 		sys.exit(f'ERROR: {e}')
 	_table(rows, ['id', 'type', 'title'])
 	print(f'\n{len(rows)} datasets of the GEE Community Catalog | monitoreo asset ID describes one (its bands, units '
-	      'and how to cite it); then compute it with --collection or --image and --band')
+	      'and how to cite it); then compute it with --collection or --image and --band (several with --band-reducer)')
 
 
 def _asset(args, services):

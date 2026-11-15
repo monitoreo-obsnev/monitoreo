@@ -287,6 +287,78 @@ def test_specs_of_other_data():
 	assert services.make_spec(collection='X/Y', band='b', start='2020-01-01', end='2020-12-31', unit='1')['unit'] == '1'
 
 
+def test_several_bands_of_other_data():
+	"""Several bands of the data by their ID combined on each pixel with band_reducer ('sum' or 'mean'): given as a
+	list or a text with commas, kept as a list; one band (also a list of one) stays a text, without band_reducer; the
+	unit is that of every band (no rate turned into a total by the sum of the bands, but by the temporal sum); the
+	errors before Earth Engine."""
+	period = {'start': '2020-01-01', 'end': '2020-12-31'}
+	for band in (['aet', 'def'], 'aet, def', 'aet,def,', ('aet', ' def ')):
+		spec = services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', band=band, band_reducer='sum',
+		                          unit='mm month-1', metric='mean', **period)
+		assert spec['band'] == ['aet', 'def'] and spec['band_reducer'] == 'sum', band
+	assert services._title(spec) == 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def | 2020-01-01 / 2020-12-31'
+	assert variables.data_name(spec) == 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def'
+	assert services._unit(spec) == 'mm month-1'  # the sum of two bands per month: still per month
+	total = services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', band='aet,def', band_reducer='SUM',
+	                           unit='mm month-1', metric='sum', **period)
+	assert total['band_reducer'] == 'sum' and services._unit(total) == 'mm'  # the temporal sum: a total
+	d = variables.describe(spec)
+	assert (d['band'], d['band_reducer'], d['variable']) == (['aet', 'def'], 'sum', 'IDAHO_EPSCOR/TERRACLIMATE sum of '
+	                                                         'aet, def')
+	for band in ('pr', ['pr'], 'pr,', ' pr '):  # one band: as before, a text and no band_reducer
+		one = services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', band=band, **period)
+		assert one['band'] == 'pr' and 'band_reducer' not in one, band
+		assert 'band_reducer' not in variables.describe(one)
+	img = services.make_spec(image='WORLDCLIM/V1/BIO', band=['bio05', 'bio06'], band_reducer='mean', band_scale=0.1,
+	                         unit='degC')
+	assert services._named(img, 'median') == 'WORLDCLIM/V1/BIO mean of bio05, bio06'
+	with pytest.raises(ValueError) as error:
+		variables.check_dates(img, 'time series')
+	assert str(error.value).startswith('WORLDCLIM/V1/BIO (the mean of the bands bio05 and bio06) is given as a fixed '
+	                                   'image, without dates')
+	twelve = services.make_spec(image='users/someone/rain', band=[f'm{i:02d}' for i in range(1, 13)],
+	                            band_reducer='sum', unit='mm')
+	assert variables.band_text(twelve) == 'sum of ' + ', '.join(f'm{i:02d}' for i in range(1, 13))
+	assert variables.band_stem(twelve) == 'sum12_m01-m12' and twelve['name'] == 'rain_sum12_m01-m12'
+	assert variables.band_words({'band': ['a', 'b', 'c'], 'band_reducer': 'mean'}) == 'the mean of the bands a, b and c'
+	for kw, message in (
+			(dict(band=['aet', 'def']), "IDAHO_EPSCOR/TERRACLIMATE: give band_reducer, 'sum' or 'mean', to combine its "
+			                            '2 bands (aet, def) into one value on each pixel'),
+			(dict(band='pr', band_reducer='sum'), 'band_reducer combines several bands: give two or more in band (a '
+			                                      'list, or a text with commas)'),
+			(dict(band=['aet', 'def'], band_reducer='median'), 'unknown band_reducer median: use sum, mean'),
+			(dict(band='aet, def, aet', band_reducer='sum'), 'band aet is given twice: give each band once'),
+			(dict(band=' , '), 'give the band of IDAHO_EPSCOR/TERRACLIMATE (one, or several with band_reducer')):
+		with pytest.raises(ValueError, match=re.escape(message)):
+			services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', **kw, **period)
+	with pytest.raises(ValueError, match=re.escape(variables.TERRAIN_BANDS)):  # also without band_reducer
+		services.make_spec(image='COPERNICUS/DEM/GLO30', band='DEM,DEM2', terrain='slope')
+	with pytest.raises(ValueError, match=re.escape('band_reducer: only for the data of Earth Engine given by their ID')):
+		services.make_spec('NDVI', 'Modis', band_reducer='sum', **period)
+
+
+def test_several_bands_in_a_recipe():
+	"""A recipe combines bands per variable (band_reducer is not a key of the recipe), never next to a variable of the
+	catalog; the record of a file of one band does not change, so that running an old recipe again does not download
+	it again."""
+	from monitoreo import recipe
+	period = {'period': ['2018-01-01', '2021-12-31']}
+	spec, = variables.specs({'image': 'WORLDCLIM/V1/BIO', 'band': ['bio05', 'bio06'], 'band_reducer': 'mean',
+	                         'scale': 0.1, 'unit': 'degC'}, period)
+	assert spec['name'] == 'BIO_mean_bio05_bio06' and spec['band_reducer'] == 'mean'
+	assert recipe.spec_key(spec)['band'] == ['bio05', 'bio06']
+	one = [recipe.spec_key(variables.specs({'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': band, 'metric': 'sum'},
+	                                       period)[0]) for band in ('pr', ['pr'], 'pr,')]
+	assert one[0] == one[1] == one[2] and one[0]['band'] == 'pr' and 'band_reducer' not in one[0]
+	assert one[0]['name'] == 'TERRACLIMATE_pr_sum'
+	with pytest.raises(ValueError, match='band_reducer: only for the data of Earth Engine given by their ID'):
+		variables.specs({'index': 'NDVI', 'sensor': 'Modis', 'metric': 'mean', 'band_reducer': 'sum'}, period)
+	with pytest.raises(ValueError, match='unknown keys in the recipe: band_reducer'):
+		recipe.read({'study': {'resolution': 30}, 'band_reducer': 'sum', 'variables': [{'index': 'NDVI',
+		                                                                                 'sensor': 'Modis'}]})
+
+
 def test_units_given_in_other_words():
 	"""The unit of the data of Earth Engine by their ID as the user may write it: '' or blank is none (also in a
 	recipe); 'unitless', 'dimensionless', 'fraction' and 'index' in any case are 1; the words of the STAC records (and
@@ -366,6 +438,7 @@ def test_the_help_of_the_functions_says_the_data_by_id():
 		assert doc.count(services.SOURCE_DOC.split()[0]) and all(w in doc for w in (
 			'COLLECTION', 'IMAGE', 'BAND_SCALE', 'BAND_OFFSET', 'UNIT', 'TERRAIN', 'describe_asset')), name
 		assert "in degrees: its unit is then degree" in ' '.join(doc.split()), name
+		assert "BAND (one, or several with BAND_REDUCER 'sum' or 'mean'" in ' '.join(doc.split()), name
 	assert 'TERRAIN' not in inspect.getdoc(services.same_area)  # its source is not **source
 
 
@@ -412,10 +485,12 @@ def test_describe_asset(monkeypatch):
 	                         'band_scale': 0.1, 'resolution_m': 4638.3, 'data_type': 'int'}
 	assert d['arguments'] == {'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'pr', 'unit': 'mm'}
 	assert [r['id'] for r in d['references']] == ['abatzoglou2018']
+	assert any("band_reducer 'sum'" in n for n in d['notes'])  # several bands: how to combine them
 	meta = {'asset': FABDEM, 'type': 'image_collection', 'first_date': None,
 	        'bands': [{'band': 'b1', 'data_type': 'float', 'resolution_m': 30.9}]}
 	d = services.describe_asset(FABDEM)  # a collection of tiles without dates, in the community catalog
 	assert d['use'] == 'image' and d['arguments'] == {'image': FABDEM, 'band': 'b1'} and d['theme']
+	assert not any('band_reducer' in n for n in d['notes'])  # one band
 	assert d['source'] == 'GEE Community Catalog' and any('units' in n for n in d['notes'])
 	# of the Earth Engine data catalog, but its STAC record could not be read: its page, not 'Earth Engine asset'
 	meta = dict(meta, asset='NASA/GLDAS/V021/NOAH/G025/T3H', first_date='2000-01-01')
@@ -466,6 +541,24 @@ def test_results_of_other_data():
 	assert dict(report.item_facts('download_variables', recipe))['Variables'] == \
 		'IDAHO_EPSCOR/TERRACLIMATE pr: sum; WORLDCLIM/V1/BIO bio01 (fixed image); COPERNICUS/DEM/GLO30_2024_1 DEM ' \
 		'slope (fixed image)'
+	# several bands combined on each pixel: the reducer and the bands, wherever the result is named
+	several = dict(args, band=['aet', 'def'], band_reducer='sum', band_scale=0.1, unit='mm')
+	assert report.item_title('map_layer', several).startswith('Map of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, 2020')
+	assert publish.default_title('time_series', several).startswith(
+		'Monthly time series of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def')
+	assert dict(report.item_facts('time_series', several))['Data'] == (
+		'Earth Engine image collection IDAHO_EPSCOR/TERRACLIMATE, the sum of the bands aet and def on each pixel; '
+		'values × 0.1 + 0 (each band, before the sum); unit mm')
+	assert dict(report.item_facts('map_layer', dict(several, band_scale=None)))['Data'] == (
+		'Earth Engine image collection IDAHO_EPSCOR/TERRACLIMATE, the sum of the bands aet and def on each pixel; '
+		'unit mm')
+	assert services._source_name(None, several) == 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def'
+	assert services._what(None, None, dict(several, band='aet, def')) == 'TERRACLIMATE_sum_aet_def'
+	recipe = {'recipe': {'variables': [{'image': 'WORLDCLIM/V1/BIO', 'band': ['bio05', 'bio06'], 'band_reducer': 'mean'}]}}
+	assert dict(report.item_facts('download_variables', recipe))['Variables'] == \
+		'WORLDCLIM/V1/BIO mean of bio05, bio06 (fixed image)'
+	call = publish.python_call('time_series', several)  # how to reproduce it in Python (the README)
+	assert 'band=["aet", "def"]' in call and 'band_reducer="sum"' in call, call
 
 
 def test_file_names_of_other_data():
@@ -477,6 +570,14 @@ def test_file_names_of_other_data():
 	assert services._source_name(None, {'collection': 'X/Y', 'band': 'b'}) == 'X/Y b'
 	assert services._file_stem(None, None, 'mean', '2020-01-01', '2020-12-31', {
 		'collection': "ee.ImageCollection('IDAHO_EPSCOR/TERRACLIMATE')", 'band': 'pr'}) == stem
+	# several bands: the reducer and the bands (more than 3: how many, the first and the last)
+	assert services._file_stem(None, None, 'mean', '2020-01-01', '2020-12-31', {
+		'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'aet,def', 'band_reducer': 'sum'}) == \
+		'TERRACLIMATE_sum_aet_def_mean_2020-01-01_2020-12-31'
+	months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+	assert services._file_stem(None, None, 'median', None, None, {'image': 'users/someone/rain', 'band': months,
+	                                                               'band_reducer': 'sum'}) == 'rain_sum12_jan-dec'
+	assert services._source_name(None, {'image': 'X/Y', 'band': ['a', 'b'], 'band_reducer': 'mean'}) == 'X/Y mean of a, b'
 
 
 def test_themes_of_other_data():

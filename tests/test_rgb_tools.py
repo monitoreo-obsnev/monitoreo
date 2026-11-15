@@ -283,7 +283,7 @@ def test_the_tools_of_the_true_colour_in_the_mcp_server(mcp):
 	"""rgb_map and download_rgb take the arguments of map_layer and download_image (the same images and pixels), and
 	the model learns what they are and when to use them."""
 	params = lambda fn: set(inspect.signature(fn).parameters)  # noqa: E731
-	custom = {'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain'}  # data by their ID: no true colour
+	custom = {'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain'}  # data by ID: no colour
 	# its range without the PNG (the assistant); the figure of a map is only that of the variable
 	assert params(mcp.rgb_map) == params(mcp.map_layer) - custom - {'figure'} | {'preview'}
 	assert params(mcp.download_rgb) == params(mcp.download_image) - custom

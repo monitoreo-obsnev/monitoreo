@@ -684,6 +684,10 @@ var MonitorEO = (function () {
 	// variable.DIMENSIONLESS: the names of a unit without dimensions, in any case ('1' in UDUNITS)
 	var DIMENSIONLESS = ['unitless', 'dimensionless', 'fraction', 'index'];
 	var TERRAIN = ['slope', 'aspect'];  // variable.TERRAIN: of the band of an image (ee.Terrain), in degrees
+	// variable.BAND_REDUCERS: how several bands of the data by their ID are combined on each pixel (their sum or mean)
+	var BAND_REDUCERS = ['sum', 'mean'];
+	var TERRAIN_BANDS = 'terrain is the slope or the aspect of one band (an elevation): give one band, without ' +
+		'band_reducer';  // variable.TERRAIN_BANDS
 
 	// assets.normalize: the ID of an asset as the tools take it, without quotes, spaces or a call of the Code Editor
 	// around it (ee.ImageCollection("X") is X) and without the prefix of the public catalog
@@ -726,18 +730,78 @@ var MonitorEO = (function () {
 		return unit === '1' ? '[unitless]' : unit;
 	}
 
+	// variable.bands_of: the bands of BAND, one ('pr'), a list (['aet', 'def']) or a text with commas ('aet, def'), as
+	// a list of names without blanks ([] if none)
+	function bandsOf(band) {
+		if (band === null || band === undefined) return [];
+		var items = Array.isArray(band) ? band : String(band).split(',');
+		return items.map(function (b) { return String(b).trim(); }).filter(function (b) { return b; });
+	}
+
+	// The bands of the entry E (customEntry, or a fixed layer of the catalog: its band)
+	function entryBands(e) {
+		return e.bands || bandsOf(e.band);
+	}
+
+	// variable.band_text: the bands of the entry E in titles: the band ('pr'), or the reducer of several ('sum of aet,
+	// def')
+	function bandText(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return bands.length ? bands[0] : '';
+		return (e.reducer || '?') + ' of ' + bands.join(', ');
+	}
+
+	// variable.band_words: the bands of the entry E in sentences: 'band pr', or 'the sum of the bands aet and def'
+	function bandWords(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return 'band ' + (bands.length ? bands[0] : '?');
+		return 'the ' + (e.reducer || '?') + ' of the bands ' + bands.slice(0, -1).join(', ') + ' and ' +
+			bands[bands.length - 1];
+	}
+
+	// variable.band_stem: the bands of the entry E in file names: the band ('pr'), the reducer and the bands
+	// ('sum_aet_def') or, for more than 3, the reducer, how many and the first and the last ('sum12_jan-dec')
+	function bandStem(e) {
+		var bands = entryBands(e);
+		if (bands.length < 2) return bands.length ? bands[0] : '';
+		var reducer = e.reducer || '';
+		if (bands.length > 3) return reducer + bands.length + '_' + bands[0] + '-' + bands[bands.length - 1];
+		return [reducer].concat(bands).join('_');
+	}
+
 	// variable.specs for the kinds collection and image: the entry of the data of Earth Engine of ID O.asset, computed
 	// like a variable of the catalog. O.use: 'collection' (images with dates, aggregated in time: fromCollection) or
 	// 'image' (a fixed layer without dates: staticImage, the mosaic of the tiles if O.type is 'image_collection'); O.band
-	// (one); O.scale and O.offset of its stored values; O.unit of the values (in UDUNITS); O.terrain ('slope' or
-	// 'aspect' of the band, image only, in degrees); O.m, the pixel size of the band (m, as variable.native_scale: see
-	// assetInfo); O.dated, false for a collection whose images have no dates (see assetInfo). An error with what is
-	// wrong (no band, an image or a collection of tiles given as a collection, a unit not in UDUNITS)
+	// (one, or several: a list or a text with commas, with O.reducer, 'sum' or 'mean', see variable.check_bands); O.scale
+	// and O.offset of its stored values (of each band, before they are combined); O.unit of the values (in UDUNITS);
+	// O.terrain ('slope' or 'aspect' of the band, image of one band only, in degrees); O.m, the pixel size of the band
+	// (of the first band if several: m, as variable.native_scale, see assetInfo); O.dated, false for a collection whose
+	// images have no dates (see assetInfo). An error with what is wrong (no band, several without a reducer, an image
+	// or a collection of tiles given as a collection, a unit not in UDUNITS), in the words of the package. Its band is
+	// that of variable.specs (a text, or the list of several), with bands (the list) and reducer (null for one band)
 	function customEntry(o) {
 		var asset = assetId(o.asset);
 		if (!asset) throw new Error('give the ID of an image or a collection of images of Earth Engine');
-		var band = String(o.band === null || o.band === undefined ? '' : o.band).trim();
-		if (!band) throw new Error('give the band of ' + asset + ' (one)');
+		var bands = bandsOf(o.band);
+		if (!bands.length) throw new Error('give the band of ' + asset + ' (one, or several with band_reducer)');
+		// variable.check_bands, in its order
+		var reducer = String(o.reducer === null || o.reducer === undefined ? '' : o.reducer).trim().toLowerCase();
+		if (reducer && BAND_REDUCERS.indexOf(reducer) < 0) {
+			throw new Error('unknown band_reducer ' + o.reducer + ': use ' + BAND_REDUCERS.join(', '));
+		}
+		bands.forEach(function (b, i) {
+			if (bands.indexOf(b) < i) throw new Error('band ' + b + ' is given twice: give each band once');
+		});
+		if (bands.length > 1 && o.terrain) throw new Error(TERRAIN_BANDS);  // the slope of a sum is not of an elevation
+		if (bands.length > 1 && !reducer) {
+			throw new Error(asset + ": give band_reducer, 'sum' or 'mean', to combine its " + bands.length +
+				' bands (' + bands.join(', ') + ') into one value on each pixel');
+		}
+		if (bands.length === 1 && reducer) {
+			throw new Error('band_reducer combines several bands: give two or more in band (a list, or a text with ' +
+				'commas)');
+		}
+		var several = bands.length > 1;
 		var use = o.use === 'image' ? 'image' : 'collection';
 		// variable.specs, in its order: the terrain, then the unit
 		var terrain = o.terrain ? String(o.terrain) : null;  // only for an image, in degrees
@@ -767,21 +831,31 @@ var MonitorEO = (function () {
 			throw new Error(asset + ' is a collection of images without dates (tiles): give it as an image (their ' +
 				'mosaic, a fixed layer, without dates)');
 		}
-		var m = Number(o.m);
+		var m = Number(o.m);  // of the first band: the pixels of the result
 		if (!(m > 0)) {
-			throw new Error('the pixel size of the band ' + band + ' of ' + asset + ' is unknown: read its ID first');
+			throw new Error('the pixel size of the band ' + bands[0] + ' of ' + asset +
+				' is unknown: read its ID first');
 		}
-		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset, band: band,
+		return {custom: true, static: use === 'image', image_asset: o.type === 'image', col: asset,
+			band: several ? bands : bands[0], bands: bands, reducer: several ? reducer : null,
 			scale: number(o.scale, 1) || 1, offset: number(o.offset, 0),  // variable._fixed: float(scale or 1)
 			unit: unit ? customUnit(unit) : '', terrain: terrain, m: m, type: o.type || null, use: use};
 	}
 
 	// services._title: what names the data of the entry E in the titles: the variable and sensor of the catalog (NDVI
-	// Sentinel-2), or the ID and band of the data of Earth Engine, and its terrain (IDAHO_EPSCOR/TERRACLIMATE pr,
-	// COPERNICUS/DEM/GLO30 DEM slope)
+	// Sentinel-2), or the ID and band (or the reducer of its bands, see bandText) of the data of Earth Engine, and its
+	// terrain (IDAHO_EPSCOR/TERRACLIMATE pr, IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, COPERNICUS/DEM/GLO30 DEM slope)
 	function entryName(e) {
-		return e.custom ? [e.col, e.band, e.terrain].filter(function (x) { return x; }).join(' ') :
+		return e.custom ? [e.col, bandText(e), e.terrain].filter(function (x) { return x; }).join(' ') :
 			e.index + ' ' + e.sensor;
+	}
+
+	// services._what: what names the data of Earth Engine of the entry E in the names of the files: the end of its ID,
+	// its band (or the reducer of its bands, see bandStem) and its terrain (TERRACLIMATE_pr, TERRACLIMATE_sum_aet_def,
+	// GLO30_DEM_slope)
+	function dataStem(e) {
+		return [String(e.col).replace(/\/+$/, '').split('/').pop(), bandStem(e), e.terrain]
+			.filter(function (x) { return x; }).join('_');
 	}
 
 	// assets._not_readable, for the app: it computes with the Cloud project of the app
@@ -867,22 +941,42 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// variable._with_band: the images of COL that have BAND (Sentinel-1 has VV and VH, or HH and HV)
+	// variable._with_band: the images of COL that have BAND, or all the bands of a list of them (Sentinel-1 has VV and
+	// VH, or HH and HV)
 	function withBand(col, band) {
-		return col.filter(ee.Filter.listContains('system:band_names', band));
+		(Array.isArray(band) ? band : [band]).forEach(function (b) {
+			col = col.filter(ee.Filter.listContains('system:band_names', b));
+		});
+		return col;
+	}
+
+	// variable._projection: the projection of IMG, that of the first of its BANDS if several (projection() of an image
+	// whose bands have different projections fails)
+	function projection(img, bands) {
+		return bands.length > 1 ? img.select(bands[0]).projection() : img.projection();
+	}
+
+	// variable._combine: the bands of IMG combined on each pixel with REDUCER ('sum' or 'mean') into one band, only
+	// where every band has data, with the projection PROJ of the first band
+	function combine(img, reducer, proj) {
+		img = img.updateMask(img.mask().reduce(ee.Reducer.min()));
+		return img.reduce(ee.Reducer[reducer]()).setDefaultProjection(proj);
 	}
 
 	// variable._from_collection: single band images ('value', float) of the band of the collection of the entry E
 	// (customEntry) over REGION between START and END (excluded), with the scale and offset of its stored values,
 	// bilinear on output pixels of RES metres finer than those of the data (variable._resample), and the date of each
-	// image. No pixel filters: the data keep their own mask
+	// image; several bands: each with the scale and offset, then combined on each pixel (combine), only the images
+	// with all of them. No pixel filters: the data keep their own mask
 	function fromCollection(e, region, start, end, res) {
 		var scale = number(e.scale, 1) || 1, offset = number(e.offset, 0);
 		var bilinear = Boolean(res) && res < Number(e.m);
+		var bands = entryBands(e);
 		var col = ee.ImageCollection(e.col).filterBounds(region).filterDate(start, end);
 		return withBand(col, e.band).map(function (img) {
 			img = ee.Image(img);
-			var out = img.select(e.band).multiply(scale).add(offset);
+			var out = img.select(e.band).multiply(scale).add(offset);  // each band, before they are combined
+			if (bands.length > 1) out = combine(out, e.reducer, projection(img, bands));
 			if (bilinear) out = out.resample('bilinear');
 			return out.toFloat().rename('value').copyProperties(img, ['system:time_start']);
 		});
@@ -989,28 +1083,33 @@ var MonitorEO = (function () {
 		var e = entryOf(s);
 		what = what || 'time series, trends or comparisons';
 		if (e.custom) {
-			throw new Error(e.col + ' (band ' + e.band + ') is given as a fixed image, without dates (image=): it has ' +
-				'maps, GeoTIFFs and statistics of the region (map_layer, download_image, region_stats), but no ' + what +
-				'. A collection of images with dates is given as collection=');
+			throw new Error(e.col + ' (' + bandWords(e) + ') is given as a fixed image, without dates (image=): it ' +
+				'has maps, GeoTIFFs and statistics of the region (map_layer, download_image, region_stats), but no ' +
+				what + '. A collection of images with dates is given as collection=');
 		}
 		throw new Error(e.index + ' (' + e.sensor + ') is a fixed layer, without dates: it has maps, GeoTIFFs and ' +
 			'statistics of the region, but no ' + what);
 	}
 
 	// variable._fixed for the fixed layers of the catalog and the images of Earth Engine given as image (customEntry):
-	// the image, or the mosaic of the tiles of its collection, its terrain (slope or aspect, in degrees), bilinear on
-	// pixels RES finer than those of the data and, on pixels RES more than twice as big, the mean of its pixels
+	// the image, or the mosaic of the tiles of its collection (several bands: each with the scale and offset, then
+	// combined on each pixel, see combine), its terrain (slope or aspect, in degrees), bilinear on pixels RES finer than
+	// those of the data and, on pixels RES more than twice as big, the mean of its pixels
 	function staticImage(e, res) {
-		var img;
+		var img, proj = null, bands = entryBands(e);
 		if (e.image_asset) {  // an image (WorldClim), not a collection
 			img = ee.Image(e.col).select(e.band);
+			if (bands.length > 1) proj = projection(img, bands);
 		} else {
 			var col = ee.ImageCollection(e.col);
 			if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
 			col = col.select(e.band);
-			img = col.mosaic().setDefaultProjection(col.first().projection());
+			img = col.mosaic();
+			proj = projection(col.first(), bands);
+			img = img.setDefaultProjection(proj);
 		}
 		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
+		if (bands.length > 1) img = combine(img, e.reducer, proj);
 		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
@@ -2688,7 +2787,8 @@ var MonitorEO = (function () {
 		otherThemes: otherThemes,
 		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
 		UNITS: UNITS, UNIT_WORDS: UNIT_WORDS, DIMENSIONLESS: DIMENSIONLESS, udunitsText: udunitsText,
-		customUnit: customUnit, customEntry: customEntry, entryName: entryName,
+		customUnit: customUnit, customEntry: customEntry, entryName: entryName, dataStem: dataStem,
+		BAND_REDUCERS: BAND_REDUCERS, bandsOf: bandsOf, bandText: bandText, bandWords: bandWords, bandStem: bandStem,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
 		staticImage: staticImage, iso: iso, date: date, windows: windows, bins: bins, reducer: reducer,

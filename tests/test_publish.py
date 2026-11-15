@@ -99,6 +99,25 @@ def _spec(**kw):
 	return spec
 
 
+def test_the_sen_lines_of_combined_bands(tmp_path):
+	"""The viewer draws on an annual series the Sen line of a trend of the same data: with several bands of Earth
+	Engine combined, only of the same bands and band_reducer (the mean of two bands is not their sum)."""
+	trend = [{'region': 'r', 'slope': 1.5, 'intercept': 100, 'p_value': 0.01, 'significant': 'True', 'first_year': 2001,
+	          'last_year': 2020}]
+	_csv(tmp_path / 'sum.csv', trend)
+	_csv(tmp_path / 'mean.csv', trend)
+	args = {'region': {'wdpa_id': 1}, 'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': ['aet', 'def'],
+	        'band_reducer': 'sum', 'band_scale': 0.1, 'unit': 'mm', 'metric': 'sum', 'step': 'annual',
+	        'start': '2001-01-01', 'end': '2020-12-31'}
+	results = [{'id': 's', 'chart': 'series', 'call': {'args': args}},
+	           {'id': 't1', 'chart': 'trends', 'csv': 'sum.csv', 'call': {'args': args}},
+	           {'id': 't2', 'chart': 'trends', 'csv': 'mean.csv', 'call': {'args': dict(args, band_reducer='mean')}}]
+	publish._link_trends(results, str(tmp_path))
+	assert [x['trend'] for x in results[0]['sen']] == ['t1'] and 'band_reducer' in publish.SAME_SERIES
+	assert publish.default_title('time_series', args).startswith(
+		'Annual time series of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def')
+
+
 def test_report(outputs):
 	site = outputs / 'site'
 	r = publish.publish(_spec(), site, outputs, log='')
