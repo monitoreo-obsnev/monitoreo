@@ -393,6 +393,34 @@ def test_the_assistant_shows_the_animation(tmp_path, monkeypatch):
 	assert card['image'] == '/files/ndvi.gif'  # the GIF, not its last frame
 	assert [f['name'] for f in card['files']] == ['ndvi.gif']
 	assert card['legend']['min'] == 0.1 and card['legend']['palette'] == ['ff0000', '00ff00']
+	# the page asks for it with the token, as the links to download the files: without it the server refuses it
+	from starlette.testclient import TestClient
+	client = TestClient(assistant.make_app(a, 'tok', 8765), base_url='http://127.0.0.1:8765')
+	assert client.get(card['image']).status_code == 403
+	got = client.get(card['image'] + '?t=tok')
+	assert got.status_code == 200 and got.headers['content-type'] == 'image/gif'
+	with open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8') as f:
+		page = f.read()
+	assert "src: e.image.startsWith('/files/') ? fileUrl(e.image) : e.image" in page
+
+
+def test_the_report_has_the_animation(tmp_path, monkeypatch):
+	"""The HTML report of the assistant: the GIF of the animation, not its last frame (the image of the card of the MCP
+	server); a GIF bigger than report.MAX_GIF, or missing, as that frame."""
+	from monitoreo import report
+	gif = tmp_path / 'ndvi.gif'
+	gif.write_bytes(b'GIF89a\x01\x00\x01\x00\x00\x00\x00;')
+	frame = 'data:image/png;base64,iVBORw0KGgo='
+	item = {'title': 'Animation', 'image': frame, 'tool': 'timelapse', 'args': ARGS,
+	        'result': dict(ANSWER, file=str(gif), gif=str(gif))}
+	text = open(report.write([item], str(tmp_path / 'r.html'), title='t'), encoding='utf-8').read()
+	assert 'src="data:image/gif;base64,' in text and frame not in text
+	monkeypatch.setattr(report, 'MAX_GIF', 4)
+	text = open(report.write([item], str(tmp_path / 'big.html'), title='t'), encoding='utf-8').read()
+	assert frame in text and 'data:image/gif' not in text
+	gif.unlink()
+	text = open(report.write([item], str(tmp_path / 'gone.html'), title='t'), encoding='utf-8').read()
+	assert frame in text and 'data:image/gif' not in text
 
 
 APP = r"""

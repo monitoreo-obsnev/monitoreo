@@ -29,6 +29,7 @@ from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, 
 
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'informes')
 MAX_ROWS = 40  # longer tables go to the annex
+MAX_GIF = 10 * 2 ** 20  # an animation (GIF) up to this size goes into the report; a bigger one, as its last frame
 
 TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 'Map of {var}, {period}{season}',
           'rgb_map': 'True colour of the images of {var}, {period}{season}',
@@ -846,6 +847,9 @@ def _item(item, n, names, annex, refs=()):
 	out += [f'<dt>{_e(k)}</dt><dd>{_e(v)}</dd>' for k, v in facts]
 	out.append('</dl>')
 	image = item.get('image') or (result.get('chart') or result.get('thumbnail') if isinstance(result, dict) else None)
+	gif = result.get('gif') if tool == 'timelapse' and isinstance(result, dict) else None
+	if isinstance(gif, str) and os.path.isfile(gif) and os.path.getsize(gif) <= MAX_GIF:
+		image = gif  # the animation itself, not its last frame (that of the card of the MCP server)
 	if image:
 		src = image if str(image).startswith('data:') else _data_url(image) if os.path.exists(image) else None
 		if src:
