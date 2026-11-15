@@ -32,6 +32,7 @@ interannual over period and season (see composite). Other keys:
 """
 
 import datetime as dt
+import math
 import re
 
 import ee
@@ -179,9 +180,9 @@ def where_specs(spec):
 	"""[(spec of its variable, min, max)] of each condition of SPEC['where']: the variable of the catalog aggregated
 	over the period and season of SPEC (or over the period of the condition, [start, end], if it has one), with the
 	metric, temporal, interannual and quality of the condition (by default the mean, or the only metric of the
-	variable, of the whole period). The fixed layers (elevation, slope, WorldClim) have no period, so they can filter
-	any result; a variable with dates needs a period, of the result or of the condition. The land cover conditions
-	(see landcover_conditions) are not variables: they are left out here."""
+	variable, of the whole period). The fixed layers (elevation, slope, TWI, WorldClim) have no period, so they can
+	filter any result; a variable with dates needs a period, of the result or of the condition. The land cover
+	conditions (see landcover_conditions) are not variables: they are left out here."""
 	out = []
 	for c in _conditions(spec):
 		if landcover.is_landcover(c):
@@ -204,7 +205,8 @@ def where_specs(spec):
 			if not period:
 				raise ValueError(f"the condition on {e['index']} ({e['sensor']}) needs a period: this result has none "
 				                 '(a fixed layer without dates), so give the condition its own, "period": [start, end], '
-				                 'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)')
+				                 'or filter by other fixed layers '
+				                 '(ELEVATION, SLOPE, TWI, the BIO variables of WorldClim)')
 			if not isinstance(period, (list, tuple)) or len(period) != 2:
 				raise ValueError(f'the period of the condition on {e["index"]} is [start, end]')
 			var.update(period=[str(d) for d in period], metric=c.get('metric') or e.get('metric') or 'mean')
@@ -316,12 +318,13 @@ def check_dates(spec, what='time series, trends or comparisons'):
 
 def _static_spec(spec):
 	"""The spec of kind 'image' of the fixed layer of the catalog SPEC (its collection, band, terrain, scale and
-	offset)."""
+	offset, and its formula: see sensors.parse_formula; the TWI, from two bands)."""
 	e = entry_of(spec)
-	if e.get('image_asset'):  # known to be an image (WorldClim): no need to ask Earth Engine
+	if e.get('image_asset'):  # known to be an image (WorldClim, MERIT Hydro): no need to ask Earth Engine
 		_types[e['col']] = 'IMAGE'
 	return dict(spec, image=e['col'], band=e['band'], terrain=e.get('terrain'), scale=e.get('scale'),
-	            offset=e.get('offset'))  # e.g. the temperatures of WorldClim are in tenths of a degree
+	            offset=e.get('offset'),  # e.g. the temperatures of WorldClim are in tenths of a degree
+	            formula=sensors.parse_formula(e))
 
 
 def _span(spec):
@@ -384,18 +387,37 @@ def _resample(spec, res, native):
 	return None if method == 'nearest' else method
 
 
+def _twi(image_id, elv_band, area_band):
+	"""The topographic wetness index (TWI) of the image IMAGE_ID (MERIT Hydro, see sensors.TWI): ln(a / tan β), with a
+	the upstream drainage area of AREA_BAND (km²) per metre of contour (at least the area of the pixel, divided by the
+	square root of its area: in m) and β the slope of the elevation ELV_BAND (ee.Terrain.slope, in degrees), tan β at
+	least sensors.TWI['min_tan_slope'] (the flats). On the grid of the elevation, so that the bilinear interpolation
+	and the mean of the bigger pixels (_fixed) are those of the TWI, not of the upstream area. The same calls of Earth
+	Engine, in the same order, as twiImage of gee/core.js (tests/test_themes.py compares them)."""
+	src = ee.Image(image_id)
+	elv = src.select(elv_band)
+	px = ee.Image.pixelArea()
+	a = src.select(area_band).multiply(sensors.TWI['area_scale']).max(px).divide(px.sqrt())
+	tan = ee.Terrain.slope(elv).multiply(math.pi / 180).tan().max(sensors.TWI['min_tan_slope'])
+	return a.divide(tan).log().setDefaultProjection(elv.projection())
+
+
 def _fixed(spec, res):
-	"""Image of a spec of kind 'image'."""
-	if _is_image(spec['image']):
-		img = ee.Image(spec['image']).select(spec['band'])
+	"""Image of a spec of kind 'image' (also those of the fixed layers of the catalog, see _static_spec)."""
+	formula, bands = spec.get('formula') or ('static', [spec.get('band')])
+	if formula == 'twi':  # the topographic wetness index, from two bands: no scale, offset or terrain
+		img = _twi(spec['image'], *bands)
 	else:
-		col = ee.ImageCollection(spec['image'])
-		if kind(spec) != 'catalog':  # data by its ID: only the tiles with the band (those of the catalog all have it)
-			col = _with_band(col, spec['band'])
-		col = col.select(spec['band'])
-		img = col.mosaic().setDefaultProjection(col.first().projection())
+		if _is_image(spec['image']):
+			img = ee.Image(spec['image']).select(spec['band'])
+		else:
+			col = ee.ImageCollection(spec['image'])
+			if kind(spec) != 'catalog':  # data by its ID: only the tiles with the band (the catalog's all have it)
+				col = _with_band(col, spec['band'])
+			col = col.select(spec['band'])
+			img = col.mosaic().setDefaultProjection(col.first().projection())
+		img = img.multiply(float(spec.get('scale') or 1)).add(float(spec.get('offset') or 0))
 	native = native_scale(spec)
-	img = img.multiply(float(spec.get('scale') or 1)).add(float(spec.get('offset') or 0))
 	method = _resample(spec, res, native)
 	if method:
 		img = img.resample(method)

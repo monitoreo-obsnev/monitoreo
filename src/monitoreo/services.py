@@ -532,12 +532,13 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
 	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb),
-	optionally of one SENSOR, of one THEME (its key or its
-	name) or with TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
+	optionally of one SENSOR (compared as catalog.find does: 'merit hydro' and 'MERITHydro' are 'MERIT Hydro'), of one
+	THEME (its key or its name) or with TEXT in their variable or their name (in English or in Spanish, whatever LANG
+	is)."""
 	out = []
 	wanted = _theme(theme) if theme else None
 	for e in catalog.variables():
-		if sensor and e['sensor'].lower() != str(sensor).lower():
+		if sensor and catalog.name_key(e['sensor']) != catalog.name_key(sensor):
 			continue
 		if wanted and e.get('theme') != wanted['key']:
 			continue
@@ -552,7 +553,7 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 		if sensors.fixed_filters(e) is not None:
 			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 		if e.get('static'):
-			row['static'] = True  # elevation, slope: without dates, only maps and their statistics
+			row['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
 		if sensors.rgb_of(e):
 			row['rgb'] = True  # its images have a true colour (rgb_map, download_rgb)
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
@@ -616,7 +617,7 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	if sensors.fixed_filters(e) is not None:
 		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 	if e.get('static'):
-		out['static'] = True  # elevation, slope: without dates, only maps and their statistics
+		out['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
 	out['rgb'] = sensors.rgb_of(e) is not None  # its images have a true colour (rgb_map, download_rgb)
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
@@ -1253,8 +1254,8 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
                  chart=None, **source):
 	"""Statistics over each feature of REGION of the map of a variable aggregated in time: STATS, any of mean,
 	median, min, max, std (standard deviation), cv (coefficient of variation, in %: 100 × std / mean) and pN
-	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, WorldClim); by
-	default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
+	(percentile N, e.g. p5, p50, p95), for any variable, also the fixed layers (elevation, slope, topographic wetness
+	index, WorldClim); by default REGION_STATS, and with ZONES REGION_STATS_ZONES (also p25 and p75).
 	With ZONES, those of each zone of each feature instead: the classes of another variable cut at some values, e.g.
 	the elevation bands {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500, 2000, 2500]} (also
 	'metric', 'temporal', 'interannual' and 'period' of a variable with dates, by default aggregated over the period of

@@ -152,7 +152,8 @@ HELP = {
 		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
-		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope). '
+		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim) and <b>Terrain</b> (elevation, slope, '
+		'topographic wetness index). '
 		'<b>All the variables</b> lists every one.</p>'
 		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
 		'<b>Burn severity of a fire</b>, in <b>Fire</b>.</p>'
@@ -231,8 +232,9 @@ HELP = {
 		+ manual('Concepts#earth-engine-data-by-its-id'),
 	'where':
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
-		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, and <b>SLOPE · '
-		'Copernicus</b> with max 20, those with slopes under 20°. Give a min, a max or both, in the unit shown.</p>'
+		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, <b>SLOPE · '
+		'Copernicus</b> with max 20, those with slopes under 20°, and <b>TWI · MERIT Hydro</b> with min 10, the wet '
+		'valley bottoms. Give a min, a max or both, in the unit shown.</p>'
 		'<p>A variable with dates (NDVI, PRECIP...) is its mean over the <b>Period</b> above, the same pixels for '
 		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
 		'and exports keep only those pixels, and their README says which.</p>'
@@ -368,8 +370,9 @@ HELP = {
 		+ manual('Concepts#area-by-class'),
 	'zones':
 		'<p><b>Statistics of each band</b>: the percentiles 25, 50 and 75 and the mean of the map of the variable (with '
-		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, or of a variable of '
-		'WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: below 1500 m, 1500 to 2000 m, ... '
+		'the options of the group <b>Map</b>) in each band of the elevation (or of the slope, of the topographic '
+		'wetness index, or of a variable of WorldClim) cut at the values written, e.g. <code>1500, 2000, 2500</code>: '
+		'below 1500 m, 1500 to 2000 m, ... '
 		'They show how the variable changes with the altitude, e.g. the snow or the greenness from the valley to the '
 		'summits.</p>' + manual('Concepts#gradients-elevation-bands-and-profiles'),
 	'transect':

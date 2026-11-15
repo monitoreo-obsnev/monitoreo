@@ -110,9 +110,10 @@ cited <- function(df, res) {
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
 #'   take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 #'   \code{image}, with \code{band} (see \code{mo_asset()}).
-#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or \code{"Copernicus"} (the elevation and the
-#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30); \code{NULL} with \code{collection}
-#'   or \code{image} instead of \code{variable}.
+#' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation and the
+#'   slope, \code{"ELEVATION"} and \code{"SLOPE"}, of the Copernicus DEM GLO-30) or \code{"MERIT Hydro"} (the
+#'   topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_variables()}); \code{NULL} with
+#'   \code{collection} or \code{image} instead of \code{variable}.
 #' @param collection with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
 #'   e.g. \code{"MODIS/061/MYD13Q1"} (Aqua) instead of \code{"MODIS/061/MOD13Q1"} (Terra). In the functions that take
 #'   \code{image}, without \code{variable}: the ID of any collection of images of Earth Engine with dates (of the Earth
@@ -135,7 +136,8 @@ cited <- function(df, res) {
 #'   values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"}; not that of the
 #'   band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
-#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, and the data given as \code{image}),
+#'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
+#'   \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
 #'   which only have maps and their statistics.
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
@@ -153,8 +155,8 @@ cited <- function(df, res) {
 #' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 #'   each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 #'   result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
-#'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, the \code{"BIO"} variables of
-#'   WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
+#'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"}, the \code{"BIO"}
+#'   variables of WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 #'   \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 #'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
 #'   land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
@@ -356,8 +358,9 @@ other_theme <- function(theme) {
 
 #' Variables of the catalog of MonitorEO
 #'
-#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"} or
-#'   \code{"Copernicus"}.
+#' @param sensor optional: only those of \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"},
+#'   \code{"Copernicus"}, \code{"MERIT Hydro"} or one of the climate (e.g. \code{"WorldClim"}); case and spaces do
+#'   not matter.
 #' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
 #' @param theme optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
@@ -1014,7 +1017,8 @@ plot_profile <- function(ts, title, ylabel, starts, gg) {
 #'
 #' The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and
 #' its colour ramp. The fixed layers without dates (variables \code{"ELEVATION"} and \code{"SLOPE"} of sensor
-#' \code{"Copernicus"}, and the data given as \code{image}) need no \code{start} and \code{end}. Instead of a variable
+#' \code{"Copernicus"}, \code{"TWI"} of sensor \code{"MERIT Hydro"}, and the data given as \code{image}) need no
+#' \code{start} and \code{end}. Instead of a variable
 #' of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
 #' \code{mo_asset()}).
 #' @inheritParams mo_params

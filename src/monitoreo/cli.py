@@ -359,8 +359,8 @@ def main(argv=None):
 	_source_options(p, image=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
-	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
-	                               'nor for --image)')
+	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
+	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
@@ -380,8 +380,8 @@ def main(argv=None):
 	_source_options(p, image=True)
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
 	p.add_argument('--where', help=WHERE_HELP)
-	p.add_argument('--start', help='first day (not for the fixed layers, ELEVATION and SLOPE of sensor Copernicus, '
-	                               'nor for --image)')
+	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
+	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))

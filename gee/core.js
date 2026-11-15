@@ -297,6 +297,10 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// sensors.TWI: the topographic wetness index (TWI) of MERIT Hydro, ln(a / tan β): the upstream area of MERIT Hydro
+	// is in km² (area_scale: m² in a km²), and tan β is at least min_tan_slope on the flats (see twiImage)
+	var TWI = {area_scale: 1e6, min_tan_slope: 0.001};
+
 	// catalog.THEMES: the themes of the menu, each with its variables (indices) and its own analyses
 	function themes() {
 		return CATALOG.themes || [];
@@ -361,8 +365,8 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.fixed_filters: pixel filters always on for ENTRY, whatever the quality, or null if they can be chosen;
-	// none for the fixed layers without dates (elevation, slope), for the cloud frequency and for the data of Earth
-	// Engine outside the catalog (they keep their own mask: see variable.py)
+	// none for the fixed layers without dates (elevation, slope, topographic wetness index, WorldClim), for the cloud
+	// frequency and for the data of Earth Engine outside the catalog (they keep their own mask: see variable.py)
 	function fixedFilters(entry) {
 		if (entry.static || entry.custom || isCf(entry)) return [];
 		return isScf(entry) ? FILTERS.filter(function (f) { return SCF_FILTERS.indexOf(f) >= 0; }) : null;
@@ -997,20 +1001,40 @@ var MonitorEO = (function () {
 			'statistics of the region, but no ' + what);
 	}
 
+	// variable._twi: the topographic wetness index (TWI) of the entry E (MERIT Hydro, formula TWI(elv,upa), whose bands
+	// are e.fb), ln(a / tan β): a, the upstream drainage area (km²) per metre of contour (at least the area of the
+	// pixel, divided by the square root of its area: in m); β, the slope of the elevation (ee.Terrain.slope, in
+	// degrees), tan β at least TWI.min_tan_slope (the flats). On the grid of the elevation, so that the bilinear
+	// interpolation and the mean of the bigger pixels (staticImage) are those of the TWI, not of the upstream area. The
+	// same calls of Earth Engine, in the same order, as the package (tests/test_themes.py compares them)
+	function twiImage(e) {
+		var src = ee.Image(e.col);
+		var elv = src.select(e.fb[0]);
+		var px = ee.Image.pixelArea();
+		var a = src.select(e.fb[1]).multiply(TWI.area_scale).max(px).divide(px.sqrt());
+		var tan = ee.Terrain.slope(elv).multiply(Math.PI / 180).tan().max(TWI.min_tan_slope);
+		return a.divide(tan).log().setDefaultProjection(elv.projection());
+	}
+
 	// variable._fixed for the fixed layers of the catalog and the images of Earth Engine given as image (customEntry):
 	// the image, or the mosaic of the tiles of its collection, its terrain (slope or aspect, in degrees), bilinear on
-	// pixels RES finer than those of the data and, on pixels RES more than twice as big, the mean of its pixels
+	// pixels RES finer than those of the data and, on pixels RES more than twice as big, the mean of its pixels; the
+	// topographic wetness index (formula kind 'twi') from two bands of its image instead (twiImage)
 	function staticImage(e, res) {
 		var img;
-		if (e.image_asset) {  // an image (WorldClim), not a collection
-			img = ee.Image(e.col).select(e.band);
+		if (e.fk === 'twi') {  // the topographic wetness index, from two bands: no scale, offset or terrain
+			img = twiImage(e);
 		} else {
-			var col = ee.ImageCollection(e.col);
-			if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
-			col = col.select(e.band);
-			img = col.mosaic().setDefaultProjection(col.first().projection());
+			if (e.image_asset) {  // an image (WorldClim), not a collection
+				img = ee.Image(e.col).select(e.band);
+			} else {
+				var col = ee.ImageCollection(e.col);
+				if (e.custom) col = withBand(col, e.band);  // data by its ID: only the tiles with the band
+				col = col.select(e.band);
+				img = col.mosaic().setDefaultProjection(col.first().projection());
+			}
+			img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
 		}
-		img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
 		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
@@ -1146,7 +1170,7 @@ var MonitorEO = (function () {
 				var period = c.period || s.period;
 				if (!period) {
 					throw new Error('the condition on ' + e.index + ' (' + e.sensor + ') needs a period: give it its own, ' +
-						'or filter by other fixed layers (ELEVATION, SLOPE, the BIO variables of WorldClim)');
+						'or filter by other fixed layers (ELEVATION, SLOPE, TWI, the BIO variables of WorldClim)');
 				}
 				cs.period = period.slice();
 				cs.metric = c.metric || e.metric || 'mean';
@@ -2691,7 +2715,8 @@ var MonitorEO = (function () {
 		customUnit: customUnit, customEntry: customEntry, entryName: entryName,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
-		staticImage: staticImage, iso: iso, date: date, windows: windows, bins: bins, reducer: reducer,
+		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, windows: windows, bins: bins,
+		reducer: reducer,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,

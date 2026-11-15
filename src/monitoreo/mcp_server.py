@@ -48,8 +48,8 @@ result has references and credits: the references (with DOI) of the formula or a
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
 (Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions, FAO GAUL, Global Islands), of
 Google Earth Engine and of MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus
-Sentinel, USGS Landsat, Copernicus DEM, FAO GAUL). When the results go into a report, a paper or a map, end it with
-those references (all of them, as they are) and credits, and cite them in the text where each one is used.
+Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL). When the results go into a report, a paper or a map,
+end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
@@ -58,7 +58,11 @@ snow cover frequency (SCF, Landsat) is the % of the clear observations of each p
 "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality). The elevation and the slope
 (variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
-series, trends or comparisons.
+series, trends or comparisons. The topographic wetness index (variable TWI, sensor "MERIT Hydro": ln(a / tan β) of
+MERIT Hydro, 90 m, unitless; high in the valley bottoms and flats where the water converges, low on the ridges and
+steep slopes; most land between 5 and 15, rivers and lakes the highest) is a fixed layer too, like the elevation; it
+also works in where (e.g. only the wet bottoms: {"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}) and in the
+zones of region_stats.
 The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
 with clouds: always with metric "mean" and no pixel filters (pass no quality). Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
@@ -398,10 +402,10 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 @tool
 def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
                    theme: Optional[str] = None) -> str:
-	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, ERA5-Land,
-	TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit; rgb (true) when its images have a
-	true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire, energy, atmosphere,
-	climate, terrain) or by text in the name (English or Spanish). lang: en or es."""
+	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, MERIT Hydro,
+	ERA5-Land, TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit; rgb (true) when its
+	images have a true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire,
+	energy, atmosphere, climate, terrain) or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang, theme=theme))
 
 

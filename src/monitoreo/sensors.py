@@ -117,6 +117,15 @@ SCF_TOA = {  # TOA collection of each Landsat collection, with its green and SWI
 }
 SCF_FILTERS = {'clouds', 'water'}  # fixed: the SCF is the % of the clear observations (see fixed_filters)
 CF_CLOUD_SCORE = 0.6  # cloud frequency of Sentinel-2: a pixel is cloud when its Cloud Score+ (cs_cdf) is below it
+# The topographic wetness index (TWI, Beven & Kirkby 1979) of MERIT Hydro, formula TWI(elv,upa) of the catalog:
+# ln(a / tan β), with a the upstream drainage area per metre of contour, in m (the band upa, in km², times area_scale,
+# at least the area of the pixel, divided by the square root of the area of the pixel: Marthews et al. 2015) and tan β
+# that of the slope of the band elv (ee.Terrain.slope), at least min_tan_slope (Marthews et al. 2015), computed on the
+# grid of the data (see variable._twi, and twiImage of gee/core.js)
+TWI = {
+	'area_scale': 1e6,       # m² in a km²: the upstream area of MERIT Hydro (upa) is in km²
+	'min_tan_slope': 0.001,  # the smallest tan β, so that the flats (slope 0) do not divide by 0
+}
 
 
 def is_scf(entry):
@@ -127,6 +136,11 @@ def is_scf(entry):
 def is_cf(entry):
 	"""Whether ENTRY is the cloud frequency (formula CF(band of the cloud flags))."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('CF(')
+
+
+def is_twi(entry):
+	"""Whether ENTRY is the topographic wetness index (formula TWI(elevation band,upstream area band), see TWI)."""
+	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('TWI(')
 
 
 def rgb_of(entry):
@@ -157,7 +171,8 @@ def _no_rgb(entry):
 def fixed_filters(entry):
 	"""Pixel filters always on for ENTRY, whatever the quality, or None if they can be chosen: those of the snow cover
 	frequency, clouds and water (never snow, what it measures, nor aerosols); none for the fixed layers without dates
-	(elevation and slope) and for the cloud frequency (clouds are what it measures)."""
+	(elevation, slope, topographic wetness index, WorldClim) and for the cloud frequency (clouds are what it
+	measures)."""
 	if entry.get('static') or is_cf(entry):
 		return []
 	return [f for f in FILTERS if f in SCF_FILTERS] if is_scf(entry) else None
@@ -284,9 +299,13 @@ def band_names(entry):
 
 def parse_formula(entry):
 	"""(kind, bands) of the formula of ENTRY: ('nd', [b1, b2]) for N(b1,b2), ('scf', [green, nir, swir1]) for
-	SCF(green,nir,swir1), ('static', [band]) for the fixed layers (elevation and slope: an image, see
-	variable.is_static), else ('expr', {name: band}) with the band of every name of the expression (matched without
-	case)."""
+	SCF(green,nir,swir1), ('twi', [elevation, upstream area]) for TWI(elv,upa) (the topographic wetness index of
+	MERIT Hydro, a fixed layer computed from two bands of its image: see TWI), ('static', [band]) for the other fixed
+	layers (elevation, slope, WorldClim: a band of an image, see variable.is_static), else ('expr', {name: band}) with
+	the band of every name of the expression (matched without case)."""
+	if is_twi(entry):  # the bands of an image, as written in the formula: no need to ask Earth Engine
+		ft = entry['ft'].strip()
+		return 'twi', [b.strip() for b in ft[ft.index('(') + 1:-1].split(',')]
 	if entry.get('static'):
 		return 'static', [entry['band']]
 	if is_cf(entry):  # the band of the cloud flags (cs_cdf of Sentinel-2 comes from Cloud Score+, not from the images)

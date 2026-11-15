@@ -16,6 +16,14 @@ test_that("catalog and regions", {
   expect_true(mo_describe("SLOPE", "Copernicus")$static)  # elevation and slope: fixed layers, without dates
   expect_error(mo_time_series(mo_bbox(-3.4, 37.0, -3.3, 37.1), "ELEVATION", "Copernicus", "2020-01-01", "2020-12-31"),
                "fixed layer, without dates")
+  # the topographic wetness index of MERIT Hydro: a fixed layer too, of the theme Terrain
+  twi <- mo_describe("TWI", "MERIT Hydro")
+  expect_true(twi$static)
+  expect_equal(twi$unit, "[unitless]")
+  expect_equal(mo_variables(sensor = "merit hydro")$variable, "TWI")  # case and spaces do not matter
+  expect_true("TWI" %in% mo_variables(theme = "terrain")$variable)
+  expect_error(mo_time_series(mo_bbox(-3.4, 37.0, -3.3, 37.1), "TWI", "MERIT Hydro", "2020-01-01", "2020-12-31"),
+               "fixed layer, without dates")
   expect_error(mo_map_layer(mo_bbox(-3.4, 37.0, -3.3, 37.1), "SCF", "Landsat", "2020-10-01", "2021-05-31"),
                "only takes the metric 'mean'")
   # true colour: the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS, refused before Earth Engine
