@@ -94,6 +94,9 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
+- **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.
+- **QGIS plugin, Earth Engine app** (fix): In the profile by day of the year with a variable on the right axis, that variable is no longer computed without what it measures, nor with the filters greyed out or unchecked only for the variable of the left axis: with the NDSI and the NDVI, the NDSI keeps its snow and the NDVI is computed without it, on either axis; also after the snow or cloud cover frequency or data by their ID.
+- **Python package, MCP server, Assistant, QGIS plugin, R package** (fix): The README and the report of a profile with data of Earth Engine by their ID on the left axis give the pixels discarded from the variable of the right axis.
 - **Assistant** (fix): An animation is shown in its card, instead of a broken image, and plays in the HTML report, instead of its last frame (up to 10 MB; a bigger GIF goes into the report as its last frame).
 
 ### [v0.3.40](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.40) · 2026-11-15 · package 0.3.50

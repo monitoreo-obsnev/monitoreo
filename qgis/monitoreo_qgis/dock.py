@@ -27,7 +27,7 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, Q
 from . import deps
 
 deps.setup_path()
-from monitoreo import assets, catalog, categorical, fire, landcover, services, steps, trends  # noqa: E402
+from monitoreo import assets, catalog, categorical, fire, landcover, sensors, services, steps, trends  # noqa: E402
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
@@ -674,7 +674,8 @@ class MonitorEODock(QDockWidget):
 		row.addStretch()
 		f.addRow('Season', info(row, HELP['season']))
 		self.filters = {}
-		self.chosen_filters = None  # the filters checked by the user while a variable with fixed filters is chosen
+		self.chosen_filters = None  # the filters checked by the user while the variable chosen sets some (set_filters)
+		self.set_filters = set()  # the filters set and greyed out by the variable: all if fixed, else what it measures
 		row = QHBoxLayout()
 		for key, label in (('clouds', 'clouds'), ('water', 'water'), ('snow', 'snow'), ('aerosols', 'aerosols')):
 			self.filters[key] = QCheckBox(label)
@@ -1607,15 +1608,23 @@ class MonitorEODock(QDockWidget):
 			'page': rec.get('docs'), 'type': rec.get('type')}, read=False))
 		self.read_asset(asset)
 
-	def quality_args(self, own=False):
+	def quality_args(self, own=False, auto=False):
 		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2). OWN: those the
-		user chose, also while a variable with fixed filters is selected (elevation, slope, cloud or snow cover
-		frequency, which grey them out), for the analyses that compute other variables (the burn severity, the NBR)."""
-		chosen = self.chosen_filters if own and self.chosen_filters is not None else \
-			{k: w.isChecked() for k, w in self.filters.items()}
-		quality = dict(chosen)
+		user chose, also while the variable selected greys some out (all of them the fixed filters of the elevation, the
+		slope and the cloud or snow cover frequency; that of what it measures the NDSI, the NDWI...), for the analyses
+		that compute other variables (the burn severity, the NBR). AUTO: 'auto' instead of True, so that each variable
+		computed with them leaves out the filter of what it measures (sensors.filters), as those of a profile on two
+		axes."""
+		quality = self.own_filters() if own else {k: w.isChecked() for k, w in self.filters.items()}
+		if auto:
+			quality = {k: 'auto' if on else False for k, on in quality.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		return quality
+
+	def own_filters(self):
+		"""The pixel filters chosen by the user: those checked in the panel and, of those that the variable chosen sets
+		and greys out (set_filters), those checked before choosing it."""
+		return {k: self.chosen_filters[k] if k in self.set_filters else w.isChecked() for k, w in self.filters.items()}
 
 	def fill_variables(self, choose=None):
 		"""The variables of the theme chosen (all of them with «All the variables»), keeping the one chosen if it is
@@ -1936,11 +1945,11 @@ class MonitorEODock(QDockWidget):
 		profile = self.doy_args(var) if doy else {}
 		if profile is None:
 			return
-		if profile.get('other_variable') and 'quality' in var and \
-				(self.variable.currentData() or {}).get('fixed_filters') is not None:
-			# the variable of the right axis with the filters the user chose (or the defaults), not the greyed out ones of
-			# the SCF or the CF of the left axis, which ignores them (as the burn severity does for its NBR)
-			var = dict(var, quality=self.quality_args(own=True))
+		if profile.get('other_variable'):
+			# each axis with the filters the user chose, not the greyed out ones of the variable of the left axis (all of
+			# them with the SCF, the CF and the data by ID, which ignore them; that of what it measures with the NDSI...),
+			# as 'auto': each variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not the NDVI
+			var = dict(var, quality=self.quality_args(own=True, auto=True))
 		name = data_name(var) + (f" and {profile['other_variable']} ({profile['other_sensor']})"
 		                         if profile.get('other_variable') else '')
 
@@ -2023,7 +2032,9 @@ class MonitorEODock(QDockWidget):
 	def variable_changed(self):
 		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
 		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
-		observations with snow, without clouds and water). The filters chosen before come back with another variable.
+		observations with snow, without clouds and water), and unchecked and greyed out that of what the variable
+		measures (sensors.MEASURES: snow with the NDSI, water with the NDWI, the Chl-a and the NDCI, aerosols with the
+		ARSL). The filters chosen before come back with another variable.
 		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
 		series and the trends greyed out. The data of Earth Engine outside the catalog (custom_entry): no pixel filters
 		and, a fixed image, as those layers. The list Layer of the map, with the true colour only if it has one
@@ -2049,18 +2060,17 @@ class MonitorEODock(QDockWidget):
 		fixed = v.get('fixed_filters')
 		self.cloud_score.setEnabled(fixed is None)
 		self.cloud_score.setToolTip(NO_FILTERS if v.get('custom') else '')
-		if fixed is not None and self.chosen_filters is None:
-			self.chosen_filters = {k: w.isChecked() for k, w in self.filters.items()}
+		measured = set() if fixed is not None else \
+			{f for f in sensors.FILTERS if v.get('variable') in sensors.MEASURES.get(f, ())}
+		own = self.own_filters()
+		self.set_filters = set(self.filters) if fixed is not None else measured
+		self.chosen_filters = own if self.set_filters else None
 		for k, w in self.filters.items():
-			if fixed is not None:
-				w.setChecked(k in fixed)
-			elif self.chosen_filters is not None:
-				w.setChecked(self.chosen_filters[k])
-			w.setEnabled(fixed is None)
-			w.setToolTip('' if fixed is None else NO_FILTERS if v.get('custom') else
-			             f"Fixed filters of {v['variable']}: they cannot be changed")
-		if fixed is None:
-			self.chosen_filters = None
+			w.setChecked(k in fixed if fixed is not None else k not in measured and own[k])
+			w.setEnabled(k not in self.set_filters)
+			w.setToolTip('' if k not in self.set_filters else NO_FILTERS if v.get('custom') else
+			             f"Fixed filters of {v['variable']}: they cannot be changed" if fixed is not None else
+			             f"Off with {v['variable']}: removing the pixels with {k} would remove what it measures")
 		self.update_map_kind()
 
 	def update_map_kind(self):

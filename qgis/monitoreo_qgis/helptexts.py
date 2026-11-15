@@ -287,8 +287,9 @@ HELP = {
 		'<p>Removes from each image, before computing, the pixels that its quality bands mark with clouds (and their '
 		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '
 		'Landsat 8 and 9 and in the NDVI, EVI and LAI of MODIS.</p>'
-		'<p>Uncheck the filter of what the variable measures: <b>snow</b> with the NDSI and <b>water</b> with the '
-		'NDWI, the Chl-a and the NDCI.</p>',
+		'<p>The filter of what the variable measures is unchecked and greyed out: <b>snow</b> with the NDSI, '
+		'<b>water</b> with the NDWI, the Chl-a and the NDCI, and <b>aerosols</b> with the ARSL. The filters you had '
+		'come back with another variable.</p>',
 	'cloud_score':
 		'<p>Only for Sentinel-2, and with the check box <b>clouds</b> checked. Checked, clouds are removed with '
 		'Google\'s Cloud Score+: a pixel is clear if its score is at least 0.6. Unchecked, with the scene '
@@ -337,9 +338,10 @@ HELP = {
 		'variable of the panel on the left axis (blue), e.g. the NDSI and the NDVI of Sentinel-2: when the snow melts '
 		'and the vegetation greens. It is computed as the first one: the same region, period, season, step, metric of '
 		'each step, statistic of the region, pixel filters and pixels (<b>Only the pixels where</b> and the land cover '
-		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean). With '
-		'the SCF or the CF in the panel, whose filters are fixed (greyed out), the variable here takes the filters checked '
-		'before choosing them. When '
+		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean). Each '
+		'variable takes the filters you chose, without that of what it measures: with the NDSI and the NDVI, the NDSI '
+		'keeps its snow and the NDVI is computed without it, on either axis. With the SCF or the CF in the panel, whose '
+		'filters are fixed (greyed out), the filters checked before choosing them. When '
 		'MODIS has two collections (Terra and Aqua), the first one of the catalog, named in the tip of each item. With a '
 		'variable here, <b>Between years</b> is a metric (the Median, if it was A line per year).</p>'
 		'<p>Each y axis goes from the minimum to the maximum of the values of its own variable, so that both lines fill '
@@ -564,18 +566,20 @@ def describe(v):
 
 
 def filter_lines(v, d):
-	"""The filters that can be applied to V (described by D) and those that remove what it measures."""
+	"""The filters that can be applied to V (described by D), without those that remove what it measures, which the
+	panel unchecks and greys out (variable_changed)."""
 	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f)]
 	if d.get('static'):  # elevation, slope: an image, without filters
 		return [f"{v['variable']} of {v['sensor']} has no pixel filters: it is a fixed layer, without dates."]
 	if d.get('fixed_filters') is not None:  # the snow cover frequency: always without clouds and water
 		return [f"{v['variable']} of {v['sensor']} has fixed filters, which cannot be changed: it always removes "
 		        f"{' and '.join(names)}."]
+	measured = [f for f in d['measures'] if d['pixel_filters'].get(f)]
+	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f) and f not in measured]
 	out = [f"With {v['variable']} of {v['sensor']} you can remove: {', '.join(names) or 'no filter'}."]
-	for f in d['measures']:
-		if d['pixel_filters'].get(f):
-			out.append(f"<b>{v['variable']} measures {MEASURED[f]}: uncheck {FILTER_NAMES[f]}</b>, or it will remove "
-			           "it.")
+	for f in measured:
+		out.append(f"<b>{v['variable']} measures {MEASURED[f]}</b>: the filter of {FILTER_NAMES[f]}, which would remove "
+		           "it, is unchecked and greyed out.")
 	return out
 
 
