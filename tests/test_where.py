@@ -131,11 +131,11 @@ def test_every_tool_with_a_region_takes_where():
 
 def test_every_tool_with_a_region_takes_data_by_its_id():
 	"""Every tool with a region but those of the variables of the catalog only (true colour, burn severity) takes, instead
-	of variable and sensor, any data of Earth Engine by its ID (collection or image, band, band_scale, band_offset,
-	unit; terrain where it computes an image), with its explanation for the model (tests/test_assets_tools.py: the
-	calls and the command line)."""
+	of variable and sensor, any data of Earth Engine by its ID (collection or image, band, band_reducer for several
+	bands, band_scale, band_offset, unit; terrain where it computes an image), with its explanation for the model
+	(tests/test_assets_tools.py: the calls and the command line)."""
 	from monitoreo import mcp_server
-	data = {'collection', 'image', 'band', 'band_scale', 'band_offset', 'unit'}
+	data = {'collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit'}
 	for name in TOOLS:
 		fn = getattr(mcp_server, name)
 		params = inspect.signature(fn).parameters

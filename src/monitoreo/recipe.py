@@ -15,6 +15,8 @@ A recipe is a dictionary, or a YAML file, with the grids and the variables:
     variables:
       - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}  # a file per metric
       - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}  # in degrees (unit degree)
+      - {name: bio_temp, image: WORLDCLIM/V1/BIO, band: [bio05, bio06], band_reducer: mean, scale: 0.1,
+         unit: degC}  # several bands combined on each pixel: their sum or their mean (see monitoreo.variable)
 
 The study grid covers the rectangle of the study area grown by buffer metres and 2 pixels; the ecoregion grid, the
 rectangle of the ecoregions, with NoData outside them. Their edges are multiples of the pixel size. The files of
@@ -49,8 +51,8 @@ ECO_FOLDER = 'ecoregion'
 MARGIN_PIXELS = 2
 GRIDS = ('study', 'ecoregion')
 KEYS = {'project', 'crs', 'study', 'ecoregion', 'variables', 'drive_folder', 'drive_dir'} | (variables.KEYS - {
-	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'scale', 'offset', 'unit', 'terrain', 'metric',
-	'metrics'})
+	'name', 'index', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer', 'scale', 'offset', 'unit',
+	'terrain', 'metric', 'metrics'})
 
 
 def _quiet(*args, **kwargs):

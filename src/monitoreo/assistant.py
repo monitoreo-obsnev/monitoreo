@@ -52,7 +52,7 @@ import webbrowser
 import zipfile
 
 from . import __released__, __version__, about, areas, documents, engine, manual, report, services
-from .variable import check_rgb, pin_where
+from .variable import bands_of, check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
@@ -109,7 +109,7 @@ TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status') 
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
 # the arguments of the data of Earth Engine outside the catalog (instead of variable and sensor, see describe_asset),
 # which the calls that copy one (the map of the period of a result, the maps of its steps, its pixels) carry
-SOURCE = ('collection', 'image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain')
+SOURCE = ('collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain')
 ALPHA = 0.05  # the trends whose pixels are kept by «Significant pixels only» (Mann-Kendall p < ALPHA)
 SIGNIFICANT = '|p<0.05'  # added to the key of a map with only those pixels
 RGB = '|rgb'  # added to the key of a map for that of the true colour of its images (rgb_map: the select Layer)
@@ -273,8 +273,11 @@ English, dates and area), and community_themes and community_datasets those of t
 word. First describe_asset with the ID: it says whether it goes as collection (images with dates: \
 maps, series, trends and comparisons) or as image (a fixed layer without dates, like the elevation: maps, their \
 statistics and downloads only, without start and end), its bands with their scale, offset and unit, and the arguments \
-to pass (band, one; band_scale, band_offset, unit in UDUNITS). With terrain, "slope" or "aspect" of the band of an \
-image (e.g. a DEM), the values are in degrees (its unit is then degree: pass no unit, not that of the band). They have \
+to pass (band, one, or several separated by commas, "aet,def", with band_reducer "sum", e.g. the 12 monthly bands \
+of an image into the annual total, or "mean", e.g. the depth bands of a soil image: each band times band_scale plus \
+band_offset, then combined on each pixel; band_scale, band_offset, unit in UDUNITS, that of every band, so of their \
+sum or mean). With terrain, "slope" or "aspect" of the band of an image (e.g. a DEM; one band, not several), the \
+values are in degrees (its unit is then degree: pass no unit, not that of the band). They have \
 no pixel filters (pass no quality) nor true colour; where still takes variables of the catalog. With a variable of \
 the catalog, pass no collection, image or band. How to cite the data: as describe_asset says (the card of each result \
 cites them too).
@@ -501,6 +504,8 @@ def model_tools(tools):
 		props = schema.setdefault('properties', {})
 		for k in HIDDEN:
 			props.pop(k, None)
+		if 'band' in props:  # one band, or several in a text with commas (the services split it): shorter than a list
+			props['band'] = {'type': 'string'}
 		schema['required'] = [k for k in schema.get('required', []) if k in props]
 		description = _description(t.get('description'))
 		if t['name'] in RESULTS:
@@ -512,9 +517,10 @@ def model_tools(tools):
 
 def _compact(schema, names=False):
 	"""A copy of the JSON schema SCHEMA (NAMES: a dict of schemas by name, as its properties) without what tells the
-	model nothing: titles, null defaults, and the null of the optional arguments ({'anyOf': [{'type': 'string'},
-	{'type': 'null'}]} is {'type': 'string'}; required says which can be left out). The arguments of the data of Earth
-	Engine by their ID, optional in every compute tool, made the tools 60 % longer."""
+	model nothing: titles, null defaults, the default additionalProperties (true) and the null of the optional arguments
+	({'anyOf': [{'type': 'string'}, {'type': 'null'}]} is {'type': 'string'}; required says which can be left out).
+	The arguments of the data of Earth Engine by their ID, optional in every compute tool, made the tools 60 %
+	longer."""
 	if isinstance(schema, list):
 		return [_compact(s) for s in schema]
 	if not isinstance(schema, dict):
@@ -522,10 +528,12 @@ def _compact(schema, names=False):
 	if names:  # an argument may be called title
 		return {k: _compact(v) for k, v in schema.items()}
 	out = {k: _compact(v, k in ('properties', '$defs', 'definitions')) for k, v in schema.items()
-	       if k != 'title' and not (k == 'default' and v is None)}
+	       if k != 'title' and not (k == 'default' and v is None) and not (k == 'additionalProperties' and v is True)}
 	alts = [s for s in out.get('anyOf') or [] if s != {'type': 'null'}]
 	if out.get('anyOf') and len(alts) == 1:
 		out = {**{k: v for k, v in out.items() if k != 'anyOf'}, **alts[0]}
+	elif out.get('anyOf'):
+		out['anyOf'] = alts
 	return out
 
 
@@ -608,7 +616,7 @@ def fix_args(name, args, tools):
 	"""The arguments of a call of the model as the tool wants them: without those it does not know or in HIDDEN, with
 	the objects and lists that small models give as JSON text decoded, and with the data of a variable of the catalog
 	(variable and sensor) or those of Earth Engine by their ID (SOURCE), not both: small models fill every argument,
-	and the MCP server refuses them mixed."""
+	and the MCP server refuses them mixed (nor band_reducer with one band)."""
 	if isinstance(args, str):
 		args = json.loads(args or '{}')
 	schema = next((t['function']['parameters'] for t in tools if t['function']['name'] == name), {})
@@ -617,8 +625,8 @@ def fix_args(name, args, tools):
 	for k, v in (args or {}).items():
 		if k not in props or v is None or v == '':
 			continue
-		if isinstance(v, str) and _wants(props[k], ('object', 'array')):
-			try:
+		if isinstance(v, str) and (_wants(props[k], ('object', 'array')) or (k == 'band' and v.strip()[:1] == '[')):
+			try:  # also several bands as a list in a text ('["aet", "def"]'), though band is a text for the model
 				v = json.loads(v)
 			except ValueError:
 				pass
@@ -637,6 +645,8 @@ def fix_args(name, args, tools):
 		out = {k: v for k, v in out.items() if k not in SOURCE or (k == 'collection' and modis)}
 	elif out.get('collection') or out.get('image'):  # the sensor is that of a variable of the catalog
 		out.pop('sensor', None)
+		if len(bands_of(out)) < 2:  # band_reducer combines several bands: small models fill it for one
+			out.pop('band_reducer', None)
 	return out
 
 

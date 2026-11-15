@@ -67,6 +67,7 @@ import unicodedata
 from . import __version__
 from . import about as about_
 from . import assets, catalog, composite, figures, fire, maps, references, timeseries, trends
+from . import variable as variables
 
 SCHEMA = 1
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
@@ -307,10 +308,11 @@ def season_text(season):
 
 def _var(args):
 	"""The variable of a call: 'NDVI (Sentinel-2)', or the ID (as the tools take it: ee.ImageCollection("X") is X),
-	band and terrain of the data of Earth Engine outside the catalog ('IDAHO_EPSCOR/TERRACLIMATE pr')."""
+	band (or the reducer of its bands, see variable.band_text) and terrain of the data of Earth Engine outside the
+	catalog ('IDAHO_EPSCOR/TERRACLIMATE pr', 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def')."""
 	if not args.get('variable') and (args.get('collection') or args.get('image')):
 		return ' '.join(str(x) for x in (assets.normalize(args.get('collection') or args.get('image')),
-		                                 args.get('band'), args.get('terrain')) if x)
+		                                 variables.band_text(args), args.get('terrain')) if x)
 	v = args.get('variable') or ''
 	s = SENSORS.get(args.get('sensor'), args.get('sensor'))
 	return f'{v} ({s})' if s else str(v)
@@ -905,7 +907,7 @@ def _results(item, files, n):
 
 
 SAME_SERIES = ('region', 'variable', 'sensor', 'season', 'quality', 'metric', 'stat', 'collection', 'step', 'where',
-               'image', 'band', 'band_scale', 'band_offset', 'unit')
+               'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit')
 
 
 def _link_trends(results, folder):

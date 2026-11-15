@@ -25,9 +25,10 @@ function regionOf(r, done) {
 	});
 }
 
-// The spec of the case C: a variable of the catalog (ref) or, with custom ({asset, band, use, scale, offset, unit,
-// terrain}), data of Earth Engine by its ID, whose entry (mo.customEntry) needs the type of the asset and the pixel
-// size of the band (mo.assetInfo, as variable.native_scale): done(error), with C.spec carrying that entry
+// The spec of the case C: a variable of the catalog (ref) or, with custom ({asset, band, reducer, use, scale, offset,
+// unit, terrain}: band, one or a list of several combined with reducer), data of Earth Engine by its ID, whose entry
+// (mo.customEntry) needs the type of the asset and the pixel size of the band (of the first one: mo.assetInfo, as
+// variable.native_scale): done(error), with C.spec carrying that entry
 function prepare(c, done) {
 	var custom = c.spec.custom;
 	if (!custom) return done(null);
@@ -37,8 +38,8 @@ function prepare(c, done) {
 		for (var k in c.spec) if (k !== 'custom') s[k] = c.spec[k];
 		try {
 			s.entry = mo.customEntry({asset: info.asset, type: info.type, dated: info.dated, band: custom.band,
-				use: custom.use, m: info.scales[custom.band], scale: custom.scale, offset: custom.offset, unit: custom.unit,
-				terrain: custom.terrain});
+				reducer: custom.reducer, use: custom.use, m: info.scales[mo.bandsOf(custom.band)[0]],
+				scale: custom.scale, offset: custom.offset, unit: custom.unit, terrain: custom.terrain});
 		} catch (e) {
 			return done(e);
 		}

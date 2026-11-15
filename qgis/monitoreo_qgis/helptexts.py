@@ -8,6 +8,7 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import about, references, sensors, services  # noqa: E402
+from monitoreo import variable as variables  # noqa: E402
 
 MANUAL = f'{about.MANUAL}/QGIS-plugin'  # the English page of the plugin in the wiki
 FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
@@ -191,14 +192,32 @@ HELP = {
 		'reads metadata, without computing.</p>'
 		'<p>It is computed like a variable over the region, with the period, the season, the metrics and the '
 		'conditions of <b>Only the pixels where</b>, but without the pixel filters of MonitorEO (clouds, water, snow, '
-		'aerosols) nor true colour: these data keep only their own mask. The results are named by the ID and the band, '
-		'have the unit given and cite the dataset as its record says.</p>'
+		'aerosols) nor true colour: these data keep only their own mask. Several of its bands can be combined on each '
+		'pixel, their sum or their mean (<b>Combine bands</b>). The results are named by the ID and the band (or the '
+		'bands combined), have the unit given and cite the dataset as its record says.</p>'
 		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
 	'asset_band':
-		'<p>The band that is computed (one). <b>Read</b> lists them, with their description, unit and pixel size in '
-		'their tooltips; you can also write it. Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
+		'<p>The band that is computed (one; several with <b>Combine bands</b>). <b>Read</b> lists them, with their '
+		'description, unit and pixel size in their tooltips; you can also write it (several separated by commas, to '
+		'combine them, before Read). Choosing one fills its <b>Band scale</b>, <b>Band offset</b> and '
 		'<b>Unit (UDUNITS)</b> as its record says.</p>'
 		f'<p>{CLASSES}</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'band_reducer':
+		'<p>One band, or several combined into one value on each pixel:</p>'
+		'<ul><li><b>Sum of the bands</b>: e.g. the 12 monthly bands of an image into the annual total, or the actual '
+		'evapotranspiration and the climatic water deficit of TerraClimate into the potential one.</li>'
+		'<li><b>Mean of the bands</b>: e.g. the depth bands of a soil property.</li></ul>'
+		'<p>Each band is multiplied by the <b>Band scale</b> and the <b>Band offset</b> is added to it, then they are '
+		'combined, only on the pixels where every band has data, on the pixels of the first band. The '
+		'<b>Unit (UDUNITS)</b> is that of every band, so of their sum or mean: a sum of bands is not turned from a '
+		'rate into a total (12 monthly bands in mm sum to mm; give mm, not mm month-1).</p>'
+		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
+	'asset_bands':
+		'<p>The bands combined with <b>Combine bands</b>: check two or more of those that <b>Read</b> lists, with '
+		'their pixel size. The first one checked gives the pixels of the result and fills the <b>Band scale</b>, '
+		'<b>Band offset</b> and <b>Unit (UDUNITS)</b>, which apply to every band: a note says when the bands checked '
+		'differ in pixel size or in the unit, scale or offset of their records.</p>'
 		+ manual('QGIS-plugin#earth-engine-data-by-its-id'),
 	'asset_use':
 		'<ul><li><b>Images with dates (collection)</b>: a collection of images over time (e.g. the monthly '
@@ -595,16 +614,22 @@ def band_lines(b):
 def data_help(v, info=None):
 	"""Help of the data of Earth Engine given by their ID: with V the entry of those data in the list Variable of the
 	panel (dock.custom_entry), what is chosen and, once read (INFO: what services.describe_asset said of it), what its
-	record says of it and of its band, its notes and how to cite it; then the general text. With a variable of the
-	catalog, the general text."""
+	record says of it and of its band (of each band combined, with band_reducer), its notes and how to cite it; then
+	the general text. With a variable of the catalog, the general text."""
 	v = v or {}
 	if not v.get('custom') or not v.get('asset'):
 		return HELP['asset']
-	band = v.get('band')
+	band, reducer = v.get('band'), v.get('band_reducer')
+	bands = list(v.get('bands') or ([band] if band else []))
 	use = 'images with dates (collection)' if v.get('use') == 'collection' else 'a fixed image (image)'
-	lines = [f"<b>{esc(v['asset'])}</b>" + (f", band <b>{esc(band)}</b>" if band else ', no band chosen') +
-	         f", as {use}.",
-	         f"Values: stored × {esc(v.get('band_scale') or '1')} + {esc(v.get('band_offset') or '0')}; unit: "
+	if reducer:  # several bands combined on each pixel: 'the sum of the bands aet and def'
+		what = (f", <b>{esc(variables.band_words({'band': bands, 'band_reducer': reducer}))}</b> on each pixel"
+		        if len(bands) > 1 else ', fewer than two bands checked to combine')
+	else:
+		what = f", band <b>{esc(band)}</b>" if band else ', no band chosen'
+	lines = [f"<b>{esc(v['asset'])}</b>{what}, as {use}.",
+	         f"Values: stored × {esc(v.get('band_scale') or '1')} + {esc(v.get('band_offset') or '0')}"
+	         f"{' (each band, before they are combined)' if reducer else ''}; unit: "
 	         f"{esc(v.get('unit') or 'not given')}. No pixel filters: these data keep only their own mask."]
 	if v.get('static'):
 		lines.append('<b>A fixed image, without dates</b>: only its map (Map and Export to Google Drive); the period, '
@@ -613,7 +638,7 @@ def data_help(v, info=None):
 	if info:
 		lines.append(data_summary(info))
 		for b in info.get('bands') or []:
-			if b.get('band') == band:
+			if b.get('band') in bands:  # the band chosen, or each of those combined
 				lines += band_lines(b)
 		# its notes, but that on the bands with classes in the words of the panel (CLASSES): describe_asset names the
 		# metric mode, which the panel does not offer

@@ -23,6 +23,7 @@ import re
 import urllib.request
 
 from . import __version__, assets, catalog, fire, references, sensors, services
+from . import variable as variables
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
 	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
 
@@ -405,12 +406,15 @@ def item_facts(tool, args, result=None, names=None):
 	custom = not entry and not args.get('variable') and (args.get('collection') or args.get('image'))
 	if custom:  # data of Earth Engine outside the catalog, as given (the ID as the tools take it)
 		custom = assets.normalize(custom)
-		data = (f"Earth Engine {'image' if args.get('image') else 'image collection'} {custom}, band "
-		        f"{args.get('band', '?')}")
+		several = len(variables.bands_of(args)) > 1  # combined on each pixel: 'the sum of the bands aet and def'
+		data = (f"Earth Engine {'image' if args.get('image') else 'image collection'} {custom}, "
+		        f"{variables.band_words(args)}{' on each pixel' if several else ''}")
 		if args.get('image') and args.get('terrain'):
 			data += f", its {args['terrain']}"
 		if args.get('band_scale') is not None or args.get('band_offset') is not None:
 			data += f"; values × {_num(args.get('band_scale', 1))} + {_num(args.get('band_offset', 0))}"
+			if several:
+				data += f" (each band, before the {args.get('band_reducer') or '?'})"
 		given = data_unit(args)  # as the services computed it: 'unitless' is 1, a terrain is in degrees
 		unit = unit_text(catalog.custom_unit(given))
 		data += f"; unit {unit}" if unit else ('; dimensionless' if given == '1' else '; unit not given')
@@ -604,8 +608,8 @@ def _recipe_facts(args, result, names):
 		metrics = ', '.join(_stat(m) for m in (metric if isinstance(metric, list) else [metric]))
 		asset = None if v.get('index') else v.get('collection') or v.get('image')
 		# the data of Earth Engine as the other results name them: the ID as the tools take it, band and terrain
-		what = v.get('index') or (_var({k: v.get(k) for k in ('collection', 'image', 'band', 'terrain')}) if asset
-		                          else v.get('name')) or '?'
+		keys = ('collection', 'image', 'band', 'band_reducer', 'terrain')
+		what = v.get('index') or (_var({k: v.get(k) for k in keys}) if asset else v.get('name')) or '?'
 		fixed = bool(v.get('image') and not v.get('index'))  # a fixed image: no metric
 		variables.append(f"{what}{' (' + v['sensor'] + ')' if v.get('sensor') else ''}" +
 		                 (' (fixed image)' if fixed else f': {metrics}'))

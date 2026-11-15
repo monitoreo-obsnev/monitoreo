@@ -28,6 +28,7 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import assets, catalog, fire, landcover, services, steps, trends  # noqa: E402
+from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
@@ -82,7 +83,9 @@ MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB)
 # variables (collection=), or a fixed image without dates, like the elevation (image=)
 USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
 # their arguments besides collection, which the maps of a result keep (add_result_map)
-SOURCE = ('image', 'band', 'band_scale', 'band_offset', 'unit', 'terrain')
+SOURCE = ('image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain')
+# how their bands are computed: one, or several combined on each pixel (band_reducer of monitoreo.variable)
+REDUCERS = [('One band', ''), ('Sum of the bands', 'sum'), ('Mean of the bands', 'mean')]
 NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own mask: the pixel filters are for the '
               'variables of the catalog')
 READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
@@ -333,11 +336,29 @@ def _nice(x):
 
 def data_name(var, sensor=True):
 	"""What the arguments VAR compute, for the titles of the tasks: the variable of the catalog with its sensor (with
-	SENSOR: NDVI (Sentinel-2)), or the ID and band of the data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE
-	pr), which have no variable nor sensor."""
+	SENSOR: NDVI (Sentinel-2)), or the ID and band (or the reducer of its bands: monitoreo.variable.band_text) of the
+	data of Earth Engine outside it (IDAHO_EPSCOR/TERRACLIMATE pr, IDAHO_EPSCOR/TERRACLIMATE sum of aet, def), which
+	have no variable nor sensor."""
 	if var.get('variable'):
 		return f"{var['variable']} ({var['sensor']})" if sensor else var['variable']
-	return f"{var.get('collection') or var.get('image') or '?'} {var.get('band') or ''}".strip()
+	return f"{var.get('collection') or var.get('image') or '?'} {variables.band_text(var)}".strip()
+
+
+def bands_note(records):
+	"""What the panel says of the bands checked to combine (RECORDS: theirs in services.describe_asset) when they
+	differ: in pixel size (they are combined on those of the first band), or in the unit, scale or offset of their
+	records (the Band scale, Band offset and Unit of the panel are those of every band); '' if they do not."""
+	notes = []
+	sizes = [r.get('resolution_m') for r in records]
+	if len(set(sizes)) > 1 and sizes[0]:
+		notes.append(f'The bands checked have pixels of different sizes: they are combined on those of the first '
+		             f'({sizes[0]:g} m).')
+	differ = [what for key, what in (('units', 'units'), ('band_scale', 'scales'), ('band_offset', 'offsets'))
+	          if len({str(r.get(key)) for r in records}) > 1]
+	if differ:
+		notes.append(f"Their records give different {' and '.join(differ)}: the Band scale, Band offset and Unit "
+		             'apply to every band, so combine bands of the same quantity.')
+	return ' '.join(notes)
 
 
 def burn_label(title, collection=None):
@@ -1034,7 +1055,30 @@ class MonitorEODock(QDockWidget):
 		self.asset_band.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
 		self.asset_band.setEditText(s.value(SETTINGS + 'asset_band', ''))
 		self.asset_band.lineEdit().setPlaceholderText('press Read, or write it')
-		form.addRow('Band', info(self.asset_band, HELP['asset_band']))
+		self.band_field = QWidget()  # one band (or several written with commas, before Read), hidden with the list
+		row = info(self.asset_band, HELP['asset_band'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.band_field.setLayout(row)
+		form.addRow('Band', self.band_field)
+		self.band_label = form.labelForField(self.band_field)
+		# one band, or several combined on each pixel (their sum or mean: band_reducer of monitoreo.variable)
+		reducer = s.value(SETTINGS + 'band_reducer', '')
+		self.band_reducer = combo(REDUCERS, reducer if reducer in dict(REDUCERS).values() else '')
+		form.addRow('Combine bands', info(self.band_reducer, HELP['band_reducer']))
+		self.asset_bands = QgsCheckableComboBox()  # the bands read, checked to be combined
+		self.asset_bands.setDefaultText('check two or more bands')
+		self.saved_bands = [b for b in str(s.value(SETTINGS + 'asset_bands', '') or '').split(',') if b]  # until Read
+		self.filling_bands = False  # while the bands read are listed
+		self.bands_field = QWidget()
+		row = info(self.asset_bands, HELP['asset_bands'])
+		row.setContentsMargins(0, 0, 0, 0)
+		self.bands_field.setLayout(row)
+		form.addRow('Bands', self.bands_field)
+		self.bands_label = form.labelForField(self.bands_field)
+		self.bands_note = QLabel()  # the bands checked that differ in pixel size, unit, scale or offset
+		self.bands_note.setWordWrap(True)
+		self.bands_note.setStyleSheet('font-size: 11px; color: #b06000;')
+		form.addRow(self.bands_note)
 		use = s.value(SETTINGS + 'asset_use', 'collection')
 		self.asset_use = combo(USES, use if use in dict(USES).values() else 'collection')
 		form.addRow('Use as', info(self.asset_use, HELP['asset_use']))
@@ -1057,6 +1101,12 @@ class MonitorEODock(QDockWidget):
 		self.asset_id.textChanged.connect(lambda text: self.custom_changed())
 		self.asset_band.currentIndexChanged.connect(lambda i: self.band_changed())
 		self.asset_band.currentTextChanged.connect(lambda text: self.custom_changed())
+		self.band_reducer.currentIndexChanged.connect(lambda i: self.reducer_changed())
+		# each band checked or unchecked, at once (checkedItemsChanged only comes when its list closes)
+		model = self.asset_bands.model()
+		checked = getattr(model, 'itemCheckStateChanged', None) or self.asset_bands.checkedItemsChanged
+		checked.connect(lambda *args: self.bands_checked())
+		self.show_bands()
 		self.asset_use.currentIndexChanged.connect(lambda i: self.custom_changed())
 		for w in (self.band_scale, self.band_offset, self.asset_unit):
 			w.textChanged.connect(lambda text: self.custom_changed())
@@ -1168,6 +1218,9 @@ class MonitorEODock(QDockWidget):
 		# the data of Earth Engine outside the catalog: the last ID, band, use, scale, offset and unit, as written
 		s.setValue(SETTINGS + 'asset', self.asset_id.text().strip())
 		s.setValue(SETTINGS + 'asset_band', self.asset_band.currentText().strip())
+		s.setValue(SETTINGS + 'band_reducer', self.band_reducer.currentData())  # and the bands checked to combine
+		s.setValue(SETTINGS + 'asset_bands', ','.join(self.checked_bands() if self.asset_bands.count() else
+		                                              self.saved_bands))
 		s.setValue(SETTINGS + 'asset_use', self.asset_use.currentData())
 		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset), ('asset_unit', self.asset_unit)):
 			s.setValue(SETTINGS + key, w.text().strip())
@@ -1260,20 +1313,30 @@ class MonitorEODock(QDockWidget):
 
 	def data_args(self):
 		"""The data of Earth Engine of the panel as the services take them instead of variable and sensor:
-		{'collection' or 'image': its ID, 'band'} and the 'band_scale', 'band_offset' and 'unit' written (see
-		monitoreo.assets)."""
+		{'collection' or 'image': its ID, 'band'} (or the list of the bands checked, with 'band_reducer') and the
+		'band_scale', 'band_offset' and 'unit' written (see monitoreo.assets)."""
 		asset = self.asset_text()
 		if not asset:
 			raise ValueError('Earth Engine data: write the ID of an image or a collection of images (or choose a '
 			                 'dataset) and press Read')
-		band = self.asset_band.currentText().strip()
-		if not band:
+		reducer = self.band_reducer.currentData()
+		bands = self.chosen_bands()
+		if not bands:
 			raise ValueError(f'Earth Engine data: choose or write the band of {asset} (Read lists them)')
+		if reducer and len(bands) < 2:
+			raise ValueError(f'Earth Engine data: check two or more bands of {asset} to combine them (or choose One '
+			                 'band in Combine bands)')
+		if not reducer and len(bands) > 1:
+			raise ValueError(f"Earth Engine data: to combine the bands {', '.join(bands)} of {asset}, choose Sum or "
+			                 'Mean of the bands in Combine bands; or write one band')
 		read = self.described()
 		names = [b.get('band') for b in (read or {}).get('bands') or []]
-		if read and band not in names:
-			raise ValueError(f"Earth Engine data: {asset} has no band {band}: choose one of {', '.join(names)}")
-		args = {self.asset_use.currentData(): asset, 'band': band}
+		for band in bands:
+			if read and band not in names:
+				raise ValueError(f"Earth Engine data: {asset} has no band {band}: choose one of {', '.join(names)}")
+		args = {self.asset_use.currentData(): asset, 'band': bands if reducer else bands[0]}
+		if reducer:
+			args['band_reducer'] = reducer
 		for key, w in (('band_scale', self.band_scale), ('band_offset', self.band_offset)):
 			text = w.text().strip().replace(',', '.')
 			if text:
@@ -1300,10 +1363,14 @@ class MonitorEODock(QDockWidget):
 		"""The data of Earth Engine of the panel as an entry of the list Variable, so that the panel treats them as a
 		variable: an image is a fixed layer without dates (static: no series, trends, comparisons nor exports of
 		series), they have no pixel filters (fixed_filters: none) nor true colour (rgb), and they have no variable nor
-		sensor of the catalog (custom)."""
+		sensor of the catalog (custom); several bands combined, with their list (bands) and band_reducer."""
 		asset, band, use = self.asset_text(), self.asset_band.currentText().strip(), self.asset_use.currentData()
-		return {'custom': True, 'asset': asset, 'band': band, 'use': use, 'static': use == 'image',
-		        'fixed_filters': [], 'rgb': False, 'name': f'{asset} {band}'.strip() or 'Earth Engine data',
+		reducer = self.band_reducer.currentData() or None
+		bands = self.chosen_bands() if reducer else ([band] if band else [])
+		what = variables.band_text({'band': bands, 'band_reducer': reducer})  # 'pr', or 'sum of aet, def'
+		return {'custom': True, 'asset': asset, 'band': band, 'bands': bands, 'band_reducer': reducer, 'use': use,
+		        'static': use == 'image', 'fixed_filters': [], 'rgb': False,
+		        'name': f'{asset} {what}'.strip() or 'Earth Engine data',
 		        'band_scale': self.band_scale.text().strip(), 'band_offset': self.band_offset.text().strip(),
 		        'unit': self.asset_unit.text().strip()}
 
@@ -1356,10 +1423,21 @@ class MonitorEODock(QDockWidget):
 			return
 		self.asset_info = d
 		typed = self.asset_band.currentText().strip()
+		# the bands checked to combine (those of the settings, or written with commas, before the first Read)
+		checked = self.checked_bands() if self.asset_bands.count() else \
+			(self.saved_bands or variables.bands_of({'band': typed}))
 		if self.asset_id.text() != d['asset']:
 			self.asset_id.setText(d['asset'])
 		bands = d.get('bands') or []
 		names = [b['band'] for b in bands]
+		self.filling_bands = True
+		self.asset_bands.clear()
+		for b in bands:
+			self.asset_bands.addItemWithCheckState(
+				f"{b['band']}" + (f" · {b['resolution_m']:g} m" if b.get('resolution_m') else ''),
+				Qt.CheckState.Checked if b['band'] in checked else Qt.CheckState.Unchecked, b['band'])
+		self.filling_bands = False
+		self.saved_bands = []
 		self.asset_band.blockSignals(True)
 		self.asset_band.clear()
 		for b in bands:
@@ -1375,7 +1453,9 @@ class MonitorEODock(QDockWidget):
 		self.asset_use.setEnabled(not image)  # an image has no dates: never a collection
 		self.asset_use.setToolTip('An image has no dates: only a fixed image (maps and their statistics)' if image
 		                          else 'As its record suggests; a collection of tiles (e.g. a DEM) is a fixed image')
+		self.first_band = None  # the scale, offset and unit of the band chosen, as its record says
 		self.band_changed()
+		self.show_bands()
 		self.asset_label.setText(data_summary(d))
 		self.custom_changed()
 		self.message(f"{d['asset']}: {data_use(d)} ({len(names)} band{'' if len(names) == 1 else 's'})", 'Success', 10)
@@ -1387,12 +1467,59 @@ class MonitorEODock(QDockWidget):
 		self.asset_use.setToolTip('')
 		self.asset_label.setText(READ_HINT)
 
+	def checked_bands(self):
+		"""The bands checked in the list Bands, in the order of the data (jan to dec)."""
+		return [self.asset_bands.itemData(i) for i in range(self.asset_bands.count())
+		        if self.asset_bands.itemCheckState(i) == Qt.CheckState.Checked]
+
+	def chosen_bands(self):
+		"""The bands of the panel: those checked in Bands to combine them (Sum or Mean of the bands) once read, or else
+		those written in Band (one, or several separated by commas)."""
+		if self.band_reducer.currentData() and self.asset_bands.count():
+			return self.checked_bands()
+		return variables.bands_of({'band': self.asset_band.currentText()})
+
+	def show_bands(self):
+		"""The checkable list Bands when the bands read are combined (Sum or Mean of the bands); Band otherwise (one
+		band, or several written with commas before Read)."""
+		listed = bool(self.band_reducer.currentData()) and self.asset_bands.count() > 0
+		for w in (self.bands_field, self.bands_label):
+			w.setVisible(listed)
+		for w in (self.band_field, self.band_label):
+			w.setVisible(not listed)
+		self.bands_note.setVisible(listed and bool(self.bands_note.text()))
+
+	def bands_checked(self):
+		"""A band checked or unchecked in Bands (not while they are listed): its scale, offset and unit, the note and
+		the entry of the list Variable."""
+		if not self.filling_bands:
+			self.band_changed()
+			self.custom_changed()
+
+	def reducer_changed(self):
+		"""One band, or several combined: the band chosen is the first one checked if none was."""
+		if self.band_reducer.currentData() and self.asset_bands.count() and not self.checked_bands():
+			i = self.asset_bands.findData(self.asset_band.currentText().strip())
+			if i >= 0:
+				self.asset_bands.setItemCheckState(i, Qt.CheckState.Checked)  # also band_changed
+		self.band_changed()
+		self.show_bands()
+		self.custom_changed()
+
 	def band_changed(self):
-		"""The scale, offset and unit of the band chosen, as the record of its data says (services.describe_asset);
-		if it gives its unit but not in UDUNITS, the field says it."""
+		"""The scale, offset and unit of the band chosen (of the first one checked, to combine several), as the record
+		of its data says (services.describe_asset), when it changes; if it gives its unit but not in UDUNITS, the field
+		says it. With several, a note if they differ in pixel size, unit, scale or offset."""
 		b = self.asset_band.currentData()
-		if not isinstance(b, dict):  # a band written, not read
+		if self.band_reducer.currentData() and self.asset_bands.count():
+			records = {r['band']: r for r in (self.described() or {}).get('bands') or []}
+			chosen = [records[x] for x in self.checked_bands() if x in records]
+			self.bands_note.setText(bands_note(chosen))
+			self.show_bands()
+			b = chosen[0] if chosen else None
+		if not isinstance(b, dict) or b.get('band') == getattr(self, 'first_band', None):  # written, or the same
 			return
+		self.first_band = b.get('band')
 		self.band_scale.setText(number(b.get('band_scale')))
 		self.band_offset.setText(number(b.get('band_offset')))
 		self.asset_unit.setText(b.get('unit') or '')

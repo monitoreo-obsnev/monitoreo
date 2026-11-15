@@ -219,6 +219,52 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
   expect_length(calls, 0)
 })
 
+test_that("several bands of the data by their ID: combined with band_reducer, with the errors of the package", {
+  calls <- list()
+  answer <- function(tool) function(...) {
+    calls[[tool]] <<- list(...)
+    list(rows = list(), yearly = list(), profile = list(), title = tool, unit = "mm", references = list(),
+         credits = list())
+  }
+  tools <- c("time_series", "map_layer", "region_stats", "download_image", "trend_table", "compare_series")
+  local_mocked_bindings(services = function() stats::setNames(lapply(tools, answer), tools), .package = "monitoreo")
+  region <- mo_bbox(-3.4, 37.0, -3.3, 37.1)
+  mo_time_series(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = c("aet", "def"), band_reducer = "sum",
+                 band_scale = 0.1, unit = "mm", start = "2020-01-01", end = "2020-12-31")
+  expect_equal(calls$time_series[c("band", "band_reducer", "band_scale")],
+               list(band = c("aet", "def"), band_reducer = "sum", band_scale = 0.1))
+  mo_region_stats(region, image = "WORLDCLIM/V1/BIO", band = "bio05, bio06", band_reducer = "mean")
+  expect_equal(calls$region_stats[c("band", "band_reducer")], list(band = "bio05, bio06", band_reducer = "mean"))
+  mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
+               end = "2020-12-31")
+  expect_true("band_reducer" %in% names(calls$map_layer) && is.null(calls$map_layer[["band_reducer"]]))
+  calls <- list()
+  # the words and the order of monitoreo.variable.check_bands
+  expect_error(mo_trend_table(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = c("aet", "def"),
+                              start = "2001-01-01", end = "2020-12-31"),
+               paste("IDAHO_EPSCOR/TERRACLIMATE: give band_reducer, 'sum' or 'mean', to combine its 2 bands (aet, def)",
+                     "into one value on each pixel"), fixed = TRUE)
+  expect_error(mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", band_reducer = "sum",
+                            start = "2020-01-01", end = "2020-12-31"),
+               "band_reducer combines several bands: give two or more in band (a list, or a text with commas)",
+               fixed = TRUE)
+  expect_error(mo_map_layer(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "aet,def",
+                            band_reducer = "median", start = "2020-01-01", end = "2020-12-31"),
+               "unknown band_reducer median: use sum, mean", fixed = TRUE)
+  expect_error(mo_region_stats(region, image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio05"), band_reducer = "mean"),
+               "band bio05 is given twice: give each band once", fixed = TRUE)
+  expect_error(mo_download_image(region, image = "COPERNICUS/DEM/GLO30", band = c("DEM", "edm"), terrain = "slope",
+                                 path = "x.tif"),
+               "terrain is the slope or the aspect of one band (an elevation): give one band, without band_reducer",
+               fixed = TRUE)
+  expect_error(mo_map_layer(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", band_reducer = "sum"),
+               "band_reducer: only for the data of Earth Engine given by its ID")
+  expect_error(mo_time_series(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = " , ", start = "2020-01-01",
+                              end = "2020-12-31"),
+               "give band: the band of IDAHO_EPSCOR/TERRACLIMATE (one, or several with band_reducer", fixed = TRUE)
+  expect_length(calls, 0)
+})
+
 test_that("the statistics of the region, also the coefficient of variation, of the images and between the years", {
   sent <- NULL
   answer <- function(...) {
@@ -256,7 +302,7 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   modules <- list(
     monitoreo.maps = list(vis_params = function(...) list(min = 0, max = 1), rgb_vis = function(...) list()),
     monitoreo.variable = list(kind = variables$kind, is_static = variables$is_static, check_rgb = variables$check_rgb,
-                              native_scale = function(spec) 30),
+                              data_name = variables$data_name, native_scale = function(spec) 30),
     monitoreo.references = list(cite = function(tool, args) {
       sent$cite <<- args
       list(references = list(), credits = list())
@@ -275,6 +321,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   slope <- mo_image(region, image = "ee.ImageCollection('projects/sat-io/open-datasets/FABDEM')", band = "b1",
                     terrain = "slope")
   expect_equal(slope$name, "projects/sat-io/open-datasets/FABDEM b1 slope")
+  # several bands combined on each pixel: the reducer and the bands, sent as a list with band_reducer
+  both <- mo_image(region, image = "WORLDCLIM/V1/BIO", band = c("bio05", "bio06"), band_reducer = "mean",
+                   band_scale = 0.1, unit = "degC")
+  expect_equal(both$name, "WORLDCLIM/V1/BIO mean of bio05, bio06")
+  expect_equal(sent$composite_image[c("band", "band_reducer")], list(band = c("bio05", "bio06"), band_reducer = "mean"))
   pr <- mo_image(region, collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", start = "2020-01-01",
                  end = "2020-12-31", metric = "sum", unit = "mm")
   expect_equal(pr$name, "IDAHO_EPSCOR/TERRACLIMATE pr sum 2020-01-01 2020-12-31")

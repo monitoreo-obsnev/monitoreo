@@ -1416,8 +1416,9 @@ def test_fixed_layers():
 # The data of Earth Engine outside the catalog: the tools that find and describe them, and the compute tools with
 # their arguments instead of variable and sensor (as the MCP server lists them)
 OPTIONAL = {'anyOf': [{'type': 'string'}, {'type': 'null'}]}
-SOURCE_PROPS = {'variable': OPTIONAL, 'sensor': OPTIONAL, 'collection': OPTIONAL, 'image': OPTIONAL, 'band': OPTIONAL,
-                'band_scale': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
+SOURCE_PROPS = {'variable': OPTIONAL, 'sensor': OPTIONAL, 'collection': OPTIONAL, 'image': OPTIONAL,
+                'band': {'anyOf': [{'type': 'string'}, {'type': 'array', 'items': {'type': 'string'}}, {'type': 'null'}]},
+                'band_reducer': OPTIONAL, 'band_scale': {'anyOf': [{'type': 'number'}, {'type': 'null'}]},
                 'band_offset': {'anyOf': [{'type': 'number'}, {'type': 'null'}]}, 'unit': OPTIONAL}
 DATA_TOOLS = [
 	{'name': 'describe_asset', 'description': 'An image or collection of Earth Engine by its ID.', 'inputSchema': {
@@ -1599,6 +1600,47 @@ def test_series_and_fixed_image_of_earth_engine(tmp_path):
 	assert assistant.dated({'start': '2015-01-01', 'end': '2020-12-31', **TERRACLIMATE})  # a collection has dates
 	assert not assistant.dated({'variable': 'ELEVATION', 'sensor': 'Copernicus', 'start': '2015-01-01',
 	                            'end': '2020-12-31'})
+
+
+def test_several_bands_of_earth_engine():
+	"""Several bands of the data by their ID combined on each pixel (band_reducer): band is a text for the model (with
+	commas), a list in a text is decoded, band_reducer goes away with one band or next to a variable; the card names
+	the reducer and the bands, and the maps of the steps and the pixels keep them."""
+	tools = assistant.model_tools(DATA_TOOLS)
+	props = {t['function']['name']: t['function']['parameters']['properties'] for t in tools}['map_layer']
+	assert props['band'] == {'type': 'string'} and props['band_reducer'] == {'type': 'string'}  # compact: no anyOf
+	several = {'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'aet,def', 'band_reducer': 'sum'}
+	assert assistant.fix_args('map_layer', several, tools) == several
+	assert assistant.fix_args('map_layer', dict(several, band='["aet", "def"]'), tools) == \
+		dict(several, band=['aet', 'def'])
+	assert assistant.fix_args('map_layer', dict(several, band=['aet', 'def']), tools) == \
+		dict(several, band=['aet', 'def'])
+	assert assistant.fix_args('map_layer', dict(several, band='pr'), tools) == {  # small models fill every argument
+		'collection': several['collection'], 'band': 'pr'}
+	assert assistant.fix_args('map_layer', {'variable': 'AET', 'sensor': 'TerraClimate', 'band_reducer': 'sum'},
+	                          tools) == {'variable': 'AET', 'sensor': 'TerraClimate'}
+	assert 'band_reducer' in assistant.SOURCE
+	region = {'bbox': [-3.5, 37, -3, 37.2]}
+	args = {'region': region, 'collection': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': ['aet', 'def'], 'band_reducer': 'sum',
+	        'band_scale': 0.1, 'unit': 'mm', 'start': '2018-01-01', 'end': '2020-12-31', 'step': 'monthly',
+	        'metric': 'sum'}
+
+	async def run():
+		a = Data({**assistant.DEFAULTS, 'project': 'p'})
+		a.results.append({'id': 1, 'tool': 'time_series', 'args': args, 'result': {**SERIES, 'unit': 'mm'},
+		                  'image': None, 'title': a.titled('time_series', args)})
+		return a, a.card(a.results[0]), await a.period_map(a.results[0]), await a.step_map(1, '2019-03-01/2019-03-31')
+
+	a, card, shown, step = asyncio.run(run())
+	assert card['title'].startswith('Monthly time series of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def')
+	assert dict(card['facts'])['Data'] == ('Earth Engine image collection IDAHO_EPSCOR/TERRACLIMATE, the sum of the '
+	                                       'bands aet and def on each pixel; values × 0.1 + 0 (each band, before the '
+	                                       'sum); unit mm')
+	same = {k: args[k] for k in ('region', 'collection', 'band', 'band_reducer', 'band_scale', 'unit')}
+	assert a.calls[0] == ('map_layer', {**same, 'start': '2020-01-01', 'end': '2020-12-31', 'metric': 'median',
+	                                    'quick': True})
+	assert a.calls[1][1]['band'] == ['aet', 'def'] and a.calls[1][1]['band_reducer'] == 'sum'
+	assert shown['heading'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, 2020')
 
 
 def test_data_of_the_catalog_or_by_its_id():

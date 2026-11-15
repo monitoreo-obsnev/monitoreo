@@ -60,3 +60,35 @@ def test_the_bands_with_classes_in_the_words_of_the_panel(helptexts, worldcover)
 	# without classes, no such note
 	plain = dict(worldcover, bands=[{'band': 'Map'}], notes=[n for n in worldcover['notes'] if 'classes' not in n])
 	assert helptexts.CLASSES not in helptexts.data_help(entry, plain)
+
+
+def test_the_help_of_combined_bands(helptexts, monkeypatch):
+	"""Several bands combined on each pixel (Combine bands: Sum or Mean of the bands): the help names the reducer and
+	the bands, says that the scale and the offset apply to each band, and gives what the record says of each of them;
+	the help of the options explains them."""
+	meta = {'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'type': 'image_collection', 'first_date': '1958-01-01',
+	        'bands': [{'band': b, 'data_type': 'int', 'resolution_m': 4638.3} for b in ('aet', 'def', 'pr')]}
+	record = {'title': 'TerraClimate', 'summaries': {'eo:bands': [
+		{'name': 'aet', 'description': 'Actual evapotranspiration', 'gee:units': 'mm', 'gee:scale': 0.1},
+		{'name': 'def', 'description': 'Climate water deficit', 'gee:units': 'mm', 'gee:scale': 0.1},
+		{'name': 'pr', 'description': 'Precipitation accumulation', 'gee:units': 'mm'}]}}
+	monkeypatch.setattr(assets, 'info', lambda asset: meta)
+	monkeypatch.setattr(assets, 'stac', lambda asset: record)
+	monkeypatch.setattr(references, 'of_data', lambda asset: {'references': [], 'credits': []})
+	info = services.describe_asset('IDAHO_EPSCOR/TERRACLIMATE')
+	entry = {'custom': True, 'asset': 'IDAHO_EPSCOR/TERRACLIMATE', 'band': 'aet', 'bands': ['aet', 'def'],
+	         'band_reducer': 'sum', 'use': 'collection', 'band_scale': '0.1', 'unit': 'mm'}
+	text = helptexts.data_help(entry, info)
+	assert '<b>the sum of the bands aet and def</b> on each pixel' in text, text
+	assert 'stored × 0.1 + 0 (each band, before they are combined)' in text
+	assert 'Actual evapotranspiration' in text and 'Climate water deficit' in text
+	assert 'Precipitation accumulation' not in text  # a band not combined
+	assert 'fewer than two bands checked' in helptexts.data_help(dict(entry, bands=['aet']), info)
+	one = helptexts.data_help(dict(entry, bands=['pr'], band='pr', band_reducer=None), info)
+	assert ', band <b>pr</b>' in one and 'Precipitation accumulation' in one and 'Actual' not in one
+	assert '<b>Sum of the bands</b>' in helptexts.HELP['band_reducer'] and 'mm, not mm month-1' in \
+		helptexts.HELP['band_reducer']
+	assert 'Combine bands' in helptexts.HELP['asset_bands'] and 'Combine bands' in helptexts.HELP['asset_band']
+	dock = open(os.path.join(ROOT, 'qgis', 'monitoreo_qgis', 'dock.py'), encoding='utf-8').read()
+	assert "('One band', ''), ('Sum of the bands', 'sum'), ('Mean of the bands', 'mean')" in dock
+	assert "SOURCE = ('image', 'band', 'band_reducer'," in dock

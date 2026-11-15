@@ -2,7 +2,8 @@
 
 They take plain values (text, numbers, lists, dictionaries) and return plain values or files, so every tool
 computes exactly the same. A variable is given by its name in the catalog of MonitorEO (variable='NDVI',
-sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collection= and band=, or image= and band=).
+sensor='Sentinel-2'; see list_variables) or by an Earth Engine source (collection= and band=, or image= and band=;
+several bands, band=['aet', 'def'], are combined on each pixel with band_reducer='sum' or 'mean': see make_spec).
 A region is a dictionary (see areas.region): {'wdpa_id': 555513}, {'ecoregion_id': 793}, {'bbox': [w, s, e, n]},
 {'point': [lon, lat], 'buffer': 1000}, {'geojson': ...} or {'file': 'area.gpkg'}.
 
@@ -634,9 +635,10 @@ def describe_asset(asset):
 	variable of the catalog: {'asset', 'type' (image or image_collection), 'use' (the argument that takes it: collection
 	or image), 'how', 'title', 'source', 'page', 'provider', 'licence', 'dates', 'bands': [{'band', 'description',
 	'units', 'unit' (in UDUNITS), 'band_scale', 'band_offset', 'resolution_m', 'classes'}], 'arguments' (to compute its
-	first band, e.g. {'collection': ..., 'band': ..., 'band_scale': ..., 'unit': ...}), 'notes', 'references',
-	'credits'}. It reads the metadata of the asset in Earth Engine (without computing) and, for the Earth Engine data
-	catalog, its STAC record (see monitoreo.assets)."""
+	first band, e.g. {'collection': ..., 'band': ..., 'band_scale': ..., 'unit': ...}; several bands are combined with
+	band=[...] and band_reducer='sum' or 'mean'), 'notes', 'references', 'credits'}. It reads the metadata of the
+	asset in Earth Engine (without computing) and, for the Earth Engine data catalog, its STAC record (see
+	monitoreo.assets)."""
 	from . import assets
 	return assets.describe(asset)
 
@@ -655,7 +657,8 @@ def find_datasets(text=None, start=None, end=None, bbox=None, kind=None, limit=2
 	(the images, fixed layers without dates, whatever their dates), over BBOX ([w, s, e, n], degrees), of one KIND
 	('image' or 'image_collection'), at most LIMIT (100): [{'id', 'title', 'type', 'start', 'end' (none: it goes on),
 	'bbox', 'provider', 'keywords', 'gsd' (m), 'description', 'page'}], those with most words first. describe_asset
-	gives the bands of one; then compute it with collection= or image= and band=. Without Earth Engine."""
+	gives the bands of one; then compute it with collection= or image= and band= (several with band_reducer=). Without
+	Earth Engine."""
 	from . import eecatalog
 	return eecatalog.search(text, start, end, bbox, kind, limit)
 
@@ -666,7 +669,7 @@ def community_datasets(theme=None, text=None, kind=None, limit=None):
 	'type' (image or image_collection), 'theme', 'provider', 'license', 'tags', 'docs' (its page, with its bands and
 	how to cite it)}], of one THEME (see community_themes; its name in English or Spanish), with TEXT in their title,
 	ID, provider or tags, of one KIND ('image' or 'image_collection'), at most LIMIT. describe_asset gives the bands of
-	one; then compute it with collection= or image= and band=."""
+	one; then compute it with collection= or image= and band= (several with band_reducer=)."""
 	from . import community
 	return community.datasets(theme, text, kind, limit)
 
@@ -689,17 +692,20 @@ def find_admin_units(text, level=1, country=None, limit=20):
 
 def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', temporal='period', interannual='mean',
               season=None, quality=None, collection=None, band=None, image=None, ref=None, band_scale=None,
-              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False, unit=None):
+              band_offset=None, terrain=None, exclude_landcover=None, where=None, two_periods=False, unit=None,
+              band_reducer=None):
 	"""Spec of a variable (see monitoreo.variable) from the arguments of the services (TWO_PERIODS: also the
 	variables that compare two periods, RBR, for burn_severity). WHERE: the pixels of the study area to keep, a list of
 	conditions on variables (see variable.where_specs), e.g. [{'variable': 'ELEVATION', 'sensor': 'Copernicus',
 	'min': 1500}], or land covers to leave out after a land cover map of a year (see landcover_maps), e.g.
 	{'landcover': 'CORINE', 'year': 2018, 'exclude': ['water', 'built']}; every tool that takes a region takes it.
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see monitoreo.assets and describe_asset):
-	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND and
-	optionally BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is
-	none) and, for an image, TERRAIN ('slope' or 'aspect' of the band of an image, in degrees: its unit is then
-	degree). An ID of Earth Engine given as VARIABLE is an error that says how to give it."""
+	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles), with BAND (one,
+	or several: a list, or a text with commas, with BAND_REDUCER 'sum' or 'mean', which combines them into one value
+	on each pixel where all of them have data) and optionally BAND_SCALE and BAND_OFFSET (of its stored values, of each
+	band before they are combined), UNIT (of the values, in UDUNITS: 'mm', 'degC'; '' is none; that of every band, so
+	of their sum or mean) and, for an image of one band, TERRAIN ('slope' or 'aspect' of the band of an image, in
+	degrees: its unit is then degree). An ID of Earth Engine given as VARIABLE is an error that says how to give it."""
 	if variable and '/' in str(variable):  # no variable of the catalog has '/': an ID of Earth Engine, whatever SENSOR
 		raise ValueError(f'{variable} is not a variable of the catalog: give an ID of Earth Engine as a collection or '
 		                 'an image (describe_asset says which), with its band, instead of the variable')
@@ -712,10 +718,10 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 		if ref is not None and not variable:
 			var['index'] = catalog.find(None, ref=ref)['index']
 	elif image:
-		var.update({'image': image, 'band': band, 'terrain': terrain})
+		var.update({'image': image, 'band': band, 'terrain': terrain, 'band_reducer': band_reducer})
 		var.pop('metric')
 	elif collection:
-		var.update({'collection': collection, 'band': band})
+		var.update({'collection': collection, 'band': band, 'band_reducer': band_reducer})
 	if band_scale is not None:
 		var['scale'] = band_scale
 	if band_offset is not None:
@@ -723,8 +729,9 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	if unit is not None and str(unit).strip() != '':
 		var['unit'] = unit
 	if variable or ref is not None:  # a variable of the catalog has its own band, scale, offset and unit
-		extra = [k for k, v in (('image', image), ('band', band), ('band_scale', band_scale),
-		                        ('band_offset', band_offset), ('terrain', terrain)) if v not in (None, '')]
+		extra = [k for k, v in (('image', image), ('band', band), ('band_reducer', band_reducer),
+		                        ('band_scale', band_scale), ('band_offset', band_offset), ('terrain', terrain))
+		         if v not in (None, '')]
 		if extra:
 			raise ValueError(f"{', '.join(extra)}: only for the data of Earth Engine given by their ID (collection or "
 			                 f"image, instead of variable and sensor); {variable or ref} is a variable of the catalog")
@@ -790,7 +797,7 @@ def _source_name(variable, source):
 		return variable
 	if not (source.get('collection') or source.get('image')):
 		return ''
-	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'terrain')})
+	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'band_reducer', 'terrain')})
 
 
 def _ylabel(spec, stat=None, interannual=None):
@@ -1614,11 +1621,11 @@ def _grid(regions, res, crs):
 
 def _what(variable, sensor, source):
 	"""The variable of a file name: 'NDVI_Modis', or the end of the ID of the data of Earth Engine and its band
-	('TERRACLIMATE_pr')."""
+	('TERRACLIMATE_pr'), or the reducer of its bands ('TERRACLIMATE_sum_aet_def': see variable.band_stem)."""
 	if not variable and (source.get('collection') or source.get('image')):
 		from . import assets  # the ID as the tools take it (ee.ImageCollection("X") is X), as the MCP server names it
 		asset = assets.normalize(source.get('collection') or source.get('image')).rstrip('/').split('/')[-1]
-		return '_'.join(str(x) for x in (asset, source.get('band'), source.get('terrain')) if x)
+		return '_'.join(str(x) for x in (asset, variables.band_stem(source), source.get('terrain')) if x)
 	return f"{variable}_{sensor or ''}"
 
 
@@ -2337,10 +2344,12 @@ SOURCE_DOC = """
 
 	Instead of VARIABLE and SENSOR, any data of Earth Engine by its ID (see describe_asset and community_datasets):
 	COLLECTION (images with dates) or IMAGE (a fixed image, or the mosaic of a collection of tiles: maps and their
-	statistics, without dates), with BAND (one) and, optionally, BAND_SCALE and BAND_OFFSET (of its stored values), UNIT
-	(of the values after them, in UDUNITS: 'mm', 'degC', '1' if dimensionless) and, for an image, TERRAIN ('slope' or
-	'aspect' of the band of an image, in degrees: its unit is then degree). Also WHERE and EXCLUDE_LANDCOVER (the
-	pixels of the region to keep): see make_spec."""
+	statistics, without dates), with BAND (one, or several with BAND_REDUCER 'sum' or 'mean': each band times
+	BAND_SCALE plus BAND_OFFSET, then combined on each pixel; e.g. 12 monthly bands in mm summed into the annual total,
+	in mm) and, optionally, BAND_SCALE and BAND_OFFSET (of its stored values), UNIT (of the values after them, in
+	UDUNITS: 'mm', 'degC', '1' if dimensionless; that of every band, so of their sum or mean) and, for an image of one
+	band, TERRAIN ('slope' or 'aspect' of the band of an image, in degrees: its unit is then degree). Also WHERE and
+	EXCLUDE_LANDCOVER (the pixels of the region to keep): see make_spec."""
 
 
 def _with_source_doc(names):
