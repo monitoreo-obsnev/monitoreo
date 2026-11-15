@@ -20,6 +20,12 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHB
                                  QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
+# the seasonal profile by day of the year of one or two variables (services.time_series with doy and interannual or
+# other_variable): a row per region, variable and step of the year, as the table of its report
+PROFILE_COLUMNS = [('region', 'Region'), ('variable', 'Variable'), ('label', 'Step of the year'),
+                   ('doy', 'Day of the year'), ('value', 'Value'), ('unit', 'Unit'), ('n_years', 'Years')]
+PROFILE_COLOURS = ('#1f77b4', '#d62728')  # its left and right axes, as charts.doy_profile_png
+MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]  # day of the year of the first of each month
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 YEARS = ['#fde725', '#5ec962', '#21918c', '#3b528b', '#440154']  # the years: from the oldest (light) to the newest
 TREND_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Years'), ('tau', "Kendall's τ"),
@@ -68,16 +74,54 @@ def ylabel(res):
 	return res.get('ylabel') or res.get('unit') or None
 
 
+def profile_of(res):
+	"""The seasonal profile by day of the year of the time series RES (a list of rows of timeseries.doy_profile), or
+	None if it has none (a line per year, or a series by date)."""
+	return res.get('profile') if isinstance(res.get('profile'), list) else None
+
+
+def other_ylabel(res):
+	"""Title of the right y axis of the profile RES (that of its other variable, other_variable), or None."""
+	names = res.get('variables') or []
+	return res.get('other_ylabel') or ((res.get('units') or {}).get(names[1]) if len(names) > 1 else None) or None
+
+
 def chart_png(res, path):
-	"""PNG of the chart of the time series RES made by monitoreo with matplotlib, or None without matplotlib (or if it
-	fails): then the dialog draws it with Qt. Call it from the main thread."""
+	"""PNG of the chart of the time series RES made by monitoreo with matplotlib (a line per year over the days of the
+	year, or its seasonal profile with a y axis for each variable), or None without matplotlib (or if it fails): then
+	the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		doy = bool(res['rows']) and 'doy' in res['rows'][0]  # a line per year over the days of the year
-		(charts.doy_png if doy else charts.time_series_png)(res['rows'], path, title=res['title'], ylabel=ylabel(res))
+		if profile_of(res) is not None:  # a line per variable, the other on a right axis
+			charts.doy_profile_png(res['profile'], path, title=res['title'], ylabel=ylabel(res),
+			                       other_ylabel=other_ylabel(res), ylim=res.get('ylim'), other_ylim=res.get('other_ylim'))
+		elif bool(res['rows']) and 'doy' in res['rows'][0]:  # a line per year over the days of the year
+			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'))
+		else:
+			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res))
 		return path
 	except Exception:
 		return None
+
+
+def series_text(res):
+	"""What the window of the time series RES says over its chart: its title, unit, pixel size and number of values; of
+	a seasonal profile, those of each variable, the range of its axis, and its steps of the year."""
+	profile = profile_of(res)
+	if profile is None:
+		return f"{res['title']} · {unit_label(res)} · pixels of {res['scale']:g} m · {len(res['rows']):,} values"
+	names = res.get('variables') or list(dict.fromkeys(r['variable'] for r in profile))
+	units, scales = res.get('units') or {}, res.get('scales') or {}
+	parts = [res['title']]
+	for k, (name, lim) in enumerate(zip(names, (res.get('ylim'), res.get('other_ylim')))):
+		axis = ('left axis: ' if k == 0 else 'right axis: ') if len(names) > 1 else ''
+		scale = scales.get(name)
+		parts.append(f"{axis}{name}, {units.get(name) or 'unit not given'}"
+		             + (f', pixels of {scale:g} m' if isinstance(scale, (int, float)) else '')
+		             + (f', y from {lim[0]:g} to {lim[1]:g}' if lim else ''))
+	parts.append(f"{res.get('interannual') or 'median'} of {len(res['rows']):,} values of each year in "
+	             f"{len(profile):,} steps of the year")
+	return ' · '.join(parts)
 
 
 def trends_png(res, path):
@@ -386,19 +430,47 @@ def year_colour(k, n):
 	              round(a.blue() + (b.blue() - a.blue()) * w))
 
 
+def value_range(values, lim=None):
+	"""(min, max) of a y axis: LIM if given, else that of VALUES with a margin of 5 % (None without values)."""
+	if lim:
+		return float(lim[0]), float(lim[1])
+	if not values:
+		return None
+	v0, v1 = min(values), max(values)
+	pad = (v1 - v0) * 0.05 or abs(v0) * 0.05 or 1
+	return v0 - pad, v1 + pad
+
+
 class ChartWidget(QWidget):
 	"""Line chart of the rows (a line per region), drawn with QPainter; with the day of the year in the rows (doy), a line
 	per year (and region) over the days of one year, from the oldest year (light) to the newest (dark, thicker), a dash
-	for each region."""
+	for each region. With a seasonal profile (PROFILE: the rows of timeseries.doy_profile of services.time_series with
+	doy and interannual or other_variable), a line per variable over the days of the year (1 to 366): the first on the
+	left axis (blue, UNIT, YLIM) and the other, if any, on a right axis (red, OTHER_UNIT, OTHER_YLIM), each axis in the
+	colour of its line, with a line at 0 where an axis has it, and a dash for each region, as charts.doy_profile_png.
+	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values)."""
 
-	def __init__(self, rows, title='', unit='', parent=None):
+	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None):
 		super().__init__(parent)
-		self.title, self.unit = title, unit
-		self.doy = bool(rows) and 'doy' in rows[0]
-		regions = list(dict.fromkeys(r['region'] for r in rows))
-		self.years = sorted({r['year'] for r in rows}) if self.doy else []
-		self.keys = {}  # with doy, the region and the year of each line
+		self.title, self.unit, self.other_unit = title, unit, other_unit or ''
+		self.ylims = [tuple(ylim) if ylim else None, tuple(other_ylim) if other_ylim else None]
+		self.profile = isinstance(profile, list)
+		self.doy = self.profile or (bool(rows) and 'doy' in rows[0])
+		self.names = []  # of a profile, its variables: that of the left axis, and that of the right one
+		self.years = sorted({r['year'] for r in rows}) if self.doy and not self.profile else []
+		self.keys = {}  # with doy, the region and the year of each line; of a profile, the region and the axis
 		self.series = {}
+		if self.profile:  # x: the day of the year of each step of the year
+			self.names = list(dict.fromkeys(r['variable'] for r in profile))[:2]
+			regions = list(dict.fromkeys(r['region'] for r in profile))
+			for r in profile:
+				if r['variable'] not in self.names:
+					continue
+				key = f"{r['region']} · {r['variable']}" if len(regions) > 1 else str(r['variable'])
+				self.keys[key] = (regions.index(r['region']), self.names.index(r['variable']))
+				self.series.setdefault(key, []).append((int(r['doy']), r.get('value')))
+			rows = []
+		regions = list(dict.fromkeys(r['region'] for r in rows))
 		for r in rows:
 			d = dt.date.fromisoformat(r['date'])
 			if self.doy:  # every year on the days of 2000 (a leap year: 366 days)
@@ -409,20 +481,29 @@ class ChartWidget(QWidget):
 			else:
 				self.series.setdefault(r['region'], []).append((d, r.get('value')))
 		for v in self.series.values():
-			v.sort()
+			v.sort(key=lambda point: point[0])
 		self.setMinimumHeight(320)
 
 	def pen(self, i, name):
 		"""Pen of the line I (NAME): a colour of COLORS or, with doy, that of its year (the newest thicker) and a dash for
-		each region."""
+		each region; of a profile, the colour of its axis (PROFILE_COLOURS) and a dash for each region."""
 		if not self.doy:
 			return QPen(QColor(COLORS[i % len(COLORS)]), 1.8)
-		region, year = self.keys[name]
-		k = self.years.index(year)
-		pen = QPen(year_colour(k, len(self.years)), 2.2 if k == len(self.years) - 1 else 1.0)
+		if self.profile:
+			region, axis = self.keys[name]
+			pen = QPen(QColor(PROFILE_COLOURS[axis]), 1.8)
+		else:
+			region, year = self.keys[name]
+			k = self.years.index(year)
+			pen = QPen(year_colour(k, len(self.years)), 2.2 if k == len(self.years) - 1 else 1.0)
 		pen.setStyle((Qt.PenStyle.SolidLine, Qt.PenStyle.DashLine, Qt.PenStyle.DotLine,
 		              Qt.PenStyle.DashDotLine)[region % 4])
 		return pen
+
+	def axis_range(self, axis):
+		"""(min, max) of the y axis AXIS (0 left, 1 right) of a profile, or None if its variable has no values."""
+		values = [v for key, s in self.series.items() if self.keys[key][1] == axis for _, v in s if v is not None]
+		return value_range(values, self.ylims[axis])
 
 	def paintEvent(self, event):
 		p = QPainter(self)
@@ -432,10 +513,11 @@ class ChartWidget(QWidget):
 		if not pts:
 			p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'No values')
 			return
+		if self.profile:
+			self.paint_profile(p)
+			return
 		d0, d1 = min(d for d, _ in pts), max(d for d, _ in pts)
-		v0, v1 = min(v for _, v in pts), max(v for _, v in pts)
-		pad = (v1 - v0) * 0.05 or abs(v0) * 0.05 or 1
-		v0, v1 = v0 - pad, v1 + pad
+		v0, v1 = value_range([v for _, v in pts], self.ylims[0])
 		days = max((d1 - d0).days, 1)
 		left, right, top, bottom = 70, 20, 30, 45
 		plot = QRectF(left, top, self.width() - left - right, self.height() - top - bottom)
@@ -473,22 +555,119 @@ class ChartWidget(QWidget):
 			p.restore()
 		for i, (name, s) in enumerate(self.series.items()):
 			pen = self.pen(i, name)
-			color = pen.color()
 			p.setPen(pen)
-			path, drawing = QPainterPath(), False
-			for d, v in s:
-				if v is None:
-					drawing = False
-					continue
-				pt = xy(d, v)
-				path.lineTo(pt) if drawing else path.moveTo(pt)
-				drawing = True
-				p.setBrush(color)
-				p.drawEllipse(pt, 2.5, 2.5)
-			p.setBrush(Qt.BrushStyle.NoBrush)
-			p.drawPath(path)
+			self.draw_line(p, pen, plot, [(xy(d, v) if v is not None else None) for d, v in s])
 			if len(self.series) > 1:
 				p.drawText(QPointF(plot.left() + 8, plot.top() + 16 + 15 * i), name)
+
+	def draw_line(self, p, pen, plot, points):
+		"""Draw the line of POINTS (QPointF, or None for a gap) with PEN and a dot on each point, inside PLOT."""
+		p.save()
+		p.setClipRect(plot)
+		p.setPen(pen)
+		path, drawing = QPainterPath(), False
+		for pt in points:
+			if pt is None:
+				drawing = False
+				continue
+			path.lineTo(pt) if drawing else path.moveTo(pt)
+			drawing = True
+			p.setBrush(pen.color())
+			p.drawEllipse(pt, 2.5, 2.5)
+		p.setBrush(Qt.BrushStyle.NoBrush)
+		p.drawPath(path)
+		p.restore()
+
+	def paint_profile(self, p):
+		"""The seasonal profile: x from day 1 to 366 with the first day of each month, the left y axis (that of the first
+		variable) with its grid and, with two variables, the right one, each in the colour of its line."""
+		two = len(self.names) > 1
+		ranges = [self.axis_range(k) for k in range(len(self.names))]
+		left, right, top, bottom = 70, 70 if two else 20, 30, 45
+		plot = QRectF(left, top, self.width() - left - right, self.height() - top - bottom)
+		black, grid = QColor('black'), QPen(QColor('#dddddd'))
+
+		def x_of(doy):
+			return plot.left() + plot.width() * (doy - 1) / 365
+
+		def y_of(v, axis):
+			v0, v1 = ranges[axis]
+			return plot.bottom() - plot.height() * (v - v0) / (v1 - v0)
+
+		p.setPen(black)
+		p.drawText(QRectF(0, 4, self.width(), 22), Qt.AlignmentFlag.AlignHCenter, self.title)
+		for d, label in zip(MONTH_STARTS, ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov',
+		                                   'Dec')):
+			x = x_of(d)
+			p.setPen(grid)
+			p.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
+			p.setPen(black)
+			p.drawText(QRectF(x - 40, plot.bottom() + 4, 80, 16), Qt.AlignmentFlag.AlignHCenter, label)
+		for axis, rng in enumerate(ranges):
+			if rng is None:  # a variable without values: no axis
+				continue
+			colour = QColor(PROFILE_COLOURS[axis]) if two else black
+			for t in nice_ticks(*rng):
+				y = y_of(t, axis)
+				if axis == 0:
+					p.setPen(grid)
+					p.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+					box, align = QRectF(0, y - 8, left - 6, 16), Qt.AlignmentFlag.AlignRight
+				else:
+					p.setPen(colour)
+					p.drawLine(QPointF(plot.right(), y), QPointF(plot.right() + 4, y))
+					box, align = QRectF(plot.right() + 6, y - 8, right - 6, 16), Qt.AlignmentFlag.AlignLeft
+				p.setPen(colour)
+				p.drawText(box, align | Qt.AlignmentFlag.AlignVCenter, f'{t:.4g}')
+			# the line at 0 where the axis has it (that of the right axis, dotted, if it is not at the same height)
+			if rng[0] < 0 < rng[1] and (axis == 0 or ranges[0] is None or y_of(0, 1) != y_of(0, 0)):
+				zero = QPen(QColor('#888888') if axis == 0 else colour, 0.8)
+				zero.setStyle(Qt.PenStyle.SolidLine if axis == 0 else Qt.PenStyle.DotLine)
+				p.setPen(zero)
+				p.drawLine(QPointF(plot.left(), y_of(0, axis)), QPointF(plot.right(), y_of(0, axis)))
+			unit = (self.unit, self.other_unit)[axis]
+			if unit:
+				p.save()
+				p.setPen(colour)
+				p.translate(14 if axis == 0 else self.width() - 14, plot.center().y())
+				p.rotate(-90)  # both read from the bottom up, as in charts.doy_profile_png
+				p.drawText(QRectF(-150, -8, 300, 16), Qt.AlignmentFlag.AlignCenter, unit)
+				p.restore()
+		p.setPen(black)
+		p.drawRect(plot)
+		lines = []
+		for i, (name, s) in enumerate(self.series.items()):
+			axis = self.keys[name][1]
+			if ranges[axis] is not None:
+				pen = self.pen(i, name)
+				points = [QPointF(x_of(d), y_of(v, axis)) if v is not None else None for d, v in s]
+				self.draw_line(p, pen, plot, points)
+				lines.append((name, pen.color(), points))
+		self.draw_legend(p, plot, lines)
+
+	def draw_legend(self, p, plot, lines):
+		"""The legend of LINES ([(name, colour, points)]): each name in the colour of its line, on a white box in the
+		corner of PLOT that its lines cross the least (as the legend of matplotlib with loc='best')."""
+		metrics = p.fontMetrics()
+		width = max(metrics.horizontalAdvance(name) for name, _, _ in lines) + 12
+		height = 15 * len(lines) + 8
+		corners = [QRectF(x, y, width, height) for y in (plot.top() + 4, plot.bottom() - 4 - height)
+		           for x in (plot.left() + 4, plot.right() - 4 - width)]
+		samples = []  # the points of the lines, and 10 between each two of them
+		for _, _, points in lines:
+			for a, b in zip(points, points[1:]):
+				if a is not None and b is not None:
+					samples += [a + (b - a) * (k / 10) for k in range(10)]
+			samples += [pt for pt in points[-1:] if pt is not None]
+		box = min(corners, key=lambda r: sum(1 for pt in samples if r.contains(pt)))  # the first one, if tied
+		p.save()
+		p.setPen(QColor('#cccccc'))
+		p.setBrush(QColor(255, 255, 255, 220))
+		p.drawRect(box)
+		for i, (name, colour, _) in enumerate(lines):
+			p.setPen(colour)
+			p.drawText(QPointF(box.left() + 6, box.top() + 4 + metrics.ascent() + 15 * i), name)
+		p.restore()
 
 
 class SeriesDialog(QDialog):
@@ -499,24 +678,33 @@ class SeriesDialog(QDialog):
 		self.setWindowTitle(f"MonitorEO: {res['title']}")
 		self.resize(900, 720)
 		lay = QVBoxLayout(self)
-		info = QLabel(f"{res['title']} · {unit_label(res)} · pixels of {res['scale']:g} m · {len(res['rows']):,} values")
+		info = QLabel(series_text(res))
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		profile = profile_of(res)  # the seasonal profile by day of the year, a y axis for each variable
 		self.chart = None
 		if res.get('chart'):
 			label = QLabel()
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(860, Qt.TransformationMode.SmoothTransformation))
 			lay.addWidget(label)
 		else:
-			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '')
+			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '', profile=profile,
+			                         other_unit=other_ylabel(res) or '', ylim=res.get('ylim'),
+			                         other_ylim=res.get('other_ylim'))
 			lay.addWidget(self.chart, 1)
-		table = QTableWidget(len(res['rows']), len(COLUMNS))
-		table.setHorizontalHeaderLabels([c[1] for c in COLUMNS])
-		for i, r in enumerate(res['rows']):
-			for j, (key, _) in enumerate(COLUMNS):
-				v = r.get(key)
-				table.setItem(i, j, QTableWidgetItem('' if v is None else (f'{v:.6g}' if isinstance(v, float) else str(v))))
-		table.resizeColumnsToContents()
+		if profile is not None:  # the table of the profile (what the chart and the CSV have), with the unit of each row
+			units = res.get('units') or {}
+			table = table_of([dict(r, unit=units.get(r['variable']) or 'unit not given') for r in profile],
+			                 PROFILE_COLUMNS)
+		else:
+			table = QTableWidget(len(res['rows']), len(COLUMNS))
+			table.setHorizontalHeaderLabels([c[1] for c in COLUMNS])
+			for i, r in enumerate(res['rows']):
+				for j, (key, _) in enumerate(COLUMNS):
+					v = r.get(key)
+					table.setItem(i, j, QTableWidgetItem('' if v is None else
+					                                     (f'{v:.6g}' if isinstance(v, float) else str(v))))
+			table.resizeColumnsToContents()
 		lay.addWidget(table, 1)
 		maps = map_row(res, add_map)
 		if maps:

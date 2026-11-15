@@ -4,11 +4,17 @@ Each step (a day with images, 16 days, a month or a year of the period, within t
 reduced in time with METRIC (e.g. the mean of the NDVI of the images of each month), and then over each region with
 STAT (e.g. its spatial mean, or its coefficient of variation, 'cv', in %: see composite). Every row also gives the number of images of the step and of valid pixels of the
 region, so that steps with few clear observations can be told apart.
+
+By day of the year (time_series with doy): the rows get the year and the day of the year of each step (with_doy), to
+draw a line per year; or the seasonal profile (doy_profile), a metric between the years (over_years: e.g. the median)
+of the values of each step of the year (each month, 16-day period or calendar day), a line per variable.
 """
 
+import calendar
 import csv
 import datetime as dt
 import math
+import re
 import time
 
 import ee
@@ -163,6 +169,187 @@ def with_doy(rows):
 		d = dt.date.fromisoformat(str(r['date'])[:10])
 		r['year'], r['doy'] = d.year, d.timetuple().tm_yday
 	return rows
+
+
+# The seasonal profile of a series by day of the year (time_series with doy and interannual or other_variable): for each
+# step of the year (a month, a 16-day period, a calendar day) of each region and variable, a metric between the years
+# (INTERANNUAL, or a percentile pN) of the values of that step in the years of the period
+INTERANNUAL = ('mean', 'median', 'min', 'max', 'std', 'cv')
+INTERANNUAL_TEXT = 'mean, median, min, max, std (sample standard deviation), cv (coefficient of variation, %) or pN ' \
+                   '(percentile N, e.g. p25)'
+PROFILE_COLUMNS = ['region', 'variable', 'part', 'doy', 'label', 'value', 'n_years']
+# the columns of the CSV of a profile after PROFILE_COLUMNS: what each row was made with (the sensor, unit in UDUNITS
+# and pixel size of the computation of its variable, the same step, metrics and statistic for both variables)
+PROFILE_META = ['sensor', 'step', 'metric', 'stat', 'interannual', 'unit', 'scale_m']
+MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+COMMON_YEAR = 2023  # a year of 365 days, for the names of the days of the year
+LEAP_YEAR = 2024  # a year of 366 days, for the days of the year of the calendar days (29 February apart from 1 March)
+
+
+def check_interannual(metric):
+	"""METRIC between the years of a profile in lower case (see INTERANNUAL), or ValueError (without Earth Engine)."""
+	m = str(metric or '').strip().lower()
+	p = re.fullmatch(r'p(\d+(?:\.\d+)?)', m)
+	if m in INTERANNUAL or (p and 0 <= float(p.group(1)) <= 100):
+		return m
+	raise ValueError(f'unknown metric between the years (interannual) {metric}: use {INTERANNUAL_TEXT}')
+
+
+def over_years(values, metric):
+	"""METRIC (see check_interannual) of VALUES (numbers, one per year; the None left out), or None without values: the
+	mean; the median (the mean of the two middle values when they are even); the minimum; the maximum; std, the sample
+	standard deviation (n - 1; None with fewer than 2 values); cv, 100 × std / |mean| (None with fewer than 2 values or a
+	mean of 0); pN, the percentile N with linear interpolation between the closest ranks (as numpy.percentile). The sums
+	add the values in their order, one by one, as gee/core.js (mo.overYears) does."""
+	m = check_interannual(metric)
+	xs = [float(v) for v in values if v is not None]
+	n = len(xs)
+	if not n:
+		return None
+
+	def mean():
+		total = 0.0
+		for x in xs:
+			total += x
+		return total / n
+
+	def std():
+		mu, total = mean(), 0.0
+		for x in xs:
+			d = x - mu
+			total += d * d
+		return math.sqrt(total / (n - 1))
+
+	if m == 'mean':
+		return mean()
+	if m in ('min', 'max'):
+		return min(xs) if m == 'min' else max(xs)
+	if m in ('std', 'cv'):
+		if n < 2:
+			return None
+		if m == 'std':
+			return std()
+		mu = mean()
+		return None if mu == 0 else 100.0 * std() / abs(mu)
+	s = sorted(xs)
+	if m == 'median':
+		return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+	rank = float(m[1:]) / 100 * (n - 1)
+	lo = math.floor(rank)
+	hi = min(lo + 1, n - 1)
+	return s[lo] + (s[hi] - s[lo]) * (rank - lo)
+
+
+def day_label(doy):
+	"""Name in English of the day of the year DOY (1-366) in a common year: 'Jan 17' (366 is 'Dec 31')."""
+	d = dt.date(COMMON_YEAR, 1, 1) + dt.timedelta(days=min(max(int(doy), 1), 365) - 1)
+	return f'{MONTH_ABBR[d.month - 1]} {d.day}'
+
+
+def _split_month(season):
+	"""(month, first day) of the SEASON ('MM-DD', 'MM-DD') when it starts and ends in the same month and crosses the new
+	year (e.g. a hydrological year from 15 October to 14 October), whose windows have two parts of that month (from its
+	first day, and to its last day); else None."""
+	if not season:
+		return None
+	(m0, d0), (m1, d1) = ((int(x) for x in str(md).split('-')) for md in season)
+	return (m0, d0) if m0 == m1 and d0 > d1 else None
+
+
+def _part_of(day, step, wins, season):
+	"""The step of the year of the first day DAY of a step of STEP: the month (1-12), or 'MM-DD' for the part of a month
+	from the first day of a SEASON that starts and ends in that month (see _split_month: '10-15', from 15 October; the
+	rest of October is 10); the number of the 16-day period from the start of its window of WINS (see composite.windows:
+	1 January, or the first day of the SEASON, even if the period starts later), 0, 1, 2, ..., the closest one to DAY
+	(the steps of a window that starts later start on its first day: 1 January in a season from 1 November is in the
+	period of 4 January, 1 November + 64 days), and none after the last one of the window; or the calendar day
+	'MM-DD'."""
+	if step == 'monthly':
+		split = _split_month(season)
+		if split and day.month == split[0] and day.day >= split[1]:
+			return f'{split[0]:02d}-{split[1]:02d}'
+		return day.month
+	if step == 'daily':
+		return day.strftime('%m-%d')
+	year, end = next(((y, we) for y, ws, we in wins if ws <= day < we), (day.year, None))
+	first = composite._md(year, season[0]) if season else dt.date(year, 1, 1)
+	part = math.floor((day - first).days / 16 + 0.5)
+	return min(part, ((end - first).days - 1) // 16) if end else part
+
+
+def _part_doy(part, step, season, doys):
+	"""The day of the year (1-366) where the step of the year PART (see _part_of) of STEP is drawn: monthly, the median
+	(rounded, .5 up) of the days of the year DOYS of its rows; daily, that of the calendar day in a leap year (29 February
+	is 60, 1 March 61, 31 December 366); 16-day, that of the first day of the period in a common year (the first day of
+	the window, 1 January or the first day of the SEASON, + 16 × PART days), which goes on after 31 December (1 November
+	+ 64 days is 4 January), as the median of the days of its rows would not."""
+	if step == 'daily':
+		return dt.date(LEAP_YEAR, int(part[:2]), int(part[3:])).timetuple().tm_yday
+	if step == '16-day':
+		first = composite._md(COMMON_YEAR, season[0]) if season else dt.date(COMMON_YEAR, 1, 1)
+		return (first.timetuple().tm_yday - 1 + 16 * part) % 365 + 1
+	doys = sorted(doys)
+	k = len(doys)
+	mid = doys[k // 2] if k % 2 else (doys[k // 2 - 1] + doys[k // 2]) / 2
+	return int(math.floor(mid + 0.5))
+
+
+def _part_label(part, step, season, doy):
+	"""The name in English of the step of the year PART (see _part_of) of STEP drawn on the day of the year DOY: monthly
+	the month, 'Jan' to 'Dec', or its two parts in a season that starts and ends in it ('Oct 15-31' and 'Oct 1-14');
+	daily the calendar day ('Feb 29'); 16-day the day of DOY in a common year (see day_label)."""
+	if step == 'monthly':
+		split = _split_month(season)
+		if isinstance(part, str):
+			last = calendar.monthrange(COMMON_YEAR, split[0])[1]
+			return f'{MONTH_ABBR[split[0] - 1]} {split[1]}-{last}'
+		if split and part == split[0]:
+			return f'{MONTH_ABBR[part - 1]} 1-{split[1] - 1}'
+		return MONTH_ABBR[part - 1]
+	if step == 'daily':
+		return f'{MONTH_ABBR[int(part[:2]) - 1]} {int(part[3:])}'
+	return day_label(doy)
+
+
+def doy_profile(rows, spec, step, interannual, variable=''):
+	"""The seasonal profile of the time series ROWS ([{region, date, value, ...}], with 'variable' when they are of
+	two variables, else VARIABLE, its name) of a STEP shorter than a year: [{region, variable, part, doy, label, value,
+	n_years}] (PROFILE_COLUMNS), a row per region, variable and step of the year (part: the month '1'-'12' monthly, see
+	_part_of, the number of the 16-day period in the year or the season of SPEC '0', '1', ..., or the calendar day
+	'MM-DD' daily), whose value is INTERANNUAL (see over_years) of the values of that step in the years of the period
+	(n_years: how many are not None; a step without them has value None and n_years 0); doy is the day of the year
+	where it is drawn (see _part_doy) and label its name (see _part_label). The features of the same name are numbered
+	from the second one ('Sierra Nevada (2)'), as the viewer names them, so that the values of each one stay apart: the
+	rows of each date come in the order of the features (see series). Sorted by region, variable (in the order of
+	ROWS), doy and part."""
+	if step not in STEPS or step == 'annual':
+		raise ValueError(f'the profile by day of the year needs a step shorter than a year: daily, 16-day or monthly, '
+		                 f'not {step}')
+	interannual = check_interannual(interannual)
+	season = (spec or {}).get('season') if step != 'daily' else None
+	wins = composite.windows(spec['period'], season) if step == '16-day' else []
+	groups, names, seen = {}, [], {}
+	for r in rows:
+		date = str(r['date'])[:10]
+		day = dt.date.fromisoformat(date)
+		name = r.get('variable') or variable
+		if name not in names:
+			names.append(name)
+		region = str(r['region'])
+		k = seen[(region, name, date)] = seen.get((region, name, date), 0) + 1
+		region = region if k == 1 else f'{region} ({k})'
+		doy = r.get('doy') or day.timetuple().tm_yday
+		groups.setdefault((region, name, _part_of(day, step, wins, season)), []).append((date, doy, r.get('value')))
+	out = []
+	for (region, name, part), items in groups.items():
+		items.sort(key=lambda t: t[0])  # by date: the values in the order of the years
+		doy = _part_doy(part, step, season, [d for _, d, _ in items])
+		values = [v for _, _, v in items if v is not None]
+		out.append({'region': region, 'variable': name, 'part': str(part), 'doy': doy,
+		            'label': _part_label(part, step, season, doy), 'value': over_years(values, interannual),
+		            'n_years': len(values)})
+	out.sort(key=lambda r: (r['region'], names.index(r['variable']), r['doy'], r['part']))
+	return out
 
 
 def climatology(rows):

@@ -1,6 +1,7 @@
 // Charts of the reports, made with Vega-Lite from the CSV of each result: time series (with the Sen lines of their
-// trends), trends of each part of the year, comparison of two periods and burn severity (the area of each class),
-// each with its table; or only a table (the statistics of the RBR of each region).
+// trends, or a line per year over the days of the year), the seasonal profile of one or two variables by day of the
+// year (on two y axes), trends of each part of the year, comparison of two periods and burn severity (the area of each
+// class), each with its table; or only a table (the statistics of the RBR of each region).
 'use strict';
 
 MO.chart = (() => {
@@ -9,7 +10,7 @@ MO.chart = (() => {
 		'last_year', 'reference', 'other', 'difference', 'n_reference', 'n_other', 'class', 'dnbr_min', 'dnbr_max',
 		'rdnbr_min', 'rdnbr_max', 'ha', 'scale_m', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'percent',
 		'value_from', 'value_to', 'year', 'zone', 'zone_from', 'zone_to', 'p25', 'p50', 'p75', 'p5', 'p95', 'distance_m',
-		'lon', 'lat', 'elevation', 'n_pixels']);
+		'lon', 'lat', 'elevation', 'n_pixels', 'doy', 'n_years']);
 	const COLUMNS = {
 		region: 'Region', date: 'Date', value: 'Value', n_images: 'Images', n_pixels: 'Valid pixels',
 		label: 'Part of the year', n: 'Years', tau: 'τ', z: 'Z', p_value: 'p-value', significant: 'Significant',
@@ -23,7 +24,8 @@ MO.chart = (() => {
 		from_label: 'From (first year)', to_label: 'To (other year)', other_year: 'Other year',
 		zone_label: 'Zone', p25: 'Percentile 25', p50: 'Median (percentile 50)', p75: 'Percentile 75',
 		p5: 'Percentile 5', p95: 'Percentile 95', distance_m: 'Distance (m)', lon: 'Longitude', lat: 'Latitude',
-		elevation: 'Elevation (m)',
+		elevation: 'Elevation (m)', variable: 'Variable', part: 'Step of the year', doy: 'Day of the year',
+		n_years: 'Years',
 	};
 	const TABLES = {
 		series: ['region', 'date', 'value', 'n_images', 'n_pixels'],
@@ -34,7 +36,10 @@ MO.chart = (() => {
 		transitions: ['region', 'from_label', 'to_label', 'ha', 'percent'],
 		transect: ['distance_m', 'value', 'elevation', 'lon', 'lat'],
 		doy: ['region', 'date', 'value', 'n_images', 'n_pixels'],
+		doy_profile: ['region', 'variable', 'label', 'doy', 'value', 'n_years'],
 	};
+	// the titles of the columns of a table that are not those of COLUMNS
+	const HEADS = {doy_profile: {label: 'Step of the year'}};
 	// the statistics of the RBR of each region (burn_severity with the index RBR, without classes): a table, with the
 	// standard deviation and the coefficient of variation (RBR_BASE: those of the reports published before them)
 	const RBR_STATS = ['region', 'mean', 'median', 'std', 'cv', 'p10', 'p90', 'min', 'max', 'ha'];
@@ -296,8 +301,13 @@ MO.chart = (() => {
 		};
 	}
 
+	// The range [min, max] of a y axis of a result (ylim, other_ylim), or null (from the data)
+	const range = (lim) => Array.isArray(lim) && lim.length === 2 && lim.every(Number.isFinite) && lim[0] < lim[1] ?
+		lim : null;
+	const yScale = (lim) => lim ? {domain: lim, nice: false, zero: false} : {zero: false};
+
 	// A time series with a line per year over the days of the year (time_series with doy), from the oldest year (light)
-	// to the newest (dark, thicker)
+	// to the newest (dark, thicker); its y axis, that of the result (ylim) if one was given
 	function doySpec(rows, result) {
 		const data = rows.map((r) => {
 			const d = new Date(`${r.date}T00:00:00Z`);
@@ -305,17 +315,80 @@ MO.chart = (() => {
 			return {...r, year: String(d.getUTCFullYear()), doy, day: new Date(Date.UTC(2000, 0, doy))};
 		});
 		const newest = data.reduce((y, r) => r.year > y ? r.year : y, '');
+		const lim = range(result.ylim);
 		return {
 			data: {values: data}, width: 'container', height: 260,
-			mark: {type: 'line', point: {size: 18}},
+			mark: {type: 'line', point: {size: 18}, clip: Boolean(lim)},
 			encoding: {
 				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
-				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: {zero: false}},
+				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: yScale(lim)},
 				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true}},
 				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
 				tooltip: [{field: 'date', title: 'Date'}, {field: 'value', title: 'Value', format: '.4~g'}],
 			},
 		};
+	}
+
+	// The day of the year of the first day of each month (that of a year of 365 days, as charts.MONTH_STARTS of Python)
+	const MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];
+	// the colours of the line of the left axis and of the right axis of a profile (those of charts.doy_profile_png of
+	// Python if the theme has none)
+	const PROFILE_COLOURS = [['--series-1', '#1f77b4'], ['--series-other', '#d62728']];
+	// the metric between the years of a profile, as the texts say it
+	const BETWEEN = {mean: 'mean', median: 'median', min: 'minimum', max: 'maximum', std: 'standard deviation',
+		cv: 'coefficient of variation'};
+	const betweenText = (m) => BETWEEN[m] || (/^p\d/.test(m) ? `percentile ${m.slice(1)}` : m);
+
+	// The seasonal profile by day of the year of one or two variables (time_series with doy and interannual or
+	// other_variable): for each step of the year (each month, 16-day period or calendar day), the metric between the
+	// years of its values, at its day of the year, a line per variable (result.variables, as the column variable of its
+	// CSV names them). The first one on the left axis and the other one on the right axis, each with its own scale (the
+	// range of the result, ylim and other_ylim, if given; else from the minimum to the maximum of its variable) and,
+	// with two, its title and labels in the colour of its line; a line at 0 where it is inside an axis (that of the
+	// right axis, dotted, only if its range is not that of the left one), as charts.doy_profile_png of Python.
+	function doyProfileSpec(rows, result) {
+		const names = (result.variables || []).length ? result.variables.slice(0, 2) :
+			[...new Set(rows.map((r) => r.variable))].slice(0, 2);
+		const labels = names.map((n, i) => (result.labels || [])[i] || n);
+		const two = names.length > 1;
+		const colours = PROFILE_COLOURS.map(([v, c]) => MO.css(v) || c);
+		const lims = [range(result.ylim), two ? range(result.other_ylim) : null];
+		const titles = [result.ylabel || labels[0], result.other_ylabel || labels[1]];
+		const data = rows.filter((r) => r.doy !== null && names.includes(r.variable))
+			.map((r) => ({...r, serie: labels[names.indexOf(r.variable)]}));
+		const months = JSON.stringify(MO.MONTHS), starts = JSON.stringify(MONTH_STARTS);
+		const month = `${months}[indexof(${starts}, datum.value)]`;
+		const x = {field: 'doy', type: 'quantitative', title: null, scale: {domain: [1, 366], nice: false, zero: false},
+			axis: {values: MONTH_STARTS, grid: false, labelExpr: narrow ? `slice(${month}, 0, 1)` : month}};
+		const color = {field: 'serie', type: 'nominal', scale: {domain: labels, range: colours.slice(0, labels.length)},
+			legend: two ? {columns: narrow ? 1 : 2} : null};
+		const tooltip = [{field: 'label', title: 'Step of the year'}, {field: 'serie', title: 'Variable'},
+			{field: 'value', title: `Value (${betweenText(result.interannual || 'median')} of the years)`, format: '.4~g'},
+			{field: 'n_years', title: 'Years with a value'}, {field: 'doy', title: 'Day of the year'}];
+		const axis = (k) => {
+			const lim = lims[k], c = colours[k];
+			const only = {filter: {field: 'variable', equal: names[k]}};
+			const values = data.filter((d) => d.variable === names[k] && Number.isFinite(d.value)).map((d) => d.value);
+			const [lo, hi] = lim || (values.length ? [Math.min(...values), Math.max(...values)] : [0, 0]);
+			const y = (more) => Object.assign({type: 'quantitative', title: titles[k], scale: yScale(lim),
+				axis: Object.assign({orient: k ? 'right' : 'left', grid: !k}, two ? {titleColor: c, labelColor: c} : {})}, more);
+			const layer = [
+				{transform: [only], mark: {type: 'line', clip: Boolean(lim), invalid: 'break-paths-show-domains'},
+					encoding: {x, y: y({field: 'value'}), color}},
+				{transform: [only], mark: {type: 'point', filled: true, size: 30, opacity: 1, clip: Boolean(lim)},
+					encoding: {x, y: y({field: 'value'}), color, tooltip}},
+			];
+			const same = k && lim && lims[0] && lim[0] === lims[0][0] && lim[1] === lims[0][1];
+			if (lo < 0 && 0 < hi && !same) {  // below the lines; that of the right axis, dotted in its colour
+				const zero = k ? {color: c, strokeDash: [2, 3]} : {color: MO.css('--baseline') || '#888888'};
+				layer.unshift({data: {values: [{}]}, mark: Object.assign({type: 'rule', strokeWidth: 1}, zero),
+					encoding: {y: y({datum: 0})}});
+			}
+			return {layer};
+		};
+		const spec = {data: {values: data}, width: 'container', height: 280};
+		return two ? Object.assign(spec, {layer: [axis(0), axis(1)], resolve: {scale: {y: 'independent'}}}) :
+			Object.assign(spec, axis(0));
 	}
 
 	// A profile along a line (transect): the variable against the distance, over the elevation in grey
@@ -406,9 +479,10 @@ MO.chart = (() => {
 		const cols = (TABLES[kind] || (RBR_BASE.every((c) => all.includes(c)) ? RBR_STATS : all))
 			.filter((c) => rows.length && c in rows[0]);
 		const cell = (c, v) => c === 'significant' ? (v ? 'yes' : 'no') : c === 'p_value' ? MO.pValue(v) :
-			typeof v === 'number' ? (['n', 'n_images', 'n_pixels', 'first_year', 'last_year', 'class', 'n_reference', 'n_other'].includes(c) ? String(v) : MO.num(v)) : (v ?? '–');
+			typeof v === 'number' ? (['n', 'n_images', 'n_pixels', 'first_year', 'last_year', 'class', 'n_reference', 'n_other',
+				'doy', 'n_years'].includes(c) ? String(v) : MO.num(v)) : (v ?? '–');
 		return el('div', {class: 'table-wrap'}, el('table', {class: 'data'},
-			el('thead', {}, el('tr', {}, cols.map((c) => el('th', {scope: 'col'}, COLUMNS[c] || c)))),
+			el('thead', {}, el('tr', {}, cols.map((c) => el('th', {scope: 'col'}, (HEADS[kind] || {})[c] || COLUMNS[c] || c)))),
 			el('tbody', {}, rows.map((r) => el('tr', {}, cols.map((c) => el('td', {}, cell(c, r[c]))))))));
 	}
 
@@ -431,6 +505,7 @@ MO.chart = (() => {
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'transect') return embed(box, transectSpec(subset, result));
 			if (kind === 'doy') return embed(box, doySpec(subset, result));
+			if (kind === 'doy_profile') return embed(box, doyProfileSpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
 			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
 				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
@@ -449,7 +524,8 @@ MO.chart = (() => {
 			return box.append(table(subset, kind));
 		};
 		let current = rows;
-		if (regions.length > 1 && ['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy'].includes(kind) ||
+		if (regions.length > 1 &&
+			['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy', 'doy_profile'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => regionOf(r) === regions[0]);

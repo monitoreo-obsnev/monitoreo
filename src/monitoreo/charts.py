@@ -289,10 +289,21 @@ def transect_png(rows, path=None, title=None, ylabel=None, dpi=120):
 MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]  # day of the year of the first of each month
 
 
-def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=150):
+MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+PROFILE_COLOURS = ('#1f77b4', '#d62728')  # the line of the left axis and that of the right axis of doy_profile_png
+
+
+def _days_axis(ax):
+	"""The x axis of a chart by day of the year: 1 to 366, with the first day of each month."""
+	ax.set_xlim(1, 366)
+	ax.set_xticks(MONTH_STARTS)
+	ax.set_xticklabels(MONTH_LABELS, fontsize=8)
+
+
+def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=150, ylim=None):
 	"""PNG (bytes) of a time series (ROWS with year and doy: see timeseries.with_doy) with a line per year over the days
 	of the year, from the oldest year (light) to the newest (dark, thicker), as the day-of-year charts of geemap; a panel
-	per region (the first 4)."""
+	per region (the first 4). YLIM: (min, max) of the y axis (default: from the data)."""
 	from matplotlib import colormaps
 	from matplotlib.figure import Figure
 
@@ -308,10 +319,9 @@ def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=
 			ax.plot([p[0] for p in pts], [p[1] if p[1] is not None else float('nan') for p in pts], marker='o',
 			        markersize=2.5 if newest else 1.5, linewidth=2.2 if newest else 1.0,
 			        color=cmap(0.15 + 0.85 * k / max(len(years) - 1, 1)), label=str(y), zorder=3 if newest else 2)
-		ax.set_xlim(1, 366)
-		ax.set_xticks(MONTH_STARTS)
-		ax.set_xticklabels(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-		                   fontsize=8)
+		_days_axis(ax)
+		if ylim:
+			ax.set_ylim(*ylim)
 		ax.grid(alpha=0.3)
 		if ylabel:
 			ax.set_ylabel(ylabel, fontsize=8)
@@ -319,6 +329,53 @@ def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=
 			ax.set_title(str(g), fontsize=9, loc='left')
 		if i == 0:
 			ax.legend(fontsize=7, frameon=False, ncol=min(len(years), 8), loc='best')
+	if title:
+		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
+	fig.tight_layout()
+	return _png(fig, path)
+
+
+def doy_profile_png(profile, path=None, title=None, ylabel=None, other_ylabel=None, ylim=None, other_ylim=None,
+                    width=10, height=4.8, dpi=150):
+	"""PNG (bytes) of the seasonal profile of one or two variables (PROFILE: rows of timeseries.doy_profile) over the
+	days of the year: the first variable on the left axis (blue, YLABEL, YLIM) and the other, if there is one, on a right
+	axis (red, OTHER_YLABEL, OTHER_YLIM), each axis title in the colour of its line, both named in the legend, with a
+	line at 0 where an axis has it; a panel per region (the first 4). YLIM, OTHER_YLIM: (min, max) of each axis
+	(default: from the data)."""
+	from matplotlib.figure import Figure
+
+	regions = list(dict.fromkeys(r['region'] for r in profile))[:4]
+	names = list(dict.fromkeys(r['variable'] for r in profile))[:2]
+	fig = Figure(figsize=(width, height * (1 if len(regions) <= 1 else 0.6 * len(regions))), dpi=dpi)
+	for i, g in enumerate(regions):
+		ax = fig.add_subplot(max(len(regions), 1), 1, i + 1)
+		axes = [ax, ax.twinx()] if len(names) > 1 else [ax]
+		lines = []
+		for k, (name, a) in enumerate(zip(names, axes)):
+			# by day only: the values of two steps of the same day (one may be None) are not compared
+			pts = sorted(((r['doy'], r.get('value')) for r in profile if r['region'] == g and r['variable'] == name),
+			             key=lambda p: p[0])
+			lines += a.plot([p[0] for p in pts], [p[1] if p[1] is not None else float('nan') for p in pts],
+			                marker='o', markersize=3, linewidth=1.6, color=PROFILE_COLOURS[k], label=str(name))
+			lim, label = ((ylim, ylabel), (other_ylim, other_ylabel))[k]
+			if lim:
+				a.set_ylim(*lim)
+			if label:
+				a.set_ylabel(label, fontsize=8)
+			if len(names) > 1:  # each axis in the colour of its line
+				a.yaxis.label.set_color(PROFILE_COLOURS[k])
+				a.tick_params(axis='y', colors=PROFILE_COLOURS[k], labelsize=8)
+			low, high = a.get_ylim()
+			if low < 0 < high and (k == 0 or tuple(a.get_ylim()) != tuple(ax.get_ylim())):
+				a.axhline(0, color='#888888' if k == 0 else PROFILE_COLOURS[k], linewidth=0.8,
+				          linestyle='-' if k == 0 else ':', alpha=0.7, zorder=1)
+		_days_axis(ax)
+		ax.grid(alpha=0.3)
+		if len(regions) > 1:
+			ax.set_title(str(g), fontsize=9, loc='left')
+		if i == 0:
+			ax.legend(lines, [ln.get_label() for ln in lines], fontsize=8, frameon=False, ncol=len(lines),
+			          loc='lower right', bbox_to_anchor=(1, 1))  # above the axes: it covers no point of either
 	if title:
 		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
 	fig.tight_layout()

@@ -25,7 +25,12 @@ mo_time_series(
   band_offset = NULL,
   unit = NULL,
   doy = FALSE,
-  chart = NULL
+  chart = NULL,
+  interannual = NULL,
+  other_variable = NULL,
+  other_sensor = NULL,
+  ylim = NULL,
+  other_ylim = NULL
 )
 }
 \arguments{
@@ -99,14 +104,40 @@ aspect of \code{terrain} (in the functions that take it) \code{"degree"}.}
 
 \item{doy}{\code{TRUE}: the chart (\code{chart}, and that of \code{mo_plot()}) with a line per year over the days
 of the year, and the columns year and doy (day of the year), to compare the years; not with
-\code{step = "annual"}.}
+\code{step = "annual"}. With \code{interannual} or \code{other_variable}, the seasonal profile instead.}
 
 \item{chart}{optional path of a PNG chart.}
+
+\item{interannual}{with \code{doy}: the seasonal profile, a line per variable over the days of the year instead of
+a line per year: for each step of the year (each month, 16-day period or calendar day), this metric of its
+values in the years of the period (e.g. the median NDVI of each month of 2018-2024): \code{"mean"},
+\code{"median"}, \code{"min"}, \code{"max"}, \code{"std"} (sample standard deviation), \code{"cv"}
+(coefficient of variation, in \%) or \code{"pN"} (percentile N, e.g. \code{"p25"}). Default with
+\code{other_variable}: \code{"median"}.}
+
+\item{other_variable, other_sensor}{with \code{doy}: a second variable of the catalog with dates (not data of Earth
+Engine by its ID) and its sensor (default: \code{sensor}), computed as the first one (the same region, period,
+season, step, metric, statistic, pixel filters and scale) and drawn on the right y axis of the seasonal profile,
+e.g. the NDSI on the left and the NDVI on the right.}
+
+\item{ylim, other_ylim}{with \code{doy}: \code{c(min, max)} of the left and of the right y axis, only if given; by
+default each axis goes from the minimum to the maximum of the values of its own variable.}
 }
 \value{
-A data.frame (region, date, value, n_pixels, n_images) with the attributes title, unit, ylabel
-  (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF) [\%]"), scale, csv, references and
-  credits (see \code{mo_references()}).
+A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
+  attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
+  [\%]"), scale, csv, references and credits (see \code{mo_references()}), and with \code{doy} ylim (\code{NULL}:
+  from the data).
+
+  With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
+  (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period
+  of the year, "0", "1", ..., or the day, "MM-DD"; doy, the day of the year where it is drawn; label, e.g. "Jan"
+  or "Jan 17"; value, \code{interannual} of the values of that step in the years of the period; n_years, how many
+  years had a value) with the attributes rows (the values of each year, of both variables, each with its variable
+  when there are two), variables (their names), units and scales (of each variable), interannual, ylabel and
+  other_ylabel (the titles of the y axes), ylim and other_ylim (\code{NULL}: from the data), title, unit, scale,
+  csv, references and credits (also those of the other variable). \code{mo_plot()} draws it, the other variable on
+  a right y axis.
 }
 \description{
 A value per step and feature of the region, reduced in time with \code{metric} and over the region with
@@ -129,6 +160,11 @@ ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31
 # any collection of images of Earth Engine by its ID: the precipitation of TerraClimate
 pr <- mo_time_series(mo_wdpa(389011), collection = "IDAHO_EPSCOR/TERRACLIMATE", band = "pr", unit = "mm month-1",
                      start = "2015-01-01", end = "2024-12-31")
+# the seasonal profile of the NDSI and the NDVI on two y axes, each from its values: the median of the years of each
+# month; snow = "auto" keeps the snow of the NDSI and removes that of the NDVI
+p <- mo_time_series(mo_wdpa(389011), "NDSI", "Sentinel-2", "2018-01-01", "2024-12-31", doy = TRUE,
+                    interannual = "median", other_variable = "NDVI", quality = list(snow = "auto"))
+mo_plot(p)
 }
 }
 \references{

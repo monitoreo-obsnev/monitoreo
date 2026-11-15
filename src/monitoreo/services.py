@@ -739,13 +739,17 @@ def variable_specs(var, two_periods=False):
 	return variables.specs(var, two_periods=two_periods)
 
 
-def _title(spec, step=None, metric=None, stat=None):
-	k = variables.kind(spec)
-	if k == 'catalog':
+def _series_name(spec):
+	"""The name of the variable of SPEC in titles and tables: its index and sensor ('NDVI Sentinel-2'), or the ID, band
+	and terrain of the data of Earth Engine (the slope of a DEM is not named as its elevation)."""
+	if variables.kind(spec) == 'catalog':
 		e = variables.entry_of(spec)
-		name = f"{e['index']} {e['sensor']}"
-	else:  # its ID, band and terrain: the slope of a DEM is not named as its elevation
-		name = variables.data_name(spec)
+		return f"{e['index']} {e['sensor']}"
+	return variables.data_name(spec)
+
+
+def _title(spec, step=None, metric=None, stat=None, name=None):
+	name = name or _series_name(spec)
 	period = f"{spec['period'][0]} / {spec['period'][1]}" if spec.get('period') and not variables.is_static(spec) else ''
 	parts = [name, period]
 	if step:
@@ -766,14 +770,15 @@ def _between(spec):
 	return spec.get('interannual')
 
 
-def _unit(spec, stat=None):
+def _unit(spec, stat=None, interannual=None):
 	"""The unit of the values of SPEC (that of the catalog, or a total for the sums, or % for the coefficient of
 	variation, of the images or between the years: see catalog.unit_of; for the data of Earth Engine outside the
 	catalog, the unit given, in UDUNITS, see catalog.custom_unit; '' if none was given), and of their statistic STAT
-	over a region (% for the coefficient of variation)."""
+	over a region (% for the coefficient of variation), and of the metric between the years INTERANNUAL of a profile
+	by day of the year (see time_series)."""
 	unit = variables.entry_of(spec)['unit'] if variables.kind(spec) == 'catalog' else \
 		catalog.custom_unit(spec.get('unit'))
-	return catalog.unit_of(unit, spec.get('metric'), _between(spec), stat)
+	return catalog.unit_of(unit, spec.get('metric'), interannual or _between(spec), stat)
 
 
 def _source_name(variable, source):
@@ -787,14 +792,14 @@ def _source_name(variable, source):
 	return variables.data_name({k: source.get(k) for k in ('collection', 'image', 'band', 'terrain')})
 
 
-def _ylabel(spec, stat=None):
-	"""Title of the y axis of the charts of SPEC (and of the statistic STAT of the regions): the unit, after the axis
-	title of the catalog if it has one (e.g. 'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation, after
-	its name."""
-	unit = _unit(spec, stat)
+def _ylabel(spec, stat=None, interannual=None):
+	"""Title of the y axis of the charts of SPEC (and of the statistic STAT of the regions, and of the metric between the
+	years INTERANNUAL of a profile by day of the year): the unit, after the axis title of the catalog if it has one (e.g.
+	'Snow Cover Frequency (SCF) [%]'); of a coefficient of variation, after its name."""
+	unit = _unit(spec, stat, interannual)
 	if variables.kind(spec) != 'catalog':  # in UDUNITS, without brackets: shown as those of the catalog
 		unit = f'[{unit}]' if unit and not unit.startswith('[') else unit
-	if catalog.is_cv(spec.get('metric'), _between(spec), stat):
+	if catalog.is_cv(spec.get('metric'), interannual or _between(spec), stat):
 		return f'Coefficient of variation {unit}'
 	if variables.kind(spec) != 'catalog':
 		return unit
@@ -808,36 +813,164 @@ def _slug(text):
 
 # Time series -------------------------------------------------------------------------------------------------------
 
+# the options of the chart by day of the year (time_series with doy): the seasonal profile, its other variable and axes
+DOY_OPTIONS = ('interannual', 'other_variable', 'other_sensor', 'ylim', 'other_ylim')
+
+
+def check_ylim(ylim, name='ylim'):
+	"""(min, max) of a y axis given as YLIM (two numbers, or a text 'min, max'), or None if it is not given; ValueError
+	(about the argument NAME) if it is not two numbers, the first smaller."""
+	if ylim is None or (isinstance(ylim, (str, list, tuple)) and not str(ylim).strip('[]() ')):
+		return None
+	parts = re.split(r'[,;\s]+', ylim.strip().strip('[]()').strip()) if isinstance(ylim, str) else ylim
+	try:
+		if isinstance(parts, (str, bytes, dict)) or any(isinstance(x, bool) for x in parts):
+			raise TypeError
+		lo, hi = (float(x) for x in parts)
+	except (TypeError, ValueError):
+		raise ValueError(f'{name}: give two numbers, the lowest and the highest value of the y axis (e.g. [-1, 1]), '
+		                 f'not {ylim!r}') from None
+	if not (math.isfinite(lo) and math.isfinite(hi)) or lo >= hi:
+		raise ValueError(f'{name}: the first number of the y axis ({lo:g}) must be smaller than the second ({hi:g})')
+	return lo, hi
+
+
+def _other_spec(variable, sensor, start, end, metric, season, quality, source):
+	"""The spec of the other variable of a profile by day of the year (the right axis): a variable of the catalog with
+	dates, with the period, season, metric, pixel filters and pixels of the region (where, exclude_landcover) of the
+	first one, and its own rules (the SCF and the CF only take the metric mean); ValueError otherwise."""
+	if '/' in str(variable):
+		raise ValueError(f'other_variable {variable}: the variable of the right axis is a variable of the catalog of '
+		                 'MonitorEO (e.g. NDVI, see list_variables), not data of Earth Engine by its ID')
+	if not sensor:
+		raise ValueError(f'other_variable {variable}: give its sensor (other_sensor), e.g. Sentinel-2')
+	try:
+		catalog.find(variable, sensor)
+		spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality,
+		                 where=source.get('where'), exclude_landcover=source.get('exclude_landcover'))
+		variables.check_dates(spec, 'time series')
+	except KeyError as e:
+		raise ValueError(f'other_variable (the right axis): {e.args[0]}') from None
+	except ValueError as e:
+		raise ValueError(f'other_variable (the right axis): {e}') from None
+	return spec
+
+
+def _sensor_of(spec, sensor=None):
+	"""The sensor of the variable of SPEC as the catalog names it (else SENSOR as given, or '')."""
+	return variables.entry_of(spec)['sensor'] if variables.kind(spec) == 'catalog' else sensor or ''
+
+
 @_cited
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
-                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, doy=False, **source):
+                season=None, quality=None, scale=None, csv=None, chart=None, progress=None, doy=False,
+                interannual=None, other_variable=None, other_sensor=None, ylim=None, other_ylim=None, **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
 	year and the day of the year (1-366) of each step, and the chart has a line per year over the days of the year
 	(a panel for each of the first 4 regions), to compare the years (phenology, snow seasons; as the day-of-year
 	charts of geemap): not for an annual step.
-	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'title'}."""
+	With DOY and INTERANNUAL (mean, median, min, max, std, cv or pN: see timeseries.over_years) or OTHER_VARIABLE, the
+	seasonal profile instead: for each step of the year (each month, 16-day period or calendar day: see
+	timeseries.doy_profile), INTERANNUAL (default median) of its values in the years of the period, a line per
+	variable over the days of the year. OTHER_VARIABLE (and OTHER_SENSOR, default SENSOR) is a second variable of the
+	catalog with dates, computed as the first one (region, period, season, step, metric, statistic, pixel filters,
+	scale), drawn on a right axis (e.g. NDSI and NDVI). YLIM and OTHER_YLIM: (min, max) of the left and right y axes,
+	only when given; else each axis goes from the minimum to the maximum of the values of its own variable. The CSV of
+	the profile has its rows (timeseries.PROFILE_COLUMNS and PROFILE_META), not those of each year.
+	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'ylabel', 'title',
+	'n_steps', 'regions'}; with DOY also 'ylim' (YLIM, or None: from the data), and the rows have year and doy; with
+	the profile also 'profile' ([{region, variable, part, doy, label, value, n_years}]), 'variables' (the names of
+	the variables, as in the rows and the profile, e.g. ['NDSI Sentinel-2', 'NDVI Sentinel-2']), 'units' and 'scales'
+	({name: unit or pixel size}), 'interannual', 'other_ylabel' (None without OTHER_VARIABLE) and 'other_ylim'
+	(OTHER_YLIM, or None: from the data), and the rows of both variables, each with its 'variable' when there are
+	two."""
+	given = [k for k, v in zip(DOY_OPTIONS, (interannual, other_variable, other_sensor, ylim, other_ylim))
+	         if v is not None and v != '' and v != [] and v != ()]
+	if given and not doy:
+		raise ValueError(f"{', '.join(given)}: only for the chart by day of the year (doy)")
 	if doy and step == 'annual':
 		raise ValueError('a line per year over the days of the year (doy) needs a step shorter than a year: daily, '
 		                 '16-day or monthly')
+	other_variable = other_variable or None
+	if not other_variable and ('other_sensor' in given or 'other_ylim' in given):
+		raise ValueError('other_sensor and other_ylim are those of the variable of the right axis: give other_variable')
+	if interannual not in (None, ''):
+		interannual = timeseries.check_interannual(interannual)
+	else:
+		interannual = 'median' if other_variable else None
+	ylim, other_ylim = check_ylim(ylim, 'ylim'), check_ylim(other_ylim, 'other_ylim')
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'time series')
+	other = _other_spec(other_variable, other_sensor or sensor, start, end, metric, season, quality, source) \
+		if other_variable else None
+	names = [_series_name(spec)] + ([_series_name(other)] if other else [])
+	if other and names[0] == names[1]:
+		raise ValueError(f'other_variable (the right axis): {names[1]} is already the variable of the left axis')
+	profiled = bool(doy and interannual)
 	regions = areas.region(region)
-	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress)
+	first_total = [0]
+
+	def first_progress(done, total):  # the steps of both variables
+		first_total[0] = total
+		progress(done, 2 * total)
+
+	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale,
+	                                     first_progress if progress and other else progress)
+	other_rows, other_scale = timeseries.series(
+		other, regions, step, metric, stat, scale,
+		(lambda done, total: progress(first_total[0] + done, first_total[0] + total)) if progress else None) \
+		if other else ([], None)
 	if doy:
 		timeseries.with_doy(rows)
-	unit = _unit(spec, stat)
+		timeseries.with_doy(other_rows)
+	if other:
+		for name, part in zip(names, (rows, other_rows)):
+			for r in part:
+				r['variable'] = name
+		rows = sorted(rows + other_rows, key=lambda r: (r['region'], names.index(r['variable']), r['date']))
+	unit = _unit(spec, stat, interannual if profiled else None)
 	title = _title(spec, step, metric, stat) + (' | by day of the year' if doy else '')
-	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'ylabel': _ylabel(spec, stat),
-	       'title': title, 'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
-	if csv:
+	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit,
+	       'ylabel': _ylabel(spec, stat, interannual if profiled else None), 'title': title,
+	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
+	if doy:
+		out['ylim'] = ylim
+	if profiled:
+		units, scales = {names[0]: unit}, {names[0]: used_scale}
+		out.update(profile=timeseries.doy_profile(rows, spec, step, interannual, names[0]), variables=names,
+		           units=units, scales=scales, interannual=interannual, other_ylabel=None, other_ylim=None,
+		           title=_title(spec, step, metric, stat, ' and '.join(names))
+		           + f' | {interannual} of the years by day of the year')
+		if other:
+			units[names[1]], scales[names[1]] = _unit(other, stat, interannual), other_scale
+			out['other_ylabel'] = _ylabel(other, stat, interannual)
+			out['other_ylim'] = other_ylim
+			for k, name in (('ylabel', names[0]), ('other_ylabel', names[1])):  # two axes: each says its variable
+				if name.split()[0] not in str(out[k] or ''):
+					out[k] = f'{name} {out[k] or ""}'.strip()
+	if csv and profiled:  # the profile, what the chart shows
+		sensors_of = {names[0]: _sensor_of(spec, sensor)}
+		if other:
+			sensors_of[names[1]] = _sensor_of(other)
+		table = [dict(r, sensor=sensors_of[r['variable']], step=step, metric=metric, stat=stat, interannual=interannual,
+		              unit=catalog.udunits(out['units'][r['variable']]), scale_m=out['scales'][r['variable']])
+		         for r in out['profile']]
+		out['csv'] = timeseries.write_csv(table, csv, {}, timeseries.PROFILE_COLUMNS + timeseries.PROFILE_META)
+	elif csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
 		out['csv'] = timeseries.write_csv(rows, csv, meta, timeseries.COLUMNS + (['year', 'doy'] if doy else []))
 	if chart and rows:
 		try:
-			(charts.doy_png if doy else charts.time_series_png)(rows, chart, title=title, ylabel=out['ylabel'] or None)
+			if profiled:
+				charts.doy_profile_png(out['profile'], chart, out['title'], out['ylabel'] or None,
+				                       out['other_ylabel'] or None, out['ylim'], out['other_ylim'])
+			elif doy:
+				charts.doy_png(rows, chart, title=title, ylabel=out['ylabel'] or None, ylim=out['ylim'])
+			else:
+				charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None)
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass

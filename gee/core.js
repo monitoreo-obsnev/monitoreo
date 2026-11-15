@@ -1782,6 +1782,214 @@ var MonitorEO = (function () {
 		run(0);
 	}
 
+	// By day of the year (timeseries.with_doy and doy_profile): a line per year, or the seasonal profile, a metric
+	// between the years (overYears) of the values of each step of the year, a line per variable -------------------
+
+	var INTERANNUAL = ['mean', 'median', 'min', 'max', 'std', 'cv'];  // timeseries.INTERANNUAL, and pN
+	var INTERANNUAL_TEXT = 'mean, median, min, max, std (sample standard deviation), cv (coefficient of variation, %) ' +
+		'or pN (percentile N, e.g. p25)';
+	var PROFILE_COLUMNS = ['region', 'variable', 'part', 'doy', 'label', 'value', 'n_years'];
+	// timeseries.PROFILE_META: the columns of the CSV of a profile after PROFILE_COLUMNS
+	var PROFILE_META = ['sensor', 'step', 'metric', 'stat', 'interannual', 'unit', 'scale_m'];
+	var MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	var COMMON_YEAR = 2023;  // a year of 365 days, for the names of the days of the year
+	var LEAP_YEAR = 2024;  // a year of 366 days, for the days of the year of the calendar days
+	var MONTH_STARTS = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335];  // charts.MONTH_STARTS
+
+	// The day of the year (1-366) of the date D (UTC)
+	function dayOfYear(d) {
+		return Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
+	}
+
+	// timeseries.with_doy: ROWS with the year and the day of the year (1-366) of the first day of each step
+	function withDoy(rows) {
+		rows.forEach(function (r) {
+			var d = date(String(r.date).slice(0, 10));
+			r.year = d.getUTCFullYear();
+			r.doy = dayOfYear(d);
+		});
+		return rows;
+	}
+
+	// timeseries.check_interannual: METRIC between the years in lower case, or an error
+	function checkInterannual(metric) {
+		var m = String(metric === null || metric === undefined ? '' : metric).trim().toLowerCase();
+		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
+		if (INTERANNUAL.indexOf(m) >= 0 || (p && Number(p[1]) >= 0 && Number(p[1]) <= 100)) return m;
+		throw new Error('unknown metric between the years (interannual) ' + metric + ': use ' + INTERANNUAL_TEXT);
+	}
+
+	// timeseries.over_years: METRIC of VALUES (one per year; the null left out), or null without values: the mean;
+	// the median (the mean of the two middle values when they are even); min; max; std, the sample standard deviation
+	// (n - 1; null with fewer than 2 values); cv, 100 × std / |mean| (null with fewer than 2 values or a mean of 0); pN,
+	// the percentile N with linear interpolation between the closest ranks. The sums add the values in their order,
+	// one by one, as Python, so that both give the same numbers
+	function overYears(values, metric) {
+		var m = checkInterannual(metric);
+		var xs = values.filter(function (v) { return v !== null && v !== undefined; }).map(Number);
+		var n = xs.length;
+		if (!n) return null;
+		function mean() {
+			var total = 0;
+			for (var i = 0; i < n; i++) total += xs[i];
+			return total / n;
+		}
+		function std() {
+			var mu = mean(), total = 0;
+			for (var i = 0; i < n; i++) {
+				var d = xs[i] - mu;
+				total += d * d;
+			}
+			return Math.sqrt(total / (n - 1));
+		}
+		if (m === 'mean') return mean();
+		if (m === 'min' || m === 'max') return Math[m].apply(null, xs);
+		if (m === 'std' || m === 'cv') {
+			if (n < 2) return null;
+			if (m === 'std') return std();
+			var mu = mean();
+			return mu === 0 ? null : 100 * std() / Math.abs(mu);
+		}
+		var s = xs.slice().sort(function (a, b) { return a - b; });
+		if (m === 'median') return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+		var rank = Number(m.slice(1)) / 100 * (n - 1);
+		var lo = Math.floor(rank), hi = Math.min(lo + 1, n - 1);
+		return s[lo] + (s[hi] - s[lo]) * (rank - lo);
+	}
+
+	// timeseries.day_label: the name in English of the day of the year DOY in a common year ('Jan 17'; 366: 'Dec 31')
+	function dayLabel(doy) {
+		var d = addDays(ymd(COMMON_YEAR, 1, 1), Math.min(Math.max(Math.floor(Number(doy)), 1), 365) - 1);
+		return MONTH_ABBR[d.getUTCMonth()] + ' ' + d.getUTCDate();
+	}
+
+	// timeseries._split_month: [month, first day] of the SEASON (['MM-DD', 'MM-DD']) when it starts and ends in the same
+	// month and crosses the new year (15 October to 14 October), whose windows have two parts of that month; else null
+	function splitMonth(season) {
+		if (!season) return null;
+		var a = String(season[0]).split('-').map(Number), b = String(season[1]).split('-').map(Number);
+		return a[0] === b[0] && a[1] > b[1] ? a : null;
+	}
+
+	function pad2(n) {
+		return (n < 10 ? '0' : '') + n;
+	}
+
+	// timeseries._part_of: the step of the year of the first day DAY of a step of STEP: the month (1-12), or 'MM-DD' for
+	// the part of a month from the first day of a SEASON that starts and ends in it ('10-15'); the number of the 16-day
+	// period from the start of its window of WINS (1 January, or the first day of the SEASON), 0, 1, 2, ..., the closest
+	// one to DAY and none after the last one of the window; or the calendar day 'MM-DD'
+	function partOf(day, step, wins, season) {
+		if (step === 'monthly') {
+			var split = splitMonth(season);
+			if (split && day.getUTCMonth() + 1 === split[0] && day.getUTCDate() >= split[1]) {
+				return pad2(split[0]) + '-' + pad2(split[1]);
+			}
+			return day.getUTCMonth() + 1;
+		}
+		if (step === 'daily') return iso(day).slice(5);
+		var year = day.getUTCFullYear(), end = null;
+		for (var i = 0; i < wins.length; i++) {
+			if (wins[i][1] <= day && day < wins[i][2]) {
+				year = wins[i][0];
+				end = wins[i][2];
+				break;
+			}
+		}
+		var first = season ? md(year, season[0]) : ymd(year, 1, 1);
+		var part = Math.floor(Math.round((day - first) / 864e5) / 16 + 0.5);
+		return end ? Math.min(part, Math.floor((Math.round((end - first) / 864e5) - 1) / 16)) : part;
+	}
+
+	// timeseries._part_doy: the day of the year where the step of the year PART of STEP is drawn: monthly the median
+	// (rounded, .5 up) of the days of the year DOYS of its rows; daily that of the calendar day in a leap year (29
+	// February 60, 1 March 61); 16-day that of the first day of the period in a common year (the first day of the window
+	// + 16 × PART days), which goes on after 31 December
+	function partDoy(part, step, season, doys) {
+		if (step === 'daily') return dayOfYear(ymd(LEAP_YEAR, Number(part.slice(0, 2)), Number(part.slice(3))));
+		if (step === '16-day') {
+			var first = season ? md(COMMON_YEAR, season[0]) : ymd(COMMON_YEAR, 1, 1);
+			return (dayOfYear(first) - 1 + 16 * part) % 365 + 1;
+		}
+		doys = doys.slice().sort(function (a, b) { return a - b; });
+		var k = doys.length;
+		return Math.floor((k % 2 ? doys[(k - 1) / 2] : (doys[k / 2 - 1] + doys[k / 2]) / 2) + 0.5);
+	}
+
+	// timeseries._part_label: the name in English of the step of the year PART of STEP drawn on the day DOY: the month,
+	// or its two parts in a season that starts and ends in it ('Oct 15-31', 'Oct 1-14'); the calendar day; the day of DOY
+	function partName(part, step, season, doy) {
+		if (step === 'monthly') {
+			var split = splitMonth(season);
+			if (typeof part === 'string') {
+				return MONTH_ABBR[split[0] - 1] + ' ' + split[1] + '-' + daysInMonth(COMMON_YEAR, split[0]);
+			}
+			if (split && part === split[0]) return MONTH_ABBR[part - 1] + ' 1-' + (split[1] - 1);
+			return MONTH_ABBR[part - 1];
+		}
+		if (step === 'daily') return MONTH_ABBR[Number(part.slice(0, 2)) - 1] + ' ' + Number(part.slice(3));
+		return dayLabel(doy);
+	}
+
+	// timeseries.doy_profile: the seasonal profile of the time series ROWS ([{region, date, value, ...}], with variable
+	// when they are of two variables, else VARIABLE, its name) of a STEP shorter than a year: [{region, variable, part,
+	// doy, label, value, n_years}] (PROFILE_COLUMNS), a row per region, variable and step of the year (partOf), whose
+	// value is INTERANNUAL (overYears) of its values in the years (n_years: how many are not null); doy is where it is
+	// drawn (partDoy), label its name (partName). The features of the same name are numbered from the second one
+	// ('Sierra Nevada (2)'): the rows of each date come in the order of the features (series). Sorted by region,
+	// variable (in the order of ROWS), doy and part. S needs period and season only for the 16-day and monthly steps
+	function doyProfile(rows, s, step, interannual, variable) {
+		if (STEPS.indexOf(step) < 0 || step === 'annual') {
+			throw new Error('the profile by day of the year needs a step shorter than a year: daily, 16-day or monthly, ' +
+				'not ' + step);
+		}
+		interannual = checkInterannual(interannual);
+		var season = step !== 'daily' && s ? s.season || null : null;
+		var wins = step === '16-day' ? windows(s.period, season) : [];
+		var groups = {}, keys = [], names = [], seen = {};
+		rows.forEach(function (r) {
+			var text = String(r.date).slice(0, 10), day = date(text);
+			var name = r.variable || variable || '';
+			if (names.indexOf(name) < 0) names.push(name);
+			var region = String(r.region), id = [region, name, text].join('\u0000');
+			seen[id] = (seen[id] || 0) + 1;
+			if (seen[id] > 1) region += ' (' + seen[id] + ')';
+			var part = partOf(day, step, wins, season);
+			var key = [region, name, part].join('\u0000');
+			if (!groups.hasOwnProperty(key)) {
+				groups[key] = {region: region, name: name, part: part, items: []};
+				keys.push(key);
+			}
+			groups[key].items.push([text, r.doy || dayOfYear(day), r.value === undefined ? null : r.value]);
+		});
+		var out = keys.map(function (key) {
+			var g = groups[key];
+			var items = g.items.slice().sort(function (a, b) { return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0; });
+			var doy = partDoy(g.part, step, season, items.map(function (x) { return x[1]; }));
+			var values = items.map(function (x) { return x[2]; }).filter(function (v) { return v !== null; });
+			return {region: g.region, variable: g.name, part: String(g.part), doy: doy,
+				label: partName(g.part, step, season, doy), value: overYears(values, interannual), n_years: values.length};
+		});
+		out.sort(function (a, b) {
+			return a.region < b.region ? -1 : a.region > b.region ? 1 :
+				names.indexOf(a.variable) - names.indexOf(b.variable) || a.doy - b.doy ||
+				(a.part < b.part ? -1 : a.part > b.part ? 1 : 0);
+		});
+		return out;
+	}
+
+	// catalog.UDUNITS and catalog.udunits (without per_year): the unit of the catalog (e.g. '[°C]') in UDUNITS ('degC'),
+	// or '' if unknown; the units of the data of Earth Engine are already in UDUNITS ('mm day-1')
+	var UDUNITS = {'[unitless]': '1', '[°C]': 'degC', '[kg/m²/8 days]': 'kg m-2 (8 day)-1', '[J/m²/day]': 'J m-2 day-1',
+		'[mg m⁻³]': 'mg m-3', '[%]': '%', '[m]': 'm', '[°]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
+		'[mm/day]': 'mm day-1', '[kPa]': 'kPa'};
+
+	function udunits(unit) {
+		var text = String(unit || '').replace(/º/g, '°').trim();
+		var u = UDUNITS.hasOwnProperty(text) ? UDUNITS[text] : '';
+		return !u && text.charAt(0) !== '[' && UDUNITS_TEXT.test(text) ? text : u;
+	}
+
 	// Trends and comparisons (trends.py) ----------------------------------------------------------------------------
 
 	var TREND_STEPS = ['monthly', '16-day', 'annual'];
@@ -2507,6 +2715,9 @@ var MonitorEO = (function () {
 		animationRange: animationRange,
 		STEPS: STEPS, seriesBins: seriesBins, dailyDays: dailyDays, dailyBins: dailyBins, regionInfo: regionInfo,
 		autoScale: autoScale, seriesTable: seriesTable, series: series,
+		INTERANNUAL: INTERANNUAL, PROFILE_COLUMNS: PROFILE_COLUMNS, PROFILE_META: PROFILE_META, MONTH_ABBR: MONTH_ABBR,
+		MONTH_STARTS: MONTH_STARTS, withDoy: withDoy, checkInterannual: checkInterannual, overYears: overYears,
+		dayLabel: dayLabel, doyProfile: doyProfile, UDUNITS: UDUNITS, udunits: udunits,
 		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,

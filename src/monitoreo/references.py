@@ -304,6 +304,8 @@ def _uses_cv(tool, args, recipe=None):
 
 	if tool == 'burn_severity':
 		return str(args.get('index') or '').lower() in ('rbr', 'rdnbr') or where(args)
+	if tool == 'time_series' and args.get('doy') and cv(args.get('interannual')):  # between the years of the profile
+		return True
 	if tool == 'region_stats':
 		stats = args.get('stats')
 		default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
@@ -371,8 +373,13 @@ def cite(tool, args=None, date=None, datasets=()):
 		ids += _methods('area_by_class') + (_methods('trends') if args.get('trend') else [])
 	if tool == 'map_figure':
 		ids += _methods('map_figure')
-	if tool == 'time_series' and args.get('doy'):  # a line per year over the days of the year
+	if tool == 'time_series' and args.get('doy'):  # a line per year, or the profile, over the days of the year
 		ids += _methods('doy')
+	if tool == 'time_series' and args.get('other_variable'):  # the variable of the right axis of the profile
+		more, cred = of_spec({'index': args['other_variable'], 'sensor': args.get('other_sensor') or args.get('sensor'),
+		                      'quality': args.get('quality')}, period)
+		ids += more
+		credits += [c for c in cred if c not in credits]
 	if tool == 'transect':  # the elevation of the profile: the Copernicus DEM
 		more, cred = of_spec({'index': 'ELEVATION', 'sensor': 'Copernicus'}, period)
 		ids += more + _methods('transect')
