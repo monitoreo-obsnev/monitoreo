@@ -94,7 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), as the Earth Engine app does, instead of computing it without those pixels; the filters you had come back with another variable.
+- **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.
 
 ### [v0.3.40](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.40) · 2026-11-15 · package 0.3.50
 

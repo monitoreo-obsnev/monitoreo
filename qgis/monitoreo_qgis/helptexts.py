@@ -565,18 +565,20 @@ def describe(v):
 
 
 def filter_lines(v, d):
-	"""The filters that can be applied to V (described by D) and those that remove what it measures."""
+	"""The filters that can be applied to V (described by D), without those that remove what it measures, which the
+	panel unchecks and greys out (variable_changed)."""
 	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f)]
 	if d.get('static'):  # elevation, slope: an image, without filters
 		return [f"{v['variable']} of {v['sensor']} has no pixel filters: it is a fixed layer, without dates."]
 	if d.get('fixed_filters') is not None:  # the snow cover frequency: always without clouds and water
 		return [f"{v['variable']} of {v['sensor']} has fixed filters, which cannot be changed: it always removes "
 		        f"{' and '.join(names)}."]
+	measured = [f for f in d['measures'] if d['pixel_filters'].get(f)]
+	names = [FILTER_NAMES[f] for f in sensors.FILTERS if d['pixel_filters'].get(f) and f not in measured]
 	out = [f"With {v['variable']} of {v['sensor']} you can remove: {', '.join(names) or 'no filter'}."]
-	for f in d['measures']:
-		if d['pixel_filters'].get(f):
-			out.append(f"<b>{v['variable']} measures {MEASURED[f]}: uncheck {FILTER_NAMES[f]}</b>, or it will remove "
-			           "it.")
+	for f in measured:
+		out.append(f"<b>{v['variable']} measures {MEASURED[f]}</b>: the filter of {FILTER_NAMES[f]}, which would remove "
+		           "it, is unchecked and greyed out.")
 	return out
 
 
