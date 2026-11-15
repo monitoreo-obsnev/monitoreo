@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant** (fix): An animation is shown in its card, instead of a broken image, and plays in the HTML report, instead of its last frame (up to 10 MB; a bigger GIF goes into the report as its last frame).
+
 ### [v0.3.40](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.40) · 2026-11-15 · package 0.3.50
 
 - **All tools**: The topographic wetness index (`TWI`) of MERIT Hydro, 90 m, a fixed layer of the theme Terrain: how wet the soil tends to be because of the relief alone (Beven & Kirkby 1979).

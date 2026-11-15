@@ -809,7 +809,8 @@ function resultCard(e) {
     el('div', {class: 'head'}, el('h3', {text: `${e.id}. ${e.title}`}),
        el('span', {class: 'muted'}, el('label', {}, check, ' In the report'), e.table ? ' · ' : '',
           e.table ? el('label', {}, el('input', {type: 'checkbox', 'data-table': e.id}), ' Table in the report') : '')));
-  if (e.image) card.append(el('img', {src: e.image, alt: e.title}));
+  // a file of the results (the GIF of an animation) is served with the token, as the links to download them
+  if (e.image) card.append(el('img', {src: e.image.startsWith('/files/') ? fileUrl(e.image) : e.image, alt: e.title}));
   if (e.legend) card.append(el('div', {class: e.legend.classes ? 'legend classes' : 'legend'}, ...legendItems(e.legend)));
   if (e.under) card.append(el('div', {class: 'legend'}, ...legendItems(e.under)));  // a view over the true colour
   if (e.table) card.append(table(e.table));
