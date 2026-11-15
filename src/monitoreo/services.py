@@ -1190,7 +1190,7 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	.gif (default) or .mp4 (with ffmpeg). Earth Engine computes the colours of each frame on the same grid of web
 	Mercator, several at a time (PROGRESS(done, total) after each), and they are joined in a GIF with their texts (see
 	monitoreo.animation). Not for the fixed layers (elevation, slope, an image), which have no dates.
-	Returns {'file' (the GIF or the MP4), 'gif', 'frames': [{'date', 'end', 'label', 'images'}], 'n_frames', 'step',
+	Returns {'file' (the GIF or the MP4), 'gif', 'note' (why there is no MP4: without ffmpeg, the GIF only), 'frames': [{'date', 'end', 'label', 'images'}], 'n_frames', 'step',
 	'fps', 'dimensions', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale' (m: the pixels on which the frames
 	are computed, those of the frames or, if bigger, those of the data; see animation.pixel_size)}."""
 	animation.check(step, dimensions=dimensions, fps=fps, path=path)
@@ -1223,9 +1223,17 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	cited = references.cite('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start,
 	                                          end=end, quality=quality))
 	credits = '; '.join(['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
-	gif = animation.write(pictures, path, labels, f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'],
-	                      vis['palette'], unit_text(unit), credits, fps)
-	return dict(vis, file=path, gif=gif, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
+	video = os.path.splitext(path)[1].lower() == '.mp4'
+	gif = animation.write(pictures, os.path.splitext(path)[0] + '.gif' if video else path, labels,
+	                      f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'], vis['palette'],
+	                      unit_text(unit), credits, fps)
+	note = None
+	if video:  # without ffmpeg (or if it fails) the animation is its GIF, and the note says why there is no MP4
+		try:
+			animation.to_mp4(gif, path)
+		except ValueError as e:
+			path, note = gif, f'no MP4 video: {e}'
+	return dict(vis, file=path, gif=gif, note=note, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
 	            bounds=bounds, scale=animation.pixel_size(bounds, dimensions, res), n_frames=len(steps),
 	            frames=[{'date': a, 'end': b, 'label': animation.label(step, a, b), 'images': n}
 	                    for (a, b), n in zip(steps, counts)])

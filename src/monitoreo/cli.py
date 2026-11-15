@@ -34,7 +34,7 @@
                                                      figure of the map for a report or a paper: grid, scale bar,
                                                      north arrow, colour ramp and credits
     monitoreo timelapse VARIABLE --sensor S --region JSON --start D --end D --out F.gif|F.mp4
-                        [--step annual|monthly|16-day|daily] [--metric median] [--fps 2]
+                        [--step annual|monthly|16-day|daily] [--metric median] [--fps 1]
                                                      animation of a variable: a frame per step with its date
     monitoreo series --collection ID --band B [--band-scale F] [--band-offset F] [--unit U] --region JSON ...
                                                      the same with any collection of images of Earth Engine by its ID,
@@ -494,7 +494,7 @@ def main(argv=None):
 	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the '
 	                                         'period; with --metric sum or count, of the median of the frames)')
 	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
-	p.add_argument('--fps', type=float, default=2, help='frames per second (default: 2)')
+	p.add_argument('--fps', type=float, default=1, help='frames per second (default: 1)')
 	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
 	p.add_argument('--out', required=True, help='GIF (.gif) or video (.mp4, needs ffmpeg) of the animation')
 	burn = p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, the RBR, or the '
@@ -892,6 +892,8 @@ def _timelapse(args, services):
 	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
 	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
 	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	if res.get('note'):
+		print(res['note'], file=sys.stderr)
 
 
 def _transect(args, services):

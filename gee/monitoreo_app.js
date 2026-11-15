@@ -16163,7 +16163,7 @@ var MonitorEO = (function () {
 			if (id !== run) return;
 			var vis = mo.visParams(error ? null : st, ramped);
 			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);
-			var params = {dimensions: 600, region: geom.bounds(1000), framesPerSecond: 2, crs: 'EPSG:3857'};
+			var params = {dimensions: 600, region: geom.bounds(1000), framesPerSecond: 1, crs: 'EPSG:3857'};
 			var labels = steps.map(function (b) { return mo.frameLabel(step, b[0], b[1], state.lang); });
 			var unit = unitText(e, state.animMetric, null);
 			colourBar(vis, name + (unit ? ' ' + unit : ''));

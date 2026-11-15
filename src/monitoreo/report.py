@@ -518,7 +518,7 @@ def item_facts(tool, args, result=None, names=None):
 		                         f"p < {_num(args.get('alpha') or 0.05)})"))
 	if tool == 'timelapse' and result.get('n_frames'):
 		empty = sum(1 for f in result.get('frames') or [] if not f.get('images'))
-		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 2)} per second"
+		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 1)} per second"
 		                        + (f'; {_num(empty)} without images (grey)' if empty else '')))
 	if tool == 'timelapse' and result.get('min') is not None:
 		unit = unit_text(result.get('unit'))

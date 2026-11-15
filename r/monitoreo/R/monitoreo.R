@@ -1068,9 +1068,9 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' @inheritParams mo_params
 #' @param path the GIF (\code{.gif}) or video (\code{.mp4}, it needs ffmpeg) of the animation.
 #' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
-#' @param fps frames per second.
+#' @param fps frames per second (1: each frame for a second).
 #' @param dimensions width or height of the map in pixels (64 to 1200).
-#' @return A list (file, gif, frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
+#' @return A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
 #'   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
 #'   or, if bigger, that of the data; readme, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
@@ -1093,7 +1093,7 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' }
 #' @export
 mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", metric = "median",
-                         season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 2, dimensions = 600L,
+                         season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 1, dimensions = 600L,
                          collection = NULL, where = NULL, band = NULL, band_scale = NULL, band_offset = NULL,
                          unit = NULL) {
   check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit)

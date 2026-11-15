@@ -867,7 +867,7 @@ class MonitorEODock(QDockWidget):
 		self.anim_fps = QDoubleSpinBox()
 		self.anim_fps.setRange(0.5, 30)
 		self.anim_fps.setDecimals(1)
-		self.anim_fps.setValue(2)
+		self.anim_fps.setValue(1)
 		self.anim_fps.setSuffix(' frames per second')
 		f.addRow('A frame per', info(self.anim_step, HELP['anim_step']))
 		f.addRow('Metric of each frame', info(self.anim_metric, HELP['anim_metric']))
