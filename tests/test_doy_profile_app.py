@@ -296,18 +296,22 @@ selectWith('daily').opts.onChange('16-day');
 selectWith('none').opts.onChange(27);
 selectWith('years').opts.onChange('mean');
 out.winter = compute([input.winter, input.winterOther]);
-// the NDVI on the left axis and the NDSI on the right one, with the snow filter of the NDVI: a warning
-selectWith('snow').opts.onChange('vegetation');
-selectWith(27).opts.onChange(27);
-selectWith('none').opts.onChange(8);
-out.conflict = texts(controls);
-// the CF of Sentinel-2 on the left axis (its filters greyed out, none on) and the NDVI on the right one: the NDVI with
-// the filters chosen before the CF, not with those of the CF
+// the pixel filters of each axis: the NDSI on the left (its snow filter unchecked) and the NDVI on the right, then the
+// NDVI on the left (its snow filter checked) and the NDSI on the right: the NDSI keeps its snow, the NDVI never does
 var qualities = [], seriesOf = MonitorEO.series;
 MonitorEO.series = function (s) {
 	qualities.push(JSON.parse(JSON.stringify(s.quality)));
 	return seriesOf.apply(null, arguments);
 };
+var ndsiLeft = compute([input.winter, input.winterOther]);
+out.ndsiLeft = {qualities: qualities.splice(0), csv: ndsiLeft.csv.length};
+selectWith('snow').opts.onChange('vegetation');
+selectWith(27).opts.onChange(27);
+selectWith('none').opts.onChange(8);
+var ndviLeft = compute([input.winter, input.winterOther]);
+out.ndviLeft = {qualities: qualities.splice(0), csv: ndviLeft.csv.length, texts: texts(controls)};
+// the CF of Sentinel-2 on the left axis (its filters greyed out, none on) and the NDVI on the right one: the NDVI with
+// the filters chosen before the CF, not with those of the CF
 selectWith('vegetation').opts.onChange('atmosphere');
 selectWith(110).opts.onChange(110);
 selectWith('none').opts.onChange(27);
@@ -418,14 +422,18 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	winter_csv = out['winter']['csv']
 	assert winter_csv == _app_profile([data['winter'], data['winterOther']], names, winter, '16-day', 'mean', meta)
 	assert [r['label'] for r in winter_csv if r['part'] == '0'] == ['Nov 1', 'Nov 1']  # of both variables
-	# the pixel filters of the panel on the variable of the right axis: the snow filter of the NDVI removes the NDSI
-	assert en['otherConflict'].replace('%s', 'snow', 1).replace('%s', 'NDSI Sentinel-2') in out['conflict']
+	# the pixel filters of each axis: the snow filter unchecked by the NDSI still removes the snow of the NDVI on the
+	# other axis, and that of the NDVI never removes the snow that the NDSI measures; no note of a conflict
+	ndsi_quality, ndvi_quality = out['ndsiLeft']['qualities']
+	assert not ndsi_quality['snow'] and ndvi_quality['snow'] and out['ndsiLeft']['csv']
+	ndvi_quality, ndsi_quality = out['ndviLeft']['qualities']
+	assert ndvi_quality['snow'] and not ndsi_quality['snow'] and out['ndviLeft']['csv']
+	assert not [x for x in out['ndviLeft']['texts'] if 'removes what' in x]
 	# the CF on the left axis: its fixed filters (none) for it, those chosen before it (all, of the NDVI) for the NDVI
 	cf_quality, ndvi_quality = out['cf']['qualities']
 	assert not any(cf_quality[f] for f in ('clouds', 'water', 'snow', 'aerosols'))
 	assert all(ndvi_quality[f] for f in ('clouds', 'water', 'snow')) and out['cf']['csv']  # no aerosols in Sentinel-2
-	warning = en['otherConflict'][:en['otherConflict'].index('%s')]
-	assert not [x for x in out['cf']['texts'] if x.startswith(warning)]
+	assert not [x for x in out['cf']['texts'] if 'removes what' in x]
 	# in Spanish: the options and the names of the steps of the year
 	assert out['es']['between'][0]['label'] == es['doyLines'] and out['es']['between'][2]['label'] == 'Mediana'
 	chart = out['es']['chart']
@@ -441,8 +449,7 @@ def test_the_texts_of_the_profile_are_in_both_languages():
 	with open(os.path.join(GEE, 'ui.js'), encoding='utf-8') as f:
 		ui = f.read()
 	en, es = _ui_texts(ui, 'en'), _ui_texts(ui, 'es')
-	keys = ('doyLines', 'doyOther', 'noOther', 'ofTheYears', 'rightAxis', 'doyNote', 'sameOther', 'scalesNote',
-	        'otherConflict')
+	keys = ('doyLines', 'doyOther', 'noOther', 'ofTheYears', 'rightAxis', 'doyNote', 'sameOther', 'scalesNote')
 	assert all(en.get(k) and es.get(k) and en[k] != es[k] for k in keys)
 	for lang in ('es', 'en'):  # once in each language: a key written twice keeps only the last text
 		start = ui.index(f'\t{lang}: {{')

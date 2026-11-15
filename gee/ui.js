@@ -87,7 +87,6 @@
 				'CSV: los años con valor), en la mediana de sus días del año.',
 			sameOther: '%s ya es la variable del eje izquierdo: elige otra para el eje derecho.',
 			scalesNote: 'Calculado con píxeles de %s m (%s) y de %s m (%s).',
-			otherConflict: 'Ojo: el filtro de %s quita lo que mide %s (eje derecho).',
 			catalogSearch: 'Buscar en el catálogo de Earth Engine', catalogHint: 'palabras en inglés, p. ej. snow cover',
 			catalogFound: '%s conjuntos (colecciones con datos en el periodo, imágenes fijas de cualquier fecha): elige uno',
 			catalogNone: 'Ninguno: prueba otras palabras en inglés.',
@@ -285,7 +284,6 @@
 				'the CSV: the years with a value), at the median of their days of the year.',
 			sameOther: '%s is already the variable of the left axis: choose another one for the right axis.',
 			scalesNote: 'Computed on pixels of %s m (%s) and of %s m (%s).',
-			otherConflict: 'Note: the %s filter removes what %s measures (right axis).',
 			catalogSearch: 'Search the Earth Engine data catalog', catalogHint: 'words in English, e.g. snow cover',
 			catalogFound: '%s datasets (collections with data in the period, fixed images of any date): choose one',
 			catalogNone: 'None: try other words in English.',
@@ -2145,15 +2143,19 @@
 		return state.doy && state.step !== 'annual' && (state.doyBetween !== 'years' || state.doyOther !== 'none');
 	}
 
-	// The pixel filters of the variable of the right axis OE of a profile: those of the panel; with a variable of fixed
-	// filters in the panel (SCF, CF, data by ID: its greyed out filters are not a choice), those the user chose before
-	// selecting it, or else the defaults of OE (as in the panel: not the snow of the NDSI), as the QGIS plugin
+	// The pixel filters of the variable of the right axis OE of a profile: those of the panel, with those unchecked only
+	// because the variable of the panel measures them back on (the snow of the NDSI, for the NDVI); with a variable of
+	// fixed filters in the panel (SCF, CF, data by ID: its greyed out filters are not a choice), those the user chose
+	// before selecting it, or else the defaults. Never that of what OE measures (as 'auto' does in services.time_series
+	// and the QGIS plugin): the NDSI on the right axis keeps its snow
 	function otherQuality(oe) {
 		var e = entry();
-		if (!e || !mo.fixedFilters(e)) return state.quality;
+		var fixed = e && mo.fixedFilters(e);
 		var q = {cloud_score: state.quality.cloud_score};
 		mo.FILTERS.forEach(function (f) {
-			q[f] = state.chosenQuality ? state.chosenQuality[f] : (mo.MEASURES[f] || []).indexOf(oe.index) < 0;
+			var on = fixed ? (state.chosenQuality ? state.chosenQuality[f] : true) :
+				state.quality[f] || (e && (mo.MEASURES[f] || []).indexOf(e.index) >= 0);
+			q[f] = Boolean(on) && (mo.MEASURES[f] || []).indexOf(oe.index) < 0;
 		});
 		return q;
 	}
@@ -2395,13 +2397,7 @@
 			state.doyOther = v;
 			if (v !== 'none' && state.doyBetween === 'years') state.doyBetween = 'median';
 			render();
-		}, '340px')];
-		if (state.doyOther !== 'none') {  // the pixel filters of the panel on the variable of the right axis
-			var oe = mo.byRef(state.doyOther);
-			mo.conflicts(oe, otherQuality(oe)).forEach(function (f) {
-				w.push(ui.Label(fmt(t('otherConflict'), t(f), mo.entryName(oe)), {fontSize: '12px', color: '#b06000'}));
-			});
-		}
+		}, '340px')];  // the right axis never with the filter of what it measures (otherQuality): no conflict to note
 		return w;
 	}
 

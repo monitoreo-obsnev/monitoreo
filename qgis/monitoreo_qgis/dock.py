@@ -1608,12 +1608,16 @@ class MonitorEODock(QDockWidget):
 			'page': rec.get('docs'), 'type': rec.get('type')}, read=False))
 		self.read_asset(asset)
 
-	def quality_args(self, own=False):
+	def quality_args(self, own=False, auto=False):
 		"""The pixel filters checked in the panel (clouds, with Cloud Score+ or the SCL of Sentinel-2). OWN: those the
 		user chose, also while the variable selected greys some out (all of them the fixed filters of the elevation, the
 		slope and the cloud or snow cover frequency; that of what it measures the NDSI, the NDWI...), for the analyses
-		that compute other variables (the burn severity, the NBR)."""
+		that compute other variables (the burn severity, the NBR). AUTO: 'auto' instead of True, so that each variable
+		computed with them leaves out the filter of what it measures (sensors.filters), as those of a profile on two
+		axes."""
 		quality = self.own_filters() if own else {k: w.isChecked() for k, w in self.filters.items()}
+		if auto:
+			quality = {k: 'auto' if on else False for k, on in quality.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		return quality
 
@@ -1941,11 +1945,11 @@ class MonitorEODock(QDockWidget):
 		profile = self.doy_args(var) if doy else {}
 		if profile is None:
 			return
-		if profile.get('other_variable') and 'quality' in var and \
-				(self.variable.currentData() or {}).get('fixed_filters') is not None:
-			# the variable of the right axis with the filters the user chose (or the defaults), not the greyed out ones of
-			# the SCF or the CF of the left axis, which ignores them (as the burn severity does for its NBR)
-			var = dict(var, quality=self.quality_args(own=True))
+		if profile.get('other_variable') and 'quality' in var:
+			# each axis with the filters the user chose, not the greyed out ones of the variable of the left axis (all of
+			# them with the SCF or the CF, which ignore them; that of what it measures with the NDSI...), as 'auto': each
+			# variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not that of the NDVI
+			var = dict(var, quality=self.quality_args(own=True, auto=True))
 		name = data_name(var) + (f" and {profile['other_variable']} ({profile['other_sensor']})"
 		                         if profile.get('other_variable') else '')
 
