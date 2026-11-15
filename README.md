@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.38](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.38) · 2026-11-15 · package 0.3.48
 
 - **All tools**: Animations show each frame for a second by default (it was half a second, too fast to read their date).
 - **Assistant, MCP server, Python package, Command line, R package** (fix): An animation asked as an MP4 video without ffmpeg no longer fails: it gives its GIF, with a note that says why there is no video.
