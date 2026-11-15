@@ -1487,6 +1487,8 @@ class MonitorEODock(QDockWidget):
 		those written in Band (one, or several separated by commas)."""
 		if self.band_reducer.currentData() and self.asset_bands.count():
 			return self.checked_bands()
+		if self.band_reducer.currentData() and self.saved_bands:  # those saved, until Read lists the bands again
+			return list(self.saved_bands)
 		return variables.bands_of({'band': self.asset_band.currentText()})
 
 	def show_bands(self):
@@ -2520,6 +2522,7 @@ class MonitorEODock(QDockWidget):
 		if res.get('classes') is not None:  # a categorical layer: its classes in the region, with their colours
 			unit = ''
 			colours = f"{len(res['classes'])} classes: " + '; '.join(f"{c['label']} {c['color']}" for c in res['classes'])
+			shown = f"{len(res['classes'])} classes"
 		elif res.get('palette'):
 			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
 			           f"{', '.join('#' + c for c in res['palette'])}")

@@ -207,9 +207,9 @@ def of_variable(entry, quality=None, period=None, formula=True):
 	return ids + more, credits
 
 
-def _entry(variable, sensor=None, collection=None):
+def _entry(variable, sensor=None, collection=None, ref=None):
 	try:
-		return catalog.find(variable, sensor, collection)
+		return catalog.find(variable, sensor, collection, ref)
 	except (KeyError, ValueError, TypeError):
 		return None
 
@@ -313,7 +313,14 @@ def _uses_cv(tool, args, recipe=None):
 		return True
 	if tool == 'region_stats':
 		stats = args.get('stats')
-		default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
+		name = args.get('index') or args.get('variable')
+		e = _entry(name, args.get('sensor'), args.get('collection')) if name else None
+		if e is None and args.get('ref') is not None:
+			e = _entry(None, None, None, args['ref'])
+		if e and e.get('classes'):  # a categorical layer: its statistic is the majority class (as region_stats)
+			default = ('mode',)
+		else:
+			default = catalog.REGION_STATS_ZONES if args.get('zones') else catalog.REGION_STATS  # as region_stats
 		stats = [stats] if isinstance(stats, str) else list(stats or default)
 		if any(cv(s) for s in stats):
 			return True

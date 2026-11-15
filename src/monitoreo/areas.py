@@ -62,6 +62,11 @@ WITHIN_MAX_ERROR = 100  # metres: tolerance of the union of the region of within
 # NSIDC EASE-Grid 2.0 Global (equal area, in metres). Spain with the Canary Islands spans some 22 degrees: UTM.
 GLOBAL_CRS = 'EPSG:6933'
 WIDE_DEGREES = 40
+# A region across the antimeridian has bounds of 360 degrees in EPSG:4326, however small it is (an island of Fiji): its
+# real span is that of its bounds in a Mercator centred on the Pacific (WGS 84 / PDC Mercator, its seam at 30° W), whose
+# x is proportional to the longitude, PACIFIC_M_PER_DEGREE metres per degree
+PACIFIC_CRS = 'EPSG:3832'
+PACIFIC_M_PER_DEGREE = 6378137 * 3.141592653589793 / 180
 
 _wdpa = {}  # protected areas already fetched: {region as JSON: [GeoJSON features]}
 
@@ -135,12 +140,17 @@ def utm_of(lon, lat):
 
 def crs_for(info):
 	"""The automatic CRS of a region from INFO, {'centroid': [lon, lat], 'bounds': the coordinates of its bounding box
-	in EPSG:4326 ([[[lon, lat], ...]], those of ee.Geometry.bounds)}: GLOBAL_CRS when the bounds span more than
-	WIDE_DEGREES of longitude (a region that crosses the antimeridian spans 360), else the UTM zone of the centre (also
-	without bounds). Without Earth Engine."""
+	in EPSG:4326 ([[[lon, lat], ...]], those of ee.Geometry.bounds)} and, for a region across the antimeridian (whose
+	bounds then span 360), 'pacific', those of its bounding box in PACIFIC_CRS: GLOBAL_CRS when the region spans more
+	than WIDE_DEGREES of longitude (across the antimeridian without 'pacific': 360), else the UTM zone of the centre
+	(also without bounds). Without Earth Engine."""
 	ring = (info.get('bounds') or [[]])[0]
 	lons = [p[0] for p in ring]
-	if lons and max(lons) - min(lons) > WIDE_DEGREES:
+	span = max(lons) - min(lons) if lons else 0
+	if span > 359 and info.get('pacific'):  # across the antimeridian: its real span, in the Mercator of the Pacific
+		xs = [p[0] for p in info['pacific'][0]]
+		span = (max(xs) - min(xs)) / PACIFIC_M_PER_DEGREE
+	if span > WIDE_DEGREES:
 		return GLOBAL_CRS
 	lon, lat = info['centroid']
 	return utm_of(lon, lat)
@@ -148,11 +158,18 @@ def crs_for(info):
 
 def auto_crs(geom, max_error=1000):
 	"""The CRS of the statistics and grids of GEOM (an ee.Geometry) chosen automatically: WGS 84 / UTM zone of its
-	centre or, when it is too wide for one (its bounds span more than WIDE_DEGREES of longitude, or cross the
-	antimeridian: whole biomes, Russia...), GLOBAL_CRS (equal area, in metres); see crs_for. One request to Earth
-	Engine, with a tolerance of MAX_ERROR metres."""
+	centre or, when it is too wide for one (it spans more than WIDE_DEGREES of longitude: whole biomes, Russia...),
+	GLOBAL_CRS (equal area, in metres); see crs_for. One request to Earth Engine, with a tolerance of MAX_ERROR metres,
+	and another one for a region across the antimeridian (its span in PACIFIC_CRS: a small one, e.g. an island of
+	Fiji, keeps its UTM zone; GLOBAL_CRS if that request fails, e.g. near the poles, where Mercator does not reach)."""
 	info = ee.Dictionary({'centroid': geom.centroid(max_error).coordinates(),
 	                      'bounds': geom.bounds(max_error).coordinates()}).getInfo()
+	lons = [p[0] for p in (info.get('bounds') or [[]])[0]]
+	if lons and max(lons) - min(lons) > 359:
+		try:
+			info['pacific'] = geom.bounds(max_error, PACIFIC_CRS).coordinates().getInfo()
+		except ee.EEException:
+			pass  # without it, crs_for gives GLOBAL_CRS
 	return crs_for(info)
 
 

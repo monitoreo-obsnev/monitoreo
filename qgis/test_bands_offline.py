@@ -188,6 +188,13 @@ try:
 except ValueError as e:
 	assert 'users/someone/rain has no band mar' in str(e), e
 
+# after a restart, before Read: the bands saved (asset_bands) are those combined, not the single text of Band
+dock.asset_bands.clear()
+dock.saved_bands = ['aet', 'def']
+dock.asset_band.setEditText('aet')
+dock.band_reducer.setCurrentIndex(dock.band_reducer.findData('sum'))
+assert dock.chosen_bands() == ['aet', 'def'], dock.chosen_bands()
+
 for key in ('band_reducer', 'asset_bands', 'asset_band', 'asset'):
 	s.remove('MonitorEO/' + key)
 plugin.unload()

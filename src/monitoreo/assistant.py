@@ -2193,12 +2193,17 @@ class Assistant:
 				yield event
 		key = 'region' if isinstance(args.get('region'), dict) else 'area'
 		matches = [a for a in found if a['match']]
-		ids = next((r['wdpa_id'] for r in self._regions(args) if r.get('wdpa_id') is not None), None)
+		def unknown_in(r):  # the region (or within) whose WDPA ID is the unknown one
+			given = r.get('wdpa_id')
+			return given is not None and any(str(i) == str(u) for u in unknown
+			                                 for i in (given if isinstance(given, list) else [given]))
+
+		ids = next((r['wdpa_id'] for r in self._regions(args) if unknown_in(r)), None)
 		if found and not self.unknown_areas(args):  # the ID of the model was among them
 			yield {'args': args}
 		elif len(unknown) == 1 and not isinstance(ids, list) and (len(matches) == 1 or len(found) == 1):
 			region = json.loads(json.dumps(args[key]))  # the region (or its within) with the protected area found
-			holder = next(r for r in self._regions({key: region}) if r.get('wdpa_id') is not None)
+			holder = next(r for r in self._regions({key: region}) if unknown_in(r))  # not one whose ID is known
 			holder['wdpa_id'] = (matches or found)[0]['SITE_ID']
 			yield {'args': {**args, key: region}}
 		else:
@@ -2217,6 +2222,9 @@ class Assistant:
 		models give it: the name alone, {"study_area": name}, "layer parcelas", "capa parcelas"..."""
 		arg = 'area' if 'area' in args and 'region' not in args else 'region'  # area: download_variables
 		region = args.get(arg)
+		if isinstance(region, dict) and isinstance(region.get('within'), (dict, str)):  # the region of within: a layer too
+			region = {**region, 'within': self.with_layer({'region': region['within']})['region']}
+			args = {**args, arg: region}
 		if isinstance(region, dict) and (region.get('capa') or region.get('layer')):
 			key = str(region.get('capa') or region.get('layer'))
 		elif isinstance(region, dict) and not any(k in region for k in areas.REGION_KEYS):
@@ -2237,8 +2245,10 @@ class Assistant:
 		if not layer:
 			raise ValueError(f'there is no study area «{key}»; the study areas are: '
 			                 f'{", ".join(self.layers) or "none"} (region: {{"layer": "name"}})')
+		within = region.get('within') if isinstance(region, dict) else None  # kept: only the part inside it
 		return {**args, arg: {'file': layer['file'],
-		                      **({'name_field': layer['name_field']} if layer.get('name_field') else {})}}
+		                      **({'name_field': layer['name_field']} if layer.get('name_field') else {}),
+		                      **({'within': within} if within is not None else {})}}
 
 	def add_layer(self, filename, data):
 		"""Keep a vector file (its name and content) in LAYERS as a layer that the model can use as a region."""

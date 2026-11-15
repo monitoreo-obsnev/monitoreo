@@ -1135,7 +1135,11 @@ var MonitorEO = (function () {
 			img = img.multiply(number(e.scale, 1)).add(number(e.offset, 0));  // e.g. WorldClim, in tenths of a degree
 			if (bands.length > 1) img = combine(img, e.reducer, proj);
 		}
-		if (res && res < Number(e.m)) img = img.resample('bilinear');  // variable._resample: pixels finer than the data
+		// variable._resample: pixels finer than the data; the TWI also on pixels up to twice as big (its default: those of
+		// the data), interpolated from the TWI of the grid of MERIT Hydro, not computed on the output pixels
+		if (e.fk === 'twi' ? (res || Number(e.m)) <= 2 * Number(e.m) : res && res < Number(e.m)) {
+			img = img.resample('bilinear');
+		}
 		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
 		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
 		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
@@ -1668,6 +1672,10 @@ var MonitorEO = (function () {
 	// longitude than that (or cross the antimeridian), too wide for a UTM zone
 	var GLOBAL_CRS = 'EPSG:6933';
 	var WIDE_DEGREES = 40;
+	// areas.PACIFIC_CRS: the span of a region across the antimeridian (360 in EPSG:4326) is that of its bounds in a
+	// Mercator centred on the Pacific, PACIFIC_M_PER_DEGREE metres of x per degree
+	var PACIFIC_CRS = 'EPSG:3832';
+	var PACIFIC_M_PER_DEGREE = 6378137 * 3.141592653589793 / 180;
 
 	// areas.utm_of
 	function utmOf(lon, lat) {
@@ -1675,13 +1683,19 @@ var MonitorEO = (function () {
 		return 'EPSG:' + ((lat >= 0 ? 32600 : 32700) + zone);
 	}
 
-	// areas.crs_for: the automatic CRS of a region from INFO (regionInfo: its centroid and the coordinates of its
-	// bounds): GLOBAL_CRS when the bounds span more than WIDE_DEGREES of longitude (360 across the antimeridian), else
-	// the UTM zone of the centre (also without bounds)
+	// areas.crs_for: the automatic CRS of a region from INFO (regionInfo: its centroid, the coordinates of its bounds
+	// and, across the antimeridian, those of its bounds in PACIFIC_CRS): GLOBAL_CRS when it spans more than
+	// WIDE_DEGREES of longitude (360 across the antimeridian without pacific), else the UTM zone of the centre (also
+	// without bounds)
 	function regionCrs(info) {
 		var ring = (info.bounds || [[]])[0];
 		var lons = ring.map(function (p) { return p[0]; });
-		if (lons.length && Math.max.apply(null, lons) - Math.min.apply(null, lons) > WIDE_DEGREES) return GLOBAL_CRS;
+		var span = lons.length ? Math.max.apply(null, lons) - Math.min.apply(null, lons) : 0;
+		if (span > 359 && info.pacific) {  // across the antimeridian: its real span, in the Mercator of the Pacific
+			var xs = info.pacific[0].map(function (p) { return p[0]; });
+			span = (Math.max.apply(null, xs) - Math.min.apply(null, xs)) / PACIFIC_M_PER_DEGREE;
+		}
+		if (span > WIDE_DEGREES) return GLOBAL_CRS;
 		return utmOf(info.centroid[0], info.centroid[1]);
 	}
 
@@ -2283,12 +2297,20 @@ var MonitorEO = (function () {
 	// What autoScale and the CRS need, to evaluate once: {area: of the biggest region (m²), centroid: [lon, lat] and
 	// bounds: the coordinates of their bounding box (for regionCrs), total: area of all the regions and boundsArea: of
 	// their bounding box (m²)}
+	// the longitude of the corner I of the bounds of GEOM (0: west, 2: east), on the server
+	function boundsLon(geom, i) {
+		return ee.Number(ee.List(ee.List(ee.List(geom.bounds(1000).coordinates()).get(0)).get(i)).get(0));
+	}
+
 	function regionInfo(regions) {
 		var geom = regions.geometry();
 		return ee.Dictionary({
 			area: regions.map(function (f) { return ee.Feature(null, {a: f.geometry().area(1)}); }).aggregate_max('a'),
 			centroid: geom.centroid(1000).coordinates(),
 			bounds: geom.bounds(1000).coordinates(),
+			// areas.auto_crs: across the antimeridian (bounds of 360 degrees), its bounds in PACIFIC_CRS too, for its span
+			pacific: ee.Algorithms.If(boundsLon(geom, 2).subtract(boundsLon(geom, 0)).gt(359),
+				geom.bounds(1000, PACIFIC_CRS).coordinates(), null),
 			total: geom.area(1000),
 			boundsArea: geom.bounds(1000).area(1000)
 		});

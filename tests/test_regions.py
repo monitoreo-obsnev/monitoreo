@@ -144,7 +144,11 @@ def _info(west, east, lon=None, lat=37.0):
 
 INFOS = [_info(-3.62, -3.50), _info(-18.2, 4.3, -3.6, 40.2), _info(-125, -66.9, -98.5, 39.8), _info(-180, 180, 95, 62),
          _info(-109.5, -66.4, -71, -35.7), _info(10, 50, 30), _info(10, 50.5, 30), _info(150, 170, 160, -40),
-         {'centroid': [-3.56, 36.9]}]
+         {'centroid': [-3.56, 36.9]},
+         # across the antimeridian, with its bounds in the Mercator of the Pacific: Fiji split at 180 (0.4 degrees: its UTM
+         # zone, as Earth Engine gives it for the units of FAO GAUL) and a region of 60 degrees (EPSG:6933)
+         dict(_info(-180, 180, 179.9, -16.5), pacific=[[[-22264, -1.9e6], [22264, -1.9e6], [22264, -1.8e6]]]),
+         dict(_info(-180, 180, 180, 60), pacific=[[[-3339585, 5.6e6], [3339585, 5.6e6], [3339585, 1.1e7]]])]
 
 
 def test_the_automatic_crs():
@@ -153,7 +157,7 @@ def test_the_automatic_crs():
 	the antimeridian (Russia, the Tundra: their bounds span 360)."""
 	got = [areas.crs_for(i) for i in INFOS]
 	assert got == ['EPSG:32630', 'EPSG:32630', 'EPSG:6933', 'EPSG:6933', 'EPSG:6933', 'EPSG:32636', 'EPSG:6933',
-	               'EPSG:32757', 'EPSG:32630']
+	               'EPSG:32757', 'EPSG:32630', 'EPSG:32760', 'EPSG:6933']
 	assert areas.GLOBAL_CRS == 'EPSG:6933' and areas.WIDE_DEGREES == 40
 
 
@@ -167,12 +171,20 @@ def test_auto_crs_asks_earth_engine_once(monkeypatch):
 		def coordinates(self):
 			return self.what
 
+	class Pacific(Coordinates):
+		def coordinates(self):
+			return self
+
+		def getInfo(self):  # the bounds in the Mercator of the Pacific, asked only across the antimeridian
+			asked.append(self.what)
+			return INFOS[-1]['pacific']
+
 	class Geom:
 		def centroid(self, max_error):
 			return Coordinates('centroid', max_error)
 
-		def bounds(self, max_error):
-			return Coordinates('bounds', max_error)
+		def bounds(self, max_error, proj=None):
+			return Pacific(('bounds', proj), max_error) if proj else Coordinates('bounds', max_error)
 
 	class Dictionary:
 		def __init__(self, d):
@@ -184,7 +196,9 @@ def test_auto_crs_asks_earth_engine_once(monkeypatch):
 	monkeypatch.setattr(areas.ee, 'Dictionary', Dictionary)
 	assert areas.auto_crs(Geom()) == 'EPSG:32630' and asked == [{'centroid': ('centroid', 1000),
 	                                                              'bounds': ('bounds', 1000)}]
-	assert areas.auto_crs(Geom(), 1) == 'EPSG:6933' and asked[-1]['bounds'] == ('bounds', 1)
+	# Russia: across the antimeridian (bounds of 360), so a second request, its span in the Mercator of the Pacific
+	assert areas.auto_crs(Geom(), 1) == 'EPSG:6933' and asked[-2]['bounds'] == ('bounds', 1)
+	assert asked[-1] == (('bounds', 'EPSG:3832'), 1)
 
 
 def test_the_tools_choose_the_crs_with_auto_crs(monkeypatch):
@@ -311,6 +325,12 @@ def test_the_assistant(tmp_path, monkeypatch):
 	assert AREAS['Sierra'][0]['SITE_ID'] == 389011
 	events = asyncio.run(known())
 	assert events[-1]['args']['region'] == {'biome_id': 12, 'within': {'wdpa_id': 389011}}
+
+	async def known_within():  # a known protected area within an invented one: only the invented ID is replaced
+		return [e async for e in a.known_areas('time_series', {**ARGS, 'region': {'wdpa_id': 389011, 'within': {
+			'wdpa_id': 555}}})]
+
+	assert asyncio.run(known_within())[-1]['args']['region'] == {'wdpa_id': 389011, 'within': {'wdpa_id': 389011}}
 
 
 def test_the_mcp_server_and_the_command_line():

@@ -1677,6 +1677,10 @@
 				legend = null;
 				name = fmt(t('areaOf'), title(e));
 			} else if (kind === 'breaks') {
+				if (mo.isCategorical(e)) {  // classes.mode_of: a categorical layer has its own classes
+					return message('the classes of ' + e.index + ' (' + e.sensor + ') are its own (a categorical layer, ' +
+						'of class codes): give no breaks', true);
+				}
 				var cuts = mo.checkBreaks(state.areaBreaks);
 				var s = specOf(null, state.mapMetric);
 				s.temporal = state.temporal;
@@ -1807,7 +1811,8 @@
 			w.push(ui.Label(t('areaTrendNote'), SMALL));
 		}
 		w.push(button(t('computeAreas'), guarded(areaByClass)));
-		return state.areaKind === 'trend' && entry().static ? disable(w) : w;
+		return (state.areaKind === 'trend' && entry().static) || (state.areaKind === 'breaks' && mo.isCategorical(entry())) ?
+			disable(w) : w;
 	}
 
 	// Gradients (services.region_stats with zones, services.transect) ----------------------------------------------

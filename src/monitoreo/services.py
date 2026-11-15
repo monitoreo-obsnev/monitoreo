@@ -616,10 +616,11 @@ def _categorical(variable, sensor=None, source=None):
 	"""The entry of the catalog of VARIABLE and SENSOR when it is a categorical layer (see monitoreo.categorical), else
 	None (also for the data of Earth Engine outside the catalog, and for a variable not in it, which make_spec refuses):
 	without Earth Engine."""
-	if not variable:
+	ref = (source or {}).get('ref')
+	if not variable and ref is None:  # a variable of the catalog is given by its name, or by its ref alone
 		return None
 	try:
-		e = catalog.find(variable, sensor, (source or {}).get('collection'), (source or {}).get('ref'))
+		e = catalog.find(variable, sensor, (source or {}).get('collection'), ref)
 	except (KeyError, ValueError, TypeError):
 		return None
 	return e if categorical.is_categorical(e) else None

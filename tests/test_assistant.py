@@ -408,6 +408,11 @@ def test_layers(tmp_path, monkeypatch):
 	assert a.with_layer({'region': {'layer': 'name'}})['region'] == args['region']  # the example, copied
 	assert a.with_layer({'region': {'capa': 'nombre'}})['region'] == args['region']
 	assert a.with_layer({'region': {'bbox': [0, 0, 1, 1]}}) == {'region': {'bbox': [0, 0, 1, 1]}}
+	# a study area within another region keeps its within, and a study area as the within of another region is its file
+	assert a.with_layer({'region': {'layer': 'mis_parcelas', 'within': {'biome_id': 12}}})['region'] == \
+		dict(args['region'], within={'biome_id': 12})
+	assert a.with_layer({'region': {'biome_id': 12, 'within': {'layer': 'mis_parcelas'}}})['region'] == \
+		{'biome_id': 12, 'within': args['region']}
 	assert report.region_text(args['region'], a.all_names()).startswith('Study area «mis_parcelas» (2 polygons')
 	assert set(assistant.Assistant({**assistant.DEFAULTS}).layers) == {'mis_parcelas', 'parcelas'}  # kept
 	a.remove_layer('parcelas')

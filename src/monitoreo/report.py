@@ -92,6 +92,14 @@ METHODS = {
 	'region_stats_zones': 'The temporal metric of the images of the period on each pixel and its statistics over each '
 	                      'zone of each feature: the classes of the variable of the zones (its map over the same '
 	                      'period, or a fixed layer) cut at its breaks, as the zonal statistics by group of geemap.',
+	'region_stats_class_zones': 'The temporal metric of the images of the period on each pixel (its value, for a fixed '
+	                            'layer) and its statistics over each zone of each feature: each class of the categorical '
+	                            'layer of the zones (its polygons rasterized at the pixel of the result, the majority '
+	                            'class on bigger pixels), as the zonal statistics by group of geemap.',
+	'region_stats_categorical_zones': 'The class of each pixel of the categorical layer (its code, never interpolated '
+	                                  'nor averaged) and the majority class (mode) of its pixels over each zone of each '
+	                                  'feature (each class of a categorical layer, or a variable cut at its breaks), as '
+	                                  'the zonal statistics by group of geemap.',
 	'area_by_class_transitions': 'The pair of classes of each pixel (its class of the land cover map in the first year '
 	                             'and in the other) and the true area of each pixel summed by pair over each feature, as '
 	                             'the Sankey diagrams of land cover change of geemap; % of the area with a class in both '
@@ -559,12 +567,16 @@ def item_facts(tool, args, result=None, names=None):
 		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
 		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
+		zones = args.get('zones') if tool == 'region_stats' and isinstance(args.get('zones'), dict) else None
+		class_zones = bool(zones and (_entry(zones.get('variable') or zones.get('index'), zones.get('sensor')) or
+		                              {}).get('categorical'))  # zones by class, not cut at breaks
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else
+		                 'region_stats_class_zones' if class_zones else
 		                 'region_stats_zones' if tool == 'region_stats' and args.get('zones') else
 		                 'time_series_profile' if tool == 'time_series' and is_profile(args) else tool]
 		if categorical:
 			method = METHODS['region_stats_categorical'] if tool == 'region_stats' and not args.get('zones') else \
-				method if tool == 'region_stats' else METHODS['categorical']
+				METHODS['region_stats_categorical_zones'] if tool == 'region_stats' else METHODS['categorical']
 		facts.append(('Method', method if categorical else METHODS['static'] if static and not args.get('zones')
 		              else method))
 	elif tool == 'area_by_class':

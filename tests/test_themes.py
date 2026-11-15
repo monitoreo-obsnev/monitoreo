@@ -484,8 +484,9 @@ def test_the_app_builds_the_twi_as_the_package(app, monkeypatch):
 	       ['multiply', math.pi / 180], ['tan'], ['max', 0.001], ['divide', '<ee>'], ['log'], ['projection'],
 	       ['setDefaultProjection', '<ee>']]
 	native, finer, coarser = app['twi']
-	assert native == twi + [['toFloat'], ['rename', 'value']]
-	assert finer == twi + [['resample', 'bilinear'], ['toFloat'], ['rename', 'value']]
+	# on the pixels of the data (the default) and finer ones, interpolated from the TWI of the grid of MERIT Hydro, not
+	# computed on the output pixels with the slope and the area of their own
+	assert native == finer == twi + [['resample', 'bilinear'], ['toFloat'], ['rename', 'value']]
 	assert coarser == twi + [['Reducer.mean'], ['reduceResolution', '<ee>', True, 65535], ['toFloat'],
 	                         ['rename', 'value']]
 

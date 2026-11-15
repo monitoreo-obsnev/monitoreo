@@ -788,3 +788,53 @@ def test_the_panel_of_the_app_with_the_categorical_layers():
 	assert out['noCodes']['texts'] == ['Give the codes of the classes (find them by their name).']
 	assert 'BIOME (RESOLVE) is 12 Mediterranean Forests, Woodlands & Scrub' in out['where']['layer']
 	assert out['badCode']['texts'] == ['BIOME (RESOLVE) has no classes 50: list_classes gives the codes of its classes']
+
+
+def test_region_stats_of_a_categorical_layer_cites_no_coefficient_of_variation():
+	"""Its statistic over a region is the majority class (mode), so the coefficient of variation (Pearson 1896) is not
+	cited, whether the layer is given by its name or by its ref alone; a variable with values still cites it."""
+	from monitoreo import references
+
+	def ids(args):
+		return {r['id'] for r in references.cite('region_stats', dict({'region': {'bbox': [0, 0, 1, 1]}}, **args))['references']}
+
+	assert 'pearson1896' not in ids({'variable': 'BIOME', 'sensor': 'RESOLVE'})
+	assert 'pearson1896' not in ids({'ref': 150})
+	assert 'pearson1896' not in ids({'variable': 'ECOREGION', 'sensor': 'RESOLVE', 'zones': {'variable': 'BIOME'}})
+	assert 'pearson1896' in ids({'variable': 'NDVI', 'sensor': 'Modis'})
+
+
+def test_a_categorical_layer_by_its_ref_alone_is_categorical():
+	"""region_stats and area_by_class take the variable of the catalog by its ref too (as make_spec does): the layer of
+	classes is then recognised, so its statistic is the mode and its areas are those of its classes."""
+	assert services._categorical(None, None, {'ref': 150})['index'] == 'BIOME'
+	assert services._categorical(None, None, {'ref': 24}) is None  # the NDVI of Landsat has values
+	assert services._categorical(None, None, {}) is None
+
+
+def test_the_method_of_zones_by_class():
+	"""The Method of the README and the report of region_stats by the classes of a categorical layer says so, not that
+	the zones are cut at breaks; of a categorical variable, that its statistic is the majority class."""
+	def method(args):
+		return dict(report.item_facts('region_stats', args, {'rows': []}))['Method']
+
+	ndvi = {'variable': 'NDVI', 'sensor': 'Modis', 'start': '2020-01-01', 'end': '2020-12-31'}
+	assert method(dict(ndvi, zones={'variable': 'BIOME', 'sensor': 'RESOLVE'})) == report.METHODS['region_stats_class_zones']
+	assert 'breaks' not in report.METHODS['region_stats_class_zones']
+	assert method(dict(ndvi, zones={'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1000]})) == \
+		report.METHODS['region_stats_zones']
+	assert method({'variable': 'ECOREGION', 'sensor': 'RESOLVE', 'zones': {'variable': 'BIOME', 'sensor': 'RESOLVE'}}) \
+		== report.METHODS['region_stats_categorical_zones']
+
+
+def test_the_app_refuses_breaks_of_a_categorical_layer_as_the_package():
+	"""Area by class with breaks of a categorical layer: the package refuses it (its classes are its own), and so does
+	the panel of the app, with the same words, and its widgets of breaks are greyed out."""
+	with pytest.raises(ValueError) as error:
+		classes.mode_of(breaks=[5, 10], categorical=BIO)
+	assert str(error.value) == 'the classes of BIOME (RESOLVE) are its own (a categorical layer, of class codes): give no breaks'
+	with open(os.path.join(GEE, 'ui.js'), encoding='utf-8') as f:
+		ui = f.read()
+	assert ("'the classes of ' + e.index + ' (' + e.sensor + ') are its own (a categorical layer, ' +\n"
+	        "\t\t\t\t\t\t'of class codes): give no breaks'") in ui
+	assert "(state.areaKind === 'breaks' && mo.isCategorical(entry()))" in ui

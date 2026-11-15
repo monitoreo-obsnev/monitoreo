@@ -569,6 +569,10 @@ def _fixed(spec, res):
 		if len(bands) > 1:
 			img = _combine(img, spec['band_reducer'], proj)
 	method = _resample(spec, res, native)
+	if formula == 'twi' and not method and res <= 2 * native and str(spec.get('resample') or 'auto').lower() == 'auto':
+		# also on pixels as big as those of MERIT Hydro (the default) or up to twice: interpolated from the TWI of its
+		# grid (its default projection), not computed on the output pixels with the slope and the area of their own
+		method = 'bilinear'
 	if method:
 		img = img.resample(method)
 	terrain = spec.get('terrain')
