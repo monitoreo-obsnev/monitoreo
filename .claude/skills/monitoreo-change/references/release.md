@@ -51,6 +51,22 @@ Raise both by one patch step unless the developer says otherwise. The last relea
    `installers.yml` attaches the assistant installers), and Zenodo archives the release with the metadata of
    `.zenodo.json`.
 6. Check the release on GitHub. Uploads to plugins.qgis.org wait for a volunteer's approval.
+7. Publish the Earth Engine app, after asking (it leaves this computer): on `main` after the merge
+   (`git switch main && git pull`), `python gee/push_app.py`. It writes the app (`app` and the modules of the
+   catalog `catalog_1`, `catalog_2`..., each under the 512 KiB per file that Earth Engine takes) into its clone of the
+   repository of the app in Earth Engine, `users/monitoreo-obsnev/monitoreo` (account everest@go.ugr.es, cookie in
+   `~/.gitcookies-everest`), commits them if something changed, pushes the commit there and then to its backup
+   `users/javiermartinez/monitoreo` (always: a mirror; cookie in `~/.gitcookies`), and prints the path of the app and
+   the SHA-256 of each file. It refuses a checkout that is not the `main` GitHub has now (it asks GitHub with
+   `git ls-remote`: a local `origin/main` may be from before the merge) or with changes in `gee/`; `--dry-run` pushes
+   nothing. The backup never loses a version: the script reads it with its own cookie before pushing anything, and its
+   `master` only moves forward (or replaces the test README it was created with); otherwise nothing is pushed and the
+   message says how to restore the repository of the app from the backup (`--replace-backup` only if the developer
+   says the history of the backup may go). If the push to the backup fails after the one to the repository of the app,
+   the message says so: renew the cookie and run it again, which mirrors it. Another `--repo` (a test) needs its own
+   `--backup`. Then, in the Code Editor with the account of the project: **Apps** > the pencil of **MonitorEO** >
+   **Overwrite from repository script path** `users/monitoreo-obsnev/monitoreo:app` > **UPDATE**. The fallback is to
+   paste `gee/monitoreo_app.js` (wiki page Earth-Engine-app, "For administrators").
 
 ## Who gets what, and when
 
@@ -58,7 +74,8 @@ Raise both by one patch step unless the developer says otherwise. The last relea
   PR without a release: what is under `### Unreleased` in the changelog.
 - The QGIS plugin reaches users through plugins.qgis.org, so only with a release.
 - The R and Python packages install from GitHub (`main` or a tag).
-- The Earth Engine app is published by hand in the Code Editor (see the wiki page Earth-Engine-app, "For
-  administrators"), after asking.
+- The Earth Engine app is published after asking (step 7): `python gee/push_app.py` pushes it to its repository in
+  Earth Engine and to the backup, and the Code Editor updates the app from `users/monitoreo-obsnev/monitoreo:app`
+  (see the wiki page Earth-Engine-app, "For administrators").
 - Zenodo gets a new version, with its own DOI, for each GitHub release. Its creators, contributors (with ORCIDs) and
   references come from `.zenodo.json`, and `CITATION.cff` has to match it (`tests/test_references.py` checks both).
