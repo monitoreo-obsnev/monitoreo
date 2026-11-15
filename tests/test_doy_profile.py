@@ -505,7 +505,8 @@ def test_the_report_of_a_profile():
 
 def test_the_discarded_pixels_of_each_variable_of_a_profile():
 	"""The pixel filters as each variable has them (sensors.filters): 'auto' keeps the snow of the NDSI and removes
-	that of the NDVI; the SCF on the left keeps its fixed filters, the NDVI on the right gets the default ones."""
+	that of the NDVI; the SCF on the left keeps its fixed filters, the NDVI on the right gets the default ones; after data
+	by their ID on the left, those of the variable of the right axis too."""
 	auto = dict(report.item_facts('time_series', dict(TWO, region=REGION, quality={'snow': 'auto'}), {}))
 	assert auto['Discarded pixels'] == 'clouds, water'  # the NDSI of Sentinel-2: no aerosols band
 	assert auto['Discarded pixels (right axis)'] == 'clouds, water, snow'
@@ -518,6 +519,13 @@ def test_the_discarded_pixels_of_each_variable_of_a_profile():
 	assert off['Discarded pixels'] == off['Discarded pixels (right axis)'] == 'clouds, water'
 	daily = dict(report.item_facts('time_series', dict(TWO, region=REGION, step='daily'), {}))
 	assert '(each calendar day at its day in a leap year)' in daily['Chart']
+	# data of Earth Engine by their ID on the left axis: their own mask, and the filters of the variable of the right axis
+	data = {k: v for k, v in TWO.items() if k not in ('variable', 'sensor')}
+	by_id = dict(report.item_facts('time_series', dict(data, region=REGION, collection='MODIS/061/MOD10A1',
+	                                                   band='NDSI_Snow_Cover', other_sensor='Sentinel-2',
+	                                                   quality={'snow': 'auto'}), {}))
+	assert by_id['Discarded pixels'].startswith('none (the data keep only their own mask')
+	assert by_id['Discarded pixels (right axis)'] == 'clouds, water, snow'
 
 
 def test_the_table_of_a_profile_in_the_report(ee):

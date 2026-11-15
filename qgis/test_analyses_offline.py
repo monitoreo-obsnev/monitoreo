@@ -82,7 +82,7 @@ import monitoreo_qgis  # noqa: E402
 from monitoreo_qgis import deps  # noqa: E402
 
 deps.setup_path()  # earthengine-api from the ext/ of the plugin (build_plugin.py), or from PYTHONPATH
-from monitoreo import animation, charts, services  # noqa: E402
+from monitoreo import animation, catalog, charts, sensors, services  # noqa: E402
 from qgis.PyQt.QtGui import QMovie  # noqa: E402
 
 # without Pillow: the texts with Qt, the GIF by monitoreo.animation
@@ -271,6 +271,40 @@ scf = dock.variable.findText('SCF · Landsat', Qt.MatchFlag.MatchStartsWith)
 if scf >= 0:
 	dock.variable.setCurrentIndex(scf)
 	assert dock.anim_metric.currentData() == 'mean' and not dock.anim_metric.isEnabled()
+
+# the pixel filter of what the variable measures: unchecked and greyed out (snow with the NDSI, water with the NDWI),
+# the others as the user leaves them, and those chosen back with another variable, also after the fixed ones of the SCF
+def pick(text):
+	dock.variable.setCurrentIndex(dock.variable.findText(text, Qt.MatchFlag.MatchStartsWith))
+	assert dock.variable.currentText().startswith(text), text
+
+
+def state():
+	return {k: (w.isChecked(), w.isEnabled()) for k, w in dock.filters.items()}
+
+
+pick('NDVI · Sentinel-2')
+for w in dock.filters.values():
+	w.setChecked(True)
+pick('NDSI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (True, True), 'snow': (False, False), 'aerosols': (True, True)}
+assert 'NDSI' in dock.filters['snow'].toolTip() and not dock.filters['clouds'].toolTip()
+assert not dock.quality_args()['snow'] and dock.quality_args(own=True)['snow']
+dock.filters['aerosols'].setChecked(False)  # changed with the NDSI: kept
+pick('NDWI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (False, False), 'snow': (True, True), 'aerosols': (False, True)}
+if scf >= 0:
+	dock.variable.setCurrentIndex(scf)
+	assert state() == {'clouds': (True, False), 'water': (True, False), 'snow': (False, False),
+	                   'aerosols': (False, False)}
+	assert {k: v for k, v in dock.quality_args(own=True).items() if k != 'cloud_score'} == \
+		dict(clouds=True, water=True, snow=True, aerosols=False)
+pick('NDVI · Sentinel-2')
+assert state() == {'clouds': (True, True), 'water': (True, True), 'snow': (True, True), 'aerosols': (False, True)}
+assert all(not w.toolTip() for w in dock.filters.values())
+dock.filters['aerosols'].setChecked(True)
+print('pixel filters: that of what the variable measures greyed out, the others kept')
+
 dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
 assert [dock.anim_step.itemData(i) for i in range(dock.anim_step.count())] == ['annual', 'monthly', '16-day', 'daily']
 print('group Animation:', [dock.anim_step.itemText(i) for i in range(dock.anim_step.count())])
@@ -551,8 +585,11 @@ assert not dock.doy_interannual.isEnabled()
 dock.step.setCurrentIndex(dock.step.findData('monthly'))
 print('options of the profile:', between)
 # the CF of Sentinel-2 on the left axis (its filters greyed out, none checked) and the NDVI on the right one: the filters
-# chosen before the CF (those of the NDVI), not those of the CF, as services.time_series gives the NDVI without quality
+# chosen before the CF (those of the NDVI), not those of the CF, as 'auto' (sensors.filters: each variable without the
+# filter of what it measures), as services.time_series gives the NDVI without quality
 chosen = dock.quality_args()
+auto = dict({k: 'auto' if on else False for k, on in chosen.items() if k != 'cloud_score'},
+            cloud_score=chosen['cloud_score'])
 dock.variable.setCurrentIndex(dock.variable.findText('CF · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
 assert dock.variable.currentText().startswith('CF · Sentinel-2') and not any(w.isChecked() for w in dock.filters.values())
 dock.doy.setChecked(True)
@@ -560,17 +597,31 @@ dock.doy_other.setCurrentIndex(dock.doy_other.findText('NDVI (Sentinel-2)'))
 dock.run_series()
 wait()
 sent = calls[-1]
-assert (sent['variable'], sent['other_variable']) == ('CF', 'NDVI') and sent['quality'] == chosen, sent
+assert (sent['variable'], sent['other_variable']) == ('CF', 'NDVI') and sent['quality'] == auto, sent
 assert any(sent['quality'][f] for f in ('clouds', 'water', 'snow')), sent['quality']
 dock.doy_other.setCurrentIndex(0)  # without a right axis: the filters of the panel, as before
 dock.run_series()
 wait()
 assert not any(calls[-1]['quality'][f] for f in ('clouds', 'water', 'snow', 'aerosols')), calls[-1]['quality']
+# the NDSI on the left axis (its snow filter greyed out) and the NDVI on the right one, and the other way round: the
+# snow filter chosen, as 'auto', leaves the snow in the NDSI and removes it from the NDVI, on either axis
+entries = {name: catalog.find(name, 'Sentinel-2') for name in ('NDSI', 'NDVI')}
+for left, right in (('NDSI', 'NDVI'), ('NDVI', 'NDSI')):
+	dock.variable.setCurrentIndex(dock.variable.findText(f'{left} · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
+	dock.doy_other.setCurrentIndex(dock.doy_other.findText(f'{right} (Sentinel-2)'))
+	dock.run_series()
+	wait()
+	sent = calls[-1]
+	assert (sent['variable'], sent['other_variable']) == (left, right) and sent['quality'] == auto, sent
+	assert not sensors.filters(entries['NDSI'], sent['quality'])['snow']
+	assert sensors.filters(entries['NDVI'], sent['quality'])['snow']
+dock.doy_other.setCurrentIndex(0)
 dock.doy_interannual.setCurrentIndex(0)
 dock.doy.setChecked(False)
 dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
 assert dock.quality_args() == chosen
-print('right axis of the CF: the filters', sorted(f for f in chosen if chosen[f] is True))
+print('right axis of the CF, and the NDSI and the NDVI on two axes: the filters',
+      sorted(f for f in chosen if chosen[f] is True), "as 'auto'")
 
 # the search of the Earth Engine data catalog, in the theme of the data by its ID (the copy of its index)
 dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
@@ -584,6 +635,28 @@ assert dock.catalog_found.count() > 0 and 'MODIS/061/MOD10A1' in [dock.catalog_f
 dock.catalog_chosen(0)
 assert dock.asset_id.text() == dock.catalog_found.itemData(0) and read == [dock.asset_id.text()]
 print('catalog search:', dock.catalog_found.count(), 'datasets, first', dock.catalog_found.itemData(0))
+# data by their ID on the left axis (a collection, with its own mask: the filters greyed out) and the NDSI of
+# Sentinel-2 on the right one: the filters chosen before, as 'auto', so that the NDSI keeps its snow
+SNOW = 'MODIS/061/MOD10A1'
+dock.asset_id.setText(SNOW)
+dock.asset_read({'asset': SNOW, 'type': 'image_collection', 'use': 'collection', 'title': 'MOD10A1',
+                 'source': 'Earth Engine data catalog',
+                 'bands': [{'band': 'NDSI_Snow_Cover', 'description': 'NDSI snow cover', 'units': '', 'unit': '',
+                            'resolution_m': 500.0}],
+                 'arguments': {'collection': SNOW, 'band': 'NDSI_Snow_Cover'}, 'notes': [], 'references': [],
+                 'credits': []})
+assert dock.variable.currentData().get('custom') and not dock.filters['snow'].isEnabled()
+dock.doy.setChecked(True)
+dock.doy_other.setCurrentIndex(dock.doy_other.findText('NDSI (Sentinel-2)'))
+dock.run_series()
+wait()
+sent = calls[-1]
+assert (sent.get('collection'), sent['other_variable']) == (SNOW, 'NDSI') and sent['quality'] == auto, sent
+assert not sensors.filters(entries['NDSI'], sent['quality'])['snow']
+dock.doy_other.setCurrentIndex(0)
+dock.doy_interannual.setCurrentIndex(0)
+dock.doy.setChecked(False)
+print('data by ID on the left axis, the NDSI on the right one: the filters chosen, as', sent['quality']['snow'])
 # the images (fixed layers) whatever the Period, and the map view zoomed out beyond the world (a project in EPSG:4326):
 # within the world, not an error about a bbox nobody wrote
 dock.region_kind.setCurrentIndex(dock.region_kind.findData('extent'))
