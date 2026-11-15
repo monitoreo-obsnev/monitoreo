@@ -92,6 +92,17 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: The topographic wetness index (`TWI`) of MERIT Hydro, 90 m, a fixed layer of the theme Terrain: how wet the soil tends to be because of the relief alone (Beven & Kirkby 1979).
+- **All tools**: The new theme Ecosystems, with the ecoregions and biomes of RESOLVE Ecoregions 2017 (`ECOREGION`, `BIOME`) as layers of classes: maps with the legend of their classes, the majority class over a region, the area of each class, zones by class and conditions of `where` that keep or leave out some classes; `list_classes` lists them.
+- **All tools**: A biome of RESOLVE as the region of study (`biome_id`, `biome_at`), and any region only within another (`within`, e.g. a biome within a country); in QGIS and the Earth Engine app, the biome at the centre of the map or clicked, within the map view.
+- **All tools**: The data of Earth Engine by their ID can combine several bands into one value on each pixel, their sum or their mean (`band_reducer`), e.g. the monthly bands of an image into a total.
+- **All tools**: Regions wider than 40° of longitude are computed in an equal-area projection (EPSG:6933) instead of the UTM zone of their centre; narrower regions keep their UTM zone.
+- **Earth Engine app** (fix): A condition of `where` on a fixed layer of bigger pixels (e.g. the elevation under Sentinel-2) is interpolated on the pixels of the result, as in the other tools, instead of taking the value of its nearest pixel.
+- **Python package, MCP server, Assistant** (fix): The titles of a list of ecoregions give their names, not `Ecoregion [793, 794]`.
+- **Command line** (fix): `monitoreo --help` no longer fails on the help of `areas`.
+
 ### [v0.3.39](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.39) · 2026-11-15 · package 0.3.49
 
 - **Earth Engine app**: Published from a git repository of Earth Engine scripts, split into modules under the 512 KiB per file of Earth Engine and mirrored to a backup (`gee/push_app.py`); the app itself is the same.
