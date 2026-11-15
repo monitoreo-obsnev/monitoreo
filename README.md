@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.40](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.40) · 2026-11-15 · package 0.3.50
 
 - **All tools**: The topographic wetness index (`TWI`) of MERIT Hydro, 90 m, a fixed layer of the theme Terrain: how wet the soil tends to be because of the relief alone (Beven & Kirkby 1979).
 - **All tools**: The new theme Ecosystems, with the ecoregions and biomes of RESOLVE Ecoregions 2017 (`ECOREGION`, `BIOME`) as layers of classes: maps with the legend of their classes, the majority class over a region, the area of each class, zones by class and conditions of `where` that keep or leave out some classes; `list_classes` lists them.
