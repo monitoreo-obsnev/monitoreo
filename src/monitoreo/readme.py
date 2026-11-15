@@ -62,6 +62,12 @@ COLUMNS = {
 	'cv': 'coefficient of variation (%): 100 × standard deviation / mean; empty where the mean is 0',
 	'p5': 'percentile 5{u}', 'p10': 'percentile 10{u}', 'p25': 'percentile 25{u}', 'p50': 'percentile 50{u}',
 	'p75': 'percentile 75{u}', 'p90': 'percentile 90{u}', 'p95': 'percentile 95{u}',
+	'mode': 'most frequent value{u}; of a categorical layer, the majority class (the code of the class of most of the '
+	        'pixels)',
+	'mode_label': 'the majority class: its code and name',
+	'count': 'number of valid pixels',
+	'group': 'group of the class: the code of the biome of the ecoregion',
+	'group_label': 'the biome of the ecoregion: its code and name',
 	# what each row was made with
 	'variable': 'variable of the catalog of MonitorEO (or the Earth Engine source)',
 	'sensor': 'sensor',
@@ -95,9 +101,16 @@ COLUMNS = {
 # the columns of the CSV of area_by_class that differ (its year is that of the land cover map, not of a step)
 COLUMNS_AREAS = {
 	'class': 'class: its code in the land cover map; for the classes of a variable, its number from 0 (below the first '
-	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase)',
+	         'break); for a trend, -1 (significant decrease), 0 (no significant trend) or 1 (significant increase); for '
+	         'a categorical layer, its code (ECO_ID of the ecoregions, BIOME_NUM of the biomes; Rock and Ice, 99)',
 	'label': 'name of the class', 'year': 'year of the land cover map',
 	'ha': 'hectares of the class in the feature (true area of its pixels)',
+}
+# the columns of region_stats with the zones of a categorical layer (its classes) that differ
+COLUMNS_CLASS_ZONES = {
+	'zone': 'zone: the code of its class in the categorical layer of the zones',
+	'zone_label': 'name of the zone: the code and name of its class',
+	'zone_from': 'empty (the zones are classes, not values)', 'zone_to': 'empty (the zones are classes, not values)',
 }
 # the columns of the CSV of the changes of a land cover map (area_by_class with other_year) that differ from those of
 # COLUMNS_AREAS
@@ -206,6 +219,28 @@ def _udunits(result, args):
 	return catalog.udunits(_catalog_unit(result, args))
 
 
+def categorical_entry(args):
+	"""The catalog entry of the variable of a call when it is a categorical layer (class codes, see
+	monitoreo.categorical), else None."""
+	from . import catalog, categorical
+	if not args.get('variable'):
+		return None
+	try:
+		e = catalog.find(args['variable'], args.get('sensor'), args.get('collection'))
+	except (KeyError, ValueError, TypeError):
+		return None
+	return e if categorical.is_categorical(e) else None
+
+
+def classes_text(entry):
+	"""What the values of the categorical layer ENTRY are, for the READMEs: «class codes of ..., without a unit»."""
+	from . import categorical
+	t = categorical.of(entry)
+	return (f"The values are class codes, not quantities: the {t['property']} of the {t['name']}, without a unit (no "
+	        'UDUNITS unit: the bands of the GeoTIFF and the column unit of the CSV have none, as the flag values of '
+	        'the CF conventions). Each code is a class, named in the classes of the files.')
+
+
 def _zone_unit(args):
 	"""The unit of the variable of the zones of a call of region_stats (zone_from, zone_to), as shown and in UDUNITS,
 	e.g. ' (m; UDUNITS m)', or '' without zones."""
@@ -253,6 +288,9 @@ def tag(path, tool, args, result, computed=None):
 	ds.SetMetadataItem('call', json.dumps({'tool': tool, 'args': call_args(args)}, ensure_ascii=False, default=str))
 	ds.SetMetadataItem('monitoreo_version', __version__)
 	ds.SetMetadataItem('computed', computed or _now())
+	if categorical_entry(args) and isinstance(result.get('classes'), list):  # what each code of a categorical layer is
+		ds.SetMetadataItem('classes', json.dumps({str(c['value']): c['label'] for c in result['classes']
+		                                          if isinstance(c, dict) and 'value' in c}, ensure_ascii=False))
 	if result.get('references'):
 		ds.SetMetadataItem('references', '\n'.join(references.texts(result)))
 	ds = None
@@ -330,6 +368,9 @@ def text(tool, args, result, computed=None):
 		out.append(_wrap(f'Each variable is in its own unit, on its own y axis of the chart: {each}. The column unit of '
 		                 'the CSV gives that of the variable of each row, in UDUNITS (the units of the CF conventions; 1 '
 		                 'is dimensionless).'))
+	elif categorical_entry(given):  # class codes: no unit, but what they are
+		out += _section('Values')
+		out.append(_wrap(classes_text(categorical_entry(given))))
 	elif ud:
 		out += _section('Units')
 		per_year = f"; its change per year, {band_udunits('slope', ud)}" if 'trend' in tool else ''
@@ -346,6 +387,7 @@ def text(tool, args, result, computed=None):
 			header = _csv_header(f)
 			columns = dict(COLUMNS, **COLUMNS_PROFILE) if profile and 'n_years' in header else \
 				dict(COLUMNS, **COLUMNS_RDNBR) if 'rdnbr_min' in header else \
+				dict(COLUMNS, **COLUMNS_CLASS_ZONES) if tool == 'region_stats' and _class_zones(given) else \
 				{**COLUMNS, **COLUMNS_AREAS, **(COLUMNS_TRANSITIONS if 'from_class' in header else {})} \
 				if tool == 'area_by_class' else \
 				dict(COLUMNS, value='mean of the map of the variable{u} over the pixels that the segment crosses') \
@@ -359,9 +401,18 @@ def text(tool, args, result, computed=None):
 			out.append(_wrap(f"{grid['width']} x {grid['height']} pixels of {grid['resolution']:g} m in {grid['crs']}; "
 			                 f'NoData {NODATA}. Its metadata repeat the call, the version and the references.'))
 			names = [b for _, b, _ in bands]
+			klass = categorical_entry(given)
 			for i, b, bu in bands:
 				label = publish.band_text(b, names)[0] if b == 'severity' else BANDS.get(b, ('', ''))[0]
+				if klass and b == 'value':  # class codes, without a unit
+					label = f"Class of each pixel: its code ({klass['band']} of {klass['col']}), without a unit"
 				out.append(_wrap(f'{i} {b}: {label}' + (f' ({bu})' if bu else '')))
+			if klass and isinstance(result.get('classes'), list):  # the code and name of each class in the file
+				out += _section('Classes of', os.path.basename(f))
+				shown = [c for c in result['classes'] if isinstance(c, dict) and 'value' in c]
+				out.append(_wrap(f'The {len(shown)} classes in the file, by their code (also in its metadata, item '
+				                 'classes):'))
+				out += [_wrap(f"{c['label']} (colour {c.get('color', '')})") for c in shown]
 		elif ext in ANIMATION_KINDS and result.get('frames'):
 			out += _section('Frames of', os.path.basename(f))
 			out.append(_wrap('Each frame is a time step: its date (first and last day), its title and the number of '
@@ -388,6 +439,14 @@ def text(tool, args, result, computed=None):
 		out.append(_wrap('Credits of the data: ' + '; '.join(cited['credits']) + '.'))
 	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')]
 	return '\n'.join(out) + '\n'
+
+
+def _class_zones(args):
+	"""Whether the zones of a call of region_stats are the classes of a categorical layer."""
+	z = args.get('zones')
+	return isinstance(z, dict) and categorical_entry({'variable': z.get('variable') or z.get('index'),
+	                                                  'sensor': z.get('sensor'),
+	                                                  'collection': z.get('collection')}) is not None
 
 
 def _between_text(metric):
@@ -470,6 +529,8 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 		         f"season {' to '.join(spec['season'])}" if dated and spec.get('season') else '',
 		         f"temporal aggregation {spec.get('temporal')}"
 		         if dated and spec.get('temporal') not in (None, 'period') else '',
+		         f"class codes of the {src.get('classes_table') or src.get('classes')}, without a unit"
+		         if src.get('categorical') else  # a categorical layer (ECOREGION, BIOME)
 		         f"unit {src['unit']} (UDUNITS {src['udunits']})" if src.get('udunits') else
 		         f"unit {src['unit']}" if src.get('unit') else '',
 		         'pixels without ' + ', '.join(k for k, v in (src.get('pixel_filters') or {}).items() if v)

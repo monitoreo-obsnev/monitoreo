@@ -1,7 +1,7 @@
 """Figures of the maps of MonitorEO for reports and papers (PNG, PDF or SVG), as the maps of cartoee of geemap (Wu,
 2020), with matplotlib and without cartopy: the map that Earth Engine makes of the variable (with the outline of the
 region) on its geographic extent, with a grid of longitudes and latitudes, a scale bar, a north arrow, the colour ramp
-with its unit, the title and the credits of the data.
+with its unit (or, for a categorical layer, the legend of its classes), the title and the credits of the data.
 
 The map is a thumbnail of Earth Engine in geographic coordinates (EPSG:4326) of the bounds of the region and a margin,
 drawn with the aspect of its mean latitude (a degree of longitude is cos(latitude) of a degree of latitude), so that
@@ -19,6 +19,7 @@ import textwrap
 FORMATS = ('.png', '.pdf', '.svg')
 KM_PER_DEGREE = 111.32  # of latitude, and of longitude at the equator
 CREDIT_LINE = 5.5 * 1.25 / 72  # inches of a line of the credits (5.5 points)
+LEGEND_CLASSES = 11  # classes of a categorical layer in the legend of a figure (then «and N more classes»)
 
 
 def check(path, dpi=None):
@@ -68,10 +69,12 @@ def degrees(x, axis, digits=2):
 	return f'{abs(x):.{digits}f}° {sign}'
 
 
-def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=300, width=7.0):
+def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=300, width=7.0, classes=None):
 	"""Write to PATH (.png, .pdf or .svg) the figure of the map PNG (bytes of a thumbnail of Earth Engine of BOUNDS,
 	[w, s, e, n], in EPSG:4326) coloured with VIS ({'min', 'max', 'palette'}), with its grid, scale bar, north arrow,
-	colour ramp with UNIT, TITLE and CREDITS (lines). Returns PATH."""
+	colour ramp with UNIT, TITLE and CREDITS (lines); with CLASSES ([{'value', 'label', 'color'}], those of a categorical
+	layer), the legend of the classes instead of the colour ramp (at most LEGEND_CLASSES, then how many more). Returns
+	PATH."""
 	from matplotlib.backends.backend_agg import FigureCanvasAgg
 	from matplotlib.colorbar import ColorbarBase
 	from matplotlib.colors import LinearSegmentedColormap, Normalize
@@ -124,13 +127,22 @@ def map_figure(png, bounds, vis, unit='', title='', credits=(), path=None, dpi=3
 	label = f'{km:g} km' if km >= 1 else f'{km * 1000:g} m'
 	ax.text(x0 + deg / 2, y0 + h * 1.8, label, ha='center', va='bottom', fontsize=7, zorder=5,
 	        bbox={'facecolor': 'white', 'edgecolor': 'none', 'alpha': 0.7, 'pad': 1})
-	# the colour ramp, under the map
-	cax = fig.add_axes([0.25, bottom - 0.62 / height, 0.56, 0.16 / height])
-	cmap = LinearSegmentedColormap.from_list('ramp', ['#' + str(c).lstrip('#') for c in vis['palette']])
-	bar = ColorbarBase(cax, cmap=cmap, norm=Normalize(vis['min'], vis['max']), orientation='horizontal')
-	bar.ax.tick_params(labelsize=7)
-	if unit:
-		bar.set_label(unit, fontsize=8)
+	if classes:  # the classes of a categorical layer: a patch of the colour of each, under the map
+		from matplotlib.patches import Patch
+		shown = list(classes)[:LEGEND_CLASSES]
+		handles = [Patch(facecolor=c['color'], edgecolor='#555', linewidth=0.4,
+		                 label=textwrap.shorten(str(c['label']), 50, placeholder='…')) for c in shown]
+		if len(classes) > len(shown):
+			handles.append(Patch(facecolor='none', edgecolor='none', label=f'and {len(classes) - len(shown)} more classes'))
+		fig.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.53, bottom - 0.3 / height), fontsize=6,
+		           ncol=min(3, len(handles)), frameon=False, handlelength=1.2, columnspacing=1.2)
+	else:  # the colour ramp, under the map
+		cax = fig.add_axes([0.25, bottom - 0.62 / height, 0.56, 0.16 / height])
+		cmap = LinearSegmentedColormap.from_list('ramp', ['#' + str(c).lstrip('#') for c in vis['palette']])
+		bar = ColorbarBase(cax, cmap=cmap, norm=Normalize(vis['min'], vis['max']), orientation='horizontal')
+		bar.ax.tick_params(labelsize=7)
+		if unit:
+			bar.set_label(unit, fontsize=8)
 	if title:
 		fig.suptitle(textwrap.fill(title, 95), fontsize=10, y=1 - 0.12 / height, va='top')
 	if lines:  # at the foot, in the space kept for them

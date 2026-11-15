@@ -66,7 +66,7 @@ import unicodedata
 
 from . import __version__
 from . import about as about_
-from . import assets, catalog, composite, figures, fire, maps, references, timeseries, trends
+from . import assets, catalog, categorical, composite, figures, fire, maps, references, timeseries, trends
 from . import variable as variables
 
 SCHEMA = 1
@@ -422,9 +422,10 @@ def default_title(tool, args):
 
 
 def unit_text(unit, per_year=False):
-	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/year', 'per year' with PER_YEAR)."""
+	"""The unit of the catalog ('[ºC]', '[unitless]') as shown: '°C', '' ('°C/year', 'per year' with PER_YEAR); the class
+	codes of a categorical layer ('[class]'), none."""
 	u = str(unit or '').replace('/ year', '').strip().strip('[]').replace('º', '°').strip()
-	u = '' if u.lower() in ('unitless', 'none', '1') else u  # '1': dimensionless in UDUNITS
+	u = '' if u.lower() in ('unitless', 'none', '1', 'class') else u  # '1': dimensionless in UDUNITS
 	if per_year:
 		return f'{u}/year' if u else 'per year'
 	return u
@@ -583,6 +584,11 @@ def _bands(tool, args, result, arrays, palette, unit):
 		main = name in MAIN_BANDS or len(arrays) == 1
 		if name == 'severity':
 			legend = _severity_legend(fire.index_of(list(arrays)))
+		elif name == 'value' and categorical.is_categorical(entry):  # class codes: the colour of each class in the map
+			import numpy as np
+			a = arrays[name]
+			values = sorted({int(v) for v in np.unique(np.round(a[np.isfinite(a)]))})
+			legend = {'type': 'categories', 'classes': categorical.legend(entry, values)}
 		elif name == 'p_value':
 			legend = _continuous(0.0, 0.1, trends.P_VALUE)
 		elif name == 'n':
@@ -741,18 +747,21 @@ def _chart_type(tool, path):
 def _area_classes(args, path):
 	"""The classes of the CSV of area_by_class PATH ([{class, label, colour}], in their order) with the colours of
 	services.area_by_class, for a result without them (the answer of the MCP server and its log): those of the broad
-	land covers, of the trend, or of the colour ramp of the variable (ARGS) for its breaks."""
+	land covers, of the trend, of the colour ramp of the variable (ARGS) for its breaks, or of the classes of a
+	categorical layer."""
 	from . import classes
 	from .services import _ramp_colour
 	first = {}
 	for r in _read_csv(path):  # each feature has every class, in their order
 		first.setdefault(r['label'], r)
 	trend = {c: colour for c, _, colour in classes.TREND}
-	ramp = maps.ramp(_entry(args.get('variable'), args.get('sensor')))  # the data outside the catalog: the default one
+	entry = _entry(args.get('variable'), args.get('sensor'))
+	ramp = maps.ramp(entry)  # the data outside the catalog: the default one
 	out = []
 	for i, r in enumerate(first.values()):
 		code = int(float(r['class']))
-		colour = classes.LANDCOVER_COLOURS.get(r['landcover'], '9e9e9e') if 'landcover' in r else \
+		colour = categorical.colour(entry, code) if categorical.is_categorical(entry) and not args.get('breaks') else \
+			classes.LANDCOVER_COLOURS.get(r['landcover'], '9e9e9e') if 'landcover' in r else \
 			_ramp_colour(ramp, (i + 0.5) / len(first)) if 'value_from' in r else trend.get(code)
 		out.append({'class': code, 'label': r['label'], 'colour': colour})
 	return out

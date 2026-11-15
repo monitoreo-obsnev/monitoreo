@@ -6,7 +6,10 @@ statistics by group of geemap, Wu 2020): the classes of
   breaks     the map of a variable (also of a fixed layer: elevation, slope) cut at some values, e.g. [0.2, 0.4, 0.6]:
              below 0.2, 0.2 to 0.4, 0.4 to 0.6 and 0.6 or more (a value equal to a break goes to the class above it);
   trend      the trend of a variable on each pixel (Mann-Kendall and Sen, see monitoreo.trends): significant decrease
-             (p-value below alpha and slope below 0), no significant trend, and significant increase.
+             (p-value below alpha and slope below 0), no significant trend, and significant increase;
+  classes    the classes of a categorical layer (monitoreo.categorical: the ecoregions and biomes of RESOLVE), its own
+             classes, those with area in some feature of the region; the ecoregions with their biome (group), and the
+             hectares of each biome (by_group).
 
 The changes between two years of a land cover map (transitions) are the area of each pair of classes (the class of the
 pixel in the first year and in the other), as the Sankey diagrams of land cover change that geemap draws: each class
@@ -27,7 +30,7 @@ import ee
 
 from . import landcover
 
-MODES = ('landcover', 'breaks', 'trend')
+MODES = ('landcover', 'breaks', 'trend', 'classes')
 TREND = [(-1, 'significant decrease', 'd7191c'), (0, 'no significant trend', 'bdbdbd'),
          (1, 'significant increase', '1a9641')]
 TARGET_PIXELS = 1e7  # pixels per region for the automatic scale (the areas are sums: they need fewer than a map)
@@ -35,17 +38,25 @@ COLUMNS = {'landcover': ['region', 'map', 'year', 'class', 'label', 'landcover',
            'transitions': ['region', 'map', 'year', 'other_year', 'from_class', 'from_label', 'from_landcover',
                            'to_class', 'to_label', 'to_landcover', 'ha', 'percent'],
            'breaks': ['region', 'class', 'label', 'value_from', 'value_to', 'ha', 'percent'],
-           'trend': ['region', 'class', 'label', 'ha', 'percent']}
+           'trend': ['region', 'class', 'label', 'ha', 'percent'],
+           # the classes of a categorical layer (the ecoregions with their biome, group; the biomes without it)
+           'classes': ['region', 'class', 'label', 'group', 'group_label', 'ha', 'percent']}
 # colours of the broad land covers (those of Dynamic World, whose classes they are: see monitoreo.landcover)
 LANDCOVER_COLOURS = {'water': '419bdf', 'trees': '397d49', 'grassland': '88b053', 'wetland': '7a87c6',
                      'cropland': 'e49635', 'shrubland': 'dfc35a', 'built': 'c4281b', 'bare': 'a59b8f',
                      'snow': 'b39fe1'}
 
 
-def mode_of(landcover_map=None, breaks=None, trend=False):
-	"""The kind of classes of a call: 'landcover', 'breaks' or 'trend'; ValueError (before Earth Engine) if it gives
-	none or more than one."""
+def mode_of(landcover_map=None, breaks=None, trend=False, categorical=None):
+	"""The kind of classes of a call: 'landcover', 'breaks', 'trend' or, for a CATEGORICAL layer (its entry, see
+	monitoreo.categorical) without the others, 'classes'; ValueError (before Earth Engine) if it gives none or more than
+	one, or breaks or a trend for a categorical layer, which has its own classes."""
 	given = [m for m, v in (('landcover', landcover_map), ('breaks', breaks), ('trend', trend)) if v]
+	if categorical and not landcover_map:
+		if given:
+			raise ValueError(f"the classes of {categorical['index']} ({categorical['sensor']}) are its own (a categorical "
+			                 f"layer, of class codes): give no {' nor '.join(given)}")
+		return 'classes'
 	if len(given) != 1:
 		raise ValueError('give one kind of classes: landcover (a land cover map, with its year), breaks (the values '
 		                 'where to cut the map of a variable, e.g. [0.2, 0.4]) or trend (the trend of a variable: '
@@ -169,6 +180,26 @@ def by_landcover(ha, classes):
 		for k in sorted(acc, key=lambda k: order.index(k) if k in order else len(order)):
 			out.append({'region': region, 'landcover': k, 'label': landcover.label(k), 'ha': acc[k],
 			            'percent': 100 * acc[k] / total if total else None})
+	return out
+
+
+def by_group(ha, classes, group):
+	"""The hectares of each feature of HA ([(region, {class: hectares})], see hectares) of the classes of a categorical
+	layer (CLASSES: [(class, label, {'group': its group, ...})], the ecoregions with their biome) summed by group: [{region,
+	group, label, ha, percent}], in the order of the features and of the codes of the groups, only those with area;
+	GROUP is the categorical entry of the groups (BIOME), for their labels; percent of the area with a class of the
+	feature (None if it has none)."""
+	from . import categorical
+	out = []
+	for region, by in ha:
+		total = sum(by.get(c, 0.0) for c, _, _ in classes)
+		acc = {}
+		for c, _, more in classes:
+			if by.get(c):
+				acc[more['group']] = acc.get(more['group'], 0.0) + by[c]
+		for g in sorted(acc):
+			out.append({'region': region, 'group': g, 'label': categorical.label(group, g), 'ha': acc[g],
+			            'percent': 100 * acc[g] / total if total else None})
 	return out
 
 

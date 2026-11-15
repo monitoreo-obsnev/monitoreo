@@ -119,7 +119,7 @@ def test_the_slim_community_index_of_the_app():
 		assert (index['licences'][row[5]] if row[5] is not None else None) == licence
 	text = build.catalog_text({'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': index})
 	assert json.loads(text)['community'] == json.loads(json.dumps(index))
-	assert text.count('\n') < 1200  # the datasets one per line, not a line per value
+	assert text.count('\n') < 1250  # the datasets one per line, not a line per value (the themes: a line per index)
 
 
 NODE = r"""

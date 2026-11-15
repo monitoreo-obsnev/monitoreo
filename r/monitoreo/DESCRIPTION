@@ -10,7 +10,8 @@ Description: MonitorEO-OBSNEV is an open monitoring tool of Essential Biodiversi
     (NDVI, EVI, NDWI, LSWI, NDSI, snow cover frequency, cloud frequency, elevation, slope, topographic wetness
     index (TWI) of MERIT Hydro, albedo, land surface temperature, evapotranspiration, precipitation, air
     temperature, water balance and bioclimatic variables of
-    ERA5-Land, TerraClimate, CHIRPS and WorldClim,
+    ERA5-Land, TerraClimate, CHIRPS and WorldClim, the ecoregions and biomes of RESOLVE Ecoregions 2017
+    (ECOREGION and BIOME: categorical layers, the area of each class, zones by class),
     LAI, ...) of
     Sentinel-2, Landsat and MODIS, with its pixel filters, and of any image or collection of images of
     Earth Engine given by its ID (of the Earth Engine data catalog, of the GEE Community Catalog, browsed

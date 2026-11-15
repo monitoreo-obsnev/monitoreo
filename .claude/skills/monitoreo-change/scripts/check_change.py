@@ -151,7 +151,7 @@ def check_catalog(wiki):
 		unit = str(e.get('unit') or '')
 		if 'º' in unit:
 			problems.append(f'{where}: unit {unit} uses the ordinal º, not the degree sign °')
-		elif not catalog.udunits(unit):
+		elif not catalog.udunits(unit) and unit not in getattr(catalog, 'NO_UDUNITS', ()):  # e.g. class codes, no unit
 			problems.append(f'{where}: unit {unit} has no UDUNITS name in catalog.UDUNITS')
 		if hasattr(catalog, 'THEMES') and not e.get('theme'):
 			problems.append(f'{where}: no theme: add {e["index"]} to the indices of its theme in catalog.THEMES')

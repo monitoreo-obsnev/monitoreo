@@ -43,11 +43,13 @@ RBR_COLUMNS = [('region', 'Region'), ('mean', 'Mean'), ('median', 'Median'), ('s
 # the RdNBR: the hectares of the classes of Miller & Thode 2007 and, under them, its statistics (those of the RBR)
 RDNBR_COLUMNS = [('region', 'Region'), ('label', 'Class (Miller & Thode 2007)'), ('rdnbr_min', 'RdNBR from'),
                  ('rdnbr_max', 'RdNBR to'), ('ha', 'Hectares')]
-AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('from_label', 'From (first year)'),
+AREA_COLUMNS = [('region', 'Region'), ('label', 'Class'), ('group_label', 'Biome'), ('from_label', 'From (first year)'),
                 ('to_label', 'To (other year)'), ('landcover', 'Land cover'), ('value_from', 'From'),
                 ('value_to', 'To'), ('ha', 'Hectares'), ('percent', '% of the area with classes')]
-ZONE_COLUMNS = [('region', 'Region'), ('zone_label', 'Band'), ('p25', 'Percentile 25'), ('p50', 'Median'),
-                ('p75', 'Percentile 75'), ('mean', 'Mean'), ('n_pixels', 'Pixels')]
+# the zones: the bands of a fixed layer, or the classes of a categorical layer; of a categorical variable, its majority
+# class in each zone (mode_label)
+ZONE_COLUMNS = [('region', 'Region'), ('zone_label', 'Zone'), ('p25', 'Percentile 25'), ('p50', 'Median'),
+                ('p75', 'Percentile 75'), ('mean', 'Mean'), ('mode_label', 'Majority class'), ('n_pixels', 'Pixels')]
 TRANSECT_COLUMNS = [('distance_m', 'Distance (m)'), ('value', 'Value'), ('elevation', 'Elevation (m)'),
                     ('lon', 'Longitude'), ('lat', 'Latitude')]
 FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]

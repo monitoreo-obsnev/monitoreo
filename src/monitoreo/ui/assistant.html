@@ -789,8 +789,8 @@ function mapButton(id) {  // shows the map of the result ID
 }
 
 // The legend of a map: a bar from min to max with its palette, a colour per class (the burn severity: the classes of
-// the USGS for the dNBR, those of Miller & Thode 2007 for the RdNBR) or, without colours, its text (the true colour of
-// the images: the range of its reflectance)
+// the USGS for the dNBR, those of Miller & Thode 2007 for the RdNBR; a categorical layer: its classes in the map) or,
+// without colours, its text (the true colour of the images: the range of its reflectance)
 function legendItems(lg) {
   if (lg.classes) {
     return lg.classes.map(c => el('span', {class: 'class'}, el('span', {class: 'swatch', style: `background: ${c.color}`}),
@@ -1101,7 +1101,9 @@ async function pixelAt(latlng) {
     const r = await api('/api/pixel', {id: e.id, key: e.key, lon: latlng.lng, lat: latlng.lat});
     const coord = v => v.toLocaleString('en-US', {minimumFractionDigits: 5, maximumFractionDigits: 5});
     const head = el('div', {}, el('b', {text: `Pixel ${coord(r.lat)}, ${coord(r.lon)}`}));
-    if (r.value != null) head.append(` · ${r.label || 'value'} on ${side}: ${fmt(r.value)}${r.unit ? ' ' + r.unit : ''}` +
+    // a categorical layer: the class (its code and name), not a number
+    if (r.value != null) head.append(` · ${r.label || 'value'} on ${side}: ${r.text || fmt(r.value)}` +
+                                     `${r.unit && !r.text ? ' ' + r.unit : ''}` +
                                      (r.p_value != null ? ` (p-value ${fmt(r.p_value)})` : ''));
     else if (e.map.pixel) head.append(` · no value on ${side} (pixel without data)`);
     if (r.key == null) {  // a fixed layer (elevation, slope): its value, without a time series

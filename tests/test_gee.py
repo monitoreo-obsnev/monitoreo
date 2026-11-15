@@ -32,6 +32,7 @@ ABOVE_800 = {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'ref': 106, 'min':
 FLAT = {'variable': 'SLOPE', 'sensor': 'Copernicus', 'ref': 107, 'max': 20}
 GREEN = {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'ref': 27, 'min': 0.3}
 WET = {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'ref': 148, 'min': 10}  # the topographic wetness index: wet bottoms
+MEDITERRANEAN = {'variable': 'BIOME', 'sensor': 'RESOLVE', 'ref': 150, 'classes': [12]}  # a categorical layer
 
 CASES = {
 	# only the pixels of the region that pass conditions on variables (where): fixed layers and one with dates
@@ -51,6 +52,21 @@ CASES = {
 	'map_s2_where_twi': {'kind': 'percentiles', 'region': GUAJARES,
 	                     'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
 	                              'where': [WET]}},
+	# the categorical layers of RESOLVE (monitoreo.categorical): the map of the biomes (their codes), the area of each
+	# ecoregion of a protected area, and the NDVI of the pixels of the Mediterranean biome only (where with classes)
+	'map_biome_categorical': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 150}},
+	'areas_ecoregion_sierra_nevada': {'kind': 'class_areas', 'region': {'wdpa_id': 389011}, 'variable': 'ECOREGION',
+	                                  'sensor': 'RESOLVE', 'spec': {'ref': 149}},
+	'map_s2_where_biome': {'kind': 'percentiles', 'region': GUAJARES,
+	                       'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
+	                                'where': [MEDITERRANEAN]}},
+	# a biome as a region (the union of its ecoregions in the table of classes) within another region (only its part
+	# inside it, as the app clips it to the map view): by its code and at a point
+	'series_modis_biome_within': {'kind': 'series', 'region': {'biome_id': 12, 'within': GUAJARES}, 'step': 'annual',
+	                              'metric': 'mean', 'stat': 'mean', 'spec': {'ref': 25, 'period': ['2020-01-01',
+	                                                                                              '2020-12-31']}},
+	'map_elevation_biome_at_within': {'kind': 'percentiles', 'region': {'biome_at': [-3.56, 36.9], 'within': GUAJARES},
+	                                  'spec': {'ref': 106}},
 	# land cover masks (a condition of where): CORINE at 10 m (the class of each pixel) and Dynamic World under MODIS
 	# (the share of each pixel of 250 m), with a series that keeps the same pixels in every step
 	'map_s2_landcover_corine': {'kind': 'percentiles', 'region': GUAJARES,
@@ -235,6 +251,9 @@ def python(c):
 			                             perimeter=os.path.join(folder, 'perimeter.gpkg'),
 			                             burned_min=c.get('burned_min'), min_ha=c.get('min_ha'))
 		return {'perimeter_ha': out['perimeter_ha'], 'perimeter_patches': out['perimeter_patches']}
+	if c['kind'] == 'class_areas':  # the area of each class of a categorical layer
+		out = services.area_by_class(region, c['variable'], c['sensor'])
+		return {'rows': out['rows'], 'scale': out['scale']}
 	if c['kind'] == 'burn_rdnbr':
 		out = services.burn_severity(region, c['sensor'], start=start, end=end, other_start=c['after'][0],
 		                             other_end=c['after'][1], index='RdNBR', collection=c.get('collection'))

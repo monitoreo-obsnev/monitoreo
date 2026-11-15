@@ -104,9 +104,10 @@ cited <- function(df, res) {
 }
 #' Arguments shared by the functions of MonitorEO
 #'
-#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_country()}, \code{mo_admin()},
-#'   \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or \code{mo_sf()} (see
-#'   \link{regions}). Several features give a result per feature.
+#' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
+#'   \code{mo_admin()}, \code{mo_island()}, \code{mo_bbox()}, \code{mo_point()}, \code{mo_geojson()} or
+#'   \code{mo_sf()} (see \link{regions}); a biome only within another region with \code{mo_biome(within = )}.
+#'   Several features give a result per feature.
 #' @param variable a variable of the catalog, e.g. \code{"NDVI"} (see \code{mo_variables()}); in the functions that
 #'   take \code{image}, \code{NULL} for any data of Earth Engine given by its ID instead: \code{collection} or
 #'   \code{image}, with \code{band} (see \code{mo_asset()}).
@@ -168,10 +169,14 @@ cited <- function(df, res) {
 #'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. A condition can also leave out some
 #'   land covers of a land cover map of a year (\code{mo_landcover_maps()} lists the maps, their years and the land
 #'   covers), e.g. without the water bodies and the built-up areas of CORINE Land Cover 2018:
-#'   \code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}.
+#'   \code{list(list(landcover = "CORINE", year = 2018, exclude = c("water", "built")))}. A condition on a
+#'   categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
+#'   classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
+#'   Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.
 #' @param scale pixel size of the statistics in metres (default: automatic).
 #' @param resolution pixel size in metres (default: that of the data).
-#' @param crs \code{"auto"} (UTM zone of the region) or a code such as \code{"EPSG:25830"}.
+#' @param crs \code{"auto"} (UTM zone of the region; EPSG:6933, equal area, for a region wider than 40 degrees of
+#'   longitude) or a code such as \code{"EPSG:25830"}.
 #' @param vmin,vmax range of the colour ramp (default: percentiles 5 and 95 of the map).
 #' @param thumbnail optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 #'   it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).
@@ -395,16 +400,17 @@ other_theme <- function(theme) {
 #' @param text optional: only those with this text in their variable or their name (in English or in Spanish).
 #' @param lang language of the names: \code{"en"} or \code{"es"}.
 #' @param theme optional: only those of a theme, \code{"vegetation"}, \code{"water"}, \code{"snow"}, \code{"fire"},
-#'   \code{"energy"}, \code{"atmosphere"}, \code{"climate"} or \code{"terrain"} (the menus of the QGIS plugin and
+#'   \code{"energy"}, \code{"atmosphere"}, \code{"climate"}, \code{"terrain"} or \code{"ecosystems"} (the menus of the
+#'   QGIS plugin and
 #'   of the Earth Engine app). Their two other themes, \code{"earth_engine"} (Earth Engine data, by its ID) and
 #'   \code{"community"} (GEE Community Catalog), have no variables of the catalog: see \code{mo_asset()} and
 #'   \code{mo_community()}.
 #' @return A data.frame (ref, variable, sensor, collection, name, theme, group, resolution_m, dates, unit and, for
 #'   some, metric: its only metric, fixed_filters: its pixel filters always on, static: a fixed layer without
 #'   dates, two_periods: \code{TRUE} for the burn indices that compare a period before and a period after a fire,
-#'   RBR and RdNBR, computed only by \code{mo_burn_severity()}, and rgb: \code{TRUE} when its images have a true
-#'   colour, see \code{mo_rgb_map()}; \code{NA} for the others). The references of each variable:
-#'   \code{mo_describe()}.
+#'   RBR and RdNBR, computed only by \code{mo_burn_severity()}, rgb: \code{TRUE} when its images have a true
+#'   colour, see \code{mo_rgb_map()}, and categorical and n_classes for the layers of class codes, ECOREGION and BIOME,
+#'   see \code{mo_classes()}; \code{NA} for the others). The references of each variable: \code{mo_describe()}.
 #' @seealso \code{mo_describe()}
 #' @examples
 #' \dontrun{
@@ -437,6 +443,42 @@ mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) 
 #' @export
 mo_describe <- function(variable, sensor = NULL, collection = NULL) {
   services()$describe_variable(variable, sensor, collection)
+}
+
+#' The classes of a categorical layer: the ecoregions and the biomes of RESOLVE
+#'
+#' The ecoregions (\code{"ECOREGION"}) and biomes (\code{"BIOME"}) of RESOLVE Ecoregions 2017 (Dinerstein et al.,
+#' 2017), sensor \code{"RESOLVE"}, are categorical fixed layers: their values are class codes (the ECO_ID of each
+#' ecoregion, the BIOME_NUM of each biome; Rock and Ice is the biome 99 of MonitorEO), not quantities. Their maps have
+#' the colour of each class, their statistic over a region is the majority class (\code{mo_region_stats()} with
+#' \code{stats = "mode"}), \code{mo_area_by_class()} gives the area of each class (without \code{breaks}), their
+#' classes are zones (\code{zones = list(variable = "BIOME", sensor = "RESOLVE")}) and a condition of \code{where}
+#' keeps or leaves out some classes by their codes. Without Earth Engine.
+#' @param variable \code{"ECOREGION"} or \code{"BIOME"}.
+#' @param sensor \code{"RESOLVE"}.
+#' @param text optional: only those with its words at the start of a word of their code, name or biome (in any case,
+#'   with or without accents), e.g. \code{"Iberian"}.
+#' @param limit optional: at most this number of classes.
+#' @param lang \code{"en"} or \code{"es"} (the Spanish names of the biomes).
+#' @return A data.frame (code, name, colour and, for the ecoregions, group and group_name: their biome).
+#' @references Dinerstein, E., Olson, D., Joshi, A., Vynne, C., Burgess, N. D., Wikramanayake, E., et al. (2017). An
+#'   ecoregion-based approach to protecting half the terrestrial realm. BioScience, 67(6), 534--545.
+#'   \doi{10.1093/biosci/bix014}
+#' @seealso \code{where} of \code{mo_map_layer()}, \code{mo_area_by_class()}, \code{mo_region_stats()}
+#' @examplesIf reticulate::py_module_available("monitoreo")
+#' mo_classes("BIOME")
+#' mo_classes("ECOREGION", text = "Iberian")
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' # the NDVI of the Mediterranean biome only, and the area of each ecoregion of a protected area
+#' mo_map_layer(mo_wdpa(389011), "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31",
+#'              where = list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12))))
+#' mo_area_by_class(mo_wdpa(389011), "ECOREGION", "RESOLVE")
+#' }
+#' @export
+mo_classes <- function(variable, sensor = "RESOLVE", text = NULL, limit = NULL, lang = "en") {
+  rows_df(services()$list_classes(variable, sensor, text, if (is.null(limit)) NULL else as.integer(limit), lang))
 }
 
 #' Everything about an image or a collection of images of Earth Engine, given by its ID, and what to cite with it
@@ -668,12 +710,15 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' Regions of MonitorEO
 #'
 #' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
-#' by ID or by a point (\code{mo_ecoregion()}), countries (\code{mo_country()}) and their administrative units of
+#' by ID or by a point (\code{mo_ecoregion()}), biomes of RESOLVE 2017 by code or by a point (\code{mo_biome()}: the
+#' union of their ecoregions, a feature per biome), countries (\code{mo_country()}) and their administrative units of
 #' FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
 #' point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
-#' (\code{mo_sf()}). Several features give a result per feature.
-#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID) or codes of administrative
-#'   units (GAUL1_CODE or GAUL2_CODE of \code{mo_admin_units()}).
+#' (\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
+#' \code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
+#' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
+#'   99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE or GAUL2_CODE of
+#'   \code{mo_admin_units()}).
 #' @param iso3 ISO3 codes of countries, e.g. \code{"ESP"}.
 #' @param level level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
 #'   municipalities...).
@@ -682,6 +727,7 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' @param buffer radius of the circle around the point, in metres (0: the pixel at the point).
 #' @param geojson a GeoJSON geometry, Feature or FeatureCollection (text or a list).
 #' @param name_field property of the GeoJSON features with their names.
+#' @param within another region (e.g. \code{mo_country("ESP")}): only the part of the biome inside it.
 #' @return A region (a list) for the other functions.
 #' @references UNEP-WCMC & IUCN (year). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], month
 #'   and year of the version used. Cambridge, UK: UNEP-WCMC and IUCN. \url{https://www.protectedplanet.net}
@@ -698,6 +744,8 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' @examples
 #' mo_wdpa(389011)            # Sierra Nevada National Park
 #' mo_ecoregion(lon = -3.3, lat = 37.1)
+#' mo_biome(12, within = mo_country("ESP"))  # the Mediterranean biome in Spain
+#' mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))
 #' mo_country("ESP")
 #' mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
 #' mo_island(lon = 2.9, lat = 39.6)
@@ -710,6 +758,13 @@ mo_wdpa <- function(id) list(wdpa_id = as.list(as.integer(id)))
 #' @export
 mo_ecoregion <- function(id = NULL, lon = NULL, lat = NULL) {
   if (!is.null(id)) list(ecoregion_id = as.list(as.integer(id))) else list(ecoregion_at = list(lon, lat))
+}
+#' @rdname regions
+#' @export
+mo_biome <- function(id = NULL, lon = NULL, lat = NULL, within = NULL) {
+  r <- if (!is.null(id)) list(biome_id = as.list(as.integer(id))) else list(biome_at = list(lon, lat))
+  if (!is.null(within)) r$within <- within
+  r
 }
 #' @rdname regions
 #' @export
@@ -1325,6 +1380,11 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
                                            quality, clip, rgb = isTRUE(rgb)), data))
   vis <- if (isTRUE(rgb)) {
     maps$rgb_vis(out[[1]], out[[2]]$geometry(), res)  # percentiles 2 and 98 of the three bands together
+  } else if (isTRUE(variables$is_categorical(spec))) {
+    # a categorical layer (ECOREGION, BIOME): the colour of each class of those in the region, as services.map_layer
+    categorical <- reticulate::import("monitoreo.categorical", convert = TRUE)
+    entry <- s$variable_entry(spec)
+    categorical$vis(entry, categorical$present(entry, out[[2]]$geometry()))
   } else {
     # percentiles 5 and 95 (with the palette of the catalog; the data of Earth Engine by its ID have no entry in it)
     maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
@@ -1355,7 +1415,11 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #'   p5, p50, p95 and max (with \code{zones}, also p25 and p75).
 #' @param zones the statistics of each band of another variable instead, e.g. the elevation bands
 #'   \code{list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500))} (a variable with dates
-#'   is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}).
+#'   is aggregated over the period of the result, or its own \code{period}, \code{c(start, end)}), or of each class
+#'   of a categorical layer, without breaks, e.g. \code{list(variable = "BIOME", sensor = "RESOLVE")} (optionally
+#'   \code{classes}, the codes of those to keep: \code{mo_classes()}); the rows of the classes with pixels. A
+#'   categorical layer as the variable (\code{"ECOREGION"}, \code{"BIOME"}) takes only \code{stats = "mode"} (the
+#'   majority class, the default, with mode_label: its code and name) and \code{"count"}.
 #' @param csv,chart optional paths of a CSV of the statistics and, with \code{zones}, of a chart (PNG) of the median
 #'   (or else the mean, or the first statistic) of each band with its percentiles 25 and 75 (or else 5 and 95, if
 #'   \code{stats} has them and not those; with neither, no band).
@@ -1384,6 +1448,10 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
 #' # the NDVI of each elevation band of 500 m
 #' mo_region_stats(mo_wdpa(389011), "NDVI", "Modis", "2023-06-01", "2023-08-31", stats = c("p25", "p50", "p75"),
 #'                 zones = list(variable = "ELEVATION", sensor = "Copernicus", breaks = c(1500, 2000, 2500, 3000)))
+#' # the NDVI of each biome of a country, and the majority biome of a protected area
+#' mo_region_stats(mo_country("ESP"), "NDVI", "Modis", "2023-06-01", "2023-08-31", stats = c("p50"),
+#'                 zones = list(variable = "BIOME", sensor = "RESOLVE"))
+#' mo_region_stats(mo_wdpa(389011), "BIOME", "RESOLVE")
 #' }
 #' @export
 mo_region_stats <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
@@ -1455,9 +1523,11 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' each class of the map with its broad land cover; the map of a variable (as \code{mo_map_layer()}, also the fixed
 #' layers) cut at \code{breaks}, e.g. \code{c(1500, 2000, 2500)} for the elevation; or, with \code{trend = TRUE},
 #' the trend of a variable on each pixel (as \code{mo_trend_map()}) in significant decrease, no significant trend and
-#' significant increase (Mann-Kendall p-value below \code{alpha}). The area of each pixel is its true area; the percent
-#' is of the area with a class (the pixels without data are not counted), as the zonal statistics by group of geemap
-#' (Wu, 2020).
+#' significant increase (Mann-Kendall p-value below \code{alpha}); or, for a categorical layer (\code{"ECOREGION"} or
+#' \code{"BIOME"}, sensor \code{"RESOLVE"}) without \code{breaks} nor \code{trend}, its own classes with area in the
+#' region, with their colours (the ecoregions with their biome: group and group_label, and the attribute by_group, the
+#' hectares of each biome). The area of each pixel is its true area; the percent is of the area with a class (the pixels
+#' without data are not counted), as the zonal statistics by group of geemap (Wu, 2020).
 #' @inheritParams mo_params
 #' @param landcover a land cover map, e.g. \code{"CORINE"} or \code{"WorldCover"} (without variable).
 #' @param year with \code{landcover}, the year of the map (default: its last one).
@@ -1495,6 +1565,9 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' mo_area_by_class(mo_wdpa(389011), "ELEVATION", "Copernicus", breaks = c(1500, 2000, 2500, 3000))
 #' # where the NDVI goes up or down
 #' mo_area_by_class(mo_wdpa(389011), "NDVI", "Modis", "2001-01-01", "2024-12-31", trend = TRUE)
+#' # the ecoregions of a protected area, and the hectares of each biome
+#' x <- mo_area_by_class(mo_wdpa(389011), "ECOREGION", "RESOLVE")
+#' attr(x, "by_group")
 #' }
 #' @export
 mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, landcover = NULL,
@@ -1517,6 +1590,7 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
   df <- rows_df(res$rows)
   for (k in c("title", "mode", "unit", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
   if (!is.null(res$by_landcover)) attr(df, "by_landcover") <- rows_df(res$by_landcover)
+  if (!is.null(res$by_group)) attr(df, "by_group") <- rows_df(res$by_group)  # the biomes of the ecoregions
   for (k in c("changed_ha", "unchanged_ha")) if (!is.null(res[[k]])) attr(df, k) <- unlist(res[[k]])
   cited(df, res)
 }

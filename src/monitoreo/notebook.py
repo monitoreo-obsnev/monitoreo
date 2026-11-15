@@ -70,18 +70,25 @@ def add_map(m, region, variable=None, sensor=None, start=None, end=None, metric=
 	arguments: METRIC, TEMPORAL, INTERANNUAL, SEASON, QUALITY, where, the data of Earth Engine by their ID...), coloured
 	with its ramp (VMIN to VMAX; by default the percentiles 5 and 95 of the map), named NAME (default: that of the map),
 	with its colour bar and unit (COLORBAR), the outline of the region (OUTLINE) and the credits of the data (CREDITS),
-	centred on the region (CENTER).
+	centred on the region (CENTER). A categorical layer (ECOREGION, BIOME) has the colour of each class and, instead
+	of the colour bar, the legend of its classes in the region (classes, as map_layer).
 	Returns {'name', 'min', 'max', 'palette', 'unit', 'references', 'credits'}."""
 	spec, regions, whole, res = services._build(region, variable, sensor, start, end, metric, temporal, interannual,
 	                                            season, quality, False, None, source)
 	img = whole.clipToCollection(regions)
-	vis = maps.vis_params(img, regions.geometry(), services.ramp_entry(spec), res, vmin, vmax, palette)
+	legend = None
+	if variables.is_categorical(spec):  # class codes: the colour of each class, and their legend
+		vis, legend = services._class_map(spec, regions)
+	else:
+		vis = maps.vis_params(img, regions.geometry(), services.ramp_entry(spec), res, vmin, vmax, palette)
 	name = name or services._named(spec, metric)
 	unit = unit_text(services._unit(spec))
 	m.add_layer(img, vis, name)
 	if outline:
 		_outline(m, regions)
-	if colorbar:
+	if colorbar and legend is not None:
+		m.add_legend(title=name, legend_dict={c['label']: c['color'] for c in legend})
+	elif colorbar:
 		m.add_colorbar(vis_params=vis, label=f'{name} ({unit})' if unit else name, layer_name=name)
 	cited = _cited('map_layer', dict(source, region=region, variable=variable, sensor=sensor, start=start, end=end,
 	                                 metric=metric, temporal=temporal, interannual=interannual, season=season,
@@ -90,6 +97,8 @@ def add_map(m, region, variable=None, sensor=None, start=None, end=None, metric=
 		_credits(m, cited)
 	if center:
 		m.center_object(regions)
+	if legend is not None:
+		return dict(min=None, max=None, palette=None, classes=legend, name=name, unit=services._unit(spec), **cited)
 	return dict(vis, name=name, unit=services._unit(spec), **cited)
 
 

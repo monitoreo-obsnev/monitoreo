@@ -25,9 +25,11 @@ interannual over period and season (see composite). Other keys:
   quality            pixel filters (clouds, water, snow, aerosols) and scene filter of the catalog variables
                      (see sensors.QUALITY; by default all the pixel filters of MonitorEO)
   resample           'auto' (bilinear when the output pixels are smaller than those of the data), 'nearest',
-                     'bilinear' or 'bicubic'
+                     'bilinear' or 'bicubic'; a categorical layer (ECOREGION, BIOME: class codes), only 'auto' or
+                     'nearest' (rasterized at the output pixel)
   aggregate          fixed images on pixels more than twice as big as theirs: 'auto' or 'mean' (mean of the
-                     pixels of the data inside each output pixel) or 'none' (Earth Engine pyramids)
+                     pixels of the data inside each output pixel) or 'none' (Earth Engine pyramids); a categorical
+                     layer, 'auto' or 'mode' (the majority class of its pixels) or 'none' (see monitoreo.categorical)
   exclude_landcover  classes of ESA WorldCover 2021 (10 m) set to NoData, e.g. [40, 50, 80]: crops, built-up, water
   where              the pixels of the study area to keep: a list of conditions, all of them true, each a variable of
                      the catalog aggregated over the period and season of the spec (none for the fixed layers) with
@@ -35,7 +37,10 @@ interannual over period and season (see composite). Other keys:
                      {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual",
                      "max": 600}]; also metric, temporal, interannual, season and quality (see where_specs). A
                      condition can also leave out some land covers after a land cover map of a year (see
-                     monitoreo.landcover), e.g. {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]}
+                     monitoreo.landcover), e.g. {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]},
+                     and a condition on a categorical layer keeps some of its classes (classes) or leaves them out
+                     (exclude), e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]} (see
+                     monitoreo.categorical)
 """
 
 import datetime as dt
@@ -44,7 +49,7 @@ import re
 
 import ee
 
-from . import catalog, composite, landcover, sensors
+from . import catalog, categorical, composite, landcover, sensors
 
 WORLDCOVER = 'ESA/WorldCover/v200'
 SENSOR_ABBR = {'Sentinel-2': 'S2', 'Landsat': 'L', 'Modis': 'MODIS'}
@@ -55,7 +60,7 @@ DEFAULTS = {'temporal': 'period', 'interannual': 'mean', 'resample': 'auto', 'ag
             'season': None, 'exclude_landcover': None, 'where': None}
 WHERE_KEYS = {'variable', 'sensor', 'collection', 'ref', 'metric', 'temporal', 'interannual', 'season', 'quality',
               'period',
-              'min', 'max'}  # of a condition of where
+              'min', 'max', 'classes', 'exclude'}  # of a condition of where (classes, exclude: of a categorical layer)
 
 TERRAIN = ('slope', 'aspect')  # of the band of an image (ee.Terrain), in degrees whatever the unit of the band
 # how several bands of the data of Earth Engine by their ID are combined on each pixel (band_reducer): their sum or
@@ -216,6 +221,8 @@ def specs(var, defaults=None, two_periods=False):
 	if e.get('two_periods') and not two_periods:
 		raise ValueError(f"{e['index']} ({e['sensor']}) compares a period before and a period after a fire: compute "
 		                 f"it with burn_severity and index '{e['index']}'")
+	if categorical.is_categorical(e):  # class codes: never interpolated nor averaged
+		categorical.check_options(e, base.get('resample'), base.get('aggregate'))
 	if k == 'image' or e.get('static'):  # a fixed image (elevation, slope): no metric, period or season
 		metrics = [None]
 	else:
@@ -238,6 +245,7 @@ def specs(var, defaults=None, two_periods=False):
 	if base.get('where'):
 		where_specs(base)  # check its conditions now, without Earth Engine
 		landcover_conditions(base)
+		class_conditions(base)
 	out = []
 	for m in metrics:
 		s = dict(base, metric=m)
@@ -267,21 +275,26 @@ def where_specs(spec):
 	metric, temporal, interannual and quality of the condition (by default the mean, or the only metric of the
 	variable, of the whole period). The fixed layers (elevation, slope, TWI, WorldClim) have no period, so they can
 	filter any result; a variable with dates needs a period, of the result or of the condition. The land cover
-	conditions (see landcover_conditions) are not variables: they are left out here."""
+	conditions (see landcover_conditions) are not variables, and those on a categorical layer (classes or exclude: see
+	class_conditions) are not values between min and max: they are left out here (those, checked)."""
 	out = []
 	for c in _conditions(spec):
 		if landcover.is_landcover(c):
 			continue
 		if not isinstance(c, dict) or not c.get('variable'):
-			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max, '
-			                 'or with landcover, year and exclude (the land covers to leave out)')
+			raise ValueError('each condition of where is a dictionary with variable (and sensor), and min and/or max (or, '
+			                 'for a categorical layer, classes or exclude), or with landcover, year and exclude (the land '
+			                 'covers to leave out)')
 		unknown = set(c) - WHERE_KEYS
 		if unknown:
 			raise ValueError(f"a condition of where has unknown keys {', '.join(sorted(unknown))}: use "
 			                 f"{', '.join(sorted(WHERE_KEYS))}")
+		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
+		if categorical.is_categorical(e) or c.get('classes') is not None or c.get('exclude') is not None:
+			categorical.condition(c, e)  # checked (an error on a variable with values): see class_conditions
+			continue
 		if c.get('min') is None and c.get('max') is None:
 			raise ValueError(f"the condition on {c['variable']} of where needs min, max or both")
-		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
 		var = {'index': e['index'], 'sensor': e['sensor'], 'collection': c.get('collection'), 'ref': c.get('ref'),
 		       'quality': c.get('quality') or {}, 'temporal': c.get('temporal') or 'period',
 		       'interannual': c.get('interannual') or 'mean', 'season': c.get('season', spec.get('season'))}
@@ -313,11 +326,27 @@ def landcover_conditions(spec):
 	return out
 
 
+def class_conditions(spec):
+	"""[(entry, codes, keep)] of the conditions of SPEC['where'] on a categorical layer (see
+	monitoreo.categorical.condition: keep True, only the pixels of those classes; False, without them), checked
+	(ValueError if one is wrong)."""
+	out = []
+	for c in _conditions(spec):
+		if landcover.is_landcover(c) or not isinstance(c, dict) or not c.get('variable'):
+			continue
+		e = catalog.find(c['variable'], c.get('sensor'), c.get('collection'), c.get('ref'))
+		if categorical.is_categorical(e):
+			out.append(categorical.condition(c, e))
+	return out
+
+
 def mask(spec, region, res):
 	"""The image (1) of the pixels of SPEC that pass its conditions (where) and are not of the land covers it
 	excludes (exclude_landcover, and the land cover conditions of where), masked elsewhere; None without conditions. A
-	pixel where a condition has no data is left out."""
+	pixel where a condition has no data is left out; the conditions on a categorical layer keep the pixels where the
+	classes kept cover half of them or more (see monitoreo.categorical.keep)."""
 	masks = [landcover.keep(c, region, res) for c in landcover_conditions(spec)]
+	masks += [categorical.keep(e, codes, kept, res) for e, codes, kept in class_conditions(spec)]
 	for cs, lo, hi in where_specs(spec):
 		value = image(cs, region, res)
 		m = ee.Image(1).updateMask(value.mask())
@@ -381,6 +410,12 @@ def given_unit(unit, asset, terrain=None):
 			                 'unit of its band)')
 		return 'degree'
 	return text
+
+
+def is_categorical(spec):
+	"""Whether SPEC is a categorical layer of the catalog (ECOREGION, BIOME: its values are class codes, see
+	monitoreo.categorical); also a fixed layer (is_static)."""
+	return kind(spec) == 'catalog' and categorical.is_categorical(entry_of(spec))
 
 
 def is_static(spec):
@@ -486,6 +521,7 @@ def _is_image(asset):
 
 
 def _resample(spec, res, native):
+	# (a categorical layer never comes here: categorical.image rasterizes it at the output pixel, the mode on big ones)
 	method = str(spec.get('resample') or 'auto').lower()
 	if method == 'auto':
 		return 'bilinear' if res < native else None
@@ -614,6 +650,8 @@ def image(spec, region, res, rgb=False):
 		                           spec['season'], bands).select(sensors.RGB_BANDS)
 	if kind(spec) == 'image':
 		img = _fixed(spec, res)
+	elif is_categorical(spec):  # before is_static: polygons (a collection of features) rasterized, never interpolated
+		img = categorical.image(entry_of(spec), res, spec.get('aggregate'))
 	elif is_static(spec):
 		img = _fixed(_static_spec(spec), res)
 	else:  # its collection is masked already (see collection)
@@ -660,6 +698,10 @@ def describe(spec, rgb=False):
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):
 			d['note'] = e['notes']['ft']
+		if categorical.is_categorical(e):  # class codes, without a unit: the table that says what each one is
+			t = categorical.of(e)
+			d.update({'categorical': True, 'classes': e['classes'], 'classes_table': t['name'],
+			          'property': t['property']})
 	if spec.get('where'):
 		d['where'] = spec['where']  # the pixels of the study area kept
 	if rgb:

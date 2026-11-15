@@ -46,10 +46,10 @@ Every result that writes files has also readme: the path of a README next to the
 with its unit in UDUNITS, how it was computed, how to reproduce it and how to cite it); give it with the files. Every
 result has references and credits: the references (with DOI) of the formula or algorithm of the variable, of
 its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), of the pixel filters, of the method
-(Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions, FAO GAUL, Global Islands), of
+(Mann-Kendall and Sen, burn severity), of the region (WDPA, RESOLVE ecoregions and biomes, FAO GAUL, Global Islands), of
 Google Earth Engine and of MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus
-Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL). When the results go into a report, a paper or a map,
-end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
+Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL, RESOLVE). When the results go into a report, a paper or a
+map, end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
@@ -74,6 +74,17 @@ ERA5-Land and TerraClimate, monthly; of CHIRPS, daily), air temperature (TMEAN, 
 of TerraClimate) and water balance of TerraClimate (PET, AET, CWD, SOILM, VPD): the totals of a period (e.g. the
 annual precipitation) are the metric "sum" (step "annual" for each year); the 19 bioclimatic variables of WorldClim
 (BIO01 to BIO19, climate of 1960-1990) are fixed layers, without dates, like the elevation.
+Ecosystems: the ecoregions and biomes of RESOLVE Ecoregions 2017 (variables ECOREGION and BIOME, sensor "RESOLVE":
+846 ecoregions and Rock and Ice in 14 biomes, Rock and Ice being the biome 99 of MonitorEO; nominal pixel of 1 km) are
+categorical fixed layers, without dates: their values are class codes (the ECO_ID of each ecoregion, the BIOME_NUM of
+each biome), not quantities. Their maps (map_layer, download_image) have the colour of each class and the legend of the
+classes in the region (classes); their statistic over a region is the majority class (region_stats: stats "mode",
+with mode_label); the hectares and % of each class: area_by_class with variable and sensor, without breaks nor trend
+(the ecoregions with their biome, and by_group, the hectares of each biome); zones by class: region_stats with zones
+{"variable": "BIOME", "sensor": "RESOLVE"} (no breaks); only some classes of a region: a condition of where with
+classes (the codes to keep) or exclude (those to leave out), e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes":
+[12]}. list_classes gives their codes and names (find an ecoregion by name with text). No transect, time series, trends
+or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
 WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an
@@ -123,20 +134,29 @@ describe_asset, find_datasets, community_datasets or the page of a dataset give.
 catalog. Cite the dataset as describe_asset and the references and credits of the results say.
 
 A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {"ecoregion_id": 793},
-{"ecoregion_at": [lon, lat]}, {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
+{"ecoregion_at": [lon, lat]}, {"biome_id": 12} (a biome of RESOLVE Ecoregions 2017, 1 to 14 or 99 Rock and Ice, or a
+list: the union of its ecoregions; list_classes of BIOME gives them), {"biome_at": [lon, lat]} (the biome at a point),
+{"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
 (administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"island_at": [lon, lat]} (the
 island at a point), {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
-features give one series per feature. Every tool with a region takes where: only the pixels of the region whose
-variables pass some conditions, e.g. above 1,500 m and with less than 600 mm of rain a year: [{"variable":
-"ELEVATION", "sensor": "Copernicus", "min": 1500}, {"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum",
-"temporal": "annual", "max": 600}]. Each condition is its variable aggregated over the period of the result (or its own
-"period": [start, end]; none for the fixed layers), the same mask for every step of a series or a trend and, in the
-comparisons, over the reference period. A condition of where can also be a land cover mask, which leaves out the pixels
-of some broad land covers (water, trees, grassland, wetland, cropland, shrubland, built, bare, snow) after a land cover
-map of a year: {"landcover": "CORINE", "year": 2018, "exclude": ["water", "built"]} (landcover_maps lists the maps,
-ESA WorldCover, Dynamic World, CORINE Land Cover and MODIS MCD12Q1, their years and coverage, and the classes of each
-map in each land cover); choose the map and year closest to the period of the result, and CORINE only in Europe. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
+features give one series per feature. Any region takes "within", another region (with an area): only the part of each
+feature inside it, e.g. the Mediterranean biome in Spain, {"biome_id": 12, "within": {"country": "ESP"}}, or a
+protected area in a province. A whole biome spans continents (its statistics and grids are in EPSG:6933, equal area,
+as those of every region wider than 40 degrees of longitude): give it within a country or another region, or use
+MODIS, the climate or coarse pixels at an annual or monthly step. Within cuts the outline of the region; for the pixels
+of a biome in a country (at the pixel of the layer BIOME) use instead the country with where on the classes of BIOME,
+{"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]}, or zones by its classes.
+Every tool with a region takes where: only the pixels of the region whose variables pass some conditions, e.g. above
+1,500 m and with less than 600 mm of rain a year: [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
+{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]. Each condition is
+its variable aggregated over the period of the result (or its own "period": [start, end]; none for the fixed layers),
+the same mask for every step of a series or a trend and, in the comparisons, over the reference period. A condition of
+where can also be a land cover mask, which leaves out the pixels of some broad land covers (water, trees, grassland,
+wetland, cropland, shrubland, built, bare, snow) after a land cover map of a year: {"landcover": "CORINE", "year": 2018,
+"exclude": ["water", "built"]} (landcover_maps lists the maps, ESA WorldCover, Dynamic World, CORINE Land Cover and
+MODIS MCD12Q1, their years and coverage, and the classes of each map in each land cover); choose the map and year
+closest to the period of the result, and CORINE only in Europe. Dates are YYYY-MM-DD; season is ["MM-DD", "MM-DD"] (e.g. summer of each year).
 Long series over big regions take minutes: use step "monthly" or "annual", or export_time_series_to_drive.
 Without a project of the user (EE_PROJECT or connect) the tools compute with the shared account of MonitorEO, which
 cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
@@ -148,7 +168,7 @@ the EECUs of the month are left), tell the user; with the shared account, tell t
 Engine account and Google Cloud project (connect).
 
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
-Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes) when
+Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes, list_classes) when
 the user writes in Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + \
 	about_.MANUAL + \
 	"""/English (English) and """ + about_.MANUAL + """ (Spanish). Its page Publications (""" + about_.MANUAL + \
@@ -162,7 +182,9 @@ WHERE_DOC = """
 	where: only the pixels of the region whose variables pass these conditions (all of them), each the variable
 	aggregated over the period of the result (or its own "period": [start, end]) with metric (default mean), temporal
 	and interannual, between min and max, e.g. [{"variable": "ELEVATION", "sensor": "Copernicus", "min": 1500},
-	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]."""
+	{"variable": "PRECIP", "sensor": "TerraClimate", "metric": "sum", "temporal": "annual", "max": 600}]; on a
+	categorical layer (ECOREGION, BIOME of sensor RESOLVE), with classes (the codes to keep) or exclude (those to leave
+	out) instead of min and max, e.g. {"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]} (list_classes)."""
 
 LANDCOVER_DOC = """ A condition can instead leave out some land covers of a land cover map of a year
 	(landcover_maps lists the maps, their years and the land covers), e.g. {"landcover": "CORINE", "year": 2018,
@@ -211,7 +233,7 @@ def tool(fn):
 
 
 NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
-                   'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets')
+                   'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')
 
 
 def _eecu_warning(out):
@@ -413,9 +435,9 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
                    theme: Optional[str] = None) -> str:
 	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, MERIT Hydro,
-	ERA5-Land, TerraClimate, CHIRPS, WorldClim), collection, theme, resolution, dates and unit; rgb (true) when its
-	images have a true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire,
-	energy, atmosphere, climate, terrain) or by text in the name (English or Spanish). lang: en or es."""
+	ERA5-Land, TerraClimate, CHIRPS, WorldClim, RESOLVE), collection, theme, resolution, dates and unit; rgb (true) when
+	its images have a true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire,
+	energy, atmosphere, climate, terrain, ecosystems) or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang, theme=theme))
 
 
@@ -429,6 +451,14 @@ def describe_variable(variable: str, sensor: Optional[str] = None, collection: O
 		raise ValueError(f'{variable} is not a variable of the catalog (list_variables): describe_asset describes an ID '
 		                 'of Earth Engine')
 	return _text(services.describe_variable(variable, sensor, collection))
+
+
+@tool
+def list_classes(variable: str, sensor: str = 'RESOLVE', text: Optional[str] = None, limit: Optional[int] = None,
+                 lang: str = 'en') -> str:
+	"""The classes of ECOREGION or BIOME (sensor RESOLVE): code (for classes or exclude of where), name and biome;
+	text finds them by name."""
+	return _text(services.list_classes(variable, sensor, text, limit, lang))
 
 
 @tool
@@ -689,8 +719,8 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	res = services.area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
 	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
 	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
-	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'changed_ha', 'unchanged_ha',
-	                                    'rows', 'csv', 'chart', 'readme', 'references', 'credits')
+	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
+	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'references', 'credits')
 	           if res.get(k) is not None}
 	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
 		summary['note'] = f"{len(summary['rows'])} rows: the first {MAX_ROWS_SHOWN} are shown, all of them in the CSV"
@@ -773,9 +803,9 @@ def export_image_to_drive(region: dict, variable: Optional[str] = None, sensor: 
                           where: Optional[list] = None) -> str:
 	"""Export the map of a variable over a region to a GeoTIFF in a folder of the Google Drive of the Earth Engine
 	account (a batch task, without limits of size; it needs the user's own account, not the shared one). resolution:
-	pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g. 'EPSG:25830'.
-	Check it with task_status. Required: region, and variable and sensor or collection or image and band; start and
-	end, except for the fixed layers."""
+	pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region; EPSG:6933 over 40° of
+	longitude) or e.g. 'EPSG:25830'. Check it with task_status. Required: region, and variable and sensor or
+	collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
 	                 band_reducer=band_reducer)
 	_ready()
@@ -815,9 +845,9 @@ def download_image(region: dict, variable: Optional[str] = None, sensor: Optiona
                    terrain: Optional[str] = None, where: Optional[list] = None) -> str:
 	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
 	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
-	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region) or e.g.
-	'EPSG:25830'. Returns the path of the file and its grid. Required: region, and variable and sensor or collection
-	or image and band; start and end, except for the fixed layers."""
+	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region; EPSG:6933
+	over 40° of longitude) or e.g. 'EPSG:25830'. Returns the path of the file and its grid. Required: region, and
+	variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
 	                 band_reducer=band_reducer)
 	_ready()

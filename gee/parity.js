@@ -12,7 +12,19 @@ global.ee = require('@google/earthengine');
 });
 var mo = global.MonitorEO;
 
-function regionOf(r, done) {
+// The region R of a case (as areas.region): a box, GeoJSON, a protected area, a biome by its code or at a point and,
+// with within, only its part inside another region (INSIDE: the geometry of that region, for the biomes)
+function regionOf(r, done, inside) {
+	if (r.within) {
+		return regionOf(r.within, function (error, w) {
+			if (error) return done(error);
+			var geom = w.geometry(mo.WITHIN_MAX_ERROR), rest = {};
+			for (var k in r) if (k !== 'within') rest[k] = r[k];
+			regionOf(rest, function (err, fc) { done(err, err ? null : mo.withinRegion(fc, geom)); }, geom);
+		});
+	}
+	if (r.biome_id !== undefined) return done(null, mo.biomeRegion(r.biome_id, inside));
+	if (r.biome_at) return done(null, mo.biomeAt(r.biome_at[0], r.biome_at[1], inside));
 	if (r.bbox) return done(null, mo.bboxRegion(r.bbox));
 	if (r.geojson) {
 		return done(null, ee.FeatureCollection(r.geojson.features.map(function (f) {
@@ -52,8 +64,7 @@ function prepare(c, done) {
 function setup(entry, regions, done) {
 	ee.Dictionary({info: mo.regionInfo(regions), n: regions.size()}).evaluate(function (d, error) {
 		if (error) return done(error);
-		var c = d.info.centroid;
-		done(null, {scale: mo.autoScale(entry, d.info.area), crs: mo.utmOf(c[0], c[1]), n: d.n});
+		done(null, {scale: mo.autoScale(entry, d.info.area), crs: mo.regionCrs(d.info), n: d.n});
 	});
 }
 
@@ -117,6 +128,21 @@ var CASES = {
 		})() : mo.image(s, geom);
 		mo.percentiles(img.clipToCollection(regions), geom, Number(mo.entryOf(s).m)).evaluate(function (st, error) {
 			done(error, st);
+		});
+	},
+	// the area of each class of a categorical layer (services.area_by_class without breaks): the classes with area, the
+	// ecoregions with their biome, on the grid of classes.scale_for in the CRS of the regions (timeseries.region_crs)
+	class_areas: function (c, regions, done) {
+		var s = mo.spec(c.spec), e = mo.entryOf(s), geom = regions.geometry();
+		ee.Dictionary({info: mo.regionInfo(regions)}).evaluate(function (d, error) {
+			if (error) return done(error);
+			var scale = mo.areaScale(Number(e.m), d.info.area);
+			mo.classHectares(mo.image(s, geom).rename('class'), regions, scale, mo.regionCrs(d.info))
+				.evaluate(function (fc, err) {
+					if (err) return done(err);
+					var legend = mo.classAreaLegend(e, fc.features, 'en');
+					done(null, {rows: mo.areaRows(fc.features, legend, {}), scale: scale});
+				});
 		});
 	},
 	// the true colour of the images of a variable (services.rgb_map): the percentiles 2 and 98 of its bands

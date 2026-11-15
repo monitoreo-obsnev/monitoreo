@@ -274,7 +274,7 @@ def test_the_assistant_knows_the_profile(mcp):
 	assert props['ylim'] == props['other_ylim'] == {'type': 'array', 'items': {'type': 'number'}}
 	assert props['interannual'] == props['other_variable'] == props['other_sensor'] == {'type': 'string'}
 	assert series['parameters']['required'] == ['region', 'start', 'end']
-	assert len(json.dumps(tools)) < 42000  # the tools of the small models (see test_assistant)
+	assert len(json.dumps(tools)) < 42500  # the tools of the small models (see test_assistant)
 	# the lists that small models give as text, decoded
 	args = assistant.fix_args('time_series', {'region': REGION, 'variable': 'NDSI', 'sensor': 'Sentinel-2', 'doy': True,
 	                                          'other_variable': 'NDVI', 'ylim': '[-1, 1]', 'other_ylim': ''}, tools)

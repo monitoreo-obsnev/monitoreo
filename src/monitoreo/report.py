@@ -22,7 +22,7 @@ import os
 import re
 import urllib.request
 
-from . import __version__, assets, catalog, fire, references, sensors, services
+from . import __version__, areas, assets, catalog, fire, references, sensors, services
 from . import variable as variables
 from .publish import MONTHS, PARTS, SENSORS, STEPS, _colours, _var, burn_index, data_unit, default_title, \
 	fire_variable, is_static, period_text, python_call, season_text, slug, unit_text
@@ -105,6 +105,17 @@ METHODS = {
 	                       'and significant increase; the true area of each pixel summed by class over each feature; % '
 	                       'of the area with a trend (2 years or more with data).',
 	'static': 'A fixed layer, without dates: its value on each pixel (no period, temporal metric or pixel filters).',
+	'categorical': 'A categorical fixed layer, without dates: the class of each pixel (its code), the polygons of the '
+	               'dataset rasterized at the pixel of the result (the ECO_ID of the polygon of each pixel, and the '
+	               'biome from it with the table of classes) and, on pixels more than twice as big as its nominal pixel, '
+	               'the majority class (mode) of its pixels; class codes are never interpolated nor averaged (no period, '
+	               'temporal metric or pixel filters).',
+	'region_stats_categorical': 'The class of each pixel of a categorical layer (its code) and, over the region, the '
+	                            'majority class (mode: the class of most of its pixels), with the number of pixels.',
+	'area_by_class_classes': 'The classes of a categorical layer (the polygons of the dataset rasterized at its nominal '
+	                         'pixel, without the majority class of bigger pixels) and the true area of each pixel summed '
+	                         'by class over each feature, as the zonal statistics by group of geemap; the classes with '
+	                         'area in some feature; % of the area with a class. The ecoregions, also by biome.',
 	'burn_severity_rbr': 'RBR (Relativized Burn Ratio, Parks et al., 2014): dNBR / (NBR before + 1.001), with the NBR '
 	                     'of the bands B8A and B12 of Sentinel-2 (NIR and SWIR2 of Landsat), as Silva-Cardoza et al. '
 	                     '(2022), without phenological correction and without the factor 1000 of the articles. A '
@@ -150,7 +161,8 @@ TABLES = {
 	                           ('p50', 'Median'), ('p75', 'P75'), ('p90', 'P90'), ('p95', 'P95'), ('max', 'Max.'),
 	                           ('n_pixels', 'Pixels')]),
 	'download_variables': (('files',), [('file', 'File'), ('images', 'Images'), ('pixel_filters', 'Discarded pixels')]),
-	'area_by_class': (('rows',), [('region', 'Region'), ('label', 'Class'), ('landcover', 'Land cover'),
+	'area_by_class': (('rows',), [('region', 'Region'), ('label', 'Class'), ('group_label', 'Biome'),
+	                              ('landcover', 'Land cover'),
 	                              ('value_from', 'From{u}'), ('value_to', 'To{u}'), ('ha', 'Hectares'),
 	                              ('percent', '% of the area with classes')]),
 	'transect': (('rows',), [('distance_m', 'Distance (m)'), ('value', 'Value{u}'), ('elevation', 'Elevation (m)'),
@@ -499,12 +511,26 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(result.get('unit'))
 		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
 		                                               + (f' {unit}' if unit else '')))
+	categorical = bool(entry and entry.get('categorical'))  # class codes (describe_variable says so)
+	if categorical and tool in ('map_layer', 'download_image', 'map_figure') and _map_classes(result):
+		shown = [c['label'] for c in result['classes']]
+		facts.append(('Classes', f"{_num(len(shown))} in the map: " + '; '.join(shown[:12])
+		                         + (f'; and {_num(len(shown) - 12)} more' if len(shown) > 12 else '')))
+	if categorical and tool == 'region_stats':
+		facts.append(('Statistic', 'the majority class (mode) of the pixels of each feature'
+		                           + (' and zone' if args.get('zones') else '')))
 	if tool == 'region_stats' and isinstance(args.get('zones'), dict):
 		from .services import zone_name
 		z = args['zones']
-		facts.append(('Zones', f"{zone_name(z)}, cut at {', '.join(f'{b:g}' for b in classes_of(z.get('breaks')))}"
-		                       + (f" ({z.get('metric') or 'mean'} of {period_text(*z['period'])})" if z.get('period')
-		                          else '')))
+		zentry = _entry(z.get('variable') or z.get('index'), z.get('sensor'))
+		if zentry and zentry.get('categorical'):  # the classes of a categorical layer
+			kept = classes_of(z.get('classes')) if not isinstance(z.get('classes'), (int, float)) else [z['classes']]
+			facts.append(('Zones', f"{zone_name(z)}: each class a zone" + (
+				f" (only {', '.join(f'{c:g}' for c in kept)})" if kept else ', those with pixels in each feature')))
+		else:
+			facts.append(('Zones', f"{zone_name(z)}, cut at {', '.join(f'{b:g}' for b in classes_of(z.get('breaks')))}"
+			                       + (f" ({z.get('metric') or 'mean'} of {period_text(*z['period'])})" if z.get('period')
+			                          else '')))
 	if tool == 'transect' and result.get('length_m'):
 		from .services import transect_line
 		try:  # the points of the line, whatever its form (a list of points, its JSON text, a GeoJSON LineString)
@@ -536,10 +562,14 @@ def item_facts(tool, args, result=None, names=None):
 		method = METHODS[f'burn_severity_{index.lower()}' if index in ('RBR', 'RdNBR') else
 		                 'region_stats_zones' if tool == 'region_stats' and args.get('zones') else
 		                 'time_series_profile' if tool == 'time_series' and is_profile(args) else tool]
-		facts.append(('Method', METHODS['static'] if static and not args.get('zones') else method))
+		if categorical:
+			method = METHODS['region_stats_categorical'] if tool == 'region_stats' and not args.get('zones') else \
+				method if tool == 'region_stats' else METHODS['categorical']
+		facts.append(('Method', method if categorical else METHODS['static'] if static and not args.get('zones')
+		              else method))
 	elif tool == 'area_by_class':
 		kind = ('transitions' if args.get('other_year') else 'landcover') if args.get('landcover') else \
-			'trend' if args.get('trend') else 'breaks'
+			'trend' if args.get('trend') else 'classes' if categorical else 'breaks'
 		if kind == 'transitions' and isinstance(result.get('changed_ha'), dict):
 			for region, ha in result['changed_ha'].items():
 				label = 'Changed' + (f' ({region})' if len(result['changed_ha']) > 1 else '')
@@ -651,14 +681,16 @@ def item_table(tool, result, args=None):
 		(args or {}).get('variable'), (args or {}).get('sensor')) or {}).get('unit'))
 	u, uy = (f' ({unit})' if unit else ''), f" ({unit_text(unit, per_year=True)})"
 	if tool == 'region_stats' and isinstance(result, dict) and result.get('stats'):  # those asked for, in their order
-		known = dict(cols)
-		cols = [('region', 'Region'), ('zone_label', 'Zone')] + [(s, known.get(s) or _stat_label(s))
-		                                                         for s in result['stats']] + [('n_pixels', 'Pixels')]
+		known = dict(cols, mode_label='Majority class')  # a categorical layer: the code and name of the class
+		named = any('mode_label' in r for r in rows)
+		cols = [('region', 'Region'), ('zone_label', 'Zone')] + [
+			('mode_label' if s == 'mode' and named else s, known.get('mode_label' if s == 'mode' and named else s)
+			 or _stat_label(s)) for s in result['stats']] + [('n_pixels', 'Pixels')]
 	if len({str(r.get('region')) for r in rows}) <= 1:
 		cols = [c for c in cols if c[0] != 'region']
 	cols = [c for c in cols if any(c[0] in r for r in rows)]
 	labels = [label.format(u=u, uy=uy) for _, label in cols]
-	body = [[r.get(k) if k in ('region', 'label', 'date', 'file') else
+	body = [[r.get(k) if k in ('region', 'label', 'date', 'file', 'group_label', 'mode_label', 'zone_label') else
 	         ', '.join(FILTERS.get(x, x) for x in r[k]) if isinstance(r.get(k), list) else _num(r.get(k))
 	         for k, _ in cols] for r in rows]
 	return labels, body
@@ -687,14 +719,19 @@ def _profile_table(result):
 def where_text(where):
 	"""The conditions WHERE of the pixels of a study area in English, e.g. «ELEVATION (Copernicus) ≥ 1500 m and PRECIP
 	(TerraClimate, sum of each year, mean between the years) ≤ 600 mm/month»; a land cover condition, as «the land
-	cover is not water or built-up (CORINE Land Cover 2018)» (see monitoreo.landcover)."""
-	from . import landcover
+	cover is not water or built-up (CORINE Land Cover 2018)» (see monitoreo.landcover); a condition on a categorical
+	layer, as «BIOME (RESOLVE) is 12 Mediterranean Forests, Woodlands & Scrub» (see monitoreo.categorical)."""
+	from . import categorical, landcover
 	parts = []
 	for c in [where] if isinstance(where, dict) else where or []:
 		if not isinstance(c, dict):
 			continue
 		if landcover.is_landcover(c):
 			parts.append(landcover.text(c))
+			continue
+		if c.get('classes') is not None or c.get('exclude') is not None or \
+				categorical.is_categorical(_entry(c.get('variable'), c.get('sensor'))):  # e.g. «BIOME (RESOLVE) is 12 ...»
+			parts.append(categorical.text(c))
 			continue
 		e = _entry(c.get('variable'), c.get('sensor')) or {}
 		# the unit of the values compared: % for a coefficient of variation, of the images or between the years (a
@@ -721,10 +758,21 @@ def where_text(where):
 
 
 def region_text(region, names=None):
-	"""A region of the tools (see monitoreo.areas) in English."""
+	"""A region of the tools (see monitoreo.areas) in English; with within, followed by « within » and its region."""
 	names = names or {}
 	if not isinstance(region, dict):
 		return str(region)
+	text = _region_text(region, names)
+	if isinstance(region.get('within'), dict):
+		text += ' within ' + region_text(region['within'], names)
+	return text
+
+
+def _codes(value):
+	return value if isinstance(value, (list, tuple)) else [value]
+
+
+def _region_text(region, names):
 	if 'wdpa_id' in region:
 		ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
 		return '; '.join(f'{names[str(i)]} (WDPA {i})' if str(i) in names else f'Protected area WDPA {i}'
@@ -732,10 +780,19 @@ def region_text(region, names=None):
 	if 'wdpa_name' in region:
 		return f"Protected area “{region['wdpa_name']}”"
 	if 'ecoregion_id' in region:
-		return f"Ecoregion {region['ecoregion_id']}"
+		return '; '.join(f'{areas.ecoregion_name(i)} (ecoregion {i} of RESOLVE Ecoregions 2017)'
+		                 if areas.ecoregion_name(i) else f'Ecoregion {i} of RESOLVE Ecoregions 2017'
+		                 for i in _codes(region['ecoregion_id']))
 	if 'ecoregion_at' in region:
 		lon, lat = region['ecoregion_at']
 		return f'Ecoregion of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
+	if 'biome_id' in region:
+		return '; '.join(f'{areas.biome_name(c)} (biome {c} of RESOLVE Ecoregions 2017)'
+		                 if areas.biome_name(c) else f'Biome {c} of RESOLVE Ecoregions 2017'
+		                 for c in _codes(region['biome_id']))
+	if 'biome_at' in region:
+		lon, lat = region['biome_at']
+		return f'Biome of the point {_num(lat)}, {_num(lon)} (lat., lon.)'
 	if 'country' in region:
 		codes = region['country'] if isinstance(region['country'], list) else [region['country']]
 		return '; '.join(f"{names.get(f'country:{str(c).upper()}', str(c).upper())} (country, FAO GAUL 2025)"
@@ -919,7 +976,8 @@ def map_style(tool, args, result):
 	"""How the map of the GeoTIFF of a result is drawn, as in the other tools of MonitorEO: {'band' (its number),
 	'classes' ([{'value', 'label', 'color', 'dnbr_min', 'dnbr_max'}], or rdnbr_min and rdnbr_max)} for the burn severity,
 	its band severity with the colours of the classes of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, see
-	fire.map_style); {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
+	fire.map_style), and {'band': 1, 'classes'} for a categorical layer (its classes in the map, see
+	monitoreo.categorical.legend); {'band', 'min', 'max', 'palette'} for the RBR (its band rbr, with the
 	reversed diverging ramp of the Earth Engine app) and the other results with colours (their first band); {'band'
 	([1, 2, 3]: red, green and blue), 'min', 'max', 'text' (its legend)} for the true colour of the images (rgb_map,
 	download_rgb: the three bands stretched together from min to max, without a palette); None for those without
@@ -929,6 +987,8 @@ def map_style(tool, args, result):
 		return None
 	if tool == 'burn_severity':  # as in the QGIS plugin: fire.map_style
 		return fire.map_style(result.get('bands'))
+	if _map_classes(result):  # a categorical layer: the colour of each class, as the burn severity
+		return {'band': 1, 'classes': result['classes']}
 	if result.get('palette'):
 		return {'band': 1, **{k: result.get(k) for k in ('min', 'max', 'palette')}}
 	if tool in ('rgb_map', 'download_rgb') or result.get('bands') == RGB_BANDS:
@@ -938,9 +998,17 @@ def map_style(tool, args, result):
 	return None
 
 
+def _map_classes(result):
+	"""Whether the result of a map has the legend of its classes (a categorical layer: classes [{'value', 'label',
+	'color'}]; not the classes of area_by_class, of its chart)."""
+	cs = result.get('classes') if isinstance(result, dict) else None
+	return isinstance(cs, list) and bool(cs) and all(isinstance(c, dict) and 'value' in c and 'color' in c for c in cs)
+
+
 def class_label(c):
-	"""The label of a class of the burn severity in a legend, with the values of its index: «Low severity (dNBR 0.1 to
-	0.27)», «Low severity (RdNBR 0.069 to 0.316)», as in the QGIS plugin (fire.class_label)."""
+	"""The label of a class in a legend: of the burn severity, with the values of its index: «Low severity (dNBR 0.1 to
+	0.27)», «Low severity (RdNBR 0.069 to 0.316)», as in the QGIS plugin (fire.class_label); of a categorical layer, its
+	code and name, «12 Mediterranean Forests, Woodlands & Scrub»."""
 	return fire.class_label(c)
 
 

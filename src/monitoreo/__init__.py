@@ -24,7 +24,8 @@ https://doi.org/10.5281/zenodo.23814894
     trends     seasonal trends (Mann-Kendall, Sen) and comparison of a reference period with another
     maps       colour ramps, map tiles and thumbnails
     charts     charts of the time series
-    areas      regions: GeoJSON, vector files, protected areas (WDPA), ecoregions (RESOLVE Ecoregions 2017)
+    areas      regions: GeoJSON, vector files, protected areas (WDPA), ecoregions and biomes (RESOLVE Ecoregions 2017),
+               administrative units, islands..., and the part of one within another
     grid       grids aligned to the pixel size and direct download of an image in tiles (GDAL)
     drive      export of an image to Google Drive and import of the exported files onto a grid (GDAL)
     mcp_server server MCP of these functions for language models

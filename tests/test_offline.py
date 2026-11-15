@@ -14,10 +14,11 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 80  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 82  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
-	# Sentinel-2, Landsat and MODIS (Terra and Aqua) and the topographic wetness index (TWI) of MERIT Hydro
+	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, and the
+	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -168,7 +169,7 @@ def test_cloud_frequency_and_climate_in_the_catalog():
 	assert catalog.find('BIO12', 'WorldClim')['unit'] == '[mm]'
 	spec = services.make_spec('BIO01', 'WorldClim')
 	assert variable.is_static(spec) and variable._static_spec(spec)['scale'] == 0.1
-	assert all(catalog.udunits(e['unit']) for e in catalog.variables())
+	assert all(catalog.udunits(e['unit']) for e in catalog.variables() if e['unit'] not in catalog.NO_UDUNITS)
 
 
 def test_elevation_and_slope_in_the_catalog():
@@ -179,7 +180,8 @@ def test_elevation_and_slope_in_the_catalog():
 			'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 30, unit, terrain, True)
 		assert sensors.fixed_filters(e) == [] and not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
 		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
-	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144)) + [148]
+	# the topographic wetness index (148) and the categorical layers of RESOLVE (ECOREGION, BIOME), fixed layers too
+	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144)) + [148, 149, 150]
 	# no metric, period nor season: one spec, named without them
 	spec = services.make_spec('SLOPE', 'Copernicus')
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)
