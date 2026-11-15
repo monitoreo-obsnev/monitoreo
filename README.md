@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### [v0.3.39](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.39) · 2026-11-15 · package 0.3.49
+
+- **Earth Engine app**: Published from a git repository of Earth Engine scripts, split into modules under the 512 KiB per file of Earth Engine and mirrored to a backup (`gee/push_app.py`); the app itself is the same.
+
 ### [v0.3.38](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.38) · 2026-11-15 · package 0.3.48
 
 - **All tools**: Animations show each frame for a second by default (it was half a second, too fast to read their date).
