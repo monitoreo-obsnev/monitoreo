@@ -36,5 +36,5 @@ It needs the Earth Engine API (earthengine-api): call services.init() first, wit
 one, to compute with the shared account of MonitorEO.
 """
 
-__version__ = '0.3.47'
-__released__ = '2026-11-14'  # the date of the release of this version: that of its heading in the changelog
+__version__ = '0.3.48'
+__released__ = '2026-11-15'  # the date of the release of this version: that of its heading in the changelog

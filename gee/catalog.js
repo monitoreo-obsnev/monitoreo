@@ -23,8 +23,8 @@ var CATALOG = {
     "issue": "En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.47",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.47"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.48",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.48"
    }
   },
   "logos": [
@@ -34,9 +34,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "released": "2026-11-14",
+  "released": "2026-11-15",
   "repository": "https://github.com/monitoreo-obsnev/monitoreo",
-  "version": "0.3.47"
+  "version": "0.3.48"
  },
  "collections": {
   "COPERNICUS/S2_SR_HARMONIZED": {
