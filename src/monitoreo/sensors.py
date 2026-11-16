@@ -81,7 +81,7 @@ QUALITY = {
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')
 MEASURES = {  # variables whose signal a filter removes
 	'water': {'NDWI', 'Chl-a', 'NDCI'},  # open water and water quality
-	'snow': {'NDSI', 'SCF'},
+	'snow': {'NDSI', 'SCF', 'SCD'},
 	'aerosols': {'ARSL'},
 }
 S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, clouds, cirrus; water; snow
@@ -99,6 +99,10 @@ S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, 
 #     not checked);
 #   - clouds (filter 'clouds'): QA_PIXEL bit 3 (cloud) or bit 9 (medium or high cloud confidence); cloud shadows are
 #     kept. Only scenes with CLOUD_COVER below 80 %. The filters of snow and aerosols do not apply.
+# The SCF of MODIS (Terra MOD10A1, Aqua MYD10A1, formula SCF(NDSI_Snow_Cover)): snow if NDSI_Snow_Cover (100 x the
+# NDSI) >= 100 x SCF['ndsi'], the same threshold; clouds, water and the other flags (200-255) of the daily snow product
+# have no data (its fixed filters and the valid range of PRODUCTS). The snow cover days (SCD) are made of the same
+# images (composite.days).
 SCF = {
 	'ndsi': 0.35,           # minimum NDSI of snow (surface reflectance in the sun, TOA in the shadow)
 	'green': 0.1,           # green and NIR surface reflectance of snow in the sun: above these
@@ -129,7 +133,8 @@ TWI = {
 
 
 def is_scf(entry):
-	"""Whether ENTRY is the snow cover frequency (formula SCF(green,nir,swir1))."""
+	"""Whether ENTRY is made of the images of the snow cover frequency: the SCF (formula SCF(green,nir,swir1) of
+	Landsat, SCF(NDSI_Snow_Cover) of MODIS) and the snow cover days (SCD), which have the same formula."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
 
 
@@ -310,6 +315,9 @@ def parse_formula(entry):
 		return 'static', [entry['band']]
 	if is_cf(entry):  # the band of the cloud flags (cs_cdf of Sentinel-2 comes from Cloud Score+, not from the images)
 		return 'cf', [entry['ft'].strip()[3:-1].strip()]
+	if is_scf(entry) and entry['sensor'] == 'Modis':  # the band of the daily snow product, as written in the formula
+		ft = entry['ft'].strip()
+		return 'scf', [ft[ft.index('(') + 1:-1].strip()]
 	ft = entry['ft'].strip()
 	names = band_names(entry)
 	lower = {b.lower(): b for b in names}
@@ -455,6 +463,8 @@ def scf_collection(entry, region, start, end, quality, resample=None, rgb=False)
 	"""Collection of single band images ('value', float) of the snow of the SCF (see SCF): 100 where a valid
 	observation has snow, 0 where it has none, masked where there is no valid observation (with RGB, also its true
 	colour on those pixels)."""
+	if entry['sensor'] == 'Modis':
+		return _modis_scf_collection(entry, region, start, end, quality, resample, rgb)
 	_, (green, nir, swir1) = parse_formula(entry)
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
@@ -484,6 +494,26 @@ def scf_collection(entry, region, start, end, quality, resample=None, rgb=False)
 		out = snow.multiply(100).updateMask(valid).toFloat().rename('value')
 		if rgb:
 			out = _with_rgb(img, out, entry, resample)
+		return out.copyProperties(img, ['system:time_start'])
+
+	return raw_collection(entry, region, start, end, quality).map(compute)
+
+
+def _modis_scf_collection(entry, region, start, end, quality, resample=None, rgb=False):
+	"""The images of the SCF of MODIS (see SCF): 100 where NDSI_Snow_Cover >= 100 x SCF['ndsi'], 0 below, masked where
+	the daily snow product has a flag (clouds, water, night...: its fixed filters and the valid range of PRODUCTS)."""
+	if rgb:
+		raise _no_rgb(entry)
+	_, (band,) = parse_formula(entry)
+
+	def compute(img):
+		img = ee.Image(img)
+		ndsi = img.select(band)
+		if resample:
+			ndsi = ndsi.resample(resample)
+		snow = ndsi.gte(SCF['ndsi'] * 100).multiply(100)
+		mask = quality_mask(img, entry, quality)
+		out = (snow.updateMask(mask) if mask is not None else snow).toFloat().rename('value')
 		return out.copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)

@@ -5,6 +5,7 @@ import datetime as dt
 import json
 import os
 import re
+import types
 
 import pytest
 
@@ -14,11 +15,12 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 82  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 87  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
-	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, and the
-	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150)
+	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
+	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150), the
+	# SCF of MODIS (Terra and Aqua: refs 151 and 152) and the snow cover days (SCD) of Landsat and MODIS (153 to 155)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -104,13 +106,128 @@ def test_scf_in_the_catalog():
 	d = services.describe_variable('SCF', 'Landsat')
 	assert d['metric'] == 'mean' and d['measures'] == ['snow'] and d['unit'] == '[%]' and 'hillShadow' in d['notes']['ft']
 	assert d['fixed_filters'] == ['clouds', 'water'] and d['pixel_filters'] == fixed
-	assert [r['ref'] for r in services.list_variables(text='snow cover')] == [105]
-	assert services.list_variables(text='snow cover')[0]['fixed_filters'] == ['clouds', 'water']
+	assert [r['ref'] for r in services.list_variables(text='snow cover frequency')] == [105, 151, 152]
+	assert services.list_variables(text='snow cover frequency')[0]['fixed_filters'] == ['clouds', 'water']
 	assert 'fixed_filters' not in services.describe_variable('NDSI', 'Landsat')
 	# the title of the y axis of its charts; the other variables keep their unit
 	assert e['axis'] == 'Snow Cover Frequency (SCF)'
 	assert services._ylabel(spec) == 'Snow Cover Frequency (SCF) [%]'
 	assert services._ylabel(services.make_spec('NDSI', 'Landsat', '2020-10-01', '2021-05-31')) == '[unitless]'
+
+
+def test_scf_of_modis_and_snow_cover_days_in_the_catalog():
+	# the SCF of MODIS Terra and Aqua: from the daily snow product, the threshold of that of Landsat, its fixed filters
+	for ref, col in ((151, 'MODIS/061/MOD10A1'), (152, 'MODIS/061/MYD10A1')):
+		e = catalog.find(None, ref=ref)
+		assert (e['index'], e['sensor'], e['col'], e['m'], e['unit'], e['metric']) == ('SCF', 'Modis', col, 500, '[%]',
+		                                                                              'mean')
+		assert sensors.is_scf(e) and sensors.parse_formula(e) == ('scf', ['NDSI_Snow_Cover'])  # no Earth Engine
+		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'NDSI_Snow_Cover >= 35' in e['notes']['ft']
+		assert 'hillShadow' not in e['notes']['ft'] and e['references'] == ['hall1995', 'riggs2017', 'hammond2018']
+	assert catalog.find('SCF', 'Modis')['ref'] == 151 and catalog.find('SCF', 'Modis', 'MODIS/061/MYD10A1')['ref'] == 152
+	assert catalog.find('NDSI', 'Modis')['unit'] == '[unitless]'  # the entry they copy is unchanged
+	# the snow cover days: the images of the SCF of each sensor, the only metric days, in days (UDUNITS day)
+	for ref, sensor, base in ((153, 'Landsat', 105), (154, 'Modis', 151), (155, 'Modis', 152)):
+		e, scf = catalog.find(None, ref=ref), catalog.find(None, ref=base)
+		assert (e['index'], e['sensor'], e['col'], e['m']) == ('SCD', sensor, scf['col'], scf['m'])
+		assert (e['unit'], e['metric'], e['axis'], e['theme']) == ('[days]', 'days', 'Snow Cover Days (SCD)', 'snow')
+		assert e['ft'] == scf['ft'] and sensors.parse_formula(e) == sensors.parse_formula(scf)
+		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'SCD' in sensors.MEASURES['snow']
+	assert catalog.udunits('[days]') == 'day'
+	assert [t for t in catalog.THEMES if t['key'] == 'snow'][0]['indices'] == ['NDSI', 'SCF', 'SCD']
+	# the metric days: only that of the snow cover days, not between the years, nor for the other variables
+	spec = services.make_spec('SCD', 'Modis', '2021-10-01', '2022-05-31', metric='days')
+	assert spec['metric'] == 'days' and spec['name'] == 'SCD_MODIS_days'
+	assert services._ylabel(spec) == 'Snow Cover Days (SCD) [days]' and services._unit(spec) == '[days]'
+	spec = services.make_spec('SCD', 'Landsat', '2000-10-01', '2020-05-31', metric='days', temporal='annual',
+	                          interannual='median', season=['10-01', '05-31'])
+	assert spec['interannual'] == 'median'
+	with pytest.raises(ValueError, match="only takes the metric 'days'"):
+		services.make_spec('SCD', 'Landsat', '2021-10-01', '2022-05-31', metric='mean')
+	with pytest.raises(ValueError, match="only takes the metric 'days'"):
+		services.map_layer({'bbox': [-3.4, 37.0, -3.3, 37.1]}, 'SCD', 'Modis', '2021-10-01', '2022-05-31')
+	with pytest.raises(ValueError, match="'days' is not a metric between the years"):
+		services.make_spec('SCD', 'Modis', '2010-10-01', '2020-05-31', metric='days', temporal='annual', interannual='days')
+	for var, sensor in (('NDVI', 'Landsat'), ('SCF', 'Modis')):
+		with pytest.raises(ValueError):
+			services.make_spec(var, sensor, '2021-10-01', '2022-05-31', metric='days')
+	with pytest.raises(ValueError, match="the metric 'days' is that of the snow cover days"):
+		services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', band='pr', start='2020-01-01', end='2020-12-31',
+		                   metric='days')
+	d = services.describe_variable('SCD', 'Landsat')
+	assert d['metric'] == 'days' and d['measures'] == ['snow'] and d['fixed_filters'] == ['clouds', 'water']
+	assert [r['ref'] for r in services.list_variables(text='snow cover days')] == [153, 154, 155]
+	assert catalog.unit_of('[days]', 'days') == '[days]'
+
+
+def test_the_spans_of_the_snow_cover_days():
+	# with temporal 'period', the snow cover days are the mean of those of each season, or of each 12 months from the
+	# first day of the period without one: a season or a year is one span (its days), a long period its years
+	d = dt.date
+	assert composite.spans(['2021-10-01', '2022-05-31']) == [(d(2021, 10, 1), d(2022, 6, 1))]
+	assert composite.spans(['2010-01-01', '2020-12-31'])[1] == (d(2011, 1, 1), d(2012, 1, 1))
+	assert len(composite.spans(['2010-01-01', '2020-12-31'])) == 11
+	assert composite.spans(['2010-01-01', '2011-06-30']) == [(d(2010, 1, 1), d(2011, 1, 1)), (d(2011, 1, 1), d(2011, 7, 1))]
+	assert composite.spans(['2024-02-29', '2025-03-15'])[0] == (d(2024, 2, 29), d(2025, 2, 28))  # no 29 Feb in 2025
+	assert composite.spans(['2010-10-01', '2013-05-31'], ['10-01', '05-31']) == [
+		(d(2010, 10, 1), d(2011, 6, 1)), (d(2011, 10, 1), d(2012, 6, 1)), (d(2012, 10, 1), d(2013, 6, 1))]
+	assert composite.is_days('Days') and not composite.is_days('mean') and not composite.is_days(None)
+	composite.check_metric('days')
+	with pytest.raises(ValueError, match='true colour'):
+		composite.check_rgb_metric('days')
+
+
+def test_the_snow_cover_days_sum_the_months(monkeypatch):
+	# composite.days: the mean of the images of each month / 100 x its days, summed; a month without images takes the
+	# mean of the others (weighted by their days): with stand-ins of the images of Earth Engine
+	months = []
+
+	class Image:
+		def __init__(self, v, n=None):
+			self.v, self.n = v, n  # v: the value (None: masked), n: the days of the month
+
+		def multiply(self, k):
+			return Image(None if self.v is None else self.v * k, self.n)
+
+		def divide(self, other):
+			return Image(None if self.v is None or not other.v else self.v / other.v)
+
+		def mask(self):
+			return Image(0 if self.v is None else 1)
+
+		def updateMask(self, m):
+			return Image(self.v if m.v not in (0, None, False) else None, self.n)
+
+		def gt(self, k):
+			return Image(self.v is not None and self.v > k)
+
+		def toFloat(self):
+			return self
+
+		def rename(self, name):
+			return self
+
+	class Collection:
+		def __init__(self, images):
+			self.images = images
+
+		def filterDate(self, a, b):
+			months.append((a, b))
+			return {'2022-01-01': 80, '2022-02-01': None, '2022-03-01': 20}[a]  # February: no image
+
+		def sum(self):
+			vals = [i.v for i in self.images if i.v is not None]
+			return Image(sum(vals) if vals else None)
+
+	monkeypatch.setattr(composite, '_reduce', lambda col, metric: Image(col))
+	monkeypatch.setattr(composite, 'ee', types.SimpleNamespace(
+		Image=types.SimpleNamespace(constant=lambda n: Image(n)),
+		ImageCollection=types.SimpleNamespace(fromImages=Collection)))
+	out = composite.days(Collection([]), '2022-01-01', '2022-04-01')
+	assert months == [('2022-01-01', '2022-02-01'), ('2022-02-01', '2022-03-01'), ('2022-03-01', '2022-04-01')]
+	# January 80 % of 31 days and March 20 % of 31: 24.8 + 6.2 = 31 days in 62 days with images, so February takes
+	# their mean (50 %): 31 / 62 x 90 days = 45 days
+	assert out.v == pytest.approx(45.0)
 
 
 def test_unit_of_the_sums():

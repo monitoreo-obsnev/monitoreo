@@ -153,7 +153,7 @@ HELP = {
 		+ manual('Concepts#period-and-season'),
 	'theme':
 		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI), <b>Water</b> (NDWI, LSWI, '
-		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency), <b>Fire</b> (NBR, and the burn severity of a fire: '
+		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, and the burn severity of a fire: '
 		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
@@ -338,7 +338,8 @@ HELP = {
 		'variable of the panel on the left axis (blue), e.g. the NDSI and the NDVI of Sentinel-2: when the snow melts '
 		'and the vegetation greens. It is computed as the first one: the same region, period, season, step, metric of '
 		'each step, statistic of the region, pixel filters and pixels (<b>Only the pixels where</b> and the land cover '
-		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean). Each '
+		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean, and the '
+		'snow cover days, SCD, the metric Days). Each '
 		'variable takes the filters you chose, without that of what it measures: with the NDSI and the NDVI, the NDSI '
 		'keeps its snow and the NDVI is computed without it, on either axis. With the SCF or the CF in the panel, whose '
 		'filters are fixed (greyed out), the filters checked before choosing them. When '

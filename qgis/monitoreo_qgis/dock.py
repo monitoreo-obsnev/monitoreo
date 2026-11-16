@@ -42,6 +42,9 @@ PERCENTILES = [('Percentile 5', 'p5'), ('Percentile 10', 'p10'), ('Percentile 25
                ('Percentile 90', 'p90'), ('Percentile 95', 'p95')]
 SPREADS = [('Standard deviation', 'std'), ('Coefficient of variation (%)', 'cv')]
 METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + PERCENTILES + SPREADS
+# the only metric of a variable that the others do not take (composite.DAYS: the snow cover days, SCD): in the lists of
+# the metrics only while that variable is chosen (variable_changed)
+ONLY_METRICS = [('Days (snow cover)', 'days')]
 STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + SPREADS + PERCENTILES
 TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
             ('Each month, then between years', 'monthly')]
@@ -2043,6 +2046,12 @@ class MonitorEODock(QDockWidget):
 		only = v.get('metric')
 		static = bool(v.get('static'))
 		for w in (self.ts_metric, self.trend_metric, self.map_metric, self.anim_metric):
+			for label, m in ONLY_METRICS:  # offered only to the variable whose only metric it is
+				i = w.findData(m)
+				if only == m and i < 0:
+					w.addItem(label, m)
+				elif only != m and i >= 0:
+					w.removeItem(i)
 			if only:
 				w.setCurrentIndex(max(0, w.findData(only)))
 			w.setEnabled(not only and not static)

@@ -94,7 +94,7 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	out = _stat_name(stat)
 	steps = steps if steps is not None else bins(spec, step, geom)
 	bands = [f's{i}' for i in range(len(steps))]
-	img = ee.Image.cat([composite._reduce(col.filterDate(a, b), metric).rename(band)
+	img = ee.Image.cat([composite.reduce_span(col, metric, a, b).rename(band)
 	                    for band, (a, b) in zip(bands, steps)])
 	n_images = ee.List([col.filterDate(a, b).size() for a, b in steps])
 	stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)

@@ -114,6 +114,53 @@ SCF = {
 		'filters': 'fixed: clouds and water are always removed and snow and aerosols never, whatever the quality',
 	},
 }
+# The SCF of MODIS (Terra MOD10A1, Aqua MYD10A1): from the daily snow product, with the NDSI threshold of the SCF of
+# Landsat (NDSI_Snow_Cover is 100 x the NDSI, 0-100; 200-255 are flags: see sensors.PRODUCTS)
+SCF_MODIS_NOTES = {
+	'ft': 'Snow cover frequency (SCF) of MODIS: % of the clear observations of each pixel with snow or ice, from the '
+	      'daily snow product of Terra (MOD10A1) or Aqua (MYD10A1), 500 m. Each image is 100 where NDSI_Snow_Cover >= 35 '
+	      '(an NDSI of 0.35, the threshold of the SCF of Landsat) and 0 where it is 0 to 34; clouds (250), inland water '
+	      'and ocean (237, 239), night and the other flags (200-255) have no data. Its only metric is the mean.',
+	'metric': SCF['notes']['metric'],
+	'filters': SCF['notes']['filters'],
+}
+SCF_MODIS_F = 'NDSI_Snow_Cover >= 35 -> 100; 0-34 -> 0; 200-255 (clouds, water, night, fill values) -> no data'
+# Snow cover days (SCD): the days with snow of each pixel, from the images of its SCF (the same rules and pixel
+# filters), summed month by month (composite.days): the only metric 'days'
+SCD = dict(SCF, **{
+	'vname': 'Días de nieve', 'vname_en': 'Snow cover days', 'vname_fr': 'Snow cover days',
+	'vname_de': 'Snow cover days', 'unit': '[days]', 'minp': 0, 'maxp': 240,
+	'metric': 'days',  # the only metric: the SCF of each month times its days, summed (composite.days)
+	'axis': 'Snow Cover Days (SCD)',  # title of the y axis of the charts, before the unit
+	'notes': {
+		'ft': 'Snow cover days (SCD): the days with snow or ice of each pixel in a window (a year, a season, a month), '
+		      'estimated from the images of its snow cover frequency (SCF: each image 100 = snow or 0 = no snow, with '
+		      'the rules and the pixel filters of the SCF of its sensor): the sum over the calendar months of the window '
+		      'of the SCF of each month (the mean of its clear images) times the days of that month in the window. A '
+		      'month without any clear image on a pixel takes the SCF of the other months of the window (their mean, '
+		      'weighted by their days), so the days are the SCF of the window weighted by months times its days. With an '
+		      'image every few days (Landsat: 8 to 16, fewer with clouds) it is an estimate, better with more images '
+		      '(n_images); MODIS (daily, 500 m) follows the days better. Over several years or seasons (a map of a long '
+		      'period) it is the mean of the days of each of them. Its only metric is days.',
+		'metric': 'it is the SCF of each month times its days, summed over the months (see the formula): the snow '
+		          'cover days have no other metric',
+		'filters': SCF['notes']['filters'],
+	},
+})
+EXTRA.update({
+	# the SCF of MODIS Terra and Aqua, from their NDSI (entries 6 and 7)
+	151: (6, {'index': 'SCF', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F, 'notes': SCF_MODIS_NOTES,
+	          'references': ['hall1995', 'riggs2017', 'hammond2018']}),
+	152: (7, {'index': 'SCF', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F, 'notes': SCF_MODIS_NOTES,
+	          'references': ['hall1995', 'riggs2017', 'hammond2018']}),
+	# the snow cover days of Landsat (the images of the SCF of entry 105) and of MODIS Terra and Aqua (151, 152)
+	153: (5, {'index': 'SCD', 'ft': 'SCF(green,nir,swir1)', 'f': EXTRA[105][1]['f'] + '; days: the SCF of each month '
+	          'x its days, summed', 'references': ['hall1995', 'macander2015']}),
+	154: (6, {'index': 'SCD', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F + '; days: the SCF of each month x its '
+	          'days, summed', 'references': ['hall1995', 'riggs2017', 'hammond2018', 'gascoin2015']}),
+	155: (7, {'index': 'SCD', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F + '; days: the SCF of each month x its '
+	          'days, summed', 'references': ['hall1995', 'riggs2017', 'hammond2018', 'gascoin2015']}),
+})
 DEM = {
 	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',
 	'sensor': 'Copernicus', 'col': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'm': 30, 'tr': 'fixed',
@@ -353,7 +400,7 @@ EXTRA.update({
 	             'vname': 'Bioma', 'vname_en': 'Biome', 'vname_fr': 'Biome', 'vname_de': 'Biome'}),
 })
 
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
              'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE}  # fields of EXTRA
 
@@ -366,6 +413,7 @@ UDUNITS = {
 	'[J/m²/day]': 'J m-2 day-1',
 	'[mg m⁻³]': 'mg m-3',
 	'[%]': '%',  # the snow cover frequency (UDUNITS percent)
+	'[days]': 'day',  # the snow cover days
 	'[m]': 'm',  # the elevation
 	'[°]': 'degree',  # the slope, an angle (UDUNITS arc_degree)
 	'[mm]': 'mm',  # the soil moisture, the precipitation of the bioclimatic variables
@@ -462,7 +510,7 @@ def load():
 THEMES = [
 	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI']},
 	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
-	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF']},
+	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD']},
 	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR'], 'analyses': ['burn_severity']},
 	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
 	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},

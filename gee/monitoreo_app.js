@@ -12254,7 +12254,8 @@ var CATALOG = {
    "es": "Nieve",
    "indices": [
     "NDSI",
-    "SCF"
+    "SCF",
+    "SCD"
    ],
    "key": "snow"
   },
@@ -14310,6 +14311,228 @@ var CATALOG = {
    "vname_en": "Slope"
   },
   {
+   "axis": "Snow Cover Frequency (SCF)",
+   "band": null,
+   "classes": null,
+   "col": "MODIS/061/MOD10A1",
+   "dr": "2000/02/24-now",
+   "fb": [
+    "NDSI_Snow_Cover"
+   ],
+   "fk": "scf",
+   "ft": "SCF(NDSI_Snow_Cover)",
+   "image_asset": null,
+   "index": "SCF",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 151,
+   "scale": 1,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
+  },
+  {
+   "axis": "Snow Cover Frequency (SCF)",
+   "band": null,
+   "classes": null,
+   "col": "MODIS/061/MYD10A1",
+   "dr": "2002/07/04-now",
+   "fb": [
+    "NDSI_Snow_Cover"
+   ],
+   "fk": "scf",
+   "ft": "SCF(NDSI_Snow_Cover)",
+   "image_asset": null,
+   "index": "SCF",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 152,
+   "scale": 1,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
+  },
+  {
+   "axis": "Snow Cover Days (SCD)",
+   "band": null,
+   "classes": null,
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": [
+    "green",
+    "nir",
+    "swir1"
+   ],
+   "fk": "scf",
+   "ft": "SCF(green,nir,swir1)",
+   "image_asset": null,
+   "index": "SCD",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 240,
+   "metric": "days",
+   "minp": 0,
+   "offset": -0.2,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 153,
+   "scale": 2.75e-05,
+   "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[days]",
+   "vname": "D\u00edas de nieve",
+   "vname_en": "Snow cover days"
+  },
+  {
+   "axis": "Snow Cover Days (SCD)",
+   "band": null,
+   "classes": null,
+   "col": "MODIS/061/MOD10A1",
+   "dr": "2000/02/24-now",
+   "fb": [
+    "NDSI_Snow_Cover"
+   ],
+   "fk": "scf",
+   "ft": "SCF(NDSI_Snow_Cover)",
+   "image_asset": null,
+   "index": "SCD",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 240,
+   "metric": "days",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 154,
+   "scale": 1,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[days]",
+   "vname": "D\u00edas de nieve",
+   "vname_en": "Snow cover days"
+  },
+  {
+   "axis": "Snow Cover Days (SCD)",
+   "band": null,
+   "classes": null,
+   "col": "MODIS/061/MYD10A1",
+   "dr": "2002/07/04-now",
+   "fb": [
+    "NDSI_Snow_Cover"
+   ],
+   "fk": "scf",
+   "ft": "SCF(NDSI_Snow_Cover)",
+   "image_asset": null,
+   "index": "SCD",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 240,
+   "metric": "days",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 155,
+   "scale": 1,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "daily",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[days]",
+   "vname": "D\u00edas de nieve",
+   "vname_en": "Snow cover days"
+  },
+  {
    "axis": "Cloud Frequency (CF)",
    "band": null,
    "classes": null,
@@ -16277,6 +16500,7 @@ var MonitorEO = (function () {
 	var METRICS = 'mean, median, mode, min, max, sum, std (standard deviation), cv (coefficient of variation, %), ' +
 		'count or pN (percentile N, e.g. p95, p2.5)';
 	var SIMPLE = ['mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'cv', 'count'];
+	var DAYS = 'days';  // composite.DAYS: the snow cover days, the only metric of the variable SCD (see days)
 	// composite.CV: the coefficient of variation, 100 \u00d7 the standard deviation / the mean, in % (Pearson 1896), of the
 	// images of each pixel or of the pixels of a region, computed from the reducers of the mean and of the standard
 	// deviation (population), without a value where the mean is 0; composite.SPREAD: the metrics whose values are not in
@@ -16292,6 +16516,11 @@ var MonitorEO = (function () {
 	// composite.is_cv
 	function isCv(metric) {
 		return String(metric || '').trim().toLowerCase() === CV;
+	}
+
+	// composite.is_days
+	function isDays(metric) {
+		return typeof metric === 'string' && metric.trim().toLowerCase() === DAYS;
 	}
 
 	// composite.reducer (that of the coefficient of variation: of the mean and the standard deviation, outputs mean and
@@ -16310,7 +16539,7 @@ var MonitorEO = (function () {
 	// composite.check_metric: error if METRIC is not valid (without Earth Engine)
 	function checkMetric(metric) {
 		var m = String(metric).trim().toLowerCase();
-		if (SIMPLE.indexOf(m) >= 0) return;
+		if (SIMPLE.indexOf(m) >= 0 || m === DAYS) return;
 		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
 		if (!(p && Number(p[1]) <= 100)) throw new Error('unknown metric ' + metric + ': use ' + METRICS);
 	}
@@ -16416,6 +16645,56 @@ var MonitorEO = (function () {
 		return ee.Image(ee.Algorithms.If(col.size().gt(0), out, empty));
 	}
 
+	function asDate(d) {
+		return d instanceof Date ? d : date(d);
+	}
+
+	// composite.days: image ('value') of the snow cover days of the images of COL (100 = snow, 0 = no snow) between
+	// START and END (dates or 'YYYY-MM-DD', END excluded): the sum over the calendar months of the window of the mean of
+	// the images of each month / 100 x the days of that month in the window; a month without images on a pixel takes
+	// the mean of the others weighted by their days; masked where no month has an image
+	function days(col, start, end) {
+		start = asDate(start);
+		end = asDate(end);
+		var snow = [], seen = [];
+		bins([null, start, end], 'monthly').forEach(function (b) {
+			var n = Math.round((b[2] - b[1]) / 86400000);
+			var mean = reduce(col.filterDate(iso(b[1]), iso(b[2])), 'mean');
+			snow.push(mean.multiply(n / 100));
+			seen.push(ee.Image.constant(n).toFloat().rename('value').updateMask(mean.mask()));
+		});
+		var weighted = ee.ImageCollection.fromImages(snow).sum();
+		var observed = ee.ImageCollection.fromImages(seen).sum();
+		return weighted.divide(observed).multiply(Math.round((end - start) / 86400000)).updateMask(observed.gt(0))
+			.toFloat().rename('value');
+	}
+
+	// composite.spans: [first day, day after the last] of the spans over which the snow cover days of PERIOD are
+	// averaged with temporal 'period': its seasons, or, without a season, the spans of 12 months from its first day
+	function spans(period, season) {
+		if (season) return windows(period, season).map(function (w) { return [w[1], w[2]]; });
+		var start = date(period[0]), end = addDays(date(period[1]), 1);
+		var out = [], d = start, k = 1;
+		while (d < end) {
+			var y = start.getUTCFullYear() + k, m = start.getUTCMonth() + 1;
+			var nxt = ymd(y, m, Math.min(start.getUTCDate(), daysInMonth(y, m)));
+			out.push([d, minDate(nxt, end)]);
+			d = nxt;
+			k++;
+		}
+		return out;
+	}
+
+	// composite.reduce_span: image of the images of COL between START and END (dates or 'YYYY-MM-DD', END excluded)
+	// reduced with RED (see reduce), or, for the snow cover days ('days'), their days (see days)
+	function reduceSpan(col, red, start, end, bands, mosaic) {
+		if (isDays(red)) {
+			if (bands && bands.length > 1) throw new Error('the snow cover days have no true colour');
+			return days(col, start, end);
+		}
+		return reduce(col.filterDate(iso(asDate(start)), iso(asDate(end))), red, bands, mosaic);
+	}
+
 	// composite.date_filter
 	function dateFilter(wins) {
 		var filters = wins.map(function (w) {
@@ -16438,12 +16717,19 @@ var MonitorEO = (function () {
 		var wins = windows(period, season);
 		checkMetric(metric);
 		var red = metric, mos = mosaic(metric, bands);
-		if (temporal === 'period') return reduce(col.filter(dateFilter(wins)), red, bands, mos);
+		if (temporal === 'period') {
+			if (isDays(metric)) {  // the snow cover days: the mean of those of each season or year
+				return reduce(ee.ImageCollection.fromImages(spans(period, season).map(function (sp) {
+					return days(col, sp[0], sp[1]);
+				})), 'mean');
+			}
+			return reduce(col.filter(dateFilter(wins)), red, bands, mos);
+		}
 		checkMetric(interannual);
 		var red2 = interannual, mos2 = mosaic(interannual, bands);
 		if (temporal === 'annual') {
 			var years = wins.map(function (w) {
-				return reduce(col.filterDate(iso(w[1]), iso(w[2])), red, bands, mos);
+				return reduceSpan(col, red, w[1], w[2], bands, mos);
 			});
 			return reduce(ee.ImageCollection.fromImages(years), red2, bands, mos2);
 		}
@@ -16453,13 +16739,14 @@ var MonitorEO = (function () {
 		var parts = {};
 		wins.forEach(function (w) {
 			bins(w, temporal).forEach(function (b) {
-				(parts[b[0]] = parts[b[0]] || []).push(reduce(col.filterDate(iso(b[1]), iso(b[2])), red, bands, mos));
+				(parts[b[0]] = parts[b[0]] || []).push(reduceSpan(col, red, b[1], b[2], bands, mos));
 			});
 		});
 		var months = Object.keys(parts).map(Number).sort(function (a, b) { return a - b; }).map(function (m) {
 			return reduce(ee.ImageCollection.fromImages(parts[m]), red2, bands, mos2);
 		});
-		return reduce(ee.ImageCollection.fromImages(months), 'mean', bands);
+		// the snow cover days of a season are those of its months, summed
+		return reduce(ee.ImageCollection.fromImages(months), isDays(metric) ? 'sum' : 'mean', bands);
 	}
 
 	// Sensors: quality masks, scale and offset, formula (sensors.py) ------------------------------------------------
@@ -16490,7 +16777,7 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS ={'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF', 'SCD'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
 	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat
 	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
@@ -16830,6 +17117,7 @@ var MonitorEO = (function () {
 	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none (with
 	// RGB, also its true colour on those pixels)
 	function scfCollection(entry, region, start, end, quality, rgb) {
+		if (entry.sensor === 'Modis') return modisScfCollection(entry, region, start, end, quality, rgb);
 		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var dem = ee.Image(SCF.dem);
@@ -16854,6 +17142,20 @@ var MonitorEO = (function () {
 			var valid = validSun.unmask(0).or(validShade.unmask(0));
 			var out = snow.multiply(100).updateMask(valid).toFloat().rename('value');
 			if (rgb) out = withRgb(img, out, entry);
+			return out.copyProperties(img, ['system:time_start']);
+		});
+	}
+
+	// sensors._modis_scf_collection: the SCF of MODIS, 100 where NDSI_Snow_Cover >= 100 x SCF.ndsi, 0 below, masked
+	// where the daily snow product has a flag (clouds, water, night...: its fixed filters and the valid range of SNOW)
+	function modisScfCollection(entry, region, start, end, quality, rgb) {
+		if (rgb) throw noRgb(entry);
+		var band = entry.fb[0];
+		return rawCollection(entry, region, start, end, quality).map(function (img) {
+			img = ee.Image(img);
+			var snow = img.select(band).gte(SCF.ndsi * 100).multiply(100);
+			var mask = qualityMask(img, entry, quality);
+			var out = (mask ? snow.updateMask(mask) : snow).toFloat().rename('value');
 			return out.copyProperties(img, ['system:time_start']);
 		});
 	}
@@ -17271,6 +17573,10 @@ var MonitorEO = (function () {
 	function onlyMetric(e, metric) {
 		if (e.metric && String(metric).trim().toLowerCase() !== e.metric) {
 			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
+		}
+		if (e.metric !== DAYS && isDays(metric)) {  // composite.days: only for the snow cover days
+			throw new Error("the metric '" + DAYS + "' is that of the snow cover days (variable SCD): " +
+				(e.index ? e.index + ' (' + e.sensor + ')' : 'this variable') + ' does not take it');
 		}
 	}
 
@@ -18123,7 +18429,8 @@ var MonitorEO = (function () {
 	// app shows them as a ui.Thumbnail of the frames; the dates go in a label (the GIF of Python has them written)
 	var ANIMATION_STEPS = ['annual', 'monthly', '16-day'];  // the days with images (daily) only in Python
 	var MAX_FRAMES = 120;
-	var TOTALS = ['sum', 'count'];  // metrics that grow with the images: that of the period is that of all its steps
+	var TOTALS = ['sum', 'count', 'days'];  // metrics that grow with the images or the days: that of the period is that
+	// of all its steps
 	var FRAME_COLOURS = {noData: 'd9d9d9', outside: 'ffffff', outline: '000000'};
 	var MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
 		'October', 'November', 'December'];
@@ -18166,7 +18473,7 @@ var MonitorEO = (function () {
 		var inside = ee.Image.constant(0).clipToCollection(regions).visualize({palette: [FRAME_COLOURS.noData]});
 		var outline = ee.Image().byte().paint(regions, 1, 2).visualize({palette: [FRAME_COLOURS.outline]});
 		return ee.ImageCollection.fromImages(steps.map(function (b) {
-			var value = reduce(col.filterDate(b[0], b[1]), metric).clipToCollection(regions);
+			var value = reduceSpan(col, metric, b[0], b[1]).clipToCollection(regions);
 			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
 				.set('system:time_start', date(b[0]).getTime());
 		}));
@@ -18485,7 +18792,7 @@ var MonitorEO = (function () {
 		if (TOTALS.indexOf(String(metric).trim().toLowerCase()) < 0) return image(s, geom).clipToCollection(regions);
 		var col = collection(s, geom);
 		return ee.ImageCollection.fromImages(steps.map(function (b) {
-			return reduce(col.filterDate(b[0], b[1]), metric);
+			return reduceSpan(col, metric, b[0], b[1]);
 		})).median().rename('value').clipToCollection(regions);
 	}
 
@@ -18547,7 +18854,7 @@ var MonitorEO = (function () {
 		var out = ee.String(reducer(stat).getOutputs().get(0));
 		var bands = steps.map(function (st, i) { return 's' + i; });
 		var img = ee.Image.cat(steps.map(function (st, i) {
-			return reduce(col.filterDate(st[0], st[1]), red).rename(bands[i]);
+			return reduceSpan(col, red, st[0], st[1]).rename(bands[i]);
 		}));
 		var nImages = ee.List(steps.map(function (st) { return col.filterDate(st[0], st[1]).size(); }));
 		var stats = img.reduceRegions({collection: regions, reducer: sred, scale: scale, crs: crs,
@@ -18906,7 +19213,7 @@ var MonitorEO = (function () {
 		var imgs = [];
 		seasonalBins(s, step).forEach(function (b) {
 			if (b[0] !== part) return;
-			var value = reduce(col.filterDate(b[2], b[3]), red);
+			var value = reduceSpan(col, red, b[2], b[3]);
 			imgs.push(ee.Image.constant(b[1]).toFloat().rename('t').updateMask(value.mask()).addBands(value));
 		});
 		if (!imgs.length) throw new Error('the period has no ' + partLabel(step, part, 'en'));
@@ -19526,7 +19833,7 @@ var MonitorEO = (function () {
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
 		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, windows: windows, bins: bins,
-		reducer: reducer,
+		reducer: reducer, DAYS: DAYS, isDays: isDays, days: days, spans: spans, reduceSpan: reduceSpan,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
@@ -19657,6 +19964,14 @@ var MonitorEO = (function () {
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada p\u00edxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, as\u00ed que su m\u00e9trica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
+			scfModisNote: 'Frecuencia de nieve de MODIS: % de las observaciones sin nubes de cada p\u00edxel con nieve o ' +
+				'hielo, con su producto diario de nieve (NDSI \u2265 0,35, el umbral de la de Landsat). Cada imagen es 100 ' +
+				'(nieve) o 0, as\u00ed que su m\u00e9trica es siempre la media.',
+			scdNote: 'D\u00edas de nieve: en cada p\u00edxel, la suma de cada mes de su frecuencia de nieve \u00d7 sus d\u00edas (un mes sin ' +
+				'im\u00e1genes toma la de los dem\u00e1s). Su m\u00e9trica es siempre \u00abd\u00edas\u00bb. Con \u00abTodo el periodo\u00bb, la media de los ' +
+				'd\u00edas de cada temporada o, sin temporada, de cada 12 meses. Es una estimaci\u00f3n: mejor con m\u00e1s im\u00e1genes.',
+			cfNote: 'Frecuencia de nubes: % de las observaciones de cada p\u00edxel con nubes. Cada imagen es 100 (nube) o 0, ' +
+				'as\u00ed que su m\u00e9trica es siempre la media.',
 			map: 'Mapa', metric: 'M\u00e9trica', temporal: 'Agregaci\u00f3n temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada a\u00f1o y entre a\u00f1os', t_monthly: 'Cada mes y entre a\u00f1os', 't_16-day': 'Cada 16 d\u00edas y entre a\u00f1os',
 			interannual: 'M\u00e9trica entre a\u00f1os', addMap: 'A\u00f1adir al mapa', download: 'Descargar GeoTIFF',
@@ -19854,6 +20169,14 @@ var MonitorEO = (function () {
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
+			scfModisNote: 'Snow cover frequency of MODIS: % of the clear observations of each pixel with snow or ice, ' +
+				'from its daily snow product (NDSI \u2265 0.35, the threshold of that of Landsat). Each image is 100 (snow) ' +
+				'or 0, so its metric is always the mean.',
+			scdNote: 'Snow cover days: on each pixel, the sum over the months of its snow cover frequency \u00d7 their days ' +
+				'(a month without images takes that of the others). Its metric is always days. With Whole period, the ' +
+				'mean days of each season or, without a season, of each 12 months. An estimate: better with more images.',
+			cfNote: 'Cloud frequency: % of the observations of each pixel with clouds. Each image is 100 (cloud) or 0, ' +
+				'so its metric is always the mean.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
@@ -20003,9 +20326,9 @@ var MonitorEO = (function () {
 	var STATS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
 	var METRIC_NAMES = {
 		es: {mean: 'Media', median: 'Mediana', min: 'M\u00ednimo', max: 'M\u00e1ximo', std: 'Desviaci\u00f3n t\u00edpica',
-			cv: 'Coeficiente de variaci\u00f3n (%)', count: 'N\u00famero', sum: 'Suma'},
+			cv: 'Coeficiente de variaci\u00f3n (%)', count: 'N\u00famero', sum: 'Suma', days: 'D\u00edas (de nieve)'},
 		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation',
-			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum'}
+			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum', days: 'Days (snow cover)'}
 	};
 
 	var state = {
@@ -20674,9 +20997,19 @@ var MonitorEO = (function () {
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
 	// greyed out also for the fixed layers without dates (elevation, slope)
+	// The key of the note under the variable E with a single metric: the SCF of Landsat or MODIS, the snow cover days
+	// or the cloud frequency, or null
+	function variableNote(e) {
+		if (!e.metric) return null;
+		if (e.index === 'SCF') return e.sensor === 'Landsat' ? 'scfNote' : 'scfModisNote';
+		return {SCD: 'scdNote', CF: 'cfNote'}[e.index] || null;
+	}
+
 	function metricSelect(value, onChange) {
 		var only = entry().metric;
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
+		// the only metric of a variable that the list of the others has not (the days of the snow cover days)
+		var metrics = METRICS.concat(only && METRICS.indexOf(only) < 0 ? [only] : [])
+			.map(function (m) { return {value: m, label: metricName(m)}; });
 		var s = select(metrics, only || value, onChange);
 		s.setDisabled(Boolean(only) || Boolean(entry().static));
 		return s;
@@ -20707,7 +21040,8 @@ var MonitorEO = (function () {
 			var name = state.lang === 'en' ? e.vname_en : e.vname;
 			w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'p\u00edxel ') + e.m + ' m', e.dr, e.ft]
 				.filter(function (x) { return x; }).join(' \u00b7 '), SMALL));
-			if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
+			var note = variableNote(e);  // how the variables with a single metric are computed
+			if (note) w.push(ui.Label(t(note), SMALL));
 			if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
 			if (mo.isCategorical(e)) w.push(ui.Label(t('categoricalNote'), SMALL));
 		}

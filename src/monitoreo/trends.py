@@ -122,7 +122,7 @@ def yearly_collection(spec, region, res, step, part, metric='mean'):
 	imgs = []
 	for u, year, a, b in seasonal_bins(spec, step):
 		if u == part:
-			value = composite._reduce(col.filterDate(a, b), metric)
+			value = composite.reduce_span(col, metric, a, b)
 			imgs.append(ee.Image.constant(year).toFloat().rename('t').updateMask(value.mask()).addBands(value))
 	if not imgs:
 		raise ValueError(f'the period has no {part_label(step, part)}')

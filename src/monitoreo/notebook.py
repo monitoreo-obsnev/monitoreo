@@ -169,7 +169,7 @@ def time_slider(m, region, variable=None, sensor=None, start=None, end=None, ste
 	whole = variables.image(spec, geom, res).clipToCollection(regions)
 	vis = maps.vis_params(whole, geom, services.ramp_entry(spec), res, vmin, vmax, palette)
 	col = variables.collection(spec, geom, res)
-	imgs = [services.composite._reduce(col.filterDate(a, b), metric).clipToCollection(regions)
+	imgs = [services.composite.reduce_span(col, metric, a, b).clipToCollection(regions)
 	        .set('system:time_start', ee.Date(a).millis()) for a, b in steps]
 	labels = [animation.label(step, a, b) for a, b in steps]
 	name = name or services._named(spec, metric)

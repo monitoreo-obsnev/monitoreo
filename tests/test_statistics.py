@@ -54,8 +54,8 @@ def test_every_variable_of_the_catalog_takes_every_statistic(e):
 			continue
 		assert services._unit(spec) == ('[%]' if m == 'cv' else catalog.unit_of(e['unit'], metric))
 		assert services._ylabel(spec, 'cv').startswith('Coefficient of variation [%]')
-	if e.get('metric'):
-		with pytest.raises(ValueError, match="only takes the metric 'mean'"):
+	if e.get('metric'):  # the mean of the SCF and the CF, the days of the SCD
+		with pytest.raises(ValueError, match=f"only takes the metric '{e['metric']}'"):
 			services.make_spec(e['index'], e['sensor'], *_dates(e), metric='cv', ref=e['ref'])
 
 
