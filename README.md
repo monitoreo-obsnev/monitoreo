@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.45](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.45) · 2026-11-17 · package 0.3.55
 
 - **All tools** (fix): The evapotranspiration (ET) and latent heat (LE) of MODIS have values again before 2021: MOD16A2.061 begins in 2021 in Earth Engine, so they now use its gap-filled version, MOD16A2GF.061, from 2000 up to its last image, and MOD16A2.061 after it.
 
