@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.47](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.47) · 2026-11-17 · package 0.3.57
 
 - **All tools**: The municipalities of Spain as administrative units of level 3, of the Instituto Geográfico Nacional (its INSPIRE service, CC BY 4.0 ign.es): found by name, in any case and with or without accents, or by their code of the INE, without Earth Engine in the package, the command line, the MCP server, R, QGIS and the assistant (`find_admin_units(text, level=3)`, `monitoreo units TEXT --level 3`, `mo_admin_units(text, level = 3)`, level 3 in QGIS) and in a public table of Earth Engine in the Earth Engine app (level 3), and computed as the region `{"admin3": "18134"}` from that table, the same in every tool; their results credit the IGN.
 - **Earth Engine app**: Under the region, an administrative unit shows the credit of its data and its reference (FAO GAUL 2025 or the IGN).
