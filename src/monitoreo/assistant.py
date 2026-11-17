@@ -234,7 +234,8 @@ How to call the tools:
 - Region: a JSON object with one of these forms: {{"wdpa_id": SITE_ID}} (a protected area, with the SITE_ID that \
 find_protected_areas returns; for a Ramsar site, search with designation "ramsar"), {{"admin1": GAUL1_CODE}} or \
 {{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
-municipality of level 2, with the code that find_admin_units returns, never made up), {{"country": "ISO3"}} (a \
+municipality of level 2; {{"admin3": "18134"}}, a municipality of Spain, level 3; with the code that find_admin_units \
+returns, never made up), {{"country": "ISO3"}} (a \
 whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
 {{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
@@ -850,19 +851,21 @@ def must_choose(areas, said, last=''):
 
 
 def unit_code(unit):
-	"""(level, code) of an administrative UNIT found by find_admin_units."""
-	level = int(unit.get('level') or (2 if 'GAUL2_CODE' in unit else 1))
-	return level, unit.get(f'GAUL{level}_CODE')
+	"""(level, code) of an administrative UNIT found by find_admin_units (level 3: a municipality of Spain, its code of
+	the INE)."""
+	level = int(unit.get('level') or (3 if 'ADMIN3_CODE' in unit else 2 if 'GAUL2_CODE' in unit else 1))
+	return level, unit.get('ADMIN3_CODE' if level == 3 else f'GAUL{level}_CODE')
 
 
 def units_text(units):
 	"""The administrative units found, for the model: a line each with the region to use."""
-	lines = [f'- {{"admin{lv}": {code}}}: {u.get("DISP_EN") or u.get(f"GAUL{lv}_NAME")}'
+	lines = [f'- {{"admin{lv}": {json.dumps(code)}}}: {u.get("DISP_EN") or u.get(f"GAUL{lv}_NAME") or u.get("NAME")}'
 	         for u in units for lv, code in [unit_code(u)]]
 	if not units:
 		return ('No administrative unit with that name: try the other level, the name in its own language, or the '
 		        'whole country (ISO3).')
-	return (f'{len(units)} administrative units (FAO GAUL 2025); the user sees this list and can choose one in it:\n'
+	source = 'municipalities of Spain, IGN' if all(unit_code(u)[0] == 3 for u in units) else 'FAO GAUL 2025'
+	return (f'{len(units)} administrative units ({source}); the user sees this list and can choose one in it:\n'
 	        + '\n'.join(lines))
 
 
@@ -2153,7 +2156,7 @@ class Assistant:
 		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
 		out = []
 		for region in self._regions(args):
-			for level in (1, 2):
+			for level in (1, 2, 3):
 				codes = region.get(f'admin{level}')
 				for c in ([] if codes is None else codes if isinstance(codes, list) else [codes]):
 					if f'admin{level}:{c}' not in self.names and str(c) not in said:
@@ -2502,7 +2505,7 @@ class Assistant:
 			units = json.loads(text)
 			for u in units:
 				level, code = unit_code(u)
-				self.names[f'admin{level}:{code}'] = u.get('DISP_EN') or u[f'GAUL{level}_NAME']
+				self.names[f'admin{level}:{code}'] = u.get('DISP_EN') or u.get(f'GAUL{level}_NAME') or u['NAME']
 				if u.get('ISO3_CODE') and u.get('GAUL0_NAME'):
 					self.names[f"country:{u['ISO3_CODE']}"] = u['GAUL0_NAME']
 			return units

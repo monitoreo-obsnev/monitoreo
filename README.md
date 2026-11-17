@@ -92,6 +92,11 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: The municipalities of Spain as administrative units of level 3, of the Instituto Geográfico Nacional (its INSPIRE service, CC BY 4.0 ign.es): found by name, in any case and with or without accents, or by their code of the INE, without Earth Engine (`find_admin_units(text, level=3)`, `monitoreo units TEXT --level 3`, `mo_admin_units(text, level = 3)`, level 3 in QGIS and the Earth Engine app, the assistant), and computed as the region `{"admin3": "18134"}` from a public table of Earth Engine, the same in every tool; their results credit the IGN.
+- **Earth Engine app**: Under the region, an administrative unit shows the credit of its data and its reference (FAO GAUL 2025 or the IGN).
+
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
 - **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.

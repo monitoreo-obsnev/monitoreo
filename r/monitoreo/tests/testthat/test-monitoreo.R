@@ -42,7 +42,9 @@ test_that("catalog and regions", {
   expect_equal(mo_country("esp"), list(country = list("ESP")))
   expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
   expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
-  expect_error(mo_admin(1, level = 3))
+  expect_equal(mo_admin("18134", level = 3), list(admin3 = list("18134")))  # a municipality of Spain (INE code)
+  expect_equal(mo_admin(4001, level = 3), list(admin3 = list("04001")))  # its 5 digits, with the zero
+  expect_error(mo_admin(1, level = 4))
   expect_equal(mo_ecoregion(793), list(ecoregion_id = list(793L)))
   expect_equal(mo_ecoregion(lon = -3.3, lat = 37.1), list(ecoregion_at = list(-3.3, 37.1)))
   # a biome of RESOLVE 2017 by its code or at a point, and only its part within another region

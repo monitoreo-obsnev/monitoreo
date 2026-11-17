@@ -259,6 +259,9 @@ def _region(region):
 		for level in (1, 2):
 			if f'admin{level}' in region:
 				cols.append(areas.GAUL[level])
+		if 'admin3' in region:  # the municipalities of Spain, of the IGN
+			from . import municipalities
+			cols.append(municipalities.ASSET)
 		if 'island_at' in region:
 			cols.append(areas.ISLANDS)
 		if isinstance(region.get('within'), dict):  # the region of within: e.g. FAO GAUL for a biome in a country

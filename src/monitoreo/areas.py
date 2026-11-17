@@ -50,7 +50,7 @@ GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_
                2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']}
 ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands'  # Global Islands of more than 1 km² (Sayre et al.)
 REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-               'country', 'admin1', 'admin2', 'island_at', 'bbox', 'point')
+               'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point')
 WDPA_MAX_ERROR = 10  # metres: simplification of the protected areas fetched from WDPA (one pixel of Sentinel-2)
 # A biome is the union of its ecoregions (those of the table of classes of BIOME, catalog.ecoregions_of_biome, so that
 # Rock and Ice, 99, is one too), dissolved with a tolerance of BIOME_MAX_ERROR metres, as a country
@@ -324,6 +324,8 @@ def region(spec):
 	  admin1         GAUL1_CODE of a first-level administrative unit (region, state, province...), or a list of them
 	  admin2         GAUL2_CODE of a second-level administrative unit (province, district, municipality...), or a list
 	                 (see find_admin_units for the codes)
+	  admin3         code of the INE of a municipality of Spain (5 digits, e.g. '18134' Monachil), or a list of them:
+	                 their polygons of the Instituto Geográfico Nacional (see monitoreo.municipalities)
 	  island_at      [lon, lat]: the island (of more than 1 km²) at that point
 	  bbox           [west, south, east, north] in degrees
 	  point          [lon, lat], with buffer (metres, default 0)
@@ -360,9 +362,24 @@ def check(spec, what='region'):
 		biome_codes(spec[k])
 	if k == 'biome_at':
 		_point(spec[k], k)
+	if k == 'admin3':
+		municipality_codes(spec[k])
 	if spec.get('within') is not None:
 		check(spec['within'], 'within')
 	return k
+
+
+def municipality_codes(v):
+	"""The codes of the INE of the municipalities of Spain V (one, or a list; '18134' or 18134), checked against the
+	index of the package without Earth Engine (else ValueError, with the way to find them)."""
+	from . import municipalities
+	codes = [str(x).strip().zfill(5) for x in (v if isinstance(v, (list, tuple)) else [v])]
+	known = {r[0] for r in municipalities.load()['rows']}
+	unknown = [c for c in codes if c not in known]
+	if not codes or unknown:
+		raise ValueError(f"admin3 is the code of the INE of a municipality of Spain (5 digits, e.g. '18134'): "
+		                 f"{', '.join(unknown) or 'none given'} is not one (find them with find_admin_units, level 3)")
+	return codes
 
 
 def _point(v, key):
@@ -452,6 +469,11 @@ def _of(k, v, spec, inside):
 		ids = [int(x) for x in (v if isinstance(v, (list, tuple)) else [v])]
 		fc = ee.FeatureCollection(GAUL[level]).filter(ee.Filter.inList(f'GAUL{level}_CODE', ids))
 		return _named(fc, 'DISP_EN')  # e.g. «Granada, Andalucía, Spain»: the names of the units repeat in other countries
+	if k == 'admin3':  # the municipalities of Spain (monitoreo.municipalities), named with their province
+		from . import municipalities
+		codes = municipality_codes(v)
+		fc = ee.FeatureCollection(municipalities.ASSET).filter(ee.Filter.inList('code', codes))
+		return fc.map(lambda f: f.set('name', ee.String(f.get('name')).cat(' (').cat(f.get('province')).cat(')')))
 	if k == 'island_at':
 		lon, lat = list(v)
 		label = f'Island at {lat:.5f}, {lon:.5f}'
@@ -521,10 +543,18 @@ def find_protected_areas(text, limit=20, designation=None):
 def find_admin_units(text, level=1, country=None, limit=20):
 	"""Administrative units of FAO GAUL 2025 of LEVEL (1: regions, states, provinces...; 2: provinces, districts,
 	municipalities...) whose name contains TEXT, in COUNTRY (ISO3 code) if given: [{GAUL1_CODE or GAUL2_CODE, its name,
-	the names of the country and of the first level, ISO3_CODE, DISP_EN (the full name), level}]."""
+	the names of the country and of the first level, ISO3_CODE, DISP_EN (the full name), level}]. LEVEL 3: the
+	municipalities of Spain, of the Instituto Geográfico Nacional, without Earth Engine (monitoreo.municipalities.find:
+	[{ADMIN3_CODE, NAME, PROVINCE, REGION, ISO3_CODE, DISP_EN, level}], any case and accents; the code of the INE too)."""
 	level = int(level)
+	if level == 3:
+		from . import municipalities
+		if country and str(country).strip().upper() != municipalities.COUNTRY:
+			raise ValueError('level 3 is the municipalities of Spain (country ESP); other countries have levels 1 and 2')
+		return municipalities.find(text, limit=limit)
 	if level not in GAUL:
-		raise ValueError('level is 1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...)')
+		raise ValueError('level is 1 (regions, states, provinces...), 2 (provinces, districts, municipalities...) or '
+		                 '3 (the municipalities of Spain)')
 	f = ee.Filter.Or(*[ee.Filter.stringContains(f'GAUL{level}_NAME', s) for s in _variants(text)])
 	if country:
 		f = ee.Filter.And(f, ee.Filter.eq('ISO3_CODE', str(country).strip().upper()))

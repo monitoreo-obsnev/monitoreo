@@ -688,19 +688,22 @@ mo_protected_areas <- function(text, limit = 20, designation = NULL) {
   rows_df(services()$find_protected_areas(text, as.integer(limit), designation = designation))
 }
 
-#' Administrative units of FAO GAUL 2025
+#' Administrative units of FAO GAUL 2025, and the municipalities of Spain
 #'
-#' @param text text of their name.
-#' @param level 1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...).
+#' @param text text of their name (level 3: any case and accents, or a code of the INE).
+#' @param level 1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...) of FAO GAUL 2025, or
+#'   3: the municipalities of Spain, of the Instituto Geográfico Nacional (without Earth Engine).
 #' @param country ISO3 code of their country, e.g. \code{"ESP"} (optional).
 #' @param limit maximum number of units.
-#' @return A data.frame of the units whose name contains \code{text}, with their code (GAUL1_CODE or GAUL2_CODE, for
-#'   \code{mo_admin()}), names, country (ISO3_CODE) and full name (DISP_EN).
+#' @return A data.frame of the units whose name contains \code{text}, with their code (GAUL1_CODE or GAUL2_CODE, or
+#'   ADMIN3_CODE, the code of the INE of a municipality, for \code{mo_admin()}), names, country (ISO3_CODE) and full
+#'   name (DISP_EN).
 #' @references FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of
 #'   the United Nations. Licence: CC BY 4.0. \url{https://data.apps.fao.org}
 #' @examples
 #' \dontrun{
 #' mo_admin_units("Granada", level = 2, country = "ESP")
+#' mo_admin_units("monachil", level = 3)   # a municipality of Spain: mo_admin("18134", level = 3)
 #' }
 #' @export
 mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
@@ -717,11 +720,11 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' (\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
 #' \code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
 #' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
-#'   99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE or GAUL2_CODE of
-#'   \code{mo_admin_units()}).
+#'   99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE, GAUL2_CODE or
+#'   ADMIN3_CODE of \code{mo_admin_units()}).
 #' @param iso3 ISO3 codes of countries, e.g. \code{"ESP"}.
 #' @param level level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
-#'   municipalities...).
+#'   municipalities...) of FAO GAUL 2025, or 3: the municipalities of Spain (their codes of the INE, e.g. "18134").
 #' @param lon,lat longitude and latitude (degrees).
 #' @param west,south,east,north limits of the box (degrees).
 #' @param buffer radius of the circle around the point, in metres (0: the pixel at the point).
@@ -772,8 +775,9 @@ mo_country <- function(iso3) list(country = as.list(toupper(iso3)))
 #' @rdname regions
 #' @export
 mo_admin <- function(id, level = 1) {
-  stopifnot(level %in% c(1, 2))
-  stats::setNames(list(as.list(as.integer(id))), paste0("admin", level))
+  stopifnot(level %in% c(1, 2, 3))
+  codes <- if (level == 3) formatC(as.integer(id), width = 5, flag = "0") else as.integer(id)  # INE codes: 5 digits
+  stats::setNames(list(as.list(codes)), paste0("admin", level))
 }
 #' @rdname regions
 #' @export

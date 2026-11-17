@@ -89,8 +89,9 @@ HELP = {
 		'<li><b>Map extent</b>: the rectangle seen in the map when the button of the computation is pressed.</li>'
 		'<li><b>Protected area (WDPA)</b>: an area of the World Database on Protected Areas, searched by its '
 		'name.</li>'
-		'<li><b>Administrative unit (FAO GAUL)</b>: a region, province or municipality (levels 1 and 2 of FAO GAUL '
-		'2025), searched by its name.</li>'
+		'<li><b>Administrative unit</b>: a region, province or municipality of any country (levels 1 and 2 '
+		'of FAO GAUL 2025), or a municipality of Spain (level 3, of the Instituto Geográfico Nacional), searched by its '
+		'name.</li>'
 		'<li><b>Country</b>: a whole country, by its ISO3 code (FAO GAUL 2025). Big: use MODIS or a coarse pixel.</li>'
 		'<li><b>Ecoregion at the center of the map</b>: the RESOLVE 2017 ecoregion that contains the center of the '
 		'view.</li>'
@@ -115,10 +116,17 @@ HELP = {
 		'as points are not there).</p>'
 		+ manual('QGIS-plugin#2-choose-the-region'),
 	'admin':
-		'<p>Write part of the name of an administrative unit, choose its level (1: regions, states, provinces...; 2: '
-		'provinces, districts, municipalities...) and, if you like, its country (ISO3 code, e.g. ESP), and press '
-		'<b>Search</b>: the list <b>Unit</b> brings up to 30 units of '
-		'<a href="https://data.apps.fao.org">FAO GAUL 2025</a> with their full name.</p>'
+		'<p>Write part of the name of an administrative unit, choose its level and, if you like, its country (ISO3 '
+		'code, e.g. ESP), and press <b>Search</b> (or Enter): the list <b>Unit</b> brings up to 30 units with their full '
+		'name and their code.</p><ul>'
+		'<li><b>Level 1</b> (regions, states, provinces...) and <b>Level 2</b> (provinces, districts, '
+		'municipalities...): the units of <a href="https://data.apps.fao.org">FAO GAUL 2025</a>, of any country, '
+		'searched in Earth Engine.</li>'
+		'<li><b>Level 3 · Municipalities (Spain)</b>: the municipalities of Spain of the '
+		'<a href="https://www.ign.es">Instituto Geográfico Nacional</a> (its INSPIRE administrative units, licence '
+		'CC BY 4.0 ign.es), found at once and without Earth Engine, by their name (in any case, with or without '
+		'accents) or by their code of the INE (5 digits, e.g. 18134, Monachil). The country is Spain. Each entry tells '
+		'the municipality, its province and its code of the INE; the results over it cite the IGN.</li></ul>'
 		+ manual('QGIS-plugin#2-choose-the-region'),
 	'country':
 		'<p>The ISO3 code of a country (ESP, PRT, FRA...): the whole country, as the union of its regions of FAO GAUL '

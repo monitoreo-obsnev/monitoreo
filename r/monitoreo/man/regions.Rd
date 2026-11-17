@@ -33,8 +33,8 @@ mo_geojson(geojson, name_field = NULL)
 }
 \arguments{
 \item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
-99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE or GAUL2_CODE of
-\code{mo_admin_units()}).}
+99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE, GAUL2_CODE or
+ADMIN3_CODE of \code{mo_admin_units()}).}
 
 \item{lon, lat}{longitude and latitude (degrees).}
 
@@ -43,7 +43,7 @@ mo_geojson(geojson, name_field = NULL)
 \item{iso3}{ISO3 codes of countries, e.g. \code{"ESP"}.}
 
 \item{level}{level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
-municipalities...).}
+municipalities...) of FAO GAUL 2025, or 3: the municipalities of Spain (their codes of the INE, e.g. "18134").}
 
 \item{west, south, east, north}{limits of the box (degrees).}
 

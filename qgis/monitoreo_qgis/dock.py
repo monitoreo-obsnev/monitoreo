@@ -28,6 +28,7 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import assets, catalog, categorical, fire, landcover, sensors, services, steps, trends  # noqa: E402
+from monitoreo import municipalities  # noqa: E402
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
@@ -59,9 +60,20 @@ CLASS_CONDITIONS = [('is one of the classes', 'classes'), ('is none of the class
 # the biome at the center of the map: its part in the map extent (a whole biome spans continents), the region
 # {'biome_at': [lon, lat], 'within': {'bbox': the extent}}
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
-           ('Protected area (WDPA)', 'wdpa'), ('Administrative unit (FAO GAUL)', 'admin'), ('Country', 'country'),
+           ('Protected area (WDPA)', 'wdpa'), ('Administrative unit', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Biome at the center of the map', 'biome'),
            ('Island at the center of the map', 'island')]
+# the levels of the administrative units: 1 and 2, those of FAO GAUL 2025 of any country, searched in Earth Engine; 3,
+# the municipalities of Spain of the Instituto Geográfico Nacional (monitoreo.municipalities), found by their name or
+# their code of the INE in the index of the package, without Earth Engine
+ADMIN_LEVELS = [('Level 1', 1), ('Level 2', 2), ('Level 3 · Municipalities (Spain)', municipalities.LEVEL)]
+ADMIN_LEVEL_TIP = ('Level 1: regions, states, provinces...; level 2: provinces, districts, municipalities... (both of '
+                   'FAO GAUL 2025, any country); level 3: the municipalities of Spain, of the Instituto Geográfico '
+                   'Nacional (by their name or their code of the INE, found without Earth Engine)')
+ADMIN_COUNTRY_TIP = 'Country (ISO3 code, e.g. ESP): optional'
+ADMIN_SPAIN_TIP = 'Level 3 is the municipalities of Spain: the country is Spain (ESP)'
+ADMIN_HINTS = {1: 'name of the unit (e.g. Granada)', 2: 'name of the unit (e.g. Granada)',
+               municipalities.LEVEL: 'name or INE code of the municipality (e.g. Monachil)'}
 FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
 # MODIS, only for the burn indices that have it (services.BURN_SENSORS: the RdNBR): the daily surface reflectance of
 # Terra or of Aqua (500 m), given to services.burn_severity as the sensor 'Modis' and the collection of each
@@ -388,6 +400,18 @@ def unit_text(res):
 	return '(unit not given)' if not unit or unit.startswith('/') else unit
 
 
+def admin_item(unit, level):
+	"""The entry of the list Unit for the administrative unit UNIT (a row of services.find_admin_units) of LEVEL: its
+	text, with the full name (DISP_EN) and the code, and its data, (level, code): the GAUL code, an integer, at levels 1
+	and 2 (FAO GAUL 2025); the code of the INE, a string of 5 digits, of a municipality of Spain (level 3)."""
+	level = int(level)
+	if level == municipalities.LEVEL:
+		code = str(unit['ADMIN3_CODE']).strip().zfill(5)
+		return f"{unit.get('DISP_EN') or unit['NAME']} · INE {code}", (level, code)
+	code = int(unit[f'GAUL{level}_CODE'])
+	return f"{unit.get('DISP_EN') or unit[f'GAUL{level}_NAME']} (GAUL {code})", (level, code)
+
+
 def combo(items, current=None):
 	c = QComboBox()
 	for label, value in items:
@@ -571,21 +595,24 @@ class MonitorEODock(QDockWidget):
 		self.wdpa_field.setLayout(row)
 		f.addRow('Area', self.wdpa_field)
 		self.wdpa_label = f.labelForField(self.wdpa_field)
-		self.admin_row = QWidget()  # administrative units of FAO GAUL 2025: search by name, level and country
+		# administrative units: of FAO GAUL 2025 (levels 1 and 2), searched by name, level and country; or the
+		# municipalities of Spain (level 3), by name or code of the INE
+		self.admin_row = QWidget()
 		al = QHBoxLayout(self.admin_row)
 		al.setContentsMargins(0, 0, 0, 0)
 		self.admin_text = QLineEdit()
-		self.admin_text.setPlaceholderText('name of the unit (e.g. Granada)')
+		self.admin_text.setPlaceholderText(ADMIN_HINTS[1])
 		self.admin_text.returnPressed.connect(self.search_admin)
 		al.addWidget(self.admin_text)
-		self.admin_level = combo([('Level 1', 1), ('Level 2', 2)])
-		self.admin_level.setToolTip('Level 1: regions, states, provinces...; level 2: provinces, districts, '
-		                            'municipalities...')
+		self.admin_level = combo(ADMIN_LEVELS)
+		self.admin_level.setToolTip(ADMIN_LEVEL_TIP)
+		self.admin_level.currentIndexChanged.connect(lambda i: self.admin_level_changed())
 		al.addWidget(self.admin_level)
 		self.admin_country = QLineEdit()
 		self.admin_country.setPlaceholderText('ISO3')
-		self.admin_country.setToolTip('Country (ISO3 code, e.g. ESP): optional')
+		self.admin_country.setToolTip(ADMIN_COUNTRY_TIP)
 		self.admin_country.setMaximumWidth(60)
+		self.admin_country_typed = ''  # the country written for levels 1 and 2, back when leaving level 3
 		al.addWidget(self.admin_country)
 		b = QPushButton('Search')
 		b.clicked.connect(self.search_admin)
@@ -1902,19 +1929,42 @@ class MonitorEODock(QDockWidget):
 		more = {'designation': 'ramsar'} if self.ramsar.isChecked() else {}
 		self.run_task('Search protected areas', lambda: services.find_protected_areas(text, 30, **more), done)
 
+	def admin_level_changed(self):
+		"""Level 3, the municipalities of Spain: the country is Spain (ESP), greyed out, and the text a name or a code
+		of the INE; back at levels 1 and 2 (FAO GAUL 2025, any country), the country written before."""
+		spain = self.admin_level.currentData() == municipalities.LEVEL
+		if spain == self.admin_country.isEnabled():  # from FAO GAUL to the municipalities of Spain, or back
+			if spain:
+				self.admin_country_typed = self.admin_country.text()
+			self.admin_country.setText(municipalities.COUNTRY if spain else self.admin_country_typed)
+		self.admin_country.setEnabled(not spain)
+		self.admin_country.setToolTip(ADMIN_SPAIN_TIP if spain else ADMIN_COUNTRY_TIP)
+		self.admin_text.setPlaceholderText(ADMIN_HINTS[self.admin_level.currentData()])
+
 	def search_admin(self):
+		"""The administrative units of the level chosen with the text in their name, in the list Unit: those of FAO
+		GAUL 2025 (levels 1 and 2, in the country if given) in a task, since they are searched in Earth Engine; the
+		municipalities of Spain (level 3; also by their code of the INE) at once, from the index of the package,
+		without Earth Engine."""
 		text, level = self.admin_text.text().strip(), self.admin_level.currentData()
 		country = self.admin_country.text().strip().upper() or None
 		if not text:
 			return
+		spain = level == municipalities.LEVEL
 
 		def done(units):
 			self.admin.clear()
 			for u in units:
-				code = u[f'GAUL{level}_CODE']
-				self.admin.addItem(f"{u.get('DISP_EN') or u[f'GAUL{level}_NAME']} (GAUL {code})", (level, int(code)))
-			self.message(f'{len(units)} administrative units with "{text}"', 'Info', 4)
+				self.admin.addItem(*admin_item(u, level))
+			what = 'municipalities of Spain' if spain else 'administrative units'
+			self.message(f'{len(units)} {what} with "{text}"', 'Info', 4)
 
+		if spain:  # no Earth Engine: no task, and the country is Spain
+			try:
+				done(services.find_admin_units(text, level, None, 30))
+			except Exception as e:  # to the message bar, as the errors of run_task
+				self.message(f'Search municipalities: {e}', 'Critical', 15)
+			return
 		self.run_task('Search administrative units', lambda: services.find_admin_units(text, level, country, 30), done)
 
 	def other_period(self):

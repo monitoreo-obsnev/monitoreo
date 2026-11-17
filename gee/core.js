@@ -1663,6 +1663,13 @@ var MonitorEO = (function () {
 	var GAUL = {1: 'FAO/GAUL/2025/level1', 2: 'FAO/GAUL/2025/level2'};  // areas.GAUL
 	var GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_EN'],
 		2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']};
+	// municipalities.ASSET: the municipalities of Spain (the administrative units of level 3, of the Instituto
+	// Geográfico Nacional), a public table with code (of the INE, 5 digits), name, province, region, national_code and
+	// search (the name as municipalityPlain gives it)
+	var MUNICIPALITIES = 'projects/ee-ugr-default-project/assets/monitoreo/municipalities_es';
+	var MUNICIPALITY_FIELDS = ['code', 'name', 'province', 'region'];
+	// the table of each level of the administrative units: FAO GAUL 2025 (1 and 2) and the municipalities of Spain (3)
+	var ADMIN_DATASETS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES};
 	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
 	var WDPA_MAX_ERROR = 10;
 	var BIOME_MAX_ERROR = 100;  // areas.BIOME_MAX_ERROR: metres, the tolerance of the union of a biome's ecoregions
@@ -1725,9 +1732,70 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// areas.region of {admin1: CODE} or {admin2: CODE}: the unit, named by its full name (DISP_EN)
+	// areas.region of {admin1: CODE} or {admin2: CODE}: the unit, named by its full name (DISP_EN); of LEVEL 3, the
+	// municipalities of Spain {admin3: CODE} (municipalityRegion)
 	function adminRegion(level, code) {
+		if (Number(level) === 3) return municipalityRegion(code);
 		return named(ee.FeatureCollection(GAUL[level]).filter(ee.Filter.eq('GAUL' + level + '_CODE', code)), 'DISP_EN');
+	}
+
+	// municipalities._plain: TEXT in lower case, without accents (its NFKD, only the ASCII), and the separators of the
+	// bilingual names ('/', '-') as spaces, its words separated by one space: the property search of the table of the
+	// municipalities (MUNICIPALITIES), so that they are found on the server whatever the case and accents
+	function municipalityPlain(text) {
+		var s = String(text === null || text === undefined ? '' : text).normalize('NFKD').replace(/[^\x00-\x7f]/g, '');
+		return s.toLowerCase().replace(/[\/\-]/g, ' ').split(/[\s\x1c-\x1f]+/).filter(Boolean).join(' ');
+	}
+
+	// areas.find_admin_units of level 3 (municipalities.find): ee.FeatureCollection (without geometries) of the
+	// municipalities of Spain whose name contains TEXT (any case and accents: their property search) or whose code of the
+	// INE begins with it, at most LIMIT: the very name first, then those that begin with it, then the others, each by
+	// name and code; with their code, name, province, region and level 3
+	function findMunicipalities(text, limit) {
+		var t = municipalityPlain(text);
+		var f = ee.Filter.or(ee.Filter.stringContains('search', t), ee.Filter.stringStartsWith('code', t));
+		return ee.FeatureCollection(MUNICIPALITIES).filter(f).map(function (x) {
+			var s = ee.String(x.get('search'));
+			var rank = ee.Algorithms.If(s.equals(t), '0', ee.Algorithms.If(s.index(t).eq(0), '1', '2'));
+			return ee.Feature(null, x.toDictionary(MUNICIPALITY_FIELDS)).set('level', 3)
+				.set('order', ee.String(rank).cat(s).cat(' ').cat(x.get('code')));
+		}).sort('order').limit(limit || 20);
+	}
+
+	// areas.municipality_codes, without the index of the package (the app has not got it, and finds them in the table):
+	// V (the code of the INE of a municipality of Spain, or a list of them; '18134' or 18134) as codes of 5 digits (with
+	// the zeros on the left, as str.zfill); an Error if one is not 5 digits, or if there are none
+	function municipalityCodes(v) {
+		var codes = (Array.isArray(v) ? v : [v]).map(function (x) {
+			var s = String(x).trim(), sign = s.charAt(0) === '-' || s.charAt(0) === '+' ? s.charAt(0) : '';
+			s = s.slice(sign.length);
+			while (sign.length + s.length < 5) s = '0' + s;
+			return sign + s;
+		});
+		var bad = codes.filter(function (c) { return !/^[0-9]{5}$/.test(c); });
+		if (!codes.length || bad.length) {
+			throw new Error("admin3 is the code of the INE of a municipality of Spain (5 digits, e.g. '18134'): " +
+				(bad.join(', ') || 'none given') + ' is not one (find them with find_admin_units, level 3)');
+		}
+		return codes;
+	}
+
+	// areas.region of {admin3: V}: the municipalities of Spain of the codes V (municipalityCodes), each named
+	// 'name (province)'
+	function municipalityRegion(v) {
+		var codes = municipalityCodes(v);
+		var fc = ee.FeatureCollection(MUNICIPALITIES).filter(ee.Filter.inList('code', codes));
+		return fc.map(function (f) {
+			return f.set('name', ee.String(f.get('name')).cat(' (').cat(f.get('province')).cat(')'));
+		});
+	}
+
+	// references._region and of_datasets for the administrative units of LEVEL (FAO GAUL 2025, 1 and 2; the
+	// municipalities of Spain of the IGN, 3): {credits: the lines that the terms of use of its data ask for, references:
+	// [{citation, url, text}]}, as catalog.json gives them (build.py writes them into catalog.js, regions)
+	function adminCredits(level) {
+		var d = (CATALOG.regions || {})[ADMIN_DATASETS[level]] || {};
+		return {credits: d.credit ? [d.credit] : [], references: d.references || []};
 	}
 
 	// areas.region of {island_at: [LON, LAT]}: the island of more than 1 km² at that point
@@ -3338,6 +3406,9 @@ var MonitorEO = (function () {
 		classZoneRows: classZoneRows, classAreaLegend: classAreaLegend, classGroupRows: classGroupRows,
 		utmOf: utmOf, findProtectedAreas: findProtectedAreas, wdpaGeometries: wdpaGeometries, wdpaRegion: wdpaRegion,
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
+		MUNICIPALITIES: MUNICIPALITIES, ADMIN_DATASETS: ADMIN_DATASETS, municipalityPlain: municipalityPlain,
+		findMunicipalities: findMunicipalities, municipalityCodes: municipalityCodes,
+		municipalityRegion: municipalityRegion, adminCredits: adminCredits,
 		islandAt: islandAt, BIOME_MAX_ERROR: BIOME_MAX_ERROR, WITHIN_MAX_ERROR: WITHIN_MAX_ERROR,
 		GLOBAL_CRS: GLOBAL_CRS, WIDE_DEGREES: WIDE_DEGREES, regionCrs: regionCrs, biomes: biomes, biomeName: biomeName,
 		ecoregionsOfBiome: ecoregionsOfBiome, biomeCodes: biomeCodes, biomeFeature: biomeFeature,

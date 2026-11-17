@@ -12224,6 +12224,38 @@ var CATALOG = {
    "key": "community"
   }
  ],
+ "regions": {
+  "FAO/GAUL/2025/level1": {
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+   "references": [
+    {
+     "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
+     "text": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0. https://data.apps.fao.org",
+     "url": "https://data.apps.fao.org"
+    }
+   ]
+  },
+  "FAO/GAUL/2025/level2": {
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+   "references": [
+    {
+     "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
+     "text": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0. https://data.apps.fao.org",
+     "url": "https://data.apps.fao.org"
+    }
+   ]
+  },
+  "projects/ee-ugr-default-project/assets/monitoreo/municipalities_es": {
+   "credit": "Municipalities of Spain: derived from the INSPIRE administrative units of the Instituto Geográfico Nacional (CC BY 4.0 ign.es)",
+   "references": [
+    {
+     "citation": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es.",
+     "text": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es. https://www.ign.es/wfs-inspire/unidades-administrativas",
+     "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
+    }
+   ]
+  }
+ },
  "themes": [
   {
    "en": "Vegetation",

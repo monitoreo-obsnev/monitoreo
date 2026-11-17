@@ -137,7 +137,8 @@ A region is a JSON object with one of: {"wdpa_id": 389011} (or a list of IDs), {
 {"ecoregion_at": [lon, lat]}, {"biome_id": 12} (a biome of RESOLVE Ecoregions 2017, 1 to 14 or 99 Rock and Ice, or a
 list: the union of its ecoregions; list_classes of BIOME gives them), {"biome_at": [lon, lat]} (the biome at a point),
 {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
-(administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"island_at": [lon, lat]} (the
+(administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"admin3": "18134"} (a municipality
+of Spain, with the code of the INE that find_admin_units gives with level 3), {"island_at": [lon, lat]} (the
 island at a point), {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
 features give one series per feature. Any region takes "within", another region (with an area): only the part of each
@@ -529,11 +530,12 @@ def find_protected_areas(text: str, limit: int = 10, designation: Optional[str] 
 
 @tool
 def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, limit: int = 10) -> str:
-	"""Administrative units of FAO GAUL 2025 whose name contains TEXT: level 1 (regions, states, provinces...) or 2
-	(provinces, districts, municipalities...), in country (ISO3 code, e.g. "ESP") if given, with their code and full
-	name (DISP_EN). Use the code as {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}; a whole country is
-	{"country": "ESP"}."""
-	_ready()
+	"""Administrative units whose name contains TEXT: of FAO GAUL 2025, level 1 (regions, states...) or 2 (provinces,
+	districts...), or level 3, the municipalities of Spain (IGN), in country (ISO3, e.g. "ESP"), with code and full name
+	(DISP_EN). Use {"admin1": GAUL1_CODE}, {"admin2": GAUL2_CODE} or {"admin3": ADMIN3_CODE}; a country, {"country":
+	"ESP"}."""
+	if int(level) != 3:  # the municipalities of Spain are found without Earth Engine
+		_ready()
 	return _text(services.find_admin_units(text, level, country, limit))
 
 
