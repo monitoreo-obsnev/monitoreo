@@ -483,8 +483,10 @@ HELP = {
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
 		'faster export.</p>'
-		'<p>The layers of <b>Add the layer to the map</b> do not use it: they have the resolution of the data up to 4 '
-		'million pixels and, in bigger regions, bigger pixels.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
+		'up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
+		'exceeds the limit and which sensors of the variable fit: choose one of them, a smaller region or the export '
+		'to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':
 		'<p>Folder of your Google Drive where Earth Engine leaves the files; if it does not exist, Earth Engine makes '
 		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '
@@ -507,7 +509,8 @@ HELP = {
 		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
 		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
-		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
+		'<b>Region</b>, always on the pixels of the data: as the maps, up to 4 million pixels (a bigger region gets a '
+		'warning, before computing anything).</p>'
 		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010')])
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':

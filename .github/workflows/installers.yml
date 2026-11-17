@@ -3,7 +3,9 @@
 # release with fixed names, so that the wiki links them as releases/latest/download/asistente-monitoreo-macos.zip and
 # ...-windows.zip (the wiki also gives the one-line commands that download them with curl, without the block of the
 # files downloaded with the browser):
-# - when a release is published or a tag v* is pushed (like the workflow of the QGIS plugin);
+# - when a release is published or a tag v* is pushed (like the workflow of the QGIS plugin, which creates the release
+#   of a pushed tag: this one waits until that release is published, and creates it only if it is not there after 10
+#   minutes);
 # - by hand (Actions > Assistant installers > Run workflow) with the tag of a release that already exists; without a
 #   tag, it leaves the zips as an artifact of the run.
 # The installers download the environment.yml of main, so they work for any release.
@@ -67,10 +69,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # with a new tag, the workflow of the QGIS plugin may be creating the release at the same time
-          for i in $(seq 18); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 10; done
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes "" || true
-          gh release upload "$TAG" dist/asistente-monitoreo-macos.zip dist/asistente-monitoreo-windows.zip --clobber
+          # With a pushed tag, the workflow of the QGIS plugin creates the release at the same time, and gh release
+          # create makes it a draft while it uploads the zip of the plugin, then publishes it. gh release view finds the
+          # draft too, but gh release upload fails with "release not found" while it is being published (v0.3.42). So
+          # wait until the release is published (up to 10 minutes), and retry the upload.
+          published() { [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = false ]; }
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            for i in $(seq 60); do published && break; sleep 10; done
+            if ! published && ! gh release view "$TAG" >/dev/null 2>&1; then
+              # not even a draft (the QGIS plugin failed?): create it with empty notes, which the workflow of the QGIS
+              # plugin writes from the changelog when it runs (it only writes the notes of a release without them)
+              echo "No release $TAG after 10 minutes: creating it"
+              gh release create "$TAG" --verify-tag --title "MonitorEO $TAG" --notes "" || true
+            fi
+          fi
+          for i in $(seq 5); do
+            gh release upload "$TAG" dist/asistente-monitoreo-macos.zip dist/asistente-monitoreo-windows.zip --clobber &&
+              exit 0
+            sleep 20
+          done
+          echo "::error::Could not attach the zips to the release $TAG: re-run this job, or Run workflow with the tag $TAG"
+          exit 1
 
   linux:
     # the installer of Ubuntu on each LTS of GitHub, then the assistant in its window, in a virtual screen
