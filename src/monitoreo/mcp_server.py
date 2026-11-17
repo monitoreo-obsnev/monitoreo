@@ -63,10 +63,11 @@ warning that begins with «where, the condition on ...» is about the variable o
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
 frequency, snow cover days) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow,
-aerosols). The snow cover frequency (SCF, Landsat and MODIS) is the % of the clear observations of each pixel with
-snow: always with metric "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the quality). The
-snow cover days (SCD, Landsat and MODIS) are the days with snow of each pixel, from the same images (the SCF of each
-month times its days, summed): always with metric "days", the same fixed filters; with temporal "period", the mean
+aerosols). The snow cover frequency (SCF, Sentinel-2, Landsat and MODIS) is the % of the clear observations of each
+pixel with snow: always with metric "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the
+quality). The snow cover days (SCD, Sentinel-2, Landsat and MODIS) are the days with snow of each pixel, from the same
+images (the SCF of each month times its days, summed): always with metric "days", the same fixed filters; with
+temporal "period", the mean
 days of each season (or of each 12 months without a season). An estimate: better with more images (n_images). The elevation and the slope
 (variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time

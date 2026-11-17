@@ -213,9 +213,12 @@ def of_variable(entry, quality=None, period=None, formula=True):
 		ids += _methods('landsat_qa')
 	if sensors.is_cf(entry) and entry['sensor'] == 'Sentinel-2':  # the clouds of the cloud frequency: Cloud Score+
 		cols.append(CLOUD_SCORE)
-	if sensors.is_scf(entry) and entry['sensor'] == 'Landsat':  # the SCF of Landsat also reads the TOA scenes (snow in
-		# the shadow) and the SRTM (its hillShadow); that of MODIS, only its daily snow product
+	if sensors.is_scf(entry) and entry['sensor'] in ('Landsat', 'Sentinel-2'):  # the SCF of Landsat and Sentinel-2 also
+		# reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow), and that of Sentinel-2 always Cloud
+		# Score+ (its fixed clouds); that of MODIS, only its daily snow product
 		cols += [sensors.SCF_TOA[c][0] for c in list(cols) if c in sensors.SCF_TOA] + [sensors.SCF['dem']]
+		if entry['sensor'] == 'Sentinel-2' and CLOUD_SCORE not in cols:
+			cols.append(CLOUD_SCORE)
 	more, credits = of_datasets(cols)
 	return ids + more, credits
 

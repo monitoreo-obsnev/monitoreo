@@ -1263,11 +1263,11 @@
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
 	// greyed out also for the fixed layers without dates (elevation, slope)
-	// The key of the note under the variable E with a single metric: the SCF of Landsat or MODIS, the snow cover days
-	// or the cloud frequency, or null
+	// The key of the note under the variable E with a single metric: the SCF of Landsat or Sentinel-2 (the same
+	// rules) or of MODIS, the snow cover days or the cloud frequency, or null
 	function variableNote(e) {
 		if (!e.metric) return null;
-		if (e.index === 'SCF') return e.sensor === 'Landsat' ? 'scfNote' : 'scfModisNote';
+		if (e.index === 'SCF') return e.sensor === 'Modis' ? 'scfModisNote' : 'scfNote';
 		return {SCD: 'scdNote', CF: 'cfNote'}[e.index] || null;
 	}
 

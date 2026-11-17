@@ -15,12 +15,13 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 87  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 89  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
 	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
 	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150), the
-	# SCF of MODIS (Terra and Aqua: refs 151 and 152) and the snow cover days (SCD) of Landsat and MODIS (153 to 155)
+	# SCF of MODIS (Terra and Aqua: refs 151 and 152), the snow cover days (SCD) of Landsat and MODIS (153 to 155) and
+	# the SCF and the SCD of Sentinel-2 (156 and 157)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -82,8 +83,7 @@ def test_scf_in_the_catalog():
 	assert sensors.is_scf(e) and not sensors.is_scf(catalog.find('NDSI', 'Landsat'))
 	assert sensors.parse_formula(e) == ('scf', ['green', 'nir', 'swir1'])
 	assert catalog.find('NDSI', 'Landsat')['unit'] == '[unitless]'  # the entry it copies is unchanged
-	with pytest.raises(KeyError):
-		catalog.find('SCF', 'Sentinel-2')
+	assert catalog.find('SCF', 'Sentinel-2')['ref'] == 156  # its own entry (see the test of the SCF of Sentinel-2)
 	# fixed filters: always clouds and water, whatever the quality; never snow (what it measures) nor aerosols
 	fixed = {'clouds': True, 'water': True, 'snow': False, 'aerosols': False}
 	assert sensors.filters(e) == fixed and sensors.fixed_filters(e) == ['clouds', 'water']
@@ -91,7 +91,7 @@ def test_scf_in_the_catalog():
 	assert sensors.conflicts(e) == [] and sensors.fixed_filters(catalog.find('NDSI', 'Landsat')) is None
 	assert sensors.filters(catalog.find('NDSI', 'Landsat'), {'water': False})['water'] is False  # the others: free
 	assert sensors.SCF['ndsi'] == 0.35 and sensors.SCF['toa_green'] == 0.08 and sensors.SCF['min_elevation'] == 1500
-	assert set(sensors.SCF_TOA) == {c for c, _, _ in sensors.LANDSAT}
+	assert set(sensors.SCF_TOA) == {c for c, _, _ in sensors.LANDSAT} | {'COPERNICUS/S2_SR_HARMONIZED'}
 	# the mean, also in maps (whose default is the median); between years, any
 	spec = services.make_spec('SCF', 'Landsat', '2020-10-01', '2021-05-31', metric='mean')
 	assert spec['metric'] == 'mean' and spec['name'] == 'SCF_L_mean'
@@ -106,7 +106,7 @@ def test_scf_in_the_catalog():
 	d = services.describe_variable('SCF', 'Landsat')
 	assert d['metric'] == 'mean' and d['measures'] == ['snow'] and d['unit'] == '[%]' and 'hillShadow' in d['notes']['ft']
 	assert d['fixed_filters'] == ['clouds', 'water'] and d['pixel_filters'] == fixed
-	assert [r['ref'] for r in services.list_variables(text='snow cover frequency')] == [105, 151, 152]
+	assert [r['ref'] for r in services.list_variables(text='snow cover frequency')] == [105, 151, 152, 156]
 	assert services.list_variables(text='snow cover frequency')[0]['fixed_filters'] == ['clouds', 'water']
 	assert 'fixed_filters' not in services.describe_variable('NDSI', 'Landsat')
 	# the title of the y axis of its charts; the other variables keep their unit
@@ -156,8 +156,32 @@ def test_scf_of_modis_and_snow_cover_days_in_the_catalog():
 		                   metric='days')
 	d = services.describe_variable('SCD', 'Landsat')
 	assert d['metric'] == 'days' and d['measures'] == ['snow'] and d['fixed_filters'] == ['clouds', 'water']
-	assert [r['ref'] for r in services.list_variables(text='snow cover days')] == [153, 154, 155]
+	assert [r['ref'] for r in services.list_variables(text='snow cover days')] == [153, 154, 155, 157]
 	assert catalog.unit_of('[days]', 'days') == '[days]'
+
+
+def test_scf_and_snow_cover_days_of_sentinel2_in_the_catalog():
+	# the rules of the SCF of Landsat on the bands of the NDSI of Sentinel-2 (entry 8), at the 20 m of its SWIR1
+	for ref, index, unit, metric in ((156, 'SCF', '[%]', 'mean'), (157, 'SCD', '[days]', 'days')):
+		e = catalog.find(None, ref=ref)
+		assert (e['index'], e['sensor'], e['col'], e['m'], e['unit'], e['metric']) == (
+			index, 'Sentinel-2', 'COPERNICUS/S2_SR_HARMONIZED', 20, unit, metric)
+		assert sensors.is_scf(e) and sensors.parse_formula(e) == ('scf', ['B3', 'B8', 'B11'])  # no Earth Engine
+		assert sensors.fixed_filters(e) == ['clouds', 'water'] and e['theme'] == 'snow'
+		assert e['references'] == ['hall1995', 'gascoin2019'] and catalog.find(index, 'Sentinel-2')['ref'] == ref
+	notes = catalog.find(None, ref=156)['notes']['ft']
+	assert 'Cloud Score+' in notes and 'hillShadow' in notes and 'Level-1C' in notes
+	ndsi = catalog.find('NDSI', 'Sentinel-2')  # the entry they copy is unchanged
+	assert (ndsi['ref'], ndsi['m'], ndsi['ft'], ndsi['unit']) == (8, 10, 'N(B3, B11)', '[unitless]')
+	# the TOA reflectance of the same scene (Level-1C, its raw values x 0.0001), the clouds of Cloud Score+ always
+	assert sensors.SCF_TOA['COPERNICUS/S2_SR_HARMONIZED'] == ('COPERNICUS/S2_HARMONIZED', ['B3', 'B11'])
+	assert sensors.SCF_TOA_SCALE == {'COPERNICUS/S2_HARMONIZED': 0.0001} and sensors.SCF['cloud_score'] == 0.6
+	assert services.make_spec('SCF', 'Sentinel-2', '2021-10-01', '2022-05-31', metric='mean')['name'] == 'SCF_S2_mean'
+	assert services.make_spec('SCD', 'Sentinel-2', '2021-10-01', '2022-05-31', metric='days')['name'] == 'SCD_S2_days'
+	with pytest.raises(ValueError, match="only takes the metric 'days'"):
+		services.make_spec('SCD', 'Sentinel-2', '2021-10-01', '2022-05-31', metric='median')
+	d = services.describe_variable('SCF', 'Sentinel-2')
+	assert d['metric'] == 'mean' and d['fixed_filters'] == ['clouds', 'water']
 
 
 def test_the_spans_of_the_snow_cover_days():

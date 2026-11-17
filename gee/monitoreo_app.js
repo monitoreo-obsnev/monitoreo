@@ -14790,6 +14790,98 @@ var CATALOG = {
    "vname_en": "Snow cover days"
   },
   {
+   "axis": "Snow Cover Frequency (SCF)",
+   "band": null,
+   "classes": null,
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": [
+    "B3",
+    "B8",
+    "B11"
+   ],
+   "fk": "scf",
+   "ft": "SCF(B3,B8,B11)",
+   "image_asset": null,
+   "index": "SCF",
+   "large_areas": false,
+   "m": 20,
+   "maxp": 100,
+   "metric": "mean",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 156,
+   "scale": 0.0001,
+   "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "5-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[%]",
+   "vname": "Frecuencia de nieve",
+   "vname_en": "Snow cover frequency"
+  },
+  {
+   "axis": "Snow Cover Days (SCD)",
+   "band": null,
+   "classes": null,
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": [
+    "B3",
+    "B8",
+    "B11"
+   ],
+   "fk": "scf",
+   "ft": "SCF(B3,B8,B11)",
+   "image_asset": null,
+   "index": "SCD",
+   "large_areas": false,
+   "m": 20,
+   "maxp": 240,
+   "metric": "days",
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "f7fbff",
+    "deebf7",
+    "c6dbef",
+    "9ecae1",
+    "6baed6",
+    "4292c6",
+    "2171b5",
+    "08519c",
+    "08306b"
+   ],
+   "ref": 157,
+   "scale": 0.0001,
+   "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
+   "theme": "snow",
+   "tr": "5-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[days]",
+   "vname": "D\u00edas de nieve",
+   "vname_en": "Snow cover days"
+  },
+  {
    "axis": "Cloud Frequency (CF)",
    "band": null,
    "classes": null,
@@ -17063,15 +17155,18 @@ var MonitorEO = (function () {
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
 	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF', 'SCD'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
-	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat
+	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat and Sentinel-2
 	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
-		scene_clouds: 80, dem: 'USGS/SRTMGL1_003'};
-	var SCF_TOA = {  // sensors.SCF_TOA: TOA collection of each Landsat collection, with its green and SWIR1 bands
+		scene_clouds: 80, cloud_score: 0.6, dem: 'USGS/SRTMGL1_003'};
+	var SCF_TOA = {  // sensors.SCF_TOA: TOA collection of each Landsat collection and of Sentinel-2, green and SWIR1
 		'LANDSAT/LT05/C02/T1_L2': ['LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']],
 		'LANDSAT/LE07/C02/T1_L2': ['LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']],
 		'LANDSAT/LC08/C02/T1_L2': ['LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']],
-		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']]
+		'LANDSAT/LC09/C02/T1_L2': ['LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']],
+		'COPERNICUS/S2_SR_HARMONIZED': ['COPERNICUS/S2_HARMONIZED', ['B3', 'B11']]
 	};
+	// sensors.SCF_TOA_SCALE: TOA reflectance = raw value x it (the TOA of Landsat is reflectance already)
+	var SCF_TOA_SCALE = {'COPERNICUS/S2_HARMONIZED': 0.0001};
 	var SCF_FILTERS = ['clouds', 'water'];  // fixed: the SCF is the % of the clear observations (see fixedFilters)
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
@@ -17296,14 +17391,16 @@ var MonitorEO = (function () {
 		return mask;
 	}
 
-	// sensors._with_toa: images of COL with the bands toa_green and toa_swir1 of the same scene in the TOA collection
+	// sensors._with_toa: images of COL with the bands toa_green and toa_swir1 (TOA reflectance) of the same scene in the
+	// TOA collection
 	function withToa(col, colId, region, start, end) {
-		var toaId = SCF_TOA[colId][0], bands = SCF_TOA[colId][1];
+		var toaId = SCF_TOA[colId][0], bands = SCF_TOA[colId][1], scale = SCF_TOA_SCALE[toaId];
 		var toa = ee.ImageCollection(toaId).filterBounds(region).filterDate(start, end);
 		var same = ee.Filter.equals({leftField: 'system:index', rightField: 'system:index'});
 		return ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same)).map(function (i) {
 			i = ee.Image(i);
-			return i.addBands(ee.Image(i.get('toa')).select(bands, ['toa_green', 'toa_swir1']));
+			var bandsToa = ee.Image(i.get('toa')).select(bands, ['toa_green', 'toa_swir1']);
+			return i.addBands(scale ? bandsToa.multiply(scale) : bandsToa);
 		});
 	}
 
@@ -17340,6 +17437,14 @@ var MonitorEO = (function () {
 			var last = ee.Date(CATALOG.collections[GAP_FILLED[entry.col]].end).millis();  // as the references
 			out = sceneFilter(ee.ImageCollection(GAP_FILLED[entry.col]).filterBounds(region).filterDate(start, end))
 				.filter(ee.Filter.lte('system:time_start', last)).merge(out.filter(ee.Filter.gt('system:time_start', last)));
+		}
+		if (entry.sensor === 'Sentinel-2' && isScf(entry)) {  // the SCF: its scene filter, Cloud Score+ always (its fixed
+			// clouds), only the bands it reads (the scenes of 2017 do not all have them in the same order), the TOA bands
+			var used = entry.fb.concat(RGB['Sentinel-2'][0], ['SCL', 'cs_cdf'])
+				.filter(function (b, i, a) { return a.indexOf(b) === i; });
+			out = out.filter(ee.Filter.lt(SCENE_CLOUDS['Sentinel-2'], SCF.scene_clouds))
+				.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf']).select(used);
+			return withToa(out, entry.col, region, start, end);
 		}
 		if (entry.sensor === 'Sentinel-2' && filters(entry, quality).clouds && quality.cloud_score !== null &&
 				quality.cloud_score !== undefined) {
@@ -17408,9 +17513,11 @@ var MonitorEO = (function () {
 	}
 
 	// sensors.scf_collection: the snow of the SCF, 100 where a valid observation has snow, 0 where it has none (with
-	// RGB, also its true colour on those pixels)
+	// RGB, also its true colour on those pixels); Landsat and Sentinel-2 differ only in the sun of the scene and in the
+	// bands of their clouds and water
 	function scfCollection(entry, region, start, end, quality, rgb) {
 		if (entry.sensor === 'Modis') return modisScfCollection(entry, region, start, end, quality, rgb);
+		var s2 = entry.sensor === 'Sentinel-2';
 		var green = entry.fb[0], nir = entry.fb[1], swir1 = entry.fb[2];
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var dem = ee.Image(SCF.dem);
@@ -17423,12 +17530,21 @@ var MonitorEO = (function () {
 			var snowSun = g.subtract(s).divide(g.add(s)).gte(SCF.ndsi).and(g.gt(SCF.green)).and(n.gt(SCF.nir));
 			var tg = toa.select('toa_green'), ts = toa.select('toa_swir1');
 			var snowShade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF.ndsi).and(tg.gte(SCF.toa_green));
-			var zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')));
-			var lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF.shadow_reach, true);
+			var azimuth, zenith, clear, dry;
+			if (s2) {  // the mean sun of the scene; its fixed filters (SCF_FILTERS): Cloud Score+ and the water of the SCL
+				azimuth = ee.Number(img.get('MEAN_SOLAR_AZIMUTH_ANGLE'));
+				zenith = ee.Number(img.get('MEAN_SOLAR_ZENITH_ANGLE'));
+				clear = img.select('cs_cdf').gte(SCF.cloud_score);
+				dry = img.select('SCL').remap(S2_SCL.water, S2_SCL.water.map(function () { return 0; }), 1);
+			} else {  // the sun of the scene; its fixed filters (SCF_FILTERS): the clouds and the water of QA_PIXEL
+				azimuth = ee.Number(img.get('SUN_AZIMUTH'));
+				zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')));
+				var qa = img.select('QA_PIXEL');
+				clear = bits(qa, 3).eq(0).and(bits(qa, 9).eq(0));
+				dry = bits(qa, 7).eq(0);
+			}
+			var lit = ee.Terrain.hillShadow(dem, azimuth, zenith, SCF.shadow_reach, true);
 			var shade = lit.not();
-			var qa = img.select('QA_PIXEL');
-			var clear = bits(qa, 3).eq(0).and(bits(qa, 9).eq(0));  // its fixed filters (SCF_FILTERS): clouds and water
-			var dry = bits(qa, 7).eq(0);
 			var validSun = lit.and(clear).and(dry).and(snowSun.mask());
 			var validShade = shade.and(high).and(clear.unmask(0)).and(snowShade.mask());
 			var snow = snowSun.unmask(0).and(lit).or(snowShade.unmask(0).and(shade));
@@ -21828,11 +21944,11 @@ var MonitorEO = (function () {
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
 	// greyed out also for the fixed layers without dates (elevation, slope)
-	// The key of the note under the variable E with a single metric: the SCF of Landsat or MODIS, the snow cover days
-	// or the cloud frequency, or null
+	// The key of the note under the variable E with a single metric: the SCF of Landsat or Sentinel-2 (the same
+	// rules) or of MODIS, the snow cover days or the cloud frequency, or null
 	function variableNote(e) {
 		if (!e.metric) return null;
-		if (e.index === 'SCF') return e.sensor === 'Landsat' ? 'scfNote' : 'scfModisNote';
+		if (e.index === 'SCF') return e.sensor === 'Modis' ? 'scfModisNote' : 'scfNote';
 		return {SCD: 'scdNote', CF: 'cfNote'}[e.index] || null;
 	}
 

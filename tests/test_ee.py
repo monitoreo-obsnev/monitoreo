@@ -309,6 +309,19 @@ def test_true_colour_metrics_and_sensors(tmp_path):
 	assert (quick['min'], quick['max']) == (0.0, 0.3)
 
 
+def test_snow_of_sentinel2_as_that_of_landsat():
+	"""The SCF and the snow cover days of Sentinel-2 (the rules of those of Landsat, its clouds from Cloud Score+) over
+	the high Sierra Nevada in a season: close to those of Landsat, and the days of each month within its days."""
+	lakes = {'bbox': [-3.40, 37.03, -3.33, 37.07]}
+	scf = {sensor: services.time_series(lakes, 'SCF', sensor, '2021-10-01', '2022-05-31', step='annual', metric='mean',
+	                                    season=['10-01', '05-31'])['rows'][0] for sensor in ('Sentinel-2', 'Landsat')}
+	assert scf['Sentinel-2']['n_images'] > scf['Landsat']['n_images']
+	assert abs(scf['Sentinel-2']['value'] - scf['Landsat']['value']) < 10
+	days = services.time_series(lakes, 'SCD', 'Sentinel-2', '2021-10-01', '2022-05-31', step='monthly', metric='days')
+	assert [r['date'] for r in days['rows']][:2] == ['2021-10-01', '2021-11-01']
+	assert all(0 <= r['value'] <= 31 for r in days['rows']) and max(r['value'] for r in days['rows']) > 15
+
+
 def test_animation(tmp_path):
 	"""An animation of three years: a frame per year with its images, the colours of the map of the period, a GIF
 	with its texts and its README."""

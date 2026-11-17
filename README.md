@@ -95,6 +95,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 ### Unreleased
 
 - **All tools**: New variables: the snow cover frequency of MODIS Terra and Aqua (500 m, daily, since 2000), and the snow cover days (SCD) of Landsat and MODIS, the days with snow of each pixel in a season, a year or a month, as maps, time series, trends and comparisons.
+- **All tools**: New variables: the snow cover frequency (SCF) and the snow cover days (SCD) of Sentinel-2 (20 m, an image every 5 days, since 2017), with the rules of those of Landsat, its clouds from Cloud Score+.
 - **Earth Engine app** (fix): The note under the cloud frequency explains the cloud frequency, instead of the snow cover frequency of Landsat.
 
 ### [v0.3.47](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.47) · 2026-11-17 · package 0.3.57
