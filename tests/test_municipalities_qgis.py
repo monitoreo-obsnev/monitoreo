@@ -157,10 +157,14 @@ def test_level_3_sets_the_country_to_spain_and_gives_back_the_one_written(plugin
 
 
 @pytest.mark.parametrize('text, first', [('Monachil', '18134'), ('monachil', '18134'), ('18134', '18134'),
-                                         ('GRANADA', '18087'), ('granada', '18087')])
+                                         ('GRANADA', '18087'), ('granada', '18087'), ("L'Hospitalet", '08101'),
+                                         ('L\u2019Hospitalet', '08101'), ('l\u2018hospitalet', '08101'),
+                                         ('Sant Joan d\u00b4Alacant', '03119')])
 def test_the_municipalities_are_found_at_once_without_earth_engine(plugin, no_earth_engine, text, first):
 	"""Level 3: services.find_admin_units in the index of the package, without a task (no Earth Engine), in any case
-	and accents or by the code of the INE, the very name first; the country (Spain, greyed out) is not sent."""
+	and accents or by the code of the INE, the very name first; the country (Spain, greyed out) is not sent. The
+	apostrophe typed as macOS writes it (’), or with the acute accent of the Spanish keyboards (´), is that of the
+	names: they were not found."""
 	dock = plugin.dock
 	panel = _panel(dock, text, level=3, country='ESP')
 	dock.MonitorEODock.search_admin(panel)

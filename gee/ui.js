@@ -712,7 +712,9 @@
 
 	// The administrative units of the level chosen whose name contains the text: of FAO GAUL 2025 (levels 1 and 2, in
 	// the country if given) or, level 3, the municipalities of Spain (by name, whatever the case and accents, or by the
-	// code of the INE), listed as 'name (province)' and their code
+	// code of the INE), listed as 'name (province)' and their code. The answer of a search whose level (or kind of
+	// region) was changed meanwhile is left out: its codes are of another level, and chooseAdmin builds the region of
+	// the level chosen
 	function searchAdmin() {
 		state.adminItems = null;
 		message(t('computing'));
@@ -720,6 +722,7 @@
 		var found = municipal ? mo.findMunicipalities(state.adminText, 30) :
 			mo.findAdminUnits(state.adminText, level, state.adminCountry || null, 30);
 		found.evaluate(function (fc, error) {
+			if (state.mode !== 'admin' || Number(state.adminLevel) !== Number(level)) return;
 			if (error) return fail(error);
 			state.adminNames = {};
 			state.adminItems = fc.features.map(function (f) {

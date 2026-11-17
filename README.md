@@ -94,7 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **All tools**: The municipalities of Spain as administrative units of level 3, of the Instituto Geográfico Nacional (its INSPIRE service, CC BY 4.0 ign.es): found by name, in any case and with or without accents, or by their code of the INE, without Earth Engine (`find_admin_units(text, level=3)`, `monitoreo units TEXT --level 3`, `mo_admin_units(text, level = 3)`, level 3 in QGIS and the Earth Engine app, the assistant), and computed as the region `{"admin3": "18134"}` from a public table of Earth Engine, the same in every tool; their results credit the IGN.
+- **All tools**: The municipalities of Spain as administrative units of level 3, of the Instituto Geográfico Nacional (its INSPIRE service, CC BY 4.0 ign.es): found by name, in any case and with or without accents, or by their code of the INE, without Earth Engine in the package, the command line, the MCP server, R, QGIS and the assistant (`find_admin_units(text, level=3)`, `monitoreo units TEXT --level 3`, `mo_admin_units(text, level = 3)`, level 3 in QGIS) and in a public table of Earth Engine in the Earth Engine app (level 3), and computed as the region `{"admin3": "18134"}` from that table, the same in every tool; their results credit the IGN.
 - **Earth Engine app**: Under the region, an administrative unit shows the credit of its data and its reference (FAO GAUL 2025 or the IGN).
 
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51

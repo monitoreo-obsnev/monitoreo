@@ -871,11 +871,13 @@ def units_text(units):
 
 def units_must_choose(units, text, last=''):
 	"""Whether the user has to choose among the administrative UNITS found for TEXT: several, not exactly one with
-	that very name, and none of their codes in the LAST message of the user."""
+	that very name (GAUL1_NAME or GAUL2_NAME; NAME, a municipality of Spain), and none of their codes in the LAST
+	message of the user."""
 	if len(units) < 2 or any(re.search(rf'\b{unit_code(u)[1]}\b', last) for u in units):
 		return False
 	name = str(text).strip().lower()
-	return sum(1 for u in units if str(u.get(f'GAUL{unit_code(u)[0]}_NAME', '')).strip().lower() == name) != 1
+	return sum(1 for u in units
+	           if str(u.get(f'GAUL{unit_code(u)[0]}_NAME') or u.get('NAME') or '').strip().lower() == name) != 1
 
 
 def receipt(n, title):

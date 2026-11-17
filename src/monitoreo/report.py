@@ -785,6 +785,14 @@ def _codes(value):
 	return value if isinstance(value, (list, tuple)) else [value]
 
 
+def _municipality_text(code, names):
+	"""A municipality of Spain (the region admin3, of the IGN) by its code of the INE: named as the assistant found it,
+	or as the index of the package has it ('Monachil (Granada), municipality of Spain (IGN)')."""
+	from . import municipalities
+	name = names.get(f'admin3:{code}') or municipalities.label(code)
+	return f'{name}, municipality of Spain (IGN)' if name else f'Municipality {code} of Spain (IGN)'
+
+
 def _region_text(region, names):
 	if 'wdpa_id' in region:
 		ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
@@ -816,6 +824,8 @@ def _region_text(region, names):
 			return '; '.join(f"{names[f'admin{level}:{c}']} (administrative unit, FAO GAUL 2025)"
 			                 if f'admin{level}:{c}' in names else
 			                 f'Administrative unit {c} of level {level} (FAO GAUL 2025)' for c in codes)
+	if 'admin3' in region:
+		return '; '.join(_municipality_text(str(c).strip().zfill(5), names) for c in _codes(region['admin3']))
 	if 'island_at' in region:
 		lon, lat = region['island_at']
 		return f'Island at the point {_num(lat)}, {_num(lon)} (lat., lon.)'

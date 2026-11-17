@@ -54,7 +54,7 @@ def _get(params, timeout=300, tries=4):
 	req = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
 	for i in range(tries):
 		try:
-			with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (the URL of the IGN above)
+			with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310: the URL of the IGN  # noqa: S310
 				return json.load(r)
 		except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
 			if i == tries - 1 or (isinstance(e, urllib.error.HTTPError) and e.code < 500):
@@ -156,9 +156,16 @@ def load():
 	return _index
 
 
+# the apostrophes typed in other ways (’ ‘ of iOS, macOS or a pasted text, ʼ, and ´ of the Spanish keyboards) as that
+# of the names, "'": else "L’Hospitalet" would be "lhospitalet", not in "l'hospitalet de llobregat"
+APOSTROPHES = str.maketrans(dict.fromkeys('\u2019\u2018\u02bc\u00b4', "'"))
+
+
 def _plain(text):
-	"""TEXT in lower case, without accents, and the separators of the bilingual names ('/', '-') as spaces."""
-	text = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('ascii').lower()
+	"""TEXT in lower case, without accents, with its apostrophes as "'" (APOSTROPHES), and the separators of the
+	bilingual names ('/', '-') as spaces."""
+	text = unicodedata.normalize('NFKD', str(text).translate(APOSTROPHES)).encode('ascii', 'ignore').decode('ascii')
+	text = text.lower()
 	return ' '.join(text.replace('/', ' ').replace('-', ' ').split())
 
 
@@ -185,6 +192,13 @@ def find(text, province=None, limit=20):
 def name_of(code):
 	"""The name of the municipality of the INE code CODE, or None."""
 	return next((r[1] for r in load()['rows'] if r[0] == str(code)), None)
+
+
+def label(code):
+	"""The name of the municipality of the INE code CODE ('18134' or 18134) with its province, as DISP_EN of find
+	('Monachil (Granada)'), or None."""
+	code = str(code).strip().zfill(5)
+	return next((f'{r[1]} ({r[2]})' for r in load()['rows'] if r[0] == code), None)
 
 
 TOLERANCE = 0.0001  # degrees (about 10 m, below the 40 m of uncertainty of the boundaries of the IGN)
@@ -273,12 +287,13 @@ def credentials(account):
 	owner of the project to upload the table; renewed by gcloud when they expire (an upload can take more than the hour
 	of a token)."""
 	import datetime as dt
-	import subprocess
+	import subprocess  # nosec B404: only gcloud, without a shell
 
 	import google.oauth2.credentials
 
 	def token(request=None, scopes=None):
-		value = subprocess.check_output(['gcloud', 'auth', 'print-access-token', '--account', account]).decode().strip()
+		cmd = ['gcloud', 'auth', 'print-access-token', '--account', account]
+		value = subprocess.check_output(cmd).decode().strip()  # nosec B603 B607: gcloud of the PATH, without a shell
 		return value, dt.datetime.utcnow() + dt.timedelta(minutes=50)
 
 	value, expiry = token()

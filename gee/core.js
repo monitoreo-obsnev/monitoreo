@@ -1739,11 +1739,14 @@ var MonitorEO = (function () {
 		return named(ee.FeatureCollection(GAUL[level]).filter(ee.Filter.eq('GAUL' + level + '_CODE', code)), 'DISP_EN');
 	}
 
-	// municipalities._plain: TEXT in lower case, without accents (its NFKD, only the ASCII), and the separators of the
-	// bilingual names ('/', '-') as spaces, its words separated by one space: the property search of the table of the
-	// municipalities (MUNICIPALITIES), so that they are found on the server whatever the case and accents
+	// municipalities._plain: TEXT in lower case, without accents (its NFKD, only the ASCII), with its apostrophes as
+	// "'" (municipalities.APOSTROPHES: U+2019, U+2018, U+02BC and U+00B4, else "L'Hospitalet" typed with U+2019 would
+	// be "lhospitalet"), and the separators of the bilingual names ('/', '-') as spaces, its words separated by one
+	// space: the property search of the table of the municipalities (MUNICIPALITIES), so that they are found on the
+	// server whatever the case and accents
 	function municipalityPlain(text) {
-		var s = String(text === null || text === undefined ? '' : text).normalize('NFKD').replace(/[^\x00-\x7f]/g, '');
+		var s = String(text === null || text === undefined ? '' : text).replace(/[\u2019\u2018\u02bc\u00b4]/g, "'")
+			.normalize('NFKD').replace(/[^\x00-\x7f]/g, '');
 		return s.toLowerCase().replace(/[\/\-]/g, ' ').split(/[\s\x1c-\x1f]+/).filter(Boolean).join(' ');
 	}
 

@@ -6,7 +6,8 @@
                                                      the classes of a categorical layer (ECOREGION, BIOME of sensor
                                                      RESOLVE): code, name, colour and biome (without Earth Engine)
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
-    monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
+    monitoreo units TEXT [--level 1|2|3] [--country ISO3]   administrative units of FAO GAUL 2025 by name; level 3:
+                                                     the municipalities of Spain, of the IGN (without Earth Engine)
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
     monitoreo series VARIABLE ... --doy [--interannual median] [--other-variable V [--other-sensor S]] [--ylim -1 1]
                      [--other-ylim -1 1]             the seasonal profile by day of the year: the metric between the
@@ -713,6 +714,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
+	if args.cmd == 'units' and args.level == 3:  # the municipalities of Spain (their index): without Earth Engine
+		return _compute(args, services)
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return

@@ -32,6 +32,8 @@ NAMES = [
 	'Valle de Ecija ', '  Múltiples   espacios\tY\nlíneas  ', 'MAYÚSCULAS ÑANDÚ', 'Ñ', 'ü', 'Øster', 'Straße', 'Æbeltoft',
 	'ﬁnca', 'km²', 'Nª Sª', 'Nº 3', 'Ⅳ', 'ＡＢＣ', 'İstanbul', 'Ǆemal', 'non breaking', 'thin space',
 	'hyphen‐minus', 'a/b-c / d - e', '--//--', '', ' ', 'sep\x1cara\x1fdo', 'emoji 😀 name', 18134, '04001',
+	# the apostrophes typed in other ways (municipalities.APOSTROPHES), as that of the names
+	'L\u2019Hospitalet', 'Sant Joan d\u2018Alacant', 'l\u02bcAlfàs del Pi', 'L\u00b4Hospitalet', 'd\u2019\u2019 \u2019',
 ]
 CODES = ['18134', 18134, 4001, ' 4001 ', ['18134', '04001'], ('18134',), [], 'abc', ['18134', 'x'], '123456', '-1',
          '+18', 'Monachil', '18 134']
@@ -117,6 +119,8 @@ def test_the_app_writes_the_names_as_the_table(app):
 	assert plain['Alacant/Alicante'] == 'alacant alicante' and plain['Vitoria-Gasteiz'] == 'vitoria gasteiz'
 	assert plain['Col·legats'] == 'collegats' and plain["L'Hospitalet de Llobregat"] == "l'hospitalet de llobregat"
 	assert plain['  Múltiples   espacios\tY\nlíneas  '] == 'multiples espacios y lineas' and plain['Straße'] == 'strae'
+	assert plain['L\u2019Hospitalet'] == plain['L\u00b4Hospitalet'] == "l'hospitalet"  # it was lhospitalet: not found
+	assert plain['Sant Joan d\u2018Alacant'] == "sant joan d'alacant" and plain['l\u02bcAlfàs del Pi'] == "l'alfas del pi"
 
 
 def test_the_app_builds_the_region_of_a_municipality_as_the_package(app, monkeypatch):
@@ -344,3 +348,101 @@ def test_monitoreo_app_js_is_written_from_the_sources(tmp_path, monkeypatch):
 		'run gee/build.py --app-only'
 	app_js = _read('gee', 'monitoreo_app.js')
 	assert 'findMunicipalities' in app_js and municipalities.ASSET in app_js
+
+
+# A search of the panel whose answer comes after the level was changed (the read of the table takes a while): the
+# evaluate of findMunicipalities and findAdminUnits holds its callback until the steps give it
+STALE = r"""
+var controls = root.children[0];
+function all(w, out) {
+	out = out || [];
+	out.push(w);
+	w.children.forEach(function (c) { all(c, out); });
+	return out;
+}
+function find(kind, test) {
+	return all(controls).filter(function (w) { return w.kind === kind && (!test || test(w)); });
+}
+function levels(w) {
+	return JSON.stringify((w.opts.items || []).map(function (i) { return i.value; })) === '[1,2,3]';
+}
+function items(value) {
+	return function (w) { return (w.opts.items || []).some(function (i) { return i.value === value; }); };
+}
+function units() {
+	var s = find('Select', function (w) { return w.opts.placeholder === 'Choose the unit'; })[0];
+	return s ? s.opts.items : null;
+}
+var held = [], calls = [], mo = MonitorEO;
+['findMunicipalities', 'findAdminUnits'].forEach(function (name) {
+	mo[name] = function () {
+		calls.push([name].concat(Array.prototype.slice.call(arguments)));
+		return {evaluate: function (done) { held.push(done); }};
+	};
+});
+function search(level, text) {
+	find('Select', levels)[0].opts.onChange(level);
+	find('Textbox', function (w) { return w.opts.placeholder !== input.countryHint; })[0].setValue(text);
+	find('Button', function (w) { return w.opts.label === 'Search'; })[0].opts.onClick();
+}
+var municipal = {features: [{properties: {code: '18134', name: 'Monachil', province: 'Granada', level: 3}}]};
+var gaul = {features: [{properties: {GAUL2_CODE: 141938, DISP_EN: 'Granada, Andalucía, Spain'}}]};
+var out = {};
+find('Select', items('admin'))[0].opts.onChange('admin');
+// level 3, then level 1 before the answer: it is left out
+search(3, 'Monachil');
+find('Select', levels)[0].opts.onChange(1);
+held.shift()(municipal);
+out.level3then1 = units();
+// level 2, then level 3 before the answer: it is left out (its GAUL codes are not codes of the INE)
+search(2, 'Granada');
+find('Select', levels)[0].opts.onChange(3);
+held.shift()(gaul);
+out.level2then3 = units();
+// level 3, then another kind of region and back to level 3 before the answer: the same level, it is kept
+search(3, 'Monachil');
+find('Select', items('admin'))[0].opts.onChange('wdpa');
+find('Select', items('admin'))[0].opts.onChange('admin');
+held.shift()(municipal);
+out.back = units();
+// level 3, then another kind of region before an error: left out too
+search(3, 'Monachil');
+find('Select', items('admin'))[0].opts.onChange('wdpa');
+held.shift()(null, 'Earth Engine failed');
+out.texts = all(root.children[2]).map(function (w) { return w.opts.value; }).filter(Boolean);
+out.calls = calls;
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_a_search_answered_after_the_level_changed_is_left_out():
+	"""The panel leaves out the answer of a search of the administrative units whose level, or kind of region, was
+	changed before it came: it listed the municipalities under level 1 (and the units of GAUL under level 3), and the
+	unit chosen gave the region of the level of the select, adminRegion(1, '18134'), empty, with the credit of FAO
+	GAUL."""
+	if not shutil.which('node'):
+		pytest.skip('no Node')
+	from test_themes import PANEL
+	start = PANEL[:PANEL.index('var controls = root.children[0]')]
+	data = _build().read_catalog()
+	data = {'community': data['community'], 'other_themes': data['other_themes'], 'assets': {},
+	        'countryHint': _ui_texts('en')['countryHint']}
+	run = subprocess.run(['node', '-e', start + STALE, GEE], input=json.dumps(data), capture_output=True, text=True,
+	                     timeout=120)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert [c[:2] for c in out['calls']] == [['findMunicipalities', 'Monachil'], ['findAdminUnits', 'Granada'],
+	                                         ['findMunicipalities', 'Monachil'], ['findMunicipalities', 'Monachil']]
+	assert out['level3then1'] is None and out['level2then3'] is None
+	assert out['back'] == [{'value': MONACHIL, 'label': 'Monachil (Granada) · INE 18134'}]
+	assert not any('Earth Engine failed' in t for t in out['texts'])
+
+
+def test_the_changelog_says_where_the_app_searches():
+	"""The app finds the municipalities in their table of Earth Engine (findMunicipalities), the other tools in the
+	index of the package: the changelog said that the app found them without Earth Engine too."""
+	entry = next(line for line in _read('README.md').splitlines() if 'municipalities of Spain as administrative' in line)
+	offline = entry[entry.index('without Earth Engine'):entry.index(')', entry.index('without Earth Engine'))]
+	assert 'Earth Engine app' not in offline and 'QGIS' in offline and 'assistant' in offline
+	assert 'in a public table of Earth Engine in the Earth Engine app' in entry
+	assert 'mo.findMunicipalities(' in _read('gee', 'ui.js')
