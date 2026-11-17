@@ -96,6 +96,10 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 - **QGIS plugin**: The maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
 
+### [v0.3.42](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.42) · 2026-11-17 · package 0.3.52
+
+- **Earth Engine app, QGIS plugin, Assistant**: The anonymous form of suggestions and errors is in English first, with the Spanish after it in italics, and the button fills in the tool with its new name.
+
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
 - **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.

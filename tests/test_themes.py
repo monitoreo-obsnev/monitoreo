@@ -65,7 +65,7 @@ def test_feedback_links():
 	assert links['issue'].startswith(about.REPOSITORY + '/issues/new/choose?')
 	assert urllib.parse.parse_qs(issue.query) == {'tool': ['QGIS plugin'], 'version': ['0.3.15']}
 	form = urllib.parse.parse_qs(urllib.parse.urlparse(links['form']).query)
-	assert form[about.FORM_FIELDS['tool']] == ['Complemento de QGIS / QGIS plugin']
+	assert form[about.FORM_FIELDS['tool']] == ['QGIS plugin / Complemento de QGIS']
 	assert form[about.FORM_FIELDS['version']] == ['0.3.15'] and form['usp'] == ['pp_url']
 	assert set(about.FEEDBACK['en']) == set(about.FEEDBACK['es']) == {'button', 'issue', 'form'}
 	for name in ('error.yml', 'suggestion.yml', 'config.yml'):  # the templates the links open
