@@ -1865,6 +1865,59 @@ def _fit_grid(regions, res, crs, max_pixels=None):
 	return grid, res
 
 
+class TooManyPixels(ValueError):
+	"""The map of a region on the pixels of the data would have more pixels than a tool downloads (see check_pixels).
+	Its attributes: pixels (of the grid), max_pixels, resolution (m), excess (% over max_pixels), share (the % of
+	the extent of the region that would fit) and sensors ([{'sensor', 'resolution', 'pixels'}] of the same variable whose
+	map fits, from the finest pixels)."""
+
+	def __init__(self, pixels, max_pixels, resolution, sensors=()):
+		self.pixels, self.max_pixels, self.resolution, self.sensors = pixels, max_pixels, resolution, list(sensors)
+		self.excess = -(-100 * (pixels - max_pixels) // max_pixels)  # rounded up, in integers (no floating error)
+		share = 100 * max_pixels / pixels  # rounded down to 2 significant digits: a region of that share fits
+		step = 10 ** (math.floor(math.log10(share)) - 1)
+		self.share = math.floor(share / step + 1e-9) * step
+		fit = ', '.join(f"{s['sensor']} ({s['resolution']:g} m)" for s in self.sensors)
+		super().__init__(
+			f'the map at {resolution:g} m, the pixels of the data, would have {pixels:,} pixels: {self.excess:,}% more '
+			f'than the {max_pixels:,} that can be downloaded. Choose '
+			+ (f'another sensor ({fit}), ' if fit else '')
+			+ f'a region with at most {self.share:g}% of its extent, or export the map to Google Drive (no limit)')
+
+
+def check_pixels(region, max_pixels, variable=None, sensor=None, resolution=None, crs='auto', sensors=None, rgb=False,
+                 **opts):
+	"""Before computing the map of REGION to download (download_image, download_rgb, download_trend,
+	download_comparison, burn_severity), whether its grid with pixels of RESOLUTION m (default: those of the data)
+	has at most MAX_PIXELS pixels. Only the bounds of the region are asked of Earth Engine, nothing is computed.
+	OPTS: the other arguments of the variable (those of make_spec; the rest are ignored). If it fits, returns
+	{'pixels', 'max_pixels', 'resolution'}; if not, raises TooManyPixels, which says by how much the map exceeds the
+	limit and what to change: the other sensors of the same variable (only those of SENSORS, if given, and with RGB
+	only those with a true colour) whose map fits, a smaller region or the export to Google Drive. The period does not
+	change the pixels of a map."""
+	known = inspect.signature(make_spec).parameters
+	spec = make_spec(variable, sensor, **{k: v for k, v in opts.items() if k in known})
+	res = float(resolution or variables.native_scale(spec))
+	grid = _grid(areas.region(region), res, crs)
+	if grid.pixels <= max_pixels:
+		return {'pixels': grid.pixels, 'max_pixels': max_pixels, 'resolution': res}
+	fit = {}  # of each other sensor of the variable, its finest pixels whose map fits
+	if variables.kind(spec) == 'catalog':
+		from . import sensors as sensors_  # (SENSORS, the argument, hides the module)
+		entry = variables.entry_of(spec)
+		allowed = {catalog.name_key(s) for s in sensors} if sensors else None
+		for e in catalog.variables():
+			key = catalog.name_key(e['sensor'])
+			if (e['index'] != entry['index'] or key == catalog.name_key(entry['sensor']) or not e.get('m')
+			        or (allowed is not None and key not in allowed) or (rgb and sensors_.rgb_of(e) is None)):
+				continue
+			other = {'sensor': e['sensor'], 'resolution': float(e['m']),
+			         'pixels': math.ceil(grid.pixels * (res / float(e['m'])) ** 2)}
+			if other['pixels'] <= max_pixels and (key not in fit or other['resolution'] < fit[key]['resolution']):
+				fit[key] = other
+	raise TooManyPixels(grid.pixels, max_pixels, res, sorted(fit.values(), key=lambda o: o['resolution']))
+
+
 def _values(path, band=1):
 	"""The different valid values of a band of a GeoTIFF (the codes of the classes of a categorical layer), as whole
 	numbers, from the lowest."""
