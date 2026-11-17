@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.43](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.43) · 2026-11-17 · package 0.3.53
 
 - **QGIS plugin**: The maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
 
