@@ -94,7 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **All tools**: the anonymous form of suggestions and errors is in English first, with the Spanish after it in italics, and the button fills in the tool with its new name.
+- **Earth Engine app, QGIS plugin, Assistant**: The anonymous form of suggestions and errors is in English first, with the Spanish after it in italics, and the button fills in the tool with its new name.
 
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
