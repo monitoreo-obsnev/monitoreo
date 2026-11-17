@@ -30,8 +30,10 @@ installation) are only for research. eecu_usage tells how much of them (or, with
 EECU quota of their project) has been spent, and the tools warn when less than 10 % is left (see eecu_warning).
 
 The periods are checked against the dates of the images of the data before computing (see monitoreo.coverage): a period
-without images is an error, and one that begins before the first image (or ends after the last one, of data that
-ended) gives a warning, as a Python warning (coverage.DataDatesWarning) and in 'warnings' of the answer ([texts]). The
+that ends before the first image, falls in a gap between the collections or begins after today is an error, and one
+that begins before the first image (or ends, or even begins, after the last one of data that ended in the copy of the
+Earth Engine data catalog) gives a warning, as a Python warning (coverage.DataDatesWarning) and in 'warnings' of the
+answer ([texts]); those of a condition of where begin with 'where, the condition on ...'. The
 answers say which data their values come from, 'data_source' (e.g. 'COPERNICUS/S2_SR_HARMONIZED (Harmonized
 Sentinel-2 MSI, Level-2A (SR))'), and their charts in a line «Data: ...».
 
@@ -666,7 +668,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	codes) has categorical, n_classes, classes_table and its classes, if they are at most categorical.DESCRIBE_MAX
 	(else classes_note: list_classes gives them). data_dates: the first and last day of its images ({'start', 'end'},
 	end None if they go on; None for a fixed layer), as the Earth Engine data catalog said on data_dates_checked (see
-	monitoreo.coverage: the tools refuse a period without images and warn of the days without them); data_source:
+	monitoreo.coverage: the tools refuse a period that ends before them, falls in a gap between their collections or
+	begins after today, and warn of the days without them); data_source:
 	its Earth Engine datasets and their title, with their product level."""
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
@@ -1649,6 +1652,7 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 		if source.get('where') or source.get('exclude_landcover'):
 			raise ValueError('where is for the classes of a variable (breaks, trend), not for those of a land cover map')
 		m, year = classes.landcover_map(landcover, year)
+		_landcover_used(m, year)
 		regions = areas.region(region)
 		res = scale or classes.scale_for(float(m['m']), regions)
 		img = classes.source(m, year, regions.geometry())  # the argument landcover hides the module of that name
@@ -1728,6 +1732,8 @@ def _transitions(region, key, year, other_year, scale, csv, chart, source):
 	_, other = classes.landcover_map(key, other_year)
 	if other == year:
 		raise ValueError(f'give two different years of {m["name"]}: year and other_year')
+	_landcover_used(m, year)
+	_landcover_used(m, other)
 	regions = areas.region(region)
 	res = scale or classes.scale_for(float(m['m']), regions)
 	geom = regions.geometry()
@@ -1750,11 +1756,17 @@ def _transitions(region, key, year, other_year, scale, csv, chart, source):
 			charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in broad if r['region'] == first],
 			                  {labels[k]: c for k, c in classes.LANDCOVER_COLOURS.items() if k in labels}, chart,
 			                  f'{title}: broad land covers' + (f' ({first})' if len(change) > 1 else ''),
-			                  (str(year), str(other)))
+			                  (str(year), str(other)), source=coverage.source())
 			out['chart'] = chart
 		except ImportError:
 			pass
 	return out
+
+
+def _landcover_used(m, year):
+	"""Note that the values of the call come from the land cover map M of YEAR (its dataset of that year, see
+	landcover.dataset): its data_source and the line «Data: ...» of its chart (see monitoreo.coverage)."""
+	coverage.used({'image': landcover.dataset(m, year)})
 
 
 def _ramp_colour(palette, t):

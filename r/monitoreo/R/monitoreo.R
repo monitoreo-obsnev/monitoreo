@@ -165,12 +165,14 @@ answer <- function(res) {
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 #'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
 #'   \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
-#'   which only have maps and their statistics. A period without images of the data is an error that says their
-#'   dates (\code{mo_describe()} gives them, data_dates); one that begins before the first image (e.g. Sentinel-2,
-#'   surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives an R warning, as
-#'   those days have no data. The results say which data their values come from (data_source, an attribute or
-#'   element: the Earth Engine collections and their product level, e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized
-#'   Sentinel-2 MSI, Level-2A (SR))") and keep the warnings (warnings).
+#'   which only have maps and their statistics. A period that ends before the first image of the data, falls between
+#'   Landsat 5 and Landsat 8 or begins after today is an error that says their dates (\code{mo_describe()} gives them,
+#'   data_dates); one that begins before the first image (e.g. Sentinel-2, surface reflectance, from 2017-03-28), or
+#'   ends (or even begins) after the last image of data that ended in the copy of the Earth Engine data catalog (Earth
+#'   Engine may have added images since), gives an R warning, as those days may have no data (those of a condition of
+#'   \code{where} begin with "where, the condition on"). The results say which data their values come from
+#'   (data_source, an attribute or element: the Earth Engine collections and their product level, e.g.
+#'   "COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))") and keep the warnings (warnings).
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 #'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
@@ -1430,10 +1432,13 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
   # NULL: None, as the services take them
   data <- list(collection = collection, where = where, image = image, band = band, band_reducer = band_reducer,
                band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
-  spec <- do.call(s$make_spec, c(list(variable, sensor, start, end, metric = metric, temporal = temporal,
-                                      interannual = interannual, season = season, quality = quality), data))
-  # the days of its period without images of its data, as R warnings (composite_image has no answer to carry them)
-  data_warnings(list(warnings = reticulate::import("monitoreo.coverage")$check(spec, s$variable_entry(spec))))
+  # the spec, and the days of its period (and of those of the conditions of where) without images of its data, as R
+  # warnings: composite_image has no answer to carry them
+  made <- do.call(reticulate::import("monitoreo.coverage", convert = TRUE)$noted,
+                  c(list(s$make_spec, variable, sensor, start, end, metric = metric, temporal = temporal,
+                         interannual = interannual, season = season, quality = quality), data))
+  spec <- made[[1]]
+  data_warnings(list(warnings = made[[2]]))
   # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none (the data
   # of Earth Engine by its ID have none: native_scale would read them in Earth Engine first)
   if (isTRUE(rgb)) variables$check_rgb(spec)

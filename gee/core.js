@@ -1070,6 +1070,7 @@ var MonitorEO = (function () {
 	var LONG_TITLE = 70;  // coverage.LONG_TITLE
 	var STEP_DAYS = {daily: 1, monthly: 31, yearly: 366, annual: 366};  // coverage.STEP_DAYS
 	var NOTES = {warnings: [], data: []};  // coverage.Notes: those of the computation of the panel (see resetNotes)
+	var LABEL = '';  // coverage._label: the start of the warnings of checkPeriod (those of a condition of where)
 
 	// coverage.short_title: TITLE of a dataset, short for a chart
 	function shortTitle(title) {
@@ -1181,15 +1182,17 @@ var MonitorEO = (function () {
 	}
 
 	function noteWarning(text) {
+		text = LABEL + text;
 		if (NOTES.warnings.indexOf(text) < 0) NOTES.warnings.push(text);
 		return text;
 	}
 
 	// coverage.check: the period of the spec S of a variable of the catalog against the dates of its images, without
-	// Earth Engine: an Error if it has no images (before the first, after the last, in a gap between collections, or
-	// after TODAY, by default today, for data that go on); else the warnings of its days without data (the period
-	// begins before the first image, or ends after the last image of data that ended and the days it covers), [texts],
-	// each also noted for the results panel (notes). Nothing for the fixed layers and the data by their ID
+	// Earth Engine: an Error if it has no images (it ends before the first, falls in a gap between collections, or
+	// begins after TODAY, by default today, whatever the data); else the warnings of its days without data (the period
+	// begins before the first image, or ends, or even begins, after the last image of data that ended, and the days it
+	// covers), [texts], each also noted for the results panel (notes). Nothing for the fixed layers and the data by
+	// their ID
 	function checkPeriod(s, today) {
 		var e = entryOf(s);
 		var found = e.static || e.custom ? null : coverageParts(e);
@@ -1198,6 +1201,11 @@ var MonitorEO = (function () {
 		var first = wins[0][1], last = addDays(wins[wins.length - 1][2], -1);
 		var a = iso(first), b = iso(last);
 		var season = s.season ? ' (in its season)' : '';
+		today = today || iso(new Date());
+		if (a > today) {  // whatever the data: also those that ended (the warning below would say they may have images)
+			throw new Error('The period asked for' + season + ', ' + a + ' to ' + b + ', begins after today (' + today +
+				'): there are no images of ' + partsText(found) + ' for it yet.');
+		}
 		var dates = datesOf(found), start = dates[0], end = dates[1];
 		var inside = found.filter(function (p) { return overlaps(p, a, b); });
 		if (!inside.length) {
@@ -1220,11 +1228,6 @@ var MonitorEO = (function () {
 			}
 			return [];
 		}
-		today = today || iso(new Date());
-		if (!end && a > today) {
-			throw new Error('The period asked for' + season + ', ' + a + ' to ' + b + ', begins after today (' + today +
-				'): there are no images of ' + partsText(found) + ' for it yet.');
-		}
 		var out = [], what = partsText(inside);
 		if (start && a < start) {
 			out.push(noteWarning('The images of ' + what + ' start on ' + start + ': the period asked for' + season +
@@ -1241,13 +1244,26 @@ var MonitorEO = (function () {
 	}
 
 	// coverage.collect: the notes of a computation of the panel, from its first spec: resetNotes, then notes() gives
-	// {warnings, data} (data: [[entry, periods]] of its variables, see used)
+	// {warnings, data} (data: [[entry, periods]] of its variables, see used); the panel keeps those of each computation
+	// (they are another object after resetNotes)
 	function resetNotes() {
 		NOTES = {warnings: [], data: []};
 	}
 
 	function notes() {
 		return NOTES;
+	}
+
+	// F() with the notes NOTED (those of the computation that called it, which a newer one may have replaced since:
+	// the blocks of a series fetched later), or its error
+	function withNotes(noted, f) {
+		var current = NOTES;
+		NOTES = noted;
+		try {
+			return f();
+		} finally {
+			NOTES = current;
+		}
 	}
 
 	// coverage.used: the values of the computation come from the data of the spec S (in its period)
@@ -1261,10 +1277,11 @@ var MonitorEO = (function () {
 		if (s.period && !e.static) item[2].push([String(s.period[0]).slice(0, 10), String(s.period[1]).slice(0, 10)]);
 	}
 
-	// coverage.source: the data of the values of the computation, as its charts say it, or null
-	function sourceText() {
+	// coverage.source: the data of the values of the computation (of its notes NOTED, default those of now), as its
+	// charts say it, or null
+	function sourceText(noted) {
 		var texts = [];
-		NOTES.data.forEach(function (d) {
+		(noted || NOTES).data.forEach(function (d) {
 			var t = dataSource(d[1], d[2]);
 			if (texts.indexOf(t) < 0) texts.push(t);
 		});
@@ -1789,10 +1806,14 @@ var MonitorEO = (function () {
 				cs.period = period.slice();
 				cs.metric = c.metric || e.metric || 'mean';
 			}
+			var label = 'where, the condition on ' + e.index + ' (' + e.sensor + '): ', outer = LABEL;
+			LABEL = outer + label;  // its warnings, named as its errors: they are not about the result
 			try {
 				return [spec(cs), c.min, c.max];
 			} catch (err) {  // e.g. a period without images of the variable of the condition (variable.where_specs)
-				throw new Error('where, the condition on ' + e.index + ' (' + e.sensor + '): ' + (err.message || String(err)));
+				throw new Error(label + (err.message || String(err)));
+			} finally {
+				LABEL = outer;
 			}
 		});
 	}
@@ -2582,9 +2603,12 @@ var MonitorEO = (function () {
 		for (var i = 0; i < steps.length; i += block) blocks.push(steps.slice(i, i + block));
 		var rows = [];
 		var count = 0;
+		var noted = NOTES;  // those of the computation of this series: its blocks note in them, whenever they come
 
 		function fetch(part, attempt, next) {
-			seriesTable(s, regions, metric, stat, scale, part, crs).evaluate(function (fc, error) {
+			withNotes(noted, function () {
+				return seriesTable(s, regions, metric, stat, scale, part, crs);
+			}).evaluate(function (fc, error) {
 				if (!error) {
 					fc.features.forEach(function (f) {
 						var r = {value: null, n_pixels: 0};
@@ -3543,7 +3567,7 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
 		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
-		resetNotes: resetNotes, notes: notes, used: used, sourceText: sourceText,
+		resetNotes: resetNotes, notes: notes, withNotes: withNotes, used: used, sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,

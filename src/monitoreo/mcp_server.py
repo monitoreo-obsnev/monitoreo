@@ -53,10 +53,12 @@ map, end it with those references (all of them, as they are) and credits, and ci
 
 The results say which data their values come from, data_source (the Earth Engine collections and their product level,
 e.g. COPERNICUS/S2_SR_HARMONIZED, Harmonized Sentinel-2 MSI, Level-2A (SR): surface reflectance), and their charts in
-a line «Data: ...»: say it with the result. A period without images of the data is an error that says their dates;
-a period that begins before the first image (e.g. Sentinel-2 SR from 2017-03-28) or ends after the last one of data
-that ended has warnings in the result (warnings): always tell the user, as those days have no data
-(describe_variable gives the dates of the data, data_dates).
+a line «Data: ...»: say it with the result. A period that ends before the first image of the data, falls between
+Landsat 5 and Landsat 8 or begins after today is an error that says their dates; a period that begins before the first
+image (e.g. Sentinel-2 SR from 2017-03-28), or ends (or even begins) after the last one of data that ended in the copy
+of the Earth Engine data catalog (Earth Engine may have added images since), has warnings in the result (warnings):
+always tell the user, as those days may have no data (describe_variable gives the dates of the data, data_dates). A
+warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover

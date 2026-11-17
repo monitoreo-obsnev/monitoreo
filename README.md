@@ -94,8 +94,9 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: A period that begins before the first image of the data (e.g. Sentinel-2 surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives a warning that those days have no data, and a period without any image is refused before computing, with the dates of the data.
-- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app, Results viewer**: The charts and results say which data their values come from, the Earth Engine collection and its product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))".
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: A period that begins before the first image of the data (e.g. Sentinel-2 surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives a warning that those days have no data (that of a condition of where says so), and a period that ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is refused before computing, with the dates of the data.
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: The charts, figures and results say which data their values come from, the Earth Engine collection and its product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))".
+- **Assistant, QGIS plugin**: The maps of the steps of a result (Date and Play in the assistant, Map of in QGIS) are only those with images of the data, without the years or months before the first image or after today.
 - **Python package, Command line, MCP server, R package**: The description of a variable gives the first and last day of its images (data_dates) and its data (data_source).
 
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51

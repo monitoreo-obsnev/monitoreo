@@ -310,10 +310,12 @@ def where_specs(spec):
 			if not isinstance(period, (list, tuple)) or len(period) != 2:
 				raise ValueError(f'the period of the condition on {e["index"]} is [start, end]')
 			var.update(period=[str(d) for d in period], metric=c.get('metric') or e.get('metric') or 'mean')
+		label = f"where, the condition on {e['index']} ({e['sensor']}): "
 		try:
-			cs = specs({k: v for k, v in var.items() if v is not None})[0]
+			with coverage.labelled(label):  # its warnings, named as its errors: they are not about the result
+				cs = specs({k: v for k, v in var.items() if v is not None})[0]
 		except ValueError as err:  # e.g. a period without images of the variable of the condition
-			raise ValueError(f"where, the condition on {e['index']} ({e['sensor']}): {err}") from None
+			raise ValueError(f'{label}{err}') from None
 		out.append((cs, c.get('min'), c.get('max')))
 	return out
 

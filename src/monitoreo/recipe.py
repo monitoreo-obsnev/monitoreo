@@ -43,7 +43,7 @@ import os
 import re
 import time
 
-from . import __version__, areas, drive, readme, references, sensors
+from . import __version__, areas, coverage, drive, readme, references, sensors
 from . import variable as variables
 from .grid import Grid, download
 
@@ -96,8 +96,9 @@ def expand(recipe, warn=_quiet):
 		try:
 			new = variables.specs(var, defaults)
 			for s in new:
-				if variables.kind(s) == 'catalog':
-					entry = variables.entry_of(s)
+				entry = variables.entry_of(s) if variables.kind(s) == 'catalog' else None
+				coverage.used(s, entry)  # the data of its values, in the answer (data_source)
+				if entry:
 					for f in sensors.conflicts(entry, s['quality']):
 						warn(f"WARNING: the {f} filter removes what {entry['index']} measures: "
 						     f"give this variable quality: {{{f}: false}}")

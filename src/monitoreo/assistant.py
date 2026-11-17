@@ -1741,7 +1741,13 @@ class Assistant:
 		if name in TASKS:
 			text = '\n'.join(texts)
 			yield {'type': 'notice', 'text': task_text(name, text)}
-			self._tool_message(name, text[:self.advice_limit()])
+			try:
+				warned = data_warnings(json.loads(text))  # the days of the period of an export without images of its data
+			except ValueError:
+				warned = []
+			for w in warned:
+				yield {'type': 'data_warning', 'text': w}
+			self._tool_message(name, text[:self.advice_limit()] + warnings_text(warned))
 			return
 		try:
 			result = json.loads(texts[0]) if texts else {}

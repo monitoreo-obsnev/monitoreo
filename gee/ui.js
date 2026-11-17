@@ -549,7 +549,9 @@
 	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
 	// swipe was shown): unless BARE (a message: computing, an error...), over it the warnings of its period (the days
 	// without images of its data, see mo.checkPeriod) and under it the data its values come from («Data: ...», as the
-	// charts of the package)
+	// charts of the package), those of the computation that is running (runNotes: a click that fails before it
+	// starts, or a newer one, does not change them)
+	var runNotes = mo.notes();
 	function show(widgets, bare) {
 		oneMap();
 		results.clear();
@@ -558,10 +560,10 @@
 				oneMap();
 				results.style().set('shown', false);
 			})));
-		var notes = mo.notes();
+		var notes = runNotes;
 		if (!bare && notes.warnings.length) results.add(ui.Label('⚠ ' + notes.warnings.join('\n⚠ '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
-		var source = bare ? null : mo.sourceText();
+		var source = bare ? null : mo.sourceText(notes);
 		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
 	}
@@ -574,8 +576,15 @@
 		message(t('error') + error, true);
 	}
 
+	// No data in that period: an answer, with the warnings of its period that explain it (e.g. it begins after the last
+	// image of data that ended) and its data, not a bare message
+	function noData() {
+		show([ui.Label(t('noData'), {color: '#b00020', whiteSpace: 'pre-wrap'})]);
+	}
+
 	function start() {
 		run += 1;
+		runNotes = mo.notes();  // those of the specs of this computation (guarded made them new): shown with its answer
 		message(t('computing'));
 		return run;
 	}
@@ -1862,6 +1871,7 @@
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
 		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
 		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
 		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
 		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
@@ -1896,7 +1906,9 @@
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
-		var zone = mo.classZone(mo.spec({ref: z.ref, quality: {}}), geom, scale);
+		var zs = mo.spec({ref: z.ref, quality: {}});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
+		var zone = mo.classZone(zs, geom, scale);
 		var name = fmt(t('zoneClassTitle'), m.name, z.index);
 		var id = start();
 		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
@@ -1920,7 +1932,9 @@
 		var m = mapImage(line.buffer(1000));
 		var native = Number(e.m);
 		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];
-		var dem = mo.image(mo.spec({ref: elevation.ref, quality: {}}), line.buffer(1000), 30);
+		var demSpec = mo.spec({ref: elevation.ref, quality: {}});
+		mo.used(demSpec);  // the elevation is on the chart too (services.transect)
+		var dem = mo.image(demSpec, line.buffer(1000), 30);
 		var id = start();
 		ee.Dictionary({length: line.length(1), centroid: line.centroid(1).coordinates()}).evaluate(guardedAsync(id, function (d) {
 			var step = Math.max(native, d.length / 100);
@@ -2227,7 +2241,7 @@
 					rows.push(r);
 				});
 			});
-			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+			if (!rows.some(function (r) { return r.value !== null; })) return noData();
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
 			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
@@ -2290,7 +2304,7 @@
 		var id = start();
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
-				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+				if (!rows.some(function (r) { return r.value !== null; })) return noData();
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);

@@ -367,6 +367,11 @@ test_that("mo_image of data of Earth Engine by its ID: its name, and the argumen
   expect_equal(biome$name, "BIOME RESOLVE")
   expect_equal(biome$vis$palette, list("fe0000", "cc6767"))
   expect_equal(sent$classes, list(12L, 13L))
+  # the days without images of the period of a condition of where, named, as an R warning (as mo_map_layer())
+  condition <- list(variable = "NDVI", sensor = "Sentinel-2", min = 0.3, period = list("2016-06-01", "2018-12-31"))
+  expect_warning(x <- mo_image(region, "NDVI", "Landsat", "2018-01-01", "2020-12-31", where = list(condition)),
+                 "where, the condition on NDVI (Sentinel-2): The images of COPERNICUS/S2_SR_HARMONIZED", fixed = TRUE)
+  expect_equal(x$name, "NDVI Landsat median 2018-01-01 2020-12-31")
 })
 
 test_that("data of Earth Engine by its ID: clear errors before Earth Engine", {

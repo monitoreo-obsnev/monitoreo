@@ -168,9 +168,11 @@ REFERENCES_HEADING = 'References (cite them with this layer):'  # before its ref
 
 def references_text(res):
 	"""The references and credits of a result (monitoreo.references), for the abstract of its layer: the credits under
-	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
+	their own heading, CREDITS_HEADING, for the print layouts (figure_layout), after the data of its values («Data:
+	...», data_source), as the figures of services.map_figure."""
 	refs = [r['text'] for r in res.get('references') or []]
-	credits = [c for c in res.get('credits') or [] if c]
+	credits = ([f"Data: {res['data_source']}"] if res.get('data_source') else []) + \
+		[c for c in res.get('credits') or [] if c]
 	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
 	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
 
@@ -2260,7 +2262,7 @@ class MonitorEODock(QDockWidget):
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
 					                   if r['region'] == first], colours, path,
 					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
-					                  (str(res['year']), str(res['other_year'])))
+					                  (str(res['year']), str(res['other_year'])), source=res.get('data_source'))
 				else:
 					charts.areas_png(res['rows'], colours, path, res['title'], source=res.get('data_source'))
 				res['chart'] = path

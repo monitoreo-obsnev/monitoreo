@@ -6,8 +6,9 @@ Engine, with the Python of QGIS (offscreen, seconds):
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). The windows of the
 results say which data their values come from («Data: ...», data_source) and the warnings of their period (in orange);
 the chart drawn with Qt (without matplotlib) and those of matplotlib say it under them; the message bar shows the
-warnings of the answers of a task (dock.result_warnings, also those of a map: {'index', 'rgb'}); and a period without
-images of the data is refused before Earth Engine, with the message of the package.
+warnings of the answers of a task (dock.result_warnings, also those of a map: {'index', 'rgb'}); the print layout of a
+map says it first in its credits (dock.references_text); and a period without images of the data is refused before
+Earth Engine, with the message of the package.
 """
 
 import os
@@ -129,6 +130,45 @@ try:
 	print('chart of matplotlib with «Data: ...»')
 except ImportError:
 	print('this QGIS has no matplotlib: the chart drawn with Qt only')
+
+# the print layout of a map (figure_layout): the credits of its layer begin with the data of its values, as the figures
+# of services.map_figure
+from qgis.core import (QgsCoordinateReferenceSystem, QgsLayoutItemLabel, QgsProject, QgsRectangle,  # noqa: E402
+                       QgsVectorLayer)
+
+credit = 'Contains modified Copernicus Sentinel data [2016-2026]'
+text = 'MonitorEO: NDVI (Sentinel-2).' + docks.references_text({'references': [], 'credits': [credit],
+                                                                 'data_source': S2})
+assert docks.layer_credits(text) == [f'Data: {S2}', credit], docks.layer_credits(text)
+assert docks.layer_credits('x' + docks.references_text({'references': [], 'credits': []})) == []  # nothing to say
+
+
+class Canvas:
+	def extent(self):
+		return QgsRectangle(-3.5, 36.9, -3.4, 37.3)
+
+	def mapSettings(self):
+		return self
+
+	def destinationCrs(self):
+		return QgsCoordinateReferenceSystem('EPSG:4326')
+
+
+layer = QgsVectorLayer('Point?crs=EPSG:4326', 'NDVI Sentinel-2', 'memory')
+layer.setAbstract(text)
+QgsProject.instance().addMapLayer(layer)
+note = next(i for i in docks.figure_layout(Canvas()).items()
+            if isinstance(i, QgsLayoutItemLabel) and 'MonitorEO [Software]' in i.text())
+assert note.text().split('\n')[:2] == [f'Data: {S2}', credit], note.text()
+QgsProject.instance().removeMapLayer(layer.id())
+print('print layout: «Data: ...» first in its credits')
+
+# Map of, in the window of a series: the whole period and the steps with images (Sentinel-2 SR from 2017-03-28)
+maps = docks.result_maps('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2',
+                                         'collection': 'COPERNICUS/S2_SR_HARMONIZED', 'start': '2016-01-01',
+                                         'end': '2020-12-31', 'step': 'annual'})
+assert [m['label'] for m in maps[1:]] == ['2017', '2018', '2019', '2020'], maps
+print('Map of: the steps with images of the data')
 
 # the plugin: the message bar shows the warnings of the answer of a task, and a period without images is refused with
 # the message of the package (before Earth Engine)
