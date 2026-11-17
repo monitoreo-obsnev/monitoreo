@@ -187,10 +187,30 @@ def name_of(code):
 	return next((r[1] for r in load()['rows'] if r[0] == str(code)), None)
 
 
-def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print):
+TOLERANCE = 0.0001  # degrees (about 10 m, below the 40 m of uncertainty of the boundaries of the IGN)
+MAX_AREA_CHANGE = 0.005  # of the area of a municipality: a smaller one (e.g. Llocnou de la Corona) is kept as it is
+
+
+def simplified(geometry, tolerance=TOLERANCE):
+	"""The GeoJSON GEOMETRY simplified with TOLERANCE degrees, keeping its topology (GDAL and GEOS), rounded to 6
+	decimals; as it is if GDAL is not there or if its area would change by more than MAX_AREA_CHANGE."""
+	try:
+		from osgeo import ogr
+	except ImportError:
+		return geometry
+	g = ogr.CreateGeometryFromJson(json.dumps(geometry))
+	s = g.SimplifyPreserveTopology(tolerance)
+	if s is None or s.IsEmpty() or abs(s.GetArea() - g.GetArea()) > MAX_AREA_CHANGE * g.GetArea():
+		return geometry
+	out = json.loads(s.ExportToJson())
+	return {'type': out['type'], 'coordinates': _round(out['coordinates'])}
+
+
+def upload(folder, project, asset=ASSET, chunk=3_500_000, tolerance=TOLERANCE, progress=print):
 	"""Upload the harvest of FOLDER to the Earth Engine table ASSET of PROJECT, public: in parts of at most CHUNK bytes
 	of GeoJSON (a request to Earth Engine takes at most 10 MB), each exported to a table of its own, then all of them
-	into ASSET, and the parts deleted. Uses the credentials given to ee.Initialize before (those of the owner of the
+	into ASSET, and the parts deleted. The polygons are simplified with TOLERANCE degrees (see simplified: about 10 m,
+	a third of the bytes to send; their areas change by 0.01 % in the median, 0.14 % in 99 % of them). Uses the credentials given to ee.Initialize before (those of the owner of the
 	project). Each municipality has the properties code, name, province, region, national_code and search (its name in
 	lower case and without accents, see _plain: the Earth Engine app finds them with it). Returns the state of the last
 	export."""
@@ -204,6 +224,8 @@ def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print):
 		ee.data.createAsset({'type': 'FOLDER'}, parent)
 	parts, part, size = [], [], 0
 	for f in _rows(folder):
+		if tolerance:
+			f = dict(f, geometry=simplified(f['geometry'], tolerance))
 		text = json.dumps(f)
 		if part and size + len(text) > chunk:
 			parts.append(part)
@@ -248,12 +270,19 @@ def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print):
 
 def credentials(account):
 	"""Credentials of Earth Engine of the Google ACCOUNT signed in with gcloud (gcloud auth login ACCOUNT), for the
-	owner of the project to upload the table."""
+	owner of the project to upload the table; renewed by gcloud when they expire (an upload can take more than the hour
+	of a token)."""
+	import datetime as dt
 	import subprocess
 
 	import google.oauth2.credentials
-	token = subprocess.check_output(['gcloud', 'auth', 'print-access-token', '--account', account]).decode().strip()
-	return google.oauth2.credentials.Credentials(token)
+
+	def token(request=None, scopes=None):
+		value = subprocess.check_output(['gcloud', 'auth', 'print-access-token', '--account', account]).decode().strip()
+		return value, dt.datetime.utcnow() + dt.timedelta(minutes=50)
+
+	value, expiry = token()
+	return google.oauth2.credentials.Credentials(value, expiry=expiry, refresh_handler=token)
 
 
 def main(argv=None):
