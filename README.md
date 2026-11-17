@@ -94,7 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
-- **QGIS plugin**: the maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
+- **QGIS plugin**: The maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
 
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
