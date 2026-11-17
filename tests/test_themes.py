@@ -1140,7 +1140,12 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	assert out['back'] == {'variables': True, 'clouds': [True, False]}
 	# a read that fails after a computation started leaves its result, and says why under the ID
 	late = out['late']
-	assert late['map']['texts'][0] == 'NDVI Sentinel-2 · Map view · Median · 2015-01-01/2025-12-31'
+	# over it, the warning of its period (Sentinel-2 SR from 2017-03-28: see monitoreo.coverage), under it its data
+	assert late['map']['texts'][0] == ('⚠ The images of COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, '
+	                                   'Level-2A (SR)) start on 2017-03-28: the period asked for begins on 2015-01-01, '
+	                                   'so its first 2 years have no data.')
+	assert late['map']['texts'][1] == 'NDVI Sentinel-2 · Map view · Median · 2015-01-01/2025-12-31'
+	assert late['map']['texts'][-1] == 'Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))'
 	assert late['after'] == late['map']
 	assert any(t.startswith('Earth Engine has no image or collection projects/someone/assets/slow, or this app cannot')
 	           for t in late['controls'])

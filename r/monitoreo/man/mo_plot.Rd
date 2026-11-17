@@ -28,6 +28,10 @@ graphics, a line type per region). With ggplot2 the right axis is a secondary ax
 the values of the other variable are drawn with the linear transform from the range of the right axis to that of
 the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
 right (\code{axis(4)}).
+
+Under every chart, a line says where its values come from: "Data: " and the attribute data_source of the series
+(the Earth Engine collections and their product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized
+Sentinel-2 MSI, Level-2A (SR))"), as the charts of the other tools of MonitorEO.
 }
 \examples{
 \dontrun{

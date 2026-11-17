@@ -1,5 +1,6 @@
 """The maps of each step of a result: its years, months or periods of 16 days, or the parts of the year of a trend.
-The assistant offers them in its page and the QGIS plugin in the windows of its results."""
+The assistant offers them in its page and the QGIS plugin in the windows of its results: only the steps with images of
+the data (see monitoreo.coverage), as the tools refuse the map of a step without them."""
 
 import datetime as dt
 
@@ -12,11 +13,30 @@ MAX_MAP_STEPS = 400  # maps of the steps of a result that are offered (the last 
 UNITS = {'annual': 'years', 'monthly': 'months', '16-day': '16-day periods'}
 
 
+def _without_images(args):
+	"""A function of the first and last day (ISO) of a step that tells whether the data of ARGS have no images then,
+	so that its map would be refused (coverage.refused: a step before their first image, in a gap between their
+	collections or after today); None if their dates are not known (they are checked when the map is made)."""
+	from . import assets, catalog, coverage
+	try:
+		if args.get('variable'):
+			entry, data = catalog.find(args['variable'], args.get('sensor'), args.get('collection'), args.get('ref')), {}
+		elif args.get('collection'):
+			entry, data = None, {'collection': assets.normalize(args['collection'])}
+		else:
+			return None
+	except (ValueError, KeyError, TypeError):
+		return None
+	return lambda first, last: bool(coverage.refused(dict(data, period=[first, last]), entry))
+
+
 def map_steps(tool, args):
 	"""[{'key', 'label', 'start', 'end'}] of the maps of each step of a result: its years, months or periods of 16
-	days (its step, or the temporal aggregation of its map; years for a whole period), with its season. [] if it is
-	not a map of a variable (map_layer, or rgb_map: the true colour of its images) nor a result over regions, or if it
-	has only one step. Those of a trend are its parts of the year (the trend of each month or 16 days, key 'part:N')."""
+	days (its step, or the temporal aggregation of its map; years for a whole period), with its season, but those
+	without images of its data (e.g. 2016 for Sentinel-2, whose images start in 2017, or the months after today). []
+	if it is not a map of a variable (map_layer, or rgb_map: the true colour of its images) nor a result over regions,
+	or if it has only one step. Those of a trend are its parts of the year (the trend of each month or 16 days, key
+	'part:N')."""
 	if tool in ('trend_table', 'trend_map'):
 		n = {'monthly': 12, '16-day': 23}.get(args.get('step'), 0)
 		return [{'key': f'part:{p}', 'label': f'Trend of {MONTHS[p - 1]}' if n == 12 else
@@ -31,6 +51,9 @@ def map_steps(tool, args):
 		return []
 	parts = [(ws, we) for _, ws, we in wins] if unit == 'annual' else \
 	        [(bs, be) for win in wins for _, bs, be in composite.bins(win, unit)]
+	empty = _without_images(args)
+	if empty:  # their maps would be refused (and Play of the assistant would stop at them)
+		parts = [(a, b) for a, b in parts if not empty(a.isoformat(), (b - dt.timedelta(days=1)).isoformat())]
 	steps = []
 	for first, after in parts[-MAX_MAP_STEPS:]:
 		last = after - dt.timedelta(days=1)

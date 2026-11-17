@@ -94,6 +94,7 @@ def test_the_features_with_the_same_name_keep_their_own_rows(monkeypatch, tmp_pa
 	                             csv=str(tmp_path / 'areas.csv'))
 	assert out['rows'] == [dict(r, map='CORINE Land Cover', year=2018) for r in rows]
 	assert out['by_landcover'] == classes.by_landcover(ha, legend)
+	assert out['data_source'] == 'COPERNICUS/CORINE/V20/100m/2018'  # the map of the year (its chart says it too)
 	csv = (tmp_path / 'areas.csv').read_text(encoding='utf-8').splitlines()
 	assert len(csv) == 1 + 3 * len(legend) and sum(1 for r in csv if r.startswith('Sierra Nevada,')) == 2 * len(legend)
 	# the chart: a panel for each feature
@@ -528,8 +529,8 @@ def changes(monkeypatch):
 	monkeypatch.setattr(services.timeseries, 'region_crs', lambda regions: 'EPSG:3035')
 	drawn = []
 
-	def sankey(flows, colours=None, path=None, title=None, names=('', '')):
-		drawn.append({'flows': flows, 'title': title, 'names': names})
+	def sankey(flows, colours=None, path=None, title=None, names=('', ''), source=None):
+		drawn.append({'flows': flows, 'title': title, 'names': names, 'source': source})
 		with open(path, 'wb') as f:
 			f.write(b'png')
 	monkeypatch.setattr(services.charts, 'sankey_png', sankey)
@@ -544,6 +545,9 @@ def test_the_sankey_diagram_is_of_the_first_feature(changes, tmp_path):
 	assert res['rows'][0]['region'] == 'Sierra Nevada' and list(res['changed_ha']) == ['Sierra Nevada', 'Doñana']
 	drawn, = changes
 	assert drawn['title'].endswith(': broad land covers (Sierra Nevada)') and drawn['names'] == ('2006', '2018')
+	# the data of the values: the maps of both years, in the answer and under the chart
+	assert res['data_source'] == drawn['source'] == \
+		'COPERNICUS/CORINE/V20/100m/2006; COPERNICUS/CORINE/V20/100m/2018'
 	assert sum(h for _, _, h in drawn['flows']) == 100.0 and 'Water' not in {a for a, _, _ in drawn['flows']}  # Doñana
 	with open(res['readme'], encoding='utf-8') as f:
 		text = ' '.join(f.read().split())

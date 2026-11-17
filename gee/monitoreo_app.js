@@ -5532,6 +5532,221 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "coverage": {
+  "checked": "2026-11-14",
+  "collections": {
+   "COPERNICUS/DEM/GLO30_2024_1": [
+    [
+     "COPERNICUS/DEM/GLO30_2024_1",
+     "2010-12-01",
+     "2020-11-13",
+     "Copernicus DEM GLO-30 (2024_1): Global 30m Digital Elevation Model"
+    ]
+   ],
+   "COPERNICUS/S2_SR_HARMONIZED": [
+    [
+     "COPERNICUS/S2_SR_HARMONIZED",
+     "2017-03-28",
+     null,
+     "Harmonized Sentinel-2 MSI, Level-2A (SR)"
+    ]
+   ],
+   "ECMWF/ERA5_LAND/MONTHLY_AGGR": [
+    [
+     "ECMWF/ERA5_LAND/MONTHLY_AGGR",
+     "1950-02-01",
+     null,
+     "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis"
+    ]
+   ],
+   "IDAHO_EPSCOR/TERRACLIMATE": [
+    [
+     "IDAHO_EPSCOR/TERRACLIMATE",
+     "1958-01-01",
+     "2024-12-01",
+     "TerraClimate"
+    ]
+   ],
+   "LANDSAT": [
+    [
+     "LANDSAT/LT05/C02/T1_L2",
+     "1984-03-16",
+     "2012-05-05",
+     "USGS Landsat 5 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LE07/C02/T1_L2",
+     "1999-05-28",
+     "2003-05-31",
+     "USGS Landsat 7 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC08/C02/T1_L2",
+     "2013-03-18",
+     null,
+     "USGS Landsat 8 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC09/C02/T1_L2",
+     "2021-10-31",
+     null,
+     "USGS Landsat 9 Level 2, Collection 2, Tier 1"
+    ]
+   ],
+   "MERIT/Hydro/v1_0_1": [
+    [
+     "MERIT/Hydro/v1_0_1",
+     "1987-01-01",
+     "2017-01-01",
+     "MERIT Hydro: Global Hydrography Datasets"
+    ]
+   ],
+   "MODIS/061/MCD15A3H": [
+    [
+     "MODIS/061/MCD15A3H",
+     "2002-07-04",
+     null,
+     "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MCD19A2_GRANULES": [
+    [
+     "MODIS/061/MCD19A2_GRANULES",
+     "2000-02-24",
+     null,
+     "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km"
+    ]
+   ],
+   "MODIS/061/MCD43A3": [
+    [
+     "MODIS/061/MCD43A3",
+     "2000-02-24",
+     null,
+     "MCD43A3.061 MODIS Albedo Daily 500m"
+    ]
+   ],
+   "MODIS/061/MOD09GA": [
+    [
+     "MODIS/061/MOD09GA",
+     "2000-02-24",
+     null,
+     "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MOD10A1": [
+    [
+     "MODIS/061/MOD10A1",
+     "2000-02-24",
+     null,
+     "MOD10A1.061 Terra Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MOD11A1": [
+    [
+     "MODIS/061/MOD11A1",
+     "2000-02-24",
+     null,
+     "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MOD13Q1": [
+    [
+     "MODIS/061/MOD13Q1",
+     "2000-02-18",
+     null,
+     "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/061/MOD16A2": [
+    [
+     "MODIS/061/MOD16A2",
+     "2021-01-01",
+     null,
+     "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD09GA": [
+    [
+     "MODIS/061/MYD09GA",
+     "2002-07-04",
+     null,
+     "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MYD10A1": [
+    [
+     "MODIS/061/MYD10A1",
+     "2002-07-04",
+     null,
+     "MYD10A1.061 Aqua Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD11A1": [
+    [
+     "MODIS/061/MYD11A1",
+     "2002-07-04",
+     null,
+     "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MYD13Q1": [
+    [
+     "MODIS/061/MYD13Q1",
+     "2002-07-04",
+     null,
+     "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/MOD09GA_006_NDWI": [
+    [
+     "MODIS/MOD09GA_006_NDWI",
+     "2000-02-24",
+     "2023-02-17",
+     "MODIS Terra Daily NDWI"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Aqua/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+     "2002-07-03",
+     "2025-11-30",
+     "Ocean Color SMI: Standard Mapped Image MODIS Aqua Data"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Terra/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Terra/L3SMI",
+     "2000-02-24",
+     "2025-11-29",
+     "Ocean Color SMI: Standard Mapped Image MODIS Terra Data"
+    ]
+   ],
+   "RESOLVE/ECOREGIONS/2017": [
+    [
+     "RESOLVE/ECOREGIONS/2017",
+     null,
+     null,
+     null
+    ]
+   ],
+   "UCSB-CHC/CHIRPS/V3/DAILY_SAT": [
+    [
+     "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
+     "1981-01-01",
+     null,
+     "CHIRPS Precipitation Daily Near-Real-Time"
+    ]
+   ],
+   "WORLDCLIM/V1/BIO": [
+    [
+     "WORLDCLIM/V1/BIO",
+     "1960-01-01",
+     "1991-01-01",
+     "WorldClim BIO Variables V1"
+    ]
+   ]
+  }
+ },
  "eecatalog": {
   "datasets": [
    [
@@ -17262,7 +17477,238 @@ var MonitorEO = (function () {
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
 		onlyMetric(s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref), s.metric);
+		// variable.specs: a period without images of its data is an Error; one with days without them, a warning
+		// (notes, for the results panel)
+		if (s.period && (s.ref !== undefined && s.ref !== null || s.entry)) checkPeriod(s);
 		return s;
+	}
+
+	// Dates and data of the variables (coverage.py): the Earth Engine collections of a variable of the catalog, with the
+	// dates of their images and their short titles (CATALOG.coverage, written by build.py from the copy of the index of
+	// the Earth Engine data catalog of the package), the check of a period against them and what the charts say of
+	// their data (\u00abData: ...\u00bb). The data of Earth Engine given by their ID are named by the titles of the indexes of
+	// catalog.js, but their dates are not checked: catalog.js has only their years -----------------------------------
+
+	var LEVEL = /\bLevel[- ]?\d[A-Za-z0-9]*(?: \([A-Za-z]+\))?/;  // coverage.LEVEL
+	var LONG_TITLE = 70;  // coverage.LONG_TITLE
+	var STEP_DAYS = {daily: 1, monthly: 31, yearly: 366, annual: 366};  // coverage.STEP_DAYS
+	var NOTES = {warnings: [], data: []};  // coverage.Notes: those of the computation of the panel (see resetNotes)
+	var LABEL = '';  // coverage._label: the start of the warnings of checkPeriod (those of a condition of where)
+
+	// coverage.short_title: TITLE of a dataset, short for a chart
+	function shortTitle(title) {
+		title = String(title || '').split(/\s+/).filter(Boolean).join(' ');
+		var i = title.indexOf(': ');
+		if (i < 0) return title || null;
+		var level = LEVEL.exec(title.slice(i + 2));
+		if (level) return title.slice(0, i) + ', ' + level[0];
+		return title.length > LONG_TITLE ? title.slice(0, i) : title;
+	}
+
+	// coverage.join: WORDS in a sentence, 'a', 'a and b', 'a, b and c'
+	function joinWords(words) {
+		return words.length < 3 ? words.join(' and ') : words.slice(0, -1).join(', ') + ' and ' + words[words.length - 1];
+	}
+
+	// coverage.join_titles: one title for the titles of several datasets of a family ('USGS Landsat 8 and 9 Level 2,
+	// Collection 2, Tier 1'), or those that share nothing joined with '; '
+	function joinTitles(titles) {
+		var unique = [];
+		titles.forEach(function (t) { if (t && unique.indexOf(t) < 0) unique.push(t); });
+		if (unique.length < 2) return unique.length ? unique[0] : null;
+		var words = unique.map(function (t) { return t.split(' '); });
+		var n = Math.min.apply(null, words.map(function (w) { return w.length; }));
+		var head = 0, tail = 0;
+		while (head < n - 1 && words.every(function (w) { return w[head] === words[0][head]; })) head++;
+		while (tail < n - head - 1 && words.every(function (w) {
+			return w[w.length - 1 - tail] === words[0][words[0].length - 1 - tail];
+		})) tail++;
+		if (!head && !tail) return unique.join('; ');
+		var middles = words.map(function (w) { return w.slice(head, w.length - tail).join(' '); });
+		return words[0].slice(0, head).concat([joinWords(middles)], tail ? words[0].slice(words[0].length - tail) : [])
+			.join(' ');
+	}
+
+	// coverage.text: the data of the datasets IDS named NAME, as the charts and warnings say it
+	function dataText(ids, name) {
+		return name ? joinWords(ids) + ' (' + name + ')' : joinWords(ids);
+	}
+
+	// coverage.title: the short title of the Earth Engine dataset ASSET, from the index of the Earth Engine data catalog
+	// or of the GEE Community Catalog of catalog.js, or null
+	function assetTitle(asset) {
+		var rows = (CATALOG.eecatalog || {}).datasets || [];
+		for (var i = 0; i < rows.length; i++) if (rows[i][0] === asset) return shortTitle(rows[i][1]);
+		var c = CATALOG.community ? communityRecord(asset) : null;
+		return c ? shortTitle(c.title) : null;
+	}
+
+	// coverage.parts: [[ID, first day, last day or null, short title]] of the collections of the images of the entry E
+	// of the catalog (null if catalog.js has none)
+	function coverageParts(e) {
+		return ((CATALOG.coverage || {}).collections || {})[e.col] || null;
+	}
+
+	// coverage._overlaps: whether PART has images between the days A and B (ISO)
+	function overlaps(part, a, b) {
+		return (!part[1] || part[1] <= b) && (!part[2] || part[2] >= a);
+	}
+
+	// coverage._dates_of: [first day, last day or null if one of them goes on] of the images of the parts FOUND
+	function datesOf(found) {
+		var starts = found.map(function (p) { return p[1]; }).filter(Boolean).sort();
+		var ends = found.map(function (p) { return p[2]; });
+		var open = ends.some(function (x) { return !x; });
+		return [starts.length ? starts[0] : null, open || !ends.length ? null : ends.slice().sort()[ends.length - 1]];
+	}
+
+	function partsText(found) {
+		return dataText(found.map(function (p) { return p[0]; }), joinTitles(found.map(function (p) { return p[3]; })));
+	}
+
+	// coverage.of_entry (its text): the data of the values of the entry E of the catalog in PERIODS ([[first, last
+	// day]]; all its collections without them), e.g. 'COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A
+	// (SR))'; of the data of Earth Engine by their ID, their ID and title
+	function dataSource(e, periods) {
+		if (e.custom) return dataText([e.col], assetTitle(e.col));
+		var found = coverageParts(e);
+		if (!found) return e.col;
+		var inside = e.static ? [] : found.filter(function (p) {
+			return (periods || []).some(function (q) { return overlaps(p, q[0], q[1]); });
+		});
+		return partsText(inside.length ? inside : found);
+	}
+
+	// coverage.step_days: the days that each image of the entry E covers (its 'tr')
+	function stepDays(e) {
+		var tr = String(e.tr || '').trim().toLowerCase();
+		var m = /^(\d+)\s*-?\s*days?$/.exec(tr);
+		return m ? Number(m[1]) : (STEP_DAYS[tr] || 1);
+	}
+
+	// coverage._how_long and coverage._missing: 'its first 15 months have no data', 'its last day has no data'
+	function howLong(days) {
+		var n = days, unit = 'day';
+		if (days >= 730) {
+			n = Math.round(days / 365.25);
+			unit = 'year';
+		} else if (days >= 31) {
+			n = Math.round(days / 30.4375);
+			unit = 'month';
+		}
+		return n === 1 ? '1 ' + unit : n + ' ' + unit + 's';
+	}
+
+	function missing(which, days) {
+		var length = howLong(days), one = length.indexOf('1 ') === 0;
+		return 'its ' + which + ' ' + (one ? length.slice(2) : length) + ' ' + (one ? 'has' : 'have') + ' no data';
+	}
+
+	function noteWarning(text) {
+		text = LABEL + text;
+		if (NOTES.warnings.indexOf(text) < 0) NOTES.warnings.push(text);
+		return text;
+	}
+
+	// coverage.check: the period of the spec S of a variable of the catalog against the dates of its images, without
+	// Earth Engine: an Error if it has no images (it ends before the first, falls in a gap between collections, or
+	// begins after TODAY, by default today, whatever the data); else the warnings of its days without data (the period
+	// begins before the first image, or ends, or even begins, after the last image of data that ended, and the days it
+	// covers), [texts], each also noted for the results panel (notes). Nothing for the fixed layers and the data by
+	// their ID
+	function checkPeriod(s, today) {
+		var e = entryOf(s);
+		var found = e.static || e.custom ? null : coverageParts(e);
+		if (!found || !found.some(function (p) { return p[1]; })) return [];
+		var wins = windows(s.period, s.season);
+		var first = wins[0][1], last = addDays(wins[wins.length - 1][2], -1);
+		var a = iso(first), b = iso(last);
+		var season = s.season ? ' (in its season)' : '';
+		today = today || iso(new Date());
+		if (a > today) {  // whatever the data: also those that ended (the warning below would say they may have images)
+			throw new Error('The period asked for' + season + ', ' + a + ' to ' + b + ', begins after today (' + today +
+				'): there are no images of ' + partsText(found) + ' for it yet.');
+		}
+		var dates = datesOf(found), start = dates[0], end = dates[1];
+		var inside = found.filter(function (p) { return overlaps(p, a, b); });
+		if (!inside.length) {
+			var data = partsText(found);
+			if (start && b < start) {
+				throw new Error('The images of ' + data + ' start on ' + start + ': the period asked for' + season + ', ' + a +
+					' to ' + b + ', ends before them and has no data. Choose a period from ' + start + ' on.');
+			}
+			if (end && a > end) {  // a warning, not an error: the copy of the index may be older than their last images
+				return [noteWarning('The images of ' + data + ' end on ' + end + ' (in the copy of the Earth Engine data ' +
+					'catalog of ' + (CATALOG.coverage || {}).checked + '): the period asked for' + season + ', ' + a + ' to ' + b +
+					', begins after them, so it may have no data, unless Earth Engine has added images since.')];
+			}
+			var before = found.map(function (p) { return p[2]; }).filter(function (x) { return x && x < a; }).sort();
+			var after = found.map(function (p) { return p[1]; }).filter(function (x) { return x && x > b; }).sort();
+			if (before.length && after.length) {
+				throw new Error('The images of ' + data + ' have none from ' + iso(addDays(date(before[before.length - 1]), 1)) +
+					' to ' + iso(addDays(date(after[0]), -1)) + ': the period asked for' + season + ', ' + a + ' to ' + b +
+					', has no data. Choose a period before or after those days.');
+			}
+			return [];
+		}
+		var out = [], what = partsText(inside);
+		if (start && a < start) {
+			out.push(noteWarning('The images of ' + what + ' start on ' + start + ': the period asked for' + season +
+				' begins on ' + a + ', so ' + missing('first', Math.round((date(start) - first) / 86400000)) + '.'));
+		}
+		if (end) {
+			var covered = addDays(date(end), stepDays(e) - 1);
+			if (last > covered) {
+				out.push(noteWarning('The images of ' + what + ' end on ' + end + ': the period asked for' + season +
+					' ends on ' + b + ', so ' + missing('last', Math.round((last - covered) / 86400000)) + '.'));
+			}
+		}
+		return out;
+	}
+
+	// coverage.collect: the notes of a computation of the panel, from its first spec: resetNotes, then notes() gives
+	// {warnings, data} (data: [[entry, periods]] of its variables, see used); the panel keeps those of each computation
+	// (they are another object after resetNotes)
+	function resetNotes() {
+		NOTES = {warnings: [], data: []};
+	}
+
+	function notes() {
+		return NOTES;
+	}
+
+	// F() with the notes NOTED (those of the computation that called it, which a newer one may have replaced since:
+	// the blocks of a series fetched later), or its error
+	function withNotes(noted, f) {
+		var current = NOTES;
+		NOTES = noted;
+		try {
+			return f();
+		} finally {
+			NOTES = current;
+		}
+	}
+
+	// coverage.used: the values of the computation come from the data of the spec S (in its period)
+	function used(s) {
+		var e = entryOf(s), key = (e.custom ? 'asset ' : 'entry ') + e.col;
+		var item = NOTES.data.filter(function (d) { return d[0] === key; })[0];
+		if (!item) {
+			item = [key, e, []];
+			NOTES.data.push(item);
+		}
+		if (s.period && !e.static) item[2].push([String(s.period[0]).slice(0, 10), String(s.period[1]).slice(0, 10)]);
+	}
+
+	// coverage.source: the data of the values of the computation (of its notes NOTED, default those of now), as its
+	// charts say it, or null
+	function sourceText(noted) {
+		var texts = [];
+		(noted || NOTES).data.forEach(function (d) {
+			var t = dataSource(d[1], d[2]);
+			if (texts.indexOf(t) < 0) texts.push(t);
+		});
+		return texts.length ? texts.join('; ') : null;
 	}
 
 	// variable.specs: error if METRIC is not the only metric of the entry E, if it has one (SCF and CF: the mean of
@@ -17783,7 +18229,15 @@ var MonitorEO = (function () {
 				cs.period = period.slice();
 				cs.metric = c.metric || e.metric || 'mean';
 			}
-			return [spec(cs), c.min, c.max];
+			var label = 'where, the condition on ' + e.index + ' (' + e.sensor + '): ', outer = LABEL;
+			LABEL = outer + label;  // its warnings, named as its errors: they are not about the result
+			try {
+				return [spec(cs), c.min, c.max];
+			} catch (err) {  // e.g. a period without images of the variable of the condition (variable.where_specs)
+				throw new Error(label + (err.message || String(err)));
+			} finally {
+				LABEL = outer;
+			}
 		});
 	}
 
@@ -18572,9 +19026,12 @@ var MonitorEO = (function () {
 		for (var i = 0; i < steps.length; i += block) blocks.push(steps.slice(i, i + block));
 		var rows = [];
 		var count = 0;
+		var noted = NOTES;  // those of the computation of this series: its blocks note in them, whenever they come
 
 		function fetch(part, attempt, next) {
-			seriesTable(s, regions, metric, stat, scale, part, crs).evaluate(function (fc, error) {
+			withNotes(noted, function () {
+				return seriesTable(s, regions, metric, stat, scale, part, crs);
+			}).evaluate(function (fc, error) {
 				if (!error) {
 					fc.features.forEach(function (f) {
 						var r = {value: null, n_pixels: 0};
@@ -19531,6 +19988,9 @@ var MonitorEO = (function () {
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
+		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
+		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
+		resetNotes: resetNotes, notes: notes, withNotes: withNotes, used: used, sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
@@ -19761,7 +20221,7 @@ var MonitorEO = (function () {
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'C\u00f3digo', cite: 'C\u00f3mo citar',
 			computing: 'Calculando\u2026', progress: 'Calculando\u2026 %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El bot\u00f3n \u2922 de la gr\u00e1fica la abre en otra pesta\u00f1a, desde donde se descarga como imagen.',
-			scaleNote: 'Calculado con p\u00edxeles de %s m.', date: 'Fecha', value: 'Valor', reference: 'Referencia',
+			scaleNote: 'Calculado con p\u00edxeles de %s m.', dataSource: 'Datos:', date: 'Fecha', value: 'Valor', reference: 'Referencia',
 			yearAxis: 'A\u00f1o', senLine: 'recta de Sen', part: 'Parte del a\u00f1o', significantShort: 'signif.',
 			yes: 's\u00ed', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La regi\u00f3n es demasiado grande para esta app (%s km\u00b2; m\u00e1ximo %s km\u00b2).',
@@ -19958,7 +20418,7 @@ var MonitorEO = (function () {
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing\u2026', progress: 'Computing\u2026 %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The \u2922 button of the chart opens it in another tab, where it can be downloaded as an image.',
-			scaleNote: 'Computed on pixels of %s m.', date: 'Date', value: 'Value', reference: 'Reference',
+			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', date: 'Date', value: 'Value', reference: 'Reference',
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km\u00b2; at most %s km\u00b2).',
@@ -20096,6 +20556,8 @@ var MonitorEO = (function () {
 
 	var H = {fontWeight: 'bold', fontSize: '14px', margin: '14px 0 4px 8px'};
 	var SMALL = {fontSize: '12px', color: '#555'};
+	// the warnings of the period of a result (days without images of its data: mo.checkPeriod), over it
+	var WARNING = {fontSize: '12px', color: '#b35900', whiteSpace: 'pre-wrap'};
 
 	function header(text) {
 		return ui.Label(text, H);
@@ -20131,8 +20593,12 @@ var MonitorEO = (function () {
 	}
 
 	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
-	// swipe was shown)
-	function show(widgets) {
+	// swipe was shown): unless BARE (a message: computing, an error...), over it the warnings of its period (the days
+	// without images of its data, see mo.checkPeriod) and under it the data its values come from (\u00abData: ...\u00bb, as the
+	// charts of the package), those of the computation that is running (runNotes: a click that fails before it
+	// starts, or a newer one, does not change them)
+	var runNotes = mo.notes();
+	function show(widgets, bare) {
 		oneMap();
 		results.clear();
 		results.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '16px', stretch: 'horizontal'}),
@@ -20140,20 +20606,31 @@ var MonitorEO = (function () {
 				oneMap();
 				results.style().set('shown', false);
 			})));
+		var notes = runNotes;
+		if (!bare && notes.warnings.length) results.add(ui.Label('\u26a0 ' + notes.warnings.join('\n\u26a0 '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
+		var source = bare ? null : mo.sourceText(notes);
+		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
 	}
 
 	function message(text, error) {
-		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})]);
+		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})], true);
 	}
 
 	function fail(error) {
 		message(t('error') + error, true);
 	}
 
+	// No data in that period: an answer, with the warnings of its period that explain it (e.g. it begins after the last
+	// image of data that ended) and its data, not a bare message
+	function noData() {
+		show([ui.Label(t('noData'), {color: '#b00020', whiteSpace: 'pre-wrap'})]);
+	}
+
 	function start() {
 		run += 1;
+		runNotes = mo.notes();  // those of the specs of this computation (guarded made them new): shown with its answer
 		message(t('computing'));
 		return run;
 	}
@@ -20926,6 +21403,7 @@ var MonitorEO = (function () {
 		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
 			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
+		if (!ref) mo.used(s);  // the data of the values of the result, under it
 		return s;
 	}
 
@@ -20961,6 +21439,7 @@ var MonitorEO = (function () {
 
 	function guarded(f) {
 		return function () {
+			mo.resetNotes();  // a new computation: the warnings and data of its own specs
 			try {
 				f();
 			} catch (e) {
@@ -21438,6 +21917,7 @@ var MonitorEO = (function () {
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
 		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
 		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
 		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
 		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
@@ -21472,7 +21952,9 @@ var MonitorEO = (function () {
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
-		var zone = mo.classZone(mo.spec({ref: z.ref, quality: {}}), geom, scale);
+		var zs = mo.spec({ref: z.ref, quality: {}});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
+		var zone = mo.classZone(zs, geom, scale);
 		var name = fmt(t('zoneClassTitle'), m.name, z.index);
 		var id = start();
 		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
@@ -21496,7 +21978,9 @@ var MonitorEO = (function () {
 		var m = mapImage(line.buffer(1000));
 		var native = Number(e.m);
 		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];
-		var dem = mo.image(mo.spec({ref: elevation.ref, quality: {}}), line.buffer(1000), 30);
+		var demSpec = mo.spec({ref: elevation.ref, quality: {}});
+		mo.used(demSpec);  // the elevation is on the chart too (services.transect)
+		var dem = mo.image(demSpec, line.buffer(1000), 30);
 		var id = start();
 		ee.Dictionary({length: line.length(1), centroid: line.centroid(1).coordinates()}).evaluate(guardedAsync(id, function (d) {
 			var step = Math.max(native, d.length / 100);
@@ -21765,6 +22249,7 @@ var MonitorEO = (function () {
 				quality: otherQuality(mo.byRef(state.doyOther)),
 				metric: 'mean', where: whereArgs()});
 			mo.checkDates(o, 'time series');
+			mo.used(o);
 			return o;
 		} catch (err) {
 			throw new Error(t('rightAxis') + ': ' + (err.message || String(err)));
@@ -21802,7 +22287,7 @@ var MonitorEO = (function () {
 					rows.push(r);
 				});
 			});
-			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+			if (!rows.some(function (r) { return r.value !== null; })) return noData();
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
 			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
@@ -21865,7 +22350,7 @@ var MonitorEO = (function () {
 		var id = start();
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
-				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+				if (!rows.some(function (r) { return r.value !== null; })) return noData();
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
@@ -22145,6 +22630,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
 		var name = title(e, ['RBR', before.period.join('/') + ' \u2192 ' + after.period.join('/')]);
 		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
@@ -22267,6 +22754,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var modis = e.sensor === 'Modis';
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'RdNBR');
 		var periods = before.period.join('/') + ' \u2192 ' + after.period.join('/');
@@ -22334,6 +22823,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });
 		var name = title(e, [t('dnbr'), before.period.join('/') + ' \u2192 ' + after.period.join('/')]);

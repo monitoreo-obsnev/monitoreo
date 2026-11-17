@@ -92,6 +92,13 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: A period that begins before the first image of the data (e.g. Sentinel-2 surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives a warning that those days have no data (that of a condition of where says so), and a period that ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is refused before computing, with the dates of the data.
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: The charts, figures and results say which data their values come from, the Earth Engine collection and its product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))".
+- **Assistant, QGIS plugin**: The maps of the steps of a result (Date and Play in the assistant, Map of in QGIS) are only those with images of the data, without the years or months before the first image or after today.
+- **Python package, Command line, MCP server, R package**: The description of a variable gives the first and last day of its images (data_dates) and its data (data_source).
+
 ### [v0.3.43](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.43) · 2026-11-17 · package 0.3.53
 
 - **QGIS plugin**: The maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
