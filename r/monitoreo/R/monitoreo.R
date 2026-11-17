@@ -100,7 +100,26 @@ cited <- function(df, res) {
   attr(df, "references") <- vapply(res$references, function(r) r$text, "")
   attr(df, "credits") <- as.character(unlist(res$credits))
   attr(df, "readme") <- if (is.null(res$readme)) NULL else unlist(res$readme)
+  # the data of its values, e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))" (mo_plot()
+  # writes it under the chart), and the warnings of its period
+  attr(df, "data_source") <- if (is.null(res$data_source)) NULL else as.character(res$data_source)
+  attr(df, "warnings") <- if (length(res$warnings)) as.character(unlist(res$warnings)) else NULL
+  data_warnings(res)
   df
+}
+
+# The warnings of the period of the answer RES of Python (the days without images of its data: the period begins
+# before the first image, or ends after the last one of data that ended; see monitoreo.coverage) as R warnings, each
+# once. RES, invisibly.
+data_warnings <- function(res) {
+  for (w in unique(as.character(unlist(res$warnings)))) warning(w, call. = FALSE)
+  invisible(res)
+}
+
+# The answer RES of Python (a list) as it is, after the R warnings of its period (data_warnings).
+answer <- function(res) {
+  data_warnings(res)
+  res
 }
 #' Arguments shared by the functions of MonitorEO
 #'
@@ -146,7 +165,12 @@ cited <- function(df, res) {
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 #'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
 #'   \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
-#'   which only have maps and their statistics.
+#'   which only have maps and their statistics. A period without images of the data is an error that says their
+#'   dates (\code{mo_describe()} gives them, data_dates); one that begins before the first image (e.g. Sentinel-2,
+#'   surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives an R warning, as
+#'   those days have no data. The results say which data their values come from (data_source, an attribute or
+#'   element: the Earth Engine collections and their product level, e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized
+#'   Sentinel-2 MSI, Level-2A (SR))") and keep the warnings (warnings).
 #' @param other_start,other_end first and last day of the other period.
 #' @param metric temporal metric of the images: \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"},
 #'   \code{"std"} (standard deviation), \code{"cv"} (coefficient of variation, 100 * std / mean, in \%), \code{"sum"},
@@ -269,6 +293,9 @@ services <- function() {
            "variable RETICULATE_PYTHON before mo_init()", call. = FALSE)
     }
     .mo$services <- reticulate::import("monitoreo.services", convert = TRUE)
+    # the warnings of the periods come as R warnings (data_warnings), not also as Python warnings on the console
+    tryCatch(reticulate::import("warnings")$filterwarnings(
+      "ignore", category = reticulate::import("monitoreo.coverage")$DataDatesWarning), error = function(e) NULL)
   }
   eecu_check(.mo$services)
   .mo$services
@@ -430,9 +457,12 @@ mo_variables <- function(sensor = NULL, text = NULL, lang = "en", theme = NULL) 
 #'
 #' @inheritParams mo_params
 #' @return A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, rgb (whether its images
-#'   have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
-#'   formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
-#'   filters, each with citation, doi, url and text) and credits.
+#'   have a true colour: \code{mo_rgb_map()}), alternatives (other collections), data_source (its Earth Engine
+#'   collections and their product level), data_dates (start and end: the first and last day of its images, end
+#'   \code{NULL} if they go on; \code{NULL} for a fixed layer), data_dates_checked (the day of the copy of the Earth
+#'   Engine data catalog they come from), references (the articles of its formula or algorithm, its Earth Engine
+#'   datasets as their pages of the Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and
+#'   text) and credits.
 #' @seealso \code{mo_references()}; for any data of Earth Engine given by its ID, \code{mo_asset()}
 #' @examples
 #' \dontrun{
@@ -837,8 +867,9 @@ mo_sf <- function(x, name = NULL) {
 #' @param chart optional path of a PNG chart.
 #' @return A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
 #'   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
-#'   [\%]"), scale, csv, references and credits (see \code{mo_references()}), and with \code{doy} ylim (\code{NULL}:
-#'   from the data).
+#'   [\%]"), scale, csv, references and credits (see \code{mo_references()}), data_source (the Earth Engine
+#'   collections of its values and their product level: \code{mo_plot()} writes it under the chart), warnings (of its
+#'   period, also given as R warnings: see \code{start}), and with \code{doy} ylim (\code{NULL}: from the data).
 #'
 #'   With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
 #'   (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period
@@ -938,6 +969,10 @@ axis_numbers <- function(x) if (length(x) == 2) as.numeric(unlist(x)) else NULL
 #' the values of the other variable are drawn with the linear transform from the range of the right axis to that of
 #' the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
 #' right (\code{axis(4)}).
+#'
+#' Under every chart, a line says where its values come from: "Data: " and the attribute data_source of the series
+#' (the Earth Engine collections and their product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized
+#' Sentinel-2 MSI, Level-2A (SR))"), as the charts of the other tools of MonitorEO.
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
 #' @importFrom graphics abline axis legend lines mtext par
@@ -955,7 +990,8 @@ mo_plot <- function(ts) {
   unit <- if (is.null(attr(ts, "ylabel"))) attr(ts, "unit") else attr(ts, "ylabel")  # e.g. Snow Cover Frequency (SCF) [%]
   starts <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)  # the day of the year of the first of each month
   gg <- requireNamespace("ggplot2", quietly = TRUE)
-  if (all(c("variable", "doy", "n_years") %in% names(ts))) return(plot_profile(ts, title, unit, starts, gg))
+  src <- source_line(ts)  # "Data: ..." under the chart
+  if (all(c("variable", "doy", "n_years") %in% names(ts))) return(plot_profile(ts, title, unit, starts, gg, src))
   by_doy <- all(c("year", "doy") %in% names(ts))  # a line per year over the days of the year (doy = TRUE)
   ylim <- attr(ts, "ylim")  # with doy, the range of the y axis if it was given (NULL: from the data)
   regions <- unique(ts$region)
@@ -967,7 +1003,8 @@ mo_plot <- function(ts) {
       ggplot2::geom_point(size = 0.8) +
       ggplot2::scale_colour_viridis_d(begin = 0, end = 0.85, direction = -1) +  # the newest year the darkest
       ggplot2::scale_x_continuous(limits = c(1, 366), breaks = starts, labels = month.abb) +
-      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal()
+      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL, caption = wrapped(src)) +
+      ggplot2::theme_minimal()
     if (!is.null(ylim)) p <- p + ggplot2::coord_cartesian(ylim = ylim, expand = FALSE)
     return(if (length(regions) > 1) p + ggplot2::facet_wrap(~region, ncol = 1) else p)
   }
@@ -987,12 +1024,14 @@ mo_plot <- function(ts) {
     }
     legend("topleft", legend = years, col = cols, lwd = widths, bty = "n")
     if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
+    base_source(src)
     return(invisible(ts))
   }
   if (gg) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
-      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL) + ggplot2::theme_minimal())
+      ggplot2::labs(title = title, x = NULL, y = unit, colour = NULL, caption = wrapped(src)) +
+      ggplot2::theme_minimal())
   }
   plot(ts$date, ts$value, type = "n", main = title, xlab = "", ylab = unit)
   for (i in seq_along(regions)) {
@@ -1000,7 +1039,23 @@ mo_plot <- function(ts) {
     lines(s$date, s$value, col = i, type = "o", pch = 20)
   }
   if (length(regions) > 1) legend("topleft", legend = regions, col = seq_along(regions), lty = 1, bty = "n")
+  base_source(src)
   invisible(ts)
+}
+
+# The line under a chart that says where the values of TS come from (charts.source_line of Python): "Data: " and its
+# attribute data_source (e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))"), or NULL.
+source_line <- function(ts) {
+  src <- attr(ts, "data_source")
+  if (length(src) == 0 || !nzchar(src[1])) NULL else paste("Data:", src[1])
+}
+
+# LINE in lines of at most 100 characters, for the caption of a ggplot (NULL: none).
+wrapped <- function(line) if (is.null(line)) NULL else paste(strwrap(line, 100), collapse = "\n")
+
+# LINE (see source_line) at the bottom left of a chart of base graphics, in small grey letters.
+base_source <- function(line) {
+  if (!is.null(line)) mtext(line, side = 1, line = max(2, par("mar")[1] - 1.2), adj = 0, cex = 0.6, col = "#555555")
 }
 
 # The colours of the lines of the left and of the right axis of the seasonal profile (charts.PROFILE_COLOURS of Python)
@@ -1024,7 +1079,7 @@ profile_range <- function(v, lim = NULL) {
 # (else with base graphics). The rows of one variable (ts[ts$variable == ..., ]) are drawn on one axis, with the
 # range and the title of the axis of that variable; without the attributes (e.g. after subset()), the variables are
 # those of the rows, the titles of the axes their names and the ranges from the data.
-plot_profile <- function(ts, title, ylabel, starts, gg) {
+plot_profile <- function(ts, title, ylabel, starts, gg, src = NULL) {
   vars <- attr(ts, "variables")
   if (is.null(vars)) vars <- unique(ts$variable)
   keep <- which(vars %in% ts$variable)
@@ -1064,7 +1119,7 @@ plot_profile <- function(ts, title, ylabel, starts, gg) {
       ggplot2::scale_y_continuous(ylabels[1], sec.axis = if (two) ggplot2::sec_axis(to_right, name = ylabels[2])
                                   else ggplot2::waiver()) +
       ggplot2::coord_cartesian(xlim = c(1, 366), ylim = lim, expand = FALSE) +
-      ggplot2::labs(title = title, x = NULL, colour = NULL) + ggplot2::theme_minimal() +
+      ggplot2::labs(title = title, x = NULL, colour = NULL, caption = wrapped(src)) + ggplot2::theme_minimal() +
       ggplot2::theme(legend.position = "top")
     if (two) {  # each axis in the colour of its line
       p <- p + ggplot2::theme(axis.title.y.left = ggplot2::element_text(colour = cols[1]),
@@ -1101,6 +1156,7 @@ plot_profile <- function(ts, title, ylabel, starts, gg) {
   }
   legend("topleft", legend = vars, col = cols, lwd = 1.6, pch = 20, bty = "n")
   if (length(regions) > 1) legend("topright", legend = regions, lty = seq_along(regions), bty = "n")
+  base_source(src)
   invisible(ts)
 }
 
@@ -1141,10 +1197,11 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
                          band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
-  services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin, vmax,
-                       thumbnail = thumbnail, collection = collection, where = where, image = image, band = band,
-                       band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset, unit = unit,
-                       terrain = terrain)
+  res <- services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                              vmin, vmax, thumbnail = thumbnail, collection = collection, where = where, image = image,
+                              band = band, band_reducer = band_reducer, band_scale = band_scale,
+                              band_offset = band_offset, unit = unit, terrain = terrain)
+  answer(res)
 }
 
 #' Animation of a variable over a region (a timelapse)
@@ -1193,10 +1250,11 @@ mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, pat
                          collection = NULL, where = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
                          band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit, band_reducer = band_reducer)
-  services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
-                       dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
-                       collection = collection, where = where, band = band, band_reducer = band_reducer,
-                       band_scale = band_scale, band_offset = band_offset, unit = unit)
+  res <- services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
+                              dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
+                              collection = collection, where = where, band = band, band_reducer = band_reducer,
+                              band_scale = band_scale, band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Figure of the map of a variable for a report or a paper
@@ -1224,10 +1282,12 @@ mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, 
                           terrain = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
-  services()$map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality, vmin,
-                        vmax, path = path.expand(path), title = title, dpi = as.integer(dpi), collection = collection,
-                        where = where, image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
-                        band_offset = band_offset, unit = unit, terrain = terrain)
+  res <- services()$map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                               vmin, vmax, path = path.expand(path), title = title, dpi = as.integer(dpi),
+                               collection = collection, where = where, image = image, band = band,
+                               band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                               unit = unit, terrain = terrain)
+  answer(res)
 }
 
 #' True colour map of the images of a variable over a region, as Earth Engine tiles
@@ -1274,10 +1334,11 @@ mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, 
 mo_rgb_map <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                        interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
                        thumbnail = NULL, collection = NULL, where = NULL) {
-  services()$rgb_map(region = region, variable = variable, sensor = sensor, start = start, end = end,
-                     metric = metric, temporal = temporal, interannual = interannual, season = season,
-                     quality = quality, vmin = vmin, vmax = vmax, thumbnail = thumbnail, collection = collection,
-                     where = where)
+  res <- services()$rgb_map(region = region, variable = variable, sensor = sensor, start = start, end = end,
+                            metric = metric, temporal = temporal, interannual = interannual, season = season,
+                            quality = quality, vmin = vmin, vmax = vmax, thumbnail = thumbnail, collection = collection,
+                            where = where)
+  answer(res)
 }
 
 #' A leaflet map with the tiles of one or several maps
@@ -1371,6 +1432,8 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
                band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
   spec <- do.call(s$make_spec, c(list(variable, sensor, start, end, metric = metric, temporal = temporal,
                                       interannual = interannual, season = season, quality = quality), data))
+  # the days of its period without images of its data, as R warnings (composite_image has no answer to carry them)
+  data_warnings(list(warnings = reticulate::import("monitoreo.coverage")$check(spec, s$variable_entry(spec))))
   # with rgb, the true colour, as services.rgb_map: refused before Earth Engine when the variable has none (the data
   # of Earth Engine by its ID have none: native_scale would read them in Earth Engine first)
   if (isTRUE(rgb)) variables$check_rgb(spec)
@@ -1627,10 +1690,12 @@ mo_export_image <- function(region, variable = NULL, sensor = NULL, start = NULL
                             terrain = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
-  services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season, quality = quality,
-                          resolution = resolution, crs = crs, folder = folder, name = name, collection = collection,
-                          where = where, image = image, band = band, band_reducer = band_reducer,
-                          band_scale = band_scale, band_offset = band_offset, unit = unit, terrain = terrain)
+  res <- services()$export_image(region, variable, sensor, start, end, metric, temporal, season = season,
+                                 quality = quality, resolution = resolution, crs = crs, folder = folder, name = name,
+                                 collection = collection, where = where, image = image, band = band,
+                                 band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
+                                 unit = unit, terrain = terrain)
+  answer(res)
 }
 
 #' Export a time series to a CSV file in Google Drive
@@ -1665,10 +1730,11 @@ mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start,
                                   name = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
                                   band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
-  services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality, scale,
-                                  folder, name, collection = collection, where = where, image = image, band = band,
-                                  band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
-                                  unit = unit)
+  res <- services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality,
+                                         scale, folder, name, collection = collection, where = where, image = image,
+                                         band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                         band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Download the map of a variable to a GeoTIFF on this computer
@@ -1707,10 +1773,11 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
                               unit = NULL, terrain = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
-  services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-                            resolution, crs, path.expand(path), clip, collection = collection, where = where,
-                            image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
-                            band_offset = band_offset, unit = unit, terrain = terrain)
+  res <- services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
+                                   resolution, crs, path.expand(path), clip, collection = collection, where = where,
+                                   image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                   band_offset = band_offset, unit = unit, terrain = terrain)
+  answer(res)
 }
 
 #' Download the true colour of the images of a variable to a GeoTIFF on this computer
@@ -1755,10 +1822,11 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
 mo_download_rgb <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median",
                             temporal = "period", interannual = "mean", season = NULL, quality = NULL,
                             resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL) {
-  services()$download_rgb(region = region, variable = variable, sensor = sensor, start = start, end = end,
-                          metric = metric, temporal = temporal, interannual = interannual, season = season,
-                          quality = quality, resolution = resolution, crs = crs, path = path.expand(path),
-                          clip = clip, collection = collection, where = where)
+  res <- services()$download_rgb(region = region, variable = variable, sensor = sensor, start = start, end = end,
+                                 metric = metric, temporal = temporal, interannual = interannual, season = season,
+                                 quality = quality, resolution = resolution, crs = crs, path = path.expand(path),
+                                 clip = clip, collection = collection, where = where)
+  answer(res)
 }
 
 #' Download a recipe of variables as GeoTIFFs on aligned grids
@@ -1802,9 +1870,10 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
                                   overwrite = FALSE, wait = TRUE, drive_dir = NULL) {
   if (is.character(recipe)) recipe <- path.expand(recipe)
   if (is.character(area)) area <- path.expand(area)
-  services()$download_variables(recipe, area, path.expand(folder), layer, only = only, dry_run = dry_run,
-                                overwrite = overwrite, drive_dir = drive_dir, wait = wait,
-                                log = function(msg) message(msg))
+  res <- services()$download_variables(recipe, area, path.expand(folder), layer, only = only, dry_run = dry_run,
+                                       overwrite = overwrite, drive_dir = drive_dir, wait = wait,
+                                       log = function(msg) message(msg))
+  answer(res)
 }
 
 #' Seasonal trends of a variable over each feature of a region (Mann-Kendall and Sen)
@@ -1906,10 +1975,11 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
                          band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
-  services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
-                       quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection, where = where,
-                       image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
-                       band_offset = band_offset, unit = unit)
+  res <- services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
+                              quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection,
+                              where = where, image = image, band = band, band_reducer = band_reducer,
+                              band_scale = band_scale, band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Download the trend of a part of the year on each pixel to a GeoTIFF
@@ -1952,10 +2022,11 @@ mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end
                               band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
-  services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
-                            resolution, crs, path.expand(path), collection = collection, where = where, image = image,
-                            band = band, band_reducer = band_reducer, band_scale = band_scale,
-                            band_offset = band_offset, unit = unit)
+  res <- services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
+                                   resolution, crs, path.expand(path), collection = collection, where = where,
+                                   image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                   band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Compare two periods over each feature of a region
@@ -2029,10 +2100,11 @@ mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, o
                            collection = NULL, where = NULL, image = NULL, band = NULL, band_reducer = NULL,
                            band_scale = NULL, band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
-  services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
-                         season = season, quality = quality, thumbnail = thumbnail, collection = collection,
-                         where = where, image = image, band = band, band_reducer = band_reducer,
-                         band_scale = band_scale, band_offset = band_offset, unit = unit)
+  res <- services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
+                                season = season, quality = quality, thumbnail = thumbnail, collection = collection,
+                                where = where, image = image, band = band, band_reducer = band_reducer,
+                                band_scale = band_scale, band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Download the comparison of two periods to a GeoTIFF
@@ -2065,11 +2137,12 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
                                    band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
                                    unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
-  services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
-                                 season = season, quality = quality, resolution = resolution, crs = crs,
-                                 path = path.expand(path), collection = collection, where = where, image = image,
-                                 band = band, band_reducer = band_reducer, band_scale = band_scale,
-                                 band_offset = band_offset, unit = unit)
+  res <- services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
+                                        season = season, quality = quality, resolution = resolution, crs = crs,
+                                        path = path.expand(path), collection = collection, where = where, image = image,
+                                        band = band, band_reducer = band_reducer, band_scale = band_scale,
+                                        band_offset = band_offset, unit = unit)
+  answer(res)
 }
 
 #' Burn severity of a fire (dNBR, RBR and RdNBR)

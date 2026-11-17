@@ -51,6 +51,13 @@ Google Earth Engine and of MonitorEO; and the credit lines that the terms of use
 Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL, RESOLVE). When the results go into a report, a paper or a
 map, end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
+The results say which data their values come from, data_source (the Earth Engine collections and their product level,
+e.g. COPERNICUS/S2_SR_HARMONIZED, Harmonized Sentinel-2 MSI, Level-2A (SR): surface reflectance), and their charts in
+a line «Data: ...»: say it with the result. A period without images of the data is an error that says their dates;
+a period that begins before the first image (e.g. Sentinel-2 SR from 2017-03-28) or ends after the last one of data
+that ended has warnings in the result (warnings): always tell the user, as those days have no data
+(describe_variable gives the dates of the data, data_dates).
+
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
 frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
@@ -358,6 +365,15 @@ def _text(obj):
 	return json.dumps(obj, ensure_ascii=False, indent=1, default=str)
 
 
+def _notes(summary, res):
+	"""Put in SUMMARY, the answer of a tool that summarizes its result RES, the data its values come from (data_source)
+	and the warnings of its period (warnings: e.g. it begins before the first image of the data), when RES has
+	them: what the services answer."""
+	for k in ('data_source', 'warnings'):
+		if res.get(k):
+			summary[k] = res[k]
+
+
 def _preview(res):
 	"""The PNG preview of the map RES as an image, if Earth Engine made it (else its reason is in thumbnail_error of
 	RES, and the map has its tiles anyway)."""
@@ -570,6 +586,7 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
 	                                    'references', 'credits')}
+	_notes(summary, res)
 	if doy:
 		summary['ylim'] = res.get('ylim')
 	if profiled and isinstance(res.get('profile'), list):
@@ -643,6 +660,7 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	                         fps=fps, dimensions=dimensions, path=path, where=where, **source)
 	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'file',
 	                                    'gif', 'note', 'readme', 'references', 'credits')}
+	_notes(summary, res)
 	summary['frames'] = res.get('frames') or []
 	return [_text(summary)] + _last_frame(res.get('gif'))
 
@@ -722,6 +740,7 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
 	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'references', 'credits')
 	           if res.get(k) is not None}
+	_notes(summary, res)
 	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
 		summary['note'] = f"{len(summary['rows'])} rows: the first {MAX_ROWS_SHOWN} are shown, all of them in the CSV"
 		summary['rows'] = summary['rows'][:MAX_ROWS_SHOWN]
@@ -929,6 +948,7 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
+	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
 		out.append(Image(path=res['chart']))
@@ -1008,6 +1028,7 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
+	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
 		out.append(Image(path=res['chart']))

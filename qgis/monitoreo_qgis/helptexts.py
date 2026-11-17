@@ -130,11 +130,15 @@ HELP = {
 		'SPA) with different boundaries.</p>' + manual('Concepts#regions'),
 	'variable':
 		'<p>Variable and sensor. Each entry tells the variable, the sensor, the pixel size and the Earth Engine '
-		'collection. Sentinel-2 (10 m) starts in 2017; Landsat (30 m), in 1984, and MODIS (from 250 m to 4.6 km), in '
-		'2000: for long series and trends, Landsat or MODIS.</p>',
+		'collection. Sentinel-2 (10 m, surface reflectance: Level-2A) starts on 2017-03-28; Landsat (30 m), in 1984, '
+		'and MODIS (from 250 m to 4.6 km), in 2000: for long series and trends, Landsat or MODIS.</p>',
 	'period':
 		'<p>First and last day, both included. Each sensor has its dates (see the help of <b>Variable</b>). If you '
 		'check <b>Compare with</b>, this is the reference period.</p>'
+		'<p>A period without images of the data is refused, with their dates. One that begins before the first image '
+		'(or ends after the last one, of data that ended) is computed with a warning, in the message bar and in the '
+		'window of the result: those days have no data. The windows and charts also say which data the values come '
+		'from (<b>Data:</b> the Earth Engine collection and its product level).</p>'
 		'<p>Long periods with Sentinel-2 over big areas take minutes: start with one year.</p>'
 		+ manual('Concepts#period-and-season'),
 	'compare':

@@ -5529,6 +5529,221 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "coverage": {
+  "checked": "2026-11-14",
+  "collections": {
+   "COPERNICUS/DEM/GLO30_2024_1": [
+    [
+     "COPERNICUS/DEM/GLO30_2024_1",
+     "2010-12-01",
+     "2020-11-13",
+     "Copernicus DEM GLO-30 (2024_1): Global 30m Digital Elevation Model"
+    ]
+   ],
+   "COPERNICUS/S2_SR_HARMONIZED": [
+    [
+     "COPERNICUS/S2_SR_HARMONIZED",
+     "2017-03-28",
+     null,
+     "Harmonized Sentinel-2 MSI, Level-2A (SR)"
+    ]
+   ],
+   "ECMWF/ERA5_LAND/MONTHLY_AGGR": [
+    [
+     "ECMWF/ERA5_LAND/MONTHLY_AGGR",
+     "1950-02-01",
+     null,
+     "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis"
+    ]
+   ],
+   "IDAHO_EPSCOR/TERRACLIMATE": [
+    [
+     "IDAHO_EPSCOR/TERRACLIMATE",
+     "1958-01-01",
+     "2024-12-01",
+     "TerraClimate"
+    ]
+   ],
+   "LANDSAT": [
+    [
+     "LANDSAT/LT05/C02/T1_L2",
+     "1984-03-16",
+     "2012-05-05",
+     "USGS Landsat 5 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LE07/C02/T1_L2",
+     "1999-05-28",
+     "2003-05-31",
+     "USGS Landsat 7 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC08/C02/T1_L2",
+     "2013-03-18",
+     null,
+     "USGS Landsat 8 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC09/C02/T1_L2",
+     "2021-10-31",
+     null,
+     "USGS Landsat 9 Level 2, Collection 2, Tier 1"
+    ]
+   ],
+   "MERIT/Hydro/v1_0_1": [
+    [
+     "MERIT/Hydro/v1_0_1",
+     "1987-01-01",
+     "2017-01-01",
+     "MERIT Hydro: Global Hydrography Datasets"
+    ]
+   ],
+   "MODIS/061/MCD15A3H": [
+    [
+     "MODIS/061/MCD15A3H",
+     "2002-07-04",
+     null,
+     "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MCD19A2_GRANULES": [
+    [
+     "MODIS/061/MCD19A2_GRANULES",
+     "2000-02-24",
+     null,
+     "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km"
+    ]
+   ],
+   "MODIS/061/MCD43A3": [
+    [
+     "MODIS/061/MCD43A3",
+     "2000-02-24",
+     null,
+     "MCD43A3.061 MODIS Albedo Daily 500m"
+    ]
+   ],
+   "MODIS/061/MOD09GA": [
+    [
+     "MODIS/061/MOD09GA",
+     "2000-02-24",
+     null,
+     "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MOD10A1": [
+    [
+     "MODIS/061/MOD10A1",
+     "2000-02-24",
+     null,
+     "MOD10A1.061 Terra Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MOD11A1": [
+    [
+     "MODIS/061/MOD11A1",
+     "2000-02-24",
+     null,
+     "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MOD13Q1": [
+    [
+     "MODIS/061/MOD13Q1",
+     "2000-02-18",
+     null,
+     "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/061/MOD16A2": [
+    [
+     "MODIS/061/MOD16A2",
+     "2021-01-01",
+     null,
+     "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD09GA": [
+    [
+     "MODIS/061/MYD09GA",
+     "2002-07-04",
+     null,
+     "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MYD10A1": [
+    [
+     "MODIS/061/MYD10A1",
+     "2002-07-04",
+     null,
+     "MYD10A1.061 Aqua Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD11A1": [
+    [
+     "MODIS/061/MYD11A1",
+     "2002-07-04",
+     null,
+     "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MYD13Q1": [
+    [
+     "MODIS/061/MYD13Q1",
+     "2002-07-04",
+     null,
+     "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/MOD09GA_006_NDWI": [
+    [
+     "MODIS/MOD09GA_006_NDWI",
+     "2000-02-24",
+     "2023-02-17",
+     "MODIS Terra Daily NDWI"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Aqua/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+     "2002-07-03",
+     "2025-11-30",
+     "Ocean Color SMI: Standard Mapped Image MODIS Aqua Data"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Terra/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Terra/L3SMI",
+     "2000-02-24",
+     "2025-11-29",
+     "Ocean Color SMI: Standard Mapped Image MODIS Terra Data"
+    ]
+   ],
+   "RESOLVE/ECOREGIONS/2017": [
+    [
+     "RESOLVE/ECOREGIONS/2017",
+     null,
+     null,
+     null
+    ]
+   ],
+   "UCSB-CHC/CHIRPS/V3/DAILY_SAT": [
+    [
+     "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
+     "1981-01-01",
+     null,
+     "CHIRPS Precipitation Daily Near-Real-Time"
+    ]
+   ],
+   "WORLDCLIM/V1/BIO": [
+    [
+     "WORLDCLIM/V1/BIO",
+     "1960-01-01",
+     "1991-01-01",
+     "WorldClim BIO Variables V1"
+    ]
+   ]
+  }
+ },
  "eecatalog": {
   "datasets": [
    [

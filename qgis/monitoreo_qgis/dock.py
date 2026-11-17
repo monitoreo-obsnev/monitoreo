@@ -230,6 +230,21 @@ def true_colour(region, opts, path, resolution=None, stretch=None):
 		return out
 
 
+def result_warnings(result):
+	"""The warnings of the periods of the answers of the services in RESULT (an answer, a list or tuple of them, or a
+	dictionary of them, as that of maps_work): their days without images of their data (see monitoreo.coverage),
+	[texts], each once."""
+	found = []
+	for r in (result if isinstance(result, (list, tuple)) else [result]):
+		if not isinstance(r, dict):
+			continue
+		for d in [r] + [v for v in r.values() if isinstance(v, dict)]:
+			for w in d.get('warnings') or [] if isinstance(d.get('warnings'), list) else []:
+				if w and w not in found:
+					found.append(w)
+	return found
+
+
 def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None):
 	"""The layers of a map with the arguments OPTS, in a task: with KIND 'index' or 'both', the map of the variable
 	(DOWNLOAD: the GeoTIFF map.tif of FOLDER or, if it cannot be downloaded, TILES, with the colours COLORS (min, max)
@@ -1807,6 +1822,9 @@ class MonitorEODock(QDockWidget):
 				done(result)
 			except Exception as e:
 				self.message(f'{description}: {e}', 'Critical', 15)
+			warned = result_warnings(result)
+			if warned:  # days of its period without images of its data: the window of the result shows them too
+				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
 			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
@@ -2244,7 +2262,7 @@ class MonitorEODock(QDockWidget):
 					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
 					                  (str(res['year']), str(res['other_year'])))
 				else:
-					charts.areas_png(res['rows'], colours, path, res['title'])
+					charts.areas_png(res['rows'], colours, path, res['title'], source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
@@ -2294,7 +2312,8 @@ class MonitorEODock(QDockWidget):
 			try:  # in the main thread; without matplotlib, the table only (no chart of class codes)
 				if klass or not res['rows']:
 					raise ImportError
-				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
+				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones),
+				                 source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
@@ -2338,7 +2357,7 @@ class MonitorEODock(QDockWidget):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'profile.png')
 			try:  # in the main thread; without matplotlib, the table only
-				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'))
+				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'), source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None

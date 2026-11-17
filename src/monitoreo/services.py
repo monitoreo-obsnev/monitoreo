@@ -29,6 +29,12 @@ research EECUs (the compute of Earth Engine of each month: the same for each use
 installation) are only for research. eecu_usage tells how much of them (or, with the user's own account, of the monthly
 EECU quota of their project) has been spent, and the tools warn when less than 10 % is left (see eecu_warning).
 
+The periods are checked against the dates of the images of the data before computing (see monitoreo.coverage): a period
+without images is an error, and one that begins before the first image (or ends after the last one, of data that
+ended) gives a warning, as a Python warning (coverage.DataDatesWarning) and in 'warnings' of the answer ([texts]). The
+answers say which data their values come from, 'data_source' (e.g. 'COPERNICUS/S2_SR_HARMONIZED (Harmonized
+Sentinel-2 MSI, Level-2A (SR))'), and their charts in a line «Data: ...».
+
 Every result says what to cite with it (see monitoreo.references): 'references', the articles of the formula or
 algorithm of the variable and of the method, the Earth Engine datasets (cited as their pages of the Earth Engine catalog
 suggest), Google Earth Engine and MonitorEO, each {'id', 'citation', 'doi', 'url', 'text'}; and 'credits', the lines
@@ -49,7 +55,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, categorical, charts, classes, composite, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, categorical, charts, classes, composite, coverage, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -65,13 +71,21 @@ _shared = False
 def _cited(fn):
 	"""FN with the references of what it computed (monitoreo.references.cite) in its answer, 'references' and
 	'credits', and its files documented (monitoreo.readme): the metadata of its GeoTIFF (the call, the version, when
-	and the references) and a README next to them, whose path is in the answer ('readme')."""
+	and the references) and a README next to them, whose path is in the answer ('readme'). Its answer also has, when
+	there are any, the warnings of its periods ('warnings': the days without images of its data, see
+	monitoreo.coverage) and the data its values come from ('data_source')."""
 	sig = inspect.signature(fn)
 
 	@functools.wraps(fn)
 	def wrapped(*args, **kwargs):
-		out = fn(*args, **kwargs)
+		with coverage.collect() as notes:
+			out = fn(*args, **kwargs)
 		if isinstance(out, dict):
+			if notes.warnings and not out.get('warnings'):
+				out['warnings'] = list(notes.warnings)
+			source = notes.source()
+			if source and not out.get('data_source'):
+				out['data_source'] = source
 			call = sig.bind(*args, **kwargs)
 			given = dict(call.arguments)
 			given.update(given.pop('source', None) or {})
@@ -650,7 +664,10 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	to cite with its data: 'references' (the articles of its formula or algorithm, its Earth Engine datasets as their
 	catalog pages suggest and the pixel filters) and 'credits' (see monitoreo.references). A categorical layer (class
 	codes) has categorical, n_classes, classes_table and its classes, if they are at most categorical.DESCRIBE_MAX
-	(else classes_note: list_classes gives them)."""
+	(else classes_note: list_classes gives them). data_dates: the first and last day of its images ({'start', 'end'},
+	end None if they go on; None for a fixed layer), as the Earth Engine data catalog said on data_dates_checked (see
+	monitoreo.coverage: the tools refuse a period without images and warn of the days without them); data_source:
+	its Earth Engine datasets and their title, with their product level."""
 	e = catalog.find(variable_name, sensor, collection, ref)
 	out = {k: e.get(k) for k in ('ref', 'index', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft', 'scale', 'offset')}
 	out['name'] = _name(e, lang, 'vname')
@@ -672,6 +689,10 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	if e['ref'] in catalog.FIXES:
 		out['fixed'] = catalog.FIXES[e['ref']]
 	out['alternatives'] = [a['col'] for a in catalog.alternatives(e)]
+	data = coverage.of_entry(e)
+	out['data_source'] = data['text']
+	out['data_dates'] = None if e.get('static') else {'start': data['start'], 'end': data['end']}
+	out['data_dates_checked'] = coverage.checked()
 	out.update(references.of_entry(e))  # references (formula, Earth Engine datasets, pixel filters) and credits
 	return out
 
@@ -789,7 +810,9 @@ def make_spec(variable=None, sensor=None, start=None, end=None, metric='mean', t
 	elif terrain and not image:
 		raise ValueError('terrain is for an image (image=, e.g. a DEM), not for a collection')
 	var = {k: v for k, v in var.items() if v is not None}
-	return variable_specs(var, two_periods)[0]
+	spec = variable_specs(var, two_periods)[0]
+	coverage.used(spec, variables.entry_of(spec) if variables.kind(spec) == 'catalog' else None)  # for its charts
+	return spec
 
 
 def variable_specs(var, two_periods=False):
@@ -1023,11 +1046,12 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 		try:
 			if profiled:
 				charts.doy_profile_png(out['profile'], chart, out['title'], out['ylabel'] or None,
-				                       out['other_ylabel'] or None, out['ylim'], out['other_ylim'])
+				                       out['other_ylabel'] or None, out['ylim'], out['other_ylim'], source=coverage.source())
 			elif doy:
-				charts.doy_png(rows, chart, title=title, ylabel=out['ylabel'] or None, ylim=out['ylim'])
+				charts.doy_png(rows, chart, title=title, ylabel=out['ylabel'] or None, ylim=out['ylim'],
+				               source=coverage.source())
 			else:
-				charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None)
+				charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None, source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass
@@ -1140,7 +1164,9 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	from .publish import unit_text
 	cited = references.cite('map_figure', dict(source, variable=variable, sensor=sensor, start=start, end=end,
 	                                           quality=quality, region=region))
-	credits = list(cited.get('credits') or []) + [f'Computed with MonitorEO in Google Earth Engine. {about.CITATION}']
+	data = [f'Data: {coverage.source()}'] if coverage.source() else []  # where its values come from
+	credits = data + list(cited.get('credits') or []) + [
+		f'Computed with MonitorEO in Google Earth Engine. {about.CITATION}']
 	name = _named(spec, metric)
 	path = path or _slug(f"figure_{_file_stem(variable, sensor, metric, start, end, source)}") + '.png'
 	figures.map_figure(png, bounds, vis, unit_text(_unit(spec)), title or name, credits, path, dpi, width, legend)
@@ -1297,7 +1323,8 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	from .publish import unit_text
 	cited = references.cite('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start,
 	                                          end=end, quality=quality))
-	credits = '; '.join(['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
+	data = [f'Data: {coverage.source()}'] if coverage.source() else []  # where its values come from
+	credits = '; '.join(data + ['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
 	video = os.path.splitext(path)[1].lower() == '.mp4'
 	gif = animation.write(pictures, os.path.splitext(path)[0] + '.gif' if video else path, labels,
 	                      f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'], vis['palette'],
@@ -1411,7 +1438,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 		                                              'scale_m': scale}, columns)
 	if chart and zone_cuts and rows and not klass:  # (no chart of class codes: the table says the class of each zone)
 		try:
-			charts.zones_png(rows, stats, chart, title, _ylabel(spec), zone_name(zones))
+			charts.zones_png(rows, stats, chart, title, _ylabel(spec), zone_name(zones), source=coverage.source())
 			out['chart'] = chart
 		except ImportError:
 			pass
@@ -1472,7 +1499,7 @@ def transect(line, variable=None, sensor=None, start=None, end=None, metric='med
 		                                  TRANSECT_COLUMNS)
 	if chart and rows:
 		try:
-			charts.transect_png(rows, chart, title, _ylabel(spec))
+			charts.transect_png(rows, chart, title, _ylabel(spec), source=coverage.source())
 			out['chart'] = chart
 		except ImportError:
 			pass
@@ -1686,7 +1713,7 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 		out['csv'] = timeseries.write_csv(rows, csv, meta if mode != 'landcover' else {'scale_m': res}, columns)
 	if chart and rows:
 		try:
-			charts.areas_png(rows, colours, chart, title)
+			charts.areas_png(rows, colours, chart, title, source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass
@@ -1976,7 +2003,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
 	if chart and any(r['slope'] is not None for r in rows):
 		try:
-			charts.trends_png(yearly, rows, chart, title=title, ylabel=out['ylabel'] or None)
+			charts.trends_png(yearly, rows, chart, title=title, ylabel=out['ylabel'] or None, source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass
@@ -2106,7 +2133,8 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 		try:
 			labels = {r['part']: r['key'] if step == '16-day' else r['label'][:3] if step == 'monthly' else r['label']
 			          for r in profile}
-			charts.comparison_png(profile, labels, chart, title=title, ylabel=out['ylabel'] or None, names=names)
+			charts.comparison_png(profile, labels, chart, title=title, ylabel=out['ylabel'] or None, names=names,
+			                      source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib
 			pass

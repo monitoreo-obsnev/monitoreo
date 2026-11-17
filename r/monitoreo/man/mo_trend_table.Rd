@@ -47,7 +47,12 @@ topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
 \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
-which only have maps and their statistics.}
+which only have maps and their statistics. A period without images of the data is an error that says their
+dates (\code{mo_describe()} gives them, data_dates); one that begins before the first image (e.g. Sentinel-2,
+surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives an R warning, as
+those days have no data. The results say which data their values come from (data_source, an attribute or
+element: the Earth Engine collections and their product level, e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized
+Sentinel-2 MSI, Level-2A (SR))") and keep the warnings (warnings).}
 
 \item{step}{\code{"monthly"}, \code{"16-day"} or \code{"annual"}.}
 

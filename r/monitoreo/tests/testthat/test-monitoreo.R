@@ -854,6 +854,47 @@ test_that("burn severity with the RdNBR: its legend, sensors and errors, without
                "unknown burn index: use dNBR, RBR or RdNBR")
 })
 
+test_that("the dates of the data: the warnings of the period as R warnings, its data under the chart", {
+  text <- paste("The images of COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR)) start on",
+                "2017-03-28: the period asked for begins on 2016-01-01, so its first 15 months have no data.")
+  src <- "COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))"
+  rows <- list(list(region = "park", date = "2017-04-01", value = 0.5, n_pixels = 4L, n_images = 1L),
+               list(region = "park", date = "2017-05-01", value = 0.6, n_pixels = 4L, n_images = 1L))
+  local_mocked_bindings(services = function() list(
+    time_series = function(...) list(rows = rows, title = "NDVI Sentinel-2", unit = "[unitless]", scale = 10,
+                                     references = list(), credits = list(), data_source = src, warnings = list(text)),
+    map_layer = function(...) list(url = "u", data_source = src, warnings = list(text), references = list(),
+                                   credits = list())), .package = "monitoreo")
+  region <- mo_bbox(-3.45, 37.02, -3.30, 37.12)
+  expect_warning(ts <- mo_time_series(region, "NDVI", "Sentinel-2", "2016-01-01", "2026-12-31"), "first 15 months")
+  expect_equal(attr(ts, "data_source"), src)
+  expect_equal(attr(ts, "warnings"), text)
+  expect_warning(m <- mo_map_layer(region, "NDVI", "Sentinel-2", "2016-01-01", "2026-12-31"), "start on 2017-03-28")
+  expect_equal(m$data_source, src)  # the list of Python as it is
+  expect_equal(monitoreo:::source_line(ts), paste("Data:", src))
+  expect_null(monitoreo:::source_line(data.frame()))
+  # with base graphics (without ggplot2) the line is under the chart too
+  base <- mo_plot
+  environment(base) <- list2env(list(requireNamespace = function(...) FALSE), parent = environment(mo_plot))
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_identical(base(ts), ts)
+  skip_if_not_installed("ggplot2")
+  expect_equal(ggplot2::get_labs(mo_plot(ts))$caption, paste("Data:", src))
+})
+
+test_that("the dates of the data from Python, without Earth Engine: a period without images is an error", {
+  skip_if_no_python()
+  d <- mo_describe("NDVI", "Sentinel-2")
+  expect_equal(d$data_dates$start, "2017-03-28")
+  expect_null(d$data_dates$end)  # it goes on
+  expect_match(d$data_source, "Level-2A (SR)", fixed = TRUE)
+  expect_null(mo_describe("ELEVATION", "Copernicus")$data_dates)  # a fixed layer, without dates
+  region <- mo_bbox(-3.45, 37.02, -3.30, 37.12)
+  expect_error(mo_time_series(region, "NDVI", "Sentinel-2", "2015-01-01", "2016-12-31"),
+               "start on 2017-03-28: the period asked for, 2015-01-01 to 2016-12-31, ends before them", fixed = TRUE)
+})
+
 test_that("time series, statistics and map with Earth Engine", {
   skip_if_no_python()
   skip_if(Sys.getenv("EE_PROJECT") == "", "EE_PROJECT not set")
