@@ -98,10 +98,18 @@ def _years(period):
 
 def datasets(collection, period=None):
 	"""The Earth Engine datasets of COLLECTION: itself, or, for LANDSAT, the Landsat collections of the PERIOD
-	((first, last day); all of them without it)."""
+	((first, last day); all of them without it), or, for a collection with a gap-filled version (sensors.GAP_FILLED),
+	that version up to its last image and the collection after it, those of the PERIOD."""
+	dates = catalog.load()['collections']
+	if collection in sensors.GAP_FILLED:
+		filled = sensors.GAP_FILLED[collection]
+		last = dates.get(filled, {}).get('end')  # its last image (the copy of the catalog: see catalog.json)
+		out = [filled] if not (period and last and period[0] > last) else []
+		if not period or not last or period[1] > last:
+			out.append(collection)
+		return out
 	if collection != LANDSAT:
 		return [collection]
-	dates = catalog.load()['collections']
 	out = []
 	for col, _, last in sensors.LANDSAT:
 		start, end = dates.get(col, {}).get('start'), last or dates.get(col, {}).get('end')

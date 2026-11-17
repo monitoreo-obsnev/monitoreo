@@ -4440,7 +4440,11 @@ var CATALOG = {
   },
   "MODIS/061/MOD16A2": {
    "end": null,
-   "start": "2001-01-01"
+   "start": "2021-01-01"
+  },
+  "MODIS/061/MOD16A2GF": {
+   "end": "2025-12-27",
+   "start": "2000-01-01"
   },
   "MODIS/061/MYD09GA": {
    "end": null,
@@ -12349,7 +12353,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "ET": "ET"
    },
@@ -12394,7 +12398,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "LE": "LE"
    },

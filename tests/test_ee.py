@@ -390,3 +390,11 @@ def test_seasonal_profile_of_two_indices(tmp_path):
 		own = [r['value'] for r in res['profile'] if r['variable'] == name and r['value'] is not None]
 		assert own and -1 <= min(own) <= max(own) <= 1, name
 	assert os.path.getsize(res['csv']) > 0 and (res['chart'] is None or os.path.getsize(res['chart']) > 0)
+
+
+def test_the_evapotranspiration_before_2021_and_after_the_gap_filled_version():
+	"""MOD16A2.061 begins on 2021-01-01: before it, the images of MOD16A2GF.061 (sensors.GAP_FILLED); after the last
+	of them, those of MOD16A2.061."""
+	for start, end in (('2010-06-01', '2010-07-31'), ('2026-03-01', '2026-04-30')):
+		res = services.time_series(GUAJARES, 'ET', 'Modis', start, end, step='monthly')
+		assert len(res['rows']) == 2 and all(r['n_images'] > 0 and r['value'] is not None for r in res['rows']), res['rows']

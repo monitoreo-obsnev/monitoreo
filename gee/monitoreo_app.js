@@ -4443,7 +4443,11 @@ var CATALOG = {
   },
   "MODIS/061/MOD16A2": {
    "end": null,
-   "start": "2001-01-01"
+   "start": "2021-01-01"
+  },
+  "MODIS/061/MOD16A2GF": {
+   "end": "2025-12-27",
+   "start": "2000-01-01"
   },
   "MODIS/061/MYD09GA": {
    "end": null,
@@ -12352,7 +12356,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "ET": "ET"
    },
@@ -12397,7 +12401,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "LE": "LE"
    },
@@ -16623,6 +16627,9 @@ var MonitorEO = (function () {
 		snow: function (i) { return bits(i.select('state_1km'), 15).eq(0); },
 		aerosols: function (i) { return bits(i.select('state_1km'), 6, 7).neq(3); }
 	};
+	// sensors.GAP_FILLED: collections with a gap-filled version, made once a year: its images up to its last one, and
+	// those of the collection after it (MOD16A2.061 begins in 2021, MOD16A2GF.061 covers 2000 to the year before last)
+	var GAP_FILLED = {'MODIS/061/MOD16A2': 'MODIS/061/MOD16A2GF'};
 	var PRODUCTS = {
 		'MODIS/061/MOD13Q1': VI,
 		'MODIS/061/MYD13Q1': VI,
@@ -16761,6 +16768,11 @@ var MonitorEO = (function () {
 			return col;
 		}
 		var out = sceneFilter(ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end));
+		if (GAP_FILLED[entry.col]) {  // the gap-filled images, and those of the collection after the last of them
+			var filled = ee.ImageCollection(GAP_FILLED[entry.col]);
+			out = sceneFilter(filled.filterBounds(region).filterDate(start, end)).merge(
+				out.filter(ee.Filter.gt('system:time_start', filled.aggregate_max('system:time_start'))));
+		}
 		if (entry.sensor === 'Sentinel-2' && filters(entry, quality).clouds && quality.cloud_score !== null &&
 				quality.cloud_score !== undefined) {
 			out = out.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf']);
