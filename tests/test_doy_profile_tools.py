@@ -321,5 +321,6 @@ def test_the_assistant_shows_the_profile(mcp, monkeypatch, tmp_path):
 	                               'axis (from the data)')
 	if card['image']:  # with matplotlib, the chart
 		assert card['image'].startswith('data:image/png')
-	assert [f['name'].rsplit('.', 1)[-1] for f in card['files']] == ['csv', 'txt']  # the CSV and its README
+	# the CSV, its README and its parameters (monitoreo.parameters)
+	assert [f['name'].rsplit('.', 1)[-1] for f in card['files']] == ['csv', 'txt', 'json']
 	assert report.is_profile(asked)

@@ -344,7 +344,8 @@ table = dlg.findChild(QTableWidget)
 assert table.rowCount() == 3 and table.item(1, 1).text() == '2022' and table.item(1, 3).text() == '0'
 assert '1 frames without images (grey)' in dlg.findChildren(type(dlg.picture))[0].text()
 buttons = [b.text() for b in dlg.findChildren(QPushButton)]
-assert buttons == ['Save GIF…', 'Close'], buttons
+assert buttons == ['Save GIF…', 'Copy parameters', 'Save parameters…', 'Close'], buttons
+assert res['call']['analysis'] == 'timelapse' and res['call']['parameters']['fps'] == 4  # its parameters
 from monitoreo_qgis.results import save_file  # noqa: E402
 copy = os.path.join(TMP, 'copy.gif')
 save_file(res['gif'], copy, res)
@@ -388,7 +389,7 @@ dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()
 wait()
-assert calls[-1]['breaks'] == '0.2, 0.4' and calls[-1]['variable'] == 'NDVI', calls[-1]
+assert calls[-1]['breaks'] == [0.2, 0.4] and calls[-1]['variable'] == 'NDVI', calls[-1]  # numbers (#85)
 assert calls[-1]['metric'] == dock.map_metric.currentData(), calls[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('trend'))
 dock.run_areas()
@@ -409,7 +410,7 @@ dock.zone_breaks.setText('1500')
 dock.run_zones()
 wait()
 z = calls[-1]
-assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': '1500'}
+assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500.0]}
 assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
 dlg = dock.series_dialogs[len(dock.series) - 1]
 table = dlg.findChild(QTableWidget)

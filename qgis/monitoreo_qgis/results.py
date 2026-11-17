@@ -10,17 +10,19 @@ variable, named by their ID and band, with the unit given (if any) and without t
 its first line, which data its values come from («Data: ...», data_source: the Earth Engine collections and their
 product level, as its chart) and the warnings of its period, in orange (days without images of its data: see
 monitoreo.coverage), and ends with the references of its result (monitoreo.references), with the links of their
-DOIs."""
+DOIs, and the parameters of its analysis (monitoreo.parameters), which Copy parameters and Save parameters… give as
+JSON and which are saved next to its CSV, GeoTIFF, GIF or perimeter (<name>.parameters.json)."""
 
 import datetime as dt
+import json
 import math
 import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
 from qgis.PyQt.QtGui import QColor, QFont, QFontMetrics, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
-from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
-                                 QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
+from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
+                                 QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
 # the seasonal profile by day of the year of one or two variables (services.time_series with doy and interannual or
@@ -205,15 +207,70 @@ def _cell(v):
 	return f'{v:.6g}' if isinstance(v, float) else str(v)
 
 
+def parameters_text(p):
+	"""The parameters P of an analysis (see monitoreo.parameters) as the JSON text of their files."""
+	return json.dumps(p, ensure_ascii=False, indent=2)
+
+
+def result_parameters(res):
+	"""The parameters of the analysis of the result RES (see monitoreo.parameters): those the panel computed it with
+	(res['call']) or else those that monitoreo wrote next to its files (res['parameters'], the path of their JSON);
+	None if it has neither."""
+	if isinstance(res.get('call'), dict):
+		return res['call']
+	path = res.get('parameters')
+	if isinstance(path, str) and os.path.exists(path):
+		from monitoreo import parameters
+		try:
+			return parameters.read(path)
+		except (OSError, ValueError):
+			return None
+	return None
+
+
+def write_parameters(p, path):
+	"""Write the parameters P of an analysis to the JSON file PATH. Returns PATH."""
+	with open(path, 'w', encoding='utf-8') as f:
+		f.write(parameters_text(p) + '\n')
+	return path
+
+
 def save_file(src, path, res):
-	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its GeoTIFF or its perimeter (the polygons
-	of the burned area), its README next to it (<name>.README.txt), which explains its columns, bands or fields and how
-	to cite it."""
+	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its GeoTIFF, its GIF or its perimeter (the
+	polygons of the burned area), its README next to it (<name>.README.txt), which explains its columns, bands or
+	fields and how to cite it, and the parameters of its analysis (<name>.parameters.json), to repeat it in any tool."""
 	shutil.copyfile(src, path)
+	if src not in (res.get('csv'), res.get('file'), res.get('gif'), res.get('perimeter')):
+		return
 	readme = res.get('readme')
-	if src in (res.get('csv'), res.get('file'), res.get('gif'), res.get('perimeter')) and isinstance(readme, str) and \
-			os.path.exists(readme):
+	if isinstance(readme, str) and os.path.exists(readme):
 		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
+	p = result_parameters(res)
+	if p:
+		write_parameters(p, os.path.splitext(path)[0] + '.parameters.json')
+
+
+def value_text(name, value, limit=240):
+	"""The parameter NAME of value VALUE in a line: its JSON; a region of GeoJSON, its features and their names; long
+	values cut at LIMIT characters (Copy parameters gives them whole)."""
+	fc = value.get('geojson') if name == 'region' and isinstance(value, dict) else None
+	if isinstance(fc, dict):
+		features = fc.get('features') if fc.get('type') == 'FeatureCollection' else [fc]
+		names = [str((f.get('properties') or {}).get('name', '')) for f in features or [] if isinstance(f, dict)]
+		shown = ', '.join(n for n in names[:5] if n) + ('…' if len(names) > 5 else '')
+		return f"GeoJSON of {len(names)} feature{'' if len(names) == 1 else 's'}" + (f' ({shown})' if shown else '')
+	text = json.dumps(value, ensure_ascii=False)
+	return text if len(text) <= limit else text[:limit] + '…'
+
+
+def parameters_html(p):
+	"""The parameters P of an analysis (see monitoreo.parameters) as rich text: the analysis and a line per parameter,
+	name: value."""
+	from .helptexts import esc
+	rows = ''.join(f'<li><b>{esc(k)}</b>: {esc(value_text(k, v))}</li>' for k, v in p['parameters'].items())
+	return (f"<p><b>Parameters of the analysis</b> {esc(p['analysis'])} (MonitorEO {esc(p.get('monitoreo') or '?')}; "
+	        'the same names in Python, R, the command line, the MCP server and the Earth Engine app)</p>'
+	        f'<ul>{rows}</ul>')
 
 
 def data_warnings(res):
@@ -240,16 +297,48 @@ def notes_label(res):
 
 
 def references_box(res):
-	"""A box with the references and credits of the result RES (with the links of their DOIs), or None."""
+	"""A box with the references and credits of the result RES (with the links of their DOIs) and the parameters of
+	its analysis, or None if it has neither."""
 	from .helptexts import cite_html
 	text = cite_html(res.get('references'), res.get('credits') or (), 'References (cite them with this result)')
+	p = result_parameters(res)
+	if p:
+		text += parameters_html(p)
 	if not text:
 		return None
 	box = QTextBrowser()
+	box.setObjectName('details')
 	box.setOpenExternalLinks(True)
 	box.setHtml(text)
-	box.setMaximumHeight(120)
+	box.setMaximumHeight(160)
 	return box
+
+
+def parameter_buttons(dialog, row, res):
+	"""Add to the ROW of buttons of the window DIALOG of the result RES the buttons Copy parameters and Save
+	parameters… of its analysis, if it has them."""
+	p = result_parameters(res)
+	if not p:
+		return
+	b = QPushButton('Copy parameters')
+	b.setToolTip('Copy the parameters of this analysis (JSON) to repeat it in the panel (Apply parameters) or in '
+	             'Python, R, the command line, the MCP server or the Earth Engine app')
+	b.clicked.connect(lambda checked=False: QApplication.clipboard().setText(parameters_text(p)))
+	row.addWidget(b)
+	b = QPushButton('Save parameters…')
+	b.setToolTip('Save the parameters of this analysis as a JSON file')
+	b.clicked.connect(lambda checked=False: save_parameters(dialog, res, p))
+	row.addWidget(b)
+
+
+def save_parameters(dialog, res, p):
+	"""Save the parameters P of the result RES to a JSON file chosen by the user (by default, beside the name of its
+	files)."""
+	src = next((res[k] for k in ('csv', 'file', 'gif') if isinstance(res.get(k), str)), None)
+	name = os.path.splitext(os.path.basename(src))[0] if src else p['analysis']
+	path, _ = QFileDialog.getSaveFileName(dialog, 'Save parameters', name + '.parameters.json', 'Parameters (*.json)')
+	if path:
+		write_parameters(p, path)
 
 
 def burn_text(res):
@@ -386,6 +475,7 @@ class ResultDialog(QDialog):
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
 				row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
@@ -437,6 +527,7 @@ class AnimationDialog(QDialog):
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
 				row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
@@ -780,6 +871,7 @@ class SeriesDialog(QDialog):
 		b = QPushButton('Save chart…')
 		b.clicked.connect(self.save_chart)
 		row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)

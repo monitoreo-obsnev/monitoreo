@@ -26,6 +26,33 @@ var MonitorEO = (function () {
 		throw new Error('no entry with ref ' + ref + ' in the catalog of MonitorEO');
 	}
 
+	// catalog.name_key: NAME (of a variable or a sensor) as the catalog compares it, in lower case and without spaces
+	function nameKey(name) {
+		return String(name).toLowerCase().replace(/ /g, '');
+	}
+
+	// catalog.find: the entry of a variable by REF, or by INDEX and SENSOR and, when several collections have them
+	// (MOD13Q1 and MYD13Q1), COLLECTION (without it, the first entry); an Error with the options if there is none
+	function findEntry(index, sensor, collection, ref) {
+		if (ref !== null && ref !== undefined) return byRef(ref);
+		var none = function (x) { return x === null || x === undefined; };
+		var matches = variables().filter(function (e) {
+			return nameKey(e.index) === nameKey(index) && (none(sensor) || nameKey(e.sensor) === nameKey(sensor)) &&
+				(none(collection) || e.col === collection);
+		});
+		if (!matches.length) {
+			var options = [];
+			variables().forEach(function (e) {
+				var o = e.index + ' (' + e.sensor + ')';
+				if ((nameKey(e.index) === nameKey(index) || none(sensor)) && options.indexOf(o) < 0) options.push(o);
+			});
+			throw new Error((none(index) ? 'None' : index) + ' with sensor ' + (none(sensor) ? 'None' : sensor) +
+				(collection ? ' and collection ' + collection : '') + ' is not in the catalog of MonitorEO. Options: ' +
+				(options.sort().join(', ') || 'see the list of variables (list_variables)'));
+		}
+		return matches[0];
+	}
+
 	// catalog.number: number of a field of the catalog ('#' or missing = DEFAULT)
 	function number(v, def) {
 		var x = parseFloat(v);
@@ -3559,9 +3586,69 @@ var MonitorEO = (function () {
 		return {bands: RGB_BANDS.slice(), min: Number(vmin), max: Number(vmax)};
 	}
 
+	// The parameters of an analysis as JSON (parameters.py) ---------------------------------------------------------
+
+	// parameters.ANALYSES: the analyses, the functions of monitoreo.services that compute; PARAMETER_OUTPUTS
+	// (readme.NOT_ARGS): the outputs and callbacks of a call, not parameters of what was computed; parameters.META
+	var PARAMETER_ANALYSES = ['time_series', 'time_series_to_drive', 'map_layer', 'map_figure', 'rgb_map', 'timelapse',
+		'region_stats', 'transect', 'area_by_class', 'export_image', 'download_image', 'download_rgb', 'trend_table',
+		'trend_map', 'download_trend', 'compare_series', 'compare_map', 'download_comparison', 'burn_severity'];
+	var PARAMETER_OUTPUTS = ['csv', 'chart', 'path', 'thumbnail', 'progress', 'log', 'folder', 'tile', 'workers', 'record',
+		'wait', 'drive_dir', 'overwrite', 'dry_run', 'quick'];
+	var PARAMETER_META = ['monitoreo', 'analysis', 'parameters'];
+
+	// parameters.read: the parameters of SOURCE, a JSON text or an object, as {monitoreo, analysis, parameters}; a flat
+	// object ({"analysis": ..., "variable": ...}) is taken too: every key but monitoreo and analysis is a parameter. The
+	// app reads no files: their text is pasted
+	function readParameters(source) {
+		if (typeof source === 'string') {
+			var text = source.trim();
+			if (text.charAt(0) !== '{') {
+				throw new Error((text.length > 60 ? text.slice(0, 60) + '…' : text) + ': not a JSON object of parameters ' +
+					'(the app reads no files: paste the text of the file)');
+			}
+			try {
+				source = JSON.parse(text);
+			} catch (e) {
+				throw new Error('the parameters are not valid JSON: ' + e.message);
+			}
+		}
+		if (!source || typeof source !== 'object' || Array.isArray(source)) {
+			throw new Error('the parameters are a JSON object: {"monitoreo": ..., "analysis": ..., "parameters": {...}}');
+		}
+		var params = source.parameters, out = {}, k;
+		if (!params || typeof params !== 'object' || Array.isArray(params)) {
+			params = {};
+			for (k in source) if (PARAMETER_META.indexOf(k) < 0) params[k] = source[k];
+		}
+		for (k in params) out[k] = params[k];
+		return {monitoreo: source.monitoreo === undefined ? null : source.monitoreo,
+			analysis: source.analysis === undefined ? null : source.analysis, parameters: out};
+	}
+
+	// json.dumps of VALUE as Python writes it (', ' and ': ' between the items), for parametersText
+	function pyJson(value) {
+		if (Array.isArray(value)) return '[' + value.map(pyJson).join(', ') + ']';
+		if (value && typeof value === 'object') {
+			return '{' + Object.keys(value).map(function (k) { return JSON.stringify(k) + ': ' + pyJson(value[k]); })
+				.join(', ') + '}';
+		}
+		return value === undefined ? 'null' : JSON.stringify(value);
+	}
+
+	// parameters.text: the parameters that were not applied ([{name, value, reason}]), in a line: 'sensor ("MODIS"):
+	// reason; ...'
+	function parametersText(notApplied) {
+		return (notApplied || []).map(function (p) {
+			return p.name + ' (' + pyJson(p.value) + '): ' + p.reason;
+		}).join('; ');
+	}
+
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
-		otherThemes: otherThemes,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, nameKey: nameKey, findEntry: findEntry, number: number,
+		unitOf: unitOf, themes: themes, otherThemes: otherThemes,
+		PARAMETER_ANALYSES: PARAMETER_ANALYSES, PARAMETER_OUTPUTS: PARAMETER_OUTPUTS, PARAMETER_META: PARAMETER_META,
+		readParameters: readParameters, parametersText: parametersText,
 		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
 		UNITS: UNITS, UNIT_WORDS: UNIT_WORDS, DIMENSIONLESS: DIMENSIONLESS, udunitsText: udunitsText,
 		customUnit: customUnit, customEntry: customEntry, entryName: entryName, dataStem: dataStem,

@@ -6,7 +6,8 @@ computed, with which version and when, how to reproduce it and how to cite it):
     of its CSV or the bands of its GeoTIFF, to reproduce it in Python and the references to cite;
   - the metadata of its GeoTIFFs: the call that made it (call), the version of MonitorEO (monitoreo_version), when it
     was computed (computed, ISO 8601), the references, and the name and unit of each band;
-  - README.txt in each folder of a recipe (monitoreo.recipe), with every file, from the record of the folder.
+  - README.txt in each folder of a recipe (monitoreo.recipe), with every file, from the record of the folder;
+  - the parameters of the analysis as JSON (<file>.parameters.json, see monitoreo.parameters), to repeat it in any tool.
 
 monitoreo.services writes them with every result that has files (document); their paths are in the answer (readme).
 """
@@ -475,8 +476,9 @@ def readme_path(path):
 
 
 def document(tool, args, result, computed=None):
-	"""Document the files of a result of TOOL (see the module): the metadata of its GeoTIFF and its README. Returns the
-	path of the README (or of the READMEs of the folders of a recipe), or None if it has no files."""
+	"""Document the files of a result of TOOL (see the module): the metadata of its GeoTIFF, its README and the file of
+	its parameters (its path in RESULT, 'parameters'). Returns the path of the README (or of the READMEs of the folders
+	of a recipe), or None if it has no files."""
 	if not isinstance(result, dict):
 		return None
 	computed = computed or _now()
@@ -493,6 +495,9 @@ def document(tool, args, result, computed=None):
 	path = readme_path(files[0])
 	with open(path, 'w', encoding='utf-8') as fh:
 		fh.write(text(tool, args, result, computed))
+	from . import parameters  # and its parameters, to repeat it in any tool (monitoreo.parameters)
+	if publish.services_call(tool, dict(args or {}))[0] in parameters.ANALYSES:
+		result['parameters'] = parameters.save(tool, args, parameters.path_of(files[0]))
 	return path
 
 

@@ -103,6 +103,7 @@ monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/Monitor
 """
 
 import argparse
+import inspect
 import json
 import os
 import subprocess
@@ -621,6 +622,16 @@ def main(argv=None):
 	p.add_argument('--limit', help='monthly quota of your project: EECU-hours or tier (Community, Contributor, Partner; '
 	                               'default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
+	params = p = sub.add_parser('parameters', help='what of a JSON file of parameters of an analysis can be applied '
+	                                              '(those that MonitorEO writes next to the files of each result, '
+	                                              '<file>.parameters.json, and the other tools save), without computing')
+	p.add_argument('file', help='JSON file of parameters ({"monitoreo", "analysis", "parameters"})')
+	run = p = sub.add_parser('run', help='compute the analysis of a JSON file of parameters (see monitoreo '
+	                                     'parameters): the parameters that cannot be applied are left out and listed')
+	p.add_argument('file', help='JSON file of parameters ({"monitoreo", "analysis", "parameters"})')
+	p.add_argument('--out', help='stem of the files written (default: <analysis>_<date-time> in this folder): .csv, '
+	                             '.png, .tif or .gif, those of the analysis; an animation, as MP4 with an --out ending '
+	                             'in .mp4')
 	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is, who funds it and how to cite it')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
@@ -669,6 +680,17 @@ def main(argv=None):
 	if args.cmd == 'about':
 		print(about.text(args.lang))
 		return
+	if args.cmd == 'parameters':  # without Earth Engine
+		_parameters(args, params)
+		return
+	if args.cmd == 'run':
+		checked = _parameters(args, run, quiet=True)  # its errors before Earth Engine
+		from . import services
+		services.init(args.project, warn=False)
+		try:
+			return _run(args, checked, services)
+		finally:
+			_eecu_notice(services)
 	if args.cmd == 'serve':
 		from . import publish
 		publish.serve(args.site, args.port)
@@ -734,6 +756,59 @@ def main(argv=None):
 		_compute(args, services)
 	finally:
 		_eecu_notice(services)
+
+
+def _documented(res):
+	"""The README and the parameters (monitoreo.parameters) written with the files of a result RES, for its line."""
+	return ''.join(f' | {label} {res[k]}' for k, label in (('readme', 'README'), ('parameters', 'parameters'))
+	               if res.get(k))
+
+
+def _parameters(args, parser, quiet=False):
+	"""What of the JSON file of parameters ARGS.file can be applied (monitoreo.parameters.check): printed, unless
+	QUIET; those that cannot, as warnings."""
+	from . import parameters
+	try:
+		checked = parameters.check(args.file)
+	except ValueError as e:
+		parser.error(str(e))
+	if not quiet:
+		print(json.dumps({'analysis': checked['analysis'], 'parameters': checked['parameters']}, ensure_ascii=False,
+		                 indent=1))
+	for p in checked['not_applied']:
+		print(f"WARNING: not applied: {parameters.text([p])}", file=sys.stderr)
+	if checked.get('note'):
+		print(f"NOTE: {checked['note']}", file=sys.stderr)
+	return checked
+
+
+# the files of each output of an analysis (its arguments): extension
+OUTPUT_FILES = {'csv': '.csv', 'chart': '.png'}
+PATH_EXT = {'map_figure': '.png', 'timelapse': '.gif'}
+
+
+def _run(args, checked, services):
+	"""Compute the analysis of the parameters CHECKED (see _parameters), with its files named after --out."""
+	import datetime as dt
+	from . import parameters
+	analysis = checked['analysis']
+	stem = args.out or f"{analysis}_{dt.datetime.now():%Y%m%d-%H%M%S}"
+	names = inspect.signature(getattr(services, analysis)).parameters
+	outputs = {k: stem + ext for k, ext in OUTPUT_FILES.items() if k in names}
+	if 'path' in names:  # an animation: GIF, or MP4 with --out ending in .mp4
+		ext = os.path.splitext(stem)[1].lower() if analysis == 'timelapse' else ''
+		outputs['path'] = stem if ext in ('.gif', '.mp4') else stem + PATH_EXT.get(analysis, '.tif')
+	try:
+		res = getattr(services, analysis)(**checked['parameters'], **outputs)
+	except (ValueError, KeyError) as e:
+		sys.exit(f'ERROR: {e}')
+	shown = {k: v for k, v in (res or {}).items() if k not in ('rows', 'profile', 'references', 'credits')
+	         and not isinstance(v, (bytes, bytearray))}
+	if isinstance(res, dict) and isinstance(res.get('rows'), list):
+		shown['rows'] = len(res['rows'])
+	print(json.dumps(shown, ensure_ascii=False, indent=1, default=str))
+	if checked['not_applied']:
+		print(f"WARNING: computed without: {parameters.text(checked['not_applied'])}", file=sys.stderr)
 
 
 def _eecu(args, services):
@@ -837,7 +912,7 @@ def _compute(args, services):
 			sys.exit(_error(e, args))
 		colours = f"{len(res['classes'])} classes" if res.get('classes') is not None else \
 			f"colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()  # a categorical layer: its classes
-		print(f"{res['file']}: {res['name']} | {colours}" + (f" | README {res['readme']}" if res.get('readme') else ''))
+		print(f"{res['file']}: {res['name']} | {colours}" + _documented(res))
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
@@ -968,7 +1043,7 @@ def _areas(args, services):
 	        for r in res['rows'] if r.get('ha')], cols)
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m | % of the area with classes"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | chart {res['chart']}" if res.get('chart') else '')
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 
 
 def _timelapse(args, services):
@@ -984,7 +1059,7 @@ def _timelapse(args, services):
 	       ['frame', 'label', 'images'])
 	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
 	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 	if res.get('note'):
 		print(res['note'], file=sys.stderr)
 
@@ -1072,7 +1147,7 @@ def _burn(args, services):
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
 	      + (f" | perimeter {res['perimeter']}" if res.get('perimeter') else '')
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 
 
 def _publish(args):

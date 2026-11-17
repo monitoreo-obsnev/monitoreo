@@ -92,6 +92,16 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: The parameters of an analysis as JSON, the same in every tool (`{"monitoreo", "analysis", "parameters"}`, with the names of the Python package), written next to the files of each result (`<file>.parameters.json`), to repeat it, change one parameter or take it to another tool; when they are applied, what cannot be applied is left out and listed with the reason (issue #85).
+- **Python package**: `monitoreo.parameters` saves, checks and computes them again (`save`, `check`, `run`).
+- **Command line**: `monitoreo parameters FILE` says what of a file of parameters can be applied, and `monitoreo run FILE` computes it.
+- **MCP server, Assistant**: The tools `save_parameters` and `apply_parameters` of the MCP server; the assistant links the file of the parameters of each result and repeats an analysis from it (`apply_parameters`).
+- **R package**: `mo_save_parameters()`, `mo_read_parameters()` and `mo_run_parameters()`.
+- **QGIS plugin**: Parameters ▾ next to the button of each analysis (copy and save its parameters), Apply parameters ▾ (paste or open them: they fill the panel, with a warning of what cannot be applied), and the parameters of each result in its window, saved next to its files.
+- **Earth Engine app**: The group Parameters of the analysis (JSON): shows the parameters of the last analysis, to copy, and applies those pasted, with the list of what cannot be applied.
+
 ### [v0.3.45](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.45) · 2026-11-17 · package 0.3.55
 
 - **All tools** (fix): The evapotranspiration (ET) and latent heat (LE) of MODIS have values again before 2021: MOD16A2.061 begins in 2021 in Earth Engine, so they now use its gap-filled version, MOD16A2GF.061, from 2000 up to its last image, and MOD16A2.061 after it.

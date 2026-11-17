@@ -73,7 +73,8 @@ _shared = False
 def _cited(fn):
 	"""FN with the references of what it computed (monitoreo.references.cite) in its answer, 'references' and
 	'credits', and its files documented (monitoreo.readme): the metadata of its GeoTIFF (the call, the version, when
-	and the references) and a README next to them, whose path is in the answer ('readme'). Its answer also has, when
+	and the references) and a README next to them, whose path is in the answer ('readme'), with the parameters of the
+	call as JSON (monitoreo.parameters), whose path is in the answer too ('parameters'). Its answer also has, when
 	there are any, the warnings of its periods ('warnings': the days without images of its data, see
 	monitoreo.coverage) and the data its values come from ('data_source')."""
 	sig = inspect.signature(fn)

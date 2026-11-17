@@ -102,7 +102,8 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'describe_asset', 'community_themes',
-          'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')  # their answers go to the model
+          'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
+          'apply_parameters')  # their answers go to the model (apply_parameters: to repeat an analysis from its JSON)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
@@ -179,7 +180,8 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
           'find_datasets': 'Searching the Earth Engine data catalog for «{text}»',
           'landcover_maps': 'Looking at the land cover maps of the land cover masks',
-          'list_classes': 'Looking at the classes of {variable}'}
+          'list_classes': 'Looking at the classes of {variable}',
+          'apply_parameters': 'Reading the parameters of an analysis'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
@@ -831,8 +833,12 @@ def place_in(text):
 
 
 def other_tool(text):
-	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None."""
+	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None. To
+	repeat an analysis from its parameters (a JSON of monitoreo.parameters, or the path of its file) is not one: the
+	assistant does it (apply_parameters)."""
 	t = manual._ascii(str(text).lower())
+	if '"analysis"' in t or '.parameters.json' in t:
+		return None
 	return next(((name, what, url) for pattern, name, what, url in OTHER_TOOLS if re.search(pattern, t)), None)
 
 
@@ -1933,7 +1939,7 @@ class Assistant:
 			if tool == 'timelapse' and isinstance(result.get('gif'), str):  # the animation itself, not its last frame
 				card['image'] = _file_url(result['gif']) or card['image']
 			shown = set()
-			for k in ('csv', 'file', 'gif', 'perimeter', 'readme'):  # perimeter: the polygons of the burned area
+			for k in ('csv', 'file', 'gif', 'perimeter', 'readme', 'parameters'):  # perimeter: the burned area
 				if isinstance(result.get(k), str) and result[k] not in shown:
 					shown.add(result[k])
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
