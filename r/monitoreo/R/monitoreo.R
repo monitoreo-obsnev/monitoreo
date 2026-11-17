@@ -95,11 +95,12 @@ mo_references <- function(x = NULL) {
 }
 
 # The references and credits of the answer RES of Python as attributes of the data.frame DF (see mo_references()),
-# and the README of its files (readme).
+# and the README of its files (readme), and the JSON of its parameters (parameters).
 cited <- function(df, res) {
   attr(df, "references") <- vapply(res$references, function(r) r$text, "")
   attr(df, "credits") <- as.character(unlist(res$credits))
   attr(df, "readme") <- if (is.null(res$readme)) NULL else unlist(res$readme)
+  attr(df, "parameters") <- res$parameters  # the JSON of its parameters (mo_run_parameters() repeats it)
   df
 }
 #' Arguments shared by the functions of MonitorEO
@@ -2237,3 +2238,74 @@ burn_legend <- function(index) {
 #' }
 #' @export
 mo_task_status <- function(operation) services()$task_status(operation)
+
+#' Save the parameters of an analysis as JSON
+#'
+#' The same JSON in every tool of MonitorEO (the Python package, the command line, the MCP server and the assistant,
+#' the QGIS plugin and the Earth Engine app), to repeat an analysis, change one of its parameters or take it to another
+#' tool: \code{\{"monitoreo": version, "analysis": ..., "parameters": \{...\}\}}, with the names of the arguments of
+#' the functions of the Python package (those of \code{mo_*}, without \code{mo_}: \code{time_series},
+#' \code{download_image}, \code{trend_table}...). Every result that writes files already writes it next to them
+#' (\code{<file>.parameters.json}, its path in the attribute or element \code{parameters}).
+#' @param analysis the analysis: the function of the Python package (e.g. \code{"time_series"} for
+#'   \code{mo_time_series()}).
+#' @param ... its arguments, with the names of the Python package (region, variable, sensor, start, end...).
+#' @param path the JSON file to write.
+#' @return \code{path}, invisibly.
+#' @examples
+#' \dontrun{
+#' mo_save_parameters("time_series", region = mo_wdpa(555588816), variable = "NDVI", sensor = "Landsat",
+#'                    start = "2023-01-01", end = "2026-10-30", step = "monthly", path = "ndvi.json")
+#' }
+#' @export
+mo_save_parameters <- function(analysis, ..., path) {
+  invisible(reticulate::import("monitoreo.parameters", convert = TRUE)$save(analysis, list(...), path))
+}
+
+#' Read the parameters of an analysis saved as JSON
+#'
+#' What of the parameters saved by any tool of MonitorEO (see \code{mo_save_parameters()}) can be applied in this
+#' version, without computing anything: those that cannot (not parameters of the analysis in this version, or a
+#' variable or sensor that is not in the catalog) are left out, each with the reason, and an R warning lists them.
+#' @param source the path of a JSON file, or its text.
+#' @return A list: analysis, parameters (those that can be applied), not_applied (name, value and reason of each),
+#'   monitoreo (the version that saved them) and note (when it is not this one).
+#' @examples
+#' \dontrun{
+#' p <- mo_read_parameters("ndvi.json")
+#' p$parameters$end <- "2025-12-31"   # change one, and compute it with mo_run_parameters(p)
+#' }
+#' @export
+mo_read_parameters <- function(source) {
+  m <- reticulate::import("monitoreo.parameters", convert = TRUE)
+  out <- m$check(source)
+  if (length(out$not_applied)) warning("not applied: ", m$text(out$not_applied), call. = FALSE)
+  out
+}
+
+#' Compute the analysis of parameters saved as JSON
+#'
+#' Computes the analysis of the parameters saved by any tool of MonitorEO (see \code{mo_read_parameters()}), with its
+#' function of the Python package, without those that cannot be applied (an R warning lists them).
+#' @param source the path of a JSON file, its text, or what \code{mo_read_parameters()} returns (its parameters,
+#'   changed if wanted).
+#' @param ... its outputs, as in its function (e.g. \code{csv}, \code{chart}, \code{path}).
+#' @return The result of the Python function (a list), with not_applied.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' x <- mo_run_parameters("ndvi.json", csv = "ndvi.csv")
+#' }
+#' @export
+mo_run_parameters <- function(source, ...) {
+  s <- services()
+  m <- reticulate::import("monitoreo.parameters", convert = TRUE)
+  if (is.list(source) && !is.null(source$analysis) && !is.null(source$parameters)) {
+    source <- list(monitoreo = source$monitoreo, analysis = source$analysis, parameters = source$parameters)
+  }
+  checked <- m$check(source)
+  if (length(checked$not_applied)) warning("computed without: ", m$text(checked$not_applied), call. = FALSE)
+  out <- do.call(s[[checked$analysis]], c(checked$parameters, list(...)))
+  out$not_applied <- checked$not_applied
+  out
+}

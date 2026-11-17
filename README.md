@@ -92,6 +92,16 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: the parameters of an analysis as JSON, the same in every tool (`{"monitoreo", "analysis", "parameters"}`, with the names of the Python package), written next to the files of each result (`<file>.parameters.json`), to repeat it, change one parameter or take it to another tool; when they are applied, what cannot be applied is left out and listed with the reason (issue #85).
+- **Python package**: `monitoreo.parameters` saves, checks and computes them again (`save`, `check`, `run`).
+- **Command line**: `monitoreo parameters FILE` says what of a file of parameters can be applied, and `monitoreo run FILE` computes it.
+- **MCP server, Assistant**: the tools `save_parameters` and `apply_parameters`; the assistant links the file of the parameters of each result, and repeats an analysis from it.
+- **R package**: `mo_save_parameters()`, `mo_read_parameters()` and `mo_run_parameters()`.
+- **QGIS plugin**: Parameters ▾ next to the button of each analysis (copy and save its parameters), Apply parameters ▾ (paste or open them: they fill the panel, with a warning of what cannot be applied), and the parameters of each result in its window, saved next to its files.
+- **Earth Engine app**: the group Parameters of the analysis (JSON): shows the parameters of the last analysis, to copy, and applies those pasted, with the list of what cannot be applied.
+
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
 - **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.
