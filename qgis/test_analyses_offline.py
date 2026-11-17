@@ -165,6 +165,7 @@ def area_by_class(region, csv=None, **opts):
 			f.write('region,from_label,to_label,ha,percent\n')
 		return {'rows': rows, 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
 		        'year': opts['year'], 'other_year': opts['other_year'], 'classes': [], 'references': [], 'credits': [],
+		        'data_source': 'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018',
 		        'changed_ha': {'Sierra Nevada': 15.0, 'Doñana': 0.0},
 		        'unchanged_ha': {'Sierra Nevada': 0.0, 'Doñana': 30.0},
 		        'by_landcover': [{'region': 'Doñana', 'from_label': 'Water', 'to_label': 'Water', 'ha': 30.0},
@@ -180,8 +181,9 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
-sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
-charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
+sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS), with their line «Data: ...»
+charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''), source=None: sankeys.append(
+	(flows, title, source))
 for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
 	QgsSettings().remove('MonitorEO/' + key)
 
@@ -371,7 +373,8 @@ table = dlg.findChild(QTableWidget)
 assert table.rowCount() == 3 and table.item(1, 1).text() == '2022' and table.item(1, 3).text() == '0'
 assert '1 frames without images (grey)' in dlg.findChildren(type(dlg.picture))[0].text()
 buttons = [b.text() for b in dlg.findChildren(QPushButton)]
-assert buttons == ['Save GIF…', 'Close'], buttons
+assert buttons == ['Save GIF…', 'Copy parameters', 'Save parameters…', 'Close'], buttons
+assert res['call']['analysis'] == 'timelapse' and res['call']['parameters']['fps'] == 4  # its parameters
 from monitoreo_qgis.results import save_file  # noqa: E402
 copy = os.path.join(TMP, 'copy.gif')
 save_file(res['gif'], copy, res)
@@ -399,7 +402,8 @@ assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (20
 dock.run_areas()
 wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
-assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
+assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)',  # the first feature, named
+                       'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018'), sankeys
 dock.area_change.setChecked(False)
 # a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
 made = len(calls)
@@ -414,7 +418,7 @@ dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()
 wait()
-assert calls[-1]['breaks'] == '0.2, 0.4' and calls[-1]['variable'] == 'NDVI', calls[-1]
+assert calls[-1]['breaks'] == [0.2, 0.4] and calls[-1]['variable'] == 'NDVI', calls[-1]  # numbers (#85)
 assert calls[-1]['metric'] == dock.map_metric.currentData(), calls[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('trend'))
 dock.run_areas()
@@ -435,7 +439,7 @@ dock.zone_breaks.setText('1500')
 dock.run_zones()
 wait()
 z = calls[-1]
-assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': '1500'}
+assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500.0]}
 assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
 dlg = dock.series_dialogs[len(dock.series) - 1]
 table = dlg.findChild(QTableWidget)

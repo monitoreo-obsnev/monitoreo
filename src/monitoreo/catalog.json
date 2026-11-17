@@ -33,8 +33,12 @@
    "end": null
   },
   "MODIS/061/MOD16A2": {
-   "start": "2001-01-01",
+   "start": "2021-01-01",
    "end": null
+  },
+  "MODIS/061/MOD16A2GF": {
+   "start": "2000-01-01",
+   "end": "2025-12-27"
   },
   "MODIS/061/MOD11A1": {
    "start": "2000-02-24",
@@ -189,6 +193,11 @@
   "MODIS/061/MOD16A2": {
    "references": [
     "mod16a2"
+   ]
+  },
+  "MODIS/061/MOD16A2GF": {
+   "references": [
+    "mod16a2gf"
    ]
   },
   "MODIS/061/MOD10A1": {
@@ -682,6 +691,10 @@
    "citation": "Running, S., Mu, Q., & Zhao, M. (2021). MODIS/Terra Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
    "doi": "10.5067/MODIS/MOD16A2.061"
   },
+  "mod16a2gf": {
+   "citation": "Running, S., Mu, Q., Zhao, M., & Moreno, A. (2021). MODIS/Terra Net Evapotranspiration Gap-Filled 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD16A2GF.061"
+  },
   "mod10a1": {
    "citation": "Hall, D. K., & Riggs, G. A. (2021). MODIS/Terra Snow Cover Daily L3 Global 500m SIN Grid, Version 61 [Data set]. NASA National Snow and Ice Data Center Distributed Active Archive Center.",
    "doi": "10.5067/MODIS/MOD10A1.061"
@@ -804,8 +817,8 @@
    "sensor": "Modis",
    "col": "MODIS/061/MOD16A2",
    "tr": "8-days",
-   "dr": "2001/01/01-now",
-   "ds": "1/1/01",
+   "dr": "2000/01/01-now",
+   "ds": "1/1/00",
    "de": "now",
    "vname": "Evapotranspiración",
    "ft": "ET",
@@ -870,8 +883,8 @@
    "sensor": "Modis",
    "col": "MODIS/061/MOD16A2",
    "tr": "8-days",
-   "dr": "2001/01/01-now",
-   "ds": "1/1/01",
+   "dr": "2000/01/01-now",
+   "ds": "1/1/00",
    "de": "now",
    "vname": "Calor Latente",
    "ft": "LE",

@@ -26,8 +26,8 @@ var CATALOG = {
     "issue": "En GitHub: p\u00fablico, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.51",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.51"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.56",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.56"
    }
   },
   "logos": [
@@ -37,9 +37,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "released": "2026-11-15",
+  "released": "2026-11-17",
   "repository": "https://github.com/monitoreo-obsnev/monitoreo",
-  "version": "0.3.51"
+  "version": "0.3.56"
  },
  "classes": {
   "biomes": {
@@ -4443,7 +4443,11 @@ var CATALOG = {
   },
   "MODIS/061/MOD16A2": {
    "end": null,
-   "start": "2001-01-01"
+   "start": "2021-01-01"
+  },
+  "MODIS/061/MOD16A2GF": {
+   "end": "2025-12-27",
+   "start": "2000-01-01"
   },
   "MODIS/061/MYD09GA": {
    "end": null,
@@ -5532,6 +5536,227 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "coverage": {
+  "checked": "2026-11-14",
+  "collections": {
+   "COPERNICUS/DEM/GLO30_2024_1": [
+    [
+     "COPERNICUS/DEM/GLO30_2024_1",
+     "2010-12-01",
+     "2020-11-13",
+     "Copernicus DEM GLO-30 (2024_1): Global 30m Digital Elevation Model"
+    ]
+   ],
+   "COPERNICUS/S2_SR_HARMONIZED": [
+    [
+     "COPERNICUS/S2_SR_HARMONIZED",
+     "2017-03-28",
+     null,
+     "Harmonized Sentinel-2 MSI, Level-2A (SR)"
+    ]
+   ],
+   "ECMWF/ERA5_LAND/MONTHLY_AGGR": [
+    [
+     "ECMWF/ERA5_LAND/MONTHLY_AGGR",
+     "1950-02-01",
+     null,
+     "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis"
+    ]
+   ],
+   "IDAHO_EPSCOR/TERRACLIMATE": [
+    [
+     "IDAHO_EPSCOR/TERRACLIMATE",
+     "1958-01-01",
+     "2024-12-01",
+     "TerraClimate"
+    ]
+   ],
+   "LANDSAT": [
+    [
+     "LANDSAT/LT05/C02/T1_L2",
+     "1984-03-16",
+     "2012-05-05",
+     "USGS Landsat 5 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LE07/C02/T1_L2",
+     "1999-05-28",
+     "2003-05-31",
+     "USGS Landsat 7 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC08/C02/T1_L2",
+     "2013-03-18",
+     null,
+     "USGS Landsat 8 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC09/C02/T1_L2",
+     "2021-10-31",
+     null,
+     "USGS Landsat 9 Level 2, Collection 2, Tier 1"
+    ]
+   ],
+   "MERIT/Hydro/v1_0_1": [
+    [
+     "MERIT/Hydro/v1_0_1",
+     "1987-01-01",
+     "2017-01-01",
+     "MERIT Hydro: Global Hydrography Datasets"
+    ]
+   ],
+   "MODIS/061/MCD15A3H": [
+    [
+     "MODIS/061/MCD15A3H",
+     "2002-07-04",
+     null,
+     "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MCD19A2_GRANULES": [
+    [
+     "MODIS/061/MCD19A2_GRANULES",
+     "2000-02-24",
+     null,
+     "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km"
+    ]
+   ],
+   "MODIS/061/MCD43A3": [
+    [
+     "MODIS/061/MCD43A3",
+     "2000-02-24",
+     null,
+     "MCD43A3.061 MODIS Albedo Daily 500m"
+    ]
+   ],
+   "MODIS/061/MOD09GA": [
+    [
+     "MODIS/061/MOD09GA",
+     "2000-02-24",
+     null,
+     "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MOD10A1": [
+    [
+     "MODIS/061/MOD10A1",
+     "2000-02-24",
+     null,
+     "MOD10A1.061 Terra Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MOD11A1": [
+    [
+     "MODIS/061/MOD11A1",
+     "2000-02-24",
+     null,
+     "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MOD13Q1": [
+    [
+     "MODIS/061/MOD13Q1",
+     "2000-02-18",
+     null,
+     "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/061/MOD16A2": [
+    [
+     "MODIS/061/MOD16A2GF",
+     "2000-01-01",
+     "2025-12-27",
+     "MOD16A2GF.061"
+    ],
+    [
+     "MODIS/061/MOD16A2",
+     "2025-12-28",
+     null,
+     "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD09GA": [
+    [
+     "MODIS/061/MYD09GA",
+     "2002-07-04",
+     null,
+     "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MYD10A1": [
+    [
+     "MODIS/061/MYD10A1",
+     "2002-07-04",
+     null,
+     "MYD10A1.061 Aqua Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD11A1": [
+    [
+     "MODIS/061/MYD11A1",
+     "2002-07-04",
+     null,
+     "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MYD13Q1": [
+    [
+     "MODIS/061/MYD13Q1",
+     "2002-07-04",
+     null,
+     "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/MOD09GA_006_NDWI": [
+    [
+     "MODIS/MOD09GA_006_NDWI",
+     "2000-02-24",
+     "2023-02-17",
+     "MODIS Terra Daily NDWI"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Aqua/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+     "2002-07-03",
+     "2025-11-30",
+     "Ocean Color SMI: Standard Mapped Image MODIS Aqua Data"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Terra/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Terra/L3SMI",
+     "2000-02-24",
+     "2025-11-29",
+     "Ocean Color SMI: Standard Mapped Image MODIS Terra Data"
+    ]
+   ],
+   "RESOLVE/ECOREGIONS/2017": [
+    [
+     "RESOLVE/ECOREGIONS/2017",
+     null,
+     null,
+     null
+    ]
+   ],
+   "UCSB-CHC/CHIRPS/V3/DAILY_SAT": [
+    [
+     "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
+     "1981-01-01",
+     null,
+     "CHIRPS Precipitation Daily Near-Real-Time"
+    ]
+   ],
+   "WORLDCLIM/V1/BIO": [
+    [
+     "WORLDCLIM/V1/BIO",
+     "1960-01-01",
+     "1991-01-01",
+     "WorldClim BIO Variables V1"
+    ]
+   ]
+  }
+ },
  "eecatalog": {
   "datasets": [
    [
@@ -12384,7 +12609,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "ET": "ET"
    },
@@ -12429,7 +12654,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "LE": "LE"
    },
@@ -16266,6 +16491,33 @@ var MonitorEO = (function () {
 		throw new Error('no entry with ref ' + ref + ' in the catalog of MonitorEO');
 	}
 
+	// catalog.name_key: NAME (of a variable or a sensor) as the catalog compares it, in lower case and without spaces
+	function nameKey(name) {
+		return String(name).toLowerCase().replace(/ /g, '');
+	}
+
+	// catalog.find: the entry of a variable by REF, or by INDEX and SENSOR and, when several collections have them
+	// (MOD13Q1 and MYD13Q1), COLLECTION (without it, the first entry); an Error with the options if there is none
+	function findEntry(index, sensor, collection, ref) {
+		if (ref !== null && ref !== undefined) return byRef(ref);
+		var none = function (x) { return x === null || x === undefined; };
+		var matches = variables().filter(function (e) {
+			return nameKey(e.index) === nameKey(index) && (none(sensor) || nameKey(e.sensor) === nameKey(sensor)) &&
+				(none(collection) || e.col === collection);
+		});
+		if (!matches.length) {
+			var options = [];
+			variables().forEach(function (e) {
+				var o = e.index + ' (' + e.sensor + ')';
+				if ((nameKey(e.index) === nameKey(index) || none(sensor)) && options.indexOf(o) < 0) options.push(o);
+			});
+			throw new Error((none(index) ? 'None' : index) + ' with sensor ' + (none(sensor) ? 'None' : sensor) +
+				(collection ? ' and collection ' + collection : '') + ' is not in the catalog of MonitorEO. Options: ' +
+				(options.sort().join(', ') || 'see the list of variables (list_variables)'));
+		}
+		return matches[0];
+	}
+
 	// catalog.number: number of a field of the catalog ('#' or missing = DEFAULT)
 	function number(v, def) {
 		var x = parseFloat(v);
@@ -16655,6 +16907,10 @@ var MonitorEO = (function () {
 		snow: function (i) { return bits(i.select('state_1km'), 15).eq(0); },
 		aerosols: function (i) { return bits(i.select('state_1km'), 6, 7).neq(3); }
 	};
+	// sensors.GAP_FILLED: collections with a gap-filled version, made once a year: its images up to its last one in the
+	// catalog (CATALOG.collections, as the references), and those of the collection after it (MOD16A2.061 begins in
+	// 2021, MOD16A2GF.061 covers 2000 to the end of last year)
+	var GAP_FILLED = {'MODIS/061/MOD16A2': 'MODIS/061/MOD16A2GF'};
 	var PRODUCTS = {
 		'MODIS/061/MOD13Q1': VI,
 		'MODIS/061/MYD13Q1': VI,
@@ -16793,6 +17049,11 @@ var MonitorEO = (function () {
 			return col;
 		}
 		var out = sceneFilter(ee.ImageCollection(entry.col).filterBounds(region).filterDate(start, end));
+		if (GAP_FILLED[entry.col]) {  // the gap-filled images, and those of the collection after the last of them
+			var last = ee.Date(CATALOG.collections[GAP_FILLED[entry.col]].end).millis();  // as the references
+			out = sceneFilter(ee.ImageCollection(GAP_FILLED[entry.col]).filterBounds(region).filterDate(start, end))
+				.filter(ee.Filter.lte('system:time_start', last)).merge(out.filter(ee.Filter.gt('system:time_start', last)));
+		}
 		if (entry.sensor === 'Sentinel-2' && filters(entry, quality).clouds && quality.cloud_score !== null &&
 				quality.cloud_score !== undefined) {
 			out = out.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf']);
@@ -17294,7 +17555,238 @@ var MonitorEO = (function () {
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
 		onlyMetric(s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref), s.metric);
+		// variable.specs: a period without images of its data is an Error; one with days without them, a warning
+		// (notes, for the results panel)
+		if (s.period && (s.ref !== undefined && s.ref !== null || s.entry)) checkPeriod(s);
 		return s;
+	}
+
+	// Dates and data of the variables (coverage.py): the Earth Engine collections of a variable of the catalog, with the
+	// dates of their images and their short titles (CATALOG.coverage, written by build.py from the copy of the index of
+	// the Earth Engine data catalog of the package), the check of a period against them and what the charts say of
+	// their data (\u00abData: ...\u00bb). The data of Earth Engine given by their ID are named by the titles of the indexes of
+	// catalog.js, but their dates are not checked: catalog.js has only their years -----------------------------------
+
+	var LEVEL = /\bLevel[- ]?\d[A-Za-z0-9]*(?: \([A-Za-z]+\))?/;  // coverage.LEVEL
+	var LONG_TITLE = 70;  // coverage.LONG_TITLE
+	var STEP_DAYS = {daily: 1, monthly: 31, yearly: 366, annual: 366};  // coverage.STEP_DAYS
+	var NOTES = {warnings: [], data: []};  // coverage.Notes: those of the computation of the panel (see resetNotes)
+	var LABEL = '';  // coverage._label: the start of the warnings of checkPeriod (those of a condition of where)
+
+	// coverage.short_title: TITLE of a dataset, short for a chart
+	function shortTitle(title) {
+		title = String(title || '').split(/\s+/).filter(Boolean).join(' ');
+		var i = title.indexOf(': ');
+		if (i < 0) return title || null;
+		var level = LEVEL.exec(title.slice(i + 2));
+		if (level) return title.slice(0, i) + ', ' + level[0];
+		return title.length > LONG_TITLE ? title.slice(0, i) : title;
+	}
+
+	// coverage.join: WORDS in a sentence, 'a', 'a and b', 'a, b and c'
+	function joinWords(words) {
+		return words.length < 3 ? words.join(' and ') : words.slice(0, -1).join(', ') + ' and ' + words[words.length - 1];
+	}
+
+	// coverage.join_titles: one title for the titles of several datasets of a family ('USGS Landsat 8 and 9 Level 2,
+	// Collection 2, Tier 1'), or those that share nothing joined with '; '
+	function joinTitles(titles) {
+		var unique = [];
+		titles.forEach(function (t) { if (t && unique.indexOf(t) < 0) unique.push(t); });
+		if (unique.length < 2) return unique.length ? unique[0] : null;
+		var words = unique.map(function (t) { return t.split(' '); });
+		var n = Math.min.apply(null, words.map(function (w) { return w.length; }));
+		var head = 0, tail = 0;
+		while (head < n - 1 && words.every(function (w) { return w[head] === words[0][head]; })) head++;
+		while (tail < n - head - 1 && words.every(function (w) {
+			return w[w.length - 1 - tail] === words[0][words[0].length - 1 - tail];
+		})) tail++;
+		if (!head && !tail) return unique.join('; ');
+		var middles = words.map(function (w) { return w.slice(head, w.length - tail).join(' '); });
+		return words[0].slice(0, head).concat([joinWords(middles)], tail ? words[0].slice(words[0].length - tail) : [])
+			.join(' ');
+	}
+
+	// coverage.text: the data of the datasets IDS named NAME, as the charts and warnings say it
+	function dataText(ids, name) {
+		return name ? joinWords(ids) + ' (' + name + ')' : joinWords(ids);
+	}
+
+	// coverage.title: the short title of the Earth Engine dataset ASSET, from the index of the Earth Engine data catalog
+	// or of the GEE Community Catalog of catalog.js, or null
+	function assetTitle(asset) {
+		var rows = (CATALOG.eecatalog || {}).datasets || [];
+		for (var i = 0; i < rows.length; i++) if (rows[i][0] === asset) return shortTitle(rows[i][1]);
+		var c = CATALOG.community ? communityRecord(asset) : null;
+		return c ? shortTitle(c.title) : null;
+	}
+
+	// coverage.parts: [[ID, first day, last day or null, short title]] of the collections of the images of the entry E
+	// of the catalog (null if catalog.js has none)
+	function coverageParts(e) {
+		return ((CATALOG.coverage || {}).collections || {})[e.col] || null;
+	}
+
+	// coverage._overlaps: whether PART has images between the days A and B (ISO)
+	function overlaps(part, a, b) {
+		return (!part[1] || part[1] <= b) && (!part[2] || part[2] >= a);
+	}
+
+	// coverage._dates_of: [first day, last day or null if one of them goes on] of the images of the parts FOUND
+	function datesOf(found) {
+		var starts = found.map(function (p) { return p[1]; }).filter(Boolean).sort();
+		var ends = found.map(function (p) { return p[2]; });
+		var open = ends.some(function (x) { return !x; });
+		return [starts.length ? starts[0] : null, open || !ends.length ? null : ends.slice().sort()[ends.length - 1]];
+	}
+
+	function partsText(found) {
+		return dataText(found.map(function (p) { return p[0]; }), joinTitles(found.map(function (p) { return p[3]; })));
+	}
+
+	// coverage.of_entry (its text): the data of the values of the entry E of the catalog in PERIODS ([[first, last
+	// day]]; all its collections without them), e.g. 'COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A
+	// (SR))'; of the data of Earth Engine by their ID, their ID and title
+	function dataSource(e, periods) {
+		if (e.custom) return dataText([e.col], assetTitle(e.col));
+		var found = coverageParts(e);
+		if (!found) return e.col;
+		var inside = e.static ? [] : found.filter(function (p) {
+			return (periods || []).some(function (q) { return overlaps(p, q[0], q[1]); });
+		});
+		return partsText(inside.length ? inside : found);
+	}
+
+	// coverage.step_days: the days that each image of the entry E covers (its 'tr')
+	function stepDays(e) {
+		var tr = String(e.tr || '').trim().toLowerCase();
+		var m = /^(\d+)\s*-?\s*days?$/.exec(tr);
+		return m ? Number(m[1]) : (STEP_DAYS[tr] || 1);
+	}
+
+	// coverage._how_long and coverage._missing: 'its first 15 months have no data', 'its last day has no data'
+	function howLong(days) {
+		var n = days, unit = 'day';
+		if (days >= 730) {
+			n = Math.round(days / 365.25);
+			unit = 'year';
+		} else if (days >= 31) {
+			n = Math.round(days / 30.4375);
+			unit = 'month';
+		}
+		return n === 1 ? '1 ' + unit : n + ' ' + unit + 's';
+	}
+
+	function missing(which, days) {
+		var length = howLong(days), one = length.indexOf('1 ') === 0;
+		return 'its ' + which + ' ' + (one ? length.slice(2) : length) + ' ' + (one ? 'has' : 'have') + ' no data';
+	}
+
+	function noteWarning(text) {
+		text = LABEL + text;
+		if (NOTES.warnings.indexOf(text) < 0) NOTES.warnings.push(text);
+		return text;
+	}
+
+	// coverage.check: the period of the spec S of a variable of the catalog against the dates of its images, without
+	// Earth Engine: an Error if it has no images (it ends before the first, falls in a gap between collections, or
+	// begins after TODAY, by default today, whatever the data); else the warnings of its days without data (the period
+	// begins before the first image, or ends, or even begins, after the last image of data that ended, and the days it
+	// covers), [texts], each also noted for the results panel (notes). Nothing for the fixed layers and the data by
+	// their ID
+	function checkPeriod(s, today) {
+		var e = entryOf(s);
+		var found = e.static || e.custom ? null : coverageParts(e);
+		if (!found || !found.some(function (p) { return p[1]; })) return [];
+		var wins = windows(s.period, s.season);
+		var first = wins[0][1], last = addDays(wins[wins.length - 1][2], -1);
+		var a = iso(first), b = iso(last);
+		var season = s.season ? ' (in its season)' : '';
+		today = today || iso(new Date());
+		if (a > today) {  // whatever the data: also those that ended (the warning below would say they may have images)
+			throw new Error('The period asked for' + season + ', ' + a + ' to ' + b + ', begins after today (' + today +
+				'): there are no images of ' + partsText(found) + ' for it yet.');
+		}
+		var dates = datesOf(found), start = dates[0], end = dates[1];
+		var inside = found.filter(function (p) { return overlaps(p, a, b); });
+		if (!inside.length) {
+			var data = partsText(found);
+			if (start && b < start) {
+				throw new Error('The images of ' + data + ' start on ' + start + ': the period asked for' + season + ', ' + a +
+					' to ' + b + ', ends before them and has no data. Choose a period from ' + start + ' on.');
+			}
+			if (end && a > end) {  // a warning, not an error: the copy of the index may be older than their last images
+				return [noteWarning('The images of ' + data + ' end on ' + end + ' (in the copy of the Earth Engine data ' +
+					'catalog of ' + (CATALOG.coverage || {}).checked + '): the period asked for' + season + ', ' + a + ' to ' + b +
+					', begins after them, so it may have no data, unless Earth Engine has added images since.')];
+			}
+			var before = found.map(function (p) { return p[2]; }).filter(function (x) { return x && x < a; }).sort();
+			var after = found.map(function (p) { return p[1]; }).filter(function (x) { return x && x > b; }).sort();
+			if (before.length && after.length) {
+				throw new Error('The images of ' + data + ' have none from ' + iso(addDays(date(before[before.length - 1]), 1)) +
+					' to ' + iso(addDays(date(after[0]), -1)) + ': the period asked for' + season + ', ' + a + ' to ' + b +
+					', has no data. Choose a period before or after those days.');
+			}
+			return [];
+		}
+		var out = [], what = partsText(inside);
+		if (start && a < start) {
+			out.push(noteWarning('The images of ' + what + ' start on ' + start + ': the period asked for' + season +
+				' begins on ' + a + ', so ' + missing('first', Math.round((date(start) - first) / 86400000)) + '.'));
+		}
+		if (end) {
+			var covered = addDays(date(end), stepDays(e) - 1);
+			if (last > covered) {
+				out.push(noteWarning('The images of ' + what + ' end on ' + end + ': the period asked for' + season +
+					' ends on ' + b + ', so ' + missing('last', Math.round((last - covered) / 86400000)) + '.'));
+			}
+		}
+		return out;
+	}
+
+	// coverage.collect: the notes of a computation of the panel, from its first spec: resetNotes, then notes() gives
+	// {warnings, data} (data: [[entry, periods]] of its variables, see used); the panel keeps those of each computation
+	// (they are another object after resetNotes)
+	function resetNotes() {
+		NOTES = {warnings: [], data: []};
+	}
+
+	function notes() {
+		return NOTES;
+	}
+
+	// F() with the notes NOTED (those of the computation that called it, which a newer one may have replaced since:
+	// the blocks of a series fetched later), or its error
+	function withNotes(noted, f) {
+		var current = NOTES;
+		NOTES = noted;
+		try {
+			return f();
+		} finally {
+			NOTES = current;
+		}
+	}
+
+	// coverage.used: the values of the computation come from the data of the spec S (in its period)
+	function used(s) {
+		var e = entryOf(s), key = (e.custom ? 'asset ' : 'entry ') + e.col;
+		var item = NOTES.data.filter(function (d) { return d[0] === key; })[0];
+		if (!item) {
+			item = [key, e, []];
+			NOTES.data.push(item);
+		}
+		if (s.period && !e.static) item[2].push([String(s.period[0]).slice(0, 10), String(s.period[1]).slice(0, 10)]);
+	}
+
+	// coverage.source: the data of the values of the computation (of its notes NOTED, default those of now), as its
+	// charts say it, or null
+	function sourceText(noted) {
+		var texts = [];
+		(noted || NOTES).data.forEach(function (d) {
+			var t = dataSource(d[1], d[2]);
+			if (texts.indexOf(t) < 0) texts.push(t);
+		});
+		return texts.length ? texts.join('; ') : null;
 	}
 
 	// variable.specs: error if METRIC is not the only metric of the entry E, if it has one (SCF and CF: the mean of
@@ -17815,7 +18307,15 @@ var MonitorEO = (function () {
 				cs.period = period.slice();
 				cs.metric = c.metric || e.metric || 'mean';
 			}
-			return [spec(cs), c.min, c.max];
+			var label = 'where, the condition on ' + e.index + ' (' + e.sensor + '): ', outer = LABEL;
+			LABEL = outer + label;  // its warnings, named as its errors: they are not about the result
+			try {
+				return [spec(cs), c.min, c.max];
+			} catch (err) {  // e.g. a period without images of the variable of the condition (variable.where_specs)
+				throw new Error(label + (err.message || String(err)));
+			} finally {
+				LABEL = outer;
+			}
 		});
 	}
 
@@ -18675,9 +19175,12 @@ var MonitorEO = (function () {
 		for (var i = 0; i < steps.length; i += block) blocks.push(steps.slice(i, i + block));
 		var rows = [];
 		var count = 0;
+		var noted = NOTES;  // those of the computation of this series: its blocks note in them, whenever they come
 
 		function fetch(part, attempt, next) {
-			seriesTable(s, regions, metric, stat, scale, part, crs).evaluate(function (fc, error) {
+			withNotes(noted, function () {
+				return seriesTable(s, regions, metric, stat, scale, part, crs);
+			}).evaluate(function (fc, error) {
 				if (!error) {
 					fc.features.forEach(function (f) {
 						var r = {value: null, n_pixels: 0};
@@ -19619,9 +20122,69 @@ var MonitorEO = (function () {
 		return {bands: RGB_BANDS.slice(), min: Number(vmin), max: Number(vmax)};
 	}
 
+	// The parameters of an analysis as JSON (parameters.py) ---------------------------------------------------------
+
+	// parameters.ANALYSES: the analyses, the functions of monitoreo.services that compute; PARAMETER_OUTPUTS
+	// (readme.NOT_ARGS): the outputs and callbacks of a call, not parameters of what was computed; parameters.META
+	var PARAMETER_ANALYSES = ['time_series', 'time_series_to_drive', 'map_layer', 'map_figure', 'rgb_map', 'timelapse',
+		'region_stats', 'transect', 'area_by_class', 'export_image', 'download_image', 'download_rgb', 'trend_table',
+		'trend_map', 'download_trend', 'compare_series', 'compare_map', 'download_comparison', 'burn_severity'];
+	var PARAMETER_OUTPUTS = ['csv', 'chart', 'path', 'thumbnail', 'progress', 'log', 'folder', 'tile', 'workers', 'record',
+		'wait', 'drive_dir', 'overwrite', 'dry_run', 'quick'];
+	var PARAMETER_META = ['monitoreo', 'analysis', 'parameters'];
+
+	// parameters.read: the parameters of SOURCE, a JSON text or an object, as {monitoreo, analysis, parameters}; a flat
+	// object ({"analysis": ..., "variable": ...}) is taken too: every key but monitoreo and analysis is a parameter. The
+	// app reads no files: their text is pasted
+	function readParameters(source) {
+		if (typeof source === 'string') {
+			var text = source.trim();
+			if (text.charAt(0) !== '{') {
+				throw new Error((text.length > 60 ? text.slice(0, 60) + '\u2026' : text) + ': not a JSON object of parameters ' +
+					'(the app reads no files: paste the text of the file)');
+			}
+			try {
+				source = JSON.parse(text);
+			} catch (e) {
+				throw new Error('the parameters are not valid JSON: ' + e.message);
+			}
+		}
+		if (!source || typeof source !== 'object' || Array.isArray(source)) {
+			throw new Error('the parameters are a JSON object: {"monitoreo": ..., "analysis": ..., "parameters": {...}}');
+		}
+		var params = source.parameters, out = {}, k;
+		if (!params || typeof params !== 'object' || Array.isArray(params)) {
+			params = {};
+			for (k in source) if (PARAMETER_META.indexOf(k) < 0) params[k] = source[k];
+		}
+		for (k in params) out[k] = params[k];
+		return {monitoreo: source.monitoreo === undefined ? null : source.monitoreo,
+			analysis: source.analysis === undefined ? null : source.analysis, parameters: out};
+	}
+
+	// json.dumps of VALUE as Python writes it (', ' and ': ' between the items), for parametersText
+	function pyJson(value) {
+		if (Array.isArray(value)) return '[' + value.map(pyJson).join(', ') + ']';
+		if (value && typeof value === 'object') {
+			return '{' + Object.keys(value).map(function (k) { return JSON.stringify(k) + ': ' + pyJson(value[k]); })
+				.join(', ') + '}';
+		}
+		return value === undefined ? 'null' : JSON.stringify(value);
+	}
+
+	// parameters.text: the parameters that were not applied ([{name, value, reason}]), in a line: 'sensor ("MODIS"):
+	// reason; ...'
+	function parametersText(notApplied) {
+		return (notApplied || []).map(function (p) {
+			return p.name + ' (' + pyJson(p.value) + '): ' + p.reason;
+		}).join('; ');
+	}
+
 	return {
-		CATALOG: CATALOG, variables: variables, byRef: byRef, number: number, unitOf: unitOf, themes: themes,
-		otherThemes: otherThemes,
+		CATALOG: CATALOG, variables: variables, byRef: byRef, nameKey: nameKey, findEntry: findEntry, number: number,
+		unitOf: unitOf, themes: themes, otherThemes: otherThemes,
+		PARAMETER_ANALYSES: PARAMETER_ANALYSES, PARAMETER_OUTPUTS: PARAMETER_OUTPUTS, PARAMETER_META: PARAMETER_META,
+		readParameters: readParameters, parametersText: parametersText,
 		DATA_CATALOG: DATA_CATALOG, COMMUNITY_CATALOG: COMMUNITY_CATALOG, EE_ASSET: EE_ASSET, assetId: assetId,
 		UNITS: UNITS, UNIT_WORDS: UNIT_WORDS, DIMENSIONLESS: DIMENSIONLESS, udunitsText: udunitsText,
 		customUnit: customUnit, customEntry: customEntry, entryName: entryName, dataStem: dataStem,
@@ -19634,6 +20197,9 @@ var MonitorEO = (function () {
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
+		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
+		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
+		resetNotes: resetNotes, notes: notes, withNotes: withNotes, used: used, sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
@@ -19694,7 +20260,8 @@ var MonitorEO = (function () {
  * The app of MonitorEO for the Earth Engine Code Editor and Earth Engine Apps: the interface over core.js, with the
  * options of the QGIS plugin (region, variable, period, season, comparison, pixel filters, map, time series, trends,
  * burn severity). Instead of a variable of the catalog, the themes of catalog.OTHER_THEMES compute any image or
- * collection of images of Earth Engine given by its ID, or chosen in the GEE Community Catalog. Published as an app,
+ * collection of images of Earth Engine given by its ID, or chosen in the GEE Community Catalog. The parameters of each
+ * analysis are shown and applied as the JSON of every tool of MonitorEO (monitoreo.parameters). Published as an app,
  * it computes with the Cloud project of the app: whoever uses it needs no account of Earth Engine. LIMITS keep each
  * request within what a shared project can afford.
  */
@@ -19871,7 +20438,7 @@ var MonitorEO = (function () {
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'C\u00f3digo', cite: 'C\u00f3mo citar',
 			computing: 'Calculando\u2026', progress: 'Calculando\u2026 %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El bot\u00f3n \u2922 de la gr\u00e1fica la abre en otra pesta\u00f1a, desde donde se descarga como imagen.',
-			scaleNote: 'Calculado con p\u00edxeles de %s m.', date: 'Fecha', value: 'Valor', reference: 'Referencia',
+			scaleNote: 'Calculado con p\u00edxeles de %s m.', dataSource: 'Datos:', date: 'Fecha', value: 'Valor', reference: 'Referencia',
 			yearAxis: 'A\u00f1o', senLine: 'recta de Sen', part: 'Parte del a\u00f1o', significantShort: 'signif.',
 			yes: 's\u00ed', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La regi\u00f3n es demasiado grande para esta app (%s km\u00b2; m\u00e1ximo %s km\u00b2).',
@@ -19910,7 +20477,44 @@ var MonitorEO = (function () {
 			communityTheme: 'Tema del cat\u00e1logo', dataset: 'Conjunto de datos', chooseDataset: 'Elige el conjunto de datos',
 			communityNote: 'Copia del \u00edndice del Cat\u00e1logo de la comunidad de GEE (gee-community-catalog.org, CC BY 4.0) ' +
 				'del %s.',
-			badNumber: '%s: \u00ab%s\u00bb no es un n\u00famero.'
+			badNumber: '%s: \u00ab%s\u00bb no es un n\u00famero.',
+			params: 'Par\u00e1metros del an\u00e1lisis (JSON)', paramsAnalysis: 'An\u00e1lisis', paramsShow: 'Mostrar los par\u00e1metros',
+			paramsApply: 'Aplicar los par\u00e1metros', paramsHint: 'Pega aqu\u00ed los par\u00e1metros de un an\u00e1lisis (JSON)',
+			paramsHelp: 'Los par\u00e1metros de un an\u00e1lisis en JSON, los mismos en todas las herramientas de MonitorEO ' +
+				'(paquetes de Python y R, l\u00ednea de comandos, QGIS, asistente), para repetirlo o llevarlo a otra: Mostrar ' +
+				'escribe en la caja los del an\u00e1lisis elegido (el \u00faltimo calculado), para copiarlos (Ctrl+A, Ctrl+C); ' +
+				'Aplicar pone el panel con los pegados en ella, sin calcular, y dice cu\u00e1les no se aplican y por qu\u00e9. ' +
+				'Manual: App de Earth Engine.',
+			paramsShown: 'Par\u00e1metros de %s: selecciona el texto de la caja y c\u00f3pialo.',
+			paramsSet: '%s (%s): pulsa \u00ab%s\u00bb para calcularlo.', paramsAlias: '%s se calcula en la app como %s.',
+			paramsNotApplied: 'No aplicados:',
+			paramsVersion: 'Guardados con MonitorEO %s, aplicados en la app de %s: los par\u00e1metros que cambiaron entre ' +
+				'ellas est\u00e1n en No aplicados.',
+			paramsNoRegion: 'Sin regi\u00f3n: elige una.', paramsNoLine: 'Sin l\u00ednea: dib\u00fajala (Gradientes).',
+			paramsOtherFirst: 'Eje derecho: %s de %s; las dem\u00e1s herramientas toman la primera colecci\u00f3n de su variable y ' +
+				'sensor, %s.',
+			paramsOtherFilter: 'Eje derecho: la app calcula %s sin el filtro de %s; las dem\u00e1s herramientas, con los mismos ' +
+				'filtros de p\u00edxeles en los dos ejes, con \u00e9l.',
+			notParameter: 'no es un par\u00e1metro de %s en la app de Earth Engine',
+			anOutput: 'una salida: cada herramienta escribe sus propios archivos',
+			noAnalysis: 'la app de Earth Engine no tiene %s: calc\u00falalo con el paquete de Python, la l\u00ednea de comandos o QGIS',
+			notOption: 'no es una opci\u00f3n de la app: %s', noWidget: 'la app no tiene esa opci\u00f3n',
+			regionFile: 'un archivo del ordenador: la app no lee archivos; dibuja el pol\u00edgono o da su GeoJSON (geojson)',
+			regionKind: 'una regi\u00f3n que la app no usa: toma wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
+				'geojson y biome_at dentro de un bbox (within)',
+			regionOne: 'la app toma una sola unidad administrativa',
+			lineDrawn: 'la app toma la l\u00ednea dibujada en el mapa (Gradientes: Dibujar una l\u00ednea y su perfil)',
+			whereOne: 'la app toma una condici\u00f3n sobre una variable y una de usos del suelo',
+			whereOwn: 'la app calcula la condici\u00f3n con la media en el periodo del an\u00e1lisis',
+			onlyAlpha: 'la app toma como significativas las tendencias con p < 0,05',
+			noZones: 'la app calcula region_stats por zonas (Gradientes): las franjas de una capa fija o las clases de una ' +
+				'categ\u00f3rica',
+			zonesFixed: 'las zonas de la app son una capa fija cortada en unos valores (ELEVATION, SLOPE, TWI...) o las ' +
+				'clases de una capa categ\u00f3rica',
+			inResults: 'se da en los resultados de la severidad (Per\u00edmetro de la superficie quemada)',
+			twoPeriods: '%s compara dos periodos: burn_severity (Severidad de un incendio)',
+			withDates: 'el eje derecho es una variable del cat\u00e1logo con fechas',
+			noSource: 'sin variable ni ID de los datos'
 		},
 		en: {
 			subtitle: 'Maps, time series and trends of satellite variables (Sentinel-2, Landsat and MODIS) over ' +
@@ -20072,7 +20676,7 @@ var MonitorEO = (function () {
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing\u2026', progress: 'Computing\u2026 %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The \u2922 button of the chart opens it in another tab, where it can be downloaded as an image.',
-			scaleNote: 'Computed on pixels of %s m.', date: 'Date', value: 'Value', reference: 'Reference',
+			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', date: 'Date', value: 'Value', reference: 'Reference',
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km\u00b2; at most %s km\u00b2).',
@@ -20109,7 +20713,44 @@ var MonitorEO = (function () {
 			licenceInPage: 'licence in its page', type_image: 'image', type_image_collection: 'collection',
 			communityTheme: 'Theme of the catalog', dataset: 'Dataset', chooseDataset: 'Choose the dataset',
 			communityNote: 'Copy of the index of the GEE Community Catalog (gee-community-catalog.org, CC BY 4.0) of %s.',
-			badNumber: '%s: "%s" is not a number.'
+			badNumber: '%s: "%s" is not a number.',
+			params: 'Parameters of the analysis (JSON)', paramsAnalysis: 'Analysis', paramsShow: 'Show the parameters',
+			paramsApply: 'Apply parameters', paramsHint: 'Paste here the parameters of an analysis (JSON)',
+			paramsHelp: 'The parameters of an analysis as JSON, the same in every tool of MonitorEO (Python and R ' +
+				'packages, command line, QGIS, assistant), to repeat it or take it to another one: Show writes in the box ' +
+				'those of the analysis chosen (the last one computed), to copy them (Ctrl+A, Ctrl+C); Apply sets the panel ' +
+				'from those pasted in it, without computing, and says which ones are not applied and why. Manual: Earth ' +
+				'Engine app.',
+			paramsShown: 'Parameters of %s: select the text of the box and copy it.',
+			paramsSet: '%s (%s): press \u00ab%s\u00bb to compute it.', paramsAlias: '%s is computed in the app as %s.',
+			paramsNotApplied: 'Not applied:',
+			paramsVersion: 'Saved with MonitorEO %s, applied in the app of %s: the parameters that changed between them ' +
+				'are in Not applied.',
+			paramsNoRegion: 'Without region: choose one.', paramsNoLine: 'Without line: draw it (Gradients).',
+			paramsOtherFirst: 'Right axis: %s of %s; the other tools take the first collection of its variable and sensor, ' +
+				'%s.',
+			paramsOtherFilter: 'Right axis: the app computes %s without the %s filter; the other tools, with the same pixel ' +
+				'filters on both axes, with it.',
+			notParameter: 'not a parameter of %s in the Earth Engine app',
+			anOutput: 'an output: each tool writes its own files',
+			noAnalysis: 'the Earth Engine app does not have %s: compute it with the Python package, the command line or QGIS',
+			notOption: 'not an option of the app: %s', noWidget: 'the app has no option for it',
+			regionFile: 'a file of the computer: the app reads no files; draw the polygon, or give its GeoJSON (geojson)',
+			regionKind: 'a region the app cannot use: it takes wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
+				'geojson and biome_at within a bbox (within)',
+			regionOne: 'the app takes one administrative unit',
+			lineDrawn: 'the app takes the line drawn on the map (Gradients: Draw a line and its profile)',
+			whereOne: 'the app takes one condition on a variable and one of land cover',
+			whereOwn: 'the app computes the condition with its mean over the period of the analysis',
+			onlyAlpha: 'the app takes as significant the trends with p < 0.05',
+			noZones: 'the app computes region_stats by zones (Gradients): the bands of a fixed layer or the classes of a ' +
+				'categorical one',
+			zonesFixed: 'the zones of the app are a fixed layer cut at some values (ELEVATION, SLOPE, TWI...) or the ' +
+				'classes of a categorical layer',
+			inResults: 'given in the results of the severity (Perimeter of the burned area)',
+			twoPeriods: '%s compares two periods: burn_severity (Burn severity of a fire)',
+			withDates: 'the right axis is a variable of the catalog with dates',
+			noSource: 'without a variable or the ID of the data'
 		}
 	};
 
@@ -20158,7 +20799,11 @@ var MonitorEO = (function () {
 		catalogText: '', catalogFound: null,  // the search of the Earth Engine data catalog (theme earth_engine)
 		data: {text: '', reading: null, asset: null, type: null, dated: false, use: 'collection', bands: [], scales: {},
 			band: null, combine: 'one', chosen: [], scale: '', offset: '', unit: '', title: null, source: null,
-			page: null, licence: null, error: null, communityTheme: null, communityId: null}
+			page: null, licence: null, error: null, communityTheme: null, communityId: null},
+		// the parameters of the analysis as JSON (monitoreo.parameters): the analysis (the function of monitoreo.services
+		// of the last one computed, or the one chosen), the region as areas.region takes it (regionSpec) and the line of the
+		// last profile (a GeoJSON LineString), the text of the box and what Show or Apply said (paramsReport)
+		analysis: 'map_layer', regionSpec: null, line: null, paramsText: '', paramsReport: null
 	};
 	var run = 0;  // number of the last computation: the answers of older ones are left out
 
@@ -20211,6 +20856,8 @@ var MonitorEO = (function () {
 
 	var H = {fontWeight: 'bold', fontSize: '14px', margin: '14px 0 4px 8px'};
 	var SMALL = {fontSize: '12px', color: '#555'};
+	// the warnings of the period of a result (days without images of its data: mo.checkPeriod), over it
+	var WARNING = {fontSize: '12px', color: '#b35900', whiteSpace: 'pre-wrap'};
 
 	function header(text) {
 		return ui.Label(text, H);
@@ -20246,8 +20893,12 @@ var MonitorEO = (function () {
 	}
 
 	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
-	// swipe was shown)
-	function show(widgets) {
+	// swipe was shown): unless BARE (a message: computing, an error...), over it the warnings of its period (the days
+	// without images of its data, see mo.checkPeriod) and under it the data its values come from (\u00abData: ...\u00bb, as the
+	// charts of the package), those of the computation that is running (runNotes: a click that fails before it
+	// starts, or a newer one, does not change them)
+	var runNotes = mo.notes();
+	function show(widgets, bare) {
 		oneMap();
 		results.clear();
 		results.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '16px', stretch: 'horizontal'}),
@@ -20255,20 +20906,31 @@ var MonitorEO = (function () {
 				oneMap();
 				results.style().set('shown', false);
 			})));
+		var notes = runNotes;
+		if (!bare && notes.warnings.length) results.add(ui.Label('\u26a0 ' + notes.warnings.join('\n\u26a0 '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
+		var source = bare ? null : mo.sourceText(notes);
+		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
 	}
 
 	function message(text, error) {
-		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})]);
+		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})], true);
 	}
 
 	function fail(error) {
 		message(t('error') + error, true);
 	}
 
+	// No data in that period: an answer, with the warnings of its period that explain it (e.g. it begins after the last
+	// image of data that ended) and its data, not a bare message
+	function noData() {
+		show([ui.Label(t('noData'), {color: '#b00020', whiteSpace: 'pre-wrap'})]);
+	}
+
 	function start() {
 		run += 1;
+		runNotes = mo.notes();  // those of the specs of this computation (guarded made them new): shown with its answer
 		message(t('computing'));
 		return run;
 	}
@@ -20323,23 +20985,33 @@ var MonitorEO = (function () {
 
 	// Region --------------------------------------------------------------------------------------------------------
 
-	// The region FC, named NAME; ADMIN: the level of the administrative unit it is (1 and 2: FAO GAUL 2025; 3: the
-	// municipalities of Spain of the IGN), whose credits are shown with it
-	function setRegion(fc, name, admin) {
+	// The region FC, named NAME (null: by the names of its features, then with SUFFIX), which is SPEC as areas.region
+	// takes it (the region of the parameters of the analysis: {wdpa_id: id}, {bbox: [w, s, e, n]}...); ADMIN: the level of
+	// the administrative unit it is (1 and 2: FAO GAUL 2025; 3: the municipalities of Spain of the IGN), whose credits
+	// are shown with it
+	function setRegion(fc, name, spec, suffix, admin) {
 		oneMap();  // its layer on the map shown
+		var named = name !== null && name !== undefined;
 		state.region = fc;
-		state.regionName = name;
+		state.regionName = named ? name : t('loadingRegion');
+		state.regionSpec = spec || null;
 		state.regionAdmin = admin || null;
 		state.info = null;
 		if (regionLayer) map.layers().remove(regionLayer);
 		regionLayer = map.addLayer(ee.FeatureCollection(fc).style({color: 'ffff00', fillColor: '00000000', width: 2}), {},
-			name);
-		ee.Dictionary({info: mo.regionInfo(fc), n: fc.size()}).evaluate(function (d, error) {
+			named ? name : '');
+		var ask = {info: mo.regionInfo(fc), n: fc.size()};
+		if (!named) ask.names = fc.aggregate_array('name');
+		ee.Dictionary(ask).evaluate(function (d, error) {
 			if (error) return fail(error);
 			if (state.region !== fc) return;
 			state.info = d.info;
 			state.info.n = d.n;
 			state.info.crs = mo.regionCrs(d.info);  // areas.auto_crs: the UTM zone of the centre, or EPSG:6933 if wide
+			if (!named) {
+				state.regionName = (d.names || []).join(', ') + (suffix || '');
+				if (regionLayer && regionLayer.setName) regionLayer.setName(state.regionName);
+			}
 			render();
 		});
 		fc.geometry().bounds(1000).evaluate(function (b) {
@@ -20354,21 +21026,32 @@ var MonitorEO = (function () {
 
 	map.onClick(function (coords) {
 		if (state.mode !== 'ecoregion' && state.mode !== 'island' && state.mode !== 'biome') return;
-		var biome = state.mode === 'biome', fc;
+		var biome = state.mode === 'biome', fc, point = [coords.lon, coords.lat], spec = {};
 		if (biome) {  // a whole biome spans continents: its part in the map view, the region {biome_at, within: bbox}
 			var inside = mo.bboxRegion(map.getBounds()).geometry(mo.WITHIN_MAX_ERROR);
 			fc = mo.withinRegion(mo.biomeAt(coords.lon, coords.lat, inside), inside);
+			spec = {biome_at: point, within: {bbox: map.getBounds()}};
 		} else {
 			fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
+			spec[state.mode === 'island' ? 'island_at' : 'ecoregion_at'] = point;
 		}
 		if (biome) message(t('loadingRegion'));
 		fc.aggregate_array('name').evaluate(function (names, error) {
 			if (error) return fail(error);
 			if (!(names && names.length)) return biome ? message(t('noBiome'), true) : null;
 			if (biome) results.style().set('shown', false);
-			setRegion(fc, biome ? names[0] + ' \u00b7 ' + t('mapView') : names[0]);
+			setRegion(fc, biome ? names[0] + ' \u00b7 ' + t('mapView') : names[0], spec);
 		});
 	});
+
+	// The GeoJSON of GEOMETRY, drawn on the map (a geometry of the client: no request to Earth Engine), or null
+	function geojsonOf(geometry) {
+		try {
+			return geometry.toGeoJSON();
+		} catch (err) {
+			return null;
+		}
+	}
 
 	drawing.onDraw(function (geometry) {
 		if (state.drawingLine) {  // the line of a profile (Gradients), not a region
@@ -20376,11 +21059,14 @@ var MonitorEO = (function () {
 			drawing.setShape(null);
 			drawing.setDrawModes(['polygon']);
 			drawing.setShown(state.mode === 'draw');
+			state.line = geojsonOf(geometry);  // the line of transect in the parameters
 			return guarded(function () { profile(geometry); })();
 		}
 		if (state.mode !== 'draw') return;
 		drawing.setShape(null);
-		setRegion(ee.FeatureCollection([ee.Feature(geometry, {name: t('polygon')})]), t('polygon'));
+		var shape = geojsonOf(geometry);
+		setRegion(ee.FeatureCollection([ee.Feature(geometry, {name: t('polygon')})]), t('polygon'),
+			shape ? {geojson: {type: 'Feature', geometry: shape, properties: {name: t('polygon')}}} : null);
 	});
 
 	function searchWdpa() {
@@ -20436,7 +21122,9 @@ var MonitorEO = (function () {
 	function chooseAdmin(code) {
 		state.adminCode = code;
 		results.style().set('shown', false);
-		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], Number(state.adminLevel));
+		var spec = {};
+		spec['admin' + state.adminLevel] = code;  // level 3: the code of the INE (a string of 5 digits)
+		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec, undefined, Number(state.adminLevel));
 	}
 
 	function chooseWdpa(id) {
@@ -20446,7 +21134,7 @@ var MonitorEO = (function () {
 		mo.wdpaGeometries([id]).evaluate(function (info, error) {
 			if (error) return fail(error);
 			results.style().set('shown', false);
-			setRegion(mo.wdpaRegion(info), label);
+			setRegion(mo.wdpaRegion(info), label, {wdpa_id: id});
 		});
 	}
 
@@ -20503,7 +21191,7 @@ var MonitorEO = (function () {
 		} else if (state.mode === 'view') {
 			w.push(button(t('useView'), function () {
 				var b = map.getBounds();
-				setRegion(mo.bboxRegion(b, t('mapView')), t('mapView'));
+				setRegion(mo.bboxRegion(b, t('mapView')), t('mapView'), {bbox: b});
 			}));
 		} else {
 			w.push(ui.Label(t('drawHelp'), SMALL));
@@ -20577,8 +21265,9 @@ var MonitorEO = (function () {
 	}
 
 	// Reads the ID TEXT in Earth Engine (mo.assetInfo, asynchronous): its type, bands and their pixel size, and where
-	// it comes from; the band, use and the rest of the panel are then those of what it is
-	function readAsset(text) {
+	// it comes from; the band, use and the rest of the panel are then those of what it is, and THEN(error, info) is
+	// called, if given (the parameters applied: their band, scale... after the read)
+	function readAsset(text, then) {
 		var id = mo.assetId(text);
 		if (!id) return message(t('readFirst'), true);
 		var d = state.data;
@@ -20593,6 +21282,7 @@ var MonitorEO = (function () {
 			d.reading = null;
 			if (error) {
 				d.error = error.message || String(error);  // under the ID too (dataWidgets), where it stays
+				if (then) then(error);
 				render();
 				if (at === run) message(d.error, true);
 				return;
@@ -20604,6 +21294,7 @@ var MonitorEO = (function () {
 			d.combine = 'one';  // one band again, none checked to combine: those of another ID
 			d.chosen = [];
 			d.scale = d.offset = d.unit = '';  // Earth Engine does not say them (they are in the page of the dataset)
+			if (then) then(null, info);
 			render();
 		});
 	}
@@ -21066,6 +21757,7 @@ var MonitorEO = (function () {
 		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
 			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
+		if (!ref) mo.used(s);  // the data of the values of the result, under it
 		return s;
 	}
 
@@ -21101,6 +21793,7 @@ var MonitorEO = (function () {
 
 	function guarded(f) {
 		return function () {
+			mo.resetNotes();  // a new computation: the warnings and data of its own specs
 			try {
 				f();
 			} catch (e) {
@@ -21204,6 +21897,7 @@ var MonitorEO = (function () {
 
 	function addMap() {
 		var e = entry();
+		computed(state.compareOn && !e.static ? 'compare_map' : mapLayer() === 'rgb' ? 'rgb_map' : 'map_layer');
 		if (!ready(e)) return;
 		var s = specOf(null, state.mapMetric);
 		s.temporal = state.temporal;
@@ -21383,6 +22077,7 @@ var MonitorEO = (function () {
 	// at the breaks (its map, as Map) or of its trend on each pixel (as Trends): a bar chart, a table and the CSV
 	function areaByClass() {
 		var kind = state.areaKind, regions = state.region, img, legend, extra = {}, name, native, colours;
+		computed('area_by_class');
 		if (!state.region || !state.info) return message(t('noRegion'), true);
 		var geom = regions.geometry();
 		if (kind === 'landcover' && state.areaChangeOn) return landcoverChanges();
@@ -21569,6 +22264,7 @@ var MonitorEO = (function () {
 	// feature: a chart of the median of each band, a table and its CSV
 	function zoneStatistics() {
 		var e = entry();
+		computed('region_stats');
 		if (!ready(e)) return;
 		if (mo.isCategorical(e)) return message(t('zoneNoCategorical'), true);
 		var z = zoneEntry();
@@ -21578,6 +22274,7 @@ var MonitorEO = (function () {
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
 		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
 		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
 		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
 		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
@@ -21612,7 +22309,9 @@ var MonitorEO = (function () {
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
-		var zone = mo.classZone(mo.spec({ref: z.ref, quality: {}}), geom, scale);
+		var zs = mo.spec({ref: z.ref, quality: {}});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
+		var zone = mo.classZone(zs, geom, scale);
 		var name = fmt(t('zoneClassTitle'), m.name, z.index);
 		var id = start();
 		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
@@ -21631,12 +22330,15 @@ var MonitorEO = (function () {
 	// The profile of the map along the LINE drawn, with the elevation: 100 segments (at least a pixel of the data)
 	function profile(line) {
 		var e = entry();
+		computed('transect');
 		if (e.problem) return message(e.problem, true);
 		if (mo.isCategorical(e)) return message(t('profileCategorical'), true);
 		var m = mapImage(line.buffer(1000));
 		var native = Number(e.m);
 		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];
-		var dem = mo.image(mo.spec({ref: elevation.ref, quality: {}}), line.buffer(1000), 30);
+		var demSpec = mo.spec({ref: elevation.ref, quality: {}});
+		mo.used(demSpec);  // the elevation is on the chart too (services.transect)
+		var dem = mo.image(demSpec, line.buffer(1000), 30);
 		var id = start();
 		ee.Dictionary({length: line.length(1), centroid: line.centroid(1).coordinates()}).evaluate(guardedAsync(id, function (d) {
 			var step = Math.max(native, d.length / 100);
@@ -21687,6 +22389,7 @@ var MonitorEO = (function () {
 	// download
 	function timelapse() {
 		var e = entry();
+		computed('timelapse');
 		if (!ready(e)) return;
 		var s = specOf(null, state.animMetric);
 		var step = state.animStep;
@@ -21905,6 +22608,7 @@ var MonitorEO = (function () {
 				quality: otherQuality(mo.byRef(state.doyOther)),
 				metric: 'mean', where: whereArgs()});
 			mo.checkDates(o, 'time series');
+			mo.used(o);
 			return o;
 		} catch (err) {
 			throw new Error(t('rightAxis') + ': ' + (err.message || String(err)));
@@ -21942,7 +22646,7 @@ var MonitorEO = (function () {
 					rows.push(r);
 				});
 			});
-			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+			if (!rows.some(function (r) { return r.value !== null; })) return noData();
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
 			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
@@ -21996,6 +22700,7 @@ var MonitorEO = (function () {
 
 	function computeSeries() {
 		var e = entry();
+		computed(state.compareOn ? 'compare_series' : 'time_series');
 		if (!ready(e)) return;
 		if (state.compareOn) return compareSeries();
 		var s = specOf();
@@ -22005,7 +22710,7 @@ var MonitorEO = (function () {
 		var id = start();
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
-				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+				if (!rows.some(function (r) { return r.value !== null; })) return noData();
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
@@ -22175,6 +22880,7 @@ var MonitorEO = (function () {
 
 	function trendTable() {
 		var e = entry();
+		computed('trend_table');
 		if (!ready(e)) return;
 		var s = specOf();
 		enoughYears(s);
@@ -22218,6 +22924,7 @@ var MonitorEO = (function () {
 
 	function trendMap() {
 		var e = entry();
+		computed('trend_map');
 		if (!ready(e)) return;
 		var s = specOf();
 		enoughYears(s);
@@ -22285,6 +22992,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
 		var name = title(e, ['RBR', before.period.join('/') + ' \u2192 ' + after.period.join('/')]);
 		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
@@ -22365,7 +23074,12 @@ var MonitorEO = (function () {
 					});
 				});
 				out.add(button(t('useRegion'), function () {
-					setRegion(polygons, t('burnedArea') + ' \u00b7 ' + regionName);
+					// in the parameters, the polygons as GeoJSON (the package names each by its name, areas.region)
+					setRegion(polygons, t('burnedArea') + ' \u00b7 ' + regionName, {geojson: {type: 'FeatureCollection',
+						features: found.map(function (f) {
+							return {type: 'Feature', geometry: f.geometry,
+								properties: {name: t('burnedArea') + ' \u00b7 ' + f.properties.name}};
+						})}});
 				}));
 			});
 		}));
@@ -22407,6 +23121,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var modis = e.sensor === 'Modis';
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'RdNBR');
 		var periods = before.period.join('/') + ' \u2192 ' + after.period.join('/');
@@ -22462,6 +23178,7 @@ var MonitorEO = (function () {
 	}
 
 	function burn() {
+		computed('burn_severity');
 		if (state.fireIndex === 'RBR') return burnRatio();
 		if (state.fireIndex === 'RdNBR') return burnRelative();
 		var ref = state.fireSensor === 'Landsat' ? 101 : 102;
@@ -22474,6 +23191,8 @@ var MonitorEO = (function () {
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });
 		var name = title(e, [t('dnbr'), before.period.join('/') + ' \u2192 ' + after.period.join('/')]);
@@ -22535,6 +23254,928 @@ var MonitorEO = (function () {
 		return w;
 	}
 
+	// Parameters of the analysis as JSON (monitoreo.parameters) ----------------------------------------------------
+
+	// The analyses of the app as the functions of monitoreo.services that compute the same (parameters.ANALYSES): the
+	// group of the panel and the button that compute each one, the parameters it takes, with the names of the services
+	// (the other parameters of the services are not options of the app), and the values of those not given (the
+	// defaults of the arguments of the services)
+	var SOURCE = ['variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset',
+		'unit'];
+	var PIXELS = ['start', 'end', 'season', 'quality', 'where'];
+	var MAP_OPTIONS = ['metric', 'temporal', 'interannual'];
+	var MAP_DEFAULTS = {metric: 'median', temporal: 'period', interannual: 'mean'};
+	var ANALYSES = {
+		map_layer: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS),
+			defaults: MAP_DEFAULTS},
+		rgb_map: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS),
+			defaults: MAP_DEFAULTS},
+		compare_map: {group: 'map', button: 'addMap',
+			takes: ['region', 'other_start', 'other_end'].concat(SOURCE, PIXELS, MAP_OPTIONS), defaults: MAP_DEFAULTS},
+		area_by_class: {group: 'areas', button: 'computeAreas',
+			takes: ['region', 'landcover', 'year', 'other_year', 'breaks', 'trend', 'step', 'part', 'alpha'].concat(SOURCE,
+				PIXELS, MAP_OPTIONS),
+			defaults: {temporal: 'period', interannual: 'mean', step: 'annual', alpha: 0.05}},
+		region_stats: {group: 'gradients', button: 'zoneStats', takes: ['region', 'zones'].concat(SOURCE, PIXELS,
+			MAP_OPTIONS), defaults: MAP_DEFAULTS},
+		transect: {group: 'gradients', button: 'drawLine', takes: ['line'].concat(SOURCE, PIXELS, MAP_OPTIONS),
+			defaults: MAP_DEFAULTS},
+		timelapse: {group: 'animation', button: 'makeAnimation', takes: ['region', 'step', 'metric'].concat(SOURCE, PIXELS),
+			defaults: {step: 'annual', metric: 'median'}},
+		time_series: {group: 'series', button: 'computeSeries',
+			takes: ['region', 'step', 'metric', 'stat', 'doy', 'interannual', 'other_variable', 'other_sensor'].concat(
+				SOURCE, PIXELS), defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
+		compare_series: {group: 'series', button: 'computeSeries',
+			takes: ['region', 'other_start', 'other_end', 'step', 'metric', 'stat'].concat(SOURCE, PIXELS),
+			defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
+		trend_table: {group: 'trends', button: 'trendTable',
+			takes: ['region', 'step', 'metric', 'stat', 'alpha'].concat(SOURCE, PIXELS),
+			defaults: {step: 'annual', metric: 'mean', stat: 'mean', alpha: 0.05}},
+		trend_map: {group: 'trends', button: 'trendMap',
+			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha'].concat(SOURCE, PIXELS),
+			defaults: {step: 'annual', output: 'slope', metric: 'mean'}},
+		burn_severity: {group: 'fire', button: 'burn',
+			takes: ['region', 'sensor', 'collection', 'start', 'end', 'other_start', 'other_end', 'index', 'metric',
+				'quality', 'where', 'perimeter', 'burned_min', 'min_ha'],
+			defaults: {sensor: 'Sentinel-2', index: 'dNBR', metric: 'median'}}
+	};
+	// the analyses of the services that the app computes as another one: the files of its maps and series
+	var ALIASES = {map_figure: 'map_layer', download_image: 'map_layer', export_image: 'map_layer',
+		download_rgb: 'rgb_map', download_comparison: 'compare_map', download_trend: 'trend_map',
+		time_series_to_drive: 'time_series'};
+	// the order of the parameters written, as that of the arguments of the services
+	var PARAMETER_ORDER = ['region', 'line', 'variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer',
+		'band_scale', 'band_offset', 'unit', 'start', 'end', 'other_start', 'other_end', 'landcover', 'year', 'other_year',
+		'breaks', 'trend', 'zones', 'index', 'step', 'part', 'output', 'metric', 'temporal', 'interannual', 'stat', 'alpha',
+		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where'];
+	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
+	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
+		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point'];
+
+	var analysisSelect = null;  // the select of the analysis whose parameters are shown
+
+	// NAME (a function of the services) is the analysis of the parameters: the one computed last
+	function computed(name) {
+		state.analysis = name;
+		if (analysisSelect) analysisSelect.setValue(name, false);
+	}
+
+	function copyOf(x) {
+		return JSON.parse(JSON.stringify(x));
+	}
+
+	function ordered(p) {
+		var out = {};
+		PARAMETER_ORDER.forEach(function (k) { if (p[k] !== undefined) out[k] = p[k]; });
+		Object.keys(p).forEach(function (k) { if (!out.hasOwnProperty(k)) out[k] = p[k]; });
+		return out;
+	}
+
+	// The variable of the catalog of the entry E as the services name it: its variable and sensor and, when they do not
+	// find it (catalog.find takes the first entry that has them), its collection, and else its ref
+	function variableParameters(e) {
+		var p = {variable: e.index, sensor: e.sensor};
+		if (mo.findEntry(e.index, e.sensor) !== e) p.collection = e.col;
+		if (mo.findEntry(e.index, e.sensor, p.collection) !== e) p.ref = e.ref;
+		return p;
+	}
+
+	// The data of Earth Engine of the entry E (dataEntry) as the services take them: their ID as a collection (images
+	// with dates) or an image (a fixed layer), their band (or the bands combined, and band_reducer) and the scale,
+	// offset and unit written
+	function dataParameters(e) {
+		var d = state.data, p = {};
+		p[e.static ? 'image' : 'collection'] = e.col;
+		p.band = e.reducer ? e.bands.slice() : e.band;
+		if (e.reducer) p.band_reducer = e.reducer;
+		var scale = numberOf(d.scale, t('bandScale')), offset = numberOf(d.offset, t('bandOffset'));
+		if (scale !== null) p.band_scale = scale;
+		if (offset !== null) p.band_offset = offset;
+		if (String(d.unit || '').trim()) p.unit = String(d.unit).trim();
+		return p;
+	}
+
+	// The pixel filters of the panel as the services take them (sensors.QUALITY): the Cloud Score+ only for Sentinel-2
+	function qualityParameters(sensor) {
+		var q = {};
+		mo.FILTERS.forEach(function (f) { q[f] = Boolean(state.quality[f]); });
+		if (sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
+		return q;
+	}
+
+	// The pixel filters of a profile of the entry E with the variable OE on the right axis as the services take them:
+	// one quality for both variables (services._other_spec), resolved for each one (sensors.filters). Of each filter,
+	// the value of the panel (with fixed filters on the left, SCF, CF or data by ID, which ignore it: that chosen for the
+	// right axis) if it gives both axes those the app computes them with (the panel's, otherQuality), else 'auto' (on,
+	// but for the variable that measures what it removes: the snow of the NDVI, not that of the NDSI, as the QGIS plugin
+	// writes them); in NOTES, a filter that no value gives both axes as the app computes them (checked for a left
+	// variable that measures what it removes, as the right one does: the app leaves it out of the right axis). The
+	// Cloud Score+ when an axis is of Sentinel-2
+	function profileQuality(e, oe, notes) {
+		var fixed = mo.fixedFilters(e);
+		var left = mo.filters(e, state.quality), right = mo.filters(oe, otherQuality(oe));
+		var q = {};
+		mo.FILTERS.forEach(function (f) {
+			var panel = Boolean(fixed ? (state.chosenQuality ? state.chosenQuality[f] : true) : state.quality[f]);
+			var fits = [panel, 'auto'].filter(function (v) {
+				var one = {};
+				one[f] = v;
+				return mo.filters(e, one)[f] === left[f] && mo.filters(oe, one)[f] === right[f];
+			});
+			q[f] = fits.length ? fits[0] : panel;
+			if (!fits.length) notes.push(fmt(t('paramsOtherFilter'), mo.entryName(oe), t(f)));
+		});
+		if (e.sensor === 'Sentinel-2' || oe.sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
+		return q;
+	}
+
+	// The conditions of \u00abOnly the pixels where\u00bb and of the land cover mask as the services take them (where), or null:
+	// over PERIOD (whereArgs; default, that of the panel), written in those on a variable with dates only with OWN (an
+	// analysis without dates of its own: a fixed layer)
+	function whereParameters(period, own) {
+		var conditions = whereArgs(period);
+		if (!conditions) return null;
+		return conditions.map(function (c) {
+			if (mo.isLandcover(c)) return c;
+			var out = variableParameters(mo.byRef(c.ref));
+			['min', 'max', 'classes', 'exclude'].forEach(function (k) { if (c[k] !== undefined) out[k] = c[k]; });
+			if (own && c.period) out.period = c.period;
+			return out;
+		});
+	}
+
+	// The options of Map (metric, temporal aggregation and metric between years) of the entry E: none for a fixed layer
+	function mapParameters(p, e) {
+		if (e.static) return;
+		p.metric = state.mapMetric;
+		p.temporal = state.temporal;
+		if (state.temporal !== 'period') p.interannual = state.interannual;
+	}
+
+	// The parameters of the analysis ANALYSIS of the panel as the services take them (parameters.make): {parameters,
+	// notes (what is missing to compute it)}; an Error with what the panel cannot compute (a date, a limit...)
+	function parametersOf(analysis) {
+		var p = {}, notes = [];
+		if (ANALYSES[analysis].takes.indexOf('region') >= 0) {
+			if (state.regionSpec) p.region = copyOf(state.regionSpec);
+			else notes.push(t('paramsNoRegion'));
+		}
+		if (analysis === 'transect') {
+			if (state.line) p.line = copyOf(state.line);
+			else notes.push(t('paramsNoLine'));
+		}
+		if (analysis === 'burn_severity') {  // the sensor, or MODIS and its collection, Terra or Aqua (only the RdNBR)
+			var modis = mo.RDNBR_MODIS.indexOf(state.fireSensor) >= 0;
+			p.sensor = modis ? 'Modis' : state.fireSensor;
+			if (modis) p.collection = state.fireSensor;
+			p.start = state.fireBefore[0];
+			p.end = state.fireBefore[1];
+			p.other_start = state.fireAfter[0];
+			p.other_end = state.fireAfter[1];
+			p.index = state.fireIndex;
+			p.quality = qualityParameters(p.sensor);
+			var fireWhere = whereParameters(state.fireBefore, false);  // over the period before the fire, as the package
+			if (fireWhere) p.where = fireWhere;
+			return {parameters: ordered(p), notes: notes};
+		}
+		var kind = analysis === 'area_by_class' ? state.areaKind : null;
+		if (kind === 'landcover') {
+			var m = mo.landcoverMap(state.areaMap);
+			p.landcover = m.key;
+			p.year = state.areaYear || mo.landcoverDefaultYear(m);
+			if (state.areaChangeOn) p.other_year = state.areaOther || mo.landcoverDefaultYear(m);
+			return {parameters: ordered(p), notes: notes};
+		}
+		var e = entry();
+		if (e.problem) throw new Error(e.problem);
+		var source = e.custom ? dataParameters(e) : variableParameters(e);
+		for (var k in source) p[k] = source[k];
+		if (!e.static) {  // a fixed layer has no dates
+			p.start = state.period[0];
+			p.end = state.period[1];
+			if (state.seasonOn) p.season = state.season.slice();
+		}
+		// the variable of the right axis of a profile: the pixel filters of both axes
+		var oe = analysis === 'time_series' && isProfile() && state.doyOther !== 'none' ? mo.byRef(state.doyOther) : null;
+		if (oe) p.quality = profileQuality(e, oe, notes);
+		else if (!e.custom && !mo.fixedFilters(e)) p.quality = qualityParameters(e.sensor);
+		var where = whereParameters(null, e.static);
+		if (where) p.where = where;
+		if (analysis === 'compare_map' || analysis === 'compare_series') {
+			p.other_start = state.other[0];
+			p.other_end = state.other[1];
+		}
+		if (['map_layer', 'rgb_map', 'compare_map', 'region_stats', 'transect'].indexOf(analysis) >= 0 ||
+			kind === 'breaks') {
+			mapParameters(p, e);
+		}
+		if (analysis === 'region_stats') {  // the zones of Gradients: a fixed layer cut at the breaks, or its classes
+			var z = zoneEntry();
+			p.zones = variableParameters(z);
+			if (!mo.isCategorical(z)) p.zones.breaks = mo.checkBreaks(state.zoneBreaks);
+		}
+		if (kind === 'breaks') p.breaks = mo.checkBreaks(state.areaBreaks);
+		if (kind === 'trend') p.trend = true;
+		if (analysis === 'time_series' || analysis === 'compare_series') {
+			p.step = state.step;
+			p.metric = state.stepMetric;
+			p.stat = state.stat;
+		}
+		if (analysis === 'time_series' && state.doy && state.step !== 'annual') {  // a line per year, or the profile
+			p.doy = true;
+			if (isProfile()) {
+				p.interannual = state.doyBetween === 'years' ? 'median' : state.doyBetween;
+				if (oe) {  // the services take the first entry of its variable and sensor (catalog.find), not another one
+					p.other_variable = oe.index;
+					p.other_sensor = oe.sensor;
+					var first = mo.findEntry(oe.index, oe.sensor);
+					if (first !== oe) notes.push(fmt(t('paramsOtherFirst'), mo.entryName(oe), oe.col, first.col));
+				}
+			}
+		}
+		if (analysis === 'trend_table' || analysis === 'trend_map' || kind === 'trend') {
+			p.step = state.trendStep;
+			if (analysis !== 'trend_table' && state.trendStep !== 'annual') {
+				p.part = state.trendStep === '16-day' && state.trendPart > 23 ? 23 : state.trendPart;
+			}
+			p.metric = state.trendMetric;
+		}
+		if (analysis === 'trend_table') p.stat = state.stat;
+		if (analysis === 'trend_map') {
+			p.output = state.output;
+			if (state.significant) p.alpha = 0.05;
+		}
+		if (analysis === 'timelapse') {
+			p.step = state.animStep;
+			p.metric = state.animMetric;
+		}
+		return {parameters: ordered(p), notes: notes};
+	}
+
+	// Show: the parameters of the analysis chosen in the box, as JSON (parameters.make), to copy them
+	function showParameters() {
+		var report = {shown: state.analysis, notes: [], skipped: []};
+		try {
+			var out = parametersOf(state.analysis);
+			state.paramsText = JSON.stringify({monitoreo: mo.CATALOG.about.version, analysis: state.analysis,
+				parameters: out.parameters});
+			report.notes = out.notes;
+		} catch (err) {
+			report.error = err.message || String(err);
+		}
+		state.paramsReport = report;
+		render();
+	}
+
+	// The value V of the option NAME as one of the ITEMS of its select (in any case, as the services take the texts):
+	// SET with it and true; else listed as not applied, with the options of the app, and false
+	function choose(name, v, items, set, skip) {
+		function key(x) {
+			return String(x).trim().toLowerCase();
+		}
+		var found = items.filter(function (i) { return key(i) === key(v); });
+		if (!found.length) {
+			skip(name, fmt(t('notOption'), items.join(', ')));
+			return false;
+		}
+		set(found[0]);
+		return true;
+	}
+
+	// areas._point: V as [lon, lat] (two numbers, in degrees), or an Error naming KEY
+	function pointOf(v, key) {
+		var p = Array.isArray(v) && v.length === 2 ? v.map(Number) : [];
+		if (p.length !== 2 || !p.every(isFinite)) {
+			throw new Error(key + ' is a point, [lon, lat] in degrees, e.g. [-3.3, 37.1]; not ' + JSON.stringify(v));
+		}
+		return p;
+	}
+
+	function bboxOf(v) {
+		var b = Array.isArray(v) && v.length === 4 ? v.map(Number) : [];
+		if (b.length !== 4 || !b.every(isFinite)) {
+			throw new Error('bbox is [west, south, east, north] in degrees, e.g. [-3.62, 36.86, -3.5, 36.93]; not ' +
+				JSON.stringify(v));
+		}
+		return b;
+	}
+
+	// The region R of the parameters (areas.region) as the region of the panel: a protected area (wdpa_id), an
+	// administrative unit (admin1, admin2), the ecoregion, island or biome (within a bbox: its part in the map view)
+	// at a point, a box (bbox) or polygons (geojson). Earth Engine is asked for the region (its names, its area), not
+	// for the analysis. SKIP lists the regions the app cannot use (a file, a country...)
+	function applyRegion(r, skip) {
+		function refuse(reason) {
+			skip('region', reason, r);
+		}
+		var isObject = r && typeof r === 'object' && !Array.isArray(r);
+		var keys = isObject ? REGION_KEYS.filter(function (k) { return r[k] !== null && r[k] !== undefined; }) : [];
+		if (keys.length !== 1) {  // areas.check
+			return refuse((isObject ? 'give one region: ' : 'give the region as a dictionary with one of: ') +
+				REGION_KEYS.join(', '));
+		}
+		var k = keys[0], v = r[k], within = r.within === null || r.within === undefined ? null : r.within;
+		if (k === 'file') return refuse(t('regionFile'));
+		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'ecoregion_at', 'island_at', 'bbox', 'geojson'].indexOf(k) >= 0 &&
+			within === null;
+		var biome = k === 'biome_at' && within && typeof within === 'object' && within.bbox !== undefined &&
+			Object.keys(within).length === 1;  // as a click on the map: its part in the map view
+		if (!usable && !biome) return refuse(t('regionKind'));
+		var spec = copyOf(r);
+		try {
+			if (k === 'wdpa_id') {
+				var ids = (Array.isArray(v) ? v : [v]).map(Number);
+				if (!ids.length || ids.some(function (x) { return !isFinite(x) || x !== Math.round(x); })) {
+					throw new Error('wdpa_id is the WDPA ID (SITE_ID) of a protected area, or a list of them; not ' +
+						JSON.stringify(v));
+				}
+				state.mode = 'wdpa';
+				state.wdpaItems = null;
+				message(t('loadingRegion'));
+				mo.wdpaGeometries(ids).evaluate(function (info, error) {
+					if (error) {
+						refuse(String(error));
+						render();
+						return fail(error);
+					}
+					var fc;
+					try {
+						fc = mo.wdpaRegion(info);
+					} catch (err) {
+						refuse(err.message || String(err));
+						render();
+						return message(err.message || String(err), true);
+					}
+					results.style().set('shown', false);
+					var names = info.features.map(function (f) { return f.properties.name; });
+					state.wdpaId = ids[0];
+					state.wdpaText = names[0] || state.wdpaText;
+					setRegion(fc, names.join(', '), spec);
+				});
+			} else if (k === 'admin1' || k === 'admin2' || k === 'admin3') {
+				var codes = Array.isArray(v) ? v : [v];
+				if (codes.length !== 1) throw new Error(t('regionOne'));
+				var level = Number(k.slice(-1));
+				// level 3: a municipality of Spain, its code of the INE of 5 digits (an error that says so if not)
+				var code = level === 3 ? mo.municipalityCodes(codes)[0] : Number(codes[0]);
+				if (level !== 3 && !isFinite(code)) {
+					throw new Error(k + ' is the GAUL code of an administrative unit; not ' + JSON.stringify(v));
+				}
+				state.mode = 'admin';
+				state.adminLevel = level;
+				state.adminCode = code;
+				state.adminItems = null;
+				setRegion(mo.adminRegion(level, code), null, spec, undefined, level);
+			} else if (k === 'ecoregion_at' || k === 'island_at') {
+				var at = pointOf(v, k);
+				state.mode = k === 'island_at' ? 'island' : 'ecoregion';
+				setRegion(k === 'island_at' ? mo.islandAt(at[0], at[1]) : mo.ecoregionAt(at[0], at[1]), null, spec);
+			} else if (k === 'biome_at') {
+				var point = pointOf(v, k), inside = mo.bboxRegion(bboxOf(within.bbox)).geometry(mo.WITHIN_MAX_ERROR);
+				state.mode = 'biome';
+				setRegion(mo.withinRegion(mo.biomeAt(point[0], point[1], inside), inside), null, spec, ' \u00b7 ' + t('mapView'));
+			} else if (k === 'bbox') {
+				state.mode = 'view';
+				setRegion(mo.bboxRegion(bboxOf(v), t('mapView')), t('mapView'), spec);
+			} else {  // areas._features_from_geojson: a geometry, a Feature or a FeatureCollection, each named
+				var g = typeof v === 'string' ? JSON.parse(v) : v;
+				var feats = g.type === 'FeatureCollection' ? g.features : g.type === 'Feature' ? [g] :
+					[{type: 'Feature', geometry: g, properties: {}}];
+				var names = feats.map(function (f, i) {
+					var props = f.properties || {};
+					var name = r.name_field ? props[r.name_field] : props.name !== undefined ? props.name : props.NAME;
+					return String(name === undefined || name === null ? i + 1 : name);
+				});
+				state.mode = 'draw';
+				setRegion(ee.FeatureCollection(feats.map(function (f, i) {
+					return ee.Feature(ee.Geometry(f.geometry, null, false), {name: names[i]});
+				})), names.join(', '), spec);
+			}
+			drawing.setShown(state.mode === 'draw');
+		} catch (err) {
+			refuse(err.message || String(err));
+		}
+	}
+
+	// The data of Earth Engine by their ID of the parameters O (collection or image, band...): read (asynchronous),
+	// then their band, scale, offset and unit set, or listed with SKIP. Returns what the panel computes then (a fixed
+	// layer for an image)
+	function applyData(o, skip) {
+		var key = o.collection !== undefined ? 'collection' : 'image';
+		if (o.collection !== undefined && o.image !== undefined) {
+			skip('image', 'give collection (images with dates) or image (a fixed image), not both');
+		}
+		if (o.sensor !== undefined) skip('sensor', 'only for a variable of the catalog (variable and sensor)');
+		var id = mo.assetId(o[key]);
+		if (!id) {
+			skip(key, 'give the ID of an image or a collection of images of Earth Engine');
+			return entry();
+		}
+		if (!isData()) state.theme = 'earth_engine';
+		readAsset(id, function (error, info) {
+			if (error) return skip(key, error.message || String(error));
+			var d = state.data;
+			d.use = key === 'image' || !info.dated ? 'image' : 'collection';
+			if (key === 'collection' && d.use === 'image') {  // variable.check_asset
+				skip(key, info.type === 'image' ? id + ' is an image, not a collection of images: give it as an image (a ' +
+					'fixed layer, without dates: maps, GeoTIFFs and statistics of the region)' : id + ' is a collection of ' +
+					'images without dates (tiles): give it as an image (their mosaic, a fixed layer, without dates)');
+			}
+			var bands = mo.bandsOf(o.band);
+			var missing = bands.filter(function (b) { return info.bands.indexOf(b) < 0; });
+			var reducer = String(o.band_reducer === undefined ? '' : o.band_reducer).trim().toLowerCase();
+			if (missing.length) {
+				skip('band', id + ' has no band ' + missing.join(', ') + ': its bands are ' + info.bands.join(', '));
+			} else if (bands.length > 1) {  // variable.check_bands
+				if (mo.BAND_REDUCERS.indexOf(reducer) < 0) {
+					skip('band', id + ": give band_reducer, 'sum' or 'mean', to combine its " + bands.length + ' bands (' +
+						bands.join(', ') + ') into one value on each pixel');
+				} else {
+					d.combine = reducer;
+					d.chosen = bands.slice();
+					d.band = bands[0];
+				}
+			} else if (bands.length === 1) {
+				d.band = bands[0];
+				if (reducer) {
+					skip('band_reducer', 'band_reducer combines several bands: give two or more in band (a list, or a text ' +
+						'with commas)');
+				}
+			}
+			[['band_scale', 'scale', 'bandScale'], ['band_offset', 'offset', 'bandOffset']].forEach(function (x) {
+				if (o[x[0]] === undefined) return;
+				try {
+					var n = numberOf(o[x[0]], t(x[2]));
+					d[x[1]] = n === null ? '' : String(n);
+				} catch (err) {
+					skip(x[0], err.message || String(err));
+				}
+			});
+			if (o.unit !== undefined) {
+				var unit = String(o.unit).trim();
+				try {
+					if (unit) mo.udunitsText(unit, id);  // its error now, as customEntry would give it
+					d.unit = unit;
+				} catch (err) {
+					skip('unit', err.message || String(err));
+				}
+			}
+		});
+		return {custom: true, static: key === 'image'};
+	}
+
+	// What the parameters O compute: a variable of the catalog (catalog.find) chosen in its theme, or the data of
+	// Earth Engine by their ID (applyData); without them, the variable of the panel. Returns its entry
+	function applySource(o, skip) {
+		var data = ['image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit'];
+		if (o.variable !== undefined || o.ref !== undefined) {
+			var what = o.variable !== undefined ? o.variable : o.ref;
+			data.forEach(function (k) {  // services.make_spec
+				if (o[k] !== undefined) {
+					skip(k, k + ': only for the data of Earth Engine given by their ID (collection or image, instead of ' +
+						'variable and sensor); ' + what + ' is a variable of the catalog');
+				}
+			});
+			var e;
+			try {
+				e = mo.findEntry(o.variable, o.sensor, o.collection, o.ref);
+				if (e.two_periods) throw new Error(fmt(t('twoPeriods'), e.index));
+			} catch (err) {  // parameters.check: the variable, the sensor and the collection with the reason
+				['variable', 'sensor', 'collection', 'ref'].forEach(function (k) {
+					if (o[k] !== undefined) skip(k, err.message || String(err));
+				});
+				return entry();
+			}
+			if (isData() || (state.theme !== 'all' && state.theme !== e.theme)) state.theme = e.theme;
+			setVariable(e.ref);
+			return e;
+		}
+		if (o.collection !== undefined || o.image !== undefined) return applyData(o, skip);
+		['sensor'].concat(data).forEach(function (k) { if (o[k] !== undefined) skip(k, t('noSource')); });
+		return entry();
+	}
+
+	// The burn severity of the parameters O (OPTIONS: with the defaults of the services): the index, the sensor (and,
+	// for MODIS, its collection, Terra or Aqua) and the metric, the median. Returns the entry of the index (fireEntry)
+	function applyFire(o, options, skip) {
+		var fire = mo.themes().filter(function (th) { return (th.analyses || []).indexOf('burn_severity') >= 0; })[0];
+		if (fire && state.theme !== 'all' && state.theme !== fire.key) setTheme(fire.key);
+		var index = state.fireIndex;
+		try {
+			index = mo.burnIndex(options.index);
+		} catch (err) {
+			skip('index', err.message || String(err));
+		}
+		var sensor = mo.BURN_SENSORS[index].filter(function (s) {
+			return mo.nameKey(s) === mo.nameKey(options.sensor);
+		})[0];
+		var fireSensor = state.fireSensor;
+		var onlyModis = 'collection is only for the index RdNBR with sensor Modis (MODIS/061/MOD09GA, Terra, or ' +
+			'MODIS/061/MYD09GA, Aqua)';
+		if (!sensor) {
+			try {
+				mo.burnIndex(index, options.sensor);
+			} catch (err) {
+				skip('sensor', err.message || String(err));
+			}
+			if (o.collection !== undefined) skip('collection', onlyModis);
+			if (mo.RDNBR_MODIS.indexOf(fireSensor) >= 0 && index !== 'RdNBR') fireSensor = 'Landsat';  // as fireWidgets
+		} else if (sensor === 'Modis') {
+			fireSensor = mo.RDNBR_MODIS[0];  // Terra, unless the collection is that of Aqua
+			if (o.collection !== undefined) {
+				choose('collection', o.collection, mo.RDNBR_MODIS, function (c) { fireSensor = c; }, skip);
+			}
+		} else {
+			fireSensor = sensor;
+			if (o.collection !== undefined) skip('collection', onlyModis);
+		}
+		state.fireIndex = index;
+		state.fireSensor = fireSensor;
+		choose('metric', options.metric, ['median'], function () {}, skip);
+		['perimeter', 'burned_min', 'min_ha'].forEach(function (k) { if (o[k] !== undefined) skip(k, t('inResults')); });
+		return fireEntry();
+	}
+
+	// The pixel filters QUALITY of the parameters (sensors.QUALITY: those not given, on; 'auto', on unless the variable
+	// of the entry E measures what the filter removes) for E: not for those with fixed filters (SCF, CF, the fixed
+	// layers, the data by ID), but for the variable of the right axis of a PROFILE (those chosen, otherQuality; 'auto',
+	// on: the right axis leaves out that of what it measures)
+	function applyQuality(e, quality, skip, profile) {
+		var fixed = mo.fixedFilters(e);
+		if (fixed && !profile) {
+			if (quality !== undefined) skip('quality', e.custom ? t('customFilters') : t('fixedFilters'));
+			return;
+		}
+		var q = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6};
+		if (quality !== undefined && (!quality || typeof quality !== 'object' || Array.isArray(quality))) {
+			skip('quality', 'the pixel filters are a dictionary, e.g. {"clouds": true, "snow": false}');
+		} else if (quality !== undefined) {
+			Object.keys(quality).forEach(function (k) {
+				var v = quality[k], one = {};
+				one[k] = v;
+				if (mo.FILTERS.indexOf(k) >= 0) {  // 'auto' with fixed filters: on (for the right axis)
+					var auto = Boolean(fixed) || (mo.MEASURES[k] || []).indexOf(e.index) < 0;
+					q[k] = String(v).toLowerCase() === 'auto' ? auto : Boolean(v);
+				} else if (k === 'cloud_score' && (v === null || typeof v === 'number')) {
+					q.cloud_score = v;
+				} else {
+					skip('quality', k === 'cloud_score' ? fmt(t('badNumber'), k, v) : t('noWidget'), one);
+				}
+			});
+		}
+		if (fixed) state.chosenQuality = q;
+		else mo.FILTERS.forEach(function (f) { state.quality[f] = q[f]; });
+		state.quality.cloud_score = q.cloud_score;
+	}
+
+	// The period, the other period (of a comparison; for a fire, the periods before and after it) and the season of
+	// the parameters O
+	function applyDates(analysis, o, skip) {
+		var fire = analysis === 'burn_severity';
+		var first = fire ? state.fireBefore : state.period, second = fire ? state.fireAfter : state.other;
+		[['start', first, 0], ['end', first, 1], ['other_start', second, 0], ['other_end', second, 1]].forEach(function (x) {
+			if (o[x[0]] === undefined) return;
+			var text = String(o[x[0]]).trim();
+			if (!DATE.test(text) || isNaN(mo.date(text).getTime())) return skip(x[0], fmt(t('badDate'), text));
+			x[1][x[2]] = text;
+		});
+		if (fire) return;
+		state.seasonOn = false;
+		if (o.season === undefined) return;
+		var season = (Array.isArray(o.season) ? o.season : String(o.season).split('/')).map(function (s) {
+			return String(s).trim();
+		});
+		if (season.length !== 2 || !season.every(function (s) { return MONTH_DAY.test(s); })) {
+			return skip('season', fmt(t('badDate'), JSON.stringify(o.season)));
+		}
+		state.seasonOn = true;
+		state.season = season;
+	}
+
+	// The conditions WHERE of the parameters (variable.where_specs and the land cover mask): one on a variable (between
+	// two values, or the classes of a categorical layer kept or left out) and one of land cover; computed over the
+	// PERIOD of the analysis (of a fire, that before it; its own period only for a fixed layer E without dates: then
+	// that of the panel)
+	function applyWhere(where, e, o, skip, period) {
+		state.whereOn = false;
+		state.landcoverOn = false;
+		if (where === undefined) return;
+		var onVariable = false, onLandcover = false;
+		(Array.isArray(where) ? where : [where]).forEach(function (c) {
+			function refuse(reason) {
+				skip('where', reason, c);
+			}
+			if (!c || typeof c !== 'object' || Array.isArray(c)) {
+				return refuse('each condition of where is a dictionary with variable (and sensor), and min and/or max (or, ' +
+					'for a categorical layer, classes or exclude), or with landcover, year and exclude (the land covers to ' +
+					'leave out)');
+			}
+			if (mo.isLandcover(c)) {
+				if (onLandcover) return refuse(t('whereOne'));
+				try {
+					var lc = mo.landcoverCheck(c);
+				} catch (err) {
+					return refuse(err.message || String(err));
+				}
+				state.landcoverOn = onLandcover = true;
+				state.landcoverMap = lc[0].key;
+				state.landcoverYear = lc[1];
+				state.landcoverExclude = lc[2].slice();
+				return;
+			}
+			if (onVariable) return refuse(t('whereOne'));
+			var we;
+			try {
+				we = mo.findEntry(c.variable, c.sensor, c.collection, c.ref);
+				if (we.two_periods) throw new Error(fmt(t('twoPeriods'), we.index));
+			} catch (err) {
+				return refuse(err.message || String(err));
+			}
+			if (mo.isCategorical(we)) {
+				var keep = c.classes !== undefined && c.classes !== null ? 'classes' :
+					c.exclude !== undefined && c.exclude !== null ? 'exclude' : null;
+				if (!keep) return refuse(fmt(t('noCodes')));
+				try {
+					state.whereCodes = mo.checkClasses(we, c[keep], keep).join(', ');
+				} catch (err) {
+					return refuse(err.message || String(err));
+				}
+				state.whereKeep = keep;
+			} else {
+				if ((c.min === undefined || c.min === null) && (c.max === undefined || c.max === null)) {
+					return refuse('the condition on ' + c.variable + ' of where needs min, max or both');
+				}
+				state.whereMin = c.min === undefined || c.min === null ? '' : String(c.min);
+				state.whereMax = c.max === undefined || c.max === null ? '' : String(c.max);
+			}
+			state.whereOn = onVariable = true;
+			state.whereRef = we.ref;
+			// its own period: that of the panel, for a fixed layer without dates (as the app computes the condition)
+			if (Array.isArray(c.period) && c.period.length === 2 && e && e.static && o.start === undefined &&
+				o.end === undefined) {
+				state.period = c.period.map(String);
+			} else if (c.period !== undefined && c.period !== null && JSON.stringify(c.period) !==
+				JSON.stringify(period)) {
+				refuse(t('whereOwn'));
+			}
+			if (['metric', 'temporal', 'interannual', 'season', 'quality'].some(function (k) {
+				return c[k] !== undefined && c[k] !== null;
+			})) {
+				refuse(t('whereOwn'));
+			}
+		});
+	}
+
+	// The options of the analysis ANALYSIS of the parameters O (OPTIONS: with the defaults of the services) of the
+	// entry E, in the groups of the panel that compute it
+	function applyOptions(analysis, e, o, options, skip) {
+		function lower(v) {
+			return typeof v === 'string' ? v.trim().toLowerCase() : v;
+		}
+		// the metric NAME of the images, or of each step or year: the only one of the variable, if it has one (SCF)
+		function metric(name, set) {
+			if (e && e.metric) {
+				if (o[name] !== undefined && lower(o[name]) !== e.metric) {
+					skip(name, e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
+				}
+				return set(e.metric);
+			}
+			choose(name, options[name], METRICS, set, skip);
+		}
+		function mapOptions() {
+			metric('metric', function (m) { state.mapMetric = m; });
+			choose('temporal', options.temporal, mo.TEMPORAL, function (v) { state.temporal = v; }, skip);
+			choose('interannual', options.interannual, METRICS, function (v) { state.interannual = v; }, skip);
+		}
+		function part() {  // of the year of the trends: none for the year (or 0, its only part: trends.parts)
+			if (state.trendStep === 'annual') {
+				if (o.part !== undefined && Number(o.part) !== 0) {
+					skip('part', 'part is a month (1-12) with step monthly, 1-23 with 16-day; none (or 0) with annual');
+				}
+				return;
+			}
+			if (o.part !== undefined) choose('part', o.part, mo.parts(state.trendStep), function (v) { state.trendPart = v; }, skip);
+		}
+		function significance() {  // the app takes the trends as significant with p < 0.05
+			if (o.alpha !== undefined && Number(o.alpha) !== 0.05) skip('alpha', t('onlyAlpha'));
+		}
+		if (analysis === 'map_layer' || analysis === 'compare_map') state.mapLayer = 'index';
+		if (analysis === 'rgb_map') state.mapLayer = 'rgb';
+		if (['map_layer', 'rgb_map', 'compare_map', 'region_stats', 'transect'].indexOf(analysis) >= 0) mapOptions();
+		if (analysis === 'timelapse') {
+			choose('step', options.step, mo.ANIMATION_STEPS, function (v) { state.animStep = v; }, skip);
+			metric('metric', function (m) { state.animMetric = m; });
+		}
+		if (analysis === 'time_series' || analysis === 'compare_series') {
+			choose('step', options.step, analysis === 'time_series' ? mo.STEPS : mo.TREND_STEPS,
+				function (v) { state.step = v; }, skip);
+			metric('metric', function (m) { state.stepMetric = m; });
+			choose('stat', options.stat, STATS, function (v) { state.stat = v; }, skip);
+		}
+		if (analysis === 'time_series') {  // a line per year over the days of the year, or the seasonal profile
+			state.doy = Boolean(o.doy);
+			state.doyBetween = 'years';
+			state.doyOther = 'none';
+			if (o.interannual !== undefined) {
+				choose('interannual', o.interannual, BETWEEN, function (v) { state.doyBetween = v; }, skip);
+			}
+			if (o.other_variable !== undefined) {
+				try {  // services.time_series: OTHER_SENSOR, by default SENSOR
+					var oe = mo.findEntry(o.other_variable, o.other_sensor !== undefined ? o.other_sensor :
+						e && !e.custom ? e.sensor : null);
+					if (oe.static || oe.two_periods) throw new Error(t('withDates'));
+					state.doyOther = oe.ref;
+					if (state.doyBetween === 'years') state.doyBetween = 'median';
+				} catch (err) {
+					skip('other_variable', err.message || String(err));
+					if (o.other_sensor !== undefined) skip('other_sensor', err.message || String(err));
+				}
+			} else if (o.other_sensor !== undefined) {
+				skip('other_sensor', 'other_sensor is the sensor of other_variable');
+			}
+		}
+		if (analysis === 'trend_table' || analysis === 'trend_map') {
+			choose('step', options.step, mo.TREND_STEPS, function (v) { state.trendStep = v; }, skip);
+			metric('metric', function (m) { state.trendMetric = m; });
+		}
+		if (analysis === 'trend_table') {
+			choose('stat', options.stat, STATS, function (v) { state.stat = v; }, skip);
+			significance();
+		}
+		if (analysis === 'trend_map') {
+			part();
+			choose('output', options.output, mo.OUTPUTS, function (v) { state.output = v; }, skip);
+			if (o.alpha === undefined) state.significant = false;
+			else if (Number(o.alpha) === 0.05) state.significant = true;
+			else skip('alpha', t('onlyAlpha'));
+		}
+		if (analysis === 'region_stats') {  // the zones of Gradients
+			var zones = o.zones;
+			if (zones === undefined) {
+				skip('zones', t('noZones'), null);
+			} else {
+				try {
+					if (!zones || typeof zones !== 'object' || Array.isArray(zones)) throw new Error(t('zonesFixed'));
+					var z = mo.findEntry(zones.variable, zones.sensor, zones.collection, zones.ref);
+					if (!z.static) throw new Error(t('zonesFixed'));
+					if (mo.isCategorical(z) && zones.breaks !== undefined && zones.breaks !== null) {
+						throw new Error('the classes of ' + z.index + ' (' + z.sensor + ') are its own (a categorical layer, ' +
+							'of class codes): give no breaks');
+					}
+					if (!mo.isCategorical(z)) state.zoneBreaks = mo.checkBreaks(zones.breaks).join(', ');
+					state.zoneRef = z.ref;
+					if (Object.keys(zones).some(function (k) {
+						return ['variable', 'sensor', 'collection', 'ref', 'breaks'].indexOf(k) < 0 && zones[k] !== null;
+					})) {
+						skip('zones', t('zonesFixed'));
+					}
+				} catch (err) {
+					skip('zones', err.message || String(err));
+				}
+			}
+		}
+		if (analysis === 'area_by_class') {  // a land cover map, the variable cut at some values, its trend or its classes
+			var other = o.breaks !== undefined || o.trend ? 'give one of landcover, breaks or trend' : null;
+			if (o.landcover !== undefined) {
+				try {
+					var m = mo.landcoverMap(o.landcover);
+					var years = mo.landcoverYears(m);
+					state.areaKind = 'landcover';
+					state.areaMap = m.key;
+					state.areaYear = mo.landcoverDefaultYear(m);
+					if (o.year !== undefined) choose('year', o.year, years, function (y) { state.areaYear = y; }, skip);
+					state.areaChangeOn = o.other_year !== undefined && choose('other_year', o.other_year, years,
+						function (y) { state.areaOther = y; }, skip);
+				} catch (err) {
+					skip('landcover', err.message || String(err));
+				}
+				if (o.breaks !== undefined) skip('breaks', other);
+				if (o.trend) skip('trend', other);
+				return;
+			}
+			['year', 'other_year'].forEach(function (k) {
+				if (o[k] !== undefined) skip(k, k + ': only with a land cover map (landcover)');
+			});
+			if (o.breaks !== undefined) {
+				try {
+					state.areaBreaks = mo.checkBreaks(o.breaks).join(', ');
+					state.areaKind = 'breaks';
+				} catch (err) {
+					skip('breaks', err.message || String(err));
+				}
+				if (o.trend) skip('trend', other);
+				options.metric = o.metric !== undefined ? o.metric : 'median';  // that of its map, as map_layer
+				mapOptions();
+			} else if (o.trend) {
+				state.areaKind = 'trend';
+				choose('step', options.step, mo.TREND_STEPS, function (v) { state.trendStep = v; }, skip);
+				part();
+				options.metric = o.metric !== undefined ? o.metric : 'mean';  // that of each year, as trend_map
+				metric('metric', function (m) { state.trendMetric = m; });
+				significance();
+			} else {
+				state.areaKind = 'classes';  // those of a categorical layer
+			}
+		}
+	}
+
+	// Apply: the panel set from the parameters TEXT (JSON of any tool, parameters.read): the analysis chosen and every
+	// option it takes, the others of the services with their defaults, without computing; what cannot be applied is
+	// listed under the box with the reason (parameters.check): not a parameter of that analysis in the app, an output,
+	// a variable or a sensor that is not in the catalog, a region the app cannot use, a value its select does not have
+	function applyParameters(text) {
+		var report = {applied: null, notes: [], skipped: []};
+		state.paramsReport = report;
+		var p;
+		try {
+			p = mo.readParameters(text);
+		} catch (err) {
+			report.error = err.message || String(err);
+			return render();
+		}
+		var given = p.analysis;
+		var analysis = typeof given === 'string' && ALIASES.hasOwnProperty(given) ? ALIASES[given] : given;
+		if (typeof analysis !== 'string' || !ANALYSES.hasOwnProperty(analysis)) {
+			report.error = mo.PARAMETER_ANALYSES.indexOf(given) >= 0 ? fmt(t('noAnalysis'), given) :
+				'unknown analysis ' + (given === null ? 'None' : typeof given === 'string' ? "'" + given + "'" : given) +
+				': the parameters say which one in "analysis", one of ' + mo.PARAMETER_ANALYSES.join(', ');
+			return render();
+		}
+		var a = ANALYSES[analysis], o = {}, options = {}, k;
+		function skip(name, reason, value) {
+			report.skipped.push({name: name, value: arguments.length > 2 ? value : p.parameters[name], reason: reason});
+		}
+		Object.keys(p.parameters).forEach(function (name) {
+			var v = p.parameters[name];
+			if (v === null || v === undefined) return;  // left empty: the value of the services (readme.call_args)
+			if (mo.PARAMETER_OUTPUTS.indexOf(name) >= 0) return skip(name, t('anOutput'));
+			if (a.takes.indexOf(name) < 0) return skip(name, fmt(t('notParameter'), analysis));
+			o[name] = v;
+		});
+		report.applied = {given: given, analysis: analysis};
+		if (p.monitoreo && p.monitoreo !== mo.CATALOG.about.version) {
+			report.notes.push(fmt(t('paramsVersion'), p.monitoreo, mo.CATALOG.about.version));
+		}
+		for (k in a.defaults) options[k] = a.defaults[k];
+		for (k in o) options[k] = o[k];
+		computed(analysis);
+		state.compareOn = analysis === 'compare_map' || analysis === 'compare_series';
+		var landcover = analysis === 'area_by_class' && o.landcover !== undefined;  // a land cover map: no variable
+		var e = analysis === 'burn_severity' ? applyFire(o, options, skip) : applySource(o, skip);
+		if (!landcover) applyQuality(e, o.quality, skip, analysis === 'time_series' && o.other_variable !== undefined);
+		applyDates(analysis, o, skip);
+		applyOptions(analysis, e, o, options, skip);
+		if (a.takes.indexOf('where') >= 0) {
+			applyWhere(o.where, e, o, skip, analysis === 'burn_severity' ? state.fireBefore : state.period);
+		}
+		if (o.region !== undefined) applyRegion(o.region, skip);
+		if (o.line !== undefined) skip('line', t('lineDrawn'));
+		render();
+	}
+
+	// What Show or Apply said: the analysis set and its button, the notes, and what was not applied and why
+	function reportWidgets() {
+		var r = state.paramsReport;
+		if (!r) return [];
+		if (r.error) return [ui.Label(r.error, {fontSize: '12px', color: '#b00020', whiteSpace: 'pre-wrap'})];
+		var warn = {fontSize: '12px', color: '#b06000', whiteSpace: 'pre-wrap'};
+		var w = [];
+		if (r.shown) w.push(ui.Label(fmt(t('paramsShown'), r.shown), SMALL));
+		if (r.applied) {
+			var a = ANALYSES[r.applied.analysis];
+			w.push(ui.Label((r.applied.given !== r.applied.analysis ? fmt(t('paramsAlias'), r.applied.given,
+				r.applied.analysis) + ' ' : '') + fmt(t('paramsSet'), r.applied.analysis, t(a.group), t(a.button)),
+				{fontSize: '12px', color: '#1a73e8'}));
+		}
+		r.notes.forEach(function (n) { w.push(ui.Label(n, warn)); });
+		if (r.skipped.length) {
+			w.push(ui.Label(t('paramsNotApplied'), {fontSize: '12px', color: '#b06000', fontWeight: 'bold'}));
+			r.skipped.forEach(function (s) { w.push(ui.Label('\u00b7 ' + mo.parametersText([s]), warn)); });
+		}
+		return w;
+	}
+
+	// The parameters of the analysis as JSON, the same in every tool (monitoreo.parameters): the analysis (the last one
+	// computed, or another), Show (its parameters in the box, to copy them: the Code Editor has no clipboard nor
+	// files) and Apply (those pasted in the box), with what they said
+	function parametersWidgets() {
+		var w = [header(t('params'))];
+		w.push(ui.Label(t('paramsHelp'), SMALL, mo.CATALOG.about.manual + (state.lang === 'en' ?
+			'/Earth-Engine-app#parameters-of-the-analysis' : '/App-de-Earth-Engine#par\u00e1metros-del-an\u00e1lisis')));
+		analysisSelect = select(Object.keys(ANALYSES).map(function (name) {
+			return {value: name, label: name + ' \u00b7 ' + t(ANALYSES[name].group)};
+		}), state.analysis, function (v) { state.analysis = v; }, '270px');
+		w.push(row(ui.Label(t('paramsAnalysis')), analysisSelect));
+		var box = ui.Textbox({placeholder: t('paramsHint'), value: state.paramsText,
+			onChange: function (v) { state.paramsText = v; }, style: {width: '340px'}});
+		w.push(box);
+		w.push(row(button(t('paramsShow'), showParameters), button(t('paramsApply'), function () {
+			state.paramsText = box.getValue() || '';
+			applyParameters(state.paramsText);
+		})));
+		return w.concat(reportWidgets());
+	}
+
 	// About ---------------------------------------------------------------------------------------------------------
 
 	function aboutWidgets() {
@@ -22578,7 +24219,7 @@ var MonitorEO = (function () {
 		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), areaWidgets(), gradientWidgets(),
 			animationWidgets(),
 			seriesWidgets(), trendWidgets(),
-			themeHas('burn_severity') ? fireWidgets() : [], aboutWidgets()].forEach(function (ws) {
+			themeHas('burn_severity') ? fireWidgets() : [], parametersWidgets(), aboutWidgets()].forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});
 	}

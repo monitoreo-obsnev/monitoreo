@@ -138,11 +138,17 @@ HELP = {
 		'SPA) with different boundaries.</p>' + manual('Concepts#regions'),
 	'variable':
 		'<p>Variable and sensor. Each entry tells the variable, the sensor, the pixel size and the Earth Engine '
-		'collection. Sentinel-2 (10 m) starts in 2017; Landsat (30 m), in 1984, and MODIS (from 250 m to 4.6 km), in '
-		'2000: for long series and trends, Landsat or MODIS.</p>',
+		'collection. Sentinel-2 (10 m, surface reflectance: Level-2A) starts on 2017-03-28; Landsat (30 m), in 1984, '
+		'and MODIS (from 250 m to 4.6 km), in 2000: for long series and trends, Landsat or MODIS.</p>',
 	'period':
 		'<p>First and last day, both included. Each sensor has its dates (see the help of <b>Variable</b>). If you '
 		'check <b>Compare with</b>, this is the reference period.</p>'
+		'<p>A period that ends before the first image of the data, falls between Landsat 5 and Landsat 8 or begins '
+		'after today is refused, with their dates. One that begins before the first image (or ends, or even begins, '
+		'after the last one of data that ended in the copy of the Earth Engine data catalog, which Earth Engine may '
+		'have extended since) is computed with a warning, in the message bar and in the window of the result: those '
+		'days may have no data. The windows and charts also say which data the values come from (<b>Data:</b> the Earth '
+		'Engine collection and its product level).</p>'
 		'<p>Long periods with Sentinel-2 over big areas take minutes: start with one year.</p>'
 		+ manual('Concepts#period-and-season'),
 	'compare':
@@ -366,8 +372,37 @@ HELP = {
 		'<b>True colour (RGB)</b>, the red, green and blue reflectance of the same images and pixels, or <b>Both</b>, '
 		'the true colour under the index. The true colours of a series are stretched as its first one, so that its '
 		'dates can be compared.</p>'
+		'<p>Each window also shows the <b>parameters</b> of its analysis, with <b>Copy parameters</b> and <b>Save '
+		'parameters…</b>; saving its CSV or GeoTIFF writes them next to it (<code>name.parameters.json</code>).</p>'
 		'<p>The list is lost when QGIS is closed: save what you want to keep.</p>'
 		+ manual('QGIS-plugin#5-compute-the-time-series'),
+	'parameters':
+		'<p>The <b>parameters of an analysis</b> are a small JSON file: the version of MonitorEO, the analysis (the '
+		'function of MonitorEO that computes it) and its parameters, with the same names as in Python, R, the command '
+		'line, the MCP server and the Earth Engine app, e.g.</p>'
+		'<p><code>{"monitoreo": "0.3.52", "analysis": "time_series", "parameters": {"region": {"wdpa_id": 555588816}, '
+		'"variable": "NDVI", "sensor": "Landsat", "start": "2023-01-01", "end": "2025-12-31", "step": "monthly", '
+		'"metric": "mean", "stat": "mean"}}</code></p>'
+		'<p>With them an analysis can be repeated, changed (another period, another region) or taken to another '
+		'tool. The files of the results are not in them: each tool writes its own.</p><ul>'
+		'<li><b>Parameters</b>, beside the button of each analysis: <b>Copy parameters</b> or <b>Save parameters…</b> '
+		'of the analysis as that button computes it, from the fields of the panel (with <b>Compare with</b>, the '
+		'comparison of the periods).</li>'
+		'<li><b>Apply parameters</b>: <b>Paste parameters</b> (copied here or in another tool) or <b>Open '
+		'parameters…</b> (a <code>.json</code> file, also those that every result writes next to its files, '
+		'<code>name.parameters.json</code>) fill the fields of the panel (region, variable or Earth Engine data, '
+		'period, season, pixel filters, conditions, options of the analysis) and bring its group into view. They '
+		'compute nothing: press the button of the analysis.</li>'
+		'<li>The window of each result shows its parameters, and copies or saves them.</li></ul>'
+		'<p>What cannot be applied is <b>not applied</b>, and a message lists it with the reason: a parameter that the '
+		'analysis does not have in this version of MonitorEO, a variable or sensor that is not in its catalog, or a '
+		'value that the panel has no field for (a region it does not take, such as several protected areas; an option '
+		'of Python or R that the panel does not have; a value that its lists do not have). A region drawn in a layer '
+		'chooses the layer of <b>Region → Layer</b> (or an earlier <i>Region of the parameters</i>) if it gives the '
+		'same polygons, or else comes back as a temporary layer, <i>Region of the parameters</i>; a protected area or '
+		'administrative unit, by its ID (<b>Search</b> gives its name); the map extent and the points at its center, by '
+		'zooming the map, which keeps the shape of its window.</p>'
+		+ manual('QGIS-plugin#parameters-of-an-analysis'),
 	'trend_step':
 		'<p>Parts of the year whose trend is computed over the years of the period: <b>Year</b> (the whole year, or '
 		'the season if it is checked), <b>Months</b> (each of the 12) or <b>16 days</b> (23 blocks from January 1). '
@@ -485,8 +520,10 @@ HELP = {
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
 		'faster export.</p>'
-		'<p>The layers of <b>Add the layer to the map</b> do not use it: they have the resolution of the data up to 4 '
-		'million pixels and, in bigger regions, bigger pixels.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
+		'up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
+		'exceeds the limit and which sensors of the variable fit: choose one of them, a smaller region or the export '
+		'to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':
 		'<p>Folder of your Google Drive where Earth Engine leaves the files; if it does not exist, Earth Engine makes '
 		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '
@@ -509,7 +546,8 @@ HELP = {
 		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
 		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
-		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
+		'<b>Region</b>, always on the pixels of the data: as the maps, up to 4 million pixels (a bigger region gets a '
+		'warning, before computing anything).</p>'
 		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010')])
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':
@@ -687,7 +725,9 @@ def variable_help(v, info=None):
 	d = describe(v)
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
-	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
+	         f"{v['dates']}. "
+	         + (f"Collections: {' up to its last image, then '.join(v['datasets'])}." if v.get('datasets') else
+	            f"Collection: {v['collection']}.")] + filter_lines(v, d)
 	if d.get('metric'):  # the snow cover frequency: how it is computed, and its only metric
 		lines += [d['notes'].get('ft', ''), f"<b>Only with the metric {d['metric']}</b>: {d['notes'].get('metric', '')}."]
 	if d.get('static'):  # elevation, slope: only maps

@@ -97,6 +97,36 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 - **All tools**: The municipalities of Spain as administrative units of level 3, of the Instituto Geográfico Nacional (its INSPIRE service, CC BY 4.0 ign.es): found by name, in any case and with or without accents, or by their code of the INE, without Earth Engine in the package, the command line, the MCP server, R, QGIS and the assistant (`find_admin_units(text, level=3)`, `monitoreo units TEXT --level 3`, `mo_admin_units(text, level = 3)`, level 3 in QGIS) and in a public table of Earth Engine in the Earth Engine app (level 3), and computed as the region `{"admin3": "18134"}` from that table, the same in every tool; their results credit the IGN.
 - **Earth Engine app**: Under the region, an administrative unit shows the credit of its data and its reference (FAO GAUL 2025 or the IGN).
 
+### [v0.3.46](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.46) · 2026-11-17 · package 0.3.56
+
+- **All tools**: The parameters of an analysis as JSON, the same in every tool (`{"monitoreo", "analysis", "parameters"}`, with the names of the Python package), written next to the files of each result (`<file>.parameters.json`), to repeat it, change one parameter or take it to another tool; when they are applied, what cannot be applied is left out and listed with the reason (issue #85).
+- **Python package**: `monitoreo.parameters` saves, checks and computes them again (`save`, `check`, `run`).
+- **Command line**: `monitoreo parameters FILE` says what of a file of parameters can be applied, and `monitoreo run FILE` computes it.
+- **MCP server, Assistant**: The tools `save_parameters` and `apply_parameters` of the MCP server; the assistant links the file of the parameters of each result and repeats an analysis from it (`apply_parameters`).
+- **R package**: `mo_save_parameters()`, `mo_read_parameters()` and `mo_run_parameters()`.
+- **QGIS plugin**: Parameters ▾ next to the button of each analysis (copy and save its parameters), Apply parameters ▾ (paste or open them: they fill the panel, with a warning of what cannot be applied), and the parameters of each result in its window, saved next to its files.
+- **Earth Engine app**: The group Parameters of the analysis (JSON): shows the parameters of the last analysis, to copy, and applies those pasted, with the list of what cannot be applied.
+
+### [v0.3.45](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.45) · 2026-11-17 · package 0.3.55
+
+- **All tools** (fix): The evapotranspiration (ET) and latent heat (LE) of MODIS have values again before 2021: MOD16A2.061 begins in 2021 in Earth Engine, so they now use its gap-filled version, MOD16A2GF.061, from 2000 up to its last image, and MOD16A2.061 after it.
+
+### [v0.3.44](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.44) · 2026-11-17 · package 0.3.54
+
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: A period that begins before the first image of the data (e.g. Sentinel-2 surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives a warning that those days have no data (that of a condition of where says so), and a period that ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is refused before computing, with the dates of the data.
+- **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: The charts, figures and results say which data their values come from, the Earth Engine collection and its product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))".
+- **Assistant, QGIS plugin**: The maps of the steps of a result (Date and Play in the assistant, Map of in QGIS) are only those with images of the data, without the years or months before the first image or after today.
+- **Python package, Command line, MCP server, R package**: The description of a variable gives the first and last day of its images (data_dates) and its data (data_source).
+- **Assistant** (fix): The installers of the assistant are attached to every release, also when the release of GitHub is made after they are built.
+
+### [v0.3.43](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.43) · 2026-11-17 · package 0.3.53
+
+- **QGIS plugin**: The maps, true colours, trends and burn severities added to QGIS are always on the pixels of the data; for a region that needs more than 4 million pixels, before computing anything, a warning that stays says by what percentage it exceeds the limit and what to change: the sensors of the variable whose map fits, a smaller region or the export to Google Drive (issue #86).
+
+### [v0.3.42](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.42) · 2026-11-17 · package 0.3.52
+
+- **Earth Engine app, QGIS plugin, Assistant**: The anonymous form of suggestions and errors is in English first, with the Spanish after it in italics, and the button fills in the tool with its new name.
+
 ### [v0.3.41](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.41) · 2026-11-15 · package 0.3.51
 
 - **QGIS plugin** (fix): Choosing a variable unchecks and greys out the pixel filter of what it measures (snow with the NDSI; water with the NDWI, the Chl-a and the NDCI; aerosols with the ARSL), instead of computing it without those pixels; the filters you had come back with another variable.

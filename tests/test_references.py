@@ -267,3 +267,23 @@ def test_zenodo_metadata():
 		assert digits[-1] == ('X' if check == 10 else str(check)), c
 	assert z['references'] == references.bibliography_texts(), \
 		'update the references of .zenodo.json: monitoreo.references.bibliography_texts()'
+
+
+def test_the_evapotranspiration_cites_the_gap_filled_version_of_its_period():
+	"""ET and LE of MODIS: MOD16A2GF.061 (2000 to its last image) and MOD16A2.061 after it (sensors.GAP_FILLED):
+	MOD16A2.061 begins in 2021, so before it every value is of the gap-filled version."""
+	col, gf = 'MODIS/061/MOD16A2', 'MODIS/061/MOD16A2GF'
+	assert references.datasets(col) == [gf, col]
+	assert references.datasets(col, ('2005-01-01', '2010-12-31')) == [gf]
+	assert references.datasets(col, ('2026-02-01', '2026-06-30')) == [col]
+	assert references.datasets(col, ('2018-01-01', '2026-06-30')) == [gf, col]
+	# a period to 31 December of the last year of the gap-filled version: only its images (the next ones, from 1 January)
+	assert references.datasets(col, ('2025-01-01', '2025-12-31')) == [gf]
+	# a start without an end ends today, as the services compute it: also the images after the gap-filled version
+	cited = references.cite('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'ET', 'sensor': 'Modis',
+	                                      'start': '2024-01-01'})
+	assert {'10.5067/MODIS/MOD16A2GF.061', '10.5067/MODIS/MOD16A2.061'} <= {r.get('doi') for r in cited['references']}
+	cited = references.cite('time_series', {'region': {'wdpa_id': 389011}, 'variable': 'ET', 'sensor': 'Modis',
+	                                        'start': '2005-01-01', 'end': '2010-12-31'})
+	dois = {r.get('doi') for r in cited['references']}
+	assert '10.5067/MODIS/MOD16A2GF.061' in dois and '10.5067/MODIS/MOD16A2.061' not in dois

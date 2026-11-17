@@ -138,6 +138,7 @@ def eecu_usage(*args, **kw):
 
 
 services.init = lambda *args, **kw: 'project'
+services.check_pixels = lambda *args, **kw: {'pixels': 1}  # it fits (issue #86), without Earth Engine
 services.eecu_usage = eecu_usage
 services.download_image = download_image
 services.download_rgb = download_rgb

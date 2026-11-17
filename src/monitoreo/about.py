@@ -60,13 +60,13 @@ ISSUES = REPOSITORY + '/issues/new/choose'  # the templates: error or suggestion
 FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform'
 FORM_FIELDS = {'tool': 'entry.1706228456', 'version': 'entry.1533130685'}  # their ids in the form
 TOOLS = {  # the tools, as the issue templates and the options of the form name them
-	'gee': ('Earth Engine app', 'App de Earth Engine / Earth Engine app'),
-	'qgis': ('QGIS plugin', 'Complemento de QGIS / QGIS plugin'),
-	'assistant': ('Assistant', 'Asistente / Assistant'),
-	'python': ('Python or command line', 'Python o línea de órdenes / Python or command line'),
-	'mcp': ('MCP server', 'Servidor MCP / MCP server'),
-	'r': ('R package', 'Paquete de R / R package'),
-	'viewer': ('Results viewer', 'Visor de resultados / Results viewer'),
+	'gee': ('Earth Engine app', 'Earth Engine app / App de Earth Engine'),
+	'qgis': ('QGIS plugin', 'QGIS plugin / Complemento de QGIS'),
+	'assistant': ('Assistant', 'Assistant / Asistente'),
+	'python': ('Python or command line', 'Python or command line / Python o línea de órdenes'),
+	'mcp': ('MCP server', 'MCP server / Servidor MCP'),
+	'r': ('R package', 'R package / Paquete de R'),
+	'viewer': ('Results viewer', 'Results viewer / Visor de resultados'),
 }
 FEEDBACK = {
 	'en': {'button': 'Suggest a change or report an error',

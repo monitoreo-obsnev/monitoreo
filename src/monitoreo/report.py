@@ -440,6 +440,8 @@ def item_facts(tool, args, result=None, names=None):
 		unit = unit_text(catalog.custom_unit(given))
 		data += f"; unit {unit}" if unit else ('; dimensionless' if given == '1' else '; unit not given')
 		facts.append(('Data', data))
+	if result.get('data_source'):  # the Earth Engine collections of its values, with their product level
+		facts.append(('Data source', str(result['data_source'])))
 	# elevation, slope, an image of Earth Engine: no period, temporal metric or pixel filters
 	static = bool(entry and entry.get('static')) or bool(custom and args.get('image'))
 	if args.get('start') and args.get('end') and not static:
@@ -449,6 +451,9 @@ def item_facts(tool, args, result=None, names=None):
 	if args.get('other_start') and args.get('other_end'):
 		label = 'After the fire' if tool == 'burn_severity' else 'Other period'
 		facts.append((label, period_text(args['other_start'], args['other_end']) + season_text(args.get('season'))))
+	warned = result.get('warnings') if isinstance(result.get('warnings'), list) else []
+	if any(warned):  # days of the period without images of its data (monitoreo.coverage)
+		facts.append(('Warnings', ' '.join(str(w) for w in warned if w)))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse') or \
 			(tool == 'area_by_class' and args.get('trend')):
 		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class') else 'monthly')

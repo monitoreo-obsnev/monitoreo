@@ -4,9 +4,11 @@
                      name of the formulas resolved as sensors.parse_formula does, the tables of classes of the
                      categorical layers (classes: the ecoregions and biomes), the themes of the menu (also those of
                      the data of Earth Engine outside the catalog, catalog.OTHER_THEMES), a slim copy of the index of
-                     the GEE Community Catalog (community.json.gz), the texts of about.py and the credits and
-                     references of the administrative units (regions: FAO GAUL 2025 and the municipalities of Spain
-                     of the IGN, as catalog.json gives them)
+                     the GEE Community Catalog (community.json.gz) and of that of the Earth Engine data catalog
+                     (eecatalog.json.gz), the collections of each variable with the dates and short titles of their
+                     images (coverage: the check of the periods and the line «Data: ...», monitoreo.coverage), the
+                     texts of about.py and the credits and references of the administrative units (regions: FAO GAUL
+                     2025 and the municipalities of Spain of the IGN, as catalog.json gives them)
   monitoreo_app.js   catalog.js, core.js and ui.js in a single script: paste it in a new script of the Code Editor and
                      publish it as an app (Apps > New App); the fallback of the git route below
 
@@ -46,7 +48,7 @@ import textwrap
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
-from monitoreo import (__released__, __version__, about, areas, catalog, community, eecatalog,  # noqa: E402
+from monitoreo import (__released__, __version__, about, areas, catalog, community, coverage, eecatalog,  # noqa: E402
                        municipalities, references, sensors, services)
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
@@ -294,7 +296,8 @@ def main():
 	                    help='only write monitoreo_app.js, from the catalog.js there is (without Earth Engine)')
 	parser.add_argument('--indexes-only', action='store_true',
 	                    help='write the indexes of catalog.js again (the GEE Community Catalog and the Earth Engine data '
-	                         'catalog) and monitoreo_app.js, without Earth Engine: after refreshing them')
+	                         'catalog, with the dates of the collections of the variables) and monitoreo_app.js, without '
+	                         'Earth Engine: after refreshing them')
 	parser.add_argument('--about-only', action='store_true',
 	                    help='write the about of catalog.js again (version, date of the release, links of suggestions; '
 	                         'its logos as they were), its credits of the administrative units (catalog.json) and '
@@ -324,6 +327,7 @@ def main():
 		data = read_catalog()
 		data['community'] = community_index()
 		data['eecatalog'] = eecatalog_index()
+		data['coverage'] = coverage.app_index()  # the dates of the images of each variable, from the index
 		write_catalog(data)
 		app()
 		print(f"wrote the indexes of catalog.js ({len(data['eecatalog']['datasets'])} datasets of the Earth Engine data "
@@ -343,7 +347,7 @@ def main():
 	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
 	        'classes': catalog.load()['classes'],  # the classes of the categorical layers (monitoreo.categorical)
 	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index(),
-	        'eecatalog': eecatalog_index(), 'regions': region_credits()}
+	        'eecatalog': eecatalog_index(), 'coverage': coverage.app_index(), 'regions': region_credits()}
 	write_catalog(data)
 	app()
 	print(f"{len(data['variables'])} variables and {len(data['community']['datasets'])} datasets of the GEE Community "

@@ -65,7 +65,7 @@ def test_feedback_links():
 	assert links['issue'].startswith(about.REPOSITORY + '/issues/new/choose?')
 	assert urllib.parse.parse_qs(issue.query) == {'tool': ['QGIS plugin'], 'version': ['0.3.15']}
 	form = urllib.parse.parse_qs(urllib.parse.urlparse(links['form']).query)
-	assert form[about.FORM_FIELDS['tool']] == ['Complemento de QGIS / QGIS plugin']
+	assert form[about.FORM_FIELDS['tool']] == ['QGIS plugin / Complemento de QGIS']
 	assert form[about.FORM_FIELDS['version']] == ['0.3.15'] and form['usp'] == ['pp_url']
 	assert set(about.FEEDBACK['en']) == set(about.FEEDBACK['es']) == {'button', 'issue', 'form'}
 	for name in ('error.yml', 'suggestion.yml', 'config.yml'):  # the templates the links open
@@ -1140,7 +1140,12 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	assert out['back'] == {'variables': True, 'clouds': [True, False]}
 	# a read that fails after a computation started leaves its result, and says why under the ID
 	late = out['late']
-	assert late['map']['texts'][0] == 'NDVI Sentinel-2 · Map view · Median · 2015-01-01/2025-12-31'
+	# over it, the warning of its period (Sentinel-2 SR from 2017-03-28: see monitoreo.coverage), under it its data
+	assert late['map']['texts'][0] == ('⚠ The images of COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, '
+	                                   'Level-2A (SR)) start on 2017-03-28: the period asked for begins on 2015-01-01, '
+	                                   'so its first 2 years have no data.')
+	assert late['map']['texts'][1] == 'NDVI Sentinel-2 · Map view · Median · 2015-01-01/2025-12-31'
+	assert late['map']['texts'][-1] == 'Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))'
 	assert late['after'] == late['map']
 	assert any(t.startswith('Earth Engine has no image or collection projects/someone/assets/slow, or this app cannot')
 	           for t in late['controls'])

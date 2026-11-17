@@ -51,6 +51,15 @@ Google Earth Engine and of MonitorEO; and the credit lines that the terms of use
 Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL, RESOLVE). When the results go into a report, a paper or a
 map, end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
 
+The results say which data their values come from, data_source (the Earth Engine collections and their product level,
+e.g. COPERNICUS/S2_SR_HARMONIZED, Harmonized Sentinel-2 MSI, Level-2A (SR): surface reflectance), and their charts in
+a line «Data: ...»: say it with the result. A period that ends before the first image of the data, falls between
+Landsat 5 and Landsat 8 or begins after today is an error that says their dates; a period that begins before the first
+image (e.g. Sentinel-2 SR from 2017-03-28), or ends (or even begins) after the last one of data that ended in the copy
+of the Earth Engine data catalog (Earth Engine may have added images since), has warnings in the result (warnings):
+always tell the user, as those days may have no data (describe_variable gives the dates of the data, data_dates). A
+warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
+
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
 frequency) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow, aerosols). The
@@ -234,6 +243,7 @@ def tool(fn):
 
 
 NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
+                   'save_parameters', 'apply_parameters',
                    'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')
 
 
@@ -357,6 +367,15 @@ def _dates(variable, sensor, source, what, **given):
 
 def _text(obj):
 	return json.dumps(obj, ensure_ascii=False, indent=1, default=str)
+
+
+def _notes(summary, res):
+	"""Put in SUMMARY, the answer of a tool that summarizes its result RES, the data its values come from (data_source)
+	and the warnings of its period (warnings: e.g. it begins before the first image of the data), when RES has
+	them: what the services answer."""
+	for k in ('data_source', 'warnings'):
+		if res.get(k):
+			summary[k] = res[k]
 
 
 def _preview(res):
@@ -570,8 +589,9 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	                           where=where, doy=doy, interannual=interannual, other_variable=other_variable,
 	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, **source)
 	rows = res['rows']
-	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme',
+	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme', 'parameters',
 	                                    'references', 'credits')}
+	_notes(summary, res)
 	if doy:
 		summary['ylim'] = res.get('ylim')
 	if profiled and isinstance(res.get('profile'), list):
@@ -644,7 +664,8 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	res = services.timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
 	                         fps=fps, dimensions=dimensions, path=path, where=where, **source)
 	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'file',
-	                                    'gif', 'note', 'readme', 'references', 'credits')}
+	                                    'gif', 'note', 'readme', 'parameters', 'references', 'credits')}
+	_notes(summary, res)
 	summary['frames'] = res.get('frames') or []
 	return [_text(summary)] + _last_frame(res.get('gif'))
 
@@ -722,8 +743,9 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
 	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
 	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
-	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'references', 'credits')
+	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'parameters', 'references', 'credits')
 	           if res.get(k) is not None}
+	_notes(summary, res)
 	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
 		summary['note'] = f"{len(summary['rows'])} rows: the first {MAX_ROWS_SHOWN} are shown, all of them in the CSV"
 		summary['rows'] = summary['rows'][:MAX_ROWS_SHOWN]
@@ -930,7 +952,8 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']
-	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
+	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits')})
+	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
 		out.append(Image(path=res['chart']))
@@ -1009,7 +1032,8 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
 	                              chart=_out(stem, 'png'), where=where, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
-	summary.update({k: res.get(k) for k in ('readme', 'references', 'credits')})
+	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits')})
+	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
 		out.append(Image(path=res['chart']))
@@ -1136,6 +1160,64 @@ def publish_report(title: str, summary: str, files: List[str], question: Optiona
 	res['next'] = (f"see it with `monitoreo serve {res['site']}`, then deploy the folder (git push or rsync) to make "
 	               'it public')
 	return _text(res)
+
+
+# the analyses of monitoreo.services (monitoreo.parameters) that are tools of this server with another name or with
+# another argument: their tool and the arguments that make it that analysis
+TOOL_OF = {'export_image': ('export_image_to_drive', {}), 'time_series_to_drive': ('export_time_series_to_drive', {}),
+           'map_figure': ('map_layer', {'figure': True})}
+ANALYSIS_OF = {'export_image_to_drive': 'export_image', 'export_time_series_to_drive': 'time_series_to_drive'}
+
+
+@tool
+def save_parameters(analysis: str, arguments: dict, name: Optional[str] = None) -> str:
+	"""Save the parameters of an analysis as JSON, to repeat it later or in another tool of MonitorEO (the Python and R
+	packages, the command line, the QGIS plugin, the Earth Engine app): analysis is the tool that computed it (e.g.
+	time_series, map_layer, trend_table, burn_severity) and arguments the arguments it was called with. The tools that
+	write files already write it next to them (parameters in their answer); this one is for the others (e.g. map_layer
+	without figure) or to save it with a name. Returns the path of the file and its contents."""
+	from . import parameters
+	args = dict(arguments or {})
+	analysis = ANALYSIS_OF.get(analysis, analysis)
+	path = _out(_stem('parameters', name or analysis), 'json')
+	try:
+		parameters.save(analysis, args, path)
+	except ValueError as e:
+		raise ToolError(str(e)) from e
+	return _text({'parameters': path, 'contents': parameters.read(path)})
+
+
+@tool
+def apply_parameters(parameters: str) -> str:
+	"""The parameters of an analysis saved as JSON (its text or a .parameters.json path): which tool computes it, with
+	which arguments (not computed). Tell the user what is in not_applied, then call that tool."""
+	from . import parameters as params
+	try:
+		checked = params.check(parameters)
+	except ValueError as e:
+		raise ToolError(str(e)) from e
+	analysis = checked['analysis']
+	name, extra = TOOL_OF.get(analysis, (analysis, {}))
+	fn = globals().get(name)
+	if fn is None:
+		raise ToolError(f'{analysis} is not a tool of the MCP server of MonitorEO: compute it with the Python package or '
+		                'the command line (monitoreo run FILE)')
+	takes = inspect.signature(fn).parameters
+	args, skipped = dict(extra), list(checked['not_applied'])
+	params = dict(checked['parameters'])
+	if name == 'burn_severity' and 'perimeter' in params:  # this tool writes its own file: it asks for it with true
+		params['perimeter'] = bool(params['perimeter'])
+	for k, v in params.items():
+		if k in takes:
+			args[k] = v
+		else:
+			skipped.append({'name': k, 'value': v, 'reason': f'not an argument of the tool {name} of this server'})
+	out = {'tool': name, 'arguments': args, 'not_applied': skipped}
+	if checked.get('note'):
+		out['note'] = checked['note']
+	out['next'] = (f'call the tool {name} with these arguments'
+	               + (' after telling the user what is not applied and why' if skipped else ''))
+	return _text(out)
 
 
 @tool

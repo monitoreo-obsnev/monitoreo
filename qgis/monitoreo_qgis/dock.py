@@ -6,8 +6,13 @@ services.describe_asset), or a dataset of the GEE Community Catalog chosen by it
 community_datasets). The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
 function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the EECUs of Earth Engine
 spent this month (the research EECUs of this user with the shared account, or the monthly quota of the user's project)
-and the message bar warns when less than 10 % are left."""
+and the message bar warns when less than 10 % are left.
+The parameters of each analysis (monitoreo.parameters: the JSON of the function of monitoreo.services and its
+arguments, the same in every tool) are copied or saved by the button Parameters beside its button, from the arguments
+that its button computes with; Apply parameters pastes or opens them and fills the fields of the panel, without
+computing anything, and says what it could not apply."""
 
+import inspect
 import json
 import os
 import re
@@ -15,25 +20,27 @@ import tempfile
 
 from qgis.core import (Qgis, QgsApplication, QgsColorRampShader, QgsContrastEnhancement, QgsCoordinateReferenceSystem,
                        QgsCoordinateTransform, QgsDataSourceUri, QgsDateTimeRange, QgsMultiBandColorRenderer,
-                       QgsPalettedRasterRenderer, QgsProject, QgsRasterLayer, QgsRasterShader, QgsRectangle,
-                       QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask, QgsFillSymbol, QgsVectorLayer)
+                       QgsPalettedRasterRenderer, QgsPointXY, QgsProject, QgsRasterLayer, QgsRasterShader,
+                       QgsRectangle, QgsSettings, QgsSingleBandPseudoColorRenderer, QgsTask, QgsFillSymbol,
+                       QgsVectorLayer)
 from qgis.gui import QgsCheckableComboBox, QgsCollapsibleGroupBox, QgsFieldComboBox, QgsMapLayerComboBox
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
-from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox, QFormLayout,
-                                 QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QScrollArea,
-                                 QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis, QWidget)
+from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox,
+                                 QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
+                                 QPushButton, QScrollArea, QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis,
+                                 QWidget)
 
 from . import deps
 
 deps.setup_path()
-from monitoreo import assets, catalog, categorical, fire, landcover, sensors, services, steps, trends  # noqa: E402
-from monitoreo import municipalities  # noqa: E402
+from monitoreo import (areas, assets, catalog, categorical, classes, fire, landcover, municipalities,  # noqa: E402
+                       parameters, sensors, services, steps, trends)
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
-from .results import KINDS_TIP, MAP_KINDS  # noqa: E402
+from .results import KINDS_TIP, MAP_KINDS, parameters_text  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
@@ -95,7 +102,8 @@ FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_s
 POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
-MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
+MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB), always those of the data; a bigger
+# region is not computed (services.check_pixels: a warning with what to change)
 # the data of Earth Engine outside the catalog (monitoreo.assets): images with dates, aggregated in time like the
 # variables (collection=), or a fixed image without dates, like the elevation (image=)
 USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
@@ -107,6 +115,47 @@ NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own 
               'variables of the catalog')
 READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
              'press Read: its bands, units, licence and how to cite it')
+ZONE_STATS = ['p25', 'p50', 'p75', 'mean']  # the statistics of each band of Gradients (of a categorical layer, mode)
+# the analyses of the panel: the method that gives its parameters (its function of monitoreo.services and its
+# arguments, without its outputs: see monitoreo.parameters), what it is and its button
+PANEL = {
+	'series': ('series_call', 'the time series (with Compare with, the comparison of the periods)',
+	           'Compute the time series'),
+	'trend_table': ('trend_table_call', 'the trend table of the region', 'Trend table of the region'),
+	'trend_map': ('trend_map_call', 'the trend map', 'Trend map'),
+	'map': ('map_call', 'the map (with Compare with, the difference of the periods)', 'Add the layer to the map'),
+	'areas': ('areas_call', 'the area by class', 'Compute the areas'),
+	'zones': ('zones_call', 'the statistics of each band', 'Statistics of each band'),
+	'transect': ('transect_call', 'the profile along the line', 'Profile along the line'),
+	'animation': ('animation_call', 'the animation', 'Make the animation'),
+	'export_map': ('export_map_call', 'the export of the map', 'Map (GeoTIFF)'),
+	'export_series': ('export_series_call', 'the export of the series', 'Series (CSV)'),
+	'burn': ('burn_call', 'the burn severity', 'Compute the severity'),
+}
+# the analysis of the panel of each analysis of monitoreo.parameters (the tiles of a map and its figure: its map)
+GROUPS = {'time_series': 'series', 'compare_series': 'series', 'trend_table': 'trend_table', 'trend_map': 'trend_map',
+          'download_trend': 'trend_map', 'map_layer': 'map', 'download_image': 'map', 'map_figure': 'map',
+          'rgb_map': 'map', 'download_rgb': 'map', 'compare_map': 'map', 'download_comparison': 'map',
+          'area_by_class': 'areas', 'region_stats': 'zones', 'transect': 'transect', 'timelapse': 'animation',
+          'export_image': 'export_map', 'time_series_to_drive': 'export_series', 'burn_severity': 'burn'}
+# the analyses with Compare with: on for the comparisons of two periods, off for the others
+COMPARED = ('time_series', 'compare_series', 'map_layer', 'download_image', 'map_figure', 'rgb_map', 'download_rgb',
+            'compare_map', 'download_comparison')
+# what is computed: a variable of the catalog, or the data of Earth Engine by their ID
+DATA = ('variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit',
+        'terrain')
+# the fields of the panel that the parameters set, in this order (the variable first: it greys out some of the others);
+# those of COMBOS are the list of the panel of the same name
+FIELDS = ('variable', 'region', 'line', 'where', 'period', 'compare', 'season', 'quality', 'step', 'ts_metric', 'stat',
+          'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_alpha',
+          'map_metric', 'temporal', 'interannual', 'map_kind', 'resolution', 'zones', 'stats', 'area_kind',
+          'area_map', 'area_breaks', 'anim_step', 'anim_metric', 'anim_fps', 'fire_index', 'fire_sensor',
+          'fire_before', 'fire_after', 'fire_perimeter')
+COMBOS = ('step', 'ts_metric', 'stat', 'doy_interannual', 'trend_step', 'trend_part', 'trend_metric', 'map_metric',
+          'temporal', 'interannual', 'area_kind', 'anim_step', 'anim_metric', 'fire_index', 'fire_sensor')
+REGION_LAYER = 'Region of the parameters'  # the temporary layers of a region or a line of some parameters
+LINE_LAYER = 'Line of the parameters'
+_MISSING = object()
 
 
 def level(name):
@@ -180,9 +229,11 @@ REFERENCES_HEADING = 'References (cite them with this layer):'  # before its ref
 
 def references_text(res):
 	"""The references and credits of a result (monitoreo.references), for the abstract of its layer: the credits under
-	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
+	their own heading, CREDITS_HEADING, for the print layouts (figure_layout), after the data of its values («Data:
+	...», data_source), as the figures of services.map_figure."""
 	refs = [r['text'] for r in res.get('references') or []]
-	credits = [c for c in res.get('credits') or [] if c]
+	credits = ([f"Data: {res['data_source']}"] if res.get('data_source') else []) + \
+		[c for c in res.get('credits') or [] if c]
 	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
 	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
 
@@ -229,17 +280,42 @@ def result_maps(tool, args):
 	return [main] + steps.map_steps(tool, args)
 
 
+def too_many_text(description, e):
+	"""The warning of the task DESCRIPTION whose map does not fit on the pixels of the data (services.TooManyPixels
+	E): by how much it exceeds the limit and what to change."""
+	fit = ', '.join(f"{s['sensor']} ({s['resolution']:g} m)" for s in e.sensors)
+	return (f'{description}: not computed. At {e.resolution:g} m, the pixels of the data, the map would have '
+	        f'{e.pixels:,} pixels, {e.excess:,}% more than the {e.max_pixels:,} of the maps added to QGIS. Choose '
+	        + (f'another sensor ({fit}), ' if fit else '')
+	        + f'a region with at most {e.share:g}% of its extent, or Export to Google Drive (no size limit)')
+
+
 def true_colour(region, opts, path, resolution=None, stretch=None):
 	"""The true colour of the images of the map with the arguments OPTS (services.download_rgb: the GeoTIFF PATH with
 	the bands red, green and blue, on the grid of pixels of RESOLUTION m, that of the map, so that their pixels match)
 	or, if it cannot be downloaded, its Earth Engine tiles (services.rgb_map, stretched from STRETCH[0] to STRETCH[1]
 	if given). In a task."""
 	try:
-		return services.download_rgb(region, path=path, resolution=resolution, max_pixels=MAP_PIXELS, **opts)
+		return services.download_rgb(region, path=path, resolution=resolution, **opts)
 	except Exception as e:
 		out = services.rgb_map(region, **opts, **({'vmin': stretch[0], 'vmax': stretch[1]} if stretch else {}))
 		out['error'] = str(e)
 		return out
+
+
+def result_warnings(result):
+	"""The warnings of the periods of the answers of the services in RESULT (an answer, a list or tuple of them, or a
+	dictionary of them, as that of maps_work): their days without images of their data (see monitoreo.coverage),
+	[texts], each once."""
+	found = []
+	for r in (result if isinstance(result, (list, tuple)) else [result]):
+		if not isinstance(r, dict):
+			continue
+		for d in [r] + [v for v in r.values() if isinstance(v, dict)]:
+			for w in d.get('warnings') or [] if isinstance(d.get('warnings'), list) else []:
+				if w and w not in found:
+					found.append(w)
+	return found
 
 
 def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None):
@@ -247,11 +323,13 @@ def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=
 	(DOWNLOAD: the GeoTIFF map.tif of FOLDER or, if it cannot be downloaded, TILES, with the colours COLORS (min, max)
 	if given); with KIND 'rgb' or 'both', the true colour of the same images and pixels (rgb.tif, on the grid of the
 	map; see true_colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
-	'rgb_error' instead of 'rgb' (the map is added all the same)."""
+	'rgb_error' instead of 'rgb' (the map is added all the same). First, whether the map fits on the pixels of the
+	data (services.check_pixels: if not, TooManyPixels, before computing anything)."""
+	services.check_pixels(region, MAP_PIXELS, rgb=kind != 'index', **opts)  # with a true colour: sensors that have it
 	out = {}
 	if kind != 'rgb':
 		try:
-			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), max_pixels=MAP_PIXELS, **opts)
+			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), **opts)
 		except Exception as e:
 			out['index'] = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
 			out['index']['error'] = str(e)
@@ -378,6 +456,11 @@ def bands_note(records):
 	return ' '.join(notes)
 
 
+def burn_stem(index):
+	"""The name of the files of a burn severity of the index INDEX, without extension."""
+	return 'burn_severity' + {'RBR': '_rbr', 'RdNBR': '_rdnbr'}.get(index, '')
+
+
 def burn_label(title, collection=None):
 	"""The name of a burn severity of title TITLE in the list of results and of its layer: TITLE, with the product of
 	MODIS of COLLECTION after the sensor (Modis MYD09GA), so that Terra and Aqua can be told apart, if it does not say
@@ -419,6 +502,443 @@ def combo(items, current=None):
 	if current is not None:
 		c.setCurrentIndex([v for _, v in items].index(current))
 	return c
+
+
+def item_index(box, value=None, test=None):
+	"""The index of the item of the list BOX whose value is VALUE (or for which TEST(value) is true), or -1."""
+	for i in range(box.count()):
+		v = box.itemData(i)
+		if (test(v) if test else v == value):
+			return i
+	return -1
+
+
+# Parameters of an analysis (monitoreo.parameters) ------------------------------------------------------------------
+
+def missing(name, value, reason):
+	"""A parameter NAME that was not applied, with its VALUE and the REASON (as parameters.check)."""
+	return {'name': name, 'value': value, 'reason': reason}
+
+
+def breaks_text(breaks):
+	"""The breaks of some parameters (a list of numbers, or their text) as the panel writes them: '1500, 2000'."""
+	if isinstance(breaks, (list, tuple)):
+		return ', '.join(number(b) for b in breaks)
+	return str(breaks)
+
+
+def service_defaults(analysis):
+	"""The default of each argument of the function ANALYSIS of monitoreo.services."""
+	params = inspect.signature(getattr(services, analysis)).parameters
+	return {n: p.default for n, p in params.items() if p.default is not p.empty}
+
+
+def same_variable(v, data):
+	"""Whether V (an item of a list of variables of the panel, from services.list_variables) is the variable of DATA
+	({'variable', 'sensor', 'collection'}, the last two optional), their names in any case and without spaces
+	(catalog.name_key), as catalog.find, parameters.check, the services and the Earth Engine app take them."""
+	key = catalog.name_key
+	return bool(v) and key(v['variable']) == key(data.get('variable')) and \
+		(data.get('sensor') is None or key(v['sensor']) == key(data['sensor'])) and \
+		data.get('collection') in (None, v.get('collection'))
+
+
+def canonical(value, names):
+	"""The name of NAMES that VALUE is, in any case and without spaces (catalog.name_key, as services.burn_severity
+	takes its sensor); VALUE if it is none of them."""
+	return next((n for n in names if value is not None and catalog.name_key(n) == catalog.name_key(value)), value)
+
+
+def cover_key(value):
+	"""The key of the land cover map VALUE (its key or its name in any case, as landcover.find), or VALUE if it is
+	none."""
+	try:
+		return landcover.find(value)['key']
+	except ValueError:
+		return value
+
+
+def variable_row(data):
+	"""The entry of the list Variable of the panel (services.list_variables) of the variable of DATA ({'variable',
+	'sensor', 'collection', 'ref'}, the last three optional; names as same_variable): that of its ref if given, else
+	the first one; None if there is none (RBR and RdNBR, which compare two periods, are only in the burn severity)."""
+	rows = [v for v in services.list_variables(lang='en') if not v.get('two_periods') and same_variable(v, data)]
+	return next((v for v in rows if v.get('ref') == data.get('ref')), rows[0] if rows else None)
+
+
+def feature_collection(geojson):
+	"""The GeoJSON GEOJSON (a dictionary or its text: a geometry, a Feature or a FeatureCollection) as a
+	FeatureCollection, or None if it is none of them."""
+	try:
+		g = json.loads(geojson) if isinstance(geojson, str) else geojson
+	except ValueError:
+		return None
+	if not isinstance(g, dict):
+		return None
+	if g.get('type') == 'FeatureCollection' and isinstance(g.get('features'), list):
+		return g
+	if g.get('type') == 'Feature':
+		return {'type': 'FeatureCollection', 'features': [g]}
+	if 'coordinates' in g or g.get('type') == 'GeometryCollection':
+		return {'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'properties': {}, 'geometry': g}]}
+	return None
+
+
+def line_of(line):
+	"""The line LINE of some parameters of transect ([[lon, lat], ...], a GeoJSON LineString, a Feature of one or
+	{'geojson': ...}) as [[lon, lat], ...], or None if it is not a line of two points or more."""
+	if isinstance(line, dict):
+		line = line.get('geojson', line)
+		if isinstance(line, str):
+			try:
+				line = json.loads(line)
+			except ValueError:
+				return None
+		if isinstance(line, dict) and line.get('type') == 'Feature':
+			line = line.get('geometry') or {}
+		line = line.get('coordinates') if isinstance(line, dict) and line.get('type') == 'LineString' else None
+	try:
+		points = [[float(x), float(y)] for x, y in line]
+	except (TypeError, ValueError):
+		return None
+	return points if len(points) >= 2 else None
+
+
+def _point(v):
+	"""V as [lon, lat], or None."""
+	try:
+		lon, lat = (float(x) for x in v)
+	except (TypeError, ValueError):
+		return None
+	return [lon, lat]
+
+
+def _one(v):
+	"""V, or the only item of the list V; None for a list of several."""
+	if isinstance(v, (list, tuple)):
+		return v[0] if len(v) == 1 else None
+	return v
+
+
+def region_kind(region):
+	"""The kind of region of the panel (see REGIONS) and its value for the region REGION of some parameters: ('layer',
+	(its FeatureCollection, the field of its names)), ('extent', bbox), ('wdpa', ID), ('admin', (level, code)),
+	('country', ISO3), ('ecoregion' or 'island', [lon, lat]) or ('biome', {'at': [lon, lat], 'within': bbox or None});
+	(None, the reason) if the panel has no region like it (see areas.region)."""
+	kinds = ('the panel takes a layer (geojson), the map extent (bbox), a protected area (wdpa_id), an administrative '
+	         'unit (admin1, admin2, admin3), a country or the ecoregion, biome or island at the center of the map '
+	         '(ecoregion_at, biome_at, island_at)')
+	keys = [k for k in areas.REGION_KEYS if region.get(k) is not None] if isinstance(region, dict) else []
+	if len(keys) != 1:
+		return None, f'not a region: {kinds}'
+	k, v = keys[0], region[keys[0]]
+	within = region.get('within')
+	if within is not None and not (k == 'biome_at' and isinstance(within, dict) and set(within) == {'bbox'}):
+		return None, 'the panel takes within only for the biome at the center of the map (within the map extent)'
+	if k == 'geojson':
+		fc = feature_collection(v)
+		return ('layer', (fc, region.get('name_field'))) if fc else (None, 'its geojson is not GeoJSON')
+	if k == 'bbox':
+		box = [float(x) for x in v] if isinstance(v, (list, tuple)) and len(v) == 4 else None
+		return ('extent', box) if box else (None, 'bbox is [west, south, east, north]')
+	if k == 'wdpa_id':
+		one = _one(v)
+		return ('wdpa', int(one)) if one is not None else (None, 'the panel takes one protected area')
+	if k in ('admin1', 'admin2'):
+		one = _one(v)
+		return ('admin', (int(k[-1]), int(one))) if one is not None else \
+			(None, 'the panel takes one administrative unit')
+	if k == 'admin3':  # a municipality of Spain: its code of the INE, checked in the index of the package
+		one = _one(v)
+		if one is None:
+			return None, 'the panel takes one administrative unit'
+		try:
+			return 'admin', (municipalities.LEVEL, areas.municipality_codes(one)[0])
+		except ValueError as e:
+			return None, str(e)
+	if k == 'country':
+		one = _one(v)
+		return ('country', str(one).strip().upper()) if one is not None else (None, 'the panel takes one country')
+	if k in ('ecoregion_at', 'island_at', 'biome_at'):
+		at = _point(v)
+		if at is None:
+			return None, f'{k} is a point, [lon, lat]'
+		if k == 'biome_at':
+			return 'biome', {'at': at, 'within': within['bbox'] if within else None}
+		return k[:-3], at
+	return None, f'the panel has no region {k}: {kinds}'
+
+
+def quality_fields(quality):
+	"""The pixel filters QUALITY of some parameters as the panel takes them ({filter: True, False or 'auto',
+	'cloud_score': whether Cloud Score+ is checked}; those not given, as sensors.QUALITY) and the reports of those it
+	cannot take (its Cloud Score+ is 0.6, and it has no filter of whole scenes)."""
+	q, reports = dict(sensors.QUALITY), []
+	if quality is not None and not isinstance(quality, dict):
+		reports.append(missing('quality', quality, 'the pixel filters are a dictionary, e.g. {"snow": false}'))
+		quality = {}
+	for k, v in (quality or {}).items():
+		if k in sensors.FILTERS and v in (True, False, 'auto'):
+			q[k] = v
+		elif k == 'cloud_score' and v in (None, sensors.QUALITY['cloud_score']):
+			q[k] = v
+		elif k == 'cloud_score':
+			q[k] = v
+			reports.append(missing('quality.cloud_score', v, f"the panel uses Cloud Score+ "
+			                       f"{sensors.QUALITY['cloud_score']:g} (checked) or the SCL of Sentinel-2 (unchecked)"))
+		elif k == 'scene_clouds' and v is None:
+			continue
+		else:
+			reports.append(missing(f'quality.{k}', v, 'the panel has no such pixel filter (clouds, water, snow and '
+			                       'aerosols: true, false or "auto"; cloud_score)'))
+	return dict({f: q[f] for f in sensors.FILTERS}, cloud_score=q['cloud_score'] is not None), reports
+
+
+def where_fields(where, period=None):
+	"""The conditions WHERE of some parameters as the panel takes them: ([(i, condition)] of its two rows of «Only the
+	pixels where», the land cover condition of the group Land cover mask or None, the reports of those it cannot take,
+	and the period of the first condition that has one). PERIOD ([first day, last day]): that of the analysis, which
+	the panel gives to the conditions on variables with dates."""
+	if where is None:
+		return [], None, [], None
+	items = [where] if isinstance(where, dict) else list(where) if isinstance(where, (list, tuple)) else None
+	if items is None:
+		return [], None, [missing('where', where, 'a list of conditions')], None
+	rows, cover, reports, first = [], None, [], None
+	for i, c in enumerate(items):
+		name = f'where[{i}]'
+		if landcover.is_landcover(c):
+			if cover is None:
+				cover = dict(c)
+			else:
+				reports.append(missing(name, c, 'the panel has one land cover mask'))
+			continue
+		if not isinstance(c, dict) or not c.get('variable'):
+			reports.append(missing(name, c, 'the panel takes conditions on the variables of the catalog'))
+			continue
+		if len(rows) == 2:
+			reports.append(missing(name, c, 'the panel has two conditions in «Only the pixels where»'))
+			continue
+		cond = {k: c[k] for k in ('variable', 'sensor', 'collection', 'min', 'max', 'classes', 'exclude')
+		        if c.get(k) is not None}
+		for k in sorted(set(c) - set(cond) - {'period'}):
+			if c[k] is not None:
+				reports.append(missing(f'{name}.{k}', c[k], 'the conditions of the panel have no such option'))
+		if c.get('period') is not None:
+			got = [str(x)[:10] for x in c['period']]
+			want = list(period or first or got)
+			if got != want:
+				reports.append(missing(f'{name}.period', c['period'], f'the panel takes the period of the analysis, '
+				                       f'{want[0]} to {want[1]}'))
+			first = first or got
+		rows.append((i, cond))
+	return rows, cover, reports, first
+
+
+def panel_fields(analysis, params):
+	"""How the panel takes the parameters PARAMS of ANALYSIS (those that parameters.check applies): (its analysis in
+	the panel, see PANEL; {field (see FIELDS): {'value', 'given', 'name' (of the parameter)}}; the reports of those
+	it has no field for, or whose values its fixed lists do not have). Those not given take the default of their
+	function of monitoreo.services, as when it computes them (given False: not reported if their field is greyed
+	out). Without widgets: MonitorEODock.apply_parameters sets the fields."""
+	key = GROUPS[analysis]
+	p, defaults = dict(params), service_defaults(analysis)
+	fields, reports, used = {}, [], set()
+	burn = analysis == 'burn_severity'
+
+	def field(name, value, given=True, param=None):
+		fields[name] = {'value': value, 'given': given, 'name': param or name}
+
+	def take(name, param=None, choices=None, default=_MISSING):
+		"""The field NAME from the parameter PARAM (default: NAME) or its default, if CHOICES ([(label, value)]) has
+		it."""
+		param = param or name
+		used.add(param)
+		given = param in p
+		value = p[param] if given else defaults.get(param) if default is _MISSING else default
+		if choices is not None and value not in [v for _, v in choices]:
+			if given:
+				reports.append(missing(param, value, f"not in its list in the panel: "
+				                       f"{', '.join(str(v) for _, v in choices)}"))
+			return
+		field(name, value, given, param)
+
+	# what is computed, and where
+	row = None
+	if not burn:
+		used.update(DATA)
+		data = {k: p[k] for k in DATA if k in p}
+		if data.get('variable'):
+			row = variable_row(data)
+			extra = [k for k in ('image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain')
+			         if k in data]
+			if row is None:
+				reports.append(missing('variable', data['variable'], 'not in the list Variable of the panel (RBR and '
+				                       'RdNBR: only in the burn severity)'))
+			else:
+				field('variable', row)
+				first = variable_row({k: v for k, v in data.items() if k != 'ref'})
+				if data.get('ref') is not None and first and data['ref'] != first.get('ref'):
+					reports.append(missing('ref', data['ref'], f"the panel computes the first {data['variable']} of "
+					                       f"{first['sensor']} of the catalog (ref {first.get('ref')})"))
+			reports += [missing(k, data[k], 'only for the data of Earth Engine by their ID') for k in extra]
+		elif data.get('collection') or data.get('image'):
+			use = 'collection' if data.get('collection') else 'image'
+			band = data.get('band')
+			bands = [str(b) for b in band] if isinstance(band, (list, tuple)) else [str(band)] if band else []
+			reducer = data.get('band_reducer') or ''
+			if reducer not in [v for _, v in REDUCERS]:
+				reports.append(missing('band_reducer', reducer, 'the panel combines bands with sum or mean'))
+				reducer = ''
+			field('variable', {'custom': True, 'use': use, 'asset': data[use], 'bands': bands, 'band_reducer': reducer,
+			                   'band_scale': data.get('band_scale'), 'band_offset': data.get('band_offset'),
+			                   'unit': data.get('unit')}, True, use)
+			reports += [missing(k, data[k], 'not for the data of Earth Engine by their ID in the panel')
+			            for k in ('sensor', 'ref', 'terrain', 'image' if use == 'collection' else '') if k in data]
+	if analysis == 'transect':
+		used.add('line')
+		if 'line' in p:
+			line = line_of(p['line'])
+			if line:
+				field('line', line)
+			else:
+				reports.append(missing('line', p['line'], 'not a line of two points or more'))
+	elif 'region' in p:
+		used.add('region')
+		kind, value = region_kind(p['region'])
+		if kind:
+			field('region', (kind, value))
+		else:
+			reports.append(missing('region', p['region'], value))
+
+	# the periods, the season, the pixel filters and the conditions
+	used.update(('start', 'end', 'other_start', 'other_end', 'quality', 'where'))
+	if burn:
+		for name, a, b in (('fire_before', 'start', 'end'), ('fire_after', 'other_start', 'other_end')):
+			if a in p or b in p:
+				field(name, (p.get(a), p.get(b)), True, a)
+	else:
+		if 'start' in p or 'end' in p:
+			field('period', (p.get('start'), p.get('end')), True, 'start')
+		if analysis in COMPARED:
+			other = (p['other_start'], p['other_end']) if p.get('other_start') and p.get('other_end') else None
+			field('compare', other, other is not None, 'other_start')
+		used.add('season')
+		field('season', p.get('season'), 'season' in p)
+	if 'quality' in p or burn or (row and not row.get('static')):
+		q, bad = quality_fields(p.get('quality'))
+		reports += bad
+		field('quality', {'filters': q, 'own': burn}, 'quality' in p)
+	period = [str(p['start'])[:10], str(p['end'])[:10]] if p.get('start') and p.get('end') else None
+	rows, cover, bad, first = where_fields(p.get('where'), period)
+	reports += bad
+	if first and not period and not burn:  # a fixed layer with conditions on variables with dates: their period
+		field('period', tuple(first), True, 'where')
+	field('where', {'conditions': rows, 'landcover': cover}, 'where' in p)
+
+	# the options of the analysis
+	if analysis in ('time_series', 'compare_series', 'time_series_to_drive'):
+		take('step', choices=STEPS)
+		take('ts_metric', 'metric', METRICS)
+		take('stat', choices=STATS)
+		if analysis == 'time_series':
+			used.update(('doy', 'other_variable', 'other_sensor'))
+			field('doy', bool(p.get('doy')), 'doy' in p)
+			take('doy_interannual', 'interannual', DOY_INTERANNUAL)
+			other = {'variable': p['other_variable'], 'sensor': p.get('other_sensor')} if p.get('other_variable') \
+				else None
+			field('doy_other', other, other is not None, 'other_variable')
+	elif analysis == 'trend_table':
+		take('trend_step', 'step', TREND_STEPS)
+		take('trend_metric', 'metric', METRICS)
+		take('stat', choices=STATS)
+	elif analysis in ('trend_map', 'download_trend'):
+		take('trend_step', 'step', TREND_STEPS)
+		take('trend_part', 'part')
+		take('trend_metric', 'metric', METRICS)
+		used.add('alpha')
+		if p.get('alpha') not in (None, ALPHA):
+			reports.append(missing('alpha', p['alpha'], f'the panel shows only the pixels with p < {ALPHA:g} '
+			                       '(Significant pixels only) or every pixel'))
+		else:
+			field('trend_alpha', p.get('alpha') == ALPHA, 'alpha' in p, 'alpha')
+	elif key in ('map', 'export_map', 'zones', 'transect'):
+		take('map_metric', 'metric', METRICS)
+		take('temporal', choices=TEMPORAL)
+		take('interannual', choices=METRICS)
+		if key == 'map':
+			field('map_kind', 'rgb' if analysis in ('rgb_map', 'download_rgb') else 'index', False, 'analysis')
+		if analysis == 'map_figure':
+			reports.append(missing('analysis', analysis, 'the panel adds the map as a layer (Add the layer to the map), '
+			                       'and Figure (print layout)… makes its figure in QGIS'))
+		if analysis == 'export_image':
+			used.add('resolution')
+			field('resolution', p.get('resolution'), 'resolution' in p)
+		if analysis == 'region_stats':
+			used.update(('zones', 'stats'))
+			zones = p.get('zones')
+			if isinstance(zones, dict) and zones.get('variable'):
+				field('zones', zones)
+			else:
+				reports.append(missing('zones', zones, 'the panel computes the statistics of each band of a fixed layer '
+				                       'or class of a categorical layer (Gradients → Bands of)'))
+			if 'stats' in p:
+				field('stats', list(p['stats']) if isinstance(p['stats'], (list, tuple)) else [p['stats']])
+	elif analysis == 'area_by_class':
+		used.update(('landcover', 'year', 'other_year', 'breaks', 'trend'))
+		if p.get('landcover'):
+			field('area_kind', 'landcover')
+			field('area_map', {k: p.get(k) for k in ('landcover', 'year', 'other_year')}, True, 'landcover')
+		elif p.get('breaks') is not None:
+			field('area_kind', 'breaks')
+			field('area_breaks', breaks_text(p['breaks']), True, 'breaks')
+			take('map_metric', 'metric', METRICS, 'median' if p.get('metric') is None else _MISSING)
+			take('temporal', choices=TEMPORAL)
+			take('interannual', choices=METRICS)
+		elif p.get('trend'):
+			field('area_kind', 'trend')
+			take('trend_step', 'step', TREND_STEPS)
+			take('trend_part', 'part')
+			take('trend_metric', 'metric', METRICS, 'mean' if p.get('metric') is None else _MISSING)
+		else:
+			field('area_kind', 'classes')
+	elif analysis == 'timelapse':
+		take('anim_step', 'step', ANIMATION_STEPS)
+		take('anim_metric', 'metric', METRICS)
+		used.add('fps')
+		field('anim_fps', p.get('fps', defaults.get('fps')), 'fps' in p, 'fps')
+	elif burn:  # the index and the sensor in any case, as services.burn_severity takes them
+		if p.get('index') is not None:
+			p['index'] = {i.lower(): i for i in services.BURN_INDICES}.get(str(p['index']).lower(), p['index'])
+		take('fire_index', 'index', FIRE_INDICES)
+		used.update(('sensor', 'collection', 'perimeter', 'burned_min', 'min_ha'))
+		sensor = p.get('sensor', defaults.get('sensor'))
+		modis = sensor is not None and catalog.name_key(sensor) == 'modis'
+		# MODIS: Terra without a collection, as services.burn_severity (its collection only switches to Aqua)
+		value = (p.get('collection') or FIRE_MODIS[0][1]) if modis else canonical(sensor, [v for _, v in FIRE_SENSORS])
+		index = fields['fire_index']['value'] if 'fire_index' in fields else None
+		if modis and 'Modis' not in services.BURN_SENSORS.get(index, ('Modis',)):
+			reports.append(missing('sensor', p['sensor'], f'MODIS only with the index RdNBR, not {index}'))
+		elif value in [v for _, v in FIRE_SENSORS + FIRE_MODIS]:
+			field('fire_sensor', value, True, 'sensor')
+			if not modis and p.get('collection'):
+				reports.append(missing('collection', p['collection'], f'{value} takes no collection in the panel'))
+		else:
+			reports.append(missing('sensor', p.get('collection') if modis else p.get('sensor'),
+			                       'the panel has Sentinel-2, Landsat and MODIS Terra or Aqua (MOD09GA, MYD09GA)'))
+		field('fire_perimeter', {'on': bool(p.get('perimeter')), 'burned_min': p.get('burned_min'),
+		                         'min_ha': p.get('min_ha')}, 'perimeter' in p, 'perimeter')
+
+	# what the panel has no option for: fine at its default
+	for name, value in p.items():
+		default = defaults.get(name, _MISSING)
+		if name in used or value == default:
+			continue
+		reports.append(missing(name, value, f'the panel always uses the pixels of the data, up to {MAP_PIXELS:,} '
+		                       'pixels (a bigger region is not computed: Export to Google Drive)' if name == 'max_pixels'
+		                       else 'the panel has no option for it' +
+		                       ('' if default in (_MISSING, None) else f' (it uses {json.dumps(default)})')))
+	return key, fields, reports
 
 
 class InfoButton(QToolButton):
@@ -499,6 +1019,8 @@ class MonitorEODock(QDockWidget):
 		self.timer = QTimer(self)
 		self.timer.timeout.connect(self.poll_exports)
 		self.eecu_warned = set()  # (project, account, month) whose warning of few EECUs left was shown
+		self.group_boxes = {}  # the group of each analysis of the panel (see PANEL)
+		self.applied = []  # what applying some parameters did besides setting fields (a layer added)
 		self.build()
 		QTimer.singleShot(0, self.check_eecu)
 
@@ -512,6 +1034,11 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.version_label())
 		row.addStretch()
 		row.addWidget(self.feedback_button())
+		main.addLayout(row)
+		row = QHBoxLayout()  # the parameters of an analysis, pasted or opened (each analysis copies its own)
+		row.addStretch()
+		row.addWidget(self.apply_button())
+		row.addWidget(InfoButton(HELP['parameters']))
 		main.addLayout(row)
 
 		box = QGroupBox('Google Earth Engine')
@@ -785,7 +1312,7 @@ class MonitorEODock(QDockWidget):
 		self.doy_changed()
 		b = QPushButton('Compute the time series')
 		b.clicked.connect(self.run_series)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'series'))
 		self.series_list = QComboBox()  # the series computed in this session, to open them again
 		self.series_list.setToolTip('Series computed in this QGIS session')
 		self.show_series_button = QPushButton('Show')
@@ -814,17 +1341,18 @@ class MonitorEODock(QDockWidget):
 		b = QPushButton('Trend table of the region')
 		b.setToolTip('Trend of each part of the year of the statistic of the region (that of the time series)')
 		b.clicked.connect(self.run_trend_table)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'trend_table'))
 		f.addRow('Part of the year of the map', info(self.trend_part, HELP['trend_part']))
 		f.addRow('', info(self.trend_alpha, HELP['trend_alpha']))
 		b = QPushButton('Trend map')
 		b.setToolTip("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel "
 		             '(queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_trend_map)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'trend_map'))
 		main.addWidget(box)
 
 		box = QGroupBox('Map')
+		self.group_boxes['map'] = box
 		f = QFormLayout(box)
 		self.map_metric = combo(METRICS, 'median')
 		self.temporal = combo(TEMPORAL, 'period')
@@ -836,11 +1364,10 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Layer', info(self.map_kind, HELP['map_kind']))
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
-		             'Identify Features tool) or, with Layer, its true colour, at the resolution of the data or, in '
-		             f'big regions, with bigger pixels (up to {MAP_PIXELS / 1e6:g} million pixels)')
+		             'Identify Features tool) or, with Layer, its true colour, always at the resolution of the data, up '
+		             f'to {MAP_PIXELS / 1e6:g} million pixels (bigger regions: a warning, before computing anything)')
 		b.clicked.connect(self.run_map)
-		row = QHBoxLayout()
-		row.addWidget(b, 1)
+		row = self.with_parameters(b, 'map')
 		b = QPushButton('Figure (print layout)…')
 		b.setToolTip('A print layout of QGIS with the map as the canvas shows it, its grid, legend, scale bar, north '
 		             'arrow, title and the credits and citation of MonitorEO, to export as PDF, PNG or SVG')
@@ -851,6 +1378,7 @@ class MonitorEODock(QDockWidget):
 		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
 		box = QGroupBox('Area by class')
+		self.group_boxes['areas'] = box
 		f = QFormLayout(box)
 		self.area_kind = combo(AREA_KINDS, s.value(SETTINGS + 'area_kind', 'landcover'))
 		f.addRow('Classes of', info(self.area_kind, HELP['area_kind']))
@@ -887,11 +1415,12 @@ class MonitorEODock(QDockWidget):
 		b.setToolTip('Hectares and % of each class over each feature of the region, in a window with its chart and '
 		             'table')
 		b.clicked.connect(self.run_areas)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'areas'))
 		self.area_kind_changed()
 		main.addWidget(box)
 
 		box = QGroupBox('Gradients (elevation bands and profiles)')
+		self.group_boxes['zones'] = self.group_boxes['transect'] = box
 		f = QFormLayout(box)
 		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim, and the
 		for v in self.all_variables:  # categorical layers (ECOREGION, BIOME), whose classes are the zones (no breaks)
@@ -910,7 +1439,7 @@ class MonitorEODock(QDockWidget):
 		b.setToolTip('The percentiles 25, 50 and 75 and the mean of the map of the variable (with the options of the group '
 		             'Map) in each band of the elevation (or of another fixed layer), over each feature of the region')
 		b.clicked.connect(self.run_zones)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'zones'))
 		self.line_layer = QgsMapLayerComboBox()
 		self.line_layer.setFilters(Qgis.LayerFilter.LineLayer)
 		self.line_layer.setAllowEmptyLayer(True)
@@ -919,7 +1448,7 @@ class MonitorEODock(QDockWidget):
 		b.setToolTip('The map of the variable (with the options of the group Map) and the elevation along the selected '
 		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
 		b.clicked.connect(self.run_transect)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'transect'))
 		main.addWidget(box)
 
 		box = QGroupBox('Animation (timelapse)')
@@ -939,10 +1468,11 @@ class MonitorEODock(QDockWidget):
 		b.setToolTip('A GIF with a frame per step of the period, each with its date, in a window (it takes some '
 		             'minutes: Earth Engine makes each frame)')
 		b.clicked.connect(self.run_timelapse)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'animation'))
 		main.addWidget(box)
 
 		box = QGroupBox('Export to Google Drive')
+		self.group_boxes['export_map'] = self.group_boxes['export_series'] = box
 		f = QFormLayout(box)
 		self.resolution = QDoubleSpinBox()
 		self.resolution.setRange(0, 100000)
@@ -959,6 +1489,7 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(self.run_export_series)
 		self.export_series_button = b
 		row.addWidget(b)
+		row.addWidget(self.parameters_button('export_map', 'export_series'))  # one button for both: less crowded
 		f.addRow(row)
 		self.export_status = QLabel('')
 		self.export_status.setWordWrap(True)
@@ -1016,7 +1547,7 @@ class MonitorEODock(QDockWidget):
 		             'or statistics of the RBR, over each feature of the region, in a window, and a temporary GeoTIFF '
 		             'with its colours (queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_burn)
-		f.addRow(b)
+		f.addRow(self.with_parameters(b, 'burn'))
 		main.addWidget(box)
 		self.theme.currentIndexChanged.connect(lambda i: self.show_analyses())
 		self.show_analyses()
@@ -1027,9 +1558,12 @@ class MonitorEODock(QDockWidget):
 		main.addWidget(self.about_box())
 		main.addStretch()
 
+		self.group_boxes.update(series=self.series_box, trend_table=self.trends_box, trend_map=self.trends_box,
+		                        animation=self.animation_box, burn=self.fire_box)
 		scroll = QScrollArea()
 		scroll.setWidgetResizable(True)
 		scroll.setWidget(body)
+		self.scroll = scroll
 		self.setWidget(scroll)
 		self.region_changed()
 
@@ -1237,6 +1771,538 @@ class MonitorEODock(QDockWidget):
 			except (TypeError, RuntimeError):  # already disconnected
 				pass
 
+	# Parameters of the analyses (monitoreo.parameters) ------------------------------------------------------------
+
+	def apply_button(self):
+		"""The button that fills the panel with the parameters of an analysis: pasted, or opened from a JSON file."""
+		button = QToolButton()
+		button.setText('Apply parameters')
+		button.setToolTip('Fill the panel with the parameters of an analysis (JSON), copied or saved here or in Python, '
+		                  'R, the command line, the MCP server or the Earth Engine app, without computing it')
+		button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+		menu = QMenu(button)
+		menu.addAction('Paste parameters').triggered.connect(lambda checked=False: self.paste_parameters())
+		menu.addAction('Open parameters…').triggered.connect(lambda checked=False: self.open_parameters())
+		button.setMenu(menu)
+		self.apply_menu = menu
+		return button
+
+	def parameters_button(self, *keys):
+		"""The small button Parameters of the analyses KEYS of the panel (see PANEL): Copy parameters and Save
+		parameters… of each, from the arguments that its button computes with."""
+		button = QToolButton()
+		button.setText('Parameters')
+		what = ' and '.join(PANEL[k][1].split(' (')[0] for k in keys)
+		button.setToolTip(f'Copy or save the parameters of {what} (JSON), as its button computes it, to repeat it here '
+		                  '(Apply parameters) or in Python, R, the command line, the MCP server or the Earth Engine app')
+		button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+		menu = QMenu(button)
+		for key in keys:
+			name = '' if len(keys) == 1 else f" of {PANEL[key][1].split(' (')[0]}"
+			menu.addAction(f'Copy parameters{name}').triggered.connect(
+				lambda checked=False, k=key: self.copy_parameters(k))
+			menu.addAction(f'Save parameters{name}…').triggered.connect(
+				lambda checked=False, k=key: self.save_parameters(k))
+		button.setMenu(menu)
+		button.setObjectName('parameters_' + '_'.join(keys))
+		return button
+
+	def with_parameters(self, button, key):
+		"""A row with BUTTON, the button of the analysis KEY, and its button Parameters."""
+		row = QHBoxLayout()
+		row.addWidget(button, 1)
+		row.addWidget(self.parameters_button(key))
+		return row
+
+	def call_of(self, key, **kw):
+		"""The parameters of the analysis KEY of the panel (see PANEL): (its function of monitoreo.services, its
+		arguments without its outputs), or None, with a message, if the fields are not valid."""
+		try:
+			return getattr(self, PANEL[key][0])(**kw)
+		except Exception as e:
+			self.message(str(e), 'Warning')
+			return None
+
+	def copy_parameters(self, key):
+		"""Copy the parameters of the analysis KEY of the panel (JSON, see monitoreo.parameters) to the clipboard."""
+		call = self.call_of(key)
+		if call:
+			QApplication.clipboard().setText(parameters_text(parameters.make(*call)))
+			self.message(f'Parameters of {PANEL[key][1].split(" (")[0]} ({call[0]}) copied: Apply parameters → Paste '
+			             'parameters fills the panel with them, and the other tools of MonitorEO take them', 'Success')
+
+	def save_parameters(self, key):
+		"""Save the parameters of the analysis KEY of the panel to a JSON file chosen by the user."""
+		call = self.call_of(key)
+		if not call:
+			return
+		path, _ = QFileDialog.getSaveFileName(self, 'Save parameters', call[0] + parameters.SUFFIX,
+		                                      'Parameters (*.json)')
+		if path:
+			parameters.save(*call, path)
+			self.message(f'Parameters of {call[0]} saved: {path}', 'Success', 10)
+
+	def paste_parameters(self):
+		"""Fill the panel with the parameters in the clipboard (see apply_parameters)."""
+		text = QApplication.clipboard().text().strip()
+		if not text:
+			self.message('The clipboard has no parameters: copy those of an analysis first (Parameters → Copy '
+			             'parameters, its window, or another tool of MonitorEO)', 'Warning')
+			return
+		self.apply_parameters(text)
+
+	def open_parameters(self):
+		"""Fill the panel with the parameters of a JSON file chosen by the user (see apply_parameters)."""
+		path, _ = QFileDialog.getOpenFileName(self, 'Open parameters', '', 'Parameters (*.json);;All files (*)')
+		if path:
+			self.apply_parameters(path)
+
+	def apply_parameters(self, source):
+		"""Fill the fields of the panel with the parameters SOURCE (a dictionary, a JSON text or the path of a JSON file:
+		see monitoreo.parameters), without computing anything, and bring the group of their analysis into view. A
+		message that stays tells what was not applied, with the reason: those that parameters.check leaves out (not
+		parameters of the analysis in this version, a variable that is not in the catalog) and those that the panel
+		has no field or value for (a region or an option it does not have, a value that its list does not have, an
+		option greyed out for the variable). Returns those, or None if SOURCE is not parameters of an analysis."""
+		try:
+			checked = parameters.check(source)
+			key, fields, reports = panel_fields(checked['analysis'], checked['parameters'])
+		except Exception as e:  # not JSON, no analysis...
+			self.message(f'Parameters not applied: {e}', 'Critical', 15)
+			return None
+		reports = list(checked['not_applied']) + reports
+		self.applied = []
+		if key == 'burn' and not self.theme_has('burn_severity'):  # its group, only in its theme
+			self.theme.setCurrentIndex(item_index(self.theme, test=lambda k: k is not None and self.theme_has_key(
+				k, 'burn_severity')))
+		for name in FIELDS:
+			f = fields.get(name)
+			if f is None:
+				continue
+			try:
+				if name in COMBOS:
+					reports += self.choose(getattr(self, name), f['value'], f['name'], f['given'])
+				else:
+					reports += getattr(self, 'put_' + name)(f['value'], f['given'], f['name']) or []
+			except Exception as e:  # a value the field cannot take
+				reports.append(missing(f['name'], f['value'], str(e)))
+		self.show_group(key)
+		what, button = PANEL[key][1].split(' (')[0], PANEL[key][2]
+		text = f"Parameters of {checked['analysis']} applied to {what}: press {button} to compute it" + \
+			''.join(f'; {x}' for x in self.applied) + (f". {checked['note']}" if checked.get('note') else '')
+		if reports:
+			self.message(f'{text}. Not applied: {parameters.text(reports)}', 'Warning', 0)
+		else:
+			self.message(text, 'Success', 10)
+		return reports
+
+	def theme_has_key(self, key, name):
+		"""Whether the theme KEY has the analysis NAME of its own (see theme_has)."""
+		return any(t['key'] == key and name in t['analyses'] for t in services.themes('en'))
+
+	def show_group(self, key):
+		"""Bring the group of the analysis KEY into view, with its title in colour for some seconds."""
+		box = self.group_boxes.get(key)
+		if box is None:
+			return
+		self.scroll.ensureWidgetVisible(box, 0, 0)
+		box.setStyleSheet('QGroupBox::title { color: #c0392b; }')
+		timer = QTimer(box)  # deleted with the group
+		timer.setSingleShot(True)
+		timer.timeout.connect(lambda: box.setStyleSheet(''))
+		timer.start(4000)
+
+	def choose(self, box, value, name, given=True):
+		"""Choose in the list BOX the item of VALUE (that of the parameter NAME): the reports if it cannot (not in the
+		list, or greyed out for the variable, as its tooltip says); not those of a value not GIVEN (a default)."""
+		i = item_index(box, value)
+		if i < 0:
+			listed = ', '.join(str(box.itemData(j)) for j in range(box.count()))
+			return [missing(name, value, f'not in its list in the panel: {listed}')] if given else []
+		if i != box.currentIndex():
+			if not box.isEnabled():
+				return [missing(name, value, box.toolTip() or 'greyed out in the panel')] if given else []
+			box.setCurrentIndex(i)
+		return []
+
+	def put_variable(self, value, given, name):
+		"""The variable of the catalog VALUE (its entry of services.list_variables) or the data of Earth Engine by
+		their ID ({'custom': True, ...}, see panel_fields): its theme and its entry of the list Variable."""
+		if value.get('custom'):
+			return self.put_data(value)
+
+		def same(v):
+			return bool(v) and all(v.get(k) == value.get(k) for k in ('variable', 'sensor', 'collection', 'ref'))
+
+		if item_index(self.variable, test=same) < 0:  # another theme: that of the variable
+			theme = (catalog.theme_of(value['variable']) or {}).get('key')
+			self.theme.setCurrentIndex(item_index(self.theme, theme))
+		i = item_index(self.variable, test=same)
+		if i < 0:
+			return [missing(name, value['variable'], 'not in the list Variable of the panel')]
+		self.variable.setCurrentIndex(i)
+		return []
+
+	def put_data(self, value):
+		"""The data of Earth Engine by their ID VALUE (see panel_fields): their theme, ID, use, band (or bands
+		combined), scale, offset and unit, without reading them (Read lists their bands)."""
+		if self.theme.currentData() not in self.data_themes:
+			self.theme.setCurrentIndex(item_index(self.theme, next(k for k, d in self.data_themes.items()
+			                                                       if d == 'earth_engine')))
+		bands, reducer = value['bands'], value['band_reducer']
+		self.asset_id.setText(value['asset'])
+		self.asset_edited()
+		self.asset_info = None
+		self.filling_bands = True
+		self.asset_bands.clear()  # those of another ID: Read lists its own
+		self.filling_bands = False
+		self.saved_bands = list(bands) if reducer else []
+		self.asset_band.clear()
+		self.asset_band.setEditText(', '.join(bands))
+		self.first_band = None
+		self.band_reducer.setCurrentIndex(item_index(self.band_reducer, reducer))
+		self.asset_use.setCurrentIndex(item_index(self.asset_use, value['use']))
+		self.band_scale.setText(number(value.get('band_scale')))
+		self.band_offset.setText(number(value.get('band_offset')))
+		self.asset_unit.setText(value.get('unit') or '')
+		self.show_bands()
+		self.custom_changed()
+		return []
+
+	def put_region(self, value, given, name):
+		"""The region of the panel of kind and value VALUE (see region_kind): a layer of the project (the layer chosen,
+		if it gives the same polygons, or a temporary one), the map extent or its center (zoomed to them), the
+		protected area or administrative unit by its ID (added to its list, without searching: Search gives its name)
+		or the country."""
+		kind, v = value
+		canvas = self.iface.mapCanvas()
+		wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
+		tr = QgsCoordinateTransform(wgs84, canvas.mapSettings().destinationCrs(), QgsProject.instance())
+		out = []
+		if kind == 'layer':
+			out = self.region_layer(*v)
+		elif kind == 'wdpa':
+			self.add_choice(self.wdpa, v, f'WDPA {v} (from the parameters: Search gives its name)')
+		elif kind == 'admin':
+			self.admin_level.setCurrentIndex(item_index(self.admin_level, v[0]))
+			text = (f'{municipalities.label(v[1])} · INE {v[1]}' if v[0] == municipalities.LEVEL else  # its name: the index
+			        f'GAUL {v[1]}, level {v[0]} (from the parameters: Search gives its name)')
+			self.add_choice(self.admin, v, text, test=lambda d: d is not None and tuple(d) == tuple(v))
+		elif kind == 'country':
+			self.country.setText(v)
+		elif kind == 'extent':
+			canvas.setExtent(tr.transformBoundingBox(QgsRectangle(*v)))
+		else:
+			if kind == 'biome' and v['within']:
+				canvas.setExtent(tr.transformBoundingBox(QgsRectangle(*v['within'])))
+			at = v['at'] if kind == 'biome' else v
+			canvas.setCenter(tr.transform(QgsPointXY(*at)))
+		canvas.refresh()
+		self.region_kind.setCurrentIndex(item_index(self.region_kind, kind))
+		if kind in ('extent', 'ecoregion', 'island', 'biome'):  # what the map gives: its shape may change the extent
+			got = self.region()
+			if kind == 'extent':
+				pairs = [('region.bbox', v, got['bbox'], 'the panel computes over the map extent, now {}: the map '
+				          'keeps the shape of its window')]
+			elif kind == 'biome':
+				pairs = [('region.biome_at', v['at'], got['biome_at'], 'the panel takes the biome at the center of '
+				          'the map, now {}'),
+				         ('region.within', v['within'], got['within']['bbox'], 'the panel takes the part of the biome '
+				          'in the map extent, now {}')]
+			else:
+				pairs = [(f'region.{kind}_at', v, got[f'{kind}_at'], 'the panel takes the point at the center of the '
+				          'map, now {}')]
+			for key, want, have, reason in pairs:
+				if not want or any(abs(a - b) > 1e-6 for a, b in zip(want, have)):
+					out.append(missing(key, want, reason.format([round(x, 6) for x in have])))
+		return out
+
+	def add_choice(self, box, value, label, test=None):
+		"""Choose VALUE in the list BOX, added to it with LABEL if it has not got it."""
+		i = item_index(box, value, test)
+		if i < 0:
+			box.addItem(label, value)
+			i = box.count() - 1
+		box.setCurrentIndex(i)
+
+	def region_layer(self, fc, name_field=None):
+		"""Choose in Region → Layer the polygons of the FeatureCollection FC of some parameters: the layer chosen, if it
+		gives them, or a temporary layer added to the project (REGION_LAYER), with its field of names NAME_FIELD (by
+		default name, as the panel writes them)."""
+		chosen = self.layer.currentLayer()
+		for layer in [chosen] + QgsProject.instance().mapLayersByName(REGION_LAYER):  # one that gives them already
+			if not isinstance(layer, QgsVectorLayer):
+				continue
+			field = self.field_of(layer, fc, name_field or (self.name_field.currentField() if layer is chosen else
+			                                                'name'))
+			if field is not None:
+				self.layer.setLayer(layer)
+				self.sync_fields()
+				self.name_field.setField(field)
+				return []
+		layer = self.geojson_layer(fc, REGION_LAYER)
+		self.layer.setLayer(layer)
+		if self.layer.currentLayer() is not layer:
+			QgsProject.instance().removeMapLayer(layer.id())
+			return [missing('region', 'geojson', 'its GeoJSON has no polygons')]
+		self.sync_fields()
+		names = [f.name() for f in layer.fields()]
+		field = name_field if name_field in names else 'name' if 'name' in names else ''
+		self.name_field.setField(field)
+		self.applied.append(f'the region: the temporary layer {REGION_LAYER}')
+		return [] if field or not name_field else [missing('region.name_field', name_field, 'not a field of its GeoJSON')]
+
+	def field_of(self, layer, fc, prefer=None):
+		"""The field of names of LAYER (PREFER first; '' for the numbers of its features) with which its polygons give
+		the FeatureCollection FC of some parameters (layer_region), or None if they give other polygons."""
+		try:
+			got = self.layer_region(layer, '')['geojson']['features']
+		except Exception:  # no features
+			return None
+		want = fc.get('features') or []
+		if [f['geometry'] for f in got] != [f.get('geometry') for f in want]:
+			return None
+		names = [(f.get('properties') or {}).get('name') for f in want]
+		fields = [f.name() for f in layer.fields()]
+		if all(n is None for n in names):  # without names: any field
+			return prefer if prefer in fields else ''
+		feats = [f for f in (list(layer.getSelectedFeatures()) or list(layer.getFeatures())) if f.hasGeometry()]
+		for field in dict.fromkeys([prefer] + fields):
+			if field in fields and [str(f[field]) for f in feats] == [str(n) for n in names]:
+				return field
+		return '' if [str(f.id()) for f in feats] == [str(n) for n in names] else None
+
+	def geojson_layer(self, fc, name):
+		"""A layer NAME of the GeoJSON FC (a temporary file), added to the project."""
+		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'parameters.geojson')
+		with open(path, 'w', encoding='utf-8') as f:
+			json.dump(fc, f)
+		layer = QgsVectorLayer(path, name, 'ogr')
+		if not layer.isValid():
+			raise ValueError('QGIS could not read its GeoJSON')
+		QgsProject.instance().addMapLayer(layer)
+		return layer
+
+	def put_line(self, value, given, name):
+		"""The line VALUE ([[lon, lat], ...]) of a profile: the layer of lines chosen (or one added before, LINE_LAYER)
+		if its line is that one, or else a temporary layer of it added to the project."""
+		for layer in [self.line_layer.currentLayer()] + QgsProject.instance().mapLayersByName(LINE_LAYER):
+			if not isinstance(layer, QgsVectorLayer):
+				continue
+			try:
+				same = self.layer_line(layer) == value
+			except Exception:  # no lines
+				same = False
+			if same:
+				self.line_layer.setLayer(layer)
+				return []
+		layer = self.geojson_layer({'type': 'FeatureCollection', 'features': [
+			{'type': 'Feature', 'properties': {}, 'geometry': {'type': 'LineString', 'coordinates': value}}]}, LINE_LAYER)
+		self.line_layer.setLayer(layer)
+		if self.line_layer.currentLayer() is not layer:
+			QgsProject.instance().removeMapLayer(layer.id())
+			return [missing(name, value, 'QGIS could not make a layer of lines of it')]
+		self.applied.append(f'the line: the temporary layer {LINE_LAYER}')
+		return []
+
+	def put_where(self, value, given, name):
+		"""The conditions of «Only the pixels where» and the land cover mask VALUE (see where_fields); the rows and
+		the mask without one, unchecked."""
+		out = []
+		rows = value['conditions']
+		for k, c in enumerate(self.where):
+			if k >= len(rows):
+				c['on'].setChecked(False)
+				continue
+			i, cond = rows[k]
+			j = item_index(c['variable'], test=lambda v: same_variable(v, cond))
+			if j < 0:
+				out.append(missing(f'where[{i}]', cond, 'its variable is not in the list of the panel'))
+				c['on'].setChecked(False)
+				continue
+			c['variable'].setCurrentIndex(j)
+			keep = 'classes' if cond.get('classes') is not None else 'exclude' if cond.get('exclude') is not None \
+				else None
+			if keep:
+				codes = cond[keep]
+				c['keep'].setCurrentIndex(item_index(c['keep'], keep))
+				c['codes'].setText(', '.join(str(x) for x in (codes if isinstance(codes, (list, tuple)) else [codes])))
+			else:
+				c['min'].setText(number(cond.get('min')))
+				c['max'].setText(number(cond.get('max')))
+			c['on'].setChecked(True)
+		cover = value['landcover']
+		self.landcover_box.setChecked(cover is not None)
+		if cover is not None:
+			out += self.choose(self.landcover_map, cover_key(cover.get('landcover')), 'where.landcover')
+			self.fill_landcover_years(cover.get('year'))
+			if cover.get('year') not in (None, '') and self.landcover_year.currentData() != int(cover['year']):
+				out.append(missing('where.year', cover['year'], 'not a year of the land cover map in the panel'))
+			exclude = cover.get('exclude') or []
+			exclude = [exclude] if isinstance(exclude, str) else list(exclude)
+			low = [str(x).strip().lower() for x in exclude]  # in any case, as landcover.check
+			keys = [self.landcover_classes.itemData(i) for i in range(self.landcover_classes.count())]
+			for i, k in enumerate(keys):
+				self.landcover_classes.setItemCheckState(i, Qt.CheckState.Checked if k in low else
+				                                         Qt.CheckState.Unchecked)
+			out += [missing('where.exclude', x, f"not a land cover of the mask: {', '.join(keys)}")
+			        for x, k in zip(exclude, low) if k not in keys]
+		self.where_changed()
+		return out
+
+	def put_period(self, value, given, name):
+		"""The period VALUE (first day, last day; None keeps that of the panel)."""
+		return self.put_dates((self.start, self.end), value, ('start', 'end') if name == 'start' else (name, name))
+
+	def put_dates(self, edits, days, names):
+		"""The days DAYS (YYYY-MM-DD, or None) in the date fields EDITS, of the parameters NAMES."""
+		out = []
+		for edit, day, name in zip(edits, days, names):
+			if day is None:
+				continue
+			d = QDate.fromString(str(day)[:10], 'yyyy-MM-dd')
+			if d.isValid():
+				edit.setDate(d)
+			else:
+				out.append(missing(name, day, 'not a day YYYY-MM-DD'))
+		return out
+
+	def put_compare(self, value, given, name):
+		"""Compare with: on with the other period VALUE (first day, last day), off with None."""
+		if value is None:
+			self.compare_on.setChecked(False)
+			return []
+		if not self.compare_on.isEnabled():
+			return [missing(name, value[0], self.compare_on.toolTip() or 'Compare with is greyed out for the variable')]
+		out = self.put_dates((self.other_start, self.other_end), value, ('other_start', 'other_end'))
+		self.compare_on.setChecked(True)
+		return out
+
+	def put_season(self, value, given, name):
+		"""The season VALUE ([MM-DD, MM-DD], or None: every day of the year)."""
+		if value is None:
+			self.season_on.setChecked(False)
+			return []
+		days = [str(x) for x in value] if isinstance(value, (list, tuple)) else []
+		if len(days) != 2 or not all(re.fullmatch(r'\d\d-\d\d', x) for x in days):
+			return [missing(name, value, 'the panel takes a season of two days MM-DD, e.g. ["06-01", "09-30"]')]
+		self.season_start.setText(days[0])
+		self.season_end.setText(days[1])
+		self.season_on.setChecked(True)
+		return []
+
+	def put_quality(self, value, given, name):
+		"""The pixel filters VALUE (see quality_fields): the check boxes and, of those that the variable greys out, the
+		choice of the user (that of the burn severity, OWN), reported if the variable cannot take it (the filter of
+		what it measures)."""
+		q, own = value['filters'], value['own']
+		fixed = (self.variable.currentData() or {}).get('fixed_filters') is not None  # whatever the parameters say
+		out = []
+		for k, w in self.filters.items():
+			on = bool(q[k])
+			if k in self.set_filters:
+				if self.chosen_filters is not None:
+					self.chosen_filters[k] = on
+				if given and not own and not fixed and q[k] != 'auto' and w.isChecked() != on:
+					out.append(missing(f'quality.{k}', q[k], w.toolTip()))
+			else:
+				w.setChecked(on)
+		# also greyed out: the burn severity and the right axis of a profile compute other variables with it
+		self.cloud_score.setChecked(q['cloud_score'])
+		return out
+
+	def put_doy(self, value, given, name):
+		self.doy.setChecked(bool(value))
+		return []
+
+	def put_doy_other(self, value, given, name):
+		"""The variable on the right axis VALUE ({'variable', 'sensor'}, or None)."""
+		i = 0 if value is None else item_index(self.doy_other, test=lambda v: same_variable(v, value))
+		if i < 0:
+			return [missing(name, value['variable'], 'not a variable with dates of the panel (Right axis)')]
+		if i != self.doy_other.currentIndex() and not self.doy_other.isEnabled():
+			return [missing(name, value['variable'], 'only with Chart checked')] if given else []
+		self.doy_other.setCurrentIndex(i)
+		return []
+
+	def put_trend_alpha(self, value, given, name):
+		self.trend_alpha.setChecked(bool(value))
+		return []
+
+	def put_map_kind(self, value, given, name):
+		"""The layer of the map: the true colour (value 'rgb') or the index (the true colour under it, Both, stays)."""
+		if value == 'index' and self.map_kind.currentData() == 'both':
+			return []
+		return self.choose(self.map_kind, value, name, value == 'rgb')
+
+	def put_resolution(self, value, given, name):
+		self.resolution.setValue(float(value or 0))
+		return []
+
+	def put_zones(self, value, given, name):
+		"""The bands of a fixed layer or the classes of a categorical layer VALUE ({'variable', 'sensor', 'breaks'})."""
+		which = {k: value.get(k) for k in ('variable', 'sensor')}  # the other keys: reported below
+		i = item_index(self.zone_variable, test=lambda v: same_variable(v, which))
+		if i < 0:
+			return [missing(name, value, 'the panel takes the bands of a fixed layer or the classes of a categorical '
+			                'layer (Bands of)')]
+		self.zone_variable.setCurrentIndex(i)
+		out = [missing(f'{name}.{k}', value[k], 'the panel has no such option') for k in value
+		       if k not in ('variable', 'sensor', 'breaks')]
+		if value.get('breaks') is not None:
+			if self.zone_breaks.isEnabled():
+				self.zone_breaks.setText(breaks_text(value['breaks']))
+			else:
+				out.append(missing(f'{name}.breaks', value['breaks'], self.zone_breaks.toolTip()))
+		return out
+
+	def put_stats(self, value, given, name):
+		"""The statistics of each band: those of the panel (ZONE_STATS; the mode, of a categorical layer)."""
+		want = ['mode'] if (self.variable.currentData() or {}).get('categorical') else ZONE_STATS
+		return [] if list(value) == want else [missing(name, value, f"the panel computes {', '.join(want)} in each "
+		                                                            'band')]
+
+	def put_area_map(self, value, given, name):
+		"""The land cover map of Area by class VALUE ({'landcover', 'year', 'other_year'}): its year (by default its
+		last one) and the year of its changes, if any."""
+		out = self.choose(self.area_map, cover_key(value['landcover']), 'landcover')
+		if out:
+			return out
+		self.area_change.setChecked(value.get('other_year') is not None)
+		year = value.get('year') or landcover.default_year(landcover.find(value['landcover']))
+		out += self.choose(self.area_year, int(year), 'year')
+		if value.get('other_year') is not None:
+			out += self.choose(self.area_other_year, int(value['other_year']), 'other_year')
+		return out
+
+	def put_area_breaks(self, value, given, name):
+		self.area_breaks.setText(value)
+		return []
+
+	def put_anim_fps(self, value, given, name):
+		v = float(value)
+		if not self.anim_fps.minimum() <= v <= self.anim_fps.maximum():
+			return [missing(name, value, f'the panel takes from {self.anim_fps.minimum():g} to '
+			                f'{self.anim_fps.maximum():g} frames per second')]
+		self.anim_fps.setValue(v)
+		return []
+
+	def put_fire_before(self, value, given, name):
+		return self.put_dates((self.fire_dates['before_start'], self.fire_dates['before_end']), value, ('start', 'end'))
+
+	def put_fire_after(self, value, given, name):
+		return self.put_dates((self.fire_dates['after_start'], self.fire_dates['after_end']), value,
+		                      ('other_start', 'other_end'))
+
+	def put_fire_perimeter(self, value, given, name):
+		"""The perimeter of the burned area: on or off and, on, the value from which a pixel is burned and the smallest
+		patch (by default, those of monitoreo.fire)."""
+		self.fire_perimeter.setChecked(value['on'])
+		if value['on']:
+			self.fire_burned_min.setText(number(value.get('burned_min')))
+			self.fire_min_ha.setValue(fire.PERIMETER_MIN_HA if value.get('min_ha') is None else float(value['min_ha']))
+		return []
+
 	# Arguments --------------------------------------------------------------------------------------------------
 
 	def save_settings(self):
@@ -1306,11 +2372,16 @@ class MonitorEODock(QDockWidget):
 		if layer is None:
 			raise ValueError('choose a layer of polygons')
 		self.sync_fields()
+		return self.layer_region(layer, self.name_field.currentField())
+
+	def layer_region(self, layer, field):
+		"""The region of the polygons of LAYER (its selected features, or all), named by its field FIELD (or their
+		number), in WGS 84: {'geojson': FeatureCollection}."""
+		wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
 		feats = list(layer.getSelectedFeatures()) or list(layer.getFeatures())
 		if not feats:
 			raise ValueError(f'the layer {layer.name()} has no features')
 		tr = QgsCoordinateTransform(layer.crs(), wgs84, QgsProject.instance())
-		field = self.name_field.currentField()
 		vertices = sum(f.geometry().constGet().nCoordinates() for f in feats if f.hasGeometry())
 		tol = 0.0001 * max(1.0, vertices / MAX_VERTICES)  # degrees: simplify only big geometries
 		out = []
@@ -1827,6 +2898,9 @@ class MonitorEODock(QDockWidget):
 
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
+			if isinstance(exception, services.TooManyPixels):  # nothing computed: until the user closes it
+				self.message(too_many_text(description, exception), 'Warning', 0)
+				return
 			if exception is not None:
 				self.message(f'{description}: {exception}', 'Critical', 15)
 				return
@@ -1834,6 +2908,9 @@ class MonitorEODock(QDockWidget):
 				done(result)
 			except Exception as e:
 				self.message(f'{description}: {e}', 'Critical', 15)
+			warned = result_warnings(result)
+			if warned:  # days of its period without images of its data: the window of the result shows them too
+				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
 			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
@@ -1841,14 +2918,6 @@ class MonitorEODock(QDockWidget):
 		QgsApplication.taskManager().addTask(task)
 		self.message(f'{description}…', 'Info', 3)
 		return task
-
-	def prepare(self):
-		"""Region and variable arguments, or None (with a message) if they are not valid."""
-		try:
-			return self.region(), self.variable_args()
-		except Exception as e:
-			self.message(str(e), 'Warning')
-			return None
 
 	def connect(self):
 		self.run_task('Connect to Earth Engine', lambda: (services.project(), services.shared()),
@@ -1981,31 +3050,41 @@ class MonitorEODock(QDockWidget):
 		self.series_list.setCurrentIndex(self.series_list.count() - 1)
 		self.show_series()
 
-	def run_series(self):
-		args = self.prepare()
-		if not args:
-			return
-		region, var = args
-		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+	def series_call(self):
+		"""The time series of the panel ('time_series', its arguments) or, with Compare with, the comparison of its
+		periods ('compare_series'); ValueError if the fields are not valid."""
+		region, var = self.region(), self.variable_args()
 		step, metric, stat = self.step.currentData(), self.ts_metric.currentData(), self.stat.currentData()
 		other = self.other_period()
 		if other:
-			return self.run_comparison(region, var, other, step, metric, stat, tmp)
+			if step not in trends.STEPS:
+				raise ValueError('To compare periods, choose the step Monthly, 16 days or Annual')
+			return 'compare_series', dict(region=region, **var, other_start=other[0], other_end=other[1], step=step,
+			                              metric=metric, stat=stat)
 		doy = self.doy.isChecked() and step != 'annual'  # a line per year: not with a value per year
 		profile = self.doy_args(var) if doy else {}
-		if profile is None:
-			return
 		if profile.get('other_variable'):
 			# each axis with the filters the user chose, not the greyed out ones of the variable of the left axis (all of
 			# them with the SCF, the CF and the data by ID, which ignore them; that of what it measures with the NDSI...),
 			# as 'auto': each variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not the NDVI
 			var = dict(var, quality=self.quality_args(own=True, auto=True))
-		name = data_name(var) + (f" and {profile['other_variable']} ({profile['other_sensor']})"
-		                         if profile.get('other_variable') else '')
+		return 'time_series', dict(region=region, **var, step=step, metric=metric, stat=stat, doy=doy, **profile)
+
+	def run_series(self):
+		call = self.call_of('series')
+		if not call:
+			return
+		analysis, args = call
+		tmp = tempfile.mkdtemp(prefix='monitoreo_')
+		if analysis == 'compare_series':
+			return self.run_comparison(args, tmp)
+		# what its maps keep (add_result_map): the arguments of the variable, the region, the step and the metric
+		var = {k: v for k, v in args.items() if k not in ('stat', 'doy', 'interannual', 'other_variable', 'other_sensor')}
+		name = data_name(var) + (f" and {args['other_variable']} ({args['other_sensor']})"
+		                         if args.get('other_variable') else '')
 
 		def work():
-			return services.time_series(region, step=step, metric=metric, stat=stat, csv=os.path.join(tmp, 'series.csv'),
-			                            doy=doy, **profile, **var)
+			return services.time_series(csv=os.path.join(tmp, 'series.csv'), **args)
 
 		def done(res):
 			from .results import SeriesDialog, chart_png
@@ -2017,7 +3096,8 @@ class MonitorEODock(QDockWidget):
 			res['chart'] = chart_png(res, os.path.join(tmp, 'series.png'))
 			res['label'] = f"{res['title']} · {', '.join(res['regions'])}"
 			res['kind'] = 'series'
-			res['args'] = dict(var, region=region, step=step, metric=metric)
+			res['call'] = parameters.make(analysis, args)
+			res['args'] = dict(var)
 			res['maps'] = result_maps('time_series', res['args'])
 			# whether its maps can also be the true colour of their images (the list Layer of its window): never for
 			# the data of Earth Engine outside the catalog
@@ -2030,15 +3110,14 @@ class MonitorEODock(QDockWidget):
 
 	def doy_args(self, var):
 		"""The options of the chart by day of the year of the time series of VAR: {} for a line per year, or those of the
-		seasonal profile (interannual, and other_variable and other_sensor for a variable on the right axis), or None
-		(with a message) if the right axis has the variable of the left one."""
+		seasonal profile (interannual, and other_variable and other_sensor for a variable on the right axis);
+		ValueError if the right axis has the variable of the left one."""
 		between, other = self.doy_interannual.currentData(), self.doy_other.currentData()
 		args = {'interannual': between} if between else {}
 		if other:
 			if (var.get('variable'), var.get('sensor')) == (other['variable'], other['sensor']):
-				self.message(f"Right axis: {other['variable']} ({other['sensor']}) is already the variable of the left "
-				             'axis: choose another one, or None', 'Warning')
-				return None
+				raise ValueError(f"Right axis: {other['variable']} ({other['sensor']}) is already the variable of the "
+				                 'left axis: choose another one, or None')
 			args.update(other_variable=other['variable'], other_sensor=other['sensor'])
 		return args
 
@@ -2058,26 +3137,24 @@ class MonitorEODock(QDockWidget):
 		if self.doy_other.currentData() and self.doy_interannual.currentData() is None:
 			self.doy_interannual.setCurrentIndex(self.doy_interannual.findData('median'))
 
-	def run_comparison(self, region, var, other, step, metric, stat, tmp):
-		if step not in trends.STEPS:
-			self.message('To compare periods, choose the step Monthly, 16 days or Annual', 'Warning')
-			return
+	def run_comparison(self, args, tmp):
+		"""The comparison of the periods of the time series with the arguments ARGS (see series_call)."""
 
 		def work():
-			return services.compare_series(region, other_start=other[0], other_end=other[1], step=step, metric=metric,
-			                               stat=stat, csv=os.path.join(tmp, 'comparison.csv'), **var)
+			return services.compare_series(csv=os.path.join(tmp, 'comparison.csv'), **args)
 
 		def done(res):
 			from .results import comparison_png
 			if not any(r['reference'] is not None or r['other'] is not None for r in res['profile']):
 				self.message('The comparison has no values', 'Warning')
 				return
-			res['chart'] = comparison_png(res, step, os.path.join(tmp, 'comparison.png'))  # in the main thread
+			res['chart'] = comparison_png(res, args['step'], os.path.join(tmp, 'comparison.png'))  # in the main thread
 			res['label'] = f"Comparison: {res['title']}"
 			res['kind'] = 'comparison'
+			res['call'] = parameters.make('compare_series', args)
 			self.add_result(res)
 
-		self.run_task(f"Comparison of periods of {data_name(var)}", work, done)
+		self.run_task(f"Comparison of periods of {data_name(args)}", work, done)
 
 	def variable_changed(self):
 		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
@@ -2156,17 +3233,23 @@ class MonitorEODock(QDockWidget):
 			self.trend_part.addItem('the year' if step == 'annual' else trends.part_label(step, p), p)
 		self.trend_part.setEnabled(step != 'annual')
 
+	def trend_table_call(self):
+		"""The trend table of the region ('trend_table', its arguments: the statistic of the region is that of the time
+		series); ValueError if the fields are not valid."""
+		region, var = self.region(), self.variable_args()
+		return 'trend_table', dict(region=region, **var, step=self.trend_step.currentData(),
+		                           metric=self.trend_metric.currentData(), stat=self.stat.currentData())
+
 	def run_trend_table(self):
-		args = self.prepare()
-		if not args:
+		call = self.call_of('trend_table')
+		if not call:
 			return
-		region, var = args
+		analysis, args = call
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
-		step, metric, stat = self.trend_step.currentData(), self.trend_metric.currentData(), self.stat.currentData()
+		var = {k: v for k, v in args.items() if k != 'stat'}  # what its maps keep (add_result_map)
 
 		def work():
-			return services.trend_table(region, step=step, metric=metric, stat=stat,
-			                            csv=os.path.join(tmp, 'trends.csv'), **var)
+			return services.trend_table(csv=os.path.join(tmp, 'trends.csv'), **args)
 
 		def done(res):
 			from .results import trends_png
@@ -2176,31 +3259,40 @@ class MonitorEODock(QDockWidget):
 			res['chart'] = trends_png(res, os.path.join(tmp, 'trends.png'))  # in the main thread
 			res['label'] = f"Trends: {res['title']}"
 			res['kind'] = 'trends'
-			res['args'] = dict(var, region=region, step=step, metric=metric)
+			res['call'] = parameters.make(analysis, args)
+			res['args'] = dict(var)
 			res['maps'] = result_maps('trend_table', res['args'])
 			self.add_result(res)
 
 		self.run_task(f"Trends of {data_name(var)}", work, done)
 
+	def trend_map_call(self):
+		"""The trend map ('download_trend', its arguments; its tiles, trend_map, if it cannot be downloaded); ValueError
+		if the fields are not valid."""
+		region, var, step = self.region(), self.variable_args(), self.trend_step.currentData()
+		return 'download_trend', dict(region=region, **var, step=step,
+		                              part=self.trend_part.currentData() if step != 'annual' else None,  # as areas_call
+		                              metric=self.trend_metric.currentData(),
+		                              alpha=ALPHA if self.trend_alpha.isChecked() else None)
+
 	def run_trend_map(self):
-		args = self.prepare()
-		if not args:
+		call = self.call_of('trend_map')
+		if not call:
 			return
-		region, var = args
-		step, part, metric = self.trend_step.currentData(), self.trend_part.currentData(), self.trend_metric.currentData()
-		alpha = ALPHA if self.trend_alpha.isChecked() else None
+		args = call[1]
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'trend.tif')
 
 		def work():
+			# on the pixels of the data, or a warning
+			services.check_pixels(args['region'], MAP_PIXELS, **{k: v for k, v in args.items() if k != 'region'})
 			try:
-				return services.download_trend(region, step=step, part=part, metric=metric, alpha=alpha, path=path,
-				                               max_pixels=MAP_PIXELS, **var)
+				return services.download_trend(path=path, **args)
 			except Exception as e:
-				res = services.trend_map(region, step=step, part=part, metric=metric, alpha=alpha, **var)
+				res = services.trend_map(**args)
 				res['error'] = str(e)
 				return res
 
-		self.run_task(f"Trend map of {data_name(var)}", work,
+		self.run_task(f"Trend map of {data_name(args)}", work,
 		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
 
 	def fill_area_years(self):
@@ -2237,50 +3329,53 @@ class MonitorEODock(QDockWidget):
 		for w in (self.area_breaks, self.area_breaks_label):
 			w.setVisible(kind == 'breaks')
 
-	def run_areas(self):
-		"""Hectares and % of each class over each feature of the region (services.area_by_class): of a land cover map
-		of a year (refused with the land cover mask or «Only the pixels where», as services), of the variable cut at the
-		breaks, or of its trend (with the options of the group Trends), in a window with its chart and table."""
+	def areas_call(self):
+		"""The area by class ('area_by_class', its arguments): of a land cover map of a year (refused with the land
+		cover mask or «Only the pixels where», as services), of the variable cut at the breaks, of its trend (with the
+		options of the group Trends) or of the classes of a categorical layer; ValueError if the fields are not
+		valid."""
 		kind = self.area_kind.currentData()
 		if kind == 'landcover':
 			if self.landcover_box.isChecked() or any(c['on'].isChecked() for c in self.where):  # as services
-				self.message('The land cover mask and «Only the pixels where» are for the classes of a variable (breaks, '
-				             'trend), not for those of a land cover map: uncheck them', 'Warning')
-				return
-			try:
-				region = self.region()
-			except Exception as e:
-				self.message(str(e), 'Warning')
-				return
-			opts, what = {'landcover': self.area_map.currentData(), 'year': self.area_year.currentData()}, \
-				f"{self.area_map.currentText().split(' · ')[0]} {self.area_year.currentData()}"
+				raise ValueError('The land cover mask and «Only the pixels where» are for the classes of a variable '
+				                 '(breaks, trend), not for those of a land cover map: uncheck them')
+			opts = {'region': self.region(), 'landcover': self.area_map.currentData(),
+			        'year': self.area_year.currentData()}
 			if self.area_change.isChecked():  # its changes to another year: the pairs of classes and a Sankey diagram
 				opts['other_year'] = self.area_other_year.currentData()
-				what += f" to {opts['other_year']}"
+			return 'area_by_class', opts
+		region, var = self.region(), self.variable_args()
+		if kind == 'classes':  # a categorical layer (ECOREGION, BIOME): its own classes
+			if not (self.variable.currentData() or {}).get('categorical'):
+				raise ValueError('The classes of a categorical layer: choose ECOREGION or BIOME (theme Ecosystems) as the '
+				                 'variable')
+			opts = dict(var)
+		elif kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric); its numbers
+			opts = dict(var, breaks=classes.check_breaks(self.area_breaks.text()))
+			if not (self.variable.currentData() or {}).get('static'):
+				opts.update(metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
+				            interannual=self.interannual.currentData())
 		else:
-			args = self.prepare()
-			if not args:
-				return
-			region, var = args
-			what = data_name(var)
-			if kind == 'classes':  # a categorical layer (ECOREGION, BIOME): its own classes
-				if not (self.variable.currentData() or {}).get('categorical'):
-					self.message('The classes of a categorical layer: choose ECOREGION or BIOME (theme Ecosystems) as '
-					             'the variable', 'Warning')
-					return
-				opts = dict(var)
-			elif kind == 'breaks':  # the map of the variable, as the group Map (a fixed layer has no metric)
-				opts = dict(var, breaks=self.area_breaks.text())
-				if not (self.variable.currentData() or {}).get('static'):
-					opts.update(metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
-					            interannual=self.interannual.currentData())
-			else:
-				opts = dict(var, trend=True, step=self.trend_step.currentData(), metric=self.trend_metric.currentData(),
-				            part=self.trend_part.currentData() if self.trend_step.currentData() != 'annual' else None)
+			opts = dict(var, trend=True, step=self.trend_step.currentData(), metric=self.trend_metric.currentData(),
+			            part=self.trend_part.currentData() if self.trend_step.currentData() != 'annual' else None)
+		return 'area_by_class', dict(region=region, **opts)
+
+	def run_areas(self):
+		"""Hectares and % of each class over each feature of the region (services.area_by_class, see areas_call), in a
+		window with its chart and table."""
+		call = self.call_of('areas')
+		if not call:
+			return
+		analysis, args = call
+		if args.get('landcover'):
+			what = f"{self.area_map.currentText().split(' · ')[0]} {args['year']}" + (
+				f" to {args['other_year']}" if args.get('other_year') else '')
+		else:
+			what = data_name(args)
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 
 		def work():
-			return services.area_by_class(region, csv=os.path.join(tmp, 'areas.csv'), **opts)
+			return services.area_by_class(csv=os.path.join(tmp, 'areas.csv'), **args)
 
 		def done(res):
 			from monitoreo import charts
@@ -2292,13 +3387,13 @@ class MonitorEODock(QDockWidget):
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
 					                   if r['region'] == first], colours, path,
 					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
-					                  (str(res['year']), str(res['other_year'])))
+					                  (str(res['year']), str(res['other_year'])), source=res.get('data_source'))
 				else:
-					charts.areas_png(res['rows'], colours, path, res['title'])
+					charts.areas_png(res['rows'], colours, path, res['title'], source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
-			res.update(kind='areas', label=f"Area by class: {what}")
+			res.update(kind='areas', label=f"Area by class: {what}", call=parameters.make(analysis, args))
 			self.add_result(res)
 
 		self.run_task(f"Area by class of {what}", work, done)
@@ -2319,24 +3414,31 @@ class MonitorEODock(QDockWidget):
 		return dict(var, metric=self.map_metric.currentData(), temporal=self.temporal.currentData(),
 		            interannual=self.interannual.currentData())
 
-	def run_zones(self):
-		"""The statistics of the map of the variable in each band of a fixed layer (services.region_stats with zones),
-		in a window with its table (and chart, with matplotlib)."""
-		args = self.prepare()
-		if not args:
-			return
-		region, var = args
+	def zones_call(self):
+		"""The statistics of the map of the variable in each band of a fixed layer or class of a categorical layer
+		('region_stats' with zones, its arguments); ValueError if the fields are not valid."""
+		region, var = self.region(), self.variable_args()
 		z = self.zone_variable.currentData() or {}
 		zones = {'variable': z.get('variable'), 'sensor': z.get('sensor')}
 		if not z.get('categorical'):  # the bands of a fixed layer; those of a categorical layer are its classes
-			zones['breaks'] = self.zone_breaks.text()
+			zones['breaks'] = classes.check_breaks(self.zone_breaks.text())  # numbers, as every tool writes them
 		klass = bool((self.variable.currentData() or {}).get('categorical'))
-		stats = ['mode'] if klass else ['p25', 'p50', 'p75', 'mean']  # class codes: the majority class of each zone
+		stats = ['mode'] if klass else list(ZONE_STATS)  # class codes: the majority class of each zone
+		return 'region_stats', dict(region=region, **self.map_options(var), stats=stats, zones=zones)
+
+	def run_zones(self):
+		"""The statistics of each band (services.region_stats with zones, see zones_call), in a window with its table
+		(and chart, with matplotlib)."""
+		call = self.call_of('zones')
+		if not call:
+			return
+		analysis, args = call
+		stats, zones = args['stats'], args['zones']
+		klass = stats == ['mode']
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 
 		def work():
-			return services.region_stats(region, stats=stats, zones=zones, csv=os.path.join(tmp, 'zones.csv'),
-			                             **self.map_options(var))
+			return services.region_stats(csv=os.path.join(tmp, 'zones.csv'), **args)
 
 		def done(res):
 			from monitoreo import charts
@@ -2344,20 +3446,26 @@ class MonitorEODock(QDockWidget):
 			try:  # in the main thread; without matplotlib, the table only (no chart of class codes)
 				if klass or not res['rows']:
 					raise ImportError
-				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
+				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones),
+				                 source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
-			res.update(kind='zones', label=f"Bands of {zones['variable']}: {data_name(var)}")
+			res.update(kind='zones', label=f"Bands of {zones['variable']}: {data_name(args)}",
+			           call=parameters.make(analysis, args))
 			self.add_result(res)
 
-		self.run_task(f"Statistics by band of {data_name(var)}", work, done)
+		self.run_task(f"Statistics by band of {data_name(args)}", work, done)
 
 	def line_points(self):
 		"""[[lon, lat], ...] of the selected line of the layer of Line (or its first one), in WGS 84, or ValueError."""
 		layer = self.line_layer.currentLayer()
 		if layer is None:
 			raise ValueError('choose a layer of lines in Line (add one, or draw a line in a new temporary layer)')
+		return self.layer_line(layer)
+
+	def layer_line(self, layer):
+		"""[[lon, lat], ...] of the selected line of LAYER (or its first one), in WGS 84, or ValueError."""
 		feats = list(layer.getSelectedFeatures()) or list(layer.getFeatures())
 		if not feats:
 			raise ValueError(f'the layer {layer.name()} has no lines')
@@ -2370,51 +3478,63 @@ class MonitorEODock(QDockWidget):
 			raise ValueError(f'the first line of {layer.name()} has fewer than two points')
 		return points
 
+	def transect_call(self):
+		"""The profile of the map of the variable along the line of the layer of Line ('transect', its arguments);
+		ValueError if the fields are not valid."""
+		line = self.line_points()
+		var = self.variable_args()
+		return 'transect', dict(line=line, **self.map_options(var))
+
 	def run_transect(self):
-		"""The profile of the map of the variable along a line (services.transect), with the elevation, in a window
-		with its table (and chart, with matplotlib)."""
-		try:
-			line = self.line_points()
-			var = self.variable_args()
-		except Exception as e:
-			self.message(str(e), 'Warning')
+		"""The profile of the map of the variable along a line (services.transect, see transect_call), with the
+		elevation, in a window with its table (and chart, with matplotlib)."""
+		call = self.call_of('transect')
+		if not call:
 			return
+		analysis, args = call
 		tmp = tempfile.mkdtemp(prefix='monitoreo_')
 
 		def work():
-			return services.transect(line, csv=os.path.join(tmp, 'profile.csv'), **self.map_options(var))
+			return services.transect(csv=os.path.join(tmp, 'profile.csv'), **args)
 
 		def done(res):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'profile.png')
 			try:  # in the main thread; without matplotlib, the table only
-				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'))
+				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'), source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
-			res.update(kind='transect', label=f"Profile of {data_name(var)}")
+			res.update(kind='transect', label=f"Profile of {data_name(args)}", call=parameters.make(analysis, args))
 			self.add_result(res)
 
-		self.run_task(f"Profile of {data_name(var)}", work, done)
+		self.run_task(f"Profile of {data_name(args)}", work, done)
+
+	def animation_call(self):
+		"""The animation of the variable over the region ('timelapse', its arguments); ValueError if the fields are not
+		valid."""
+		region, var = self.region(), self.variable_args()
+		return 'timelapse', dict(region=region, **var, step=self.anim_step.currentData(),
+		                         metric=self.anim_metric.currentData(), fps=self.anim_fps.value())
 
 	def run_timelapse(self):
-		"""Animation of the variable over the region (services.timelapse): a GIF with a frame per step, in its window
-		and in the list of the results of the session."""
-		args = self.prepare()
-		if not args:
+		"""Animation of the variable over the region (services.timelapse, see animation_call): a GIF with a frame per
+		step, in its window and in the list of the results of the session."""
+		call = self.call_of('animation')
+		if not call:
 			return
-		region, var = args
-		step, metric, fps = self.anim_step.currentData(), self.anim_metric.currentData(), self.anim_fps.value()
+		analysis, args = call
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'animation.gif')
 
 		def work():
-			return services.timelapse(region, step=step, metric=metric, fps=fps, path=path, **var)
+			return services.timelapse(path=path, **args)
 
 		def done(res):
-			res.update(kind='animation', label=f"Animation of {data_name(var)} ({step})")
+			res.update(kind='animation', label=f"Animation of {data_name(args)} ({args['step']})",
+			           call=parameters.make(analysis, args))
 			self.add_result(res)
 
-		self.run_task(f"Animation of {data_name(var)}", work, done)
+		self.run_task(f"Animation of {data_name(args)}", work, done)
 
 	def update_series_list(self):
 		self.series_list.clear()
@@ -2440,22 +3560,39 @@ class MonitorEODock(QDockWidget):
 		dlg.raise_()
 		dlg.activateWindow()
 
-	def run_map(self):
-		args = self.prepare()
-		if not args:
-			return
-		region, var = args
-		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		folder = tempfile.mkdtemp(prefix='monitoreo_')
+	def map_kind_chosen(self):
+		"""The layers of the map of the group Map: the map of the variable ('index'), its true colour ('rgb') or both
+		(never of a fixed layer or a difference: see update_map_kind)."""
+		static = (self.variable.currentData() or {}).get('static')
+		return 'index' if static or self.other_period() or not self.map_kind.isEnabled() else \
+			self.map_kind.currentData()
+
+	def map_call(self):
+		"""The map of the group Map ('download_image', its arguments; its tiles, map_layer, if it cannot be
+		downloaded): with Compare with, the difference between the periods ('download_comparison'); its true colour
+		alone, 'download_rgb' (with Both, the true colour has the arguments of the map). ValueError if the fields are
+		not valid."""
+		region, var = self.region(), self.variable_args()
 		other = self.other_period()
-		static = (self.variable.currentData() or {}).get('static')  # no temporal metric for the fixed layers
-		opts = dict(var) if static else dict(var, metric=metric, temporal=temporal, interannual=inter)
+		opts = self.map_options(var)  # no temporal metric for the fixed layers
 		if other:
 			opts.update(other_start=other[0], other_end=other[1])
+		analysis = 'download_comparison' if other else 'download_rgb' if self.map_kind_chosen() == 'rgb' else \
+			'download_image'
+		return analysis, dict(region=region, **opts)
+
+	def run_map(self):
+		call = self.call_of('map')
+		if not call:
+			return
+		analysis, args = call
+		region = args['region']
+		opts = {k: v for k, v in args.items() if k != 'region'}  # maps_work checks the pixels first (check_pixels)
+		folder = tempfile.mkdtemp(prefix='monitoreo_')
+		other = analysis == 'download_comparison'
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
 		                   (services.download_image, services.map_layer))
-		# the map of the variable, its true colour or both (never of a fixed layer or a difference: see update_map_kind)
-		kind = 'index' if static or other or not self.map_kind.isEnabled() else self.map_kind.currentData()
+		kind = self.map_kind_chosen()
 		title = {'index': 'Map', 'rgb': 'True colour', 'both': 'Map and true colour'}[kind]
 
 		def work():
@@ -2463,7 +3600,7 @@ class MonitorEODock(QDockWidget):
 			its true colour; if they cannot be downloaded, Earth Engine tiles (colours only)."""
 			return maps_work(kind, region, opts, folder, download, tiles)
 
-		self.run_task(f"{title} of {data_name(var)}", work, self.add_maps)
+		self.run_task(f"{title} of {data_name(opts)}", work, self.add_maps)
 
 	def add_maps(self, r, name=None, rgb_name=None, group=None, zoom=True, period=None, kept=None):
 		"""Add the layers of R (see maps_work): first its true colour, then the map of the variable on top of it, both
@@ -2521,11 +3658,8 @@ class MonitorEODock(QDockWidget):
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data; for the full resolution, '
-		                                 'export the map to Google Drive)')
-		             + '. Query the values with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. Query the values with the Identify "
+		             'Features tool', 'Success', 10)
 
 	def add_rgb_layer(self, res, name=None, group=None, stretch=None, zoom=True, period=None):
 		"""Add the GeoTIFF of a true colour (services.download_rgb: the bands red, green and blue, reflectance) with the
@@ -2551,10 +3685,8 @@ class MonitorEODock(QDockWidget):
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data)')
-		             + f'. {caption}. Query the reflectance with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. {caption}. Query the reflectance with "
+		             'the Identify Features tool', 'Success', 10)
 
 	def zoom_to(self, rect, crs):
 		canvas = self.iface.mapCanvas()
@@ -2642,30 +3774,37 @@ class MonitorEODock(QDockWidget):
 
 		self.run_task(title[kind], work, done)
 
+	def export_map_call(self):
+		"""The export of the map to Google Drive ('export_image', its arguments: the options of the group Map, none for
+		the fixed layers, and the resolution; the Drive folder is its output); ValueError if the fields are not
+		valid."""
+		region, var = self.region(), self.variable_args()
+		return 'export_image', dict(region=region, **self.map_options(var), resolution=self.resolution.value() or None)
+
 	def run_export_image(self):
-		args = self.prepare()
-		if not args:
+		call = self.call_of('export_map')
+		if not call:
 			return
-		region, var = args
-		res = self.resolution.value() or None
+		args = call[1]
 		folder = self.folder.text().strip() or 'MonitorEO'
-		metric, temporal, inter = self.map_metric.currentData(), self.temporal.currentData(), self.interannual.currentData()
-		time = {} if (self.variable.currentData() or {}).get('static') else \
-			{'metric': metric, 'temporal': temporal, 'interannual': inter}  # none for the fixed layers
-		self.run_task(f"Export the map of {data_name(var, sensor=False)}",
-		              lambda: services.export_image(region, resolution=res, folder=folder, **time, **var),
-		              self.follow_export)
+		self.run_task(f"Export the map of {data_name(args, sensor=False)}",
+		              lambda: services.export_image(folder=folder, **args), self.follow_export)
+
+	def export_series_call(self):
+		"""The export of the time series to Google Drive ('time_series_to_drive', its arguments: the options of the
+		group Time series; the Drive folder is its output); ValueError if the fields are not valid."""
+		region, var = self.region(), self.variable_args()
+		return 'time_series_to_drive', dict(region=region, **var, step=self.step.currentData(),
+		                                    metric=self.ts_metric.currentData(), stat=self.stat.currentData())
 
 	def run_export_series(self):
-		args = self.prepare()
-		if not args:
+		call = self.call_of('export_series')
+		if not call:
 			return
-		region, var = args
+		args = call[1]
 		folder = self.folder.text().strip() or 'MonitorEO'
-		step, metric, stat = self.step.currentData(), self.ts_metric.currentData(), self.stat.currentData()
-		self.run_task(f"Export the series of {data_name(var, sensor=False)}",
-		              lambda: services.time_series_to_drive(region, step=step, metric=metric, stat=stat, folder=folder,
-		                                                    **var), self.follow_export)
+		self.run_task(f"Export the series of {data_name(args, sensor=False)}",
+		              lambda: services.time_series_to_drive(folder=folder, **args), self.follow_export)
 
 	# Burn severity ----------------------------------------------------------------------------------------------
 
@@ -2745,34 +3884,42 @@ class MonitorEODock(QDockWidget):
 			raise ValueError('Burn severity: the period before the fire has to end before the period after it starts')
 		return before, after
 
-	def run_burn(self):
-		"""Burn severity of a fire over the region (services.burn_severity), with the pixel filters and the conditions
-		of «Only the pixels where» of the panel (over the period before the fire): the window of its table (hectares
-		of each class of the USGS and burned area, statistics of the RBR, or hectares of each class of Miller & Thode
-		2007, changed area and statistics of the RdNBR) and its GeoTIFF, in colours."""
-		try:
-			region = self.region()
-			before, after = self.fire_periods()
-			where = self.where_args(before)
-		except Exception as e:
-			self.message(str(e), 'Warning')
-			return
+	def burn_call(self, folder=''):
+		"""The burn severity of a fire over the region ('burn_severity', its arguments), with the pixel filters and the
+		conditions of «Only the pixels where» of the panel (over the period before the fire) and, with Perimeter, the
+		polygons of the burned area (a GeoPackage in FOLDER: its name, in the parameters); ValueError if the fields
+		are not valid."""
+		region = self.region()
+		before, after = self.fire_periods()
+		where = self.where_args(before)
 		quality = self.quality_args(own=True)  # the NBR, whatever the variable selected
 		(sensor, collection), index = self.fire_source(), self.fire_index.currentData()
-		source = self.fire_sensor.currentText().split(' (')[0]  # Sentinel-2, Landsat, MODIS Terra or MODIS Aqua
-		stem = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'),
-		                    'burn_severity' + {'RBR': '_rbr', 'RdNBR': '_rdnbr'}.get(index, ''))
+		stem = os.path.join(folder, burn_stem(index))
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
-		try:
-			outline = self.perimeter_args(index, stem)  # the polygons of the burned area
-		except ValueError as e:
-			self.message(str(e), 'Warning')
+		outline = self.perimeter_args(index, stem)  # the polygons of the burned area
+		return 'burn_severity', dict(region=region, sensor=sensor, start=before[0], end=before[1], other_start=after[0],
+		                             other_end=after[1], quality=quality, index=index,
+		                             where=where, **more, **outline)
+
+	def run_burn(self):
+		"""Burn severity of a fire over the region (services.burn_severity, see burn_call): the window of its table
+		(hectares of each class of the USGS and burned area, statistics of the RBR, or hectares of each class of Miller
+		& Thode 2007, changed area and statistics of the RdNBR) and its GeoTIFF, in colours."""
+		folder = tempfile.mkdtemp(prefix='monitoreo_')
+		call = self.call_of('burn', folder=folder)
+		if not call:
 			return
+		analysis, args = call
+		index, collection = args['index'], args.get('collection')
+		stem = os.path.join(folder, burn_stem(index))
+		source = self.fire_sensor.currentText().split(' (')[0]  # Sentinel-2, Landsat, MODIS Terra or MODIS Aqua
 
 		def work():
-			return services.burn_severity(region, sensor, before[0], before[1], after[0], after[1], quality=quality,
-			                              path=stem + '.tif', csv=stem + '.csv', max_pixels=MAP_PIXELS, index=index,
-			                              where=where, **more, **outline)
+			# on the pixels of the data, or a warning (the other sensors it proposes: those of this burn index)
+			services.check_pixels(args['region'], MAP_PIXELS, {'dNBR': 'NBR'}.get(index, index), args['sensor'],
+			                      start=args['start'], end=args['end'], two_periods=True,
+			                      sensors=services.BURN_SENSORS[index], **({'collection': collection} if collection else {}))
+			return services.burn_severity(path=stem + '.tif', csv=stem + '.csv', **args)
 
 		def done(res):
 			if not any((r.get('ha') or 0) > 0 for r in res.get('classes') or res.get('stats') or []):
@@ -2781,8 +3928,9 @@ class MonitorEODock(QDockWidget):
 				return
 			res['label'] = burn_label(res['title'], collection)
 			res['kind'] = 'burn'
-			res['args'] = dict({'region': region, 'sensor': sensor, 'start': before[0], 'end': before[1],
-			                    'other_start': after[0], 'other_end': after[1], 'index': index}, **more)
+			res['call'] = parameters.make(analysis, args)
+			res['args'] = {k: args[k] for k in ('region', 'sensor', 'start', 'end', 'other_start', 'other_end', 'index',
+			                                    'collection') if k in args}
 			self.add_burn_layer(res)
 			if res.get('perimeter'):
 				self.add_perimeter_layer(res)
@@ -2807,10 +3955,8 @@ class MonitorEODock(QDockWidget):
 		                  f"Temporary GeoTIFF: {res['file']}" + references_text(res))
 		add_layer(layer)
 		self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data)')
-		             + '. Query the values with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. Query the values with the Identify "
+		             'Features tool', 'Success', 10)
 
 	def add_perimeter_layer(self, res):
 		"""Add the perimeter of the burned area of the burn severity RES (its GeoPackage) over its GeoTIFF: its
