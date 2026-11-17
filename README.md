@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.42](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.42) · 2026-11-17 · package 0.3.52
 
 - **Earth Engine app, QGIS plugin, Assistant**: The anonymous form of suggestions and errors is in English first, with the Spanish after it in italics, and the button fills in the tool with its new name.
 
