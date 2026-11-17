@@ -554,6 +554,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 		row = {'ref': e['ref'], 'variable': e['index'], 'sensor': e['sensor'], 'collection': e['col'],
 		       'name': _name(e, lang, 'vname'), 'theme': t.get(lang) or t.get('en'), 'group': _name(e, lang, 'type'),
 		       'resolution_m': e['m'], 'dates': e['dr'], 'unit': e['unit']}
+		if e['col'] in sensors.GAP_FILLED:  # its images come from two datasets (ET, LE of MODIS: MOD16A2GF, MOD16A2)
+			row['datasets'] = references.datasets(e['col'])
 		if e.get('two_periods'):
 			row['two_periods'] = True  # RBR: only burn_severity computes it
 		if e.get('metric'):
@@ -658,6 +660,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 	out['theme'] = t.get(lang) or t.get('en')
 	out['group'] = _name(e, lang, 'type')
 	out['pixel_filters'] = sensors.filters(e)
+	if e['col'] in sensors.GAP_FILLED:  # its images come from two datasets, each in its dates (references.datasets)
+		out['datasets'] = references.datasets(e['col'])
 	out['measures'] = [f for f, idx in sensors.MEASURES.items() if e['index'] in idx]
 	out['notes'] = e.get('notes', {})
 	if e.get('metric'):

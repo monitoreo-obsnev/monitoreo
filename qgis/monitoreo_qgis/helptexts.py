@@ -679,7 +679,9 @@ def variable_help(v, info=None):
 	d = describe(v)
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
-	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
+	         f"{v['dates']}. "
+	         + (f"Collections: {' up to its last image, then '.join(v['datasets'])}." if v.get('datasets') else
+	            f"Collection: {v['collection']}.")] + filter_lines(v, d)
 	if d.get('metric'):  # the snow cover frequency: how it is computed, and its only metric
 		lines += [d['notes'].get('ft', ''), f"<b>Only with the metric {d['metric']}</b>: {d['notes'].get('metric', '')}."]
 	if d.get('static'):  # elevation, slope: only maps

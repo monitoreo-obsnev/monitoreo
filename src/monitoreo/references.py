@@ -79,8 +79,11 @@ def _sort_key(ref):
 
 
 def _period(args):
-	"""(first, last) day of the data of a call (both periods of a comparison), or None."""
+	"""(first, last) day of the data of a call (both periods of a comparison), or None. A period with a start and no
+	end ends today, as services.make_spec computes it."""
 	days = [str(args[k])[:10] for k in ('start', 'end', 'other_start', 'other_end') if args.get(k)]
+	if (args.get('start') and not args.get('end')) or (args.get('other_start') and not args.get('other_end')):
+		days.append(dt.date.today().isoformat())
 	period = (args.get('recipe') or {}).get('period') if isinstance(args.get('recipe'), dict) else None
 	if isinstance(period, (list, tuple)) and len(period) == 2:
 		days += [str(period[0])[:10], str(period[1])[:10]]
@@ -103,9 +106,10 @@ def datasets(collection, period=None):
 	dates = catalog.load()['collections']
 	if collection in sensors.GAP_FILLED:
 		filled = sensors.GAP_FILLED[collection]
-		last = dates.get(filled, {}).get('end')  # its last image (the copy of the catalog: see catalog.json)
+		last = dates.get(filled, {}).get('end')  # its last image (catalog.json: the same date as sensors.raw_collection)
 		out = [filled] if not (period and last and period[0] > last) else []
-		if not period or not last or period[1] > last:
+		# the images of the collection after it: those of the next year (both have composites of 8 days from 1 January)
+		if not period or not last or period[1] >= f'{int(last[:4]) + 1}-01-01':
 			out.append(collection)
 		return out
 	if collection != LANDSAT:

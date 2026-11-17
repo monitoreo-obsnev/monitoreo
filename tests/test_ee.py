@@ -398,3 +398,13 @@ def test_the_evapotranspiration_before_2021_and_after_the_gap_filled_version():
 	for start, end in (('2010-06-01', '2010-07-31'), ('2026-03-01', '2026-04-30')):
 		res = services.time_series(GUAJARES, 'ET', 'Modis', start, end, step='monthly')
 		assert len(res['rows']) == 2 and all(r['n_images'] > 0 and r['value'] is not None for r in res['rows']), res['rows']
+
+
+def test_the_last_image_of_the_gap_filled_version_is_that_of_the_catalog():
+	"""The images of ET and LE of MODIS are those of MOD16A2GF up to the date of catalog.json (sensors.GAP_FILLED), the
+	date the references cite: when Earth Engine adds a year of it, this fails, and catalog.json and gee/catalog.js get
+	the new date (the values and their citation change together)."""
+	from monitoreo import catalog, sensors
+	for col, filled in sensors.GAP_FILLED.items():
+		last = ee.Date(ee.ImageCollection(filled).aggregate_max('system:time_start')).format('YYYY-MM-dd').getInfo()
+		assert last == catalog.load()['collections'][filled]['end'], (filled, last)
