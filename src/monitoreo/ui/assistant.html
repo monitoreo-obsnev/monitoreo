@@ -826,12 +826,14 @@ function resultCard(e) {
   return card;
 }
 
-function unitsCard(e) {  // the administrative units found (FAO GAUL 2025): pressing one computes with it
+function unitsCard(e) {  // the administrative units found (FAO GAUL 2025; level 3, the municipalities of Spain of
+  // the IGN, by their code of the INE): pressing one computes with it
   const list = el('div', {class: 'examples'});
   for (const u of e.units) {
-    const level = u.level || (u.GAUL2_CODE != null ? 2 : 1), code = u[`GAUL${level}_CODE`];
-    const name = u.DISP_EN || u[`GAUL${level}_NAME`];
-    const b = el('button', {type: 'button', text: `${name} (level ${level}, GAUL ${code})`});
+    const level = Number(u.level || (u.ADMIN3_CODE != null ? 3 : u.GAUL2_CODE != null ? 2 : 1));
+    const code = level === 3 ? u.ADMIN3_CODE : u[`GAUL${level}_CODE`];
+    const name = u.DISP_EN || u[`GAUL${level}_NAME`] || u.NAME;
+    const b = el('button', {type: 'button', text: `${name} (level ${level}, ${level === 3 ? 'INE' : 'GAUL'} ${code})`});
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');

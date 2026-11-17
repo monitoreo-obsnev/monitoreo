@@ -761,8 +761,9 @@ def find_protected_areas(text, limit=20, designation=None):
 def find_admin_units(text, level=1, country=None, limit=20):
 	"""Administrative units of FAO GAUL 2025 whose name contains TEXT: of LEVEL 1 (regions, states, provinces...) or 2
 	(provinces, districts, municipalities...), in COUNTRY (ISO3 code) if given: [{GAUL1_CODE or GAUL2_CODE, the names,
-	ISO3_CODE, DISP_EN, level}]. Use the code as {"admin1": ...} or {"admin2": ...}, and a country as
-	{"country": "ESP"}."""
+	ISO3_CODE, DISP_EN, level}]; LEVEL 3, the municipalities of Spain, of the Instituto Geográfico Nacional (any case and
+	accents, or a code of the INE): [{ADMIN3_CODE, NAME, PROVINCE, REGION, ISO3_CODE, DISP_EN, level}]. Use the code as
+	{"admin1": ...}, {"admin2": ...} or {"admin3": "18134"}, and a country as {"country": "ESP"}."""
 	return areas.find_admin_units(text, level, country, limit)
 
 

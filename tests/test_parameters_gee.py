@@ -197,6 +197,8 @@ CASES = [
 	                   'breaks': [1500, 2000],
 	                   'where': [{'variable': 'NDVI', 'sensor': 'Sentinel-2', 'min': 0.3,
 	                              'period': ['2021-01-01', '2021-12-31']}]}),
+	('time_series', {'region': {'admin3': '18134'}, 'variable': 'NDVI', 'sensor': 'Landsat', 'start': '2020-01-01',
+	                 'end': '2020-12-31', 'step': 'monthly', 'metric': 'mean', 'stat': 'mean', 'quality': QUALITY}),
 	('area_by_class', {'region': {'admin1': 1653}, 'variable': 'NDVI', 'sensor': 'Modis', 'start': '2010-01-01',
 	                   'end': '2020-12-31', 'trend': True, 'step': 'monthly', 'part': 7, 'metric': 'max',
 	                   'quality': QUALITY}),

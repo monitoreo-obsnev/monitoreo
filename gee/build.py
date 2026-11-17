@@ -6,8 +6,9 @@
                      the data of Earth Engine outside the catalog, catalog.OTHER_THEMES), a slim copy of the index of
                      the GEE Community Catalog (community.json.gz) and of that of the Earth Engine data catalog
                      (eecatalog.json.gz), the collections of each variable with the dates and short titles of their
-                     images (coverage: the check of the periods and the line «Data: ...», monitoreo.coverage) and the
-                     texts of about.py
+                     images (coverage: the check of the periods and the line «Data: ...», monitoreo.coverage), the
+                     texts of about.py and the credits and references of the administrative units (regions: FAO GAUL
+                     2025 and the municipalities of Spain of the IGN, as catalog.json gives them)
   monitoreo_app.js   catalog.js, core.js and ui.js in a single script: paste it in a new script of the Code Editor and
                      publish it as an app (Apps > New App); the fallback of the git route below
 
@@ -29,7 +30,8 @@ Engine:
   python gee/build.py --app-only
 
 At each release (a new version and date, see __released__), the about of catalog.js (version, date of the release and
-the version in the links of suggestions) and monitoreo_app.js are written again, also without Earth Engine:
+the version in the links of suggestions), its credits of the administrative units and monitoreo_app.js are written
+again, also without Earth Engine (and so after changing those credits or references in catalog.json):
 
   python gee/build.py --about-only
 """
@@ -46,8 +48,8 @@ import textwrap
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
-from monitoreo import (__released__, __version__, about, catalog, community, coverage, eecatalog,  # noqa: E402
-                       sensors, services)
+from monitoreo import (__released__, __version__, about, areas, catalog, community, coverage, eecatalog,  # noqa: E402
+                       municipalities, references, sensors, services)
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
@@ -58,6 +60,9 @@ REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts o
 MAX_FILE = 524288  # bytes: the biggest file Earth Engine takes in a push to a repository (measured; any push size)
 LIMIT = 500000  # bytes of each file of the repository of the app, with a margin under MAX_FILE
 MODULE = re.compile(r'app|catalog_[0-9]+')  # the names of the files that modules writes
+# the tables of the administrative units of the app (core.js, ADMIN_DATASETS): FAO GAUL 2025, levels 1 and 2, and the
+# municipalities of Spain of the IGN, level 3
+ADMIN_DATASETS = [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET]
 
 
 def entries():
@@ -115,6 +120,19 @@ def community_index():
 	return {'site': community.SITE, 'docs': COMMUNITY_DOCS, 'licence': community.LICENCE, 'source': snap.get('source'),
 	        'date': snap.get('date'), 'themes': themes, 'licences': licences,
 	        'datasets': rows}
+
+
+def region_credits():
+	"""The credits and references of the administrative units of the app (ADMIN_DATASETS), as the package cites a
+	region of them (references.of_datasets, references.get): {table: {'credit': its line or None, 'references':
+	[{'citation', 'url', 'text'}]}} (see adminCredits in core.js)."""
+	out = {}
+	for col in ADMIN_DATASETS:
+		ids, credits = references.of_datasets([col])
+		refs = [references.get(i) for i in ids]
+		out[col] = {'credit': credits[0] if credits else None,
+		            'references': [{k: r[k] for k in ('citation', 'url', 'text')} for r in refs]}
+	return out
 
 
 def catalog_text(data):
@@ -282,7 +300,8 @@ def main():
 	                         'Earth Engine: after refreshing them')
 	parser.add_argument('--about-only', action='store_true',
 	                    help='write the about of catalog.js again (version, date of the release, links of suggestions; '
-	                         'its logos as they were) and monitoreo_app.js, without Earth Engine: at each release')
+	                         'its logos as they were), its credits of the administrative units (catalog.json) and '
+	                         'monitoreo_app.js, without Earth Engine: at each release')
 	parser.add_argument('--modules', metavar='DIR',
 	                    help='only write the files of the git repository of the app in Earth Engine (app, catalog_1, '
 	                         'catalog_2...) into DIR, from the catalog.js, core.js and ui.js there are, without Earth '
@@ -317,16 +336,18 @@ def main():
 	if args.about_only:
 		data = read_catalog()
 		data['about'] = dict(about_texts(logos=False), logos=data['about'].get('logos', []))
+		data['regions'] = region_credits()
 		write_catalog(data)
 		app()
-		print(f'wrote the about of catalog.js (MonitorEO {__version__}, released {__released__}) and monitoreo_app.js')
+		print(f'wrote the about of catalog.js (MonitorEO {__version__}, released {__released__}), its credits of the '
+		      'administrative units and monitoreo_app.js')
 		return
 	services.init(args.project)
 	data = {'variables': entries(), 'collections': catalog.load()['collections'], 'about': about_texts(),
 	        'landcover': catalog.load()['landcover'],  # the land cover maps and their classes (monitoreo.landcover)
 	        'classes': catalog.load()['classes'],  # the classes of the categorical layers (monitoreo.categorical)
 	        'themes': catalog.THEMES, 'other_themes': catalog.OTHER_THEMES, 'community': community_index(),
-	        'eecatalog': eecatalog_index(), 'coverage': coverage.app_index()}
+	        'eecatalog': eecatalog_index(), 'coverage': coverage.app_index(), 'regions': region_credits()}
 	write_catalog(data)
 	app()
 	print(f"{len(data['variables'])} variables and {len(data['community']['datasets'])} datasets of the GEE Community "

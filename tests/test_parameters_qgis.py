@@ -428,6 +428,10 @@ def test_the_regions_of_the_panel(plugin):
 	assert kind({'bbox': [1, 2, 3, 4]}) == ('extent', [1.0, 2.0, 3.0, 4.0])
 	assert kind({'wdpa_id': 555588816}) == kind({'wdpa_id': [555588816]}) == ('wdpa', 555588816)
 	assert kind({'admin2': 141938}) == ('admin', (2, 141938)) and kind({'country': 'esp'}) == ('country', 'ESP')
+	# a municipality of Spain (level 3): its code of the INE, with its zeros, checked in the index of the package
+	assert kind({'admin3': '18134'}) == kind({'admin3': [18134]}) == ('admin', (3, '18134'))
+	assert kind({'admin3': 4001}) == ('admin', (3, '04001'))
+	assert kind({'admin3': '99999'})[0] is None and 'is not one' in kind({'admin3': '99999'})[1]
 	assert kind({'ecoregion_at': [-3.3, 37.1]}) == ('ecoregion', [-3.3, 37.1])
 	assert kind({'island_at': [-16.6, 28.3]}) == ('island', [-16.6, 28.3])
 	assert kind({'biome_at': [-3.3, 37.1], 'within': {'bbox': [-4, 36, -3, 38]}}) == \

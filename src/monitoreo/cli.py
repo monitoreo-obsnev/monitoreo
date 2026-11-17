@@ -6,7 +6,8 @@
                                                      the classes of a categorical layer (ECOREGION, BIOME of sensor
                                                      RESOLVE): code, name, colour and biome (without Earth Engine)
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
-    monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
+    monitoreo units TEXT [--level 1|2|3] [--country ISO3]   administrative units of FAO GAUL 2025 by name; level 3:
+                                                     the municipalities of Spain, of the IGN (without Earth Engine)
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
     monitoreo series VARIABLE ... --doy [--interannual median] [--other-variable V [--other-sensor S]] [--ylim -1 1]
                      [--other-ylim -1 1]             the seasonal profile by day of the year: the metric between the
@@ -334,10 +335,11 @@ def main(argv=None):
 	p.add_argument('text')
 	p.add_argument('--limit', type=int, default=20)
 	p.add_argument('--ramsar', action='store_true', help='only the Ramsar sites')
-	p = sub.add_parser('units', help='administrative units of FAO GAUL 2025 by name')
+	p = sub.add_parser('units', help='administrative units of FAO GAUL 2025 by name, or the municipalities of Spain')
 	p.add_argument('text')
-	p.add_argument('--level', type=int, default=1, choices=(1, 2),
-	               help='1: regions, states...; 2: provinces, districts...')
+	p.add_argument('--level', type=int, default=1, choices=(1, 2, 3),
+	               help='1: regions, states...; 2: provinces, districts...; 3: the municipalities of Spain (of the '
+	                    'IGN, without Earth Engine: --region \'{"admin3": "18134"}\')')
 	p.add_argument('--country', help='ISO3 code, e.g. ESP')
 	p.add_argument('--limit', type=int, default=20)
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
@@ -738,6 +740,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
+	if args.cmd == 'units' and args.level == 3:  # the municipalities of Spain (their index): without Earth Engine
+		return _compute(args, services)
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return
@@ -883,9 +887,12 @@ def _compute(args, services):
 		       ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
 	if args.cmd == 'units':
-		code = f'GAUL{args.level}_CODE'
-		_table(_fmt(services.find_admin_units(args.text, args.level, args.country, args.limit)),
-		       [code, 'DISP_EN', 'ISO3_CODE'])
+		code = 'ADMIN3_CODE' if args.level == 3 else f'GAUL{args.level}_CODE'
+		try:
+			units = services.find_admin_units(args.text, args.level, args.country, args.limit)
+		except ValueError as e:  # level 3 of a country that is not Spain
+			sys.exit(f'ERROR: {e}')
+		_table(_fmt(units), [code, 'DISP_EN', 'ISO3_CODE'])
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)

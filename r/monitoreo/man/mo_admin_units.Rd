@@ -2,29 +2,32 @@
 % Please edit documentation in R/monitoreo.R
 \name{mo_admin_units}
 \alias{mo_admin_units}
-\title{Administrative units of FAO GAUL 2025}
+\title{Administrative units of FAO GAUL 2025, and the municipalities of Spain}
 \usage{
 mo_admin_units(text, level = 1, country = NULL, limit = 20)
 }
 \arguments{
-\item{text}{text of their name.}
+\item{text}{text of their name (level 3: any case and accents, or a code of the INE).}
 
-\item{level}{1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...).}
+\item{level}{1 (regions, states, provinces...) or 2 (provinces, districts, municipalities...) of FAO GAUL 2025, or
+3: the municipalities of Spain, of the Instituto Geográfico Nacional (without Earth Engine).}
 
 \item{country}{ISO3 code of their country, e.g. \code{"ESP"} (optional).}
 
 \item{limit}{maximum number of units.}
 }
 \value{
-A data.frame of the units whose name contains \code{text}, with their code (GAUL1_CODE or GAUL2_CODE, for
-  \code{mo_admin()}), names, country (ISO3_CODE) and full name (DISP_EN).
+A data.frame of the units whose name contains \code{text}, with their code (GAUL1_CODE or GAUL2_CODE, or
+  ADMIN3_CODE, the code of the INE of a municipality, for \code{mo_admin()}), names, country (ISO3_CODE) and full
+  name (DISP_EN).
 }
 \description{
-Administrative units of FAO GAUL 2025
+Administrative units of FAO GAUL 2025, and the municipalities of Spain
 }
 \examples{
 \dontrun{
 mo_admin_units("Granada", level = 2, country = "ESP")
+mo_admin_units("monachil", level = 3)   # a municipality of Spain: mo_admin("18134", level = 3)
 }
 }
 \references{

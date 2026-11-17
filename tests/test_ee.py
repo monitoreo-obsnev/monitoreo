@@ -408,3 +408,13 @@ def test_the_last_image_of_the_gap_filled_version_is_that_of_the_catalog():
 	for col, filled in sensors.GAP_FILLED.items():
 		last = ee.Date(ee.ImageCollection(filled).aggregate_max('system:time_start')).format('YYYY-MM-dd').getInfo()
 		assert last == catalog.load()['collections'][filled]['end'], (filled, last)
+
+
+def test_a_municipality_of_spain_from_the_public_table():
+	"""The municipalities of Spain (level 3, monitoreo.municipalities): the public table of Earth Engine, read by any
+	account; Monachil has 88.6 km² (88.65 in its polygon of the IGN, simplified to about 10 m)."""
+	from monitoreo import areas
+	fc = areas.region({'admin3': ['18134', '04001']})
+	rows = fc.map(lambda f: ee.Feature(None, {'name': f.get('name'), 'km2': f.geometry().area(10).divide(1e6)}))
+	got = {r['properties']['name']: r['properties']['km2'] for r in rows.getInfo()['features']}
+	assert set(got) == {'Monachil (Granada)', 'Abla (Almería)'} and abs(got['Monachil (Granada)'] - 88.65) < 0.5

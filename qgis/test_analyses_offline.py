@@ -11,7 +11,8 @@ and the window of the result, with the GIF playing, its frames and the button to
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
 each kind (a land cover map without the land cover mask nor «Only the pixels where»; for its changes, the Sankey
 diagram of the first feature, named in its title) and the window of the result (its table, with the colour of each
-class). The land cover mask starts off, whatever the settings stored by other tests.
+class). The land cover mask starts off, whatever the settings stored by other tests. The municipalities of Spain (level
+3 of the administrative units) are found in the index of the package, without a task nor Earth Engine.
 """
 
 import os
@@ -327,6 +328,34 @@ assert biome['within'] == extent and abs(lon - (w + e) / 2) < 1e-9 and abs(lat -
 assert dock.region_kind.currentText() == 'Biome at the center of the map'
 dock.region_kind.setCurrentIndex(kinds.index('extent'))
 print('region: the biome at the center of the map, within the extent', biome)
+# the municipalities of Spain, level 3 of the administrative units: the country Spain, greyed out (the one written
+# before, back at levels 1 and 2); found at once, without a task (no Earth Engine), by their name in any case and
+# accents or by their code of the INE; the region {'admin3': code of the INE}, a string
+dock.region_kind.setCurrentIndex(kinds.index('admin'))
+assert dock.admin_row.isVisibleTo(dock) and dock.admin.isVisibleTo(dock)
+levels = [(dock.admin_level.itemText(i), dock.admin_level.itemData(i)) for i in range(dock.admin_level.count())]
+assert levels == [('Level 1', 1), ('Level 2', 2), ('Level 3 · Municipalities (Spain)', 3)], levels
+dock.admin_country.setText('prt')
+dock.admin_level.setCurrentIndex(2)
+assert dock.admin_country.text() == 'ESP' and not dock.admin_country.isEnabled(), dock.admin_country.text()
+assert 'Spain' in dock.admin_country.toolTip() and 'INE' in dock.admin_text.placeholderText()
+for text, code in (('monachil', '18134'), ('18087', '18087')):
+	dock.admin_text.setText(text)
+	dock.search_admin()
+	assert not dock.tasks, 'a task for the municipalities'
+	assert dock.admin.currentData() == (3, code), dock.admin.currentData()
+	assert dock.region() == {'admin3': code}, dock.region()
+	assert messages[-1] == f'Info: 1 municipalities of Spain with "{text}"', messages[-1]
+assert dock.admin.itemText(0) == 'Granada (Granada) · INE 18087', dock.admin.itemText(0)
+dock.admin_level.setCurrentIndex(0)
+assert dock.admin_country.text() == 'prt' and dock.admin_country.isEnabled()
+assert 'INE' not in dock.admin_text.placeholderText()
+assert dock.region() == {'admin3': '18087'}  # the unit chosen keeps its level
+dock.admin_country.setText('')
+dock.admin_text.setText('')
+dock.admin.clear()
+dock.region_kind.setCurrentIndex(kinds.index('extent'))
+print('region: the municipalities of Spain (level 3), found without Earth Engine:', levels[-1][0])
 dock.anim_step.setCurrentIndex(dock.anim_step.findData('monthly'))
 dock.anim_metric.setCurrentIndex(dock.anim_metric.findData('max'))
 dock.anim_fps.setValue(4)

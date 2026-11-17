@@ -25,8 +25,12 @@
 				'áreas protegidas, ecorregiones o tu propia zona. Calcula en Google Earth Engine: no necesitas cuenta.',
 			language: 'English', version: 'MonitorEO %s · publicada el %s',
 			region: 'Región', mode_wdpa: 'Área protegida (WDPA)', mode_ecoregion: 'Ecorregión', mode_view: 'Vista del mapa',
-			mode_admin: 'Unidad administrativa (FAO GAUL)', mode_island: 'Isla', adminHint: 'Nombre, p. ej. Granada',
+			mode_admin: 'Unidad administrativa', mode_island: 'Isla', adminHint: 'Nombre, p. ej. Granada',
 			level1: 'Nivel 1 (regiones, provincias...)', level2: 'Nivel 2 (provincias, municipios...)',
+			level3: 'Nivel 3 (municipios de España, IGN)', adminHint3: 'Nombre o código del INE, p. ej. Monachil',
+			level3Help: 'Los municipios de España del Instituto Geográfico Nacional (sus unidades administrativas ' +
+				'INSPIRE, CC BY 4.0 ign.es). Busca por el nombre, sin importar mayúsculas ni tildes, o por el código del ' +
+				'INE (5 dígitos, p. ej. 18134).',
 			countryHint: 'País (ISO3, opcional)', chooseUnit: 'Elige la unidad', noUnit: 'Ninguna unidad con ese nombre.',
 			islandHelp: 'Pulsa en el mapa sobre la isla (de más de 1 km²).', ramsar: 'Solo sitios Ramsar',
 			mode_draw: 'Polígono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
@@ -259,8 +263,12 @@
 				'protected areas, ecoregions or your own area. Computed in Google Earth Engine: no account needed.',
 			language: 'Español', version: 'MonitorEO %s · released %s',
 			region: 'Region', mode_wdpa: 'Protected area (WDPA)', mode_ecoregion: 'Ecoregion', mode_view: 'Map view',
-			mode_admin: 'Administrative unit (FAO GAUL)', mode_island: 'Island', adminHint: 'Name, e.g. Granada',
+			mode_admin: 'Administrative unit', mode_island: 'Island', adminHint: 'Name, e.g. Granada',
 			level1: 'Level 1 (regions, provinces...)', level2: 'Level 2 (provinces, municipalities...)',
+			level3: 'Level 3 (municipalities of Spain, IGN)', adminHint3: 'Name or INE code, e.g. Monachil',
+			level3Help: 'The municipalities of Spain of the Instituto Geográfico Nacional (its INSPIRE administrative ' +
+				'units, CC BY 4.0 ign.es). Search by name, whatever the case and accents, or by the code of the INE (5 ' +
+				'digits, e.g. 18134).',
 			countryHint: 'Country (ISO3, optional)', chooseUnit: 'Choose the unit', noUnit: 'No unit with that name.',
 			islandHelp: 'Click on the map over the island (of more than 1 km²).', ramsar: 'Ramsar sites only',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
@@ -501,6 +509,7 @@
 		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
 		region: null, regionName: null, info: null,
+		regionAdmin: null,  // the level of the administrative unit that is the region (its credits), or null
 		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
@@ -719,13 +728,16 @@
 	// Region --------------------------------------------------------------------------------------------------------
 
 	// The region FC, named NAME (null: by the names of its features, then with SUFFIX), which is SPEC as areas.region
-	// takes it (the region of the parameters of the analysis: {wdpa_id: id}, {bbox: [w, s, e, n]}...)
-	function setRegion(fc, name, spec, suffix) {
+	// takes it (the region of the parameters of the analysis: {wdpa_id: id}, {bbox: [w, s, e, n]}...); ADMIN: the level of
+	// the administrative unit it is (1 and 2: FAO GAUL 2025; 3: the municipalities of Spain of the IGN), whose credits
+	// are shown with it
+	function setRegion(fc, name, spec, suffix, admin) {
 		oneMap();  // its layer on the map shown
 		var named = name !== null && name !== undefined;
 		state.region = fc;
 		state.regionName = named ? name : t('loadingRegion');
 		state.regionSpec = spec || null;
+		state.regionAdmin = admin || null;
 		state.info = null;
 		if (regionLayer) map.layers().remove(regionLayer);
 		regionLayer = map.addLayer(ee.FeatureCollection(fc).style({color: 'ffff00', fillColor: '00000000', width: 2}), {},
@@ -818,15 +830,28 @@
 		});
 	}
 
+	// The administrative units of the level chosen whose name contains the text: of FAO GAUL 2025 (levels 1 and 2, in
+	// the country if given) or, level 3, the municipalities of Spain (by name, whatever the case and accents, or by the
+	// code of the INE), listed as 'name (province)' and their code. The answer of a search whose level (or kind of
+	// region) was changed meanwhile is left out: its codes are of another level, and chooseAdmin builds the region of
+	// the level chosen
 	function searchAdmin() {
 		state.adminItems = null;
 		message(t('computing'));
-		var level = state.adminLevel;
-		mo.findAdminUnits(state.adminText, level, state.adminCountry || null, 30).evaluate(function (fc, error) {
+		var level = state.adminLevel, municipal = Number(level) === 3;
+		var found = municipal ? mo.findMunicipalities(state.adminText, 30) :
+			mo.findAdminUnits(state.adminText, level, state.adminCountry || null, 30);
+		found.evaluate(function (fc, error) {
+			if (state.mode !== 'admin' || Number(state.adminLevel) !== Number(level)) return;
 			if (error) return fail(error);
 			state.adminNames = {};
 			state.adminItems = fc.features.map(function (f) {
-				var p = f.properties, code = p['GAUL' + level + '_CODE'];
+				var p = f.properties;
+				if (municipal) {
+					state.adminNames[p.code] = p.name + ' (' + p.province + ')';
+					return {value: p.code, label: state.adminNames[p.code] + ' · INE ' + p.code};
+				}
+				var code = p['GAUL' + level + '_CODE'];
 				state.adminNames[code] = p.DISP_EN;
 				return {value: code, label: p.DISP_EN + ' (GAUL ' + code + ')'};
 			});
@@ -840,8 +865,8 @@
 		state.adminCode = code;
 		results.style().set('shown', false);
 		var spec = {};
-		spec['admin' + state.adminLevel] = code;
-		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec);
+		spec['admin' + state.adminLevel] = code;  // level 3: the code of the INE (a string of 5 digits)
+		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec, undefined, Number(state.adminLevel));
 	}
 
 	function chooseWdpa(id) {
@@ -881,16 +906,18 @@
 					onChange: chooseWdpa, style: {width: '340px'}}));
 			}
 		} else if (state.mode === 'admin') {
-			var name = ui.Textbox({placeholder: t('adminHint'), value: state.adminText,
+			var municipal = Number(state.adminLevel) === 3;  // the municipalities of Spain: no country to give
+			var name = ui.Textbox({placeholder: t(municipal ? 'adminHint3' : 'adminHint'), value: state.adminText,
 				onChange: function (v) { state.adminText = v; }, style: {width: '200px'}});
 			var country = ui.Textbox({placeholder: t('countryHint'), value: state.adminCountry,
 				onChange: function (v) { state.adminCountry = v; }, style: {width: '130px'}});
-			w.push(select([{value: 1, label: t('level1')}, {value: 2, label: t('level2')}], state.adminLevel,
+			w.push(select([1, 2, 3].map(function (n) { return {value: n, label: t('level' + n)}; }), state.adminLevel,
 				function (v) { state.adminLevel = v; state.adminItems = null; render(); }, '250px'));
-			w.push(row(name, country));
+			if (municipal) w.push(ui.Label(t('level3Help'), SMALL));
+			w.push(municipal ? name : row(name, country));
 			w.push(button(t('search'), function () {
 				state.adminText = name.getValue();
-				state.adminCountry = country.getValue();
+				if (!municipal) state.adminCountry = country.getValue();
 				searchAdmin();
 			}));
 			if (state.adminItems && state.adminItems.length) {
@@ -919,6 +946,13 @@
 		if (state.region) {
 			var area = state.info ? ' · ' + bigNum(km2(state.info.total)) + ' km²' : '';
 			w.push(ui.Label(t('regionIs') + state.regionName + area, {fontSize: '12px', color: '#1a73e8'}));
+			if (state.regionAdmin) {  // the credits of its data (FAO GAUL, IGN) and their references, as catalog.json
+				var cited = mo.adminCredits(state.regionAdmin);
+				cited.credits.forEach(function (c) { w.push(ui.Label(c, SMALL)); });
+				cited.references.forEach(function (r) {
+					w.push(ui.Label(t('references') + ': ' + r.citation, SMALL, r.url));
+				});
+			}
 		}
 		return w;
 	}
@@ -3018,7 +3052,7 @@
 		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-		'country', 'admin1', 'admin2', 'island_at', 'bbox', 'point'];
+		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point'];
 
 	var analysisSelect = null;  // the select of the analysis whose parameters are shown
 
@@ -3284,7 +3318,7 @@
 		}
 		var k = keys[0], v = r[k], within = r.within === null || r.within === undefined ? null : r.within;
 		if (k === 'file') return refuse(t('regionFile'));
-		var usable = ['wdpa_id', 'admin1', 'admin2', 'ecoregion_at', 'island_at', 'bbox', 'geojson'].indexOf(k) >= 0 &&
+		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'ecoregion_at', 'island_at', 'bbox', 'geojson'].indexOf(k) >= 0 &&
 			within === null;
 		var biome = k === 'biome_at' && within && typeof within === 'object' && within.bbox !== undefined &&
 			Object.keys(within).length === 1;  // as a click on the map: its part in the map view
@@ -3320,16 +3354,20 @@
 					state.wdpaText = names[0] || state.wdpaText;
 					setRegion(fc, names.join(', '), spec);
 				});
-			} else if (k === 'admin1' || k === 'admin2') {
+			} else if (k === 'admin1' || k === 'admin2' || k === 'admin3') {
 				var codes = Array.isArray(v) ? v : [v];
 				if (codes.length !== 1) throw new Error(t('regionOne'));
-				var code = Number(codes[0]);
-				if (!isFinite(code)) throw new Error(k + ' is the GAUL code of an administrative unit; not ' + JSON.stringify(v));
+				var level = Number(k.slice(-1));
+				// level 3: a municipality of Spain, its code of the INE of 5 digits (an error that says so if not)
+				var code = level === 3 ? mo.municipalityCodes(codes)[0] : Number(codes[0]);
+				if (level !== 3 && !isFinite(code)) {
+					throw new Error(k + ' is the GAUL code of an administrative unit; not ' + JSON.stringify(v));
+				}
 				state.mode = 'admin';
-				state.adminLevel = Number(k.slice(-1));
+				state.adminLevel = level;
 				state.adminCode = code;
 				state.adminItems = null;
-				setRegion(mo.adminRegion(state.adminLevel, code), null, spec);
+				setRegion(mo.adminRegion(level, code), null, spec, undefined, level);
 			} else if (k === 'ecoregion_at' || k === 'island_at') {
 				var at = pointOf(v, k);
 				state.mode = k === 'island_at' ? 'island' : 'ecoregion';
