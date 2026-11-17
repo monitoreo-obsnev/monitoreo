@@ -390,3 +390,13 @@ def test_seasonal_profile_of_two_indices(tmp_path):
 		own = [r['value'] for r in res['profile'] if r['variable'] == name and r['value'] is not None]
 		assert own and -1 <= min(own) <= max(own) <= 1, name
 	assert os.path.getsize(res['csv']) > 0 and (res['chart'] is None or os.path.getsize(res['chart']) > 0)
+
+
+def test_a_municipality_of_spain_from_the_public_table():
+	"""The municipalities of Spain (level 3, monitoreo.municipalities): the public table of Earth Engine, read by any
+	account; Monachil has 88.6 km² (88.65 in its polygon of the IGN, simplified to about 10 m)."""
+	from monitoreo import areas
+	fc = areas.region({'admin3': ['18134', '04001']})
+	rows = fc.map(lambda f: ee.Feature(None, {'name': f.get('name'), 'km2': f.geometry().area(10).divide(1e6)}))
+	got = {r['properties']['name']: r['properties']['km2'] for r in rows.getInfo()['features']}
+	assert set(got) == {'Monachil (Granada)', 'Abla (Almería)'} and abs(got['Monachil (Granada)'] - 88.65) < 0.5
