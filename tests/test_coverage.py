@@ -541,3 +541,17 @@ def test_the_blocks_of_a_series_of_the_app_note_in_their_own_computation():
 	text = (f'where, the condition on NDVI (Sentinel-2): The images of {S2} start on 2017-03-28: the period asked for '
 	        'begins on 2016-01-01, so its first 15 months have no data.')
 	assert out == {'first': [text], 'own': [text], 'newer': []}
+
+
+def test_the_evapotranspiration_from_its_gap_filled_version():
+	"""ET and LE of MODIS (sensors.GAP_FILLED): MOD16A2GF.061 from 2000 to the date of catalog.json, then MOD16A2.061
+	(which begins in 2021): no period of them since 2000 is refused, and their data name each dataset in its period."""
+	e = catalog.find('ET', 'Modis')
+	end = catalog.load()['collections']['MODIS/061/MOD16A2GF']['end']
+	assert coverage.parts(e)[0] == ('MODIS/061/MOD16A2GF', '2000-01-01', end)
+	assert coverage.parts(e)[1][0] == 'MODIS/061/MOD16A2' and coverage.dates(e) == {'start': '2000-01-01', 'end': None}
+	assert _check('ET', 'Modis', '2005-01-01', '2010-12-31') == []
+	assert coverage.of_entry(e, [('2005-01-01', '2010-12-31')])['collections'] == ['MODIS/061/MOD16A2GF']
+	assert coverage.of_entry(e, [('2024-01-01', '2026-06-30')])['collections'] == ['MODIS/061/MOD16A2GF',
+	                                                                              'MODIS/061/MOD16A2']
+

@@ -5663,8 +5663,14 @@ var CATALOG = {
    ],
    "MODIS/061/MOD16A2": [
     [
+     "MODIS/061/MOD16A2GF",
+     "2000-01-01",
+     "2025-12-27",
+     "MOD16A2GF.061"
+    ],
+    [
      "MODIS/061/MOD16A2",
-     "2021-01-01",
+     "2025-12-28",
      null,
      "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
     ]

@@ -124,7 +124,9 @@ def text(ids, name):
 def parts(entry):
 	"""The Earth Engine collections of the images of the variable of the catalog ENTRY, with the dates of their images
 	as MonitorEO reads them: [(ID, first day, last day or None if it goes on)] (a day None if the index does not have
-	it). The Landsat of the catalog is its four collections, Landsat 7 only until 2003-05-31 (sensors.LANDSAT)."""
+	it). The Landsat of the catalog is its four collections, Landsat 7 only until 2003-05-31 (sensors.LANDSAT); a
+	collection with a gap-filled version (sensors.GAP_FILLED: ET and LE of MODIS) is that version up to the date of
+	catalog.json and the collection after it."""
 	if entry.get('col') == LANDSAT:
 		from . import sensors
 		out = []
@@ -136,6 +138,14 @@ def parts(entry):
 				end = min(end, stop) if end else stop
 			out.append((col, rec.get('start'), end))
 		return out
+	from . import sensors
+	if entry.get('col') in sensors.GAP_FILLED:  # its gap-filled version up to the date of the catalog, then itself
+		from . import catalog
+		filled = sensors.GAP_FILLED[entry['col']]
+		dates = catalog.load()['collections'][filled]  # the date of sensors.raw_collection and references.datasets
+		after = (dt.date.fromisoformat(dates['end']) + dt.timedelta(days=1)).isoformat()
+		rec = _records().get(entry['col']) or {}
+		return [(filled, dates['start'], dates['end']), (entry['col'], max(after, rec.get('start') or after), rec.get('end'))]
 	rec = _records().get(entry['col']) or {}
 	return [(entry['col'], rec.get('start'), rec.get('end'))]
 
