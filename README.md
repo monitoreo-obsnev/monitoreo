@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools** (fix): The evapotranspiration (ET) and latent heat (LE) of MODIS have values again before 2021: MOD16A2.061 begins in 2021 in Earth Engine, so they now use its gap-filled version, MOD16A2GF.061, from 2000 up to its last image, and MOD16A2.061 after it.
+
 ### [v0.3.44](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.44) · 2026-11-17 · package 0.3.54
 
 - **Python package, Command line, MCP server, Assistant, QGIS plugin, R package, Earth Engine app**: A period that begins before the first image of the data (e.g. Sentinel-2 surface reflectance, from 2017-03-28) or ends after the last image of data that ended gives a warning that those days have no data (that of a condition of where says so), and a period that ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is refused before computing, with the dates of the data.
