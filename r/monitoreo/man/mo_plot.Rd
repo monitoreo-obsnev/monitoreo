@@ -29,6 +29,10 @@ the values of the other variable are drawn with the linear transform from the ra
 the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
 right (\code{axis(4)}).
 
+A series of the snow cover days (metric \code{"days"}, the attribute bars) is drawn with a bar per step from 0,
+those of the regions side by side: with the step \code{"daily"}, a bar per day with images (the share of its clear
+pixels with snow, 0 to 1 day); with \code{"monthly"} or \code{"annual"}, the days of each month or season.
+
 Under every chart, a line says where its values come from: "Data: " and the attribute data_source of the series
 (the Earth Engine collections and their product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized
 Sentinel-2 MSI, Level-2A (SR))"), as the charts of the other tools of MonitorEO.

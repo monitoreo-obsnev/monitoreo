@@ -261,7 +261,9 @@ always removed, whatever the quality), so pass no quality. For the snow season o
 with metric "days" (the SCF of each month times its days, summed), the same fixed filters. A time series with step \
 "annual" and the season gives the days of each season; a map of a long period, the mean days per season. With Landsat \
 (an image every 8 to 16 days) the days are an estimate that improves with the number of images (n_images); Sentinel-2 \
-(every 5 days, since 2017) follows them better, and MODIS (daily, 500 m) best.
+(every 5 days, since 2017) follows them better, and MODIS (daily, 500 m) best. Their time series come as a bar chart \
+(a bar per step) with its table; to see which days had snow, step "daily": a bar and a row per day with images, the \
+share of its clear pixels with snow (0 to 1 day).
 - Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
 "Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.

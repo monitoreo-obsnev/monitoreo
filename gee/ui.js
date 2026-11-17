@@ -82,6 +82,8 @@
 			scdNote: 'Días de nieve: en cada píxel, la suma de cada mes de su frecuencia de nieve × sus días (un mes sin ' +
 				'imágenes toma la de los demás). Su métrica es siempre «días». Con «Todo el periodo», la media de los ' +
 				'días de cada temporada o, sin temporada, de cada 12 meses. Es una estimación: mejor con más imágenes.',
+			scdDailyNote: 'Cada barra diaria va de 0 a 1 día: la parte de los píxeles sin nubes con nieve ese día.',
+			nImages: 'Imágenes', validPixels: 'Píxeles válidos',
 			cfNote: 'Frecuencia de nubes: % de las observaciones de cada píxel con nubes. Cada imagen es 100 (nube) o 0, ' +
 				'así que su métrica es siempre la media.',
 			map: 'Mapa', metric: 'Métrica', temporal: 'Agregación temporal', t_period: 'Todo el periodo',
@@ -328,6 +330,8 @@
 			scdNote: 'Snow cover days: on each pixel, the sum over the months of its snow cover frequency × their days ' +
 				'(a month without images takes that of the others). Its metric is always days. With Whole period, the ' +
 				'mean days of each season or, without a season, of each 12 months. An estimate: better with more images.',
+			scdDailyNote: 'Each daily bar goes from 0 to 1 day: the share of the clear pixels with snow that day.',
+			nImages: 'Images', validPixels: 'Valid pixels',
 			cfNote: 'Cloud frequency: % of the observations of each pixel with clouds. Each image is 100 (cloud) or 0, ' +
 				'so its metric is always the mean.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
@@ -2229,7 +2233,10 @@
 		return out;
 	}
 
+	// The chart of the time series ROWS of the entry E: a line per region or, for the snow cover days (metric days, as
+	// services.time_series gives bars), a bar per step from 0, those of the regions side by side
 	function seriesChart(rows, e, name) {
+		var bars = mo.isDays(state.stepMetric);
 		var regions = regionsOf(rows);
 		var dates = [];
 		var values = {};
@@ -2247,9 +2254,23 @@
 				return {v: v === undefined ? null : v};
 			}))};
 		});
+		var legend = {position: regions.length > 1 ? 'right' : 'none'};
+		if (bars) {
+			return ui.Chart({cols: cols, rows: data}, 'ColumnChart', {title: name,
+				vAxis: {title: axisTitle(e, state.stepMetric, state.stat), viewWindow: {min: 0}}, legend: legend,
+				bar: {groupWidth: '80%'}});
+		}
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
 			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}, lineWidth: 1.5,
-			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
+			pointSize: 3, interpolateNulls: false, legend: legend});
+	}
+
+	// The table of the time series ROWS (that of the snow cover days, under their bars): region, date, value, images
+	// and valid pixels of each step, as the CSV
+	function seriesTable(rows) {
+		return ui.Chart([[t('region'), t('date'), t('value'), t('nImages'), t('validPixels')]].concat(rows.map(function (r) {
+			return [r.region, r.date, r.value === null ? '' : num(r.value, 4), r.n_images, r.n_pixels];
+		})), 'Table');
 	}
 
 	// The colour at F (0 to 1) along the ramp COLOURS (hex), between its two nearest colours
@@ -2483,8 +2504,10 @@
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
+				var bars = !doy && mo.isDays(state.stepMetric);  // the snow cover days: bars, and their table
 				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
-					[seriesChart(rows, e, name)]).concat([
+					[seriesChart(rows, e, name)]).concat(bars ? [seriesTable(rows)] : [],
+					bars && state.step === 'daily' ? [ui.Label(t('scdDailyNote'), SMALL)] : [], [
 					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
 					csvWidget(rows, columns, name, e)]));
 			});

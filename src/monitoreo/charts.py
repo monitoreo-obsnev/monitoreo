@@ -27,9 +27,18 @@ def _with_source(fig, source):
 	return min(0.3, (len(lines) * SOURCE_SIZE * 1.3 + 6) / 72 / fig.get_figheight())
 
 
-def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4.5, dpi=150, source=None):
+def bar_width(dates):
+	"""Width in days of the bars of a series with DATES (dt.date, those of its steps): 80 % of the shortest gap between
+	two of them (1 day for a single date), so that the bars of the steps do not touch."""
+	days = sorted(set(dates))
+	gaps = [(b - a).days for a, b in zip(days, days[1:])]
+	return 0.8 * (min(gaps) if gaps else 1)
+
+
+def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4.5, dpi=150, source=None, bars=False):
 	"""PNG (bytes) of the time series ROWS ([{region, date, value, ...}]): a line per region, with gaps where a step
-	has no value. It is also written to PATH if given."""
+	has no value. With BARS (the snow cover days, metric days), a bar per step from 0, those of the regions side by
+	side, and none where a step has no value. It is also written to PATH if given."""
 	from matplotlib.figure import Figure
 
 	fig = Figure(figsize=(width, height), dpi=dpi)
@@ -38,11 +47,19 @@ def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4
 	for r in rows:
 		if r['region'] not in regions:
 			regions.append(r['region'])
-	for name in regions:
+	step = bar_width([dt.date.fromisoformat(r['date']) for r in rows]) / max(len(regions), 1) if bars else 0
+	for i, name in enumerate(regions):
 		pts = sorted((dt.date.fromisoformat(r['date']), r.get('value')) for r in rows if r['region'] == name)
+		if bars:  # each bar at its date, moved so that those of the regions sit side by side around it
+			shift = dt.timedelta(days=step * (i - (len(regions) - 1) / 2))
+			pts = [(dt.datetime.combine(d, dt.time()) + shift, v) for d, v in pts if v is not None]
+			ax.bar([p[0] for p in pts], [p[1] for p in pts], width=step, label=name)
+			continue
 		x = [p[0] for p in pts]
 		y = [p[1] if p[1] is not None else float('nan') for p in pts]
 		ax.plot(x, y, marker='o', markersize=3, linewidth=1.2, label=name)
+	if bars:
+		_step_labels(ax, sorted({dt.date.fromisoformat(r['date']) for r in rows}))
 	if title:
 		ax.set_title(title, fontsize=11)
 	if ylabel:
@@ -53,6 +70,17 @@ def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4
 	fig.autofmt_xdate()
 	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
+
+
+def _step_labels(ax, dates, most=24):
+	"""Under the bars of the steps DATES, the label of each step (of one in every few, so that there are at most MOST):
+	its year (a season counts in the year in which it starts), its month or its day, as the steps are."""
+	if not dates:
+		return
+	gap = min(((b - a).days for a, b in zip(dates, dates[1:])), default=1)
+	fmt = '%Y' if gap >= 360 else '%Y-%m' if gap >= 28 else '%Y-%m-%d'
+	shown = dates[::-(-len(dates) // most)]
+	ax.set_xticks([dt.datetime.combine(d, dt.time()) for d in shown], [d.strftime(fmt) for d in shown])
 
 
 def _png(fig, path=None):

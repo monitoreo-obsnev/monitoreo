@@ -20763,6 +20763,8 @@ var MonitorEO = (function () {
 			scdNote: 'D\u00edas de nieve: en cada p\u00edxel, la suma de cada mes de su frecuencia de nieve \u00d7 sus d\u00edas (un mes sin ' +
 				'im\u00e1genes toma la de los dem\u00e1s). Su m\u00e9trica es siempre \u00abd\u00edas\u00bb. Con \u00abTodo el periodo\u00bb, la media de los ' +
 				'd\u00edas de cada temporada o, sin temporada, de cada 12 meses. Es una estimaci\u00f3n: mejor con m\u00e1s im\u00e1genes.',
+			scdDailyNote: 'Cada barra diaria va de 0 a 1 d\u00eda: la parte de los p\u00edxeles sin nubes con nieve ese d\u00eda.',
+			nImages: 'Im\u00e1genes', validPixels: 'P\u00edxeles v\u00e1lidos',
 			cfNote: 'Frecuencia de nubes: % de las observaciones de cada p\u00edxel con nubes. Cada imagen es 100 (nube) o 0, ' +
 				'as\u00ed que su m\u00e9trica es siempre la media.',
 			map: 'Mapa', metric: 'M\u00e9trica', temporal: 'Agregaci\u00f3n temporal', t_period: 'Todo el periodo',
@@ -21009,6 +21011,8 @@ var MonitorEO = (function () {
 			scdNote: 'Snow cover days: on each pixel, the sum over the months of its snow cover frequency \u00d7 their days ' +
 				'(a month without images takes that of the others). Its metric is always days. With Whole period, the ' +
 				'mean days of each season or, without a season, of each 12 months. An estimate: better with more images.',
+			scdDailyNote: 'Each daily bar goes from 0 to 1 day: the share of the clear pixels with snow that day.',
+			nImages: 'Images', validPixels: 'Valid pixels',
 			cfNote: 'Cloud frequency: % of the observations of each pixel with clouds. Each image is 100 (cloud) or 0, ' +
 				'so its metric is always the mean.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
@@ -22910,7 +22914,10 @@ var MonitorEO = (function () {
 		return out;
 	}
 
+	// The chart of the time series ROWS of the entry E: a line per region or, for the snow cover days (metric days, as
+	// services.time_series gives bars), a bar per step from 0, those of the regions side by side
 	function seriesChart(rows, e, name) {
+		var bars = mo.isDays(state.stepMetric);
 		var regions = regionsOf(rows);
 		var dates = [];
 		var values = {};
@@ -22928,9 +22935,23 @@ var MonitorEO = (function () {
 				return {v: v === undefined ? null : v};
 			}))};
 		});
+		var legend = {position: regions.length > 1 ? 'right' : 'none'};
+		if (bars) {
+			return ui.Chart({cols: cols, rows: data}, 'ColumnChart', {title: name,
+				vAxis: {title: axisTitle(e, state.stepMetric, state.stat), viewWindow: {min: 0}}, legend: legend,
+				bar: {groupWidth: '80%'}});
+		}
 		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name,
 			vAxis: {title: axisTitle(e, state.stepMetric, state.stat)}, lineWidth: 1.5,
-			pointSize: 3, interpolateNulls: false, legend: {position: regions.length > 1 ? 'right' : 'none'}});
+			pointSize: 3, interpolateNulls: false, legend: legend});
+	}
+
+	// The table of the time series ROWS (that of the snow cover days, under their bars): region, date, value, images
+	// and valid pixels of each step, as the CSV
+	function seriesTable(rows) {
+		return ui.Chart([[t('region'), t('date'), t('value'), t('nImages'), t('validPixels')]].concat(rows.map(function (r) {
+			return [r.region, r.date, r.value === null ? '' : num(r.value, 4), r.n_images, r.n_pixels];
+		})), 'Table');
 	}
 
 	// The colour at F (0 to 1) along the ramp COLOURS (hex), between its two nearest colours
@@ -23164,8 +23185,10 @@ var MonitorEO = (function () {
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
+				var bars = !doy && mo.isDays(state.stepMetric);  // the snow cover days: bars, and their table
 				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
-					[seriesChart(rows, e, name)]).concat([
+					[seriesChart(rows, e, name)]).concat(bars ? [seriesTable(rows)] : [],
+					bars && state.step === 'daily' ? [ui.Label(t('scdDailyNote'), SMALL)] : [], [
 					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
 					csvWidget(rows, columns, name, e)]));
 			});
