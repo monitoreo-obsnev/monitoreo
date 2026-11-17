@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.46](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.46) · 2026-11-17 · package 0.3.56
 
 - **All tools**: The parameters of an analysis as JSON, the same in every tool (`{"monitoreo", "analysis", "parameters"}`, with the names of the Python package), written next to the files of each result (`<file>.parameters.json`), to repeat it, change one parameter or take it to another tool; when they are applied, what cannot be applied is left out and listed with the reason (issue #85).
 - **Python package**: `monitoreo.parameters` saves, checks and computes them again (`save`, `check`, `run`).
