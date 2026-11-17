@@ -225,7 +225,7 @@ def too_many_text(description, e):
 	return (f'{description}: not computed. At {e.resolution:g} m, the pixels of the data, the map would have '
 	        f'{e.pixels:,} pixels, {e.excess:,}% more than the {e.max_pixels:,} of the maps added to QGIS. Choose '
 	        + (f'another sensor ({fit}), ' if fit else '')
-	        + f'a region with at most {e.share:.2g}% of its extent, or Export to Google Drive (no size limit)')
+	        + f'a region with at most {e.share:g}% of its extent, or Export to Google Drive (no size limit)')
 
 
 def true_colour(region, opts, path, resolution=None, stretch=None):
@@ -248,7 +248,7 @@ def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=
 	map; see true_colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
 	'rgb_error' instead of 'rgb' (the map is added all the same). First, whether the map fits on the pixels of the
 	data (services.check_pixels: if not, TooManyPixels, before computing anything)."""
-	services.check_pixels(region, MAP_PIXELS, **opts)
+	services.check_pixels(region, MAP_PIXELS, rgb=kind != 'index', **opts)  # with a true colour: sensors that have it
 	out = {}
 	if kind != 'rgb':
 		try:

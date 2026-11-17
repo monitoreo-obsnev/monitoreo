@@ -75,3 +75,21 @@ def test_the_period_does_not_change_the_pixels(grid):
 			services.check_pixels({'bbox': [0, 0, 1, 1]}, MAX, 'NDVI', 'Landsat', start=start, end=end)
 		excess.add(e.value.excess)
 	assert excess == {25}
+
+
+def test_the_percentages_are_exact_and_safe(grid):
+	"""The excess rounded up without floating error, and the share of the extent rounded down (a region of it fits)."""
+	for pixels, excess, share in ((4_400_000, 10, 90), (4_040_000, 1, 99), (4_000_001, 1, 99), (12_000_000, 200, 33),
+	                              (4_000_000 * 120, 11_900, 0.83), (4_000_000 * 1000, 99_900, 0.1)):
+		e = services.TooManyPixels(pixels, MAX, 10.0)
+		assert e.excess == excess and abs(e.share - share) < 1e-9, (pixels, e.excess, e.share)
+		assert 'e+' not in str(e)
+
+
+def test_a_true_colour_proposes_only_sensors_with_one(grid):
+	grid['area'] = 40_000_000 * 10.0 ** 2  # NDVI of Sentinel-2: MODIS (250 m) fits, but has no true colour
+	with pytest.raises(services.TooManyPixels) as e:
+		services.check_pixels({'bbox': [0, 0, 1, 1]}, MAX, 'NDVI', 'Sentinel-2', start='2025-01-01', end='2025-12-31',
+		                      rgb=True)
+	assert e.value.sensors == [] and 'another sensor' not in str(e.value)
+
