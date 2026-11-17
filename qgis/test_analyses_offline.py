@@ -164,6 +164,7 @@ def area_by_class(region, csv=None, **opts):
 			f.write('region,from_label,to_label,ha,percent\n')
 		return {'rows': rows, 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
 		        'year': opts['year'], 'other_year': opts['other_year'], 'classes': [], 'references': [], 'credits': [],
+		        'data_source': 'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018',
 		        'changed_ha': {'Sierra Nevada': 15.0, 'Doñana': 0.0},
 		        'unchanged_ha': {'Sierra Nevada': 0.0, 'Doñana': 30.0},
 		        'by_landcover': [{'region': 'Doñana', 'from_label': 'Water', 'to_label': 'Water', 'ha': 30.0},
@@ -179,8 +180,9 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
-sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
-charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
+sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS), with their line «Data: ...»
+charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''), source=None: sankeys.append(
+	(flows, title, source))
 for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
 	QgsSettings().remove('MonitorEO/' + key)
 
@@ -370,7 +372,8 @@ assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (20
 dock.run_areas()
 wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
-assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
+assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)',  # the first feature, named
+                       'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018'), sankeys
 dock.area_change.setChecked(False)
 # a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
 made = len(calls)

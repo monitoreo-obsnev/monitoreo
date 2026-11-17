@@ -14,6 +14,7 @@ Community Catalog chosen by its themes), waiting for their QGIS tasks.
 import os
 import sys
 import time
+import urllib.parse
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 APP = os.environ.get('QGIS_APP', '/Applications/QGIS-final-4_0_3.app')
@@ -100,7 +101,8 @@ assert names[-3:] == ['Earth Engine data (by its ID)', 'GEE Community Catalog', 
 assert not dock.data_row.isVisibleTo(dock) and dock.variable_field.isVisibleTo(dock)
 links = dock.feedback_links
 assert links['issue'].startswith('https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=QGIS+plugin')
-assert 'entry.1706228456=Complemento+de+QGIS' in links['form'], links
+from monitoreo import about  # noqa: E402
+assert 'entry.1706228456=' + urllib.parse.quote_plus(about.TOOLS['qgis'][1]) in links['form'], links
 print('feedback:', links['issue'])
 dock.theme.setCurrentIndex(dock.theme.findData('climate'))
 assert all(dock.variable.itemData(i)['variable'] in ('PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM',

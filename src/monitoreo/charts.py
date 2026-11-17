@@ -1,11 +1,33 @@
-"""Charts of the time series (PNG), with matplotlib but without pyplot, so they can be drawn inside QGIS too."""
+"""Charts of the time series (PNG), with matplotlib but without pyplot, so they can be drawn inside QGIS too. Each one
+says under it where its values come from, with a line «Data: SOURCE» (the data_source of the answers of the services,
+see monitoreo.coverage), when it is given."""
 
 import datetime as dt
 import io
 import textwrap
 
+SOURCE_SIZE = 7  # points of the line «Data: ...» under a chart
+SOURCE_COLOUR = '#555555'
 
-def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4.5, dpi=150):
+
+def source_line(source):
+	"""The line under a chart that says where its values come from: 'Data: SOURCE', or None without SOURCE."""
+	return f'Data: {source}' if source else None
+
+
+def _with_source(fig, source):
+	"""Write the line «Data: SOURCE» (see source_line) at the bottom left of FIG, in as many lines as its width needs,
+	and return the fraction of the height of FIG that the chart leaves free for it (rect of tight_layout); 0 without
+	SOURCE."""
+	text = source_line(source)
+	if not text:
+		return 0
+	lines = textwrap.wrap(text, max(40, int(fig.get_figwidth() * 17)))  # some 17 characters of 7 points per inch
+	fig.text(0.01, 0.01, '\n'.join(lines), fontsize=SOURCE_SIZE, color=SOURCE_COLOUR, ha='left', va='bottom')
+	return min(0.3, (len(lines) * SOURCE_SIZE * 1.3 + 6) / 72 / fig.get_figheight())
+
+
+def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4.5, dpi=150, source=None):
 	"""PNG (bytes) of the time series ROWS ([{region, date, value, ...}]): a line per region, with gaps where a step
 	has no value. It is also written to PATH if given."""
 	from matplotlib.figure import Figure
@@ -29,7 +51,7 @@ def time_series_png(rows, path=None, title=None, ylabel=None, width=10, height=4
 	if len(regions) > 1:
 		ax.legend(fontsize=8, frameon=False)
 	fig.autofmt_xdate()
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
@@ -44,7 +66,7 @@ def _png(fig, path=None):
 	return png
 
 
-def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
+def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120, source=None):
 	"""PNG (bytes) of the yearly values of each part of the year (YEARLY: [{region, part, year, value}]) with the Sen
 	line of its trend (TRENDS: rows of monitoreo.trends.trend_rows), a panel per part and a colour per region."""
 	from matplotlib.figure import Figure
@@ -85,12 +107,12 @@ def trends_png(yearly, trends, path=None, title=None, ylabel=None, dpi=120):
 		fig.suptitle(textwrap.fill(title, int(width * 11)), fontsize=10)
 	if ylabel:
 		fig.supylabel(ylabel, fontsize=9)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
 def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('reference period', 'other period'),
-                   width=10, height=4.5, dpi=150):
+                   width=10, height=4.5, dpi=150, source=None):
 	"""PNG (bytes) of the comparison of two periods (PROFILE: rows of monitoreo.trends.profile): the mean of each part
 	of the year in the reference period (blue, circles, solid) and in the other (red, squares, dashed), or a colour per
 	region if there are several. LABELS: {part: name}."""
@@ -123,11 +145,11 @@ def comparison_png(profile, labels, path=None, title=None, ylabel=None, names=('
 		ax.set_ylabel(ylabel)
 	ax.grid(alpha=0.3)
 	ax.legend(fontsize=8, frameon=False)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
-def areas_png(rows, colours=None, path=None, title=None, dpi=120, max_regions=6):
+def areas_png(rows, colours=None, path=None, title=None, dpi=120, max_regions=6, source=None):
 	"""PNG (bytes) of the hectares of each class (ROWS: [{region, label, ha, percent}], see monitoreo.classes): a panel
 	of horizontal bars per feature (the first MAX_REGIONS; also for features with the same name), each class with its
 	colour (COLOURS: {label: 'rrggbb'}) and its %, the classes without area left out."""
@@ -158,11 +180,11 @@ def areas_png(rows, colours=None, path=None, title=None, dpi=120, max_regions=6)
 			ax.set_title(str(f[0]['region']), fontsize=9, loc='left')
 	if title:
 		fig.suptitle(textwrap.fill(title, 100), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
-def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=120):
+def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=120, source=None):
 	"""PNG (bytes) of a Sankey diagram of FLOWS ([(from, to, hectares)]): the classes of the first year on the left and
 	those of the other on the right, each with its colour (COLOURS: {class: 'rrggbb'}), with a band of each flow
 	between them, as wide as its hectares; NAMES, the titles of both columns (the years)."""
@@ -218,11 +240,11 @@ def sankey_png(flows, colours=None, path=None, title=None, names=('', ''), dpi=1
 	ax.axis('off')
 	if title:
 		ax.set_title(textwrap.fill(title, 100), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
-def zones_png(rows, stats, path=None, title=None, ylabel=None, xlabel=None, dpi=120):
+def zones_png(rows, stats, path=None, title=None, ylabel=None, xlabel=None, dpi=120, source=None):
 	"""PNG (bytes) of the statistics of each zone (ROWS of region_stats with zones: zone_label and STATS): the median
 	(or else the mean, or the first statistic) of each zone with the band of its percentiles 25 and 75 (or else 5 and
 	95) when they are there, named in the legend, a line per region."""
@@ -254,11 +276,11 @@ def zones_png(rows, stats, path=None, title=None, ylabel=None, xlabel=None, dpi=
 	ax.legend(fontsize=8, frameon=False)
 	if title:
 		ax.set_title(textwrap.fill(title, 100), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
-def transect_png(rows, path=None, title=None, ylabel=None, dpi=120):
+def transect_png(rows, path=None, title=None, ylabel=None, dpi=120, source=None):
 	"""PNG (bytes) of a profile along a line (ROWS of transect: distance_m, value, elevation): the variable against the
 	distance, and the elevation in grey on a second axis."""
 	from matplotlib.figure import Figure
@@ -282,7 +304,7 @@ def transect_png(rows, path=None, title=None, ylabel=None, dpi=120):
 	ax.grid(alpha=0.3)
 	if title:
 		ax.set_title(textwrap.fill(title, 100), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
@@ -300,7 +322,7 @@ def _days_axis(ax):
 	ax.set_xticklabels(MONTH_LABELS, fontsize=8)
 
 
-def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=150, ylim=None):
+def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=150, ylim=None, source=None):
 	"""PNG (bytes) of a time series (ROWS with year and doy: see timeseries.with_doy) with a line per year over the days
 	of the year, from the oldest year (light) to the newest (dark, thicker), as the day-of-year charts of geemap; a panel
 	per region (the first 4). YLIM: (min, max) of the y axis (default: from the data)."""
@@ -331,12 +353,12 @@ def doy_png(rows, path=None, title=None, ylabel=None, width=10, height=4.8, dpi=
 			ax.legend(fontsize=7, frameon=False, ncol=min(len(years), 8), loc='best')
 	if title:
 		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
 
 
 def doy_profile_png(profile, path=None, title=None, ylabel=None, other_ylabel=None, ylim=None, other_ylim=None,
-                    width=10, height=4.8, dpi=150):
+                    width=10, height=4.8, dpi=150, source=None):
 	"""PNG (bytes) of the seasonal profile of one or two variables (PROFILE: rows of timeseries.doy_profile) over the
 	days of the year: the first variable on the left axis (blue, YLABEL, YLIM) and the other, if there is one, on a right
 	axis (red, OTHER_YLABEL, OTHER_YLIM), each axis title in the colour of its line, both named in the legend, with a
@@ -378,5 +400,5 @@ def doy_profile_png(profile, path=None, title=None, ylabel=None, other_ylabel=No
 			          loc='lower right', bbox_to_anchor=(1, 1))  # above the axes: it covers no point of either
 	if title:
 		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
-	fig.tight_layout()
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)

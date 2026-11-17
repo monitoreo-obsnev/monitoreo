@@ -49,7 +49,7 @@ import re
 
 import ee
 
-from . import catalog, categorical, composite, landcover, sensors
+from . import catalog, categorical, composite, coverage, landcover, sensors
 
 WORLDCOVER = 'ESA/WorldCover/v200'
 SENSOR_ABBR = {'Sentinel-2': 'S2', 'Landsat': 'L', 'Modis': 'MODIS'}
@@ -242,6 +242,8 @@ def specs(var, defaults=None, two_periods=False):
 		if not base.get('period'):
 			raise ValueError(f'variable {base.get("name") or _default_name(base)}: give period [first day, last day]')
 		composite.windows(base['period'], base['season'])
+		# a period without images of the data is an error; one with days without them, a warning (in the answer)
+		coverage.check(base, e if k == 'catalog' else None)
 	if base.get('where'):
 		where_specs(base)  # check its conditions now, without Earth Engine
 		landcover_conditions(base)
@@ -308,7 +310,12 @@ def where_specs(spec):
 			if not isinstance(period, (list, tuple)) or len(period) != 2:
 				raise ValueError(f'the period of the condition on {e["index"]} is [start, end]')
 			var.update(period=[str(d) for d in period], metric=c.get('metric') or e.get('metric') or 'mean')
-		cs = specs({k: v for k, v in var.items() if v is not None})[0]
+		label = f"where, the condition on {e['index']} ({e['sensor']}): "
+		try:
+			with coverage.labelled(label):  # its warnings, named as its errors: they are not about the result
+				cs = specs({k: v for k, v in var.items() if v is not None})[0]
+		except ValueError as err:  # e.g. a period without images of the variable of the condition
+			raise ValueError(f'{label}{err}') from None
 		out.append((cs, c.get('min'), c.get('max')))
 	return out
 
