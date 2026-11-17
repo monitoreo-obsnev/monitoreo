@@ -23,8 +23,8 @@ var CATALOG = {
     "issue": "En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=App+de+Earth+Engine+%2F+Earth+Engine+app&entry.1533130685=0.3.51",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.51"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.57",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.57"
    }
   },
   "logos": [
@@ -34,9 +34,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "released": "2026-11-15",
+  "released": "2026-11-17",
   "repository": "https://github.com/monitoreo-obsnev/monitoreo",
-  "version": "0.3.51"
+  "version": "0.3.57"
  },
  "classes": {
   "biomes": {
@@ -4440,7 +4440,11 @@ var CATALOG = {
   },
   "MODIS/061/MOD16A2": {
    "end": null,
-   "start": "2001-01-01"
+   "start": "2021-01-01"
+  },
+  "MODIS/061/MOD16A2GF": {
+   "end": "2025-12-27",
+   "start": "2000-01-01"
   },
   "MODIS/061/MYD09GA": {
    "end": null,
@@ -5529,6 +5533,227 @@ var CATALOG = {
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_ANNUAL_EXPECTED_CARBON","Wildfire Risk to Rangeland Carbon - Expected Annual Carbon Remaining, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4],
 ["projects/sat-io/open-datasets/USFS/RANGELAND_CARBON/RANGELAND_TOTAL_INITIAL_CARBON","Wildfire Risk to Rangeland Carbon - Initial Carbon, circa 2014 (tons/acre)",0,16,"rangeland_carbon",4]
 ]},
+ "coverage": {
+  "checked": "2026-11-14",
+  "collections": {
+   "COPERNICUS/DEM/GLO30_2024_1": [
+    [
+     "COPERNICUS/DEM/GLO30_2024_1",
+     "2010-12-01",
+     "2020-11-13",
+     "Copernicus DEM GLO-30 (2024_1): Global 30m Digital Elevation Model"
+    ]
+   ],
+   "COPERNICUS/S2_SR_HARMONIZED": [
+    [
+     "COPERNICUS/S2_SR_HARMONIZED",
+     "2017-03-28",
+     null,
+     "Harmonized Sentinel-2 MSI, Level-2A (SR)"
+    ]
+   ],
+   "ECMWF/ERA5_LAND/MONTHLY_AGGR": [
+    [
+     "ECMWF/ERA5_LAND/MONTHLY_AGGR",
+     "1950-02-01",
+     null,
+     "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis"
+    ]
+   ],
+   "IDAHO_EPSCOR/TERRACLIMATE": [
+    [
+     "IDAHO_EPSCOR/TERRACLIMATE",
+     "1958-01-01",
+     "2024-12-01",
+     "TerraClimate"
+    ]
+   ],
+   "LANDSAT": [
+    [
+     "LANDSAT/LT05/C02/T1_L2",
+     "1984-03-16",
+     "2012-05-05",
+     "USGS Landsat 5 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LE07/C02/T1_L2",
+     "1999-05-28",
+     "2003-05-31",
+     "USGS Landsat 7 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC08/C02/T1_L2",
+     "2013-03-18",
+     null,
+     "USGS Landsat 8 Level 2, Collection 2, Tier 1"
+    ],
+    [
+     "LANDSAT/LC09/C02/T1_L2",
+     "2021-10-31",
+     null,
+     "USGS Landsat 9 Level 2, Collection 2, Tier 1"
+    ]
+   ],
+   "MERIT/Hydro/v1_0_1": [
+    [
+     "MERIT/Hydro/v1_0_1",
+     "1987-01-01",
+     "2017-01-01",
+     "MERIT Hydro: Global Hydrography Datasets"
+    ]
+   ],
+   "MODIS/061/MCD15A3H": [
+    [
+     "MODIS/061/MCD15A3H",
+     "2002-07-04",
+     null,
+     "MCD15A3H.061 MODIS Leaf Area Index/FPAR 4-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MCD19A2_GRANULES": [
+    [
+     "MODIS/061/MCD19A2_GRANULES",
+     "2000-02-24",
+     null,
+     "MCD19A2.061: Terra & Aqua MAIAC Land Aerosol Optical Depth Daily 1km"
+    ]
+   ],
+   "MODIS/061/MCD43A3": [
+    [
+     "MODIS/061/MCD43A3",
+     "2000-02-24",
+     null,
+     "MCD43A3.061 MODIS Albedo Daily 500m"
+    ]
+   ],
+   "MODIS/061/MOD09GA": [
+    [
+     "MODIS/061/MOD09GA",
+     "2000-02-24",
+     null,
+     "MOD09GA.061 Terra Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MOD10A1": [
+    [
+     "MODIS/061/MOD10A1",
+     "2000-02-24",
+     null,
+     "MOD10A1.061 Terra Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MOD11A1": [
+    [
+     "MODIS/061/MOD11A1",
+     "2000-02-24",
+     null,
+     "MOD11A1.061 Terra Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MOD13Q1": [
+    [
+     "MODIS/061/MOD13Q1",
+     "2000-02-18",
+     null,
+     "MOD13Q1.061 Terra Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/061/MOD16A2": [
+    [
+     "MODIS/061/MOD16A2GF",
+     "2000-01-01",
+     "2025-12-27",
+     "MOD16A2GF.061"
+    ],
+    [
+     "MODIS/061/MOD16A2",
+     "2025-12-28",
+     null,
+     "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD09GA": [
+    [
+     "MODIS/061/MYD09GA",
+     "2002-07-04",
+     null,
+     "MYD09GA.061 Aqua Surface Reflectance Daily Global 1km and 500m"
+    ]
+   ],
+   "MODIS/061/MYD10A1": [
+    [
+     "MODIS/061/MYD10A1",
+     "2002-07-04",
+     null,
+     "MYD10A1.061 Aqua Snow Cover Daily Global 500m"
+    ]
+   ],
+   "MODIS/061/MYD11A1": [
+    [
+     "MODIS/061/MYD11A1",
+     "2002-07-04",
+     null,
+     "MYD11A1.061 Aqua Land Surface Temperature and Emissivity Daily Global 1km"
+    ]
+   ],
+   "MODIS/061/MYD13Q1": [
+    [
+     "MODIS/061/MYD13Q1",
+     "2002-07-04",
+     null,
+     "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/MOD09GA_006_NDWI": [
+    [
+     "MODIS/MOD09GA_006_NDWI",
+     "2000-02-24",
+     "2023-02-17",
+     "MODIS Terra Daily NDWI"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Aqua/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
+     "2002-07-03",
+     "2025-11-30",
+     "Ocean Color SMI: Standard Mapped Image MODIS Aqua Data"
+    ]
+   ],
+   "NASA/OCEANDATA/MODIS-Terra/L3SMI": [
+    [
+     "NASA/OCEANDATA/MODIS-Terra/L3SMI",
+     "2000-02-24",
+     "2025-11-29",
+     "Ocean Color SMI: Standard Mapped Image MODIS Terra Data"
+    ]
+   ],
+   "RESOLVE/ECOREGIONS/2017": [
+    [
+     "RESOLVE/ECOREGIONS/2017",
+     null,
+     null,
+     null
+    ]
+   ],
+   "UCSB-CHC/CHIRPS/V3/DAILY_SAT": [
+    [
+     "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
+     "1981-01-01",
+     null,
+     "CHIRPS Precipitation Daily Near-Real-Time"
+    ]
+   ],
+   "WORLDCLIM/V1/BIO": [
+    [
+     "WORLDCLIM/V1/BIO",
+     "1960-01-01",
+     "1991-01-01",
+     "WorldClim BIO Variables V1"
+    ]
+   ]
+  }
+ },
  "eecatalog": {
   "datasets": [
    [
@@ -12224,6 +12449,38 @@ var CATALOG = {
    "key": "community"
   }
  ],
+ "regions": {
+  "FAO/GAUL/2025/level1": {
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+   "references": [
+    {
+     "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
+     "text": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0. https://data.apps.fao.org",
+     "url": "https://data.apps.fao.org"
+    }
+   ]
+  },
+  "FAO/GAUL/2025/level2": {
+   "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries.",
+   "references": [
+    {
+     "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
+     "text": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0. https://data.apps.fao.org",
+     "url": "https://data.apps.fao.org"
+    }
+   ]
+  },
+  "projects/ee-ugr-default-project/assets/monitoreo/municipalities_es": {
+   "credit": "Municipalities of Spain: derived from the INSPIRE administrative units of the Instituto Geográfico Nacional (CC BY 4.0 ign.es)",
+   "references": [
+    {
+     "citation": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es.",
+     "text": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es. https://www.ign.es/wfs-inspire/unidades-administrativas",
+     "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
+    }
+   ]
+  }
+ },
  "themes": [
   {
    "en": "Vegetation",
@@ -12350,7 +12607,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "ET": "ET"
    },
@@ -12395,7 +12652,7 @@ var CATALOG = {
    "band": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
-   "dr": "2001/01/01-now",
+   "dr": "2000/01/01-now",
    "fb": {
     "LE": "LE"
    },

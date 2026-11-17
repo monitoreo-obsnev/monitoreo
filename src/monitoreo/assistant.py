@@ -23,7 +23,9 @@ cloud_model, if there, asks the broker for one of its models (to compare them).
 
 While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
 computing, the MCP server starts again, so that Earth Engine stops and the next request does not wait for it. A map
-whose PNG preview Earth Engine cannot make in some minutes comes with its tiles alone (thumbnail_error).
+whose PNG preview Earth Engine cannot make in some minutes comes with its tiles alone (thumbnail_error). The warnings
+of the period of a result (days without images of its data, see monitoreo.coverage) are shown on the page and told to
+the model, which tells the user.
 
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
 the address that the assistant opens (other pages of the browser cannot use it).
@@ -100,7 +102,8 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write y
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'describe_asset', 'community_themes',
-          'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')  # their answers go to the model
+          'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
+          'apply_parameters')  # their answers go to the model (apply_parameters: to repeat an analysis from its JSON)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
@@ -177,7 +180,8 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
           'find_datasets': 'Searching the Earth Engine data catalog for «{text}»',
           'landcover_maps': 'Looking at the land cover maps of the land cover masks',
-          'list_classes': 'Looking at the classes of {variable}'}
+          'list_classes': 'Looking at the classes of {variable}',
+          'apply_parameters': 'Reading the parameters of an analysis'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
@@ -234,7 +238,8 @@ How to call the tools:
 - Region: a JSON object with one of these forms: {{"wdpa_id": SITE_ID}} (a protected area, with the SITE_ID that \
 find_protected_areas returns; for a Ramsar site, search with designation "ramsar"), {{"admin1": GAUL1_CODE}} or \
 {{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
-municipality of level 2, with the code that find_admin_units returns, never made up), {{"country": "ISO3"}} (a \
+municipality of level 2; {{"admin3": "18134"}}, a municipality of Spain, level 3; with the code that find_admin_units \
+returns, never made up), {{"country": "ISO3"}} (a \
 whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
 {{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
@@ -835,8 +840,12 @@ def place_in(text):
 
 
 def other_tool(text):
-	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None."""
+	"""(name, what for, link) of the other tool of MonitorEO for a request that the assistant does not do, or None. To
+	repeat an analysis from its parameters (a JSON of monitoreo.parameters, or the path of its file) is not one: the
+	assistant does it (apply_parameters)."""
 	t = manual._ascii(str(text).lower())
+	if '"analysis"' in t or '.parameters.json' in t:
+		return None
 	return next(((name, what, url) for pattern, name, what, url in OTHER_TOOLS if re.search(pattern, t)), None)
 
 
@@ -856,29 +865,47 @@ def must_choose(areas, said, last=''):
 
 
 def unit_code(unit):
-	"""(level, code) of an administrative UNIT found by find_admin_units."""
-	level = int(unit.get('level') or (2 if 'GAUL2_CODE' in unit else 1))
-	return level, unit.get(f'GAUL{level}_CODE')
+	"""(level, code) of an administrative UNIT found by find_admin_units (level 3: a municipality of Spain, its code of
+	the INE)."""
+	level = int(unit.get('level') or (3 if 'ADMIN3_CODE' in unit else 2 if 'GAUL2_CODE' in unit else 1))
+	return level, unit.get('ADMIN3_CODE' if level == 3 else f'GAUL{level}_CODE')
 
 
 def units_text(units):
 	"""The administrative units found, for the model: a line each with the region to use."""
-	lines = [f'- {{"admin{lv}": {code}}}: {u.get("DISP_EN") or u.get(f"GAUL{lv}_NAME")}'
+	lines = [f'- {{"admin{lv}": {json.dumps(code)}}}: {u.get("DISP_EN") or u.get(f"GAUL{lv}_NAME") or u.get("NAME")}'
 	         for u in units for lv, code in [unit_code(u)]]
 	if not units:
 		return ('No administrative unit with that name: try the other level, the name in its own language, or the '
 		        'whole country (ISO3).')
-	return (f'{len(units)} administrative units (FAO GAUL 2025); the user sees this list and can choose one in it:\n'
+	source = 'municipalities of Spain, IGN' if all(unit_code(u)[0] == 3 for u in units) else 'FAO GAUL 2025'
+	return (f'{len(units)} administrative units ({source}); the user sees this list and can choose one in it:\n'
 	        + '\n'.join(lines))
 
 
 def units_must_choose(units, text, last=''):
 	"""Whether the user has to choose among the administrative UNITS found for TEXT: several, not exactly one with
-	that very name, and none of their codes in the LAST message of the user."""
+	that very name (GAUL1_NAME or GAUL2_NAME; NAME, a municipality of Spain), and none of their codes in the LAST
+	message of the user."""
 	if len(units) < 2 or any(re.search(rf'\b{unit_code(u)[1]}\b', last) for u in units):
 		return False
 	name = str(text).strip().lower()
-	return sum(1 for u in units if str(u.get(f'GAUL{unit_code(u)[0]}_NAME', '')).strip().lower() == name) != 1
+	return sum(1 for u in units
+	           if str(u.get(f'GAUL{unit_code(u)[0]}_NAME') or u.get('NAME') or '').strip().lower() == name) != 1
+
+
+def data_warnings(result):
+	"""The warnings of the period of a RESULT (its days without images of its data, see monitoreo.coverage): [texts]."""
+	found = result.get('warnings') if isinstance(result, dict) else None
+	return [str(w) for w in found if w] if isinstance(found, list) else []
+
+
+def warnings_text(warned):
+	"""What the model gets of the warnings WARNED of a result, which the page shows: to tell the user."""
+	if not warned:
+		return ''
+	return (' The page also shows these warnings of its data, which you must tell the user in your answer: '
+	        + ' '.join(warned))
 
 
 def receipt(n, title):
@@ -1731,7 +1758,13 @@ class Assistant:
 		if name in TASKS:
 			text = '\n'.join(texts)
 			yield {'type': 'notice', 'text': task_text(name, text)}
-			self._tool_message(name, text[:self.advice_limit()])
+			try:
+				warned = data_warnings(json.loads(text))  # the days of the period of an export without images of its data
+			except ValueError:
+				warned = []
+			for w in warned:
+				yield {'type': 'data_warning', 'text': w}
+			self._tool_message(name, text[:self.advice_limit()] + warnings_text(warned))
 			return
 		try:
 			result = json.loads(texts[0]) if texts else {}
@@ -1752,6 +1785,9 @@ class Assistant:
 			                                 f"({re.sub(r'^[A-Za-z]+(Error|Exception): ', '', result['thumbnail_error'])}): its "
 			                                 'map is in the panel of the maps, and «Add this view to the report» puts '
 			                                 'it in the report.'}
+		warned = data_warnings(result)
+		for text in warned:  # the period begins before the first image of the data, or ends after the last one
+			yield {'type': 'data_warning', 'text': f"Result {item['id']}: {text}"}
 		area = self.perimeter_area(item) if tool == 'burn_severity' else None
 		if area:  # the perimeter of the burned area: a study area for the next analyses
 			yield {'type': 'layers', 'layers': [{'name': k, 'text': layer_text(v)} for k, v in self.layers.items()]}
@@ -1760,7 +1796,7 @@ class Assistant:
 			                                 'fire), or download it from the result.'}
 		self._tool_message(name, receipt(item['id'], item['title']) + (
 			f" The perimeter of its burned area is the study area «{area}»: region {{\"layer\": \"{area}\"}} for the "
-			'analyses inside it.' if area else ''))
+			'analyses inside it.' if area else '') + warnings_text(warned))
 		for event in await self.eecu_events():
 			yield event
 		if tool in PERIOD_MAP:
@@ -1914,7 +1950,7 @@ class Assistant:
 			if tool == 'timelapse' and isinstance(result.get('gif'), str):  # the animation itself, not its last frame
 				card['image'] = _file_url(result['gif']) or card['image']
 			shown = set()
-			for k in ('csv', 'file', 'gif', 'perimeter', 'readme'):  # perimeter: the polygons of the burned area
+			for k in ('csv', 'file', 'gif', 'perimeter', 'readme', 'parameters'):  # perimeter: the burned area
 				if isinstance(result.get(k), str) and result[k] not in shown:
 					shown.add(result[k])
 					card['files'].append({'name': os.path.basename(result[k]), 'url': _file_url(result[k]),
@@ -2159,7 +2195,7 @@ class Assistant:
 		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
 		out = []
 		for region in self._regions(args):
-			for level in (1, 2):
+			for level in (1, 2, 3):
 				codes = region.get(f'admin{level}')
 				for c in ([] if codes is None else codes if isinstance(codes, list) else [codes]):
 					if f'admin{level}:{c}' not in self.names and str(c) not in said:
@@ -2508,7 +2544,7 @@ class Assistant:
 			units = json.loads(text)
 			for u in units:
 				level, code = unit_code(u)
-				self.names[f'admin{level}:{code}'] = u.get('DISP_EN') or u[f'GAUL{level}_NAME']
+				self.names[f'admin{level}:{code}'] = u.get('DISP_EN') or u.get(f'GAUL{level}_NAME') or u['NAME']
 				if u.get('ISO3_CODE') and u.get('GAUL0_NAME'):
 					self.names[f"country:{u['ISO3_CODE']}"] = u['GAUL0_NAME']
 			return units

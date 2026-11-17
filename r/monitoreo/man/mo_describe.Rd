@@ -26,9 +26,12 @@ image, and its bands.}
 }
 \value{
 A list: formula, collection, scale, unit, resolution, dates, pixel filters, notes, rgb (whether its images
-  have a true colour: \code{mo_rgb_map()}), alternatives (other collections), references (the articles of its
-  formula or algorithm, its Earth Engine datasets as their pages of the Earth Engine catalog suggest and the pixel
-  filters, each with citation, doi, url and text) and credits.
+  have a true colour: \code{mo_rgb_map()}), alternatives (other collections), data_source (its Earth Engine
+  collections and their product level), data_dates (start and end: the first and last day of its images, end
+  \code{NULL} if they go on; \code{NULL} for a fixed layer), data_dates_checked (the day of the copy of the Earth
+  Engine data catalog they come from), references (the articles of its formula or algorithm, its Earth Engine
+  datasets as their pages of the Earth Engine catalog suggest and the pixel filters, each with citation, doi, url and
+  text) and credits.
 }
 \description{
 Everything about a variable of the catalog, and what to cite with it

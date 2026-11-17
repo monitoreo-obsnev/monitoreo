@@ -6,7 +6,8 @@
                                                      the classes of a categorical layer (ECOREGION, BIOME of sensor
                                                      RESOLVE): code, name, colour and biome (without Earth Engine)
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
-    monitoreo units TEXT [--level 1|2] [--country ISO3]   administrative units of FAO GAUL 2025 by name
+    monitoreo units TEXT [--level 1|2|3] [--country ISO3]   administrative units of FAO GAUL 2025 by name; level 3:
+                                                     the municipalities of Spain, of the IGN (without Earth Engine)
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
     monitoreo series VARIABLE ... --doy [--interannual median] [--other-variable V [--other-sensor S]] [--ylim -1 1]
                      [--other-ylim -1 1]             the seasonal profile by day of the year: the metric between the
@@ -92,13 +93,18 @@ or the climate at an annual step). The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
-are left. The recipe of download is a YAML
+are left, and when the period begins before the first image of the data or ends (or even begins) after the last one of
+data that ended in the copy of the Earth Engine data catalog, which Earth Engine may have extended since (a period that
+ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is an error that says their
+dates); their charts say where the values come from, in a line «Data: ...» (the Earth Engine collection and its
+product level). The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
 monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
 monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/MonitorEO/visor.
 """
 
 import argparse
+import inspect
 import json
 import os
 import subprocess
@@ -329,10 +335,11 @@ def main(argv=None):
 	p.add_argument('text')
 	p.add_argument('--limit', type=int, default=20)
 	p.add_argument('--ramsar', action='store_true', help='only the Ramsar sites')
-	p = sub.add_parser('units', help='administrative units of FAO GAUL 2025 by name')
+	p = sub.add_parser('units', help='administrative units of FAO GAUL 2025 by name, or the municipalities of Spain')
 	p.add_argument('text')
-	p.add_argument('--level', type=int, default=1, choices=(1, 2),
-	               help='1: regions, states...; 2: provinces, districts...')
+	p.add_argument('--level', type=int, default=1, choices=(1, 2, 3),
+	               help='1: regions, states...; 2: provinces, districts...; 3: the municipalities of Spain (of the '
+	                    'IGN, without Earth Engine: --region \'{"admin3": "18134"}\')')
 	p.add_argument('--country', help='ISO3 code, e.g. ESP')
 	p.add_argument('--limit', type=int, default=20)
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
@@ -617,6 +624,16 @@ def main(argv=None):
 	p.add_argument('--limit', help='monthly quota of your project: EECU-hours or tier (Community, Contributor, Partner; '
 	                               'default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
+	params = p = sub.add_parser('parameters', help='what of a JSON file of parameters of an analysis can be applied '
+	                                              '(those that MonitorEO writes next to the files of each result, '
+	                                              '<file>.parameters.json, and the other tools save), without computing')
+	p.add_argument('file', help='JSON file of parameters ({"monitoreo", "analysis", "parameters"})')
+	run = p = sub.add_parser('run', help='compute the analysis of a JSON file of parameters (see monitoreo '
+	                                     'parameters): the parameters that cannot be applied are left out and listed')
+	p.add_argument('file', help='JSON file of parameters ({"monitoreo", "analysis", "parameters"})')
+	p.add_argument('--out', help='stem of the files written (default: <analysis>_<date-time> in this folder): .csv, '
+	                             '.png, .tif or .gif, those of the analysis; an animation, as MP4 with an --out ending '
+	                             'in .mp4')
 	p = sub.add_parser('about', help='what MonitorEO-OBSNEV is, who funds it and how to cite it')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
@@ -665,6 +682,17 @@ def main(argv=None):
 	if args.cmd == 'about':
 		print(about.text(args.lang))
 		return
+	if args.cmd == 'parameters':  # without Earth Engine
+		_parameters(args, params)
+		return
+	if args.cmd == 'run':
+		checked = _parameters(args, run, quiet=True)  # its errors before Earth Engine
+		from . import services
+		services.init(args.project, warn=False)
+		try:
+			return _run(args, checked, services)
+		finally:
+			_eecu_notice(services)
 	if args.cmd == 'serve':
 		from . import publish
 		publish.serve(args.site, args.port)
@@ -712,9 +740,12 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
+	if args.cmd == 'units' and args.level == 3:  # the municipalities of Spain (their index): without Earth Engine
+		return _compute(args, services)
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return
+	_data_warnings()
 	if args.cmd == 'download':
 		try:
 			return _download(args, services)
@@ -731,6 +762,59 @@ def main(argv=None):
 		_eecu_notice(services)
 
 
+def _documented(res):
+	"""The README and the parameters (monitoreo.parameters) written with the files of a result RES, for its line."""
+	return ''.join(f' | {label} {res[k]}' for k, label in (('readme', 'README'), ('parameters', 'parameters'))
+	               if res.get(k))
+
+
+def _parameters(args, parser, quiet=False):
+	"""What of the JSON file of parameters ARGS.file can be applied (monitoreo.parameters.check): printed, unless
+	QUIET; those that cannot, as warnings."""
+	from . import parameters
+	try:
+		checked = parameters.check(args.file)
+	except ValueError as e:
+		parser.error(str(e))
+	if not quiet:
+		print(json.dumps({'analysis': checked['analysis'], 'parameters': checked['parameters']}, ensure_ascii=False,
+		                 indent=1))
+	for p in checked['not_applied']:
+		print(f"WARNING: not applied: {parameters.text([p])}", file=sys.stderr)
+	if checked.get('note'):
+		print(f"NOTE: {checked['note']}", file=sys.stderr)
+	return checked
+
+
+# the files of each output of an analysis (its arguments): extension
+OUTPUT_FILES = {'csv': '.csv', 'chart': '.png'}
+PATH_EXT = {'map_figure': '.png', 'timelapse': '.gif'}
+
+
+def _run(args, checked, services):
+	"""Compute the analysis of the parameters CHECKED (see _parameters), with its files named after --out."""
+	import datetime as dt
+	from . import parameters
+	analysis = checked['analysis']
+	stem = args.out or f"{analysis}_{dt.datetime.now():%Y%m%d-%H%M%S}"
+	names = inspect.signature(getattr(services, analysis)).parameters
+	outputs = {k: stem + ext for k, ext in OUTPUT_FILES.items() if k in names}
+	if 'path' in names:  # an animation: GIF, or MP4 with --out ending in .mp4
+		ext = os.path.splitext(stem)[1].lower() if analysis == 'timelapse' else ''
+		outputs['path'] = stem if ext in ('.gif', '.mp4') else stem + PATH_EXT.get(analysis, '.tif')
+	try:
+		res = getattr(services, analysis)(**checked['parameters'], **outputs)
+	except (ValueError, KeyError) as e:
+		sys.exit(f'ERROR: {e}')
+	shown = {k: v for k, v in (res or {}).items() if k not in ('rows', 'profile', 'references', 'credits')
+	         and not isinstance(v, (bytes, bytearray))}
+	if isinstance(res, dict) and isinstance(res.get('rows'), list):
+		shown['rows'] = len(res['rows'])
+	print(json.dumps(shown, ensure_ascii=False, indent=1, default=str))
+	if checked['not_applied']:
+		print(f"WARNING: computed without: {parameters.text(checked['not_applied'])}", file=sys.stderr)
+
+
 def _eecu(args, services):
 	try:
 		u = services.eecu_usage(args.limit, refresh=True, lang=args.lang)
@@ -739,6 +823,23 @@ def _eecu(args, services):
 	print(f"{u['name']} {u['bar']}\n{u['text']}")
 	if u['warning']:
 		print(f"\nWARNING: {u['warning']}", file=sys.stderr)
+
+
+def _data_warnings():
+	"""Show the warnings of the periods (the days without images of their data, see monitoreo.coverage) as the other
+	warnings of the command line, «WARNING: ...» on the standard error, when they come (before Earth Engine computes),
+	instead of as Python warnings."""
+	import warnings
+	from .coverage import DataDatesWarning
+	shown = warnings.showwarning
+
+	def show(message, category, filename, lineno, file=None, line=None):
+		if issubclass(category, DataDatesWarning):
+			print(f'WARNING: {message}', file=sys.stderr)
+		else:
+			shown(message, category, filename, lineno, file, line)
+
+	warnings.showwarning = show
 
 
 def _eecu_notice(services):
@@ -786,9 +887,12 @@ def _compute(args, services):
 		       ['SITE_ID', 'NAME', 'DESIG', 'ISO3', 'REP_AREA'])
 		return
 	if args.cmd == 'units':
-		code = f'GAUL{args.level}_CODE'
-		_table(_fmt(services.find_admin_units(args.text, args.level, args.country, args.limit)),
-		       [code, 'DISP_EN', 'ISO3_CODE'])
+		code = 'ADMIN3_CODE' if args.level == 3 else f'GAUL{args.level}_CODE'
+		try:
+			units = services.find_admin_units(args.text, args.level, args.country, args.limit)
+		except ValueError as e:  # level 3 of a country that is not Spain
+			sys.exit(f'ERROR: {e}')
+		_table(_fmt(units), [code, 'DISP_EN', 'ISO3_CODE'])
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)
@@ -815,7 +919,7 @@ def _compute(args, services):
 			sys.exit(_error(e, args))
 		colours = f"{len(res['classes'])} classes" if res.get('classes') is not None else \
 			f"colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()  # a categorical layer: its classes
-		print(f"{res['file']}: {res['name']} | {colours}" + (f" | README {res['readme']}" if res.get('readme') else ''))
+		print(f"{res['file']}: {res['name']} | {colours}" + _documented(res))
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
 	if args.cmd == 'image':
@@ -946,7 +1050,7 @@ def _areas(args, services):
 	        for r in res['rows'] if r.get('ha')], cols)
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m | % of the area with classes"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | chart {res['chart']}" if res.get('chart') else '')
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 
 
 def _timelapse(args, services):
@@ -962,7 +1066,7 @@ def _timelapse(args, services):
 	       ['frame', 'label', 'images'])
 	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
 	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 	if res.get('note'):
 		print(res['note'], file=sys.stderr)
 
@@ -1050,7 +1154,7 @@ def _burn(args, services):
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
 	      + (f" | perimeter {res['perimeter']}" if res.get('perimeter') else '')
-	      + (f" | README {res['readme']}" if res.get('readme') else ''))
+	      + _documented(res))
 
 
 def _publish(args):

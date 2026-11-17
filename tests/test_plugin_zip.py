@@ -80,3 +80,51 @@ def test_the_readme_of_a_result_with_the_modules_of_the_zip(tmp_path):
 	out = subprocess.run([sys.executable, '-c', code], cwd=tmp_path, env=env, capture_output=True, text=True)
 	assert out.returncode == 0, out.stderr
 	assert 'Monthly time series of NDVI (MODIS)' in out.stdout and 'HOW TO CITE IT' in out.stdout
+
+
+# what Bandit flags in the code of the plugin's zip that MonitorEO runs on purpose: each such line says so with
+# «# nosec» and the IDs of its tests, as plugins.qgis.org refuses a version with any finding (qgis/build_plugin.py)
+NOSEC = {'urlopen': {'B310'}, 'import subprocess': {'B404'}, 'subprocess': {'B603'}}
+
+
+def _flagged(path):
+	"""The lines of the module PATH that Bandit would flag for urllib.request.urlopen (B310), import subprocess (B404),
+	a call of subprocess without a shell (B603) and, a program named without its path, B607: {line: IDs}."""
+	with open(path, encoding='utf-8') as f:
+		tree = ast.parse(f.read())
+	out = {}
+	for node in ast.walk(tree):
+		if isinstance(node, ast.Import) and any(a.name == 'subprocess' for a in node.names):
+			out.setdefault(node.lineno, set()).update(NOSEC['import subprocess'])
+		elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+			owner = node.func.value
+			if node.func.attr == 'urlopen':
+				out.setdefault(node.lineno, set()).update(NOSEC['urlopen'])
+			elif isinstance(owner, ast.Name) and owner.id == 'subprocess':
+				out.setdefault(node.lineno, set()).update(NOSEC['subprocess'])
+				first = node.args[0] if node.args else None
+				first = first.elts[0] if isinstance(first, ast.List) and first.elts else first
+				if isinstance(first, ast.Constant) and isinstance(first.value, str) and '/' not in first.value:
+					out[node.lineno].add('B607')
+	return out
+
+
+def test_the_modules_of_the_zip_mark_what_bandit_flags():
+	"""Every module of monitoreo that the zip carries marks with «# nosec» and its IDs the lines that Bandit flags:
+	municipalities.py, which the plugin imports (level 3 of the administrative units), had urlopen (B310) with only a
+	marker of ruff, and import subprocess (B404) and subprocess.check_output of gcloud (B603, B607) bare."""
+	import re
+	used = plugin_modules()
+	assert 'municipalities' in used
+	missing, seen = [], set()
+	for module in sorted(used):
+		path = os.path.join(SRC, module + '.py')
+		with open(path, encoding='utf-8') as f:
+			lines = f.read().splitlines()
+		for line, ids in _flagged(path).items():
+			seen.add(module)
+			marked = re.search(r'#\s*nosec\b([^#]*)', lines[line - 1])
+			if not marked or not ids <= set(re.findall(r'B\d{3}', marked.group(1))):
+				missing.append(f'{module}.py:{line} {sorted(ids)}: {lines[line - 1].strip()}')
+	assert not missing, 'lines that Bandit flags, without # nosec and their IDs:\n' + '\n'.join(missing)
+	assert {'municipalities', 'assets', 'animation'} <= seen  # the check sees them

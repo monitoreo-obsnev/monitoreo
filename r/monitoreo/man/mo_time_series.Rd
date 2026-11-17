@@ -52,7 +52,14 @@ topographic wetness index, \code{"TWI"}), or those of the climate (see \code{mo_
 \item{start, end}{first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
 \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
-which only have maps and their statistics.}
+which only have maps and their statistics. A period that ends before the first image of the data, falls between
+Landsat 5 and Landsat 8 or begins after today is an error that says their dates (\code{mo_describe()} gives them,
+data_dates); one that begins before the first image (e.g. Sentinel-2, surface reflectance, from 2017-03-28), or
+ends (or even begins) after the last image of data that ended in the copy of the Earth Engine data catalog (Earth
+Engine may have added images since), gives an R warning, as those days may have no data (those of a condition of
+\code{where} begin with "where, the condition on"). The results say which data their values come from
+(data_source, an attribute or element: the Earth Engine collections and their product level, e.g.
+"COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))") and keep the warnings (warnings).}
 
 \item{step}{\code{"daily"}, \code{"16-day"}, \code{"monthly"} or \code{"annual"}.}
 
@@ -141,8 +148,9 @@ default each axis goes from the minimum to the maximum of the values of its own 
 \value{
 A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
-  [\%]"), scale, csv, references and credits (see \code{mo_references()}), and with \code{doy} ylim (\code{NULL}:
-  from the data).
+  [\%]"), scale, csv, references and credits (see \code{mo_references()}), data_source (the Earth Engine
+  collections of its values and their product level: \code{mo_plot()} writes it under the chart), warnings (of its
+  period, also given as R warnings: see \code{start}), and with \code{doy} ylim (\code{NULL}: from the data).
 
   With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
   (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period

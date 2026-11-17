@@ -6,18 +6,23 @@ Those of a series and of trends add to the map that of its whole period or of ea
 each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, and under them its statistics), with its colour, or the
 statistics of the RBR. That of an animation (services.timelapse) plays its GIF, with the date and the images of each
 frame. The results of the data of Earth Engine outside the catalog (given by their ID) are those of a
-variable, named by their ID and band, with the unit given (if any) and without true colour. Each window ends with the
-references of its result (monitoreo.references), with the links of their DOIs."""
+variable, named by their ID and band, with the unit given (if any) and without true colour. Each window says, under
+its first line, which data its values come from («Data: ...», data_source: the Earth Engine collections and their
+product level, as its chart) and the warnings of its period, in orange (days without images of its data: see
+monitoreo.coverage), and ends with the references of its result (monitoreo.references), with the links of their
+DOIs, and the parameters of its analysis (monitoreo.parameters), which Copy parameters and Save parameters… give as
+JSON and which are saved next to its CSV, GeoTIFF, GIF or perimeter (<name>.parameters.json)."""
 
 import datetime as dt
+import json
 import math
 import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
-from qgis.PyQt.QtGui import QColor, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
-from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QPushButton,
-                                 QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
+from qgis.PyQt.QtGui import QColor, QFont, QFontMetrics, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
+from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
+                                 QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
 COLUMNS = [('region', 'Region'), ('date', 'Date'), ('value', 'Value'), ('n_pixels', 'Pixels'), ('n_images', 'Images')]
 # the seasonal profile by day of the year of one or two variables (services.time_series with doy and interannual or
@@ -94,13 +99,16 @@ def chart_png(res, path):
 	the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
+		source = res.get('data_source')  # the line «Data: ...» under the chart
 		if profile_of(res) is not None:  # a line per variable, the other on a right axis
 			charts.doy_profile_png(res['profile'], path, title=res['title'], ylabel=ylabel(res),
-			                       other_ylabel=other_ylabel(res), ylim=res.get('ylim'), other_ylim=res.get('other_ylim'))
+			                       other_ylabel=other_ylabel(res), ylim=res.get('ylim'), other_ylim=res.get('other_ylim'),
+			                       source=source)
 		elif bool(res['rows']) and 'doy' in res['rows'][0]:  # a line per year over the days of the year
-			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'))
+			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'),
+			               source=source)
 		else:
-			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res))
+			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), source=source)
 		return path
 	except Exception:
 		return None
@@ -130,7 +138,8 @@ def trends_png(res, path):
 	"""PNG of the yearly values and Sen lines of the trends RES (or None). Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=ylabel(res))
+		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=ylabel(res),
+		                  source=res.get('data_source'))
 		return path
 	except Exception:
 		return None
@@ -141,7 +150,8 @@ def comparison_png(res, step, path):
 	try:
 		from monitoreo import charts
 		labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in res['profile']}
-		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=ylabel(res), names=res['names'])
+		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=ylabel(res), names=res['names'],
+		                      source=res.get('data_source'))
 		return path
 	except Exception:
 		return None
@@ -197,28 +207,138 @@ def _cell(v):
 	return f'{v:.6g}' if isinstance(v, float) else str(v)
 
 
+def parameters_text(p):
+	"""The parameters P of an analysis (see monitoreo.parameters) as the JSON text of their files."""
+	return json.dumps(p, ensure_ascii=False, indent=2)
+
+
+def result_parameters(res):
+	"""The parameters of the analysis of the result RES (see monitoreo.parameters): those the panel computed it with
+	(res['call']) or else those that monitoreo wrote next to its files (res['parameters'], the path of their JSON);
+	None if it has neither."""
+	if isinstance(res.get('call'), dict):
+		return res['call']
+	path = res.get('parameters')
+	if isinstance(path, str) and os.path.exists(path):
+		from monitoreo import parameters
+		try:
+			return parameters.read(path)
+		except (OSError, ValueError):
+			return None
+	return None
+
+
+def write_parameters(p, path):
+	"""Write the parameters P of an analysis to the JSON file PATH. Returns PATH."""
+	with open(path, 'w', encoding='utf-8') as f:
+		f.write(parameters_text(p) + '\n')
+	return path
+
+
 def save_file(src, path, res):
-	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its GeoTIFF or its perimeter (the polygons
-	of the burned area), its README next to it (<name>.README.txt), which explains its columns, bands or fields and how
-	to cite it."""
+	"""Copy the file SRC of the result RES to PATH and, if it is its CSV, its GeoTIFF, its GIF or its perimeter (the
+	polygons of the burned area), its README next to it (<name>.README.txt), which explains its columns, bands or
+	fields and how to cite it, and the parameters of its analysis (<name>.parameters.json), to repeat it in any tool."""
 	shutil.copyfile(src, path)
+	if src not in (res.get('csv'), res.get('file'), res.get('gif'), res.get('perimeter')):
+		return
 	readme = res.get('readme')
-	if src in (res.get('csv'), res.get('file'), res.get('gif'), res.get('perimeter')) and isinstance(readme, str) and \
-			os.path.exists(readme):
+	if isinstance(readme, str) and os.path.exists(readme):
 		shutil.copyfile(readme, os.path.splitext(path)[0] + '.README.txt')
+	p = result_parameters(res)
+	if p:
+		write_parameters(p, os.path.splitext(path)[0] + '.parameters.json')
+
+
+def value_text(name, value, limit=240):
+	"""The parameter NAME of value VALUE in a line: its JSON; a region of GeoJSON, its features and their names; long
+	values cut at LIMIT characters (Copy parameters gives them whole)."""
+	fc = value.get('geojson') if name == 'region' and isinstance(value, dict) else None
+	if isinstance(fc, dict):
+		features = fc.get('features') if fc.get('type') == 'FeatureCollection' else [fc]
+		names = [str((f.get('properties') or {}).get('name', '')) for f in features or [] if isinstance(f, dict)]
+		shown = ', '.join(n for n in names[:5] if n) + ('…' if len(names) > 5 else '')
+		return f"GeoJSON of {len(names)} feature{'' if len(names) == 1 else 's'}" + (f' ({shown})' if shown else '')
+	text = json.dumps(value, ensure_ascii=False)
+	return text if len(text) <= limit else text[:limit] + '…'
+
+
+def parameters_html(p):
+	"""The parameters P of an analysis (see monitoreo.parameters) as rich text: the analysis and a line per parameter,
+	name: value."""
+	from .helptexts import esc
+	rows = ''.join(f'<li><b>{esc(k)}</b>: {esc(value_text(k, v))}</li>' for k, v in p['parameters'].items())
+	return (f"<p><b>Parameters of the analysis</b> {esc(p['analysis'])} (MonitorEO {esc(p.get('monitoreo') or '?')}; "
+	        'the same names in Python, R, the command line, the MCP server and the Earth Engine app)</p>'
+	        f'<ul>{rows}</ul>')
+
+
+def data_warnings(res):
+	"""The warnings of the period of the result RES (its days without images of its data, see monitoreo.coverage):
+	[texts]."""
+	found = res.get('warnings') if isinstance(res, dict) else None
+	return [str(w) for w in found if w] if isinstance(found, list) else []
+
+
+def notes_label(res):
+	"""A label with the data of the values of the result RES («Data: ...», its data_source) and the warnings of its
+	period, in orange, or None if it has neither."""
+	from html import escape
+	parts = [f'<span style="color: #555;">Data: {escape(str(res["data_source"]))}</span>'] \
+		if res.get('data_source') else []
+	parts += [f'<span style="color: #b35900;">⚠ {escape(w)}</span>' for w in data_warnings(res)]
+	if not parts:
+		return None
+	label = QLabel('<br>'.join(parts))
+	label.setWordWrap(True)
+	label.setTextFormat(Qt.TextFormat.RichText)
+	label.setObjectName('data_notes')
+	return label
 
 
 def references_box(res):
-	"""A box with the references and credits of the result RES (with the links of their DOIs), or None."""
+	"""A box with the references and credits of the result RES (with the links of their DOIs) and the parameters of
+	its analysis, or None if it has neither."""
 	from .helptexts import cite_html
 	text = cite_html(res.get('references'), res.get('credits') or (), 'References (cite them with this result)')
+	p = result_parameters(res)
+	if p:
+		text += parameters_html(p)
 	if not text:
 		return None
 	box = QTextBrowser()
+	box.setObjectName('details')
 	box.setOpenExternalLinks(True)
 	box.setHtml(text)
-	box.setMaximumHeight(120)
+	box.setMaximumHeight(160)
 	return box
+
+
+def parameter_buttons(dialog, row, res):
+	"""Add to the ROW of buttons of the window DIALOG of the result RES the buttons Copy parameters and Save
+	parameters… of its analysis, if it has them."""
+	p = result_parameters(res)
+	if not p:
+		return
+	b = QPushButton('Copy parameters')
+	b.setToolTip('Copy the parameters of this analysis (JSON) to repeat it in the panel (Apply parameters) or in '
+	             'Python, R, the command line, the MCP server or the Earth Engine app')
+	b.clicked.connect(lambda checked=False: QApplication.clipboard().setText(parameters_text(p)))
+	row.addWidget(b)
+	b = QPushButton('Save parameters…')
+	b.setToolTip('Save the parameters of this analysis as a JSON file')
+	b.clicked.connect(lambda checked=False: save_parameters(dialog, res, p))
+	row.addWidget(b)
+
+
+def save_parameters(dialog, res, p):
+	"""Save the parameters P of the result RES to a JSON file chosen by the user (by default, beside the name of its
+	files)."""
+	src = next((res[k] for k in ('csv', 'file', 'gif') if isinstance(res.get(k), str)), None)
+	name = os.path.splitext(os.path.basename(src))[0] if src else p['analysis']
+	path, _ = QFileDialog.getSaveFileName(dialog, 'Save parameters', name + '.parameters.json', 'Parameters (*.json)')
+	if path:
+		write_parameters(p, path)
 
 
 def burn_text(res):
@@ -318,6 +438,9 @@ class ResultDialog(QDialog):
 		info = QLabel(text)
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		if res.get('chart'):
 			label = QLabel()
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
@@ -352,6 +475,7 @@ class ResultDialog(QDialog):
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
 				row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
@@ -379,6 +503,9 @@ class AnimationDialog(QDialog):
 		              + (f' · {empty} frames without images (grey)' if empty else ''))
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		self.picture = QLabel()
 		self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		self.movie = QMovie(res['gif'])
@@ -400,6 +527,7 @@ class AnimationDialog(QDialog):
 				b = QPushButton(text)
 				b.clicked.connect(lambda checked=False, p=path, f=filt: self.save(p, f))
 				row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)
@@ -450,11 +578,14 @@ class ChartWidget(QWidget):
 	doy and interannual or other_variable), a line per variable over the days of the year (1 to 366): the first on the
 	left axis (blue, UNIT, YLIM) and the other, if any, on a right axis (red, OTHER_UNIT, OTHER_YLIM), each axis in the
 	colour of its line, with a line at 0 where an axis has it, and a dash for each region, as charts.doy_profile_png.
-	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values)."""
+	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values). SOURCE: the data of the values (data_source),
+	written under the chart as «Data: SOURCE», as charts.source_line."""
 
-	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None):
+	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None,
+	             source=''):
 		super().__init__(parent)
 		self.title, self.unit, self.other_unit = title, unit, other_unit or ''
+		self.source = source or ''
 		self.ylims = [tuple(ylim) if ylim else None, tuple(other_ylim) if other_ylim else None]
 		self.profile = isinstance(profile, list)
 		self.doy = self.profile or (bool(rows) and 'doy' in rows[0])
@@ -507,10 +638,24 @@ class ChartWidget(QWidget):
 		values = [v for key, s in self.series.items() if self.keys[key][1] == axis for _, v in s if v is not None]
 		return value_range(values, self.ylims[axis])
 
+	def paint_source(self, p):
+		"""The line «Data: ...» at the bottom left, in small grey letters (cut with … if it is longer than the chart)."""
+		if not self.source:
+			return
+		p.save()
+		font = QFont(p.font())
+		font.setPointSizeF(max(6.0, font.pointSizeF() * 0.8))
+		p.setFont(font)
+		p.setPen(QColor('#555555'))
+		text = QFontMetrics(font).elidedText(f'Data: {self.source}', Qt.TextElideMode.ElideRight, self.width() - 12)
+		p.drawText(QRectF(6, self.height() - 16, self.width() - 12, 14), Qt.AlignmentFlag.AlignLeft, text)
+		p.restore()
+
 	def paintEvent(self, event):
 		p = QPainter(self)
 		p.setRenderHint(QPainter.RenderHint.Antialiasing)
 		p.fillRect(self.rect(), QColor('white'))
+		self.paint_source(p)
 		pts = [(d, v) for s in self.series.values() for d, v in s if v is not None]
 		if not pts:
 			p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'No values')
@@ -683,6 +828,9 @@ class SeriesDialog(QDialog):
 		info = QLabel(series_text(res))
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		profile = profile_of(res)  # the seasonal profile by day of the year, a y axis for each variable
 		self.chart = None
 		if res.get('chart'):
@@ -692,7 +840,7 @@ class SeriesDialog(QDialog):
 		else:
 			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '', profile=profile,
 			                         other_unit=other_ylabel(res) or '', ylim=res.get('ylim'),
-			                         other_ylim=res.get('other_ylim'))
+			                         other_ylim=res.get('other_ylim'), source=res.get('data_source') or '')
 			lay.addWidget(self.chart, 1)
 		if profile is not None:  # the table of the profile (what the chart and the CSV have), with the unit of each row
 			units = res.get('units') or {}
@@ -723,6 +871,7 @@ class SeriesDialog(QDialog):
 		b = QPushButton('Save chart…')
 		b.clicked.connect(self.save_chart)
 		row.addWidget(b)
+		parameter_buttons(self, row, res)
 		b = QPushButton('Close')
 		b.clicked.connect(self.close)
 		row.addWidget(b)

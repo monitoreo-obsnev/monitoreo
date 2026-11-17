@@ -33,8 +33,12 @@
    "end": null
   },
   "MODIS/061/MOD16A2": {
-   "start": "2001-01-01",
+   "start": "2021-01-01",
    "end": null
+  },
+  "MODIS/061/MOD16A2GF": {
+   "start": "2000-01-01",
+   "end": "2025-12-27"
   },
   "MODIS/061/MOD11A1": {
    "start": "2000-02-24",
@@ -191,6 +195,11 @@
     "mod16a2"
    ]
   },
+  "MODIS/061/MOD16A2GF": {
+   "references": [
+    "mod16a2gf"
+   ]
+  },
   "MODIS/061/MOD10A1": {
    "references": [
     "mod10a1"
@@ -321,6 +330,12 @@
     "fao_gaul2025"
    ],
    "credit": "Source: FAO GAUL 2025 (CC BY 4.0). The designations employed and the presentation of material do not imply the expression of any opinion whatsoever on the part of FAO concerning the legal status of any country, territory, city or area or of its authorities, or concerning the delimitation of its frontiers or boundaries."
+  },
+  "projects/ee-ugr-default-project/assets/monitoreo/municipalities_es": {
+   "references": [
+    "ign_au"
+   ],
+   "credit": "Municipalities of Spain: derived from the INSPIRE administrative units of the Instituto Geográfico Nacional (CC BY 4.0 ign.es)"
   },
   "projects/sat-io/open-datasets/shoreline/big_islands": {
    "references": [
@@ -628,6 +643,10 @@
    "citation": "UNEP-WCMC & IUCN ({year}). Protected Planet: The World Database on Protected Areas (WDPA) [On-line], {month_year}. Cambridge, UK: UNEP-WCMC and IUCN.",
    "url": "https://www.protectedplanet.net"
   },
+  "ign_au": {
+   "citation": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es.",
+   "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
+  },
   "fao_gaul2025": {
    "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
    "url": "https://data.apps.fao.org"
@@ -683,6 +702,10 @@
   "mod16a2": {
    "citation": "Running, S., Mu, Q., & Zhao, M. (2021). MODIS/Terra Net Evapotranspiration 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
    "doi": "10.5067/MODIS/MOD16A2.061"
+  },
+  "mod16a2gf": {
+   "citation": "Running, S., Mu, Q., Zhao, M., & Moreno, A. (2021). MODIS/Terra Net Evapotranspiration Gap-Filled 8-Day L4 Global 500m SIN Grid V061 [Data set]. NASA Land Processes Distributed Active Archive Center.",
+   "doi": "10.5067/MODIS/MOD16A2GF.061"
   },
   "mod10a1": {
    "citation": "Hall, D. K., & Riggs, G. A. (2021). MODIS/Terra Snow Cover Daily L3 Global 500m SIN Grid, Version 61 [Data set]. NASA National Snow and Ice Data Center Distributed Active Archive Center.",
@@ -806,8 +829,8 @@
    "sensor": "Modis",
    "col": "MODIS/061/MOD16A2",
    "tr": "8-days",
-   "dr": "2001/01/01-now",
-   "ds": "1/1/01",
+   "dr": "2000/01/01-now",
+   "ds": "1/1/00",
    "de": "now",
    "vname": "Evapotranspiración",
    "ft": "ET",
@@ -872,8 +895,8 @@
    "sensor": "Modis",
    "col": "MODIS/061/MOD16A2",
    "tr": "8-days",
-   "dr": "2001/01/01-now",
-   "ds": "1/1/01",
+   "dr": "2000/01/01-now",
+   "ds": "1/1/00",
    "de": "now",
    "vname": "Calor Latente",
    "ft": "LE",

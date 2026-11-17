@@ -208,6 +208,13 @@ def _vi_clouds(i):
 	return i.select('SummaryQA').neq(3).And(bits(qa, 8).eq(0)).And(bits(qa, 10).eq(0)).And(bits(qa, 15).eq(0))
 
 
+# collections with a gap-filled version, made once a year: {collection: its gap-filled version}. The images are those of
+# the gap-filled version up to its last one in the catalog (catalog.json, collections: the date the references cite
+# too, so that a new year of it changes neither the values nor their citation until the catalog is updated; see
+# tests/test_ee.py), and those of the collection after it (the evapotranspiration of MODIS: MOD16A2.061 begins in
+# 2021, MOD16A2GF.061 covers 2000 to the end of last year, with the same bands)
+GAP_FILLED = {'MODIS/061/MOD16A2': 'MODIS/061/MOD16A2GF'}
+
 # MODIS (and other) products: band of valid raw values (flags above max) and the mask of each pixel filter
 # {collection: {'valid': (band, max raw value), filter: f(img) -> 1 = keep}}
 PRODUCTS = {
@@ -417,6 +424,12 @@ def raw_collection(entry, region, start, end, quality):
 			col = col.merge(c)
 		return col
 	col = scene_filter(ee.ImageCollection(entry['col']).filterBounds(region).filterDate(start, end))
+	if entry['col'] in GAP_FILLED:  # the gap-filled images, and those of the collection after the last of them
+		from . import catalog
+		filled = GAP_FILLED[entry['col']]
+		last = ee.Date(catalog.load()['collections'][filled]['end']).millis()  # as the references (see GAP_FILLED)
+		col = scene_filter(ee.ImageCollection(filled).filterBounds(region).filterDate(start, end)).filter(
+			ee.Filter.lte('system:time_start', last)).merge(col.filter(ee.Filter.gt('system:time_start', last)))
 	if sensor == 'Sentinel-2' and filters(entry, quality)['clouds'] and quality.get('cloud_score') is not None:
 		col = col.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf'])
 	return col

@@ -11,7 +11,8 @@ and the window of the result, with the GIF playing, its frames and the button to
 services.area_by_class is faked too: the group Area by class (its kinds of classes and their fields), the arguments of
 each kind (a land cover map without the land cover mask nor «Only the pixels where»; for its changes, the Sankey
 diagram of the first feature, named in its title) and the window of the result (its table, with the colour of each
-class). The land cover mask starts off, whatever the settings stored by other tests.
+class). The land cover mask starts off, whatever the settings stored by other tests. The municipalities of Spain (level
+3 of the administrative units) are found in the index of the package, without a task nor Earth Engine.
 """
 
 import os
@@ -164,6 +165,7 @@ def area_by_class(region, csv=None, **opts):
 			f.write('region,from_label,to_label,ha,percent\n')
 		return {'rows': rows, 'mode': 'transitions', 'scale': 100.0, 'unit': '', 'title': 'Changes', 'csv': csv,
 		        'year': opts['year'], 'other_year': opts['other_year'], 'classes': [], 'references': [], 'credits': [],
+		        'data_source': 'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018',
 		        'changed_ha': {'Sierra Nevada': 15.0, 'Doñana': 0.0},
 		        'unchanged_ha': {'Sierra Nevada': 0.0, 'Doñana': 30.0},
 		        'by_landcover': [{'region': 'Doñana', 'from_label': 'Water', 'to_label': 'Water', 'ha': 30.0},
@@ -179,8 +181,9 @@ def area_by_class(region, csv=None, **opts):
 
 
 services.area_by_class = area_by_class
-sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS)
-charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''): sankeys.append((flows, title))
+sankeys = []  # the Sankey diagrams drawn (without matplotlib in the Python of QGIS), with their line «Data: ...»
+charts.sankey_png = lambda flows, colours=None, path=None, title=None, names=('', ''), source=None: sankeys.append(
+	(flows, title, source))
 for key in ('landcover_on', 'landcover_map', 'landcover_year', 'landcover_exclude'):  # the defaults: no land cover mask
 	QgsSettings().remove('MonitorEO/' + key)
 
@@ -325,6 +328,34 @@ assert biome['within'] == extent and abs(lon - (w + e) / 2) < 1e-9 and abs(lat -
 assert dock.region_kind.currentText() == 'Biome at the center of the map'
 dock.region_kind.setCurrentIndex(kinds.index('extent'))
 print('region: the biome at the center of the map, within the extent', biome)
+# the municipalities of Spain, level 3 of the administrative units: the country Spain, greyed out (the one written
+# before, back at levels 1 and 2); found at once, without a task (no Earth Engine), by their name in any case and
+# accents or by their code of the INE; the region {'admin3': code of the INE}, a string
+dock.region_kind.setCurrentIndex(kinds.index('admin'))
+assert dock.admin_row.isVisibleTo(dock) and dock.admin.isVisibleTo(dock)
+levels = [(dock.admin_level.itemText(i), dock.admin_level.itemData(i)) for i in range(dock.admin_level.count())]
+assert levels == [('Level 1', 1), ('Level 2', 2), ('Level 3 · Municipalities (Spain)', 3)], levels
+dock.admin_country.setText('prt')
+dock.admin_level.setCurrentIndex(2)
+assert dock.admin_country.text() == 'ESP' and not dock.admin_country.isEnabled(), dock.admin_country.text()
+assert 'Spain' in dock.admin_country.toolTip() and 'INE' in dock.admin_text.placeholderText()
+for text, code in (('monachil', '18134'), ('18087', '18087')):
+	dock.admin_text.setText(text)
+	dock.search_admin()
+	assert not dock.tasks, 'a task for the municipalities'
+	assert dock.admin.currentData() == (3, code), dock.admin.currentData()
+	assert dock.region() == {'admin3': code}, dock.region()
+	assert messages[-1] == f'Info: 1 municipalities of Spain with "{text}"', messages[-1]
+assert dock.admin.itemText(0) == 'Granada (Granada) · INE 18087', dock.admin.itemText(0)
+dock.admin_level.setCurrentIndex(0)
+assert dock.admin_country.text() == 'prt' and dock.admin_country.isEnabled()
+assert 'INE' not in dock.admin_text.placeholderText()
+assert dock.region() == {'admin3': '18087'}  # the unit chosen keeps its level
+dock.admin_country.setText('')
+dock.admin_text.setText('')
+dock.admin.clear()
+dock.region_kind.setCurrentIndex(kinds.index('extent'))
+print('region: the municipalities of Spain (level 3), found without Earth Engine:', levels[-1][0])
 dock.anim_step.setCurrentIndex(dock.anim_step.findData('monthly'))
 dock.anim_metric.setCurrentIndex(dock.anim_metric.findData('max'))
 dock.anim_fps.setValue(4)
@@ -342,7 +373,8 @@ table = dlg.findChild(QTableWidget)
 assert table.rowCount() == 3 and table.item(1, 1).text() == '2022' and table.item(1, 3).text() == '0'
 assert '1 frames without images (grey)' in dlg.findChildren(type(dlg.picture))[0].text()
 buttons = [b.text() for b in dlg.findChildren(QPushButton)]
-assert buttons == ['Save GIF…', 'Close'], buttons
+assert buttons == ['Save GIF…', 'Copy parameters', 'Save parameters…', 'Close'], buttons
+assert res['call']['analysis'] == 'timelapse' and res['call']['parameters']['fps'] == 4  # its parameters
 from monitoreo_qgis.results import save_file  # noqa: E402
 copy = os.path.join(TMP, 'copy.gif')
 save_file(res['gif'], copy, res)
@@ -370,7 +402,8 @@ assert (dock.area_year.currentData(), dock.area_other_year.currentData()) == (20
 dock.run_areas()
 wait()
 assert (calls[-1]['year'], calls[-1]['other_year']) == (2012, 2018), calls[-1]
-assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)'), sankeys  # the first feature, named
+assert sankeys[-1] == ([('Trees', 'Trees', 15.0)], 'Changes (Sierra Nevada)',  # the first feature, named
+                       'COPERNICUS/CORINE/V20/100m/2012; COPERNICUS/CORINE/V20/100m/2018'), sankeys
 dock.area_change.setChecked(False)
 # a land cover map refuses the land cover mask and «Only the pixels where», as services.area_by_class
 made = len(calls)
@@ -385,7 +418,7 @@ dock.area_kind.setCurrentIndex(dock.area_kind.findData('breaks'))
 dock.area_breaks.setText('0.2, 0.4')
 dock.run_areas()
 wait()
-assert calls[-1]['breaks'] == '0.2, 0.4' and calls[-1]['variable'] == 'NDVI', calls[-1]
+assert calls[-1]['breaks'] == [0.2, 0.4] and calls[-1]['variable'] == 'NDVI', calls[-1]  # numbers (#85)
 assert calls[-1]['metric'] == dock.map_metric.currentData(), calls[-1]
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('trend'))
 dock.run_areas()
@@ -406,7 +439,7 @@ dock.zone_breaks.setText('1500')
 dock.run_zones()
 wait()
 z = calls[-1]
-assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': '1500'}
+assert z['tool'] == 'region_stats' and z['zones'] == {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'breaks': [1500.0]}
 assert z['stats'] == ['p25', 'p50', 'p75', 'mean'] and z['variable'] == 'NDVI', z
 dlg = dock.series_dialogs[len(dock.series) - 1]
 table = dlg.findChild(QTableWidget)
