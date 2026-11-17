@@ -17629,9 +17629,10 @@ var MonitorEO = (function () {
 				throw new Error('The images of ' + data + ' start on ' + start + ': the period asked for' + season + ', ' + a +
 					' to ' + b + ', ends before them and has no data. Choose a period from ' + start + ' on.');
 			}
-			if (end && a > end) {
-				throw new Error('The images of ' + data + ' end on ' + end + ': the period asked for' + season + ', ' + a +
-					' to ' + b + ', begins after them and has no data. Choose a period that begins on ' + end + ' or before.');
+			if (end && a > end) {  // a warning, not an error: the copy of the index may be older than their last images
+				return [noteWarning('The images of ' + data + ' end on ' + end + ' (in the copy of the Earth Engine data ' +
+					'catalog of ' + (CATALOG.coverage || {}).checked + '): the period asked for' + season + ', ' + a + ' to ' + b +
+					', begins after them, so it may have no data, unless Earth Engine has added images since.')];
 			}
 			var before = found.map(function (p) { return p[2]; }).filter(function (x) { return x && x < a; }).sort();
 			var after = found.map(function (p) { return p[1]; }).filter(function (x) { return x && x > b; }).sort();

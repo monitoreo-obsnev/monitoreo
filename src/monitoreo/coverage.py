@@ -4,9 +4,10 @@ first and last dates of their images, from the copy of the index of the Earth En
 (monitoreo.eecatalog), without Earth Engine.
 
 Every period is checked before Earth Engine computes it (variable.specs calls check for each spec, also for those of
-the conditions of where and of the recipes): a period without any image of its data is an error (ValueError), and one
-that begins before the first image, or ends after the last image of data that ended (e.g. IDAHO_EPSCOR/TERRACLIMATE),
-gives a warning, in the answer of the services ('warnings') and as a Python warning (DataDatesWarning). The answers
+the conditions of where and of the recipes): a period that ends before the first image of its data, or falls in a gap
+between its collections, is an error (ValueError); one that begins before the first image, or ends (or even begins)
+after the last image of data that ended in the copy of the index (e.g. IDAHO_EPSCOR/TERRACLIMATE, which Earth Engine
+may extend after that copy), gives a warning, in the answer of the services ('warnings') and as a Python warning (DataDatesWarning). The answers
 also say which data their values come from ('data_source'), and their charts say it in a line «Data: ...».
 
 The dates are those of the copy of the index (eecatalog.load()['downloaded']), which its maintainers refresh at each
@@ -289,11 +290,12 @@ def _missing(which, days):
 def check(spec, entry=None, today=None):
 	"""Check the period of SPEC (a spec of monitoreo.variable with period and season; ENTRY, its entry of the catalog
 	if it is one of its variables, else the data given by its ID, spec['collection']) against the dates of its images
-	(see parts and of_asset), without Earth Engine: ValueError if it has no image of them (before the first, after the
-	last, in a gap between collections, or after TODAY, by default today, for data that go on); otherwise the warnings
+	(see parts and of_asset), without Earth Engine: ValueError if it has no image of them (before the first, in a gap
+	between collections, or after TODAY, by default today, for data that go on); otherwise the warnings
 	of the days without data, [texts] (empty if none), each also noted for the answer of the call (see collect) and
 	given as a Python warning (DataDatesWarning): the period begins before the first image, or ends after the last
-	image of data that ended (and the days it covers, step_days). Nothing for the fixed layers and the data without
+	image of data that ended (and the days it covers, step_days), or begins after it (Earth Engine may have added
+	images since the copy of the index). Nothing for the fixed layers and the data without
 	known dates."""
 	from . import composite
 	if entry is not None:
@@ -319,9 +321,10 @@ def check(spec, entry=None, today=None):
 		if start and b < start:
 			raise ValueError(f'The images of {data} start on {start}: the period asked for{season}, {a} to {b}, ends '
 			                 f'before them and has no data. Choose a period from {start} on.')
-		if end and a > end:
-			raise ValueError(f'The images of {data} end on {end}: the period asked for{season}, {a} to {b}, begins '
-			                 f'after them and has no data. Choose a period that begins on {end} or before.')
+		if end and a > end:  # a warning, not an error: the copy of the index may be older than their last images
+			return [_warn(f'The images of {data} end on {end} (in the copy of the Earth Engine data catalog of '
+			              f'{checked()}): the period asked for{season}, {a} to {b}, begins after them, so it may have '
+			              'no data, unless Earth Engine has added images since.')]
 		before = max((p[2] for p in found if p[2] and p[2] < a), default=None)
 		after = min((p[1] for p in found if p[1] and p[1] > b), default=None)
 		if before and after:

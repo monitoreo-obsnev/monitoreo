@@ -88,9 +88,11 @@ def test_a_period_without_images_is_an_error(ended):
 	with pytest.raises(ValueError, match=r'start on 2017-03-28: the period asked for, 2015-01-01 to 2016-12-31, ends '
 	                                     r'before them and has no data\. Choose a period from 2017-03-28 on\.'):
 		_check('NDVI', 'Sentinel-2', '2015-01-01', '2016-12-31')
-	with pytest.raises(ValueError, match=r'TERRACLIMATE \(TerraClimate\) end on 2024-12-01: the period asked for, '
-	                                     r'2025-01-01 to 2025-12-31, begins after them'):
-		_check('PRECIP', 'TerraClimate', '2025-01-01', '2025-12-31')
+	# after the last image of data that ended in the copy of the index: a warning (Earth Engine may have added images)
+	assert _check('PRECIP', 'TerraClimate', '2025-01-01', '2025-12-31') == [
+		'The images of IDAHO_EPSCOR/TERRACLIMATE (TerraClimate) end on 2024-12-01 (in the copy of the Earth Engine data '
+		f'catalog of {coverage.checked()}): the period asked for, 2025-01-01 to 2025-12-31, begins after them, so it may '
+		'have no data, unless Earth Engine has added images since.']
 	# between the last image of Landsat 5 and the first of Landsat 8 (Landsat 7 only until 2003-05-31)
 	with pytest.raises(ValueError, match='have none from 2012-05-06 to 2013-03-17: the period asked for, 2012-06-01 '
 	                                     'to 2013-02-28, has no data'):
@@ -115,8 +117,11 @@ def test_the_services_refuse_and_warn_before_earth_engine(ended):
 	with pytest.warns(coverage.DataDatesWarning, match='first 15 months have no data'):
 		services.make_spec('NDVI', 'Sentinel-2', '2016-01-01', '2026-12-31')
 	# the conditions of where too, named
-	with pytest.raises(ValueError, match=r'^where, the condition on PRECIP \(TerraClimate\): The images of '
-	                                     'IDAHO_EPSCOR/TERRACLIMATE'):
+	with pytest.raises(ValueError, match=r'^where, the condition on NDVI \(Sentinel-2\): The images of '
+	                                     'COPERNICUS/S2_SR_HARMONIZED'):
+		services.make_spec('NDVI', 'Modis', '2001-01-01', '2001-12-31',
+		                   where=[{'variable': 'NDVI', 'sensor': 'Sentinel-2', 'min': 0.2}])
+	with pytest.warns(coverage.DataDatesWarning, match=r'TERRACLIMATE \(TerraClimate\) end on 2024-12-01'):
 		services.make_spec('NDVI', 'Modis', '2025-01-01', '2025-12-31',
 		                   where=[{'variable': 'PRECIP', 'sensor': 'TerraClimate', 'min': 10}])
 	# the data given by their ID: the dates of their record of the index
