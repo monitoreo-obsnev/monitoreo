@@ -6,10 +6,12 @@ Those of a series and of trends add to the map that of its whole period or of ea
 each class of the USGS (dNBR) or of Miller & Thode 2007 (RdNBR, and under them its statistics), with its colour, or the
 statistics of the RBR. That of an animation (services.timelapse) plays its GIF, with the date and the images of each
 frame. The results of the data of Earth Engine outside the catalog (given by their ID) are those of a
-variable, named by their ID and band, with the unit given (if any) and without true colour. Each window ends with the
-references of its result (monitoreo.references), with the links of their DOIs, and the parameters of its analysis
-(monitoreo.parameters), which Copy parameters and Save parameters… give as JSON and which are saved next to its CSV,
-GeoTIFF, GIF or perimeter (<name>.parameters.json)."""
+variable, named by their ID and band, with the unit given (if any) and without true colour. Each window says, under
+its first line, which data its values come from («Data: ...», data_source: the Earth Engine collections and their
+product level, as its chart) and the warnings of its period, in orange (days without images of its data: see
+monitoreo.coverage), and ends with the references of its result (monitoreo.references), with the links of their
+DOIs, and the parameters of its analysis (monitoreo.parameters), which Copy parameters and Save parameters… give as
+JSON and which are saved next to its CSV, GeoTIFF, GIF or perimeter (<name>.parameters.json)."""
 
 import datetime as dt
 import json
@@ -18,7 +20,7 @@ import os
 import shutil
 
 from qgis.PyQt.QtCore import QPointF, QRectF, Qt
-from qgis.PyQt.QtGui import QColor, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
+from qgis.PyQt.QtGui import QColor, QFont, QFontMetrics, QIcon, QMovie, QPainter, QPainterPath, QPen, QPixmap
 from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
                                  QPushButton, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -97,13 +99,16 @@ def chart_png(res, path):
 	the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
+		source = res.get('data_source')  # the line «Data: ...» under the chart
 		if profile_of(res) is not None:  # a line per variable, the other on a right axis
 			charts.doy_profile_png(res['profile'], path, title=res['title'], ylabel=ylabel(res),
-			                       other_ylabel=other_ylabel(res), ylim=res.get('ylim'), other_ylim=res.get('other_ylim'))
+			                       other_ylabel=other_ylabel(res), ylim=res.get('ylim'), other_ylim=res.get('other_ylim'),
+			                       source=source)
 		elif bool(res['rows']) and 'doy' in res['rows'][0]:  # a line per year over the days of the year
-			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'))
+			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'),
+			               source=source)
 		else:
-			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res))
+			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), source=source)
 		return path
 	except Exception:
 		return None
@@ -133,7 +138,8 @@ def trends_png(res, path):
 	"""PNG of the yearly values and Sen lines of the trends RES (or None). Call it from the main thread."""
 	try:
 		from monitoreo import charts
-		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=ylabel(res))
+		charts.trends_png(res['yearly'], res['rows'], path, title=res['title'], ylabel=ylabel(res),
+		                  source=res.get('data_source'))
 		return path
 	except Exception:
 		return None
@@ -144,7 +150,8 @@ def comparison_png(res, step, path):
 	try:
 		from monitoreo import charts
 		labels = {r['part']: (r['key'] if step == '16-day' else r['label'][:3]) for r in res['profile']}
-		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=ylabel(res), names=res['names'])
+		charts.comparison_png(res['profile'], labels, path, title=res['title'], ylabel=ylabel(res), names=res['names'],
+		                      source=res.get('data_source'))
 		return path
 	except Exception:
 		return None
@@ -264,6 +271,29 @@ def parameters_html(p):
 	return (f"<p><b>Parameters of the analysis</b> {esc(p['analysis'])} (MonitorEO {esc(p.get('monitoreo') or '?')}; "
 	        'the same names in Python, R, the command line, the MCP server and the Earth Engine app)</p>'
 	        f'<ul>{rows}</ul>')
+
+
+def data_warnings(res):
+	"""The warnings of the period of the result RES (its days without images of its data, see monitoreo.coverage):
+	[texts]."""
+	found = res.get('warnings') if isinstance(res, dict) else None
+	return [str(w) for w in found if w] if isinstance(found, list) else []
+
+
+def notes_label(res):
+	"""A label with the data of the values of the result RES («Data: ...», its data_source) and the warnings of its
+	period, in orange, or None if it has neither."""
+	from html import escape
+	parts = [f'<span style="color: #555;">Data: {escape(str(res["data_source"]))}</span>'] \
+		if res.get('data_source') else []
+	parts += [f'<span style="color: #b35900;">⚠ {escape(w)}</span>' for w in data_warnings(res)]
+	if not parts:
+		return None
+	label = QLabel('<br>'.join(parts))
+	label.setWordWrap(True)
+	label.setTextFormat(Qt.TextFormat.RichText)
+	label.setObjectName('data_notes')
+	return label
 
 
 def references_box(res):
@@ -408,6 +438,9 @@ class ResultDialog(QDialog):
 		info = QLabel(text)
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		if res.get('chart'):
 			label = QLabel()
 			label.setPixmap(QPixmap(res['chart']).scaledToWidth(940, Qt.TransformationMode.SmoothTransformation))
@@ -470,6 +503,9 @@ class AnimationDialog(QDialog):
 		              + (f' · {empty} frames without images (grey)' if empty else ''))
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		self.picture = QLabel()
 		self.picture.setAlignment(Qt.AlignmentFlag.AlignCenter)
 		self.movie = QMovie(res['gif'])
@@ -542,11 +578,14 @@ class ChartWidget(QWidget):
 	doy and interannual or other_variable), a line per variable over the days of the year (1 to 366): the first on the
 	left axis (blue, UNIT, YLIM) and the other, if any, on a right axis (red, OTHER_UNIT, OTHER_YLIM), each axis in the
 	colour of its line, with a line at 0 where an axis has it, and a dash for each region, as charts.doy_profile_png.
-	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values)."""
+	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values). SOURCE: the data of the values (data_source),
+	written under the chart as «Data: SOURCE», as charts.source_line."""
 
-	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None):
+	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None,
+	             source=''):
 		super().__init__(parent)
 		self.title, self.unit, self.other_unit = title, unit, other_unit or ''
+		self.source = source or ''
 		self.ylims = [tuple(ylim) if ylim else None, tuple(other_ylim) if other_ylim else None]
 		self.profile = isinstance(profile, list)
 		self.doy = self.profile or (bool(rows) and 'doy' in rows[0])
@@ -599,10 +638,24 @@ class ChartWidget(QWidget):
 		values = [v for key, s in self.series.items() if self.keys[key][1] == axis for _, v in s if v is not None]
 		return value_range(values, self.ylims[axis])
 
+	def paint_source(self, p):
+		"""The line «Data: ...» at the bottom left, in small grey letters (cut with … if it is longer than the chart)."""
+		if not self.source:
+			return
+		p.save()
+		font = QFont(p.font())
+		font.setPointSizeF(max(6.0, font.pointSizeF() * 0.8))
+		p.setFont(font)
+		p.setPen(QColor('#555555'))
+		text = QFontMetrics(font).elidedText(f'Data: {self.source}', Qt.TextElideMode.ElideRight, self.width() - 12)
+		p.drawText(QRectF(6, self.height() - 16, self.width() - 12, 14), Qt.AlignmentFlag.AlignLeft, text)
+		p.restore()
+
 	def paintEvent(self, event):
 		p = QPainter(self)
 		p.setRenderHint(QPainter.RenderHint.Antialiasing)
 		p.fillRect(self.rect(), QColor('white'))
+		self.paint_source(p)
 		pts = [(d, v) for s in self.series.values() for d, v in s if v is not None]
 		if not pts:
 			p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'No values')
@@ -775,6 +828,9 @@ class SeriesDialog(QDialog):
 		info = QLabel(series_text(res))
 		info.setWordWrap(True)
 		lay.addWidget(info)
+		notes = notes_label(res)
+		if notes:
+			lay.addWidget(notes)
 		profile = profile_of(res)  # the seasonal profile by day of the year, a y axis for each variable
 		self.chart = None
 		if res.get('chart'):
@@ -784,7 +840,7 @@ class SeriesDialog(QDialog):
 		else:
 			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '', profile=profile,
 			                         other_unit=other_ylabel(res) or '', ylim=res.get('ylim'),
-			                         other_ylim=res.get('other_ylim'))
+			                         other_ylim=res.get('other_ylim'), source=res.get('data_source') or '')
 			lay.addWidget(self.chart, 1)
 		if profile is not None:  # the table of the profile (what the chart and the CSV have), with the unit of each row
 			units = res.get('units') or {}

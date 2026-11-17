@@ -130,11 +130,17 @@ HELP = {
 		'SPA) with different boundaries.</p>' + manual('Concepts#regions'),
 	'variable':
 		'<p>Variable and sensor. Each entry tells the variable, the sensor, the pixel size and the Earth Engine '
-		'collection. Sentinel-2 (10 m) starts in 2017; Landsat (30 m), in 1984, and MODIS (from 250 m to 4.6 km), in '
-		'2000: for long series and trends, Landsat or MODIS.</p>',
+		'collection. Sentinel-2 (10 m, surface reflectance: Level-2A) starts on 2017-03-28; Landsat (30 m), in 1984, '
+		'and MODIS (from 250 m to 4.6 km), in 2000: for long series and trends, Landsat or MODIS.</p>',
 	'period':
 		'<p>First and last day, both included. Each sensor has its dates (see the help of <b>Variable</b>). If you '
 		'check <b>Compare with</b>, this is the reference period.</p>'
+		'<p>A period that ends before the first image of the data, falls between Landsat 5 and Landsat 8 or begins '
+		'after today is refused, with their dates. One that begins before the first image (or ends, or even begins, '
+		'after the last one of data that ended in the copy of the Earth Engine data catalog, which Earth Engine may '
+		'have extended since) is computed with a warning, in the message bar and in the window of the result: those '
+		'days may have no data. The windows and charts also say which data the values come from (<b>Data:</b> the Earth '
+		'Engine collection and its product level).</p>'
 		'<p>Long periods with Sentinel-2 over big areas take minutes: start with one year.</p>'
 		+ manual('Concepts#period-and-season'),
 	'compare':
@@ -506,8 +512,10 @@ HELP = {
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
 		'faster export.</p>'
-		'<p>The layers of <b>Add the layer to the map</b> do not use it: they have the resolution of the data up to 4 '
-		'million pixels and, in bigger regions, bigger pixels.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
+		'up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
+		'exceeds the limit and which sensors of the variable fit: choose one of them, a smaller region or the export '
+		'to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':
 		'<p>Folder of your Google Drive where Earth Engine leaves the files; if it does not exist, Earth Engine makes '
 		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '
@@ -530,7 +538,8 @@ HELP = {
 		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
 		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
-		'<b>Region</b>; in big regions (more than 4 million pixels), it uses bigger pixels, as the maps.</p>'
+		'<b>Region</b>, always on the pixels of the data: as the maps, up to 4 million pixels (a bigger region gets a '
+		'warning, before computing anything).</p>'
 		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010')])
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':
@@ -708,7 +717,9 @@ def variable_help(v, info=None):
 	d = describe(v)
 	lines = [f"<b>{v['variable']} · {v['sensor']}</b>: {d['name']} ({d['group']}).",
 	         f"Unit: {v['unit'].strip('[]')}. Pixel of {v['resolution_m']} m. Dates: "
-	         f"{v['dates']}. Collection: {v['collection']}."] + filter_lines(v, d)
+	         f"{v['dates']}. "
+	         + (f"Collections: {' up to its last image, then '.join(v['datasets'])}." if v.get('datasets') else
+	            f"Collection: {v['collection']}.")] + filter_lines(v, d)
 	if d.get('metric'):  # the snow cover frequency: how it is computed, and its only metric
 		lines += [d['notes'].get('ft', ''), f"<b>Only with the metric {d['metric']}</b>: {d['notes'].get('metric', '')}."]
 	if d.get('static'):  # elevation, slope: only maps

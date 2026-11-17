@@ -176,7 +176,7 @@
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'Código', cite: 'Cómo citar',
 			computing: 'Calculando…', progress: 'Calculando… %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El botón ⤢ de la gráfica la abre en otra pestaña, desde donde se descarga como imagen.',
-			scaleNote: 'Calculado con píxeles de %s m.', date: 'Fecha', value: 'Valor', reference: 'Referencia',
+			scaleNote: 'Calculado con píxeles de %s m.', dataSource: 'Datos:', date: 'Fecha', value: 'Valor', reference: 'Referencia',
 			yearAxis: 'Año', senLine: 'recta de Sen', part: 'Parte del año', significantShort: 'signif.',
 			yes: 'sí', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La región es demasiado grande para esta app (%s km²; máximo %s km²).',
@@ -410,7 +410,7 @@
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing…', progress: 'Computing… %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The ⤢ button of the chart opens it in another tab, where it can be downloaded as an image.',
-			scaleNote: 'Computed on pixels of %s m.', date: 'Date', value: 'Value', reference: 'Reference',
+			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', date: 'Date', value: 'Value', reference: 'Reference',
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km²; at most %s km²).',
@@ -589,6 +589,8 @@
 
 	var H = {fontWeight: 'bold', fontSize: '14px', margin: '14px 0 4px 8px'};
 	var SMALL = {fontSize: '12px', color: '#555'};
+	// the warnings of the period of a result (days without images of its data: mo.checkPeriod), over it
+	var WARNING = {fontSize: '12px', color: '#b35900', whiteSpace: 'pre-wrap'};
 
 	function header(text) {
 		return ui.Label(text, H);
@@ -624,8 +626,12 @@
 	}
 
 	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
-	// swipe was shown)
-	function show(widgets) {
+	// swipe was shown): unless BARE (a message: computing, an error...), over it the warnings of its period (the days
+	// without images of its data, see mo.checkPeriod) and under it the data its values come from («Data: ...», as the
+	// charts of the package), those of the computation that is running (runNotes: a click that fails before it
+	// starts, or a newer one, does not change them)
+	var runNotes = mo.notes();
+	function show(widgets, bare) {
 		oneMap();
 		results.clear();
 		results.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '16px', stretch: 'horizontal'}),
@@ -633,20 +639,31 @@
 				oneMap();
 				results.style().set('shown', false);
 			})));
+		var notes = runNotes;
+		if (!bare && notes.warnings.length) results.add(ui.Label('⚠ ' + notes.warnings.join('\n⚠ '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
+		var source = bare ? null : mo.sourceText(notes);
+		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
 	}
 
 	function message(text, error) {
-		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})]);
+		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})], true);
 	}
 
 	function fail(error) {
 		message(t('error') + error, true);
 	}
 
+	// No data in that period: an answer, with the warnings of its period that explain it (e.g. it begins after the last
+	// image of data that ended) and its data, not a bare message
+	function noData() {
+		show([ui.Label(t('noData'), {color: '#b00020', whiteSpace: 'pre-wrap'})]);
+	}
+
 	function start() {
 		run += 1;
+		runNotes = mo.notes();  // those of the specs of this computation (guarded made them new): shown with its answer
 		message(t('computing'));
 		return run;
 	}
@@ -1448,6 +1465,7 @@
 		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
 			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
+		if (!ref) mo.used(s);  // the data of the values of the result, under it
 		return s;
 	}
 
@@ -1483,6 +1501,7 @@
 
 	function guarded(f) {
 		return function () {
+			mo.resetNotes();  // a new computation: the warnings and data of its own specs
 			try {
 				f();
 			} catch (e) {
@@ -1963,6 +1982,7 @@
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
 		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
 		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
 		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
 		var legend = mo.breakClasses(cuts, unit === 'unitless' ? '' : unit, state.lang);
@@ -1997,7 +2017,9 @@
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
-		var zone = mo.classZone(mo.spec({ref: z.ref, quality: {}}), geom, scale);
+		var zs = mo.spec({ref: z.ref, quality: {}});
+		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
+		var zone = mo.classZone(zs, geom, scale);
 		var name = fmt(t('zoneClassTitle'), m.name, z.index);
 		var id = start();
 		mo.zoneStats(m.image, zone, state.region, scale, state.info.crs).evaluate(guardedAsync(id, function (fc) {
@@ -2022,7 +2044,9 @@
 		var m = mapImage(line.buffer(1000));
 		var native = Number(e.m);
 		var elevation = mo.variables().filter(function (v) { return v.index === 'ELEVATION'; })[0];
-		var dem = mo.image(mo.spec({ref: elevation.ref, quality: {}}), line.buffer(1000), 30);
+		var demSpec = mo.spec({ref: elevation.ref, quality: {}});
+		mo.used(demSpec);  // the elevation is on the chart too (services.transect)
+		var dem = mo.image(demSpec, line.buffer(1000), 30);
 		var id = start();
 		ee.Dictionary({length: line.length(1), centroid: line.centroid(1).coordinates()}).evaluate(guardedAsync(id, function (d) {
 			var step = Math.max(native, d.length / 100);
@@ -2292,6 +2316,7 @@
 				quality: otherQuality(mo.byRef(state.doyOther)),
 				metric: 'mean', where: whereArgs()});
 			mo.checkDates(o, 'time series');
+			mo.used(o);
 			return o;
 		} catch (err) {
 			throw new Error(t('rightAxis') + ': ' + (err.message || String(err)));
@@ -2329,7 +2354,7 @@
 					rows.push(r);
 				});
 			});
-			if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+			if (!rows.some(function (r) { return r.value !== null; })) return noData();
 			var prof = mo.doyProfile(rows, s, step, between, names[0]);
 			var titles = entries.map(function (x) { return axisTitle(x, metric, stat, between); });
 			prof.forEach(function (r) {  // as the CSV of services.time_series: the sensor, unit and pixel size of each
@@ -2393,7 +2418,7 @@
 		var id = start();
 		function go(steps) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
-				if (!rows.some(function (r) { return r.value !== null; })) return message(t('noData'), true);
+				if (!rows.some(function (r) { return r.value !== null; })) return noData();
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
@@ -2675,6 +2700,8 @@
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
 		var name = title(e, ['RBR', before.period.join('/') + ' → ' + after.period.join('/')]);
 		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
@@ -2802,6 +2829,8 @@
 		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var modis = e.sensor === 'Modis';
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'RdNBR');
 		var periods = before.period.join('/') + ' → ' + after.period.join('/');
@@ -2870,6 +2899,8 @@
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		mo.used(before);
+		mo.used(after);
 		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });
 		var name = title(e, [t('dnbr'), before.period.join('/') + ' → ' + after.period.join('/')]);

@@ -68,7 +68,9 @@ def plugin(monkeypatch):
 def fake(monkeypatch):
 	"""The map services faked: the calls they get (tool, region, arguments), FAIL (the tools that fail) and answers
 	like those of Earth Engine (the map on pixels of 30 m: a big region)."""
-	calls, fail = [], set()
+	calls, fail, checked = [], set(), []
+	monkeypatch.setattr(services, 'check_pixels',
+	                    lambda region, max_pixels, **kw: checked.append((region, max_pixels)) or {'pixels': 1})
 
 	def tool(name, out):
 		def call(region, **kw):
@@ -85,7 +87,7 @@ def fake(monkeypatch):
 	                                 'max': 0.25, 'bands': ['red', 'green', 'blue'], 'unit': '[unitless]'})
 	tool('rgb_map', lambda kw: {'url': 'https://tiles/{z}/{x}/{y}', 'bands': ['red', 'green', 'blue'],
 	                            'min': kw.get('vmin', 0.0), 'max': kw.get('vmax', 0.3)})
-	return types.SimpleNamespace(calls=calls, fail=fail)
+	return types.SimpleNamespace(calls=calls, fail=fail, checked=checked)
 
 
 def _same(a, b):
@@ -99,9 +101,10 @@ def test_both_is_the_true_colour_of_the_same_images_and_pixels_on_the_grid_of_th
 	assert [c[0] for c in fake.calls] == ['download_image', 'download_rgb']
 	(_, r1, index), (_, r2, rgb) = fake.calls
 	assert r1 == r2 == REGION and _same(index, rgb) and index['where'] == WHERE  # the same images and pixels
-	assert rgb['resolution'] == 30.0  # the pixels of the map (a big region: bigger than the 10 m of the data)
+	assert rgb['resolution'] == 30.0  # the pixels of the map
 	assert index['path'] == str(tmp_path / 'map.tif') and rgb['path'] == str(tmp_path / 'rgb.tif')
-	assert index['max_pixels'] == rgb['max_pixels'] == plugin.dock.MAP_PIXELS
+	assert fake.checked == [(REGION, plugin.dock.MAP_PIXELS)]  # once, before computing: on the pixels of the data
+	assert 'max_pixels' not in index and 'max_pixels' not in rgb  # never bigger pixels
 	assert set(out) == {'index', 'rgb'} and out['rgb']['name'] == 'download_rgb'
 
 
@@ -142,13 +145,14 @@ def test_the_map_of_the_variable_alone_is_as_before(plugin, fake, tmp_path):
 def test_what_has_no_true_colour_is_refused_before_earth_engine(plugin, monkeypatch, tmp_path):
 	"""The real services: the NDVI of MODIS (MOD13Q1 has no green band) and the fixed layers are refused without
 	Earth Engine; with Both, the map comes with the reason as a warning."""
+	monkeypatch.setattr(services, 'check_pixels', lambda region, max_pixels, **kw: {'pixels': 1})  # no Earth Engine
 	modis = dict(OPTS, sensor='Modis', collection='MODIS/061/MOD13Q1', where=None)
 	with pytest.raises(ValueError, match='has no true colour'):
 		plugin.dock.maps_work('rgb', REGION, modis, str(tmp_path), services.download_image, services.map_layer)
 	elevation = {'variable': 'ELEVATION', 'sensor': 'Copernicus', 'collection': 'COPERNICUS/DEM/GLO30_2024_1'}
 	with pytest.raises(ValueError, match='fixed layer'):
 		plugin.dock.maps_work('rgb', REGION, elevation, str(tmp_path), services.download_image, services.map_layer)
-	map_only = lambda region, path=None, max_pixels=None, **kw: {'file': path, 'resolution': 250.0}  # noqa: E731
+	map_only = lambda region, path=None, **kw: {'file': path, 'resolution': 250.0}  # noqa: E731
 	out = plugin.dock.maps_work('both', REGION, modis, str(tmp_path), map_only, services.map_layer)
 	assert 'has no true colour' in out['rgb_error'] and out['index']['resolution'] == 250.0
 
@@ -254,3 +258,21 @@ def test_the_code_of_the_plugin_follows_the_rules_of_bandit():
 				broad = node.type is None or getattr(node.type, 'id', None) in ('Exception', 'BaseException')
 				only_pass = all(isinstance(s, (ast.Pass, ast.Continue)) for s in node.body)
 				assert not (broad and only_pass), f'{name}:{node.lineno}: except: pass'
+
+
+def test_a_map_bigger_than_the_limit_is_not_computed_nor_shown_as_tiles(plugin, fake, monkeypatch, tmp_path):
+	"""Issue #86: never pixels bigger than those of the data; before computing, a warning with what to change."""
+	too_many = services.TooManyPixels(40_000_000, plugin.dock.MAP_PIXELS, 10.0,
+	                                  [{'sensor': 'Modis', 'resolution': 250.0, 'pixels': 64_000}])
+
+	def check(region, max_pixels, **kw):
+		raise too_many
+	monkeypatch.setattr(services, 'check_pixels', check)
+	with pytest.raises(services.TooManyPixels):
+		plugin.dock.maps_work('both', REGION, OPTS, str(tmp_path), services.download_image, services.map_layer)
+	assert fake.calls == []  # nothing computed, no tiles instead
+	text = plugin.dock.too_many_text('Map of NDVI', too_many)
+	assert text.startswith('Map of NDVI: not computed. At 10 m, the pixels of the data, the map would have 40,000,000')
+	assert '900% more than the 4,000,000' in text and 'another sensor (Modis (250 m))' in text
+	assert 'at most 10% of its extent' in text and 'Export to Google Drive' in text
+	assert 'TooManyPixels' in _read('dock.py') and "'Warning', 0)" in _read('dock.py')  # stays until closed

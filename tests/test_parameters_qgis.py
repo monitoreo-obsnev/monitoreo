@@ -85,6 +85,8 @@ def fake(monkeypatch):
 	             'region_stats', 'timelapse', 'export_image', 'time_series_to_drive', 'burn_severity'):
 		tool(name)
 	tool('transect', 'line')
+	# the pixels of the maps fit (issue #86), without Earth Engine; not a call of an analysis
+	monkeypatch.setattr(services, 'check_pixels', lambda region, max_pixels, *args, **kw: {'pixels': 1})
 	return calls
 
 
@@ -313,7 +315,7 @@ def test_the_trends_the_map_and_the_exports(plugin, monkeypatch, tmp_path, fake)
 	assert analysis == 'trend_table' and (args['step'], args['metric'], args['stat']) == ('annual', 'mean', 'mean')
 	analysis, args, fields = _same_as_run(plugin, panel, fake, 'trend_map')
 	assert analysis == 'download_trend' and args['alpha'] == plugin.dock.ALPHA and args['part'] is None
-	assert args['max_pixels'] == plugin.dock.MAP_PIXELS and fields['trend_alpha']['value'] is True
+	assert 'max_pixels' not in args and fields['trend_alpha']['value'] is True  # always the pixels of the data (#86)
 	assert 'part' not in parameters.make(analysis, args)['parameters']  # annual: no part, as the area by class
 	panel.trend_step.setCurrentIndex(1)  # months: that chosen
 	panel.trend_part = _Combo([('July', 7)])
@@ -470,7 +472,7 @@ def test_what_the_panel_cannot_apply_is_reported_with_the_reason(plugin):
 	_, fields, reports = dock.panel_fields('download_trend', {'region': {'bbox': [0, 0, 1, 1]}, 'variable': 'NDVI',
 	                                                          'sensor': 'Landsat', 'alpha': 0.01, 'max_pixels': 1e9})
 	why = {r['name']: r['reason'] for r in reports}
-	assert 'p < 0.05' in why['alpha'] and 'at most 4,000,000 pixels' in why['max_pixels']
+	assert 'p < 0.05' in why['alpha'] and 'up to 4,000,000 pixels' in why['max_pixels']
 	_, fields, reports = dock.panel_fields('region_stats', {'region': {'country': 'ESP'}, 'variable': 'NDVI',
 	                                                        'sensor': 'Landsat', 'stats': ['mean']})
 	assert [r['name'] for r in reports] == ['zones'] and fields['stats']['value'] == ['mean']

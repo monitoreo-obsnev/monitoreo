@@ -91,7 +91,8 @@ FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_s
 POLL_MS = 30000
 ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
 MAX_VERTICES = 20000
-MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB); bigger regions get bigger pixels
+MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB), always those of the data; a bigger
+# region is not computed (services.check_pixels: a warning with what to change)
 # the data of Earth Engine outside the catalog (monitoreo.assets): images with dates, aggregated in time like the
 # variables (collection=), or a fixed image without dates, like the elevation (image=)
 USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
@@ -217,9 +218,11 @@ REFERENCES_HEADING = 'References (cite them with this layer):'  # before its ref
 
 def references_text(res):
 	"""The references and credits of a result (monitoreo.references), for the abstract of its layer: the credits under
-	their own heading, CREDITS_HEADING, for the print layouts (figure_layout)."""
+	their own heading, CREDITS_HEADING, for the print layouts (figure_layout), after the data of its values («Data:
+	...», data_source), as the figures of services.map_figure."""
 	refs = [r['text'] for r in res.get('references') or []]
-	credits = [c for c in res.get('credits') or [] if c]
+	credits = ([f"Data: {res['data_source']}"] if res.get('data_source') else []) + \
+		[c for c in res.get('credits') or [] if c]
 	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
 	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
 
@@ -266,17 +269,42 @@ def result_maps(tool, args):
 	return [main] + steps.map_steps(tool, args)
 
 
+def too_many_text(description, e):
+	"""The warning of the task DESCRIPTION whose map does not fit on the pixels of the data (services.TooManyPixels
+	E): by how much it exceeds the limit and what to change."""
+	fit = ', '.join(f"{s['sensor']} ({s['resolution']:g} m)" for s in e.sensors)
+	return (f'{description}: not computed. At {e.resolution:g} m, the pixels of the data, the map would have '
+	        f'{e.pixels:,} pixels, {e.excess:,}% more than the {e.max_pixels:,} of the maps added to QGIS. Choose '
+	        + (f'another sensor ({fit}), ' if fit else '')
+	        + f'a region with at most {e.share:g}% of its extent, or Export to Google Drive (no size limit)')
+
+
 def true_colour(region, opts, path, resolution=None, stretch=None):
 	"""The true colour of the images of the map with the arguments OPTS (services.download_rgb: the GeoTIFF PATH with
 	the bands red, green and blue, on the grid of pixels of RESOLUTION m, that of the map, so that their pixels match)
 	or, if it cannot be downloaded, its Earth Engine tiles (services.rgb_map, stretched from STRETCH[0] to STRETCH[1]
 	if given). In a task."""
 	try:
-		return services.download_rgb(region, path=path, resolution=resolution, max_pixels=MAP_PIXELS, **opts)
+		return services.download_rgb(region, path=path, resolution=resolution, **opts)
 	except Exception as e:
 		out = services.rgb_map(region, **opts, **({'vmin': stretch[0], 'vmax': stretch[1]} if stretch else {}))
 		out['error'] = str(e)
 		return out
+
+
+def result_warnings(result):
+	"""The warnings of the periods of the answers of the services in RESULT (an answer, a list or tuple of them, or a
+	dictionary of them, as that of maps_work): their days without images of their data (see monitoreo.coverage),
+	[texts], each once."""
+	found = []
+	for r in (result if isinstance(result, (list, tuple)) else [result]):
+		if not isinstance(r, dict):
+			continue
+		for d in [r] + [v for v in r.values() if isinstance(v, dict)]:
+			for w in d.get('warnings') or [] if isinstance(d.get('warnings'), list) else []:
+				if w and w not in found:
+					found.append(w)
+	return found
 
 
 def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None):
@@ -284,11 +312,13 @@ def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=
 	(DOWNLOAD: the GeoTIFF map.tif of FOLDER or, if it cannot be downloaded, TILES, with the colours COLORS (min, max)
 	if given); with KIND 'rgb' or 'both', the true colour of the same images and pixels (rgb.tif, on the grid of the
 	map; see true_colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
-	'rgb_error' instead of 'rgb' (the map is added all the same)."""
+	'rgb_error' instead of 'rgb' (the map is added all the same). First, whether the map fits on the pixels of the
+	data (services.check_pixels: if not, TooManyPixels, before computing anything)."""
+	services.check_pixels(region, MAP_PIXELS, rgb=kind != 'index', **opts)  # with a true colour: sensors that have it
 	out = {}
 	if kind != 'rgb':
 		try:
-			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), max_pixels=MAP_PIXELS, **opts)
+			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), **opts)
 		except Exception as e:
 			out['index'] = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
 			out['index']['error'] = str(e)
@@ -868,13 +898,14 @@ def panel_fields(analysis, params):
 		field('fire_perimeter', {'on': bool(p.get('perimeter')), 'burned_min': p.get('burned_min'),
 		                         'min_ha': p.get('min_ha')}, 'perimeter' in p, 'perimeter')
 
-	# what the panel has no option for: fine at its default (that of the panel, for the pixels of its downloads)
+	# what the panel has no option for: fine at its default
 	for name, value in p.items():
 		default = defaults.get(name, _MISSING)
-		if name in used or value == default or (name == 'max_pixels' and value == MAP_PIXELS):
+		if name in used or value == default:
 			continue
-		reports.append(missing(name, value, f'the panel downloads at most {MAP_PIXELS:,} pixels (bigger regions get '
-		                       'bigger pixels)' if name == 'max_pixels' else 'the panel has no option for it' +
+		reports.append(missing(name, value, f'the panel always uses the pixels of the data, up to {MAP_PIXELS:,} '
+		                       'pixels (a bigger region is not computed: Export to Google Drive)' if name == 'max_pixels'
+		                       else 'the panel has no option for it' +
 		                       ('' if default in (_MISSING, None) else f' (it uses {json.dumps(default)})')))
 	return key, fields, reports
 
@@ -1299,8 +1330,8 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Layer', info(self.map_kind, HELP['map_kind']))
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
-		             'Identify Features tool) or, with Layer, its true colour, at the resolution of the data or, in '
-		             f'big regions, with bigger pixels (up to {MAP_PIXELS / 1e6:g} million pixels)')
+		             'Identify Features tool) or, with Layer, its true colour, always at the resolution of the data, up '
+		             f'to {MAP_PIXELS / 1e6:g} million pixels (bigger regions: a warning, before computing anything)')
 		b.clicked.connect(self.run_map)
 		row = self.with_parameters(b, 'map')
 		b = QPushButton('Figure (print layout)…')
@@ -2832,6 +2863,9 @@ class MonitorEODock(QDockWidget):
 
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
+			if isinstance(exception, services.TooManyPixels):  # nothing computed: until the user closes it
+				self.message(too_many_text(description, exception), 'Warning', 0)
+				return
 			if exception is not None:
 				self.message(f'{description}: {exception}', 'Critical', 15)
 				return
@@ -2839,6 +2873,9 @@ class MonitorEODock(QDockWidget):
 				done(result)
 			except Exception as e:
 				self.message(f'{description}: {e}', 'Critical', 15)
+			warned = result_warnings(result)
+			if warned:  # days of its period without images of its data: the window of the result shows them too
+				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
 			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
@@ -3178,7 +3215,7 @@ class MonitorEODock(QDockWidget):
 		return 'download_trend', dict(region=region, **var, step=step,
 		                              part=self.trend_part.currentData() if step != 'annual' else None,  # as areas_call
 		                              metric=self.trend_metric.currentData(),
-		                              alpha=ALPHA if self.trend_alpha.isChecked() else None, max_pixels=MAP_PIXELS)
+		                              alpha=ALPHA if self.trend_alpha.isChecked() else None)
 
 	def run_trend_map(self):
 		call = self.call_of('trend_map')
@@ -3188,10 +3225,12 @@ class MonitorEODock(QDockWidget):
 		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'trend.tif')
 
 		def work():
+			# on the pixels of the data, or a warning
+			services.check_pixels(args['region'], MAP_PIXELS, **{k: v for k, v in args.items() if k != 'region'})
 			try:
 				return services.download_trend(path=path, **args)
 			except Exception as e:
-				res = services.trend_map(**{k: v for k, v in args.items() if k != 'max_pixels'})
+				res = services.trend_map(**args)
 				res['error'] = str(e)
 				return res
 
@@ -3290,9 +3329,9 @@ class MonitorEODock(QDockWidget):
 					charts.sankey_png([(r['from_label'], r['to_label'], r['ha']) for r in res['by_landcover']
 					                   if r['region'] == first], colours, path,
 					                  res['title'] + (f' ({first})' if len(res['changed_ha']) > 1 else ''),
-					                  (str(res['year']), str(res['other_year'])))
+					                  (str(res['year']), str(res['other_year'])), source=res.get('data_source'))
 				else:
-					charts.areas_png(res['rows'], colours, path, res['title'])
+					charts.areas_png(res['rows'], colours, path, res['title'], source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
@@ -3349,7 +3388,8 @@ class MonitorEODock(QDockWidget):
 			try:  # in the main thread; without matplotlib, the table only (no chart of class codes)
 				if klass or not res['rows']:
 					raise ImportError
-				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones))
+				charts.zones_png(res['rows'], stats, path, res['title'], res.get('ylabel'), services.zone_name(zones),
+				                 source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
@@ -3403,7 +3443,7 @@ class MonitorEODock(QDockWidget):
 			from monitoreo import charts
 			path = os.path.join(tmp, 'profile.png')
 			try:  # in the main thread; without matplotlib, the table only
-				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'))
+				charts.transect_png(res['rows'], path, res['title'], res.get('ylabel'), source=res.get('data_source'))
 				res['chart'] = path
 			except ImportError:
 				res['chart'] = None
@@ -3481,7 +3521,7 @@ class MonitorEODock(QDockWidget):
 			opts.update(other_start=other[0], other_end=other[1])
 		analysis = 'download_comparison' if other else 'download_rgb' if self.map_kind_chosen() == 'rgb' else \
 			'download_image'
-		return analysis, dict(region=region, **opts, max_pixels=MAP_PIXELS)
+		return analysis, dict(region=region, **opts)
 
 	def run_map(self):
 		call = self.call_of('map')
@@ -3489,7 +3529,7 @@ class MonitorEODock(QDockWidget):
 			return
 		analysis, args = call
 		region = args['region']
-		opts = {k: v for k, v in args.items() if k not in ('region', 'max_pixels')}  # maps_work gives max_pixels
+		opts = {k: v for k, v in args.items() if k != 'region'}  # maps_work checks the pixels first (check_pixels)
 		folder = tempfile.mkdtemp(prefix='monitoreo_')
 		other = analysis == 'download_comparison'
 		download, tiles = ((services.download_comparison, services.compare_map) if other else
@@ -3560,11 +3600,8 @@ class MonitorEODock(QDockWidget):
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data; for the full resolution, '
-		                                 'export the map to Google Drive)')
-		             + '. Query the values with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. Query the values with the Identify "
+		             'Features tool', 'Success', 10)
 
 	def add_rgb_layer(self, res, name=None, group=None, stretch=None, zoom=True, period=None):
 		"""Add the GeoTIFF of a true colour (services.download_rgb: the bands red, green and blue, reflectance) with the
@@ -3590,10 +3627,8 @@ class MonitorEODock(QDockWidget):
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data)')
-		             + f'. {caption}. Query the reflectance with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. {caption}. Query the reflectance with "
+		             'the Identify Features tool', 'Success', 10)
 
 	def zoom_to(self, rect, crs):
 		canvas = self.iface.mapCanvas()
@@ -3805,7 +3840,7 @@ class MonitorEODock(QDockWidget):
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
 		outline = self.perimeter_args(index, stem)  # the polygons of the burned area
 		return 'burn_severity', dict(region=region, sensor=sensor, start=before[0], end=before[1], other_start=after[0],
-		                             other_end=after[1], quality=quality, max_pixels=MAP_PIXELS, index=index,
+		                             other_end=after[1], quality=quality, index=index,
 		                             where=where, **more, **outline)
 
 	def run_burn(self):
@@ -3822,6 +3857,10 @@ class MonitorEODock(QDockWidget):
 		source = self.fire_sensor.currentText().split(' (')[0]  # Sentinel-2, Landsat, MODIS Terra or MODIS Aqua
 
 		def work():
+			# on the pixels of the data, or a warning (the other sensors it proposes: those of this burn index)
+			services.check_pixels(args['region'], MAP_PIXELS, {'dNBR': 'NBR'}.get(index, index), args['sensor'],
+			                      start=args['start'], end=args['end'], two_periods=True,
+			                      sensors=services.BURN_SENSORS[index], **({'collection': collection} if collection else {}))
 			return services.burn_severity(path=stem + '.tif', csv=stem + '.csv', **args)
 
 		def done(res):
@@ -3858,10 +3897,8 @@ class MonitorEODock(QDockWidget):
 		                  f"Temporary GeoTIFF: {res['file']}" + references_text(res))
 		add_layer(layer)
 		self.zoom_to(layer.extent(), layer.crs())
-		native = res['resolution'] <= res['native_resolution']
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m"
-		             + ('' if native else ' (big region: pixels bigger than those of the data)')
-		             + '. Query the values with the Identify Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. Query the values with the Identify "
+		             'Features tool', 'Success', 10)
 
 	def add_perimeter_layer(self, res):
 		"""Add the perimeter of the burned area of the burn severity RES (its GeoPackage) over its GeoTIFF: its

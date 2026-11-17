@@ -23,7 +23,9 @@ cloud_model, if there, asks the broker for one of its models (to compare them).
 
 While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
 computing, the MCP server starts again, so that Earth Engine stops and the next request does not wait for it. A map
-whose PNG preview Earth Engine cannot make in some minutes comes with its tiles alone (thumbnail_error).
+whose PNG preview Earth Engine cannot make in some minutes comes with its tiles alone (thumbnail_error). The warnings
+of the period of a result (days without images of its data, see monitoreo.coverage) are shown on the page and told to
+the model, which tells the user.
 
 The page and its API answer only on 127.0.0.1, to the host names of this computer, and the API only with the token of
 the address that the assistant opens (other pages of the browser cannot use it).
@@ -881,6 +883,20 @@ def units_must_choose(units, text, last=''):
 	return sum(1 for u in units if str(u.get(f'GAUL{unit_code(u)[0]}_NAME', '')).strip().lower() == name) != 1
 
 
+def data_warnings(result):
+	"""The warnings of the period of a RESULT (its days without images of its data, see monitoreo.coverage): [texts]."""
+	found = result.get('warnings') if isinstance(result, dict) else None
+	return [str(w) for w in found if w] if isinstance(found, list) else []
+
+
+def warnings_text(warned):
+	"""What the model gets of the warnings WARNED of a result, which the page shows: to tell the user."""
+	if not warned:
+		return ''
+	return (' The page also shows these warnings of its data, which you must tell the user in your answer: '
+	        + ' '.join(warned))
+
+
 def receipt(n, title):
 	"""What the model gets of a result: that it was computed and shown, without its values."""
 	return (f'Done: «{title}» has been computed in Google Earth Engine and the assistant shows it to the user, with its '
@@ -1731,7 +1747,13 @@ class Assistant:
 		if name in TASKS:
 			text = '\n'.join(texts)
 			yield {'type': 'notice', 'text': task_text(name, text)}
-			self._tool_message(name, text[:self.advice_limit()])
+			try:
+				warned = data_warnings(json.loads(text))  # the days of the period of an export without images of its data
+			except ValueError:
+				warned = []
+			for w in warned:
+				yield {'type': 'data_warning', 'text': w}
+			self._tool_message(name, text[:self.advice_limit()] + warnings_text(warned))
 			return
 		try:
 			result = json.loads(texts[0]) if texts else {}
@@ -1752,6 +1774,9 @@ class Assistant:
 			                                 f"({re.sub(r'^[A-Za-z]+(Error|Exception): ', '', result['thumbnail_error'])}): its "
 			                                 'map is in the panel of the maps, and «Add this view to the report» puts '
 			                                 'it in the report.'}
+		warned = data_warnings(result)
+		for text in warned:  # the period begins before the first image of the data, or ends after the last one
+			yield {'type': 'data_warning', 'text': f"Result {item['id']}: {text}"}
 		area = self.perimeter_area(item) if tool == 'burn_severity' else None
 		if area:  # the perimeter of the burned area: a study area for the next analyses
 			yield {'type': 'layers', 'layers': [{'name': k, 'text': layer_text(v)} for k, v in self.layers.items()]}
@@ -1760,7 +1785,7 @@ class Assistant:
 			                                 'fire), or download it from the result.'}
 		self._tool_message(name, receipt(item['id'], item['title']) + (
 			f" The perimeter of its burned area is the study area «{area}»: region {{\"layer\": \"{area}\"}} for the "
-			'analyses inside it.' if area else ''))
+			'analyses inside it.' if area else '') + warnings_text(warned))
 		for event in await self.eecu_events():
 			yield event
 		if tool in PERIOD_MAP:

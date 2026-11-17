@@ -92,7 +92,11 @@ or the climate at an annual step). The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
-are left. The recipe of download is a YAML
+are left, and when the period begins before the first image of the data or ends (or even begins) after the last one of
+data that ended in the copy of the Earth Engine data catalog, which Earth Engine may have extended since (a period that
+ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is an error that says their
+dates); their charts say where the values come from, in a line «Data: ...» (the Earth Engine collection and its
+product level). The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
 monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
 monitoreo.publish); the site is --site, the variable MONITOREO_SITE or ~/MonitorEO/visor.
@@ -737,6 +741,7 @@ def main(argv=None):
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return
+	_data_warnings()
 	if args.cmd == 'download':
 		try:
 			return _download(args, services)
@@ -814,6 +819,23 @@ def _eecu(args, services):
 	print(f"{u['name']} {u['bar']}\n{u['text']}")
 	if u['warning']:
 		print(f"\nWARNING: {u['warning']}", file=sys.stderr)
+
+
+def _data_warnings():
+	"""Show the warnings of the periods (the days without images of their data, see monitoreo.coverage) as the other
+	warnings of the command line, «WARNING: ...» on the standard error, when they come (before Earth Engine computes),
+	instead of as Python warnings."""
+	import warnings
+	from .coverage import DataDatesWarning
+	shown = warnings.showwarning
+
+	def show(message, category, filename, lineno, file=None, line=None):
+		if issubclass(category, DataDatesWarning):
+			print(f'WARNING: {message}', file=sys.stderr)
+		else:
+			shown(message, category, filename, lineno, file, line)
+
+	warnings.showwarning = show
 
 
 def _eecu_notice(services):
