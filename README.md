@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.51](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.51) · 2026-11-18 · package 0.3.61
 
 - **Assistant**: The guide to create an Earth Engine account and project, step by step, is in its manual, in the language of the question.
 
