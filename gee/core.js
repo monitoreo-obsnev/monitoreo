@@ -1946,6 +1946,19 @@ var MonitorEO = (function () {
 	// the table of each level of the administrative units: FAO GAUL 2025 (1 and 2) and the municipalities of Spain (3)
 	var ADMIN_DATASETS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES};
 	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
+	// seas.ASSET: the oceans and seas (the sea areas of the IHO, of Marine Regions), a public table with mrgid, name,
+	// area_km2 and search (the name as seaPlain gives it)
+	var SEAS = 'projects/ee-ugr-default-project/assets/monitoreo/seas_iho';
+	var SEA_FIELDS = ['mrgid', 'name', 'area_km2'];
+	// the tables of the regions whose credits and references the app shows under the region (adminCredits): the
+	// administrative units by their level and the seas
+	var CITED_REGIONS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES, sea: SEAS};
+	// areas.LARGE_AREA_KM2, LARGE_PIXEL and NICE_SCALES: the large areas (more than 100,000 km²) are computed by
+	// default on pixels of 1 to 10 km (defaultScale)
+	var LARGE_AREA_KM2 = 100000;
+	var LARGE_PIXEL = [1000, 10000];
+	var NICE_SCALES = [];
+	for (var ne = 1; ne < 6; ne++) [1, 2, 5].forEach(function (m) { NICE_SCALES.push(m * Math.pow(10, ne)); });
 	var WDPA_MAX_ERROR = 10;
 	var BIOME_MAX_ERROR = 100;  // areas.BIOME_MAX_ERROR: metres, the tolerance of the union of a biome's ecoregions
 	var BIOME_CODES = '1 to 14 or 99 (Rock and Ice)';  // areas.BIOME_CODES: the codes of the biomes, in the messages
@@ -2072,8 +2085,79 @@ var MonitorEO = (function () {
 	// municipalities of Spain of the IGN, 3): {credits: the lines that the terms of use of its data ask for, references:
 	// [{citation, url, text}]}, as catalog.json gives them (build.py writes them into catalog.js, regions)
 	function adminCredits(level) {
-		var d = (CATALOG.regions || {})[ADMIN_DATASETS[level]] || {};
+		var d = (CATALOG.regions || {})[CITED_REGIONS[level]] || {};
 		return {credits: d.credit ? [d.credit] : [], references: d.references || []};
+	}
+
+	// seas.plain: TEXT in lower case, without accents (its NFKD, only the ASCII), its apostrophes as "'" and every
+	// other sign that is not a letter, a digit or "'" as a space, its words separated by one space ('Balearic (Iberian
+	// Sea)' is 'balearic iberian sea'): the property search of the table of the seas (SEAS)
+	function seaPlain(text) {
+		var s = String(text === null || text === undefined ? '' : text).replace(/[\u2019\u2018\u02bc\u00b4]/g, "'")
+			.normalize('NFKD').replace(/[^\x00-\x7f]/g, '');
+		return s.toLowerCase().replace(/[^a-z0-9']+/g, ' ').split(' ').filter(Boolean).join(' ');
+	}
+
+	// areas.find_seas (seas.find): ee.FeatureCollection (without geometries) of the seas whose name contains TEXT (any
+	// case and accents: their property search) or whose MRGID is TEXT, at most LIMIT: the very name first, then those
+	// that begin with it, then the others, each by name; with their mrgid, name and area_km2
+	function findSeas(text, limit) {
+		var t = seaPlain(text);
+		var f = /^[0-9]+$/.test(t) ? ee.Filter.or(ee.Filter.stringContains('search', t), ee.Filter.eq('mrgid', Number(t))) :
+			ee.Filter.stringContains('search', t);
+		return ee.FeatureCollection(SEAS).filter(f).map(function (x) {
+			var s = ee.String(x.get('search'));
+			var rank = ee.Algorithms.If(s.equals(t), '0', ee.Algorithms.If(s.index(t).eq(0), '1', '2'));
+			return ee.Feature(null, x.toDictionary(SEA_FIELDS)).set('order', ee.String(rank).cat(s));
+		}).sort('order').limit(limit || 20);
+	}
+
+	// seas.codes, without the index of the package (the app has not got it, and finds the seas in the table): V (the
+	// MRGID of a sea or its name, or a list of them) as {mrgids: [numbers], names: [names as seaPlain gives them]}; an
+	// Error if there are none
+	function seaCodes(v) {
+		var values = Array.isArray(v) ? v : [v], out = {mrgids: [], names: []};
+		values.forEach(function (x) {
+			var s = String(x === null || x === undefined ? '' : x).trim();
+			if (/^[0-9]+(\.0*)?$/.test(s)) out.mrgids.push(Number(s));
+			else if (seaPlain(s)) out.names.push(seaPlain(s));
+		});
+		if (!out.mrgids.length && !out.names.length) {
+			throw new Error("sea is the MRGID of a sea area of the IHO (e.g. 3324) or its name (e.g. 'Alboran Sea'): " +
+				(values.join(', ') || 'none given') + ' is not one (find them with find_seas)');
+		}
+		return out;
+	}
+
+	// areas.region of {sea: V}: the seas of the MRGIDs or names V (seaCodes), each named by its name
+	function seaRegion(v) {
+		var c = seaCodes(v), fc = ee.FeatureCollection(SEAS), filters = [];
+		if (c.mrgids.length) filters.push(ee.Filter.inList('mrgid', c.mrgids));
+		if (c.names.length) filters.push(ee.Filter.inList('search', c.names));
+		return fc.filter(filters.length > 1 ? ee.Filter.or(filters[0], filters[1]) : filters[0]);
+	}
+
+	// areas.region of {sea_at: [LON, LAT]}: the sea area of the IHO at that point (none on land)
+	function seaAt(lon, lat) {
+		return ee.FeatureCollection(SEAS).filterBounds(ee.Geometry.Point([lon, lat]));
+	}
+
+	// areas.is_sea: whether the region of the parameters SPEC is a sea (sea or sea_at) or within one
+	function isSea(spec) {
+		if (!spec || typeof spec !== 'object') return false;
+		return (spec.sea !== null && spec.sea !== undefined) || (spec.sea_at !== null && spec.sea_at !== undefined) ||
+			isSea(spec.within);
+	}
+
+	// services.sea_warning: the warning of a variable of the catalog ENTRY without data over the open sea (without sea)
+	// computed over a sea (the region of the parameters SPEC, see isSea), or null
+	function seaWarning(spec, entry) {
+		if (!isSea(spec) || !entry || entry.custom || entry.sea) return null;
+		var marine = CATALOG.variables.filter(function (e) { return e.sea; })
+			.map(function (e) { return e.index + ' (' + e.sensor + ')'; });
+		marine = marine.filter(function (m, i) { return marine.indexOf(m) === i; }).sort();
+		return entry.index + ' of ' + entry.sensor + ' has no data over the open sea: its data are of the land ' +
+			'(Sentinel-2 and Landsat see the coastal waters only). Over a sea, use ' + marine.join(', ') + '.';
 	}
 
 	// areas.region of {island_at: [LON, LAT]}: the island of more than 1 km² at that point
@@ -2366,11 +2450,7 @@ var MonitorEO = (function () {
 
 	// classes.scale_for, from the AREA of the biggest region (m²)
 	function areaScale(native, area) {
-		var need = area ? Math.sqrt(area / AREA_TARGET_PIXELS) : native;
-		if (need <= native) return Number(native);
-		var nice = [];
-		for (var e = 1; e < 6; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
-		return nice.filter(function (n) { return n >= need; })[0] || nice[nice.length - 1];
+		return defaultScale(native, area, AREA_TARGET_PIXELS);
 	}
 
 	// classes.hectares: the grouped sum of the true area of the pixels by class over each feature, to evaluate
@@ -2662,15 +2742,27 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// areas.is_large: whether a region of AREA m² is a large area (more than LARGE_AREA_KM2)
+	function isLarge(area) {
+		return Boolean(area) && area > LARGE_AREA_KM2 * 1e6;
+	}
+
+	// areas.default_scale: the pixel (m) of the statistics of a region whose biggest feature has AREA m², with data of
+	// NATIVE m: that of the data, or bigger so that it has about TARGET pixels (rounded up to NICE_SCALES); in a large
+	// area (isLarge), 1 to 10 km (LARGE_PIXEL), never finer than the data
+	function defaultScale(native, area, target) {
+		native = Number(native);
+		var need = area ? Math.sqrt(area / target) : 0, scale = native;
+		if (need > native) {
+			scale = NICE_SCALES.filter(function (n) { return n >= need; })[0] || NICE_SCALES[NICE_SCALES.length - 1];
+		}
+		if (isLarge(area)) scale = Math.max(native, Math.min(Math.max(scale, LARGE_PIXEL[0]), LARGE_PIXEL[1]));
+		return scale;
+	}
+
 	// timeseries.auto_scale, from the AREA of the biggest region (m²)
 	function autoScale(entry, area) {
-		var native = Number(entry.m);
-		var need = area ? Math.sqrt(area / TARGET_PIXELS) : native;
-		if (need <= native) return native;
-		var nice = [];
-		for (var e = 1; e <= 5; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
-		for (var i = 0; i < nice.length; i++) if (nice[i] >= need) return nice[i];
-		return nice[nice.length - 1];
+		return defaultScale(entry.m, area, TARGET_PIXELS);
 	}
 
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
@@ -3734,7 +3826,7 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
 		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
-		resetNotes: resetNotes, notes: notes, withNotes: withNotes, used: used, sourceText: sourceText,
+		resetNotes: resetNotes, notes: notes, noteWarning: noteWarning, withNotes: withNotes, used: used, sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
@@ -3752,7 +3844,10 @@ var MonitorEO = (function () {
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		MUNICIPALITIES: MUNICIPALITIES, ADMIN_DATASETS: ADMIN_DATASETS, municipalityPlain: municipalityPlain,
 		findMunicipalities: findMunicipalities, municipalityCodes: municipalityCodes,
-		municipalityRegion: municipalityRegion, adminCredits: adminCredits,
+		municipalityRegion: municipalityRegion, adminCredits: adminCredits, SEAS: SEAS, CITED_REGIONS: CITED_REGIONS,
+		seaPlain: seaPlain, findSeas: findSeas, seaCodes: seaCodes, seaRegion: seaRegion, seaAt: seaAt, isSea: isSea,
+		seaWarning: seaWarning, LARGE_AREA_KM2: LARGE_AREA_KM2, LARGE_PIXEL: LARGE_PIXEL, isLarge: isLarge,
+		defaultScale: defaultScale, TARGET_PIXELS: TARGET_PIXELS,
 		islandAt: islandAt, BIOME_MAX_ERROR: BIOME_MAX_ERROR, WITHIN_MAX_ERROR: WITHIN_MAX_ERROR,
 		GLOBAL_CRS: GLOBAL_CRS, WIDE_DEGREES: WIDE_DEGREES, regionCrs: regionCrs, biomes: biomes, biomeName: biomeName,
 		ecoregionsOfBiome: ecoregionsOfBiome, biomeCodes: biomeCodes, biomeFeature: biomeFeature,

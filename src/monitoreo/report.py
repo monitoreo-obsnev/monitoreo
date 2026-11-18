@@ -798,6 +798,24 @@ def _municipality_text(code, names):
 	return f'{name}, municipality of Spain (IGN)' if name else f'Municipality {code} of Spain (IGN)'
 
 
+def _sea_codes(value):
+	"""The MRGIDs of the seas of the region sea (their MRGIDs or names), or the values as they are if one is not in the
+	index of the package."""
+	from . import seas
+	try:
+		return seas.codes(value)
+	except ValueError:
+		return _codes(value)
+
+
+def _sea_text(code, names):
+	"""A sea area of the IHO (the region sea, of Marine Regions) by its MRGID: named as the assistant found it, or as
+	the index of the package has it ('Alboran Sea (IHO sea area, Marine Regions)')."""
+	from . import seas
+	name = names.get(f'sea:{code}') or seas.name_of(code)
+	return f'{name} (IHO sea area, Marine Regions)' if name else f'Sea {code} (IHO sea area, Marine Regions)'
+
+
 def _region_text(region, names):
 	if 'wdpa_id' in region:
 		ids = region['wdpa_id'] if isinstance(region['wdpa_id'], list) else [region['wdpa_id']]
@@ -834,6 +852,11 @@ def _region_text(region, names):
 	if 'island_at' in region:
 		lon, lat = region['island_at']
 		return f'Island at the point {_num(lat)}, {_num(lon)} (lat., lon.)'
+	if 'sea' in region:
+		return '; '.join(_sea_text(c, names) for c in _sea_codes(region['sea']))
+	if 'sea_at' in region:
+		lon, lat = region['sea_at']
+		return f'Sea at the point {_num(lat)}, {_num(lon)} (lat., lon.; IHO sea areas, Marine Regions)'
 	if 'bbox' in region:
 		w, s, e, n = region['bbox']
 		return f'Rectangle of longitude {_num(w)} to {_num(e)} and latitude {_num(s)} to {_num(n)}'

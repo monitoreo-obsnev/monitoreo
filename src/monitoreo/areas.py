@@ -1,11 +1,13 @@
 """Regions of interest: GeoJSON, vector files, protected areas (WDPA, also its Ramsar sites), ecoregions and biomes
 (RESOLVE Ecoregions 2017), administrative units (countries, their first and second levels: FAO GAUL 2025), islands
-(Global Islands, Sayre et al. 2019), boxes and points, as Earth Engine feature collections with a 'name' property per
-feature. Any region takes "within", another region: only the part of each feature inside it is kept, e.g. the
+(Global Islands, Sayre et al. 2019), oceans and seas (the sea areas of the IHO, of Marine Regions: monitoreo.seas),
+boxes and points, as Earth Engine feature collections with a 'name' property per feature. Any region takes "within", another region: only the part of each feature inside it is kept, e.g. the
 Mediterranean biome in Spain, {'biome_id': 12, 'within': {'country': 'ESP'}}.
 
 The CRS of the statistics and grids is chosen for each region (auto_crs): the UTM zone of its centre or, for the regions
 too wide for one (whole biomes, which span continents), an equal-area CRS of the whole world in metres (GLOBAL_CRS).
+The large areas (more than LARGE_AREA_KM2: countries, biomes, most seas) are computed by default on pixels of 1 to 10
+km (default_scale).
 
 GDAL (osgeo) is only needed to read vector files and to reproject local geometries; it is imported when used, so
 the rest works without it.
@@ -24,6 +26,8 @@ References (monitoreo.references gives them, with those of the data, with each r
       D. P., Friesen, B., et al. (2019). A new 30 meter resolution global shoreline vector and associated global
       islands database for the development of standardized ecological coastal units. Journal of Operational
       Oceanography, 12(sup2), S47–S56. https://doi.org/10.1080/1755876X.2018.1529714
+    Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5.
+      Available online at https://www.marineregions.org/. https://doi.org/10.14284/699
 """
 
 import json
@@ -50,7 +54,7 @@ GAUL_FIELDS = {1: ['GAUL0_NAME', 'GAUL1_CODE', 'GAUL1_NAME', 'ISO3_CODE', 'DISP_
                2: ['GAUL0_NAME', 'GAUL1_NAME', 'GAUL2_CODE', 'GAUL2_NAME', 'ISO3_CODE', 'DISP_EN']}
 ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands'  # Global Islands of more than 1 km² (Sayre et al.)
 REGION_KEYS = ('geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-               'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point')
+               'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point')
 WDPA_MAX_ERROR = 10  # metres: simplification of the protected areas fetched from WDPA (one pixel of Sentinel-2)
 # A biome is the union of its ecoregions (those of the table of classes of BIOME, catalog.ecoregions_of_biome, so that
 # Rock and Ice, 99, is one too), dissolved with a tolerance of BIOME_MAX_ERROR metres, as a country
@@ -67,6 +71,12 @@ WIDE_DEGREES = 40
 # x is proportional to the longitude, PACIFIC_M_PER_DEGREE metres per degree
 PACIFIC_CRS = 'EPSG:3832'
 PACIFIC_M_PER_DEGREE = 6378137 * 3.141592653589793 / 180
+# The pixel of the statistics of a region chosen automatically (default_scale): that of the data, or bigger so that the
+# biggest region has about the pixels that the computation targets, rounded up to NICE_SCALES; a large area (more than
+# LARGE_AREA_KM2: a country, a biome, most seas) between 1 and 10 km (LARGE_PIXEL), never finer than the data
+LARGE_AREA_KM2 = 100_000
+LARGE_PIXEL = (1000, 10000)
+NICE_SCALES = [m * 10 ** e for e in range(1, 6) for m in (1, 2, 5)]  # 10, 20, 50, 100, ... 500 000 m
 
 _wdpa = {}  # protected areas already fetched: {region as JSON: [GeoJSON features]}
 
@@ -171,6 +181,30 @@ def auto_crs(geom, max_error=1000):
 		except ee.EEException:
 			pass  # without it, crs_for gives GLOBAL_CRS
 	return crs_for(info)
+
+
+def is_large(area):
+	"""Whether a region of AREA m² is a large area: more than LARGE_AREA_KM2."""
+	return bool(area) and area > LARGE_AREA_KM2 * 1e6
+
+
+def default_scale(native, area, target):
+	"""The pixel size (m) of the statistics of a region whose biggest feature has AREA m², with data of pixels of
+	NATIVE m: that of the data, or bigger so that the region has about TARGET pixels (rounded up to NICE_SCALES); for a
+	large area (is_large), between 1 and 10 km (LARGE_PIXEL), but never finer than the data (OISST, of 28 km, keeps its
+	pixel). Without Earth Engine."""
+	native = float(native)
+	need = math.sqrt(area / target) if area else 0
+	scale = float(next((n for n in NICE_SCALES if n >= need), NICE_SCALES[-1])) if need > native else native
+	if is_large(area):
+		lo, hi = LARGE_PIXEL
+		scale = max(native, min(max(scale, lo), hi))
+	return scale
+
+
+def max_area(regions):
+	"""The area (m²) of the biggest feature of REGIONS (an ee.FeatureCollection): one request to Earth Engine."""
+	return regions.map(lambda f: ee.Feature(None, {'a': f.geometry().area(1)})).aggregate_max('a').getInfo() or 0
 
 
 def bounds(geom, srs, crs):
@@ -327,6 +361,9 @@ def region(spec):
 	  admin3         code of the INE of a municipality of Spain (5 digits, e.g. '18134' Monachil), or a list of them:
 	                 their polygons of the Instituto Geográfico Nacional (see monitoreo.municipalities)
 	  island_at      [lon, lat]: the island (of more than 1 km²) at that point
+	  sea            MRGID of a sea area of the IHO (e.g. 3324) or its name (e.g. 'Alboran Sea', any case and
+	                 accents), or a list of them: their polygons of Marine Regions (see find_seas, monitoreo.seas)
+	  sea_at         [lon, lat]: the sea area of the IHO at that point (none on land)
 	  bbox           [west, south, east, north] in degrees
 	  point          [lon, lat], with buffer (metres, default 0)
 	and, with any of them, within: another region (with an area); only the part of each feature inside its union is
@@ -364,6 +401,11 @@ def check(spec, what='region'):
 		_point(spec[k], k)
 	if k == 'admin3':
 		municipality_codes(spec[k])
+	if k == 'sea':
+		from . import seas
+		seas.codes(spec[k])
+	if k == 'sea_at':
+		_point(spec[k], k)
 	if spec.get('within') is not None:
 		check(spec['within'], 'within')
 	return k
@@ -480,6 +522,12 @@ def _of(k, v, spec, inside):
 		fc = ee.FeatureCollection(ISLANDS).filterBounds(ee.Geometry.Point([lon, lat]))
 		return fc.map(lambda f: f.set('name', ee.Algorithms.If(ee.String(f.get('Name')).length().gt(0),
 		                                                       f.get('Name'), label)))
+	if k in ('sea', 'sea_at'):  # the sea areas of the IHO (monitoreo.seas), named by their name
+		from . import seas
+		fc = ee.FeatureCollection(seas.ASSET)
+		if k == 'sea':
+			return fc.filter(ee.Filter.inList('mrgid', seas.codes(v)))
+		return fc.filterBounds(ee.Geometry.Point(_point(v, k)))
 	if k == 'bbox':
 		return ee.FeatureCollection([ee.Feature(ee.Geometry.Rectangle(list(v), None, False), {'name': 'bbox'})])
 	geom = ee.Geometry.Point(list(v))
@@ -561,6 +609,21 @@ def find_admin_units(text, level=1, country=None, limit=20):
 	fc = ee.FeatureCollection(GAUL[level]).filter(f).limit(int(limit))
 	rows = fc.map(lambda x: ee.Feature(None, x.toDictionary(GAUL_FIELDS[level]))).getInfo()['features']
 	return [dict(x['properties'], level=level) for x in rows]
+
+
+def is_sea(region):
+	"""Whether the region REGION (a dictionary, see region) is a sea (sea or sea_at) or within one."""
+	if not isinstance(region, dict):
+		return False
+	return region.get('sea') is not None or region.get('sea_at') is not None or is_sea(region.get('within'))
+
+
+def find_seas(text, limit=20):
+	"""The sea areas of the IHO (Marine Regions, see monitoreo.seas) whose name contains TEXT, in any case and with or
+	without accents (or whose MRGID begins with it), without Earth Engine: [{MRGID, NAME, AREA_KM2, BOUNDS}], the very
+	name first. Use the MRGID or the name as {"sea": 3324} or {"sea": "Alboran Sea"}."""
+	from . import seas
+	return seas.find(text, limit=limit)
 
 
 # Ecoregions --------------------------------------------------------------------------------------------------------

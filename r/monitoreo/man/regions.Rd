@@ -8,6 +8,7 @@
 \alias{mo_country}
 \alias{mo_admin}
 \alias{mo_island}
+\alias{mo_sea}
 \alias{mo_bbox}
 \alias{mo_point}
 \alias{mo_geojson}
@@ -25,6 +26,8 @@ mo_admin(id, level = 1)
 
 mo_island(lon, lat)
 
+mo_sea(id = NULL, lon = NULL, lat = NULL)
+
 mo_bbox(west, south, east, north)
 
 mo_point(lon, lat, buffer = 0)
@@ -34,7 +37,8 @@ mo_geojson(geojson, name_field = NULL)
 \arguments{
 \item{id}{WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
 99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE, GAUL2_CODE or
-ADMIN3_CODE of \code{mo_admin_units()}).}
+ADMIN3_CODE of \code{mo_admin_units()}); for \code{mo_sea()}, MRGIDs of seas (of \code{mo_seas()}) or their names,
+e.g. \code{"Alboran Sea"}.}
 
 \item{lon, lat}{longitude and latitude (degrees).}
 
@@ -60,10 +64,12 @@ A region (a list) for the other functions.
 A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
 by ID or by a point (\code{mo_ecoregion()}), biomes of RESOLVE 2017 by code or by a point (\code{mo_biome()}: the
 union of their ecoregions, a feature per biome), countries (\code{mo_country()}) and their administrative units of
-FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
+FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), oceans and seas by MRGID or name, or the
+sea at a point (\code{mo_sea()}, the sea areas of the IHO: \code{mo_seas()}), a box (\code{mo_bbox()}), a
 point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
 (\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
-\code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
+\code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step. The
+large areas (more than 100,000 km2: a country, a biome, most seas) are computed by default on pixels of 1 to 10 km.
 }
 \examples{
 mo_wdpa(389011)            # Sierra Nevada National Park
@@ -73,6 +79,9 @@ mo_biome(lon = -3.3, lat = 37.1, within = mo_bbox(-4, 36.5, -2.5, 37.5))
 mo_country("ESP")
 mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
 mo_island(lon = 2.9, lat = 39.6)
+mo_sea(3324)               # the Alboran Sea: mo_seas("alboran")
+mo_sea("Alboran Sea")
+mo_sea(lon = -2.5, lat = 36)
 mo_bbox(-3.6, 36.9, -3.0, 37.2)
 mo_point(-3.4, 37.05, buffer = 1000)
 }
@@ -89,4 +98,7 @@ FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agricu
 Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., et al. (2019). A new 30 meter resolution global
   shoreline vector and associated global islands database for the development of standardized ecological coastal
   units. Journal of Operational Oceanography, 12(sup2), S47--S56. \doi{10.1080/1755876X.2018.1529714}
+
+Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5.
+  Available online at \url{https://www.marineregions.org/}. \doi{10.14284/699}
 }

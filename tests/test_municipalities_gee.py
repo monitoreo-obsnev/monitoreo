@@ -14,7 +14,7 @@ import subprocess
 
 import pytest
 
-from monitoreo import areas, catalog, municipalities, references
+from monitoreo import areas, catalog, municipalities, references, seas
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GEE = os.path.join(ROOT, 'gee')
@@ -333,7 +333,7 @@ def test_catalog_js_has_the_credits_of_catalog_json():
 	from catalog.json: run python gee/build.py --about-only after changing them."""
 	build = _build()
 	assert build.read_catalog()['regions'] == build.region_credits(), 'run gee/build.py --about-only'
-	assert build.ADMIN_DATASETS == [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET]
+	assert build.ADMIN_DATASETS == [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET, seas.ASSET]  # and the seas
 
 
 def test_monitoreo_app_js_is_written_from_the_sources(tmp_path, monkeypatch):

@@ -100,7 +100,12 @@ HELP = {
 		'for more of it, with MODIS or a coarse pixel. For its pixels in a country, choose the country and, in '
 		'<b>Only the pixels where</b>, the layer BIOME with its class.</li>'
 		'<li><b>Island at the center of the map</b>: the island of more than 1 km² (Global Islands, Sayre et al. '
-		'2019) that contains the center of the view.</li></ul>' + manual('Concepts#regions'),
+		'2019) that contains the center of the view.</li>'
+		'<li><b>Sea or ocean (IHO)</b>: a sea area of the International Hydrographic Organization (Marine Regions), '
+		'searched by its name.</li>'
+		'<li><b>Sea at the center of the map</b>: the sea area of the IHO that contains the center of the view.</li>'
+		'</ul><p>A region of more than 100,000 km² (a country, a biome, most seas) is a large area: its statistics, '
+		'series and maps are computed by default on pixels of 1 to 10 km.</p>' + manual('Concepts#regions'),
 	'layer':
 		'<p>Layer of polygons of the project, in any coordinate system. If it has selected features, only those are '
 		'used; if not, all of them. Each polygon gives its own series (a line in the chart).</p>'
@@ -128,6 +133,19 @@ HELP = {
 		'accents) or by their code of the INE (5 digits, e.g. 18134, Monachil). The country is Spain. Each entry tells '
 		'the municipality, its province and its code of the INE; the results over it cite the IGN.</li></ul>'
 		+ manual('QGIS-plugin#2-choose-the-region'),
+	'sea':
+		'<p>Write part of the name of an ocean or sea, in English (e.g. Alboran, Biscay, Mediterranean), and press '
+		'<b>Search</b> (or Enter): the list <b>Sea</b> brings up to 30 of the 101 sea areas of the International '
+		'Hydrographic Organization (its <i>Limits of Oceans and Seas</i>), with their area and their MRGID, found at '
+		'once and without Earth Engine. They come from the <a href="https://doi.org/10.14284/699">intersect of the '
+		'Exclusive Economic Zones and IHO sea areas</a> of Marine Regions (Flanders Marine Institute, licence CC BY '
+		'4.0), and the results over them cite it.</p><ul>'
+		'<li>The oceans are what is left of them out of their seas: the North Atlantic Ocean has neither the North '
+		'Sea nor the Mediterranean, which is several sea areas (Alboran, Balearic, Tyrrhenian...).</li>'
+		'<li>The seas are large areas: pixels of 1 to 10 km by default.</li>'
+		'<li>Only some variables have data over the open sea: today the chlorophyll-a of MODIS (Chl-a). The others '
+		'are of the land, and the results over a sea warn of it.</li></ul>'
+		+ manual('Concepts#oceans-and-seas'),
 	'country':
 		'<p>The ISO3 code of a country (ESP, PRT, FRA...): the whole country, as the union of its regions of FAO GAUL '
 		'2025. A country is big: compute with MODIS or with a coarse pixel.</p>' + manual('Concepts#regions'),
@@ -520,8 +538,10 @@ HELP = {
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
 		'faster export.</p>'
-		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
-		'up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
+		'<p>A large area (more than 100,000 km²: a country, a biome, most seas) has by default pixels of 1 to 10 km, '
+		'never finer than those of the data.</p>'
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data '
+		'(1 to 10 km in a large area), up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
 		'exceeds the limit and which sensors of the variable fit: choose one of them, a smaller region or the export '
 		'to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':

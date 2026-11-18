@@ -383,11 +383,30 @@ reports = dock.apply_parameters(saved)
 got = dock.region()['bbox']
 assert dock.region_kind.currentData() == 'extent' and reports == [], reports
 assert all(abs(a - b) < 1e-6 for a, b in zip(got, call[1]['region']['bbox'])), (got, call[1]['region'])
-for region in ({'ecoregion_at': [-3.3, 37.1]}, {'island_at': [-16.6, 28.3]}):
+for region in ({'ecoregion_at': [-3.3, 37.1]}, {'island_at': [-16.6, 28.3]}, {'sea_at': [-2.5, 36.0]}):
 	reports = dock.apply_parameters({'analysis': 'map_layer', 'parameters': dict(region=region, variable='NDVI',
 	                                                                             sensor='Landsat')})
 	kind = next(iter(region))
 	assert reports == [] and all(abs(a - b) < 1e-6 for a, b in zip(dock.region()[kind], region[kind])), reports
+assert dock.region_kind.currentData() == 'sea_point'  # the sea at the center of the map
+# an ocean or sea by its name or its MRGID (the index of the package, without Earth Engine): the list Sea, its MRGID
+reports = dock.apply_parameters({'analysis': 'map_layer', 'parameters': {'region': {'sea': 'alborán sea'},
+                                                                         'variable': 'Chl-a', 'sensor': 'Modis'}})
+assert reports == [] and dock.region() == {'sea': 3324} and dock.sea.currentText() == 'Alboran Sea (MRGID 3324)'
+assert dock.sea_row.isVisibleTo(dock) and dock.sea.isVisibleTo(dock) and not dock.admin.isVisibleTo(dock)
+dock.sea_text.setText('MEDITERRANEAN')
+dock.search_seas()
+assert [dock.sea.itemData(i) for i in range(dock.sea.count())] == [4280, 4279]
+assert dock.sea.itemText(1) == 'Mediterranean Sea - Western Basin · 475,507 km² (MRGID 4279)'
+dock.sea.setCurrentIndex(1)
+assert dock.region() == {'sea': 4279} and 'No sea' not in messages[-1][1]
+dock.sea_text.setText('atlantis')
+dock.search_seas()
+assert dock.sea.count() == 0 and 'No sea with "atlantis"' in messages[-1][1]
+reports = dock.apply_parameters({'analysis': 'map_layer', 'parameters': {'region': {'sea': 'Atlantis'},
+                                                                         'variable': 'Chl-a', 'sensor': 'Modis'}})
+assert [r['name'] for r in reports] == ['region'] and 'find_seas' in reports[0]['reason'], reports
+print('the seas: by name or MRGID, searched without Earth Engine, and the sea at the center of the map')
 reports = dock.apply_parameters({'analysis': 'map_layer', 'parameters': {'region': {'biome_at': [-3.3, 37.1]},
                                                                          'variable': 'NDVI', 'sensor': 'Landsat'}})
 assert dock.region_kind.currentData() == 'biome' and [r['name'] for r in reports] == ['region.within'], reports
