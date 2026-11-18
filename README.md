@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant**: The guide to create an Earth Engine account and project, step by step, is in its manual, in the language of the question.
+
 ### [v0.3.49](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.49) · 2026-11-18 · package 0.3.59
 
 - **All tools**: The oceans and seas as study areas: the 101 sea areas of the International Hydrographic Organization (Limits of Oceans and Seas), from the intersect of the Exclusive Economic Zones and IHO sea areas of Marine Regions (Flanders Marine Institute 2024, CC BY 4.0, https://doi.org/10.14284/699), in a public table of Earth Engine, the same in every tool. A sea is given by its MRGID or its English name (`{"sea": 3324}`, `{"sea": "Alboran Sea"}`, or a list) or as the sea at a point (`{"sea_at": [lon, lat]}`), and found by name without Earth Engine (`find_seas("alboran")`, `monitoreo seas alboran`, `mo_seas("alboran")` and `mo_sea()` in R, Sea or ocean (IHO) and Sea at the center of the map in QGIS, Sea or ocean (IHO) in the Earth Engine app, or by asking the assistant); their results cite Marine Regions.
