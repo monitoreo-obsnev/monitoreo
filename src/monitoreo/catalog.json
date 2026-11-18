@@ -22,6 +22,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
+  "sea": "with data over the open sea (the regions sea and sea_at, the oceans and seas of the IHO): the others are of the land, with no data offshore (Sentinel-2 and Landsat see the coastal waters only); the tools warn when one of them is computed over a sea",
   "static": "fixed layer, without dates (catalog.EXTRA: elevation, slope, topographic wetness index, the bioclimatic variables of WorldClim, the ecoregions and biomes): an image (col and band, with terrain slope; the topographic wetness index from two bands, see ft) or polygons rasterized (with classes), with maps and their statistics but no time series, trends or comparisons",
   "classes": "categorical fixed layer (catalog.EXTRA: ECOREGION and BIOME): the key of its table in classes (the code, name and colour of each class); its values are class codes, not quantities: never interpolated nor averaged (nearest neighbour; on pixels more than twice as big as m, the majority class, mode), its statistic over a region the majority class, the area of each class (area_by_class), zones by class and where conditions with classes (the classes to keep) or exclude (those to leave out); see monitoreo.categorical",
   "notes": "comments of the fields",
@@ -343,6 +344,12 @@
    ],
    "credit": "Municipalities of Spain: derived from the INSPIRE administrative units of the Instituto Geográfico Nacional (CC BY 4.0 ign.es)"
   },
+  "projects/ee-ugr-default-project/assets/monitoreo/seas_iho": {
+   "references": [
+    "vliz_eez_iho2024"
+   ],
+   "credit": "Oceans and seas: the IHO sea areas of the intersect of the Exclusive Economic Zones and IHO sea areas v5, Flanders Marine Institute, Marine Regions (CC BY 4.0), dissolved by sea by MonitorEO"
+  },
   "projects/sat-io/open-datasets/shoreline/big_islands": {
    "references": [
     "sayre2019"
@@ -656,6 +663,10 @@
   "ign_au": {
    "citation": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es.",
    "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
+  },
+  "vliz_eez_iho2024": {
+   "citation": "Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5 [Data set]. Marine Regions. Licence: CC BY 4.0. Available online at https://www.marineregions.org/.",
+   "doi": "10.14284/699"
   },
   "fao_gaul2025": {
    "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
@@ -2047,7 +2058,8 @@
    "type_fr": "Carbon (Primary Production)",
    "vname_de": "Chlorophylla concentration",
    "type_de": "Carbon (Primary Production)",
-   "large_areas": true
+   "large_areas": true,
+   "sea": true
   },
   {
    "ref": 18,
@@ -2117,7 +2129,8 @@
    "type_fr": "Carbon (Primary Production)",
    "vname_de": "Chlorophylla concentration",
    "type_de": "Carbon (Primary Production)",
-   "large_areas": true
+   "large_areas": true,
+   "sea": true
   },
   {
    "ref": 19,
@@ -2131,8 +2144,8 @@
    "ds": "3/28/17",
    "de": "now",
    "vname": "Concentración de Clorofila",
-   "ft": "1.07 - 1.1582 * (B8) + 0.8718 * (B3) + 0.682 * (B4)",
-   "f": "1.07 - 1.1582 * (B8) + 0.8718 * (B3) + 0.682 * (B4)",
+   "ft": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
+   "f": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
    "fe": 0,
    "QA": "#",
    "unit": "[mg m⁻³]",
@@ -2152,9 +2165,9 @@
    "psnow": 100,
    "paerosols": 100,
    "min": 0,
-   "max": 1,
+   "max": 4,
    "minp": 0,
-   "maxp": 1,
+   "maxp": 4,
    "scale": 0.0001,
    "offset": 0,
    "scalet": 1,
@@ -2188,8 +2201,7 @@
    "type_de": "Carbon (Primary Production)",
    "large_areas": false,
    "notes": {
-    "ft": "ESTA FORMULA SOLAMENTE SIRVE PARA SIERRA NEVADA QUE ES DONDE SE HA TESTADO.",
-    "f": "ESTA FORMULA SOLAMENTE SIRVE PARA SIERRA NEVADA QUE ES DONDE SE HA TESTADO.",
+    "ft": "Model of the small high-mountain lakes of Sierra Nevada (Spain), oligo-mesotrophic (0.03 to 4.5 mg m-3 in its 56 samples of 2020, 2021 and 2023): Table 3b of Llodrà-Llabrés et al. (2026, https://doi.org/10.1029/2026WR043523), a linear model of the surface reflectance of B12, B4 and B8, each standardized with the mean and standard deviation of the samples (the constants of the formula, which the data of the article give: https://www.hydroshare.org/resource/36d2115b22c144d4ab3f08d3e21245a8). Only valid on the water of such lakes, best 40 to 60 m from the shore and worse closer than about 20 m: over land, other waters or the shore its values (even below 0) are not chlorophyll. Nor on water altered by Saharan dust: the article left out its samples of 2022, of an extreme dust deposition, and on them the model gives 0.4 to 17.8 mg m-3 where 0.02 to 2.8 were measured. Values above about 4.5 mg m-3, the highest of its samples, are outside its calibration. Calibrated with Sentinel-2 corrected with 6SV; here, the Sen2Cor reflectance of COPERNICUS/S2_SR_HARMONIZED.",
     "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\""
    }
   },

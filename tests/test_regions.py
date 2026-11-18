@@ -358,7 +358,7 @@ def test_the_qgis_plugin(monkeypatch):
 	regions = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
 	               and getattr(n.targets[0], 'id', None) == 'REGIONS')
 	kinds = [k for _, k in regions]
-	assert kinds == ['layer', 'extent', 'wdpa', 'admin', 'country', 'ecoregion', 'biome', 'island']
+	assert kinds == ['layer', 'extent', 'wdpa', 'admin', 'country', 'ecoregion', 'biome', 'island', 'sea', 'sea_point']
 	assert ('Biome at the center of the map', 'biome') in regions
 	assert "return {'biome_at': [c.x(), c.y()], 'within': extent}" in dock
 	monkeypatch.syspath_prepend(os.path.join(ROOT, 'qgis'))  # the help of the plugin does not need QGIS
@@ -473,7 +473,7 @@ def test_the_app_has_the_biome_mode():
 	ui = _read('gee', 'ui.js')
 	assert "mode_biome: 'Bioma'" in ui and "mode_biome: 'Biome'" in ui and ui.count('biomeHelp: ') == 2
 	assert ui.count('noBiome: ') == 2
-	assert "['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'view', 'draw']" in ui
+	assert "['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'sea', 'view', 'draw']" in ui
 	assert 'mo.withinRegion(mo.biomeAt(coords.lon, coords.lat, inside), inside)' in ui
 	assert 'mo.bboxRegion(map.getBounds()).geometry(mo.WITHIN_MAX_ERROR)' in ui
 	assert 'state.info.crs = mo.regionCrs(d.info)' in ui and 'mo.utmOf(d.info.centroid' not in ui

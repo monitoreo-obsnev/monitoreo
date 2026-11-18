@@ -95,6 +95,9 @@ def _cited(fn):
 			call.apply_defaults()
 			a = dict(call.arguments)
 			a.update(a.pop('source', None) or {})
+			sea = sea_warning(a)
+			if sea and sea not in (out.get('warnings') or []):
+				out['warnings'] = list(out.get('warnings') or []) + [sea]
 			out.update(references.cite(fn.__name__, a))
 			try:  # a file that cannot be documented is still the result
 				from . import readme
@@ -105,6 +108,22 @@ def _cited(fn):
 				warnings.warn(f'MonitorEO could not document the files of {fn.__name__}: {e}')
 		return out
 	return wrapped
+
+
+def sea_warning(args):
+	"""The warning of a variable of the catalog without data over the open sea (without sea in the catalog: the NDVI of
+	MODIS, the land surface temperature...) computed over a sea (the region sea or sea_at, or within one), from the
+	arguments ARGS of a call (region, variable, sensor, collection); else None (also for the data of Earth Engine given
+	by their ID, which MonitorEO does not know)."""
+	region, var = args.get('region'), args.get('variable')
+	if not areas.is_sea(region) or not var or args.get('image'):
+		return None
+	entry = references._entry(var, args.get('sensor'), args.get('collection'))
+	if entry is None or entry.get('sea'):
+		return None
+	marine = sorted({f"{e['index']} ({e['sensor']})" for e in catalog.variables() if e.get('sea')})
+	return (f"{entry['index']} of {entry['sensor']} has no data over the open sea: its data are of the land "
+	        f"(Sentinel-2 and Landsat see the coastal waters only). Over a sea, use {', '.join(marine)}.")
 
 
 def tag_references(path, cited):
@@ -756,6 +775,14 @@ def find_protected_areas(text, limit=20, designation=None):
 	"""Protected areas of WDPA whose name contains TEXT: [{SITE_ID (WDPA ID), NAME, DESIG, IUCN_CAT, ISO3, REP_AREA, ...}];
 	with DESIGNATION 'ramsar', only the Ramsar sites (Wetlands of International Importance)."""
 	return areas.find_protected_areas(text, limit, designation)
+
+
+def find_seas(text, limit=20):
+	"""The oceans and seas (the sea areas of the IHO, of Marine Regions) whose name contains TEXT, in any case and with
+	or without accents (or whose MRGID begins with it), without Earth Engine: [{MRGID, NAME, AREA_KM2, BOUNDS}], the
+	very name first. Use the MRGID or the name as {"sea": 3324} or {"sea": "Alboran Sea"}; {"sea_at": [lon, lat]} is
+	the sea at a point. They are large areas: see areas.LARGE_AREA_KM2."""
+	return areas.find_seas(text, limit)
 
 
 def find_admin_units(text, level=1, country=None, limit=20):
@@ -1839,8 +1866,8 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
                    max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
-	metres (default: that of the data) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
-	region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
+	metres (default: that of the data; in a large area, 1 to 10 km, see areas.default_scale) in CRS ('auto' = WGS 84 /
+	UTM of the centre of the region, or EPSG:6933 for a region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
 	a time (PROGRESS(done, total) after each one). With MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times
 	bigger. Fine for small regions; for big ones at full resolution, export_image (Google Drive).
 	A categorical layer (ECOREGION, BIOME) has class codes: on pixels more than twice as big as those of the data, the
@@ -1852,7 +1879,7 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	                 season=season, quality=quality, **source)
 	regions = areas.region(region)
 	native = float(variables.native_scale(spec))
-	grid, res = _fit_grid(regions, float(resolution or native), crs, max_pixels)
+	grid, res = _fit_grid(regions, resolution, crs, max_pixels, native)
 	img = variables.image(spec, regions.geometry(), res)
 	if clip:
 		img = img.clipToCollection(regions)
@@ -1884,7 +1911,7 @@ def download_rgb(region, variable=None, sensor=None, start=None, end=None, metri
 	variables.check_rgb(spec)  # before Earth Engine
 	regions = areas.region(region)
 	native = float(variables.native_scale(spec))
-	grid, res = _fit_grid(regions, float(resolution or native), crs, max_pixels)
+	grid, res = _fit_grid(regions, resolution, crs, max_pixels, native)
 	img = variables.image(spec, regions.geometry(), res, rgb=True)
 	if clip:
 		img = img.clipToCollection(regions)
@@ -1901,9 +1928,25 @@ def download_rgb(region, variable=None, sensor=None, start=None, end=None, metri
 	        'max': max(highs) if highs else None}
 
 
-def _fit_grid(regions, res, crs, max_pixels=None):
-	"""(grid, pixel size) of REGIONS: pixels of RES m, or 2, 3, ... times bigger if the grid has more than MAX_PIXELS."""
+def _default_grid(regions, resolution, crs, native):
+	"""(grid, pixel size) of a map of REGIONS: pixels of RESOLUTION m if given; else those of the data, NATIVE, or for a
+	large area (more than areas.LARGE_AREA_KM2), 1 to 10 km, as its statistics (areas.default_scale). The area of its
+	biggest feature is asked of Earth Engine only when the bounds of the region (those of the grid) are of a large area:
+	a region is never bigger than its bounds."""
+	res = float(resolution or native)
 	grid = _grid(regions, res, crs)
+	if not resolution and areas.is_large(grid.pixels * res ** 2):
+		area = areas.max_area(regions)
+		if areas.is_large(area):
+			res = areas.default_scale(res, area, timeseries.TARGET_PIXELS)
+			grid = _grid(regions, res, grid.crs)
+	return grid, res
+
+
+def _fit_grid(regions, resolution, crs, max_pixels=None, native=None):
+	"""(grid, pixel size) of REGIONS: pixels of RESOLUTION m (default: those of the data, NATIVE, or 1 to 10 km in a
+	large area, see _default_grid), or 2, 3, ... times bigger if the grid has more than MAX_PIXELS."""
+	grid, res = _default_grid(regions, resolution, crs, native)
 	if max_pixels and grid.pixels > max_pixels:
 		res *= math.ceil(math.sqrt(grid.pixels / max_pixels))
 		grid = _grid(regions, res, grid.crs)
@@ -1933,8 +1976,10 @@ class TooManyPixels(ValueError):
 def check_pixels(region, max_pixels, variable=None, sensor=None, resolution=None, crs='auto', sensors=None, rgb=False,
                  **opts):
 	"""Before computing the map of REGION to download (download_image, download_rgb, download_trend,
-	download_comparison, burn_severity), whether its grid with pixels of RESOLUTION m (default: those of the data)
-	has at most MAX_PIXELS pixels. Only the bounds of the region are asked of Earth Engine, nothing is computed.
+	download_comparison, burn_severity), whether its grid with pixels of RESOLUTION m (default: those of the data;
+	in a large area, 1 to 10 km, see areas.default_scale) has at most MAX_PIXELS pixels. Only the bounds of the region
+	(and, when they are of a large area, the area of its biggest feature) are asked of Earth Engine, nothing is
+	computed.
 	OPTS: the other arguments of the variable (those of make_spec; the rest are ignored). If it fits, returns
 	{'pixels', 'max_pixels', 'resolution'}; if not, raises TooManyPixels, which says by how much the map exceeds the
 	limit and what to change: the other sensors of the same variable (only those of SENSORS, if given, and with RGB
@@ -1942,8 +1987,7 @@ def check_pixels(region, max_pixels, variable=None, sensor=None, resolution=None
 	change the pixels of a map."""
 	known = inspect.signature(make_spec).parameters
 	spec = make_spec(variable, sensor, **{k: v for k, v in opts.items() if k in known})
-	res = float(resolution or variables.native_scale(spec))
-	grid = _grid(areas.region(region), res, crs)
+	grid, res = _default_grid(areas.region(region), resolution, crs, variables.native_scale(spec))
 	if grid.pixels <= max_pixels:
 		return {'pixels': grid.pixels, 'max_pixels': max_pixels, 'resolution': res}
 	fit = {}  # of each other sensor of the variable, its finest pixels whose map fits
@@ -2139,15 +2183,15 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
                    tile=512, workers=8, progress=None, **source):
 	"""Download the trend of a part of the year of a variable over REGION (see trend_map) to the GeoTIFF PATH, with a
 	band per output: slope, tau, z, p_value, intercept, n (NoData -9999 where there are fewer than 2 years or, with
-	ALPHA, p_value >= ALPHA), on a grid of RESOLUTION metres (default: that of the data; 2, 3, ... times bigger if
-	the grid has more than MAX_PIXELS).
+	ALPHA, p_value >= ALPHA), on a grid of RESOLUTION metres (default: that of the data, or 1 to 10 km in a large area;
+	2, 3, ... times bigger if the grid has more than MAX_PIXELS).
 	Returns {'file', 'bands', 'grid', 'resolution', 'native_resolution', 'name', 'unit' (of the slope), 'min', 'max'
 	(symmetric range of the slope), 'palette'}."""
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec0, 'trends')
 	native = float(variables.native_scale(spec0))
-	grid, res = _fit_grid(regions_, float(resolution or native), crs, max_pixels)
+	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, native)
 	spec, regions, img, part, native, name = _trend(regions_, variable, sensor, start, end, step, part, metric, season,
 	                                                quality, alpha, res, source)
 	path = path or _slug(f"trend_{_file_stem(variable, sensor, metric, start, end, source)}_{trends.part_key(step, part)}") + '.tif'
@@ -2280,7 +2324,7 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                  season=season, quality=quality, **source)
 	variables.check_dates(spec0, 'comparisons of periods')
-	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, variable, sensor, start, end, other_start, other_end,
 	                                               metric, temporal, interannual, season, quality, res, source)
 	path = path or _slug(f"comparison_{_what(variable, sensor, source)}_{metric}_{start}_{end}_"
@@ -2312,7 +2356,8 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
-	each class are computed by Earth Engine on pixels of RESOLUTION metres (default: those of the data). Writes the
+	each class are computed by Earth Engine on pixels of RESOLUTION metres (default: those of the data; 1 to 10 km in a
+	large area). Writes the
 	table to CSV and, with PATH, a GeoTIFF with the bands dnbr, severity (class -2 to 4), nbr_before and nbr_after.
 	Returns {'index': 'dNBR', 'classes': [{region, class, label, dnbr_min, dnbr_max, ha}], 'burned_ha': {region:
 	hectares with dNBR >= 0.1}, 'scale', 'title', 'csv', 'file', 'bands', 'grid', 'resolution', 'native_resolution'}.
@@ -2370,7 +2415,7 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		              path, csv, max_pixels, tile, workers, progress, where, collection, outline=outline)
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
-	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, 'NBR', sensor, start, end, other_start, other_end,
 	                                               metric, 'period', 'mean', season, quality, res,
 	                                               {'where': where} if where else {})
@@ -2434,7 +2479,7 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 	"""burn_severity with the index RBR."""
 	regions_ = areas.region(region)
 	spec0 = make_spec('RBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True)
-	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, 'RBR', sensor, start, end, other_start, other_end,
 	                                               metric, 'period', 'mean', season, quality, res,
 	                                               {'where': where} if where else {}, two_periods=True)
@@ -2470,7 +2515,7 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 	source = dict({'where': where} if where else {}, **({'collection': collection} if collection else {}))
 	spec0 = make_spec('RdNBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True,
 	                  collection=collection)
-	grid, res = _fit_grid(regions_, float(resolution or variables.native_scale(spec0)), crs, max_pixels)
+	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, 'RdNBR', sensor, start, end, other_start, other_end,
 	                                               metric, 'period', 'mean', season, quality, res, source,
 	                                               two_periods=True)

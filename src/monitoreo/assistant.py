@@ -101,7 +101,7 @@ PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_prox
 SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
-          'find_admin_units', 'describe_asset', 'community_themes',
+          'find_admin_units', 'find_seas', 'describe_asset', 'community_themes',
           'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
           'apply_parameters')  # their answers go to the model (apply_parameters: to repeat an analysis from its JSON)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
@@ -175,6 +175,7 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'describe_variable': 'Looking at the description of {variable}',
           'find_protected_areas': 'Searching for protected areas named «{text}»',
           'find_admin_units': 'Searching for administrative units named «{text}»',
+          'find_seas': 'Searching for oceans and seas named «{text}»',
           'describe_asset': 'Reading the description of {asset} in Earth Engine',
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
@@ -240,11 +241,14 @@ find_protected_areas returns; for a Ramsar site, search with designation "ramsar
 {{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
 municipality of level 2; {{"admin3": "18134"}}, a municipality of Spain, level 3; with the code that find_admin_units \
 returns, never made up), {{"country": "ISO3"}} (a \
-whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
+whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"sea": MRGID}} or {{"sea": \
+"Alboran Sea"}} (an ocean or sea, a sea area of the IHO, with the MRGID or the English name that find_seas returns, \
+never made up; or a list), {{"sea_at": [lon, lat]}} (the sea at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
 {{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
 another region: only its part inside it, e.g. {{"biome_id": 12, "within": {{"country": "ESP"}}}} (the Mediterranean \
-biome in Spain). Countries and big regions: MODIS, or a monthly or annual step; a whole biome spans continents: \
+biome in Spain). Countries and big regions: MODIS, or a monthly or annual step (regions of more than 100,000 km², \
+as most seas, are computed on pixels of 1 to 10 km); a whole biome spans continents: \
 always within a country or another region, or MODIS or the climate at an annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
@@ -894,6 +898,25 @@ def units_must_choose(units, text, last=''):
 	name = str(text).strip().lower()
 	return sum(1 for u in units
 	           if str(u.get(f'GAUL{unit_code(u)[0]}_NAME') or u.get('NAME') or '').strip().lower() == name) != 1
+
+
+def seas_text(seas):
+	"""The seas found by find_seas, for the model: a line each with the region to use."""
+	if not seas:
+		return ('No ocean or sea with that name: try its English name (e.g. Alboran, Biscay, Mediterranean, North '
+		        'Atlantic) or a shorter part of it.')
+	lines = [f"- {{\"sea\": {s['MRGID']}}}: {s['NAME']} ({report._num(s['AREA_KM2'])} km²)" for s in seas]
+	return (f'{len(seas)} oceans and seas (sea areas of the IHO, Marine Regions); the user sees this list and can '
+	        'choose one in it (or several: a list):\n' + '\n'.join(lines))
+
+
+def seas_must_choose(seas, text, last=''):
+	"""Whether the user has to choose among the SEAS found for TEXT: several, not exactly one with that very name, and
+	none of their MRGIDs in the LAST message of the user."""
+	if len(seas) < 2 or any(re.search(rf"\b{s['MRGID']}\b", last) for s in seas):
+		return False
+	name = str(text).strip().lower()
+	return sum(1 for s in seas if str(s.get('NAME', '')).strip().lower() == name) != 1
 
 
 def data_warnings(result):
@@ -1696,6 +1719,10 @@ class Assistant:
 			self._tool_message(name, f'Error: the administrative unit {self.unknown_units(args)[0]} is not known: search '
 			                         'it by its name with find_admin_units and use the code it gives.')
 			return
+		if name in RESULTS + TASKS and self.unknown_seas(args):
+			self._tool_message(name, f'Error: the sea {self.unknown_seas(args)[0]} is not known: search it by its name '
+			                         'with find_seas and use the MRGID or the name it gives.')
+			return
 		if name in RESULTS + TASKS and self.unknown_areas(args) and not self.not_ready():
 			async for event in self.known_areas(name, args):
 				if 'args' in event:
@@ -1751,6 +1778,14 @@ class Assistant:
 					yield {'type': 'units', 'query': args.get('text', ''), 'units': found}
 					text = units_text(found)
 					if units_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
+						self.waiting = True
+						text += ASK_AND_WAIT
+			if name == 'find_seas':
+				found = self._remember_seas(text)
+				if found is not None:
+					yield {'type': 'seas', 'query': args.get('text', ''), 'seas': found}
+					text = seas_text(found)
+					if seas_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
 						self.waiting = True
 						text += ASK_AND_WAIT
 			if name in ('describe_asset', 'community_datasets', 'find_datasets'):
@@ -2204,6 +2239,20 @@ class Assistant:
 						out.append(f'admin{level} {c}')
 		return out
 
+	def unknown_seas(self, args):
+		"""The MRGIDs of seas of ARGS ({"sea": ...}, in its region or its within) that come neither from find_seas nor
+		from the user (the names of the seas are checked against the index of the package when they are computed)."""
+		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
+		out = []
+		for region in self._regions(args):
+			v = region.get('sea')
+			for c in ([] if v is None else v if isinstance(v, list) else [v]):
+				code = str(c).strip()
+				if not isinstance(c, bool) and code.isdigit() and f'sea:{int(code)}' not in self.names \
+				        and str(int(code)) not in said:
+					out.append(c)
+		return out
+
 	async def find_areas(self, text):
 		"""Search the protected areas of TEXT (without its designation): (event for the page or None, the areas found
 		with 'match' when their designation is in the messages of the user, text for the model)."""
@@ -2550,6 +2599,17 @@ class Assistant:
 				if u.get('ISO3_CODE') and u.get('GAUL0_NAME'):
 					self.names[f"country:{u['ISO3_CODE']}"] = u['GAUL0_NAME']
 			return units
+		except (ValueError, KeyError, TypeError, AttributeError):
+			return None
+
+	def _remember_seas(self, text):
+		"""Keep the names of the seas of an answer of find_seas, and return them (or None if the answer is not a list of
+		seas)."""
+		try:
+			seas = json.loads(text)
+			for s in seas:
+				self.names[f"sea:{int(s['MRGID'])}"] = s['NAME']
+			return seas
 		except (ValueError, KeyError, TypeError, AttributeError):
 			return None
 

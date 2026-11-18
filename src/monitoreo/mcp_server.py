@@ -100,8 +100,8 @@ classes (the codes to keep) or exclude (those to leave out), e.g. {"variable": "
 or comparisons.
 
 Workflow: list_variables (or describe_variable) to choose variable and sensor; find_protected_areas to get the
-WDPA ID of a protected area (designation "ramsar": only Ramsar sites), or find_admin_units the code of an
-administrative unit; then time_series (table, CSV and chart), map_layer (map tiles and preview),
+WDPA ID of a protected area (designation "ramsar": only Ramsar sites), find_admin_units the code of an
+administrative unit, or find_seas the MRGID of an ocean or sea; then time_series (table, CSV and chart), map_layer (map tiles and preview),
 region_stats (statistics of a map) or the exports to Google Drive (export_image_to_drive,
 export_time_series_to_drive, then task_status). The true colour (red, green and blue surface reflectance) of the same
 images and pixels as a map, with the same arguments, shows what is on the ground to interpret the map of an index
@@ -152,13 +152,18 @@ list: the union of its ecoregions; list_classes of BIOME gives them), {"biome_at
 {"country": "ESP"} (ISO3), {"admin1": GAUL1_CODE} or {"admin2": GAUL2_CODE}
 (administrative units of FAO GAUL 2025, see find_admin_units; or lists of them), {"admin3": "18134"} (a municipality
 of Spain, with the code of the INE that find_admin_units gives with level 3), {"island_at": [lon, lat]} (the
-island at a point), {"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
+island at a point), {"sea": 3324} or {"sea": "Alboran Sea"} (an ocean or sea: a sea area of the IHO of Marine Regions,
+by the MRGID or the name that find_seas gives, or a list of them), {"sea_at": [lon, lat]} (the sea at a point),
+{"bbox": [west, south, east, north]}, {"point": [lon, lat], "buffer": metres},
 {"geojson": <GeoJSON geometry, Feature or FeatureCollection>} or {"file": "<path of a vector file>"}. Several
 features give one series per feature. Any region takes "within", another region (with an area): only the part of each
 feature inside it, e.g. the Mediterranean biome in Spain, {"biome_id": 12, "within": {"country": "ESP"}}, or a
 protected area in a province. A whole biome spans continents (its statistics and grids are in EPSG:6933, equal area,
 as those of every region wider than 40 degrees of longitude): give it within a country or another region, or use
-MODIS, the climate or coarse pixels at an annual or monthly step. Within cuts the outline of the region; for the pixels
+MODIS, the climate or coarse pixels at an annual or monthly step. The large areas (more than 100,000 km²: a country,
+a biome, most seas) are computed by default on pixels of 1 to 10 km (never finer than the data); give scale or
+resolution for others. Over the open sea only the variables with data there have values (today the chlorophyll-a of
+MODIS, Chl-a); the others are of the land, and their results over a sea say so in warnings. Within cuts the outline of the region; for the pixels
 of a biome in a country (at the pixel of the layer BIOME) use instead the country with where on the classes of BIOME,
 {"variable": "BIOME", "sensor": "RESOLVE", "classes": [12]}, or zones by its classes.
 Every tool with a region takes where: only the pixels of the region whose variables pass some conditions, e.g. above
@@ -560,6 +565,13 @@ def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, l
 	if int(level) != 3:  # the municipalities of Spain are found without Earth Engine
 		_ready()
 	return _text(services.find_admin_units(text, level, country, limit))
+
+
+@tool
+def find_seas(text: str, limit: int = 10) -> str:
+	"""Oceans and seas (IHO sea areas, Marine Regions) whose English name contains TEXT (e.g. "Alboran"): MRGID, NAME,
+	AREA_KM2 and BOUNDS. Use {"sea": MRGID}; the whole Mediterranean is several of them."""
+	return _text(services.find_seas(text, limit))
 
 
 @tool

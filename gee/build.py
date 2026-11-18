@@ -7,8 +7,9 @@
                      the GEE Community Catalog (community.json.gz) and of that of the Earth Engine data catalog
                      (eecatalog.json.gz), the collections of each variable with the dates and short titles of their
                      images (coverage: the check of the periods and the line «Data: ...», monitoreo.coverage), the
-                     texts of about.py and the credits and references of the administrative units (regions: FAO GAUL
-                     2025 and the municipalities of Spain of the IGN, as catalog.json gives them)
+                     texts of about.py and the credits and references of the administrative units and the seas
+                     (regions: FAO GAUL 2025, the municipalities of Spain of the IGN and the sea areas of the IHO of
+                     Marine Regions, as catalog.json gives them)
   monitoreo_app.js   catalog.js, core.js and ui.js in a single script: paste it in a new script of the Code Editor and
                      publish it as an app (Apps > New App); the fallback of the git route below
 
@@ -49,20 +50,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'src'))
 
 from monitoreo import (__released__, __version__, about, areas, catalog, community, coverage, eecatalog,  # noqa: E402
-                       municipalities, references, sensors, services)
+                       municipalities, references, seas, sensors, services)
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
-          'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'two_periods', 'metric', 'axis', 'static', 'band',
-          'terrain', 'image_asset', 'theme', 'classes']  # classes: the key of the table of a categorical layer
+          'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'sea', 'two_periods', 'metric', 'axis', 'static',
+          'band', 'terrain', 'image_asset', 'theme', 'classes']  # classes: the key of the table of a categorical layer
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
 REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine
 MAX_FILE = 524288  # bytes: the biggest file Earth Engine takes in a push to a repository (measured; any push size)
 LIMIT = 500000  # bytes of each file of the repository of the app, with a margin under MAX_FILE
 MODULE = re.compile(r'app|catalog_[0-9]+')  # the names of the files that modules writes
-# the tables of the administrative units of the app (core.js, ADMIN_DATASETS): FAO GAUL 2025, levels 1 and 2, and the
-# municipalities of Spain of the IGN, level 3
-ADMIN_DATASETS = [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET]
+# the tables of the regions whose credits the app shows (core.js, CITED_REGIONS): the administrative units, FAO GAUL
+# 2025 (levels 1 and 2) and the municipalities of Spain of the IGN (level 3), and the seas of the IHO (Marine Regions)
+ADMIN_DATASETS = [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET, seas.ASSET]
 
 
 def entries():

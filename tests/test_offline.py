@@ -33,6 +33,29 @@ def test_catalog():
 		catalog.find('NDVI', 'Planet')
 
 
+def test_chla_sentinel2_is_the_model_of_the_article():
+	"""The Chl-a of Sentinel-2 is the model of Table 3b of Llodrà-Llabrés et al. (2026): 1.0702 - 0.5751 S12 + 1.9729 S4
+	- 1.1902 S8 of the bands standardized with the mean and SD (n - 1) of its samples. The article does not give those
+	constants: its data in HydroShare, without the samples of 2022 that it left out (56 of 2020, 2021 and 2023), give
+	exactly its intercept, their mean chlorophyll, and its coefficients by least squares on the z-scores. So, at the mean
+	reflectance of the samples the formula gives the intercept, one SD more of a band adds its coefficient, and on a
+	sample of a lake it gives a few mg m-3, not about 1.07 everywhere (the draft of the model without the
+	standardization, which catalog.json had)."""
+	e = catalog.find('Chl-a', 'Sentinel-2')
+	assert e['ref'] == 19 and e['col'] == 'COPERNICUS/S2_SR_HARMONIZED' and e['scale'] == 0.0001
+	assert e['f'] == e['ft'] and set(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', e['ft'])) == {'B12', 'B4', 'B8'}
+	assert (e['minp'], e['maxp']) == (0, 4) and 'llodrallabres2026' in e['references']
+	assert all(w in e['notes']['ft'] for w in ('Sierra Nevada', 'standardized', 'dust'))  # where it is valid
+	mean = {'B12': 0.023899, 'B4': 0.029789, 'B8': 0.025612}  # reflectance (0 to 1): the bands after their scale
+	sd = {'B12': 0.014371, 'B4': 0.015196, 'B8': 0.014664}
+	chla = lambda **b: eval(e['ft'], {'__builtins__': {}}, b)  # the expression of Earth Engine, in Python
+	assert chla(**mean) == pytest.approx(1.0702)
+	for band, coef in (('B12', -0.5751), ('B4', 1.9729), ('B8', -1.1902)):
+		assert chla(**dict(mean, **{band: mean[band] + sd[band]})) - 1.0702 == pytest.approx(coef)
+	lake = {'B12': 0.013925, 'B4': 0.026360, 'B8': 0.019422}  # a sample of the article (P-8, 2020-06-24; 0.258 measured)
+	assert chla(**lake) == pytest.approx(1.5266, abs=1e-3)  # its fitted value
+
+
 def test_app_has_the_catalog():
 	"""The catalog of the Earth Engine app (gee/catalog.js, written by gee/build.py) is that of the package: run
 	gee/build.py after changing catalog.json or catalog.py."""
