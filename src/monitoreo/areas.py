@@ -1,7 +1,8 @@
 """Regions of interest: GeoJSON, vector files, protected areas (WDPA, also its Ramsar sites), ecoregions and biomes
 (RESOLVE Ecoregions 2017), administrative units (countries, their first and second levels: FAO GAUL 2025), islands
 (Global Islands, Sayre et al. 2019), oceans and seas (the sea areas of the IHO, of Marine Regions: monitoreo.seas),
-boxes and points, as Earth Engine feature collections with a 'name' property per feature. Any region takes "within", another region: only the part of each feature inside it is kept, e.g. the
+boxes and points, as Earth Engine feature collections with a 'name' property per feature. Any region takes "within",
+another region: only the part of each feature inside it is kept, e.g. the
 Mediterranean biome in Spain, {'biome_id': 12, 'within': {'country': 'ESP'}}.
 
 The CRS of the statistics and grids is chosen for each region (auto_crs): the UTM zone of its centre or, for the regions

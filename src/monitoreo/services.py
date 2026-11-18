@@ -1866,8 +1866,8 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
                    max_pixels=None, tile=512, workers=8, progress=None, **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
-	metres (default: that of the data; in a large area, 1 to 10 km, see areas.default_scale) in CRS ('auto' = WGS 84 / UTM of the centre of the region, or EPSG:6933 for a
-	region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
+	metres (default: that of the data; in a large area, 1 to 10 km, see areas.default_scale) in CRS ('auto' = WGS 84 /
+	UTM of the centre of the region, or EPSG:6933 for a region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
 	a time (PROGRESS(done, total) after each one). With MAX_PIXELS, a grid with more pixels gets a pixel 2, 3, ... times
 	bigger. Fine for small regions; for big ones at full resolution, export_image (Google Drive).
 	A categorical layer (ECOREGION, BIOME) has class codes: on pixels more than twice as big as those of the data, the
