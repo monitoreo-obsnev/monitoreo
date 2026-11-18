@@ -2105,8 +2105,8 @@
    "ds": "3/28/17",
    "de": "now",
    "vname": "Concentración de Clorofila",
-   "ft": "1.07 - 1.1582 * (B8) + 0.8718 * (B3) + 0.682 * (B4)",
-   "f": "1.07 - 1.1582 * (B8) + 0.8718 * (B3) + 0.682 * (B4)",
+   "ft": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
+   "f": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
    "fe": 0,
    "QA": "#",
    "unit": "[mg m⁻³]",
@@ -2126,9 +2126,9 @@
    "psnow": 100,
    "paerosols": 100,
    "min": 0,
-   "max": 1,
+   "max": 4,
    "minp": 0,
-   "maxp": 1,
+   "maxp": 4,
    "scale": 0.0001,
    "offset": 0,
    "scalet": 1,
@@ -2162,8 +2162,7 @@
    "type_de": "Carbon (Primary Production)",
    "large_areas": false,
    "notes": {
-    "ft": "ESTA FORMULA SOLAMENTE SIRVE PARA SIERRA NEVADA QUE ES DONDE SE HA TESTADO.",
-    "f": "ESTA FORMULA SOLAMENTE SIRVE PARA SIERRA NEVADA QUE ES DONDE SE HA TESTADO.",
+    "ft": "Model of the small high-mountain lakes of Sierra Nevada (Spain), oligo-mesotrophic (0.03 to 4.5 mg m-3 in its 56 samples of 2020, 2021 and 2023): Table 3b of Llodrà-Llabrés et al. (2026, https://doi.org/10.1029/2026WR043523), a linear model of the surface reflectance of B12, B4 and B8, each standardized with the mean and standard deviation of the samples (the constants of the formula, which the data of the article give: https://www.hydroshare.org/resource/36d2115b22c144d4ab3f08d3e21245a8). Only valid on the water of such lakes, best 40 to 60 m from the shore and worse closer than about 20 m: over land, other waters or the shore its values (even below 0) are not chlorophyll. Nor on water altered by Saharan dust: the article left out its samples of 2022, of an extreme dust deposition, and on them the model gives 0.4 to 17.8 mg m-3 where 0.02 to 2.8 were measured. Values above about 4.5 mg m-3, the highest of its samples, are outside its calibration. Calibrated with Sentinel-2 corrected with 6SV; here, the Sen2Cor reflectance of COPERNICUS/S2_SR_HARMONIZED.",
     "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\""
    }
   },
