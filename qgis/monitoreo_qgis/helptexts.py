@@ -105,7 +105,8 @@ HELP = {
 		'searched by its name.</li>'
 		'<li><b>Sea at the center of the map</b>: the sea area of the IHO that contains the center of the view.</li>'
 		'</ul><p>A region of more than 100,000 km² (a country, a biome, most seas) is a large area: its statistics, '
-		'series and maps are computed by default on pixels of 1 to 10 km.</p>' + manual('Concepts#regions'),
+		'series and the layers of its maps are computed by default on pixels of 1 to 10 km (its export to Google Drive, '
+		'on the pixels of the data).</p>' + manual('Concepts#regions'),
 	'layer':
 		'<p>Layer of polygons of the project, in any coordinate system. If it has selected features, only those are '
 		'used; if not, all of them. Each polygon gives its own series (a line in the chart).</p>'
@@ -538,12 +539,12 @@ HELP = {
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
 		'faster export.</p>'
-		'<p>A large area (more than 100,000 km²: a country, a biome, most seas) has by default pixels of 1 to 10 km, '
-		'never finer than those of the data.</p>'
-		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data '
-		'(1 to 10 km in a large area), up to 4 million pixels. For a bigger region, before computing anything, a warning says by how much the map '
-		'exceeds the limit and which sensors of the variable fit: choose one of them, a smaller region or the export '
-		'to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
+		'<p>The export to Google Drive keeps the pixels of the data also in a large area (more than 100,000 km²): it is '
+		'the way to its full resolution.</p>'
+		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
+		'or of 1 to 10 km in a large area (a country, a biome, most seas), up to 4 million pixels. For a bigger '
+		'region, before computing anything, a warning says by how much the map exceeds the limit and which sensors '
+		'of the variable fit: choose one of them, a smaller region or the export to Google Drive.</p>' + manual('QGIS-plugin#8-export-to-google-drive'),
 	'folder':
 		'<p>Folder of your Google Drive where Earth Engine leaves the files; if it does not exist, Earth Engine makes '
 		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '

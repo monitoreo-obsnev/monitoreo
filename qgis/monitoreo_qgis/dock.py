@@ -1511,7 +1511,7 @@ class MonitorEODock(QDockWidget):
 		f = QFormLayout(box)
 		self.resolution = QDoubleSpinBox()
 		self.resolution.setRange(0, 100000)
-		self.resolution.setSpecialValueText('that of the data (1-10 km in large areas)')
+		self.resolution.setSpecialValueText('that of the data')
 		self.resolution.setSuffix(' m')
 		f.addRow('Resolution', info(self.resolution, HELP['resolution']))
 		self.folder = QLineEdit(s.value(SETTINGS + 'folder', 'MonitorEO'))
