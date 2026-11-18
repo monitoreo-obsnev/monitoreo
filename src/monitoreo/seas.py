@@ -300,21 +300,9 @@ def simplified(geometry, tolerance):
 	return json.loads(g.SimplifyPreserveTopology(tolerance).ExportToJson())
 
 
-def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print):
-	"""Upload FOLDER/seas.geojson (see dissolve) to the Earth Engine table ASSET of PROJECT, public: in parts of at most
-	CHUNK bytes of GeoJSON (a request to Earth Engine takes at most 10 MB), each exported to a table of its own, then all
-	of them into ASSET, and the parts deleted. The polygons are planar in EPSG:4326 (not geodesic: the limits of the
-	oceans along a parallel stay on it). Each sea has the properties mrgid, name, area_km2 and search (its name as plain
-	gives it: the Earth Engine app finds the seas with it). Uses the credentials given to ee.Initialize before (those of
-	the owner of the project). Returns the state of the last export."""
-	import time
-
-	import ee
-	parent = asset.rsplit('/', 1)[0]
-	try:
-		ee.data.getAsset(parent)
-	except ee.EEException:
-		ee.data.createAsset({'type': 'FOLDER'}, parent)
+def parts_of(folder, chunk=3_500_000):
+	"""The seas of FOLDER/seas.geojson (see dissolve) in parts of at most CHUNK bytes of GeoJSON (a request to Earth
+	Engine takes at most 10 MB), in their order: the same parts each time, so that an upload can go on (see upload)."""
 	parts, part, size = [], [], 0
 	for f in _rows(folder):
 		text = json.dumps(f)
@@ -328,40 +316,83 @@ def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print):
 		size += len(text)
 	if part:
 		parts.append(part)
+	return parts
 
-	def wait(task):
-		while task.status()['state'] in ('READY', 'RUNNING'):
-			time.sleep(10)
-		state = task.status()
+
+def upload(folder, project, asset=ASSET, chunk=3_500_000, progress=print, pause=10):
+	"""Upload FOLDER/seas.geojson (see dissolve) to the Earth Engine table ASSET of PROJECT, public: in parts (parts_of),
+	each exported to a table of its own, then all of them into ASSET, and the parts deleted. The polygons are planar in
+	EPSG:4326 (not geodesic: the limits of the oceans along a parallel stay on it). Each sea has the properties mrgid,
+	name, area_km2 and search (its name as plain gives it: the Earth Engine app finds the seas with it). Uses the
+	credentials given to ee.Initialize before (those of the owner of the project).
+	An upload that stopped goes on: a part already in Earth Engine is kept, one whose export is waiting or running
+	(READY, RUNNING: a project in the restricted mode of Earth Engine queues them for hours) is waited for, and only the
+	others are exported again; if ASSET is there, only its access and the parts left are seen to. Returns the state of
+	the export of ASSET, or None if it was there."""
+	import time
+
+	import ee
+
+	def exists(path):
+		try:
+			ee.data.getAsset(path)
+			return True
+		except ee.EEException:
+			return False
+
+	def wait(task_id):
+		while True:
+			state = ee.data.getTaskStatus(task_id)[0]
+			if state['state'] not in ('READY', 'RUNNING'):
+				break
+			time.sleep(pause)
 		if state['state'] != 'COMPLETED':
 			raise RuntimeError(f"{state.get('description')}: {state.get('state')} {state.get('error_message', '')}")
+		return state
 
-	ids, tasks = [], []
-	for i, feats in enumerate(parts):
-		fc = ee.FeatureCollection([ee.Feature(ee.Geometry(f['geometry'], None, False),
-		                                      {'mrgid': f['properties']['mrgid'], 'name': f['properties']['name'],
-		                                       'area_km2': f['properties']['area_km2'],
-		                                       'search': plain(f['properties']['name'])})
-		                           for f in feats])
-		pid = f'{asset}_part{i:02d}'
-		task = ee.batch.Export.table.toAsset(fc, f'seas_part{i:02d}', pid)
-		task.start()
-		ids.append(pid)
-		tasks.append(task)
+	parent = asset.rsplit('/', 1)[0]
+	if not exists(parent):
+		ee.data.createAsset({'type': 'FOLDER'}, parent)
+	parts = parts_of(folder, chunk)
+	ids = [f'{asset}_part{i:02d}' for i in range(len(parts))]
+	there = exists(asset)
+	active = {} if there else {t['description']: t['id'] for t in ee.data.getTaskList()
+	                           if t.get('state') in ('READY', 'RUNNING')}
+	waits = []
+	for i, feats in enumerate([] if there else parts):
+		pid, name = ids[i], f'seas_part{i:02d}'
+		if exists(pid):
+			what = 'already in Earth Engine'
+		elif name in active:
+			waits.append((i, active[name]))
+			what = 'waiting for its export'
+		else:
+			fc = ee.FeatureCollection([ee.Feature(ee.Geometry(f['geometry'], None, False),
+			                                      {'mrgid': f['properties']['mrgid'], 'name': f['properties']['name'],
+			                                       'area_km2': f['properties']['area_km2'],
+			                                       'search': plain(f['properties']['name'])})
+			                           for f in feats])
+			task = ee.batch.Export.table.toAsset(fc, name, pid)
+			task.start()
+			waits.append((i, task.id))
+			what = 'started'
 		if progress:
-			progress(f'part {i + 1}/{len(parts)} started: {len(feats)} seas')
-	for i, task in enumerate(tasks):
-		wait(task)
+			progress(f'part {i + 1}/{len(parts)} {what}: {len(feats)} seas')
+	for i, task_id in waits:
+		wait(task_id)
 		if progress:
 			progress(f'part {i + 1}/{len(parts)} done')
-	merged = ee.FeatureCollection([ee.FeatureCollection(p) for p in ids]).flatten()
-	task = ee.batch.Export.table.toAsset(merged, 'seas_iho', asset)
-	task.start()
-	wait(task)
+	state = None
+	if not there:
+		merged = ee.FeatureCollection([ee.FeatureCollection(p) for p in ids]).flatten()
+		task = ee.batch.Export.table.toAsset(merged, 'seas_iho', asset)
+		task.start()
+		state = wait(task.id)
 	ee.data.setAssetAcl(asset, {'all_users_can_read': True})
 	for p in ids:
-		ee.data.deleteAsset(p)
-	return task.status()
+		if exists(p):
+			ee.data.deleteAsset(p)
+	return state
 
 
 def main(argv=None):

@@ -335,3 +335,74 @@ def test_the_mcp_tools_list_has_find_seas():
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	names = [t.name for t in asyncio.run(mcp_server.server.list_tools())]
 	assert 'find_seas' in names
+
+
+def test_an_upload_that_stopped_goes_on(tmp_path, monkeypatch):
+	"""seas.upload keeps the parts already in Earth Engine, waits for those whose export is queued (a project in the
+	restricted mode of Earth Engine kept them READY for hours, and the upload stopped when its token could not be
+	renewed) and exports only the others; then the table, public, and the parts deleted. Without Earth Engine: a fake
+	ee."""
+	import sys
+	import types
+
+	feats = [{'type': 'Feature', 'properties': {'mrgid': m, 'name': f'S{m}', 'area_km2': 1},
+	          'geometry': {'type': 'Polygon', 'coordinates': [[[0, 0], [1, 0], [1, 1], [0, 0]]]}} for m in range(4)]
+	with open(tmp_path / 'seas.geojson', 'w', encoding='utf-8') as f:
+		for x in feats:
+			f.write(json.dumps(x) + '\n')
+	size = len(json.dumps(feats[0]))
+	assert [len(p) for p in seas.parts_of(str(tmp_path), chunk=size)] == [1, 1, 1, 1]
+	asset = 'projects/p/assets/monitoreo/seas_iho'
+	assets = {'projects/p/assets/monitoreo', asset + '_part00'}  # part 0 done; part 1 queued; parts 2 and 3 not
+	status = {'t1': ['READY', 'RUNNING', 'COMPLETED']}
+	log = []
+
+	class EEException(Exception):
+		pass
+
+	def get_asset(path):
+		if path not in assets:
+			raise EEException(path)
+		return {'name': path}
+
+	def task_status(task_id):
+		states = status[task_id]
+		state = states.pop(0) if len(states) > 1 else states[0]
+		if task_id == 't1' and state == 'COMPLETED':  # the export queued of part 1 ends: its table is there
+			assets.add(asset + '_part01')
+		return [{'state': state, 'description': task_id}]
+
+	class Task:
+		def __init__(self, description, path):
+			self.id, self.path = description, path
+
+		def start(self):
+			log.append(('export', self.id))
+			status[self.id] = ['COMPLETED']
+			assets.add(self.path)
+
+	ee = types.SimpleNamespace(
+		EEException=EEException,
+		data=types.SimpleNamespace(
+			getAsset=get_asset, createAsset=lambda *a: log.append(('folder',)),
+			getTaskList=lambda: [{'description': 'seas_part01', 'id': 't1', 'state': 'READY'},
+			                     {'description': 'seas_part02', 'id': 'old', 'state': 'FAILED'}],
+			getTaskStatus=task_status, setAssetAcl=lambda path, acl: log.append(('acl', path, acl)),
+			deleteAsset=lambda path: (assets.discard(path), log.append(('delete', path)))),
+		batch=types.SimpleNamespace(Export=types.SimpleNamespace(table=types.SimpleNamespace(
+			toAsset=lambda fc, description, path: Task(description, path)))),
+		FeatureCollection=lambda *a: types.SimpleNamespace(flatten=lambda: 'merged'),
+		Feature=lambda *a: None, Geometry=lambda *a: None)
+	monkeypatch.setitem(sys.modules, 'ee', ee)
+	said = []
+	state = seas.upload(str(tmp_path), 'p', asset=asset, chunk=size, progress=said.append, pause=0)
+	assert said[:4] == ['part 1/4 already in Earth Engine: 1 seas', 'part 2/4 waiting for its export: 1 seas',
+	                    'part 3/4 started: 1 seas', 'part 4/4 started: 1 seas']
+	assert log[:2] == [('export', 'seas_part02'), ('export', 'seas_part03')]  # the FAILED export of before: again
+	assert log[2] == ('export', 'seas_iho') and state['state'] == 'COMPLETED'
+	assert log[3] == ('acl', asset, {'all_users_can_read': True})
+	assert sorted(x[1] for x in log[4:]) == [f'{asset}_part0{i}' for i in range(4)]
+	assert assets == {'projects/p/assets/monitoreo', asset}
+	log.clear()
+	assert seas.upload(str(tmp_path), 'p', asset=asset, chunk=size, progress=None, pause=0) is None  # the table is there
+	assert log == [('acl', asset, {'all_users_can_read': True})]  # nothing exported again, no part left
