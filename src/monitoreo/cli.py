@@ -8,6 +8,8 @@
     monitoreo parks TEXT [--ramsar]                  protected areas of WDPA with TEXT in their name
     monitoreo units TEXT [--level 1|2|3] [--country ISO3]   administrative units of FAO GAUL 2025 by name; level 3:
                                                      the municipalities of Spain, of the IGN (without Earth Engine)
+    monitoreo seas TEXT                              oceans and seas (the sea areas of the IHO, Marine Regions) by
+                                                     name, with their MRGID (without Earth Engine)
     monitoreo series VARIABLE --sensor S --region JSON --start D --end D [--step monthly] [--csv F] [--png F] [--doy]
     monitoreo series VARIABLE ... --doy [--interannual median] [--other-variable V [--other-sensor S]] [--ylim -1 1]
                      [--other-ylim -1 1]             the seasonal profile by day of the year: the metric between the
@@ -85,11 +87,13 @@
                                                      at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}', '{"country": "ESP"}',
-'{"island_at": [2.9, 39.6]}', '{"biome_at": [-3.3, 37.1]}' (the biome of RESOLVE Ecoregions 2017 at a point; by its
-code, 1 to 14 or 99, '{"biome_id": 12}': monitoreo classes BIOME lists them) or '{"bbox": [-3.5, 37, -3, 37.2]}';
-any region takes "within", another region, to keep only its part inside it, e.g. the Mediterranean biome in Spain:
-'{"biome_id": 12, "within": {"country": "ESP"}}' (a whole biome spans continents: give it within a region, or MODIS
-or the climate at an annual step). The Earth Engine
+'{"island_at": [2.9, 39.6]}', '{"sea": "Alboran Sea"}' or '{"sea": 3324}' (a sea area of the IHO, by its name or its
+MRGID: monitoreo seas finds them), '{"sea_at": [-2.5, 36]}' (the sea at a point), '{"biome_at": [-3.3, 37.1]}' (the
+biome of RESOLVE Ecoregions 2017 at a point; by its code, 1 to 14 or 99, '{"biome_id": 12}': monitoreo classes BIOME
+lists them) or '{"bbox": [-3.5, 37, -3, 37.2]}'; any region takes "within", another region, to keep only its part
+inside it, e.g. the Mediterranean biome in Spain: '{"biome_id": 12, "within": {"country": "ESP"}}' (a whole biome spans
+continents: give it within a region, or MODIS or the climate at an annual step). The large areas (more than 100,000
+km²: a country, a biome, most seas) are computed by default on pixels of 1 to 10 km. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
@@ -342,6 +346,10 @@ def main(argv=None):
 	                    'IGN, without Earth Engine: --region \'{"admin3": "18134"}\')')
 	p.add_argument('--country', help='ISO3 code, e.g. ESP')
 	p.add_argument('--limit', type=int, default=20)
+	p = sub.add_parser('seas', help='oceans and seas (the sea areas of the IHO, Marine Regions) by name, without Earth '
+	                                'Engine: --region \'{"sea": 3324}\' or \'{"sea": "Alboran Sea"}\'')
+	p.add_argument('text')
+	p.add_argument('--limit', type=int, default=20)
 	p = sub.add_parser('asset', help='what an image or collection of images of Earth Engine is: type, bands, units, '
 	                                 'scale, dates and how to cite it (reads its metadata in Earth Engine)')
 	p.add_argument('asset', metavar='ID', help="its ID, as in ee.ImageCollection('ID') (e.g. IDAHO_EPSCOR/TERRACLIMATE)")
@@ -415,7 +423,8 @@ def main(argv=None):
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
-	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
+	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data; 1 to 10 km over '
+	                                                'more than 100,000 km²)')
 	p.add_argument('--out', help='GeoTIFF file of the variable')
 	p.add_argument('--rgb', metavar='FILE', help='GeoTIFF file of the true colour of the same images and pixels: bands '
 	                                             'red, green and blue (surface reflectance), with the same metric; '
@@ -443,7 +452,7 @@ def main(argv=None):
 	                               'of a categorical layer (ECOREGION, BIOME), mode (the majority class, the default) '
 	                               'and count')
 	p.add_argument('--scale', type=float, help='pixel size of the statistics in metres (default: that of the data, or '
-	                                           'bigger over big regions)')
+	                                           'bigger over big regions: 1 to 10 km over more than 100,000 km²)')
 	p.add_argument('--zones', help='the statistics of each band of another variable instead, a JSON dictionary, e.g. '
 	                               '\'{"variable": "ELEVATION", "sensor": "Copernicus", "breaks": [1500, 2000, 2500]}\', '
 	                               'or of each class of a categorical layer, without breaks, e.g. \'{"variable": "BIOME", '
@@ -516,7 +525,8 @@ def main(argv=None):
 	p.add_argument('--step', default='annual', choices=('monthly', '16-day', 'annual'), help='with --trend')
 	p.add_argument('--part', type=int, help='with --trend and --step monthly or 16-day: the month (1-12) or 16 days')
 	p.add_argument('--alpha', type=float, default=0.05, help='with --trend: significant if p < alpha (default 0.05)')
-	p.add_argument('--scale', type=float, help='pixel size in metres (default: that of the data, bigger in big regions)')
+	p.add_argument('--scale', type=float, help='pixel size in metres (default: that of the data, bigger in big regions: '
+	                                           '1 to 10 km over more than 100,000 km²)')
 	p.add_argument('--csv')
 	p.add_argument('--png')
 	computes['figure'] = p = sub.add_parser('figure', help='figure of the map of a variable for a report or a paper: '
@@ -583,7 +593,8 @@ def main(argv=None):
 	                    'default) or MODIS/061/MYD09GA (Aqua, since 2002-07-04)')
 	p.add_argument('--metric', default='median', help='metric of the images of each period: mean, median, min, max or pN '
 	                                                  '(default: median)')
-	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
+	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data; 1 to 10 km over '
+	                                                'more than 100,000 km²)')
 	p.add_argument('--csv', help='CSV file of the hectares of each class (dNBR, RdNBR) or of the statistics (RBR)')
 	p.add_argument('--out', help='GeoTIFF file, with the bands dnbr, severity, nbr_before and nbr_after (RBR: rbr, '
 	                             'dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity, dnbr, nbr_before and '
@@ -740,8 +751,8 @@ def main(argv=None):
 		return
 	if args.cmd == 'landcover':  # the table of correspondences of catalog.json: without Earth Engine
 		return _landcover(args, services)
-	if args.cmd == 'units' and args.level == 3:  # the municipalities of Spain (their index): without Earth Engine
-		return _compute(args, services)
+	if (args.cmd == 'units' and args.level == 3) or args.cmd == 'seas':  # the municipalities of Spain and the seas
+		return _compute(args, services)  # (their indexes): without Earth Engine
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return
@@ -893,6 +904,13 @@ def _compute(args, services):
 		except ValueError as e:  # level 3 of a country that is not Spain
 			sys.exit(f'ERROR: {e}')
 		_table(_fmt(units), [code, 'DISP_EN', 'ISO3_CODE'])
+		return
+	if args.cmd == 'seas':
+		seas = [dict(s, BOUNDS=' '.join(f'{b:g}' for b in s['BOUNDS']))
+		        for s in services.find_seas(args.text, args.limit)]
+		_table(_fmt(seas), ['MRGID', 'NAME', 'AREA_KM2', 'BOUNDS'])
+		if not seas:
+			print('No sea with that name: try its English name (e.g. Alboran, Biscay, Mediterranean)', file=sys.stderr)
 		return
 	if args.cmd in ('trend', 'compare'):
 		_trend_or_compare(args, services)

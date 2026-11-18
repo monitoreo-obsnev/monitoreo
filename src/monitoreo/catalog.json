@@ -22,6 +22,7 @@
   "maxp": "maximum of the colour ramp",
   "pm": "colour ramp",
   "large_areas": "offered for large areas",
+  "sea": "with data over the open sea (the regions sea and sea_at, the oceans and seas of the IHO): the others are of the land, with no data offshore (Sentinel-2 and Landsat see the coastal waters only); the tools warn when one of them is computed over a sea",
   "static": "fixed layer, without dates (catalog.EXTRA: elevation, slope, topographic wetness index, the bioclimatic variables of WorldClim, the ecoregions and biomes): an image (col and band, with terrain slope; the topographic wetness index from two bands, see ft) or polygons rasterized (with classes), with maps and their statistics but no time series, trends or comparisons",
   "classes": "categorical fixed layer (catalog.EXTRA: ECOREGION and BIOME): the key of its table in classes (the code, name and colour of each class); its values are class codes, not quantities: never interpolated nor averaged (nearest neighbour; on pixels more than twice as big as m, the majority class, mode), its statistic over a region the majority class, the area of each class (area_by_class), zones by class and where conditions with classes (the classes to keep) or exclude (those to leave out); see monitoreo.categorical",
   "notes": "comments of the fields",
@@ -337,6 +338,12 @@
    ],
    "credit": "Municipalities of Spain: derived from the INSPIRE administrative units of the Instituto Geográfico Nacional (CC BY 4.0 ign.es)"
   },
+  "projects/ee-ugr-default-project/assets/monitoreo/seas_iho": {
+   "references": [
+    "vliz_eez_iho2024"
+   ],
+   "credit": "Oceans and seas: the IHO sea areas of the intersect of the Exclusive Economic Zones and IHO sea areas v5, Flanders Marine Institute, Marine Regions (CC BY 4.0), dissolved by sea by MonitorEO"
+  },
   "projects/sat-io/open-datasets/shoreline/big_islands": {
    "references": [
     "sayre2019"
@@ -634,6 +641,10 @@
   "ign_au": {
    "citation": "Instituto Geográfico Nacional (2026). Unidades administrativas de España: municipios (INSPIRE Administrative Units, WFS) [Data set]. Licence: CC BY 4.0 ign.es.",
    "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
+  },
+  "vliz_eez_iho2024": {
+   "citation": "Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5 [Data set]. Marine Regions. Licence: CC BY 4.0. Available online at https://www.marineregions.org/.",
+   "doi": "10.14284/699"
   },
   "fao_gaul2025": {
    "citation": "FAO (2025). Global Administrative Unit Layers (GAUL) [Data set]. Food and Agriculture Organization of the United Nations. Licence: CC BY 4.0.",
@@ -2021,7 +2032,8 @@
    "type_fr": "Carbon (Primary Production)",
    "vname_de": "Chlorophylla concentration",
    "type_de": "Carbon (Primary Production)",
-   "large_areas": true
+   "large_areas": true,
+   "sea": true
   },
   {
    "ref": 18,
@@ -2091,7 +2103,8 @@
    "type_fr": "Carbon (Primary Production)",
    "vname_de": "Chlorophylla concentration",
    "type_de": "Carbon (Primary Production)",
-   "large_areas": true
+   "large_areas": true,
+   "sea": true
   },
   {
    "ref": 19,
