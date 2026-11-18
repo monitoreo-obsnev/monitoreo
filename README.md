@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.53](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.53) · 2026-11-18 · package 0.3.63
 
 - **All tools**: New variables: the snow cover frequency (SCF) and the snow cover days (SCD) of Sentinel-2 (20 m, an image every 5 days, since 2017), with the rules of those of Landsat, its clouds from Cloud Score+.
 - **All tools**: The time series of the snow cover days are a bar chart, a bar per season, month or day, with their table; with the daily step, a bar per day with images, the share of its clear pixels with snow (0 to 1 day).
