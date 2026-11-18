@@ -53,14 +53,15 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __released__, __version__, about, areas, catalog, documents, engine, manual, report, services
+from . import __released__, __version__, about, areas, catalog, documents, engine, logs, manual, report, services
 from .variable import bands_of, check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
 RUNNING = os.path.join(OUTPUT, '.assistant')  # port and token of the assistant that is running
-LOG = os.path.join(OUTPUT, 'assistant.log')  # the calls of the model and their errors, to find out what went wrong
+LOG = os.path.join(OUTPUT, 'assistant.log')  # the calls of the model and the errors, to find out what went wrong
+# (with assistant-output.log, sent by the button "Send the logs" of the page: see monitoreo.logs)
 LAYERS = os.path.join(OUTPUT, 'capas')  # the vector files added by the user, and their list capas.json
 LAYER_TYPES = ('.gpkg', '.geojson', '.json', '.kml', '.zip')  # .zip: a shapefile (or another of these) compressed
 MAX_LAYER = 100 * 2 ** 20  # bytes
@@ -101,7 +102,7 @@ PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_prox
 SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
-          'find_admin_units', 'describe_asset', 'community_themes',
+          'find_admin_units', 'find_seas', 'describe_asset', 'community_themes',
           'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
           'apply_parameters')  # their answers go to the model (apply_parameters: to repeat an analysis from its JSON)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
@@ -175,6 +176,7 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'describe_variable': 'Looking at the description of {variable}',
           'find_protected_areas': 'Searching for protected areas named «{text}»',
           'find_admin_units': 'Searching for administrative units named «{text}»',
+          'find_seas': 'Searching for oceans and seas named «{text}»',
           'describe_asset': 'Reading the description of {asset} in Earth Engine',
           'community_themes': 'Looking at the themes of the GEE Community Catalog',
           'community_datasets': 'Looking at the datasets of the GEE Community Catalog',
@@ -240,11 +242,14 @@ find_protected_areas returns; for a Ramsar site, search with designation "ramsar
 {{"admin2": GAUL2_CODE}} (an administrative unit: region, state or province of level 1; province, district or \
 municipality of level 2; {{"admin3": "18134"}}, a municipality of Spain, level 3; with the code that find_admin_units \
 returns, never made up), {{"country": "ISO3"}} (a \
-whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"ecoregion_at": [lon, lat]}}, \
+whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point), {{"sea": MRGID}} or {{"sea": \
+"Alboran Sea"}} (an ocean or sea, a sea area of the IHO, with the MRGID or the English name that find_seas returns, \
+never made up; or a list), {{"sea_at": [lon, lat]}} (the sea at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
 {{"bbox": [west, south, east, north]}} or {{"point": [lon, lat], "buffer": metres}}. Any region takes "within", \
 another region: only its part inside it, e.g. {{"biome_id": 12, "within": {{"country": "ESP"}}}} (the Mediterranean \
-biome in Spain). Countries and big regions: MODIS, or a monthly or annual step; a whole biome spans continents: \
+biome in Spain). Countries and big regions: MODIS, or a monthly or annual step (regions of more than 100,000 km², \
+as most seas, are computed on pixels of 1 to 10 km); a whole biome spans continents: \
 always within a country or another region, or MODIS or the climate at an annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
@@ -898,6 +903,25 @@ def units_must_choose(units, text, last=''):
 	           if str(u.get(f'GAUL{unit_code(u)[0]}_NAME') or u.get('NAME') or '').strip().lower() == name) != 1
 
 
+def seas_text(seas):
+	"""The seas found by find_seas, for the model: a line each with the region to use."""
+	if not seas:
+		return ('No ocean or sea with that name: try its English name (e.g. Alboran, Biscay, Mediterranean, North '
+		        'Atlantic) or a shorter part of it.')
+	lines = [f"- {{\"sea\": {s['MRGID']}}}: {s['NAME']} ({report._num(s['AREA_KM2'])} km²)" for s in seas]
+	return (f'{len(seas)} oceans and seas (sea areas of the IHO, Marine Regions); the user sees this list and can '
+	        'choose one in it (or several: a list):\n' + '\n'.join(lines))
+
+
+def seas_must_choose(seas, text, last=''):
+	"""Whether the user has to choose among the SEAS found for TEXT: several, not exactly one with that very name, and
+	none of their MRGIDs in the LAST message of the user."""
+	if len(seas) < 2 or any(re.search(rf"\b{s['MRGID']}\b", last) for s in seas):
+		return False
+	name = str(text).strip().lower()
+	return sum(1 for s in seas if str(s.get('NAME', '')).strip().lower() == name) != 1
+
+
 def data_warnings(result):
 	"""The warnings of the period of a RESULT (its days without images of its data, see monitoreo.coverage): [texts]."""
 	found = result.get('warnings') if isinstance(result, dict) else None
@@ -1331,7 +1355,9 @@ class Assistant:
 		return bool(self.task and not self.task.done())
 
 	def emit(self, event):
-		"""Keep an event of the conversation and wake the pages that follow it."""
+		"""Keep an event of the conversation and wake the pages that follow it; an error goes to the log too."""
+		if event.get('type') == 'error':
+			_log({'error': event.get('text')})
 		self.events.append({**event, 'seq': self.offset + len(self.events)})
 		changed, self.changed = self.changed, asyncio.Event()
 		changed.set()
@@ -1374,6 +1400,7 @@ class Assistant:
 				self.emit({'type': 'stopped', 'text': 'Stopped. Write what you want instead.'})
 				raise
 			except Exception as e:  # the conversation goes on
+				_log({'traceback': traceback.format_exc()})
 				self.emit({'type': 'error', 'text': f'The assistant has failed: {type(e).__name__}: {e}'})
 			finally:
 				self.emit({'type': 'done'})
@@ -1698,6 +1725,10 @@ class Assistant:
 			self._tool_message(name, f'Error: the administrative unit {self.unknown_units(args)[0]} is not known: search '
 			                         'it by its name with find_admin_units and use the code it gives.')
 			return
+		if name in RESULTS + TASKS and self.unknown_seas(args):
+			self._tool_message(name, f'Error: the sea {self.unknown_seas(args)[0]} is not known: search it by its name '
+			                         'with find_seas and use the MRGID or the name it gives.')
+			return
 		if name in RESULTS + TASKS and self.unknown_areas(args) and not self.not_ready():
 			async for event in self.known_areas(name, args):
 				if 'args' in event:
@@ -1753,6 +1784,14 @@ class Assistant:
 					yield {'type': 'units', 'query': args.get('text', ''), 'units': found}
 					text = units_text(found)
 					if units_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
+						self.waiting = True
+						text += ASK_AND_WAIT
+			if name == 'find_seas':
+				found = self._remember_seas(text)
+				if found is not None:
+					yield {'type': 'seas', 'query': args.get('text', ''), 'seas': found}
+					text = seas_text(found)
+					if seas_must_choose(found, args.get('text', ''), self.said()[-1] if self.said() else ''):
 						self.waiting = True
 						text += ASK_AND_WAIT
 			if name in ('describe_asset', 'community_datasets', 'find_datasets'):
@@ -2206,6 +2245,20 @@ class Assistant:
 						out.append(f'admin{level} {c}')
 		return out
 
+	def unknown_seas(self, args):
+		"""The MRGIDs of seas of ARGS ({"sea": ...}, in its region or its within) that come neither from find_seas nor
+		from the user (the names of the seas are checked against the index of the package when they are computed)."""
+		said = set(re.findall(r'\d+', self.user_text())) | self.document_numbers()
+		out = []
+		for region in self._regions(args):
+			v = region.get('sea')
+			for c in ([] if v is None else v if isinstance(v, list) else [v]):
+				code = str(c).strip()
+				if not isinstance(c, bool) and code.isdigit() and f'sea:{int(code)}' not in self.names \
+				        and str(int(code)) not in said:
+					out.append(c)
+		return out
+
 	async def find_areas(self, text):
 		"""Search the protected areas of TEXT (without its designation): (event for the page or None, the areas found
 		with 'match' when their designation is in the messages of the user, text for the model)."""
@@ -2555,6 +2608,17 @@ class Assistant:
 		except (ValueError, KeyError, TypeError, AttributeError):
 			return None
 
+	def _remember_seas(self, text):
+		"""Keep the names of the seas of an answer of find_seas, and return them (or None if the answer is not a list of
+		seas)."""
+		try:
+			seas = json.loads(text)
+			for s in seas:
+				self.names[f"sea:{int(s['MRGID'])}"] = s['NAME']
+			return seas
+		except (ValueError, KeyError, TypeError, AttributeError):
+			return None
+
 	def _remember_names(self, text):
 		"""Keep the names of the protected areas of an answer of find_protected_areas, and return them with only
 		what is needed to choose one (or None if the answer is not a list of areas)."""
@@ -2576,12 +2640,9 @@ def _search_manual(question, lang=None, k=3, max_chars=1800):
 
 
 def _log(entry):
-	"""Add ENTRY to LOG (a JSON line with the time); the log never breaks the assistant."""
-	with contextlib.suppress(OSError, TypeError, ValueError):
-		os.makedirs(OUTPUT, exist_ok=True)
-		with open(LOG, 'a', encoding='utf-8') as f:
-			f.write(json.dumps({'time': dt.datetime.now().isoformat(timespec='seconds'), **entry}, ensure_ascii=False,
-			                   default=str) + '\n')
+	"""Add ENTRY to LOG (a JSON line with the time; it keeps its newest lines, see logs.write); the log never breaks
+	the assistant."""
+	logs.write(LOG, entry)
 
 
 def _title(name, args):
@@ -2611,9 +2672,20 @@ def _file_url(path):
 # The web server ------------------------------------------------------------------------------------------------------
 
 def feedback():
-	"""The button "Suggest a change or report an error" of the page: its texts (in English, as the page) and its links
-	(about.feedback: a new issue of GitHub or the anonymous form, filled with the assistant and its version)."""
-	return dict(about.FEEDBACK['en'], links=about.feedback('assistant', __version__))
+	"""The button "Suggest a change or report an error" of the page: its texts (in English, as the page), its links
+	(about.feedback: a new issue of GitHub or the anonymous form, filled with the assistant and its version) and the
+	texts of "Send the logs" (about.LOGS: its entry of the menu, the button next to each error and its window)."""
+	return dict(about.FEEDBACK['en'], links=about.feedback('assistant', __version__), logs=about.LOGS['en'])
+
+
+def logs_text(settings):
+	"""The logs of the assistant that "Send the logs" shows and sends (logs.collect), without the project of Earth
+	Engine of the user (SETTINGS)."""
+	project = (settings.get('project') or '').strip()
+	return logs.collect('assistant', __version__, where=OUTPUT, hide=[project] if project else (),
+	                    extra={'Earth Engine': 'a project of the user' if project else 'the shared account of MonitorEO',
+	                           'Language model': f"Ollama, {settings.get('model')}" if settings.get('provider') == 'ollama'
+	                           else 'that of MonitorEO'})
 
 
 def make_app(assistant, token, port):
@@ -2634,9 +2706,11 @@ def make_app(assistant, token, port):
 			try:
 				return await handler(request)
 			except (ValueError, RuntimeError, ModelError) as e:
+				_log({'error': f'{request.url.path}: {e}'})
 				return JSONResponse({'error': str(e)}, status_code=400)
-			except Exception as e:  # not foreseen: its cause on the page, and its traceback in the terminal
+			except Exception as e:  # not foreseen: its cause on the page, and its traceback in the terminal and the log
 				traceback.print_exc()
+				_log({'error': f'{request.url.path}: {type(e).__name__}: {e}', 'traceback': traceback.format_exc()})
 				return JSONResponse({'error': f'{type(e).__name__}: {e}'}, status_code=500)
 		return wrapped
 
@@ -2789,6 +2863,17 @@ def make_app(assistant, token, port):
 	async def stop(request):
 		return JSONResponse({'stopped': await assistant.stop()})
 
+	async def show_logs(request):
+		"""The logs that "Send the logs" shows, before the user sends them."""
+		return JSONResponse({'text': await asyncio.to_thread(logs_text, assistant.settings)})
+
+	async def send_logs(request):
+		"""Send the logs as the user saw (and maybe edited) them, with what they wrote, to the anonymous form."""
+		body = await request.json()
+		await asyncio.to_thread(logs.send, str(body.get('text') or ''), 'assistant', __version__,
+		                        str(body.get('description') or ''))
+		return JSONResponse({'sent': True, 'text': about.LOGS['en']['sent']})
+
 	async def make_report(request):
 		body = await request.json()
 		path = await asyncio.to_thread(assistant.write_report, body.get('title'), body.get('ids'),
@@ -2872,6 +2957,8 @@ def make_app(assistant, token, port):
 		Route('/api/quit', guarded(quit_app), methods=['POST']),
 		Route('/api/update', guarded(update_app), methods=['POST']),
 		Route('/api/report', guarded(make_report), methods=['POST']),
+		Route('/api/logs', guarded(show_logs)),
+		Route('/api/logs/send', guarded(send_logs), methods=['POST']),
 		Route('/api/pull', guarded(pull), methods=['POST']),
 		Route('/api/engine/install', guarded(install_engine), methods=['POST']),
 		Route('/api/layer', guarded(add_layer), methods=['POST']),

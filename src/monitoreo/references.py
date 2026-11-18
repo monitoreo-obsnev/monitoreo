@@ -280,6 +280,9 @@ def _region(region):
 			cols.append(municipalities.ASSET)
 		if 'island_at' in region:
 			cols.append(areas.ISLANDS)
+		if 'sea' in region or 'sea_at' in region:  # the sea areas of the IHO, of Marine Regions
+			from . import seas
+			cols.append(seas.ASSET)
 		if isinstance(region.get('within'), dict):  # the region of within: e.g. FAO GAUL for a biome in a country
 			cols += [c for c in _region(region['within']) if c not in cols]
 	return cols

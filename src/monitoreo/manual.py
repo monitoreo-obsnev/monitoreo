@@ -23,11 +23,11 @@ import urllib.request
 RAW = 'https://raw.githubusercontent.com/wiki/monitoreo-obsnev/monitoreo/'
 WEB = 'https://github.com/monitoreo-obsnev/monitoreo/wiki/'
 FOLDER = os.path.join(os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO'), 'wiki')
-PAGES = ('Home', 'Primeros-pasos', 'Instalación-paso-a-paso', 'Conceptos', 'Asistente', 'App-de-Earth-Engine', 'QGIS',
-         'MCP', 'Python', 'Línea-de-comandos', 'R', 'Visor-de-resultados', 'Problemas-frecuentes', 'Publicaciones',
-         'Desarrollo')
+PAGES = ('Home', 'Primeros-pasos', 'Instalación-paso-a-paso', 'Cuenta-de-Earth-Engine', 'Conceptos', 'Asistente',
+         'App-de-Earth-Engine', 'QGIS', 'MCP', 'Python', 'Línea-de-comandos', 'R', 'Visor-de-resultados',
+         'Problemas-frecuentes', 'Publicaciones', 'Desarrollo')
 ENGLISH = {'Home': 'English', 'Primeros-pasos': 'Getting-started', 'Instalación-paso-a-paso': 'Step-by-step-installation',
-           'Conceptos': 'Concepts', 'App-de-Earth-Engine': 'Earth-Engine-app', 'QGIS': 'QGIS-plugin', 'MCP': 'MCP-server',
+           'Cuenta-de-Earth-Engine': 'Earth-Engine-account', 'Conceptos': 'Concepts', 'App-de-Earth-Engine': 'Earth-Engine-app', 'QGIS': 'QGIS-plugin', 'MCP': 'MCP-server',
            'Asistente': 'Assistant', 'Python': 'Python-package', 'Línea-de-comandos': 'Command-line', 'R': 'R-package',
            'Visor-de-resultados': 'Results-viewer', 'Problemas-frecuentes': 'Troubleshooting',
            'Publicaciones': 'Publications', 'Desarrollo': 'Development'}  # the English page of each Spanish one

@@ -35,12 +35,13 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import (areas, assets, catalog, categorical, classes, fire, landcover, municipalities,  # noqa: E402
-                       parameters, sensors, services, steps, trends)
+                       parameters, seas, sensors, services, steps, trends)
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
 from .results import KINDS_TIP, MAP_KINDS, parameters_text  # noqa: E402
+from . import sendlogs  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
@@ -72,7 +73,10 @@ CLASS_CONDITIONS = [('is one of the classes', 'classes'), ('is none of the class
 REGIONS = [('Layer (selected features or all)', 'layer'), ('Map extent', 'extent'),
            ('Protected area (WDPA)', 'wdpa'), ('Administrative unit', 'admin'), ('Country', 'country'),
            ('Ecoregion at the center of the map', 'ecoregion'), ('Biome at the center of the map', 'biome'),
-           ('Island at the center of the map', 'island')]
+           ('Island at the center of the map', 'island'), ('Sea or ocean (IHO)', 'sea'),
+           ('Sea at the center of the map', 'sea_point')]
+# the regions of the point at the center of the map: their key in the region, {key: [lon, lat]}
+CENTER_KEYS = {'ecoregion': 'ecoregion_at', 'island': 'island_at', 'sea_point': 'sea_at'}
 # the levels of the administrative units: 1 and 2, those of FAO GAUL 2025 of any country, searched in Earth Engine; 3,
 # the municipalities of Spain of the Instituto Geográfico Nacional (monitoreo.municipalities), found by their name or
 # their code of the INE in the index of the package, without Earth Engine
@@ -486,6 +490,12 @@ def unit_text(res):
 	return '(unit not given)' if not unit or unit.startswith('/') else unit
 
 
+def sea_item(sea):
+	"""The entry of the list Sea for the sea SEA (a row of services.find_seas): its text, with its name, area and
+	MRGID, and its data, the MRGID."""
+	return f"{sea['NAME']} · {sea['AREA_KM2']:,.0f} km² (MRGID {sea['MRGID']})", int(sea['MRGID'])
+
+
 def admin_item(unit, level):
 	"""The entry of the list Unit for the administrative unit UNIT (a row of services.find_admin_units) of LEVEL: its
 	text, with the full name (DISP_EN) and the code, and its data, (level, code): the GAUL code, an integer, at levels 1
@@ -626,11 +636,12 @@ def _one(v):
 def region_kind(region):
 	"""The kind of region of the panel (see REGIONS) and its value for the region REGION of some parameters: ('layer',
 	(its FeatureCollection, the field of its names)), ('extent', bbox), ('wdpa', ID), ('admin', (level, code)),
-	('country', ISO3), ('ecoregion' or 'island', [lon, lat]) or ('biome', {'at': [lon, lat], 'within': bbox or None});
+	('country', ISO3), ('sea', MRGID), ('ecoregion', 'island' or 'sea_point', [lon, lat]) or ('biome', {'at': [lon,
+	lat], 'within': bbox or None});
 	(None, the reason) if the panel has no region like it (see areas.region)."""
 	kinds = ('the panel takes a layer (geojson), the map extent (bbox), a protected area (wdpa_id), an administrative '
-	         'unit (admin1, admin2, admin3), a country or the ecoregion, biome or island at the center of the map '
-	         '(ecoregion_at, biome_at, island_at)')
+	         'unit (admin1, admin2, admin3), a country, a sea (sea) or the ecoregion, biome, island or sea at the '
+	         'center of the map (ecoregion_at, biome_at, island_at, sea_at)')
 	keys = [k for k in areas.REGION_KEYS if region.get(k) is not None] if isinstance(region, dict) else []
 	if len(keys) != 1:
 		return None, f'not a region: {kinds}'
@@ -662,13 +673,21 @@ def region_kind(region):
 	if k == 'country':
 		one = _one(v)
 		return ('country', str(one).strip().upper()) if one is not None else (None, 'the panel takes one country')
-	if k in ('ecoregion_at', 'island_at', 'biome_at'):
+	if k == 'sea':  # an ocean or sea: its MRGID or its name, checked in the index of the package
+		one = _one(v)
+		if one is None:
+			return None, 'the panel takes one sea'
+		try:
+			return 'sea', seas.codes(one)[0]
+		except ValueError as e:
+			return None, str(e)
+	if k in ('ecoregion_at', 'island_at', 'biome_at', 'sea_at'):
 		at = _point(v)
 		if at is None:
 			return None, f'{k} is a point, [lon, lat]'
 		if k == 'biome_at':
 			return 'biome', {'at': at, 'within': within['bbox'] if within else None}
-		return k[:-3], at
+		return {'sea_at': 'sea_point'}.get(k, k[:-3]), at
 	return None, f'the panel has no region {k}: {kinds}'
 
 
@@ -1152,6 +1171,23 @@ class MonitorEODock(QDockWidget):
 		self.admin = QComboBox()
 		f.addRow('Unit', self.admin)
 		self.admin_label = f.labelForField(self.admin)
+		# the oceans and seas (the sea areas of the IHO, Marine Regions), searched by name in the index of the package,
+		# without Earth Engine
+		self.sea_row = QWidget()
+		sl = QHBoxLayout(self.sea_row)
+		sl.setContentsMargins(0, 0, 0, 0)
+		self.sea_text = QLineEdit()
+		self.sea_text.setPlaceholderText('name of the sea in English (e.g. Alboran)')
+		self.sea_text.returnPressed.connect(self.search_seas)
+		sl.addWidget(self.sea_text)
+		b = QPushButton('Search')
+		b.clicked.connect(self.search_seas)
+		sl.addWidget(b)
+		sl.addWidget(InfoButton(HELP['sea']))
+		f.addRow(self.sea_row)
+		self.sea = QComboBox()
+		f.addRow('Sea', self.sea)
+		self.sea_label = f.labelForField(self.sea)
 		self.country = QLineEdit()
 		self.country.setPlaceholderText('ISO3 code of the country (e.g. ESP)')
 		self.country_field = QWidget()
@@ -1701,13 +1737,33 @@ class MonitorEODock(QDockWidget):
 		self.layer_row.setVisible(kind == 'layer')
 		for widgets, shown in (((self.wdpa_row, self.wdpa_field, self.wdpa_label), kind == 'wdpa'),
 		                       ((self.admin_row, self.admin, self.admin_label), kind == 'admin'),
+		                       ((self.sea_row, self.sea, self.sea_label), kind == 'sea'),
 		                       ((self.country_field, self.country_label), kind == 'country')):
 			for w in widgets:
 				if w is not None:
 					w.setVisible(shown)
 
 	def message(self, text, lvl='Info', duration=6):
-		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+		"""TEXT in the message bar; an error (LVL Critical) goes to the log of the plugin too, with the button "Send
+		the logs" (sendlogs)."""
+		bar = self.iface.messageBar()
+		if lvl != 'Critical':
+			bar.pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+			return
+		sendlogs.write({'error': text})
+		from monitoreo import about
+		item = bar.createMessage('MonitorEO', text)
+		button = QPushButton(about.LOGS['en']['button'])
+		button.setToolTip(about.LOGS['en']['menu'])
+		button.clicked.connect(lambda checked=False, t=text: self.send_logs(t))
+		item.layout().addWidget(button)
+		bar.pushWidget(item, level(lvl), duration)
+
+	def send_logs(self, error=''):
+		"""The window "Send the logs" (sendlogs.LogsDialog), with the error ERROR to start the description with."""
+		self.logs_dialog = sendlogs.LogsDialog(self, plugin_version(), self.project.text(), error,
+		                                       on_sent=lambda text: self.message(text, 'Success', 10))
+		self.logs_dialog.show()
 
 	def version_label(self):
 		"""The version of the plugin and the date of its release (that of the package monitoreo it carries, released
@@ -1723,7 +1779,7 @@ class MonitorEODock(QDockWidget):
 
 	def feedback_button(self):
 		"""The button to suggest a change or report an error: an issue of GitHub or the anonymous form, filled with
-		the plugin and its version (see monitoreo.about.feedback)."""
+		the plugin and its version (see monitoreo.about.feedback), or "Send the logs" of the plugin (send_logs)."""
 		from monitoreo import __version__, about
 		texts = about.FEEDBACK['en']
 		links = about.feedback('qgis', f'{plugin_version()} (monitoreo {__version__})')
@@ -1735,6 +1791,9 @@ class MonitorEODock(QDockWidget):
 		for key in ('issue', 'form'):
 			action = menu.addAction(texts[key])
 			action.triggered.connect(lambda checked=False, url=links[key]: QDesktopServices.openUrl(QUrl(url)))
+		menu.addSeparator()  # the log of the plugin, with the anonymous form (sendlogs)
+		action = menu.addAction(about.LOGS['en']['menu'])
+		action.triggered.connect(lambda checked=False: self.send_logs())
 		button.setMenu(menu)
 		self.feedback_links = links
 		return button
@@ -1993,6 +2052,8 @@ class MonitorEODock(QDockWidget):
 			self.add_choice(self.admin, v, text, test=lambda d: d is not None and tuple(d) == tuple(v))
 		elif kind == 'country':
 			self.country.setText(v)
+		elif kind == 'sea':  # its name: the index of the package
+			self.add_choice(self.sea, v, f'{seas.name_of(v)} (MRGID {v})')
 		elif kind == 'extent':
 			canvas.setExtent(tr.transformBoundingBox(QgsRectangle(*v)))
 		else:
@@ -2002,7 +2063,7 @@ class MonitorEODock(QDockWidget):
 			canvas.setCenter(tr.transform(QgsPointXY(*at)))
 		canvas.refresh()
 		self.region_kind.setCurrentIndex(item_index(self.region_kind, kind))
-		if kind in ('extent', 'ecoregion', 'island', 'biome'):  # what the map gives: its shape may change the extent
+		if kind in ('extent', 'ecoregion', 'island', 'biome', 'sea_point'):  # what the map gives: its shape may change
 			got = self.region()
 			if kind == 'extent':
 				pairs = [('region.bbox', v, got['bbox'], 'the panel computes over the map extent, now {}: the map '
@@ -2013,8 +2074,8 @@ class MonitorEODock(QDockWidget):
 				         ('region.within', v['within'], got['within']['bbox'], 'the panel takes the part of the biome '
 				          'in the map extent, now {}')]
 			else:
-				pairs = [(f'region.{kind}_at', v, got[f'{kind}_at'], 'the panel takes the point at the center of the '
-				          'map, now {}')]
+				key = CENTER_KEYS[kind]
+				pairs = [(f'region.{key}', v, got[key], 'the panel takes the point at the center of the map, now {}')]
 			for key, want, have, reason in pairs:
 				if not want or any(abs(a - b) > 1e-6 for a, b in zip(want, have)):
 					out.append(missing(key, want, reason.format([round(x, 6) for x in have])))
@@ -2346,7 +2407,7 @@ class MonitorEODock(QDockWidget):
 		"""Region of the services from the widgets (read in the main thread)."""
 		kind = self.region_kind.currentData()
 		wgs84 = QgsCoordinateReferenceSystem('EPSG:4326')
-		if kind in ('extent', 'ecoregion', 'biome', 'island'):
+		if kind in ('extent', 'ecoregion', 'biome', 'island', 'sea_point'):
 			canvas = self.iface.mapCanvas()
 			tr = QgsCoordinateTransform(canvas.mapSettings().destinationCrs(), wgs84, QgsProject.instance())
 			r = tr.transformBoundingBox(canvas.extent())
@@ -2356,7 +2417,7 @@ class MonitorEODock(QDockWidget):
 			c = tr.transform(canvas.extent().center())
 			if kind == 'biome':  # its part in the map extent: a whole biome spans continents
 				return {'biome_at': [c.x(), c.y()], 'within': extent}
-			return {f'{kind}_at': [c.x(), c.y()]}
+			return {CENTER_KEYS[kind]: [c.x(), c.y()]}
 		if kind == 'wdpa':
 			if self.wdpa.currentData() is None:
 				raise ValueError('search for a protected area and choose it in the list')
@@ -2366,6 +2427,10 @@ class MonitorEODock(QDockWidget):
 				raise ValueError('search for an administrative unit and choose it in the list')
 			level, code = self.admin.currentData()
 			return {f'admin{level}': code}
+		if kind == 'sea':
+			if self.sea.currentData() is None:
+				raise ValueError('search for a sea and choose it in the list')
+			return {'sea': self.sea.currentData()}
 		if kind == 'country':
 			code = self.country.text().strip().upper()
 			if len(code) != 3:
@@ -2891,7 +2956,8 @@ class MonitorEODock(QDockWidget):
 	# Tasks ------------------------------------------------------------------------------------------------------
 
 	def run_task(self, description, work, done):
-		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar."""
+		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar. The log of the
+		plugin (sendlogs) has the task, its end and, if it failed, its traceback."""
 		self.save_settings()
 		project = self.project.text().strip() or None
 
@@ -2902,15 +2968,20 @@ class MonitorEODock(QDockWidget):
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
 			if isinstance(exception, services.TooManyPixels):  # nothing computed: until the user closes it
+				sendlogs.write({'task': description, 'end': 'too many pixels'})
 				self.message(too_many_text(description, exception), 'Warning', 0)
 				return
 			if exception is not None:
+				sendlogs.write_failure(description, exception)
 				self.message(f'{description}: {exception}', 'Critical', 15)
 				return
 			try:
 				done(result)
 			except Exception as e:
+				sendlogs.write_failure(f'{description} (showing its result)', e)
 				self.message(f'{description}: {e}', 'Critical', 15)
+			else:
+				sendlogs.write({'task': description, 'end': 'done'})
 			warned = result_warnings(result)
 			if warned:  # days of its period without images of its data: the window of the result shows them too
 				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
@@ -2919,6 +2990,7 @@ class MonitorEODock(QDockWidget):
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
+		sendlogs.write({'task': description, 'account': 'own project' if project else 'shared'})
 		self.message(f'{description}…', 'Info', 3)
 		return task
 
@@ -3038,6 +3110,19 @@ class MonitorEODock(QDockWidget):
 				self.message(f'Search municipalities: {e}', 'Critical', 15)
 			return
 		self.run_task('Search administrative units', lambda: services.find_admin_units(text, level, country, 30), done)
+
+	def search_seas(self):
+		"""The oceans and seas with the text in their name (in English, any case and accents; or an MRGID), in the list
+		Sea, at once: from the index of the package, without Earth Engine."""
+		text = self.sea_text.text().strip()
+		if not text:
+			return
+		self.sea.clear()
+		found = services.find_seas(text, 30)
+		for s in found:
+			self.sea.addItem(*sea_item(s))
+		self.message(f'{len(found)} seas with "{text}"' if found else
+		             f'No sea with "{text}": write its English name (e.g. Alboran, Biscay, Mediterranean)', 'Info', 4)
 
 	def other_period(self):
 		"""(first day, last day) of the period to compare with the reference one, or None."""

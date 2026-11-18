@@ -42,6 +42,9 @@ test_that("catalog and regions", {
   expect_equal(mo_country("esp"), list(country = list("ESP")))
   expect_equal(mo_admin(141938, level = 2), list(admin2 = list(141938L)))
   expect_equal(mo_island(2.9, 39.6)$island_at, list(2.9, 39.6))
+  expect_equal(mo_sea(3324), list(sea = list(3324L)))  # a sea of the IHO, by its MRGID or its name
+  expect_equal(mo_sea(c("Alboran Sea", "Ligurian Sea")), list(sea = list("Alboran Sea", "Ligurian Sea")))
+  expect_equal(mo_sea(lon = -2.5, lat = 36), list(sea_at = list(-2.5, 36)))
   expect_equal(mo_admin("18134", level = 3), list(admin3 = list("18134")))  # a municipality of Spain (INE code)
   expect_equal(mo_admin(4001, level = 3), list(admin3 = list("04001")))  # its 5 digits, with the zero
   expect_error(mo_admin(1, level = 4))

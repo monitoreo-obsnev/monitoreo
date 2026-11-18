@@ -743,18 +743,43 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
   rows_df(services()$find_admin_units(text, as.integer(level), country, as.integer(limit)))
 }
 
+#' Oceans and seas
+#'
+#' The sea areas of the International Hydrographic Organization (its Limits of Oceans and Seas), of Marine Regions, whose
+#' name contains a text, found without Earth Engine. The oceans are what is left of them out of their seas, and the whole
+#' Mediterranean is several sea areas. Seas are large areas: pixels of 1 to 10 km by default.
+#'
+#' @param text text of their name, in English (any case and accents), or the beginning of an MRGID.
+#' @param limit maximum number of seas.
+#' @return A data.frame of the seas, with their MRGID (for \code{mo_sea()}), name, area (AREA_KM2) and bounds (BOUNDS:
+#'   west, south, east, north, in degrees).
+#' @references Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas,
+#'   version 5. Available online at \url{https://www.marineregions.org/}. \doi{10.14284/699}
+#' @examples
+#' \dontrun{
+#' mo_seas("alboran")          # mo_sea(3324) or mo_sea("Alboran Sea")
+#' mo_seas("mediterranean")
+#' }
+#' @export
+mo_seas <- function(text, limit = 20) {
+  rows_df(services()$find_seas(text, as.integer(limit)))
+}
+
 #' Regions of MonitorEO
 #'
 #' A region of the functions of MonitorEO: protected areas by WDPA ID (\code{mo_wdpa()}), ecoregions of RESOLVE 2017
 #' by ID or by a point (\code{mo_ecoregion()}), biomes of RESOLVE 2017 by code or by a point (\code{mo_biome()}: the
 #' union of their ecoregions, a feature per biome), countries (\code{mo_country()}) and their administrative units of
-#' FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), a box (\code{mo_bbox()}), a
+#' FAO GAUL 2025 (\code{mo_admin()}), the island at a point (\code{mo_island()}), oceans and seas by MRGID or name, or the
+#' sea at a point (\code{mo_sea()}, the sea areas of the IHO: \code{mo_seas()}), a box (\code{mo_bbox()}), a
 #' point or a circle around it (\code{mo_point()}), GeoJSON (\code{mo_geojson()}) or an sf object
 #' (\code{mo_sf()}). Several features give a result per feature. A whole biome spans continents: give it
-#' \code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step.
+#' \code{within} another region (only its part inside it is kept), or use MODIS or the climate at an annual step. The
+#' large areas (more than 100,000 km2: a country, a biome, most seas) are computed by default on pixels of 1 to 10 km.
 #' @param id WDPA IDs (SITE_ID of \code{mo_protected_areas()}), ecoregion IDs (ECO_ID), codes of biomes (1 to 14, or
 #'   99 Rock and Ice: \code{mo_classes("BIOME")}) or codes of administrative units (GAUL1_CODE, GAUL2_CODE or
-#'   ADMIN3_CODE of \code{mo_admin_units()}).
+#'   ADMIN3_CODE of \code{mo_admin_units()}); for \code{mo_sea()}, MRGIDs of seas (of \code{mo_seas()}) or their names,
+#'   e.g. \code{"Alboran Sea"}.
 #' @param iso3 ISO3 codes of countries, e.g. \code{"ESP"}.
 #' @param level level of the administrative units: 1 (regions, states, provinces...) or 2 (provinces, districts,
 #'   municipalities...) of FAO GAUL 2025, or 3: the municipalities of Spain (their codes of the INE, e.g. "18134").
@@ -777,6 +802,9 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' Sayre, R., Noble, S., Hamann, S., Smith, R., Wright, D., Breyer, S., et al. (2019). A new 30 meter resolution global
 #'   shoreline vector and associated global islands database for the development of standardized ecological coastal
 #'   units. Journal of Operational Oceanography, 12(sup2), S47--S56. \doi{10.1080/1755876X.2018.1529714}
+#'
+#' Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5.
+#'   Available online at \url{https://www.marineregions.org/}. \doi{10.14284/699}
 #' @examples
 #' mo_wdpa(389011)            # Sierra Nevada National Park
 #' mo_ecoregion(lon = -3.3, lat = 37.1)
@@ -785,6 +813,9 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' mo_country("ESP")
 #' mo_admin(141938, level = 2)  # Granada: mo_admin_units("Granada", level = 2, country = "ESP")
 #' mo_island(lon = 2.9, lat = 39.6)
+#' mo_sea(3324)               # the Alboran Sea: mo_seas("alboran")
+#' mo_sea("Alboran Sea")
+#' mo_sea(lon = -2.5, lat = 36)
 #' mo_bbox(-3.6, 36.9, -3.0, 37.2)
 #' mo_point(-3.4, 37.05, buffer = 1000)
 #' @name regions
@@ -815,6 +846,12 @@ mo_admin <- function(id, level = 1) {
 #' @rdname regions
 #' @export
 mo_island <- function(lon, lat) list(island_at = list(lon, lat))
+#' @rdname regions
+#' @export
+mo_sea <- function(id = NULL, lon = NULL, lat = NULL) {
+  if (is.null(id)) return(list(sea_at = list(lon, lat)))
+  list(sea = as.list(if (is.numeric(id)) as.integer(id) else as.character(id)))  # MRGIDs or names
+}
 #' @rdname regions
 #' @export
 mo_bbox <- function(west, south, east, north) list(bbox = list(west, south, east, north))

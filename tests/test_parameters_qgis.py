@@ -434,6 +434,12 @@ def test_the_regions_of_the_panel(plugin):
 	assert kind({'admin3': '99999'})[0] is None and 'is not one' in kind({'admin3': '99999'})[1]
 	assert kind({'ecoregion_at': [-3.3, 37.1]}) == ('ecoregion', [-3.3, 37.1])
 	assert kind({'island_at': [-16.6, 28.3]}) == ('island', [-16.6, 28.3])
+	# an ocean or sea (the IHO, Marine Regions): its MRGID, from its MRGID or its name, checked in the index of the
+	# package; the sea at a point, at the center of the map
+	assert kind({'sea': 3324}) == kind({'sea': ['Alboran Sea']}) == kind({'sea': 'alborán sea'}) == ('sea', 3324)
+	assert kind({'sea': 'Atlantis'})[0] is None and 'find_seas' in kind({'sea': 'Atlantis'})[1]
+	assert kind({'sea': [3324, 3363]}) == (None, 'the panel takes one sea')
+	assert kind({'sea_at': [-2.5, 36]}) == ('sea_point', [-2.5, 36.0])
 	assert kind({'biome_at': [-3.3, 37.1], 'within': {'bbox': [-4, 36, -3, 38]}}) == \
 		('biome', {'at': [-3.3, 37.1], 'within': [-4, 36, -3, 38]})
 	for region, words in (({'wdpa_id': [1, 2]}, 'one protected area'), ({'ecoregion_id': 793}, 'no region ecoregion_id'),

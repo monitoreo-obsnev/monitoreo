@@ -435,3 +435,33 @@ def test_a_municipality_of_spain_from_the_public_table():
 	rows = fc.map(lambda f: ee.Feature(None, {'name': f.get('name'), 'km2': f.geometry().area(10).divide(1e6)}))
 	got = {r['properties']['name']: r['properties']['km2'] for r in rows.getInfo()['features']}
 	assert set(got) == {'Monachil (Granada)', 'Abla (Almería)'} and abs(got['Monachil (Granada)'] - 88.65) < 0.5
+
+
+def test_the_seas_from_the_public_table():
+	"""The oceans and seas (monitoreo.seas): the public table of Earth Engine, read by any account, with the 101 sea
+	areas of the IHO of the index of the package; a sea by its name or MRGID and the sea at a point; their areas within
+	4 % of those of Marine Regions (the polygons are simplified, see monitoreo.seas)."""
+	from monitoreo import areas, seas
+	table = ee.FeatureCollection(seas.ASSET)
+	assert table.size().getInfo() == 101
+	assert sorted(table.aggregate_array('mrgid').getInfo()) == sorted(r[0] for r in seas.load()['rows'])
+	fc = areas.region({'sea': ['Alboran Sea', 3363]})
+	rows = fc.map(lambda f: ee.Feature(None, {'name': f.get('name'), 'km2': f.geometry().area(100).divide(1e6),
+	                                         'search': f.get('search')}))
+	got = {r['properties']['name']: r['properties'] for r in rows.getInfo()['features']}
+	assert set(got) == {'Alboran Sea', 'Ligurian Sea'} and got['Alboran Sea']['search'] == 'alboran sea'
+	for name, row in got.items():
+		mr = seas.area_of(seas.codes(name)[0])
+		assert abs(row['km2'] - mr) < 0.04 * mr, (name, row['km2'], mr)
+	assert areas.region({'sea_at': [-2.5, 36.0]}).aggregate_array('name').getInfo() == ['Alboran Sea']
+	assert areas.region({'sea_at': [-3.6, 37.2]}).size().getInfo() == 0  # Granada: no sea on land
+
+
+def test_the_chlorophyll_of_the_alboran_sea_on_its_pixels():
+	"""A month of the Chl-a of MODIS (Aqua) over the Alboran Sea (54,482 km², not a large area): on the 4.6 km of the
+	data, without the warning of the variables of the land, citing Marine Regions."""
+	out = services.time_series({'sea': 3324}, 'Chl-a', 'Modis', '2020-06-01', '2020-06-30', step='monthly')
+	assert out['scale'] == 4616 and len(out['rows']) == 1 and 0.05 < out['rows'][0]['value'] < 5, out['rows']
+	assert not any('open sea' in w for w in out.get('warnings') or [])
+	assert any(r['doi'] == '10.14284/699' for r in out['references'])
+
