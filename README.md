@@ -92,7 +92,7 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
-### Unreleased
+### [v0.3.48](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.48) · 2026-11-18 · package 0.3.58
 
 - **All tools** (fix): The chlorophyll-a (Chl-a) of Sentinel-2 is the model of the published article of the lakes of Sierra Nevada (Llodrà-Llabrés et al. 2026, Table 3b: B12, B4 and B8, each standardized with the mean and standard deviation of its samples): it varies with the chlorophyll of those lakes (0.03 to 4.5 mg m⁻³ in its samples) instead of giving about 1.07 everywhere, as the draft of the model without that standardization did, and its colour ramp goes from 0 to 4. It is only valid on the water of the small high-mountain lakes of Sierra Nevada, not over land, other waters or water altered by Saharan dust (as in 2022, which the article left out): so says its note (`describe_variable` in the assistant and the MCP server, `monitoreo info`, R and the metadata of the files) and the wiki.
 
