@@ -332,6 +332,9 @@ HELP = {
 		'<p>How often the series gives a value: <b>Monthly</b>, <b>Annual</b>, <b>16 days</b> (blocks of 16 days from '
 		'January 1 of each year) or <b>Daily</b> (each day with images). Long steps take less time and have fewer gaps '
 		'because of clouds.</p><p>To compare periods: monthly, 16 days or annual.</p>'
+		'<p>The <b>snow cover days</b> (SCD) are drawn with a bar per step, over their table: with Annual and a season, '
+		'the days of each season; with Daily, a bar per day with images, the share of its clear pixels with snow (0 to '
+		'1 day).</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'ts_metric':
 		'<p>How the images of each step are summarized on each pixel: with the step Monthly and <b>Mean</b>, the mean '

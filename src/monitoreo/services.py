@@ -986,7 +986,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
 	year and the day of the year (1-366) of each step, and the chart has a line per year over the days of the year
 	(a panel for each of the first 4 regions), to compare the years (phenology, snow seasons; as the day-of-year
-	charts of geemap): not for an annual step.
+	charts of geemap): not for an annual step. The snow cover days (metric days) are drawn with a bar per step (the
+	key bars of the answer): with the step daily, a bar per day with images, the share of its clear pixels with snow
+	(0 to 1 day).
 	With DOY and INTERANNUAL (mean, median, min, max, std, cv or pN: see timeseries.over_years) or OTHER_VARIABLE, the
 	seasonal profile instead: for each step of the year (each month, 16-day period or calendar day: see
 	timeseries.doy_profile), INTERANNUAL (default median) of its values in the years of the period, a line per
@@ -1050,7 +1052,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	title = _title(spec, step, metric, stat) + (' | by day of the year' if doy else '')
 	out = {'rows': rows, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit,
 	       'ylabel': _ylabel(spec, stat, interannual if profiled else None), 'title': title,
-	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows})}
+	       'n_steps': len({r['date'] for r in rows}), 'regions': sorted({r['region'] for r in rows}),
+	       # the snow cover days (metric days) are drawn with a bar per step, by date (not by day of the year)
+	       'bars': not doy and not profiled and composite.is_days(spec.get('metric'))}
 	if doy:
 		out['ylim'] = ylim
 	if profiled:
@@ -1087,7 +1091,8 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 				charts.doy_png(rows, chart, title=title, ylabel=out['ylabel'] or None, ylim=out['ylim'],
 				               source=coverage.source())
 			else:
-				charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None, source=coverage.source())
+				charts.time_series_png(rows, chart, title=title, ylabel=out['ylabel'] or None, source=coverage.source(),
+				                       bars=out['bars'])
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass

@@ -23,6 +23,7 @@ def test_time_series(tmp_path):
 	assert [r['date'] for r in res['rows']] == ['2021-05-01', '2021-06-01', '2021-07-01']
 	assert all(0 < r['value'] < 1 and r['n_images'] > 0 and r['n_pixels'] > 0 for r in res['rows'])
 	assert os.path.getsize(res['csv']) > 0 and os.path.getsize(res['chart']) > 0
+	assert res['bars'] is False  # a line, as every variable but the snow cover days
 
 
 def test_two_regions_and_landsat():
@@ -320,6 +321,9 @@ def test_snow_of_sentinel2_as_that_of_landsat():
 	days = services.time_series(lakes, 'SCD', 'Sentinel-2', '2021-10-01', '2022-05-31', step='monthly', metric='days')
 	assert [r['date'] for r in days['rows']][:2] == ['2021-10-01', '2021-11-01']
 	assert all(0 <= r['value'] <= 31 for r in days['rows']) and max(r['value'] for r in days['rows']) > 15
+	assert days['bars'] is True  # drawn with a bar per step
+	daily = services.time_series(lakes, 'SCD', 'Landsat', '2022-02-01', '2022-02-28', step='daily', metric='days')
+	assert daily['bars'] is True and all(0 <= r['value'] <= 1 for r in daily['rows'] if r['value'] is not None)
 
 
 def test_animation(tmp_path):

@@ -913,7 +913,8 @@ mo_sf <- function(x, name = NULL) {
 #'   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
 #'   [\%]"), scale, csv, references and credits (see \code{mo_references()}), data_source (the Earth Engine
 #'   collections of its values and their product level: \code{mo_plot()} writes it under the chart), warnings (of its
-#'   period, also given as R warnings: see \code{start}), and with \code{doy} ylim (\code{NULL}: from the data).
+#'   period, also given as R warnings: see \code{start}), bars (\code{TRUE} for the snow cover days, metric
+#'   \code{"days"}: \code{mo_plot()} draws a bar per step), and with \code{doy} ylim (\code{NULL}: from the data).
 #'
 #'   With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
 #'   (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period
@@ -972,6 +973,7 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   attr(df, "scale") <- res$scale
   attr(df, "csv") <- res$csv
   attr(df, "ylim") <- axis_numbers(res$ylim)  # with doy: the range of the y axis, if given (NULL: from the data)
+  attr(df, "bars") <- isTRUE(res$bars)  # the snow cover days (metric days): a bar per step in mo_plot()
   if (profiled) {
     attr(df, "rows") <- rows_df(res$rows)
     attr(df, "variables") <- as.character(unlist(res$variables))
@@ -1014,12 +1016,16 @@ axis_numbers <- function(x) if (length(x) == 2) as.numeric(unlist(x)) else NULL
 #' the left one; with base graphics, a second plot over the first one (\code{par(new = TRUE)}) with its axis on the
 #' right (\code{axis(4)}).
 #'
+#' A series of the snow cover days (metric \code{"days"}, the attribute bars) is drawn with a bar per step from 0,
+#' those of the regions side by side: with the step \code{"daily"}, a bar per day with images (the share of its clear
+#' pixels with snow, 0 to 1 day); with \code{"monthly"} or \code{"annual"}, the days of each month or season.
+#'
 #' Under every chart, a line says where its values come from: "Data: " and the attribute data_source of the series
 #' (the Earth Engine collections and their product level, e.g. "Data: COPERNICUS/S2_SR_HARMONIZED (Harmonized
 #' Sentinel-2 MSI, Level-2A (SR))"), as the charts of the other tools of MonitorEO.
 #' @param ts a time series of \code{mo_time_series()}.
 #' @return A ggplot object, or \code{ts} invisibly.
-#' @importFrom graphics abline axis legend lines mtext par
+#' @importFrom graphics abline axis legend lines mtext par rect
 #' @examples
 #' \dontrun{
 #' mo_plot(mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2015-01-01", "2024-12-31"))
@@ -1071,6 +1077,7 @@ mo_plot <- function(ts) {
     base_source(src)
     return(invisible(ts))
   }
+  if (isTRUE(attr(ts, "bars"))) return(plot_bars(ts, title, unit, gg, src))
   if (gg) {
     return(ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, colour = region)) +
       ggplot2::geom_line() + ggplot2::geom_point(size = 1) +
@@ -1083,6 +1090,32 @@ mo_plot <- function(ts) {
     lines(s$date, s$value, col = i, type = "o", pch = 20)
   }
   if (length(regions) > 1) legend("topleft", legend = regions, col = seq_along(regions), lty = 1, bty = "n")
+  base_source(src)
+  invisible(ts)
+}
+
+# The bars of the snow cover days TS (mo_plot): a bar per step from 0 at its date, 80 % of the shortest gap between two
+# steps wide (charts.bar_width of Python), those of the regions side by side; no bar where a step has no value.
+plot_bars <- function(ts, title, unit, gg, src) {
+  ts <- ts[!is.na(ts$value), ]
+  regions <- unique(ts$region)
+  days <- sort(unique(as.numeric(ts$date)))
+  width <- 0.8 * (if (length(days) > 1) min(diff(days)) else 1)
+  if (gg) {
+    p <- ggplot2::ggplot(ts, ggplot2::aes(x = date, y = value, fill = region)) +
+      ggplot2::geom_col(width = width, position = ggplot2::position_dodge(width = width, preserve = "single")) +
+      ggplot2::labs(title = title, x = NULL, y = unit, fill = NULL, caption = wrapped(src)) +
+      ggplot2::theme_minimal()
+    return(if (length(regions) > 1) p else p + ggplot2::theme(legend.position = "none"))
+  }
+  step <- width / length(regions)
+  plot(ts$date, ts$value, type = "n", main = title, xlab = "", ylab = unit, ylim = c(0, max(ts$value, 0)))
+  for (i in seq_along(regions)) {
+    s <- ts[ts$region == regions[i], ]
+    x <- as.numeric(s$date) + step * (i - (length(regions) + 1) / 2)
+    rect(x - step / 2, 0, x + step / 2, s$value, col = i, border = NA)
+  }
+  if (length(regions) > 1) legend("topleft", legend = regions, fill = seq_along(regions), bty = "n")
   base_source(src)
   invisible(ts)
 }

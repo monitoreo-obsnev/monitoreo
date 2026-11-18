@@ -150,7 +150,8 @@ A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also yea
   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
   [\%]"), scale, csv, references and credits (see \code{mo_references()}), data_source (the Earth Engine
   collections of its values and their product level: \code{mo_plot()} writes it under the chart), warnings (of its
-  period, also given as R warnings: see \code{start}), and with \code{doy} ylim (\code{NULL}: from the data).
+  period, also given as R warnings: see \code{start}), bars (\code{TRUE} for the snow cover days, metric
+  \code{"days"}: \code{mo_plot()} draws a bar per step), and with \code{doy} ylim (\code{NULL}: from the data).
 
   With \code{doy} and \code{interannual} or \code{other_variable}, the seasonal profile instead: a data.frame
   (region; variable, e.g. "NDSI Sentinel-2"; part, the step of the year: the month, "1" to "12", the 16-day period

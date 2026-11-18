@@ -482,6 +482,9 @@ def item_facts(tool, args, result=None, names=None):
 		facts += _profile_facts(args, result)
 	elif tool == 'time_series' and args.get('doy'):
 		facts.append(('Chart', 'a line per year over the days of the year (that of the first day of each step)'))
+	elif tool == 'time_series' and str(metric).strip().lower() == 'days':  # composite.DAYS: the snow cover days
+		facts.append(('Chart', 'a bar per step' + (' (each day with images: the share of its clear pixels with snow, '
+		                                           '0 to 1 day)' if args.get('step') == 'daily' else '')))
 	if custom and not static:
 		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
 		                                  'for the variables of its catalog)'))

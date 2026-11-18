@@ -874,6 +874,8 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart == 'series' and composite.is_days(args.get('metric')):  # the snow cover days: a bar per step
+			entry['bars'] = True
 		if chart == 'doy':  # the range of its y axis, if one was given (ylim)
 			entry['ylabel'] = res.get('ylabel') or unit_text(unit)
 			entry['ylim'] = _axis_range(res['ylim'] if 'ylim' in res else args.get('ylim'))

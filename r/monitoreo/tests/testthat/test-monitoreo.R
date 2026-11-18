@@ -627,6 +627,34 @@ test_that("the time series by day of the year: doy reaches the services, mo_plot
   expect_identical(base(ts), ts)
 })
 
+test_that("the snow cover days: mo_plot draws a bar per day with images, those of the regions side by side", {
+  rows <- list()
+  for (g in c("lake", "park")) for (d in c("2022-02-01", "2022-02-02", "2022-02-07")) {
+    rows[[length(rows) + 1]] <- list(region = g, date = d, value = if (d == "2022-02-02" && g == "lake") NULL else
+                                       0.5 + (g == "park") / 4, n_pixels = 40L, n_images = 1L)
+  }
+  local_mocked_bindings(services = function() list(time_series = function(...) {
+    list(rows = rows, title = "Daily SCD (MODIS), days", unit = "[days]", ylabel = "Snow Cover Days (SCD) [days]",
+         scale = 500, bars = TRUE, references = list(), credits = list())
+  }), .package = "monitoreo")
+  ts <- mo_time_series(mo_bbox(-3.40, 37.03, -3.33, 37.07), "SCD", "Modis", "2022-02-01", "2022-02-07",
+                       step = "daily", metric = "days")
+  expect_true(attr(ts, "bars"))
+  skip_if_not_installed("ggplot2")
+  p <- mo_plot(ts)
+  expect_s3_class(p, "ggplot")
+  expect_s3_class(p$layers[[1]]$geom, "GeomCol")  # bars, not lines
+  expect_equal(rlang::as_label(p$mapping$fill), "region")
+  expect_equal(nrow(p$data), 5)  # no bar where a day has no value
+  expect_equal(p$layers[[1]]$aes_params$width, 0.8)  # 80 % of the shortest gap between two days
+  # with base graphics (without ggplot2): bars too
+  base <- mo_plot
+  environment(base) <- list2env(list(requireNamespace = function(...) FALSE), parent = environment(mo_plot))
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_equal(nrow(base(ts)), 5)
+})
+
 test_that("the seasonal profile by day of the year: its options reach the services, mo_plot draws two y axes", {
   sent <- NULL
   vars <- c("NDVI Landsat", "SCF Landsat")

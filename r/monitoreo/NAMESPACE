@@ -60,5 +60,6 @@ importFrom(graphics,
   legend,
   lines,
   mtext,
-  par
+  par,
+  rect
 )

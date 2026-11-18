@@ -95,8 +95,8 @@ def other_ylabel(res):
 
 def chart_png(res, path):
 	"""PNG of the chart of the time series RES made by monitoreo with matplotlib (a line per year over the days of the
-	year, or its seasonal profile with a y axis for each variable), or None without matplotlib (or if it fails): then
-	the dialog draws it with Qt. Call it from the main thread."""
+	year, or its seasonal profile with a y axis for each variable; the snow cover days with a bar per step, RES['bars']),
+	or None without matplotlib (or if it fails): then the dialog draws it with Qt. Call it from the main thread."""
 	try:
 		from monitoreo import charts
 		source = res.get('data_source')  # the line «Data: ...» under the chart
@@ -108,7 +108,8 @@ def chart_png(res, path):
 			charts.doy_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), ylim=res.get('ylim'),
 			               source=source)
 		else:
-			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), source=source)
+			charts.time_series_png(res['rows'], path, title=res['title'], ylabel=ylabel(res), source=source,
+			                       bars=bool(res.get('bars')))
 		return path
 	except Exception:
 		return None
@@ -579,13 +580,16 @@ class ChartWidget(QWidget):
 	left axis (blue, UNIT, YLIM) and the other, if any, on a right axis (red, OTHER_UNIT, OTHER_YLIM), each axis in the
 	colour of its line, with a line at 0 where an axis has it, and a dash for each region, as charts.doy_profile_png.
 	YLIM, OTHER_YLIM: (min, max) of each y axis (default: from the values). SOURCE: the data of the values (data_source),
-	written under the chart as «Data: SOURCE», as charts.source_line."""
+	written under the chart as «Data: SOURCE», as charts.source_line. With BARS (the snow cover days: services.time_series
+	gives bars), a bar per step from 0 instead of the lines, those of the regions side by side, as
+	charts.time_series_png."""
 
 	def __init__(self, rows, title='', unit='', parent=None, profile=None, other_unit='', ylim=None, other_ylim=None,
-	             source=''):
+	             source='', bars=False):
 		super().__init__(parent)
 		self.title, self.unit, self.other_unit = title, unit, other_unit or ''
 		self.source = source or ''
+		self.bars = bool(bars) and not profile and not (bool(rows) and 'doy' in rows[0])
 		self.ylims = [tuple(ylim) if ylim else None, tuple(other_ylim) if other_ylim else None]
 		self.profile = isinstance(profile, list)
 		self.doy = self.profile or (bool(rows) and 'doy' in rows[0])
@@ -665,12 +669,17 @@ class ChartWidget(QWidget):
 			return
 		d0, d1 = min(d for d, _ in pts), max(d for d, _ in pts)
 		v0, v1 = value_range([v for _, v in pts], self.ylims[0])
-		days = max((d1 - d0).days, 1)
+		width = 0  # of the bars, in days
+		if self.bars:  # from 0, and half a bar more at each end so that the first and the last are whole
+			from monitoreo import charts
+			width = charts.bar_width([d for s in self.series.values() for d, _ in s])
+			v0, v1 = min(v0, 0), max(v1, 0)
+		days = max((d1 - d0).days + width, 1)
 		left, right, top, bottom = 70, 20, 30, 45
 		plot = QRectF(left, top, self.width() - left - right, self.height() - top - bottom)
 
-		def xy(d, v):
-			return QPointF(plot.left() + plot.width() * (d - d0).days / days,
+		def xy(d, v, shift=0.0):  # SHIFT: days after D (the bars)
+			return QPointF(plot.left() + plot.width() * ((d - d0).days + width / 2 + shift) / days,
 			               plot.bottom() - plot.height() * (v - v0) / (v1 - v0))
 
 		grid = QPen(QColor('#dddddd'))
@@ -700,12 +709,29 @@ class ChartWidget(QWidget):
 			p.rotate(-90)
 			p.drawText(QRectF(-100, -8, 200, 16), Qt.AlignmentFlag.AlignCenter, self.unit)
 			p.restore()
+		n = len(self.series)
 		for i, (name, s) in enumerate(self.series.items()):
 			pen = self.pen(i, name)
 			p.setPen(pen)
-			self.draw_line(p, pen, plot, [(xy(d, v) if v is not None else None) for d, v in s])
+			if self.bars:  # each bar at its date, those of the regions side by side around it
+				mid, half = width / n * (i - (n - 1) / 2), width / n / 2
+				self.draw_bars(p, pen.color(), plot, [(xy(d, 0, mid - half), xy(d, v, mid + half))
+				                                      for d, v in s if v is not None])
+			else:
+				self.draw_line(p, pen, plot, [(xy(d, v) if v is not None else None) for d, v in s])
 			if len(self.series) > 1:
 				p.drawText(QPointF(plot.left() + 8, plot.top() + 16 + 15 * i), name)
+
+	def draw_bars(self, p, colour, plot, corners):
+		"""Draw a bar filled with COLOUR between each pair of opposite CORNERS (QPointF: the bottom left at 0 and the top
+		right at its value), inside PLOT."""
+		p.save()
+		p.setClipRect(plot)
+		p.setPen(Qt.PenStyle.NoPen)
+		p.setBrush(colour)
+		for a, b in corners:
+			p.drawRect(QRectF(a, b).normalized())
+		p.restore()
 
 	def draw_line(self, p, pen, plot, points):
 		"""Draw the line of POINTS (QPointF, or None for a gap) with PEN and a dot on each point, inside PLOT."""
@@ -840,7 +866,8 @@ class SeriesDialog(QDialog):
 		else:
 			self.chart = ChartWidget(res['rows'], res['title'], ylabel(res) or '', profile=profile,
 			                         other_unit=other_ylabel(res) or '', ylim=res.get('ylim'),
-			                         other_ylim=res.get('other_ylim'), source=res.get('data_source') or '')
+			                         other_ylim=res.get('other_ylim'), source=res.get('data_source') or '',
+			                         bars=res.get('bars'))
 			lay.addWidget(self.chart, 1)
 		if profile is not None:  # the table of the profile (what the chart and the CSV have), with the unit of each row
 			units = res.get('units') or {}

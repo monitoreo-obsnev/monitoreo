@@ -112,9 +112,33 @@ MO.chart = (() => {
 	};
 	const regionsOf = (rows) => [...new Set(rows.map((r) => r.region))];
 
+	// The snow cover days (metric days, result.bars): a bar per step from 0, those of the regions side by side, as the
+	// charts of the package (charts.time_series_png); with the step daily, a bar per day with images (the share of its
+	// clear pixels with snow, 0 to 1 day), and an empty place where a step has no value (a day all clouds).
+	function barsSpec(rows, result) {
+		const regions = regionsOf(rows);
+		const cut = {annual: 4, monthly: 7}[result.step] || 10;  // the label of a step: its year, month or day
+		const stepOf = (r) => String(r.date).slice(0, cut);
+		const data = rows.filter((r) => Number.isFinite(r.value)).map((r) => ({...r, step: stepOf(r)}));
+		const steps = [...new Set(rows.map(stepOf))].sort();  // also those without a value: an empty place
+		const color = {field: 'region', type: 'nominal', title: null, scale: {domain: regions, range: palette()},
+			legend: regions.length > 1 ? {columns: narrow ? 1 : Math.min(regions.length, 2)} : null};
+		return {data: {values: data}, height: 280, width: 'container', mark: {type: 'bar'},
+			encoding: Object.assign({
+				x: {field: 'step', type: 'ordinal', sort: steps, scale: {domain: steps}, title: null, axis: {labelOverlap: true}},
+				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || null},
+				color,
+				tooltip: [{field: 'date', title: 'Date'}].concat(regions.length > 1 ? [{field: 'region', title: 'Region'}] : [],
+					[{field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
+						{field: 'n_images', type: 'quantitative', title: 'Images'},
+						{field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}]),
+			}, regions.length > 1 ? {xOffset: {field: 'region', sort: regions}} : {})};
+	}
+
 	// Time series, with the Sen lines of the trends of the report over it (annual series) and, if it is long, an
-	// overview to choose the years shown.
+	// overview to choose the years shown; the snow cover days with bars (barsSpec).
 	function seriesSpec(rows, result) {
+		if (result.bars) return barsSpec(rows, result);
 		const regions = regionsOf(rows);
 		const annual = result.step === 'annual';
 		const label = (r) => regions.length > 1 ? r : (annual ? 'Mean of each year' : 'Mean of each month');

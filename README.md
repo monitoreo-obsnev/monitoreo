@@ -95,6 +95,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 ### Unreleased
 
 - **All tools**: New variables: the snow cover frequency (SCF) and the snow cover days (SCD) of Sentinel-2 (20 m, an image every 5 days, since 2017), with the rules of those of Landsat, its clouds from Cloud Score+.
+- **All tools**: The time series of the snow cover days are a bar chart, a bar per season, month or day, with their table; with the daily step, a bar per day with images, the share of its clear pixels with snow (0 to 1 day).
 
 ### [v0.3.52](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.52) · 2026-11-18 · package 0.3.62
 
