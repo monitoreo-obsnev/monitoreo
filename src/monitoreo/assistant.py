@@ -53,14 +53,15 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __released__, __version__, about, areas, catalog, documents, engine, manual, report, services
+from . import __released__, __version__, about, areas, catalog, documents, engine, logs, manual, report, services
 from .variable import bands_of, check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
 OUTPUT = os.path.expanduser(os.environ.get('MONITOREO_OUTPUT') or '~/MonitorEO')
 SETTINGS = os.path.join(OUTPUT, 'assistant.json')
 RUNNING = os.path.join(OUTPUT, '.assistant')  # port and token of the assistant that is running
-LOG = os.path.join(OUTPUT, 'assistant.log')  # the calls of the model and their errors, to find out what went wrong
+LOG = os.path.join(OUTPUT, 'assistant.log')  # the calls of the model and the errors, to find out what went wrong
+# (with assistant-output.log, sent by the button "Send the logs" of the page: see monitoreo.logs)
 LAYERS = os.path.join(OUTPUT, 'capas')  # the vector files added by the user, and their list capas.json
 LAYER_TYPES = ('.gpkg', '.geojson', '.json', '.kml', '.zip')  # .zip: a shapefile (or another of these) compressed
 MAX_LAYER = 100 * 2 ** 20  # bytes
@@ -1350,7 +1351,9 @@ class Assistant:
 		return bool(self.task and not self.task.done())
 
 	def emit(self, event):
-		"""Keep an event of the conversation and wake the pages that follow it."""
+		"""Keep an event of the conversation and wake the pages that follow it; an error goes to the log too."""
+		if event.get('type') == 'error':
+			_log({'error': event.get('text')})
 		self.events.append({**event, 'seq': self.offset + len(self.events)})
 		changed, self.changed = self.changed, asyncio.Event()
 		changed.set()
@@ -1393,6 +1396,7 @@ class Assistant:
 				self.emit({'type': 'stopped', 'text': 'Stopped. Write what you want instead.'})
 				raise
 			except Exception as e:  # the conversation goes on
+				_log({'traceback': traceback.format_exc()})
 				self.emit({'type': 'error', 'text': f'The assistant has failed: {type(e).__name__}: {e}'})
 			finally:
 				self.emit({'type': 'done'})
@@ -2632,12 +2636,9 @@ def _search_manual(question, lang=None, k=3, max_chars=1800):
 
 
 def _log(entry):
-	"""Add ENTRY to LOG (a JSON line with the time); the log never breaks the assistant."""
-	with contextlib.suppress(OSError, TypeError, ValueError):
-		os.makedirs(OUTPUT, exist_ok=True)
-		with open(LOG, 'a', encoding='utf-8') as f:
-			f.write(json.dumps({'time': dt.datetime.now().isoformat(timespec='seconds'), **entry}, ensure_ascii=False,
-			                   default=str) + '\n')
+	"""Add ENTRY to LOG (a JSON line with the time; it keeps its newest lines, see logs.write); the log never breaks
+	the assistant."""
+	logs.write(LOG, entry)
 
 
 def _title(name, args):
@@ -2667,9 +2668,20 @@ def _file_url(path):
 # The web server ------------------------------------------------------------------------------------------------------
 
 def feedback():
-	"""The button "Suggest a change or report an error" of the page: its texts (in English, as the page) and its links
-	(about.feedback: a new issue of GitHub or the anonymous form, filled with the assistant and its version)."""
-	return dict(about.FEEDBACK['en'], links=about.feedback('assistant', __version__))
+	"""The button "Suggest a change or report an error" of the page: its texts (in English, as the page), its links
+	(about.feedback: a new issue of GitHub or the anonymous form, filled with the assistant and its version) and the
+	texts of "Send the logs" (about.LOGS: its entry of the menu, the button next to each error and its window)."""
+	return dict(about.FEEDBACK['en'], links=about.feedback('assistant', __version__), logs=about.LOGS['en'])
+
+
+def logs_text(settings):
+	"""The logs of the assistant that "Send the logs" shows and sends (logs.collect), without the project of Earth
+	Engine of the user (SETTINGS)."""
+	project = (settings.get('project') or '').strip()
+	return logs.collect('assistant', __version__, where=OUTPUT, hide=[project] if project else (),
+	                    extra={'Earth Engine': 'a project of the user' if project else 'the shared account of MonitorEO',
+	                           'Language model': f"Ollama, {settings.get('model')}" if settings.get('provider') == 'ollama'
+	                           else 'that of MonitorEO'})
 
 
 def make_app(assistant, token, port):
@@ -2690,9 +2702,11 @@ def make_app(assistant, token, port):
 			try:
 				return await handler(request)
 			except (ValueError, RuntimeError, ModelError) as e:
+				_log({'error': f'{request.url.path}: {e}'})
 				return JSONResponse({'error': str(e)}, status_code=400)
-			except Exception as e:  # not foreseen: its cause on the page, and its traceback in the terminal
+			except Exception as e:  # not foreseen: its cause on the page, and its traceback in the terminal and the log
 				traceback.print_exc()
+				_log({'error': f'{request.url.path}: {type(e).__name__}: {e}', 'traceback': traceback.format_exc()})
 				return JSONResponse({'error': f'{type(e).__name__}: {e}'}, status_code=500)
 		return wrapped
 
@@ -2845,6 +2859,17 @@ def make_app(assistant, token, port):
 	async def stop(request):
 		return JSONResponse({'stopped': await assistant.stop()})
 
+	async def show_logs(request):
+		"""The logs that "Send the logs" shows, before the user sends them."""
+		return JSONResponse({'text': await asyncio.to_thread(logs_text, assistant.settings)})
+
+	async def send_logs(request):
+		"""Send the logs as the user saw (and maybe edited) them, with what they wrote, to the anonymous form."""
+		body = await request.json()
+		await asyncio.to_thread(logs.send, str(body.get('text') or ''), 'assistant', __version__,
+		                        str(body.get('description') or ''))
+		return JSONResponse({'sent': True, 'text': about.LOGS['en']['sent']})
+
 	async def make_report(request):
 		body = await request.json()
 		path = await asyncio.to_thread(assistant.write_report, body.get('title'), body.get('ids'),
@@ -2928,6 +2953,8 @@ def make_app(assistant, token, port):
 		Route('/api/quit', guarded(quit_app), methods=['POST']),
 		Route('/api/update', guarded(update_app), methods=['POST']),
 		Route('/api/report', guarded(make_report), methods=['POST']),
+		Route('/api/logs', guarded(show_logs)),
+		Route('/api/logs/send', guarded(send_logs), methods=['POST']),
 		Route('/api/pull', guarded(pull), methods=['POST']),
 		Route('/api/engine/install', guarded(install_engine), methods=['POST']),
 		Route('/api/layer', guarded(add_layer), methods=['POST']),

@@ -1,6 +1,6 @@
 """Fixtures of every test: no test reads the study areas nor the documents that the developer added to their own
 assistant (~/MonitorEO/capas, ~/MonitorEO/documentos), which would change the instructions or the conversation of the
-model and break the tests that compare them; and no test reads the STAC records of the Earth Engine data catalog on
+model and break the tests that compare them; no test writes in the logs of the developer; and no test reads the STAC records of the Earth Engine data catalog on
 the internet (monitoreo.assets): those a test needs, it gives them."""
 
 import pytest
@@ -12,6 +12,15 @@ def empty_layers(tmp_path, monkeypatch):
 	from monitoreo import assistant
 	monkeypatch.setattr(assistant, 'LAYERS', str(tmp_path / 'capas'))
 	monkeypatch.setattr(assistant, 'DOCUMENTS', str(tmp_path / 'documentos'))
+
+
+@pytest.fixture(autouse=True)
+def own_logs(tmp_path, monkeypatch):
+	"""The logs of the assistant and of the QGIS plugin (monitoreo.logs) in the folder of the test, not in
+	~/MonitorEO: the errors that the tests cause would end in the logs that the developer sends."""
+	from monitoreo import assistant, logs
+	monkeypatch.setattr(assistant, 'LOG', str(tmp_path / 'assistant.log'))
+	monkeypatch.setattr(logs, 'folder', lambda: str(tmp_path))
 
 
 @pytest.fixture(autouse=True)

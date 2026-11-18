@@ -58,7 +58,12 @@ LOGOS = [os.path.join(_LOGOS, n) for n in ('monitoreo_obsnev.png', 'nevadeo_fede
 # and no files, so that it stays anonymous; screenshots as a link). Both are filled with the tool and its version.
 ISSUES = REPOSITORY + '/issues/new/choose'  # the templates: error or suggestion
 FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform'
-FORM_FIELDS = {'tool': 'entry.1706228456', 'version': 'entry.1533130685'}  # their ids in the form
+FORM_RESPONSE = FORM.rsplit('/', 1)[0] + '/formResponse'  # where the answers go (the logs, see monitoreo.logs)
+# the ids of its questions (FB_PUBLIC_LOAD_DATA_ of its page): what to do (required), the tool (required), its
+# version, the description (required) and the logs (sent by the button "Send the logs" of the tools)
+FORM_FIELDS = {'what': 'entry.1894977854', 'tool': 'entry.1706228456', 'version': 'entry.1533130685',
+               'description': 'entry.863966158', 'logs': 'entry.1924568814'}
+FORM_ERROR = 'Report an error / Informar de un error'  # the option of "What would you like to do?" of the logs
 TOOLS = {  # the tools, as the issue templates and the options of the form name them
 	'gee': ('Earth Engine app', 'Earth Engine app / App de Earth Engine'),
 	'qgis': ('QGIS plugin', 'QGIS plugin / Complemento de QGIS'),
@@ -75,6 +80,28 @@ FEEDBACK = {
 	'es': {'button': 'Sugerir un cambio o informar de un error',
 	       'issue': 'En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta',
 	       'form': 'Formulario anónimo: sin cuenta, nombre ni correo; los pantallazos, como enlace'},
+}
+# "Send the logs" of the tools that keep logs on the computer of the user (the assistant and the QGIS plugin; see
+# monitoreo.logs): the entry of the menu of FEEDBACK, the button next to each error, and what their window says
+LOGS = {
+	'en': {'menu': 'Send the logs of this computer with the anonymous form: you see them first, without your name, '
+	               'email or folders',
+	       'button': 'Send the logs',
+	       'help': 'These are the newest lines of the logs of MonitorEO on this computer: what it did and the errors '
+	               'it had. They go to the team with the anonymous form (no account, no name, no email), without your '
+	               'folders, user name, email addresses, keys or your project of Earth Engine. Read them, and delete or '
+	               'change anything you prefer not to send.',
+	       'description': 'What were you doing, and what happened? (optional)',
+	       'sent': 'Sent: thank you. The team reads them with the answers of the anonymous form.'},
+	'es': {'menu': 'Enviar los registros de este ordenador con el formulario anónimo: los ves antes, sin tu nombre, '
+	               'correo ni carpetas',
+	       'button': 'Enviar los registros',
+	       'help': 'Estas son las últimas líneas de los registros de MonitorEO en este ordenador: lo que hizo y los '
+	               'errores que tuvo. Van al equipo con el formulario anónimo (sin cuenta, nombre ni correo), sin tus '
+	               'carpetas, nombre de usuario, correos, claves ni tu proyecto de Earth Engine. Léelos, y borra o '
+	               'cambia lo que prefieras no enviar.',
+	       'description': '¿Qué estabas haciendo y qué pasó? (opcional)',
+	       'sent': 'Enviados: gracias. El equipo los lee con las respuestas del formulario anónimo.'},
 }
 
 
