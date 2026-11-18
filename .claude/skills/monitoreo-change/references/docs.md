@@ -28,6 +28,7 @@ with the same content:
 | Home | English |
 | Primeros-pasos | Getting-started |
 | Instalación-paso-a-paso | Step-by-step-installation |
+| Cuenta-de-Earth-Engine | Earth-Engine-account |
 | Conceptos | Concepts |
 | App-de-Earth-Engine | Earth-Engine-app |
 | QGIS | QGIS-plugin |

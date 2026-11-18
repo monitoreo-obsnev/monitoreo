@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Assistant**: The guide to create an Earth Engine account and project, step by step, is in its manual, in the language of the question.
+
 ### [v0.3.50](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.50) · 2026-11-18 · package 0.3.60
 
 - **All tools**: New variables: the snow cover frequency of MODIS Terra and Aqua (500 m, daily, since 2000), and the snow cover days (SCD) of Landsat and MODIS, the days with snow of each pixel in a season, a year or a month, as maps, time series, trends and comparisons.

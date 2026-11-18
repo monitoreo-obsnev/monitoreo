@@ -911,6 +911,27 @@ def test_manual_of_the_data_of_earth_engine(tmp_path):
 	assert 'comunidad' not in manual.SYNONYMS['es']
 
 
+def test_manual_with_the_guide_of_the_earth_engine_account(tmp_path):
+	# the guide to create an Earth Engine account and project, in Spanish and in English: a question gets its page in
+	# its own language only, as the other pages of the wiki (manual.ENGLISH)
+	from monitoreo import manual
+	assert 'Cuenta-de-Earth-Engine' in manual.PAGES and manual.ENGLISH['Cuenta-de-Earth-Engine'] == 'Earth-Engine-account'
+	pages = {'Cuenta-de-Earth-Engine': '# Cómo crear tu cuenta de Google Earth Engine\n\n## 2. Registro paso a paso\n\n'
+	                                   'Abre la página de registro de Earth Engine, elige el uso no comercial y crea tu '
+	                                   'proyecto de Google Cloud.\n',
+	         'Earth-Engine-account': '# How to create your Google Earth Engine account\n\n## 2. Registration step by '
+	                                 'step\n\nOpen the registration page of Earth Engine, choose the non-commercial use '
+	                                 'and create your Google Cloud project.\n'}
+	for name, text in pages.items():
+		(tmp_path / f'{name}.md').write_text(text, encoding='utf-8')
+	(tmp_path / '_Sidebar.md').write_text('[Cuenta de Earth Engine](Cuenta-de-Earth-Engine) '
+	                                      '[Earth Engine account](Earth-Engine-account)', encoding='utf-8')
+	for question, name in (('¿Cómo creo mi proyecto de Google Cloud en Earth Engine?', 'Cuenta-de-Earth-Engine'),
+	                       ('How do I create my Google Cloud project in Earth Engine?', 'Earth-Engine-account')):
+		found = manual.search(question, folder=str(tmp_path))
+		assert found and {s['name'] for s in found} == {name}, (question, [s['url'] for s in found])
+
+
 def test_manual_update(tmp_path, monkeypatch):
 	# the pages of the sidebar and their English pages are downloaded; an English page not written yet is skipped
 	from monitoreo import manual
