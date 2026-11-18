@@ -121,6 +121,12 @@
    ],
    "credit": "Contains modified Copernicus Sentinel data {data_years}"
   },
+  "COPERNICUS/S2_HARMONIZED": {
+   "references": [
+    "esa_s2_l1c"
+   ],
+   "credit": "Contains modified Copernicus Sentinel data {data_years}"
+  },
   "LANDSAT/LT05/C02/T1_L2": {
    "references": [
     "usgs_landsat45"
@@ -510,6 +516,10 @@
    "citation": "Gascoin, S., Hagolle, O., Huc, M., Jarlan, L., Dejoux, J.-F., Szczypta, C., Marti, R., & Sánchez, R. (2015). A snow cover climatology for the Pyrenees from MODIS snow products. Hydrology and Earth System Sciences, 19(5), 2337–2351.",
    "doi": "10.5194/hess-19-2337-2015"
   },
+  "gascoin2019": {
+   "citation": "Gascoin, S., Grizonnet, M., Bouchet, M., Salgues, G., & Hagolle, O. (2019). Theia Snow collection: high-resolution operational snow cover maps from Sentinel-2 and Landsat-8 data. Earth System Science Data, 11(2), 493–514.",
+   "doi": "10.5194/essd-11-493-2019"
+  },
   "mu2011": {
    "citation": "Mu, Q., Zhao, M., & Running, S. W. (2011). Improvements to a MODIS global terrestrial evapotranspiration algorithm. Remote Sensing of Environment, 115(8), 1781–1800.",
    "doi": "10.1016/j.rse.2011.02.019"
@@ -681,6 +691,10 @@
   "esa_s2_l2a": {
    "citation": "European Space Agency (2022). Sentinel-2 MSI Level-2A BOA Reflectance [Data set].",
    "doi": "10.5270/S2_-znk9xsj"
+  },
+  "esa_s2_l1c": {
+   "citation": "European Space Agency (2022). Sentinel-2 MSI Level-1C TOA Reflectance [Data set].",
+   "doi": "10.5270/S2_-742ikth"
   },
   "esa_copernicus_dem": {
    "citation": "European Space Agency, & Airbus (2022). Copernicus DEM [Data set]. European Space Agency.",

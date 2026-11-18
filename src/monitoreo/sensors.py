@@ -99,6 +99,13 @@ S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, 
 #     not checked);
 #   - clouds (filter 'clouds'): QA_PIXEL bit 3 (cloud) or bit 9 (medium or high cloud confidence); cloud shadows are
 #     kept. Only scenes with CLOUD_COVER below 80 %. The filters of snow and aerosols do not apply.
+# The SCF of Sentinel-2 (formula SCF(B3,B8,B11)): the same rules, with the green (B3), NIR (B8) and SWIR1 (B11, 20 m) of
+# its L2A surface reflectance in the sun, those of the Level-1C TOA reflectance of the same scene (SCF_TOA) in the shadow
+# of the relief (hillShadow with the mean sun of the scene, MEAN_SOLAR_AZIMUTH_ANGLE and MEAN_SOLAR_ZENITH_ANGLE), the
+# water of the SCL (S2_SCL) and the clouds of Cloud Score+ (cs_cdf below SCF['cloud_score'], whatever the quality); only
+# scenes with CLOUDY_PIXEL_PERCENTAGE below 80 %. Checked in the ZEC Sierra Nevada, seasons 2017-18 to 2025-26, against
+# the SCF of Landsat on the days of both (238 days: 99.6 % of the pixels agree in the sun, 95 % in the shadow) and of
+# MODIS (Cloud Score+ does not take the snow for clouds more than the ground without snow).
 # The SCF of MODIS (Terra MOD10A1, Aqua MYD10A1, formula SCF(NDSI_Snow_Cover)): snow if NDSI_Snow_Cover (100 x the
 # NDSI) >= 100 x SCF['ndsi'], the same threshold; clouds, water and the other flags (200-255) of the daily snow product
 # have no data (its fixed filters and the valid range of PRODUCTS). The snow cover days (SCD) are made of the same
@@ -110,15 +117,18 @@ SCF = {
 	'toa_green': 0.08,      # green TOA reflectance of snow in the shadow: at least this
 	'min_elevation': 1500,  # metres: pixels in the shadow below it have no data
 	'shadow_reach': 70,     # reach of the shadows cast by the relief, in pixels (neighborhoodSize of hillShadow)
-	'scene_clouds': 80,     # scenes with a CLOUD_COVER (%) below it
+	'scene_clouds': 80,     # scenes with a CLOUD_COVER (%) below it (Sentinel-2: CLOUDY_PIXEL_PERCENTAGE)
+	'cloud_score': 0.6,     # Sentinel-2: a clear pixel has a Cloud Score+ (cs_cdf) of at least this
 	'dem': 'USGS/SRTMGL1_003',
 }
-SCF_TOA = {  # TOA collection of each Landsat collection, with its green and SWIR1 bands
+SCF_TOA = {  # TOA collection of each Landsat collection and of Sentinel-2, with its green and SWIR1 bands
 	'LANDSAT/LT05/C02/T1_L2': ('LANDSAT/LT05/C02/T1_TOA', ['B2', 'B5']),
 	'LANDSAT/LE07/C02/T1_L2': ('LANDSAT/LE07/C02/T1_TOA', ['B2', 'B5']),
 	'LANDSAT/LC08/C02/T1_L2': ('LANDSAT/LC08/C02/T1_TOA', ['B3', 'B6']),
 	'LANDSAT/LC09/C02/T1_L2': ('LANDSAT/LC09/C02/T1_TOA', ['B3', 'B6']),
+	'COPERNICUS/S2_SR_HARMONIZED': ('COPERNICUS/S2_HARMONIZED', ['B3', 'B11']),
 }
+SCF_TOA_SCALE = {'COPERNICUS/S2_HARMONIZED': 0.0001}  # TOA reflectance = raw value x it (Landsat TOA: reflectance)
 SCF_FILTERS = {'clouds', 'water'}  # fixed: the SCF is the % of the clear observations (see fixed_filters)
 CF_CLOUD_SCORE = 0.6  # cloud frequency of Sentinel-2: a pixel is cloud when its Cloud Score+ (cs_cdf) is below it
 # The topographic wetness index (TWI, Beven & Kirkby 1979) of MERIT Hydro, formula TWI(elv,upa) of the catalog:
@@ -134,7 +144,8 @@ TWI = {
 
 def is_scf(entry):
 	"""Whether ENTRY is made of the images of the snow cover frequency: the SCF (formula SCF(green,nir,swir1) of
-	Landsat, SCF(NDSI_Snow_Cover) of MODIS) and the snow cover days (SCD), which have the same formula."""
+	Landsat, SCF(B3,B8,B11) of Sentinel-2, SCF(NDSI_Snow_Cover) of MODIS) and the snow cover days (SCD), which have the
+	same formula."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
 
 
@@ -322,9 +333,10 @@ def parse_formula(entry):
 		return 'static', [entry['band']]
 	if is_cf(entry):  # the band of the cloud flags (cs_cdf of Sentinel-2 comes from Cloud Score+, not from the images)
 		return 'cf', [entry['ft'].strip()[3:-1].strip()]
-	if is_scf(entry) and entry['sensor'] == 'Modis':  # the band of the daily snow product, as written in the formula
+	if is_scf(entry) and entry['sensor'] in ('Modis', 'Sentinel-2'):  # the bands as written in the formula (the daily
+		# snow product of MODIS; green, NIR and SWIR1 of Sentinel-2): no need to ask Earth Engine
 		ft = entry['ft'].strip()
-		return 'scf', [ft[ft.index('(') + 1:-1].strip()]
+		return 'scf', [b.strip() for b in ft[ft.index('(') + 1:-1].split(',')]
 	ft = entry['ft'].strip()
 	names = band_names(entry)
 	lower = {b.lower(): b for b in names}
@@ -383,13 +395,19 @@ def quality_mask(img, entry, quality):
 
 
 def _with_toa(col, col_id, region, start, end):
-	"""Images of COL (of the Landsat collection COL_ID) with the bands toa_green and toa_swir1 of the same scene in
-	the TOA collection (the scenes without it are left out)."""
+	"""Images of COL (of the Landsat or Sentinel-2 collection COL_ID) with the bands toa_green and toa_swir1 (TOA
+	reflectance) of the same scene in the TOA collection (the scenes without it are left out)."""
 	toa_id, bands = SCF_TOA[col_id]
+	scale = SCF_TOA_SCALE.get(toa_id)
 	toa = ee.ImageCollection(toa_id).filterBounds(region).filterDate(start, end)
 	same = ee.Filter.equals(leftField='system:index', rightField='system:index')
 	joined = ee.ImageCollection(ee.Join.saveFirst('toa').apply(col, toa, same))
-	return joined.map(lambda i: ee.Image(i).addBands(ee.Image(ee.Image(i).get('toa')).select(bands, ['toa_green', 'toa_swir1'])))
+
+	def add(i):
+		bands_toa = ee.Image(ee.Image(i).get('toa')).select(bands, ['toa_green', 'toa_swir1'])
+		return ee.Image(i).addBands(bands_toa.multiply(scale) if scale else bands_toa)
+
+	return joined.map(add)
 
 
 def raw_collection(entry, region, start, end, quality):
@@ -430,6 +448,13 @@ def raw_collection(entry, region, start, end, quality):
 		last = ee.Date(catalog.load()['collections'][filled]['end']).millis()  # as the references (see GAP_FILLED)
 		col = scene_filter(ee.ImageCollection(filled).filterBounds(region).filterDate(start, end)).filter(
 			ee.Filter.lte('system:time_start', last)).merge(col.filter(ee.Filter.gt('system:time_start', last)))
+	if sensor == 'Sentinel-2' and is_scf(entry):  # the SCF: its scene filter, Cloud Score+ always (its fixed clouds),
+		# only the bands it reads (the scenes of 2017 do not all have their bands in the same order) and the TOA bands
+		_, used = parse_formula(entry)
+		col = col.filter(ee.Filter.lt(SCENE_CLOUDS[sensor], SCF['scene_clouds']))
+		col = col.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf'])
+		col = col.select(list(dict.fromkeys(used + RGB[sensor][0] + ['SCL', 'cs_cdf'])))
+		return _with_toa(col, entry['col'], region, start, end)
 	if sensor == 'Sentinel-2' and filters(entry, quality)['clouds'] and quality.get('cloud_score') is not None:
 		col = col.linkCollection(ee.ImageCollection(CLOUD_SCORE), ['cs_cdf'])
 	return col
@@ -475,9 +500,11 @@ def collection(entry, region, start, end, quality=None, resample=None, rgb=False
 def scf_collection(entry, region, start, end, quality, resample=None, rgb=False):
 	"""Collection of single band images ('value', float) of the snow of the SCF (see SCF): 100 where a valid
 	observation has snow, 0 where it has none, masked where there is no valid observation (with RGB, also its true
-	colour on those pixels)."""
+	colour on those pixels). Landsat and Sentinel-2 differ only in the sun of the scene and in the bands of their
+	clouds and water."""
 	if entry['sensor'] == 'Modis':
 		return _modis_scf_collection(entry, region, start, end, quality, resample, rgb)
+	s2 = entry['sensor'] == 'Sentinel-2'
 	_, (green, nir, swir1) = parse_formula(entry)
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
@@ -494,12 +521,20 @@ def scf_collection(entry, region, start, end, quality, resample=None, rgb=False)
 		snow_sun = g.subtract(s).divide(g.add(s)).gte(SCF['ndsi']).And(g.gt(SCF['green'])).And(n.gt(SCF['nir']))
 		tg, ts = toa.select('toa_green'), toa.select('toa_swir1')
 		snow_shade = tg.subtract(ts).divide(tg.add(ts)).gte(SCF['ndsi']).And(tg.gte(SCF['toa_green']))
-		zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')))
-		lit = ee.Terrain.hillShadow(dem, ee.Number(img.get('SUN_AZIMUTH')), zenith, SCF['shadow_reach'], True)
+		if s2:  # the mean sun of the scene; its fixed filters (SCF_FILTERS): Cloud Score+ and the water of the SCL
+			azimuth = ee.Number(img.get('MEAN_SOLAR_AZIMUTH_ANGLE'))
+			zenith = ee.Number(img.get('MEAN_SOLAR_ZENITH_ANGLE'))
+			clear = img.select('cs_cdf').gte(SCF['cloud_score'])
+			water = S2_SCL['water']
+			dry = img.select('SCL').remap(water, [0] * len(water), 1)
+		else:  # the sun of the scene; its fixed filters (SCF_FILTERS): the clouds and the water of QA_PIXEL
+			azimuth = ee.Number(img.get('SUN_AZIMUTH'))
+			zenith = ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION')))
+			qa = img.select('QA_PIXEL')
+			clear = bits(qa, 3).eq(0).And(bits(qa, 9).eq(0))
+			dry = bits(qa, 7).eq(0)
+		lit = ee.Terrain.hillShadow(dem, azimuth, zenith, SCF['shadow_reach'], True)
 		shade = lit.Not()
-		qa = img.select('QA_PIXEL')
-		clear = bits(qa, 3).eq(0).And(bits(qa, 9).eq(0))  # its fixed filters (SCF_FILTERS): clouds and water
-		dry = bits(qa, 7).eq(0)
 		valid_sun = lit.And(clear).And(dry).And(snow_sun.mask())
 		valid_shade = shade.And(high).And(clear.unmask(0)).And(snow_shade.mask())
 		snow = snow_sun.unmask(0).And(lit).Or(snow_shade.unmask(0).And(shade))

@@ -125,6 +125,20 @@ SCF_MODIS_NOTES = {
 	'filters': SCF['notes']['filters'],
 }
 SCF_MODIS_F = 'NDSI_Snow_Cover >= 35 -> 100; 0-34 -> 0; 200-255 (clouds, water, night, fill values) -> no data'
+# The SCF of Sentinel-2: the rules of the SCF of Landsat on its bands (sensors.SCF), its clouds from Cloud Score+
+SCF_S2_NOTES = {
+	'ft': 'Snow cover frequency (SCF) of Sentinel-2: % of the clear observations of each pixel with snow or ice, with the '
+	      'rules of the SCF of Landsat. In the sun, snow is NDSI >= 0.35, green (B3) > 0.1 and NIR (B8) > 0.1 (L2A '
+	      'surface reflectance; the NDSI with the SWIR1, B11, of 20 m), without the pixels of water of the SCL. In the '
+	      'shadow of the relief (hillShadow of the SRTM with the mean sun of each scene), above 1500 m, snow is NDSI >= '
+	      '0.35 and green >= 0.08 of the Level-1C TOA reflectance of the same scene; below 1500 m, no data. Clouds: '
+	      'Cloud Score+ cs_cdf below 0.6; scenes with less than 80 % of clouds. The thresholds were set in Sierra '
+	      'Nevada. Since 2017; an image every 5 days. Its only metric is the mean.',
+	'metric': SCF['notes']['metric'],
+	'filters': SCF['notes']['filters'],
+}
+SCF_S2_F = ('NDSI = (B3 - B11) / (B3 + B11); snow: NDSI >= 0.35, B3 > 0.1 and B8 > 0.1 (in the shadow of the relief, '
+            'the NDSI >= 0.35 and the green >= 0.08 of the TOA reflectance of the Level-1C scene)')
 # Snow cover days (SCD): the days with snow of each pixel, from the images of its SCF (the same rules and pixel
 # filters), summed month by month (composite.days): the only metric 'days'
 SCD = dict(SCF, **{
@@ -139,9 +153,9 @@ SCD = dict(SCF, **{
 		      'of the SCF of each month (the mean of its clear images) times the days of that month in the window. A '
 		      'month without any clear image on a pixel takes the SCF of the other months of the window (their mean, '
 		      'weighted by their days), so the days are the SCF of the window weighted by months times its days. With an '
-		      'image every few days (Landsat: 8 to 16, fewer with clouds) it is an estimate, better with more images '
-		      '(n_images); MODIS (daily, 500 m) follows the days better. Over several years or seasons (a map of a long '
-		      'period) it is the mean of the days of each of them. Its only metric is days.',
+		      'image every few days (Sentinel-2: 5, since 2017; Landsat: 8 to 16; fewer with clouds) it is an estimate, '
+		      'better with more images (n_images); MODIS (daily, 500 m) follows the days better. Over several years or '
+		      'seasons (a map of a long period) it is the mean of the days of each of them. Its only metric is days.',
 		'metric': 'it is the SCF of each month times its days, summed over the months (see the formula): the snow '
 		          'cover days have no other metric',
 		'filters': SCF['notes']['filters'],
@@ -160,6 +174,11 @@ EXTRA.update({
 	          'days, summed', 'references': ['hall1995', 'riggs2017', 'hammond2018', 'gascoin2015']}),
 	155: (7, {'index': 'SCD', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F + '; days: the SCF of each month x its '
 	          'days, summed', 'references': ['hall1995', 'riggs2017', 'hammond2018', 'gascoin2015']}),
+	# the SCF and the snow cover days of Sentinel-2, from the bands of its NDSI (entry 8), at the 20 m of its SWIR1
+	156: (8, {'index': 'SCF', 'ft': 'SCF(B3,B8,B11)', 'f': SCF_S2_F, 'm': 20, 'notes': SCF_S2_NOTES,
+	          'references': ['hall1995', 'gascoin2019']}),
+	157: (8, {'index': 'SCD', 'ft': 'SCF(B3,B8,B11)', 'f': SCF_S2_F + '; days: the SCF of each month x its days, '
+	          'summed', 'm': 20, 'references': ['hall1995', 'gascoin2019']}),
 })
 DEM = {
 	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',

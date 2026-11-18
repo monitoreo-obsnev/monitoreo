@@ -237,10 +237,15 @@ def test_citations_of_other_data():
 	assert {r['id'] for r in data['references']} == {FABDEM, 'roy2026', 'roy2026catalog'}
 	# the families of data whose terms of use ask for a credit line, in the words of catalog.json (no STAC record)
 	sentinel = 'Contains modified Copernicus Sentinel data 2020'
-	for asset in ('COPERNICUS/S1_GRD', 'COPERNICUS/S2_HARMONIZED', 'COPERNICUS/S3/OLCI', 'COPERNICUS/S5P/OFFL/L3_NO2'):
+	for asset in ('COPERNICUS/S1_GRD', 'COPERNICUS/S2_CLOUD_PROBABILITY', 'COPERNICUS/S3/OLCI',
+	              'COPERNICUS/S5P/OFFL/L3_NO2'):
 		cited = references.cite('map_layer', {'collection': asset, 'band': 'b', 'start': '2020-01-01',
 		                                      'end': '2020-12-31'})
 		assert cited['credits'][0] == sentinel and asset in {r['id'] for r in cited['references']}, asset
+	# the Level-1C of Sentinel-2 is in catalog.json (the TOA of the snow cover frequency in the shadow): as it says
+	cited = references.cite('map_layer', {'collection': 'COPERNICUS/S2_HARMONIZED', 'band': 'B3',
+	                                      'start': '2020-01-01', 'end': '2020-12-31'})
+	assert cited['credits'][0] == sentinel and 'esa_s2_l1c' in {r['id'] for r in cited['references']}
 	cited = references.cite('map_layer', {'image': 'COPERNICUS/DEM/GLO30', 'band': 'DEM', 'terrain': 'slope'})
 	ids = {r['id'] for r in cited['references']}
 	assert 'esa_copernicus_dem' in ids and 'COPERNICUS/DEM/GLO30' in ids

@@ -174,6 +174,15 @@ def test_cite():
 	scd = references.cite('time_series', {'variable': 'SCD', 'sensor': 'Landsat', 'start': '2022-01-01',
 	                                      'end': '2022-12-31', 'metric': 'days'})
 	assert {'hall1995', 'macander2015', 'farr2007', 'nasa_srtmgl1'} <= set(_ids(scd))
+	# those of Sentinel-2: its L2A and Level-1C (TOA in the shadow) data, the SRTM, Cloud Score+ always (its fixed
+	# clouds, whatever the quality) and the SCL (its water)
+	for variable in ('SCF', 'SCD'):
+		s2 = references.cite('time_series', {'variable': variable, 'sensor': 'Sentinel-2', 'start': '2021-10-01',
+		                                     'end': '2022-05-31', 'quality': {'cloud_score': None}})
+		assert {'hall1995', 'gascoin2019', 'esa_s2_l2a', 'esa_s2_l1c', 'farr2007', 'nasa_srtmgl1', 'pasquarella2023',
+		        'mainknorn2017'} <= set(_ids(s2))
+		assert not {'usgs_landsat89', 'macander2015'} & set(_ids(s2))
+		assert any(c.startswith('Contains modified Copernicus Sentinel data') for c in s2['credits'])
 
 
 def test_services_cite(monkeypatch, tmp_path):
