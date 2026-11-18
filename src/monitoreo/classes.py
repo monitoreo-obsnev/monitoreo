@@ -131,13 +131,10 @@ def landcover_classes(m):
 
 def scale_for(native, regions):
 	"""The pixel size (m) of the areas over REGIONS: that of the data, or bigger so that the biggest region has about
-	TARGET_PIXELS pixels (rounded to 10, 20, 50, 100, ... m)."""
-	area = regions.map(lambda f: ee.Feature(None, {'a': f.geometry().area(1)})).aggregate_max('a').getInfo() or 0
-	need = math.sqrt(area / TARGET_PIXELS) if area else native
-	if need <= native:
-		return float(native)
-	nice = [m * 10 ** e for e in range(1, 6) for m in (1, 2, 5)]
-	return float(next((n for n in nice if n >= need), nice[-1]))
+	TARGET_PIXELS pixels (rounded to 10, 20, 50, 100, ... m); in a large area (more than areas.LARGE_AREA_KM2), 1 to 10
+	km, never finer than the data (areas.default_scale)."""
+	from . import areas
+	return areas.default_scale(native, areas.max_area(regions), TARGET_PIXELS)
 
 
 def hectares(classes_img, regions, scale, crs):

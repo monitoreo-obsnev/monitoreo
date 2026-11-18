@@ -12,7 +12,9 @@
 	var mo = MonitorEO;
 
 	var LIMITS = {
-		maxAreaKm2: 100000,   // the biggest region (km², all its polygons)
+		maxAreaKm2: 100000,   // the biggest region (km², all its polygons), except with coarse data (largeM)
+		largeM: 250,          // data of pixels of this size (m) or bigger (MODIS, climate) take larger regions, up to
+		maxLargeAreaKm2: 1e8, // this (all the oceans of the IHO), computed on pixels of 1 to 10 km (mo.defaultScale)
 		s2AreaKm2: 5000,      // Sentinel-2 only for regions up to this size; bigger ones, Landsat or MODIS
 		fineM: 20,            // and so the collections given by their ID with pixels of this size (m) or smaller
 		maxSteps: 400,        // steps of a time series (and of the series of the trends and comparisons)
@@ -33,6 +35,12 @@
 				'INE (5 dígitos, p. ej. 18134).',
 			countryHint: 'País (ISO3, opcional)', chooseUnit: 'Elige la unidad', noUnit: 'Ninguna unidad con ese nombre.',
 			islandHelp: 'Pulsa en el mapa sobre la isla (de más de 1 km²).', ramsar: 'Solo sitios Ramsar',
+			mode_sea: 'Mar u océano (IHO)', seaHint: 'Nombre en inglés, p. ej. Alboran', chooseSea: 'Elige el mar',
+			noSea: 'Ningún mar con ese nombre: escríbelo en inglés (Alboran, Biscay, Mediterranean...).',
+			seaHelp: 'Las áreas marinas de la Organización Hidrográfica Internacional (Marine Regions, CC BY 4.0): ' +
+				'búscalas por su nombre en inglés o pulsa en el mapa sobre el mar. Los océanos son lo que queda fuera ' +
+				'de sus mares, y el Mediterráneo son varias áreas. Son áreas grandes: píxeles de 1 a 10 km, y solo la ' +
+				'clorofila de MODIS (Chl-a) tiene datos en mar abierto.',
 			mode_draw: 'Polígono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el área', none: 'Ninguna área protegida con ese nombre.',
 			clickHelp: 'Pulsa en el mapa sobre la ecorregión.', useView: 'Usar la vista del mapa', mode_biome: 'Bioma',
@@ -192,6 +200,8 @@
 			yearAxis: 'Año', senLine: 'recta de Sen', part: 'Parte del año', significantShort: 'signif.',
 			yes: 'sí', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La región es demasiado grande para esta app (%s km²; máximo %s km²).',
+			largeOnly: 'La región tiene %s km²: por encima de %s km², esta app solo calcula datos de píxeles de %s m o ' +
+				'más (MODIS, el clima), sobre píxeles de 1 a 10 km.',
 			s2TooBig: 'Sentinel-2 solo está disponible para regiones de hasta %s km² (esta tiene %s): elige Landsat o MODIS.',
 			fineTooBig: '%s tiene píxeles de %s m: las colecciones de imágenes con píxeles de %s m o menos, como ' +
 				'Sentinel-2, solo están disponibles para regiones de hasta %s km² (esta tiene %s).',
@@ -250,8 +260,8 @@
 			noAnalysis: 'la app de Earth Engine no tiene %s: calcúlalo con el paquete de Python, la línea de comandos o QGIS',
 			notOption: 'no es una opción de la app: %s', noWidget: 'la app no tiene esa opción',
 			regionFile: 'un archivo del ordenador: la app no lee archivos; dibuja el polígono o da su GeoJSON (geojson)',
-			regionKind: 'una región que la app no usa: toma wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
-				'geojson y biome_at dentro de un bbox (within)',
+			regionKind: 'una región que la app no usa: toma wdpa_id, admin1, admin2, admin3, sea, sea_at, ecoregion_at, ' +
+				'island_at, bbox, geojson y biome_at dentro de un bbox (within)',
 			regionOne: 'la app toma una sola unidad administrativa',
 			lineDrawn: 'la app toma la línea dibujada en el mapa (Gradientes: Dibujar una línea y su perfil)',
 			whereOne: 'la app toma una condición sobre una variable y una de usos del suelo',
@@ -279,6 +289,12 @@
 				'digits, e.g. 18134).',
 			countryHint: 'Country (ISO3, optional)', chooseUnit: 'Choose the unit', noUnit: 'No unit with that name.',
 			islandHelp: 'Click on the map over the island (of more than 1 km²).', ramsar: 'Ramsar sites only',
+			mode_sea: 'Sea or ocean (IHO)', seaHint: 'Name in English, e.g. Alboran', chooseSea: 'Choose the sea',
+			noSea: 'No sea with that name: write it in English (Alboran, Biscay, Mediterranean...).',
+			seaHelp: 'The sea areas of the International Hydrographic Organization (Marine Regions, CC BY 4.0): search ' +
+				'them by their English name or click on the map over the sea. The oceans are what is left out of their ' +
+				'seas, and the Mediterranean is several areas. They are large areas: pixels of 1 to 10 km, and only the ' +
+				'chlorophyll of MODIS (Chl-a) has data over the open sea.',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
 			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view', mode_biome: 'Biome',
@@ -438,6 +454,8 @@
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km²; at most %s km²).',
+			largeOnly: 'The region has %s km²: above %s km², this app only computes data of pixels of %s m or more ' +
+				'(MODIS, the climate), on pixels of 1 to 10 km.',
 			s2TooBig: 'Sentinel-2 is only available for regions up to %s km² (this one has %s): choose Landsat or MODIS.',
 			fineTooBig: '%s has pixels of %s m: collections of images with pixels of %s m or less, like Sentinel-2, are ' +
 				'only available for regions up to %s km² (this one has %s).',
@@ -494,8 +512,8 @@
 			noAnalysis: 'the Earth Engine app does not have %s: compute it with the Python package, the command line or QGIS',
 			notOption: 'not an option of the app: %s', noWidget: 'the app has no option for it',
 			regionFile: 'a file of the computer: the app reads no files; draw the polygon, or give its GeoJSON (geojson)',
-			regionKind: 'a region the app cannot use: it takes wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
-				'geojson and biome_at within a bbox (within)',
+			regionKind: 'a region the app cannot use: it takes wdpa_id, admin1, admin2, admin3, sea, sea_at, ecoregion_at, ' +
+				'island_at, bbox, geojson and biome_at within a bbox (within)',
 			regionOne: 'the app takes one administrative unit',
 			lineDrawn: 'the app takes the line drawn on the map (Gradients: Draw a line and its profile)',
 			whereOne: 'the app takes one condition on a variable and one of land cover',
@@ -524,8 +542,9 @@
 	var state = {
 		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
+		seaText: '', seaItems: null, seaNames: {}, seaId: null,  // the oceans and seas (mode sea)
 		region: null, regionName: null, info: null,
-		regionAdmin: null,  // the level of the administrative unit that is the region (its credits), or null
+		regionAdmin: null,  // the level of the administrative unit that is the region, or 'sea' (its credits), or null
 		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
@@ -783,6 +802,15 @@
 	}
 
 	map.onClick(function (coords) {
+		if (state.mode === 'sea') {  // the sea at the point: {sea_at: [lon, lat]}
+			var sea = mo.seaAt(coords.lon, coords.lat);
+			sea.aggregate_array('name').evaluate(function (names, error) {
+				if (error) return fail(error);
+				if (!(names && names.length)) return message(t('noSea'), true);
+				setRegion(sea, names[0], {sea_at: [coords.lon, coords.lat]}, undefined, 'sea');
+			});
+			return;
+		}
 		if (state.mode !== 'ecoregion' && state.mode !== 'island' && state.mode !== 'biome') return;
 		var biome = state.mode === 'biome', fc, point = [coords.lon, coords.lat], spec = {};
 		if (biome) {  // a whole biome spans continents: its part in the map view, the region {biome_at, within: bbox}
@@ -885,6 +913,31 @@
 		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec, undefined, Number(state.adminLevel));
 	}
 
+	// The oceans and seas whose name contains the text (the sea areas of the IHO, Marine Regions), listed as 'name ·
+	// area (MRGID)'; the answer of a search left behind (another mode chosen meanwhile) is left out
+	function searchSeas() {
+		message(t('computing'));
+		mo.findSeas(state.seaText, 30).evaluate(function (fc, error) {
+			if (state.mode !== 'sea') return;
+			if (error) return fail(error);
+			state.seaNames = {};
+			state.seaItems = fc.features.map(function (f) {
+				var p = f.properties;
+				state.seaNames[p.mrgid] = p.name;
+				return {value: p.mrgid, label: p.name + ' · ' + bigNum(p.area_km2) + ' km² (MRGID ' + p.mrgid + ')'};
+			});
+			results.style().set('shown', false);
+			if (!state.seaItems.length) message(t('noSea'));
+			render();
+		});
+	}
+
+	function chooseSea(mrgid) {
+		state.seaId = mrgid;
+		results.style().set('shown', false);
+		setRegion(mo.seaRegion([mrgid]), state.seaNames[mrgid], {sea: mrgid}, undefined, 'sea');
+	}
+
 	function chooseWdpa(id) {
 		state.wdpaId = id;
 		var label = state.wdpaNames[id];
@@ -898,7 +951,7 @@
 
 	function regionWidgets() {
 		var w = [header(t('region'))];
-		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'view', 'draw'].map(function (m) {
+		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'sea', 'view', 'draw'].map(function (m) {
 			return {value: m, label: t('mode_' + m)};
 		});
 		w.push(select(modes, state.mode, function (m) {
@@ -942,6 +995,18 @@
 			}
 		} else if (state.mode === 'island') {
 			w.push(ui.Label(t('islandHelp'), SMALL));
+		} else if (state.mode === 'sea') {
+			w.push(ui.Label(t('seaHelp'), SMALL));
+			var seaName = ui.Textbox({placeholder: t('seaHint'), value: state.seaText,
+				onChange: function (v) { state.seaText = v; }, style: {width: '200px'}});
+			w.push(row(seaName, button(t('search'), function () {
+				state.seaText = seaName.getValue();
+				searchSeas();
+			})));
+			if (state.seaItems && state.seaItems.length) {
+				w.push(ui.Select({items: state.seaItems, placeholder: t('chooseSea'), value: state.seaId,
+					onChange: chooseSea, style: {width: '340px'}}));
+			}
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
 		} else if (state.mode === 'biome') {
@@ -962,7 +1027,7 @@
 		if (state.region) {
 			var area = state.info ? ' · ' + bigNum(km2(state.info.total)) + ' km²' : '';
 			w.push(ui.Label(t('regionIs') + state.regionName + area, {fontSize: '12px', color: '#1a73e8'}));
-			if (state.regionAdmin) {  // the credits of its data (FAO GAUL, IGN) and their references, as catalog.json
+			if (state.regionAdmin) {  // the credits of its data (FAO GAUL, IGN, Marine Regions) and their references
 				var cited = mo.adminCredits(state.regionAdmin);
 				cited.credits.forEach(function (c) { w.push(ui.Label(c, SMALL)); });
 				cited.references.forEach(function (r) {
@@ -1542,10 +1607,17 @@
 			return false;
 		}
 		var area = km2(state.info.total);
-		if (area > LIMITS.maxAreaKm2) {
-			message(fmt(t('tooBig'), bigNum(area), bigNum(LIMITS.maxAreaKm2)), true);
+		// a large area: only with coarse data (MODIS, the climate), on pixels of 1 to 10 km (mo.defaultScale)
+		if (area > LIMITS.maxAreaKm2 && Number(e.m) < LIMITS.largeM) {
+			message(fmt(t('largeOnly'), bigNum(area), bigNum(LIMITS.maxAreaKm2), LIMITS.largeM), true);
 			return false;
 		}
+		if (area > LIMITS.maxLargeAreaKm2) {
+			message(fmt(t('tooBig'), bigNum(area), bigNum(LIMITS.maxLargeAreaKm2)), true);
+			return false;
+		}
+		var sea = mo.seaWarning(state.regionSpec, e);  // a variable of the land over a sea: a warning with the result
+		if (sea) mo.noteWarning(sea);
 		if (e.sensor === 'Sentinel-2' && area > LIMITS.s2AreaKm2) {
 			message(fmt(t('s2TooBig'), bigNum(LIMITS.s2AreaKm2), bigNum(area)), true);
 			return false;
@@ -1587,7 +1659,8 @@
 		return name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix;
 	}
 
-	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
+	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow (in a
+	// large area, 1 to 10 km at least, as services._default_grid: mo.defaultScale); IMG
 	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image). LABEL: that of the
 	// button (default: Download GeoTIFF); SUFFIX: the end of the name of the file (the true colour: '_RGB', as
 	// services.download_rgb)
@@ -1595,10 +1668,11 @@
 		var panel = ui.Panel();
 		suffix = suffix || '';
 		panel.add(button(label || t('download'), function () {
-			var native = Number(e.m);
-			var pixels = state.info.boundsArea / (native * native);
+			var native = Number(e.m), area = state.info.area;
+			var res = mo.isLarge(area) ? mo.defaultScale(native, area, mo.TARGET_PIXELS) : native;
+			var pixels = state.info.boundsArea / (res * res);
 			var maxPixels = LIMITS.downloadBytes / (4 * bands.length);
-			var scale = native * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
+			var scale = res * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
 			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
@@ -1634,9 +1708,10 @@
 		return panel;
 	}
 
-	// Pixel size of the percentiles of the colour ramp: about 250 000 pixels over the bounds of the region
+	// Pixel size of the percentiles of the colour ramp: about 250 000 pixels over the bounds of the region (1 to 10
+	// km when they are of a large area: mo.defaultScale)
 	function rangeScale(e) {
-		return Math.max(Number(e.m), mo.autoScale(e, state.info.boundsArea * 4));
+		return Math.max(Number(e.m), mo.defaultScale(e.m, state.info.boundsArea, 2.5e5));
 	}
 
 	// Map -----------------------------------------------------------------------------------------------------------
@@ -3079,7 +3154,7 @@
 		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point'];
+		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point'];
 
 	var analysisSelect = null;  // the select of the analysis whose parameters are shown
 
@@ -3330,8 +3405,8 @@
 	}
 
 	// The region R of the parameters (areas.region) as the region of the panel: a protected area (wdpa_id), an
-	// administrative unit (admin1, admin2), the ecoregion, island or biome (within a bbox: its part in the map view)
-	// at a point, a box (bbox) or polygons (geojson). Earth Engine is asked for the region (its names, its area), not
+	// administrative unit (admin1, admin2, admin3), seas (sea, by their MRGIDs or names), the ecoregion, island, sea or
+	// biome (within a bbox: its part in the map view) at a point, a box (bbox) or polygons (geojson). Earth Engine is asked for the region (its names, its area), not
 	// for the analysis. SKIP lists the regions the app cannot use (a file, a country...)
 	function applyRegion(r, skip) {
 		function refuse(reason) {
@@ -3345,8 +3420,8 @@
 		}
 		var k = keys[0], v = r[k], within = r.within === null || r.within === undefined ? null : r.within;
 		if (k === 'file') return refuse(t('regionFile'));
-		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'ecoregion_at', 'island_at', 'bbox', 'geojson'].indexOf(k) >= 0 &&
-			within === null;
+		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'sea', 'sea_at', 'ecoregion_at', 'island_at', 'bbox',
+			'geojson'].indexOf(k) >= 0 && within === null;
 		var biome = k === 'biome_at' && within && typeof within === 'object' && within.bbox !== undefined &&
 			Object.keys(within).length === 1;  // as a click on the map: its part in the map view
 		if (!usable && !biome) return refuse(t('regionKind'));
@@ -3395,6 +3470,12 @@
 				state.adminCode = code;
 				state.adminItems = null;
 				setRegion(mo.adminRegion(level, code), null, spec, undefined, level);
+			} else if (k === 'sea' || k === 'sea_at') {  // the seas of the IHO (Marine Regions): their credits shown
+				var seas = k === 'sea' ? mo.seaRegion(v) : mo.seaAt.apply(null, pointOf(v, k));  // an error if not
+				state.mode = 'sea';
+				state.seaItems = null;
+				state.seaId = k === 'sea' && !Array.isArray(v) && isFinite(Number(v)) ? Number(v) : null;
+				setRegion(seas, null, spec, undefined, 'sea');
 			} else if (k === 'ecoregion_at' || k === 'island_at') {
 				var at = pointOf(v, k);
 				state.mode = k === 'island_at' ? 'island' : 'ecoregion';

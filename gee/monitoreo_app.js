@@ -26,8 +26,8 @@ var CATALOG = {
     "issue": "En GitHub: p\u00fablico, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.57",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.57"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.59",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.59"
    }
   },
   "logos": [
@@ -37,9 +37,9 @@ var CATALOG = {
   ],
   "manual": "https://github.com/monitoreo-obsnev/monitoreo/wiki",
   "name": "MonitorEO-OBSNEV",
-  "released": "2026-11-17",
+  "released": "2026-11-18",
   "repository": "https://github.com/monitoreo-obsnev/monitoreo",
-  "version": "0.3.57"
+  "version": "0.3.59"
  },
  "classes": {
   "biomes": {
@@ -12482,6 +12482,16 @@ var CATALOG = {
      "url": "https://www.ign.es/wfs-inspire/unidades-administrativas"
     }
    ]
+  },
+  "projects/ee-ugr-default-project/assets/monitoreo/seas_iho": {
+   "credit": "Oceans and seas: the IHO sea areas of the intersect of the Exclusive Economic Zones and IHO sea areas v5, Flanders Marine Institute, Marine Regions (CC BY 4.0), dissolved by sea by MonitorEO",
+   "references": [
+    {
+     "citation": "Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5 [Data set]. Marine Regions. Licence: CC BY 4.0. Available online at https://www.marineregions.org/.",
+     "text": "Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version 5 [Data set]. Marine Regions. Licence: CC BY 4.0. Available online at https://www.marineregions.org/. https://doi.org/10.14284/699",
+     "url": "https://doi.org/10.14284/699"
+    }
+   ]
   }
  },
  "themes": [
@@ -12638,6 +12648,7 @@ var CATALOG = {
    ],
    "ref": 1,
    "scale": 0.1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -12683,6 +12694,7 @@ var CATALOG = {
    ],
    "ref": 2,
    "scale": 10000,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -12736,6 +12748,7 @@ var CATALOG = {
    ],
    "ref": 3,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -12789,6 +12802,7 @@ var CATALOG = {
    ],
    "ref": 4,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -12837,6 +12851,7 @@ var CATALOG = {
    ],
    "ref": 5,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -12884,6 +12899,7 @@ var CATALOG = {
    ],
    "ref": 6,
    "scale": 1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -12931,6 +12947,7 @@ var CATALOG = {
    ],
    "ref": 7,
    "scale": 1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -12979,6 +12996,7 @@ var CATALOG = {
    ],
    "ref": 8,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -13031,6 +13049,7 @@ var CATALOG = {
    ],
    "ref": 9,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -13083,6 +13102,7 @@ var CATALOG = {
    ],
    "ref": 10,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -13148,6 +13168,7 @@ var CATALOG = {
    ],
    "ref": 11,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -13210,6 +13231,7 @@ var CATALOG = {
    ],
    "ref": 12,
    "scale": 0.001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13279,6 +13301,7 @@ var CATALOG = {
    ],
    "ref": 13,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -13325,6 +13348,7 @@ var CATALOG = {
    ],
    "ref": 14,
    "scale": 0.00341802,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -13371,6 +13395,7 @@ var CATALOG = {
    ],
    "ref": 15,
    "scale": 0.02,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13417,6 +13442,7 @@ var CATALOG = {
    ],
    "ref": 16,
    "scale": 0.02,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13468,6 +13494,7 @@ var CATALOG = {
    ],
    "ref": 17,
    "scale": 1,
+   "sea": true,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13519,6 +13546,7 @@ var CATALOG = {
    ],
    "ref": 18,
    "scale": 1,
+   "sea": true,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13538,17 +13566,17 @@ var CATALOG = {
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
    "fb": {
-    "B3": "B3",
+    "B12": "B12",
     "B4": "B4",
     "B8": "B8"
    },
    "fk": "expr",
-   "ft": "1.07 - 1.1582 * (B8) + 0.8718 * (B3) + 0.682 * (B4)",
+   "ft": "1.0702 - 0.5751 * (B12 - 0.023899) / 0.014371 + 1.9729 * (B4 - 0.029789) / 0.015196 - 1.1902 * (B8 - 0.025612) / 0.014664",
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": false,
    "m": 10,
-   "maxp": 1,
+   "maxp": 4,
    "metric": null,
    "minp": 0,
    "offset": 0,
@@ -13572,6 +13600,7 @@ var CATALOG = {
    ],
    "ref": 19,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -13625,6 +13654,7 @@ var CATALOG = {
    ],
    "ref": 20,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -13676,6 +13706,7 @@ var CATALOG = {
    ],
    "ref": 21,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13727,6 +13758,7 @@ var CATALOG = {
    ],
    "ref": 22,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13780,6 +13812,7 @@ var CATALOG = {
    ],
    "ref": 23,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -13832,6 +13865,7 @@ var CATALOG = {
    ],
    "ref": 24,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -13883,6 +13917,7 @@ var CATALOG = {
    ],
    "ref": 25,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13934,6 +13969,7 @@ var CATALOG = {
    ],
    "ref": 26,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -13986,6 +14022,7 @@ var CATALOG = {
    ],
    "ref": 27,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -14041,6 +14078,7 @@ var CATALOG = {
    ],
    "ref": 28,
    "scale": 0.001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14092,6 +14130,7 @@ var CATALOG = {
    ],
    "ref": 29,
    "scale": "#",
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14138,6 +14177,7 @@ var CATALOG = {
    ],
    "ref": 30,
    "scale": 0.02,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14190,6 +14230,7 @@ var CATALOG = {
    ],
    "ref": 31,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -14241,6 +14282,7 @@ var CATALOG = {
    ],
    "ref": 32,
    "scale": 0.1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14286,6 +14328,7 @@ var CATALOG = {
    ],
    "ref": 101,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -14331,6 +14374,7 @@ var CATALOG = {
    ],
    "ref": 102,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -14376,6 +14420,7 @@ var CATALOG = {
    ],
    "ref": 103,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -14421,6 +14466,7 @@ var CATALOG = {
    ],
    "ref": 104,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -14467,6 +14513,7 @@ var CATALOG = {
    ],
    "ref": 105,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -14511,6 +14558,7 @@ var CATALOG = {
    ],
    "ref": 106,
    "scale": 1,
+   "sea": null,
    "sensor": "Copernicus",
    "static": true,
    "terrain": null,
@@ -14555,6 +14603,7 @@ var CATALOG = {
    ],
    "ref": 107,
    "scale": 1,
+   "sea": null,
    "sensor": "Copernicus",
    "static": true,
    "terrain": "slope",
@@ -14821,6 +14870,7 @@ var CATALOG = {
    ],
    "ref": 108,
    "scale": 1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14865,6 +14915,7 @@ var CATALOG = {
    ],
    "ref": 109,
    "scale": 1,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -14909,6 +14960,7 @@ var CATALOG = {
    ],
    "ref": 110,
    "scale": 1,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -14953,6 +15005,7 @@ var CATALOG = {
    ],
    "ref": 111,
    "scale": 1,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -14997,6 +15050,7 @@ var CATALOG = {
    ],
    "ref": 112,
    "scale": 1000,
+   "sea": null,
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
@@ -15042,6 +15096,7 @@ var CATALOG = {
    ],
    "ref": 113,
    "scale": 1,
+   "sea": null,
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
@@ -15087,6 +15142,7 @@ var CATALOG = {
    ],
    "ref": 114,
    "scale": 1,
+   "sea": null,
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
@@ -15132,6 +15188,7 @@ var CATALOG = {
    ],
    "ref": 115,
    "scale": 1,
+   "sea": null,
    "sensor": "ERA5-Land",
    "static": null,
    "terrain": null,
@@ -15176,6 +15233,7 @@ var CATALOG = {
    ],
    "ref": 116,
    "scale": 1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15221,6 +15279,7 @@ var CATALOG = {
    ],
    "ref": 117,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15266,6 +15325,7 @@ var CATALOG = {
    ],
    "ref": 118,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15310,6 +15370,7 @@ var CATALOG = {
    ],
    "ref": 119,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15354,6 +15415,7 @@ var CATALOG = {
    ],
    "ref": 120,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15398,6 +15460,7 @@ var CATALOG = {
    ],
    "ref": 121,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15442,6 +15505,7 @@ var CATALOG = {
    ],
    "ref": 122,
    "scale": 0.1,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15486,6 +15550,7 @@ var CATALOG = {
    ],
    "ref": 123,
    "scale": 0.01,
+   "sea": null,
    "sensor": "TerraClimate",
    "static": null,
    "terrain": null,
@@ -15530,6 +15595,7 @@ var CATALOG = {
    ],
    "ref": 124,
    "scale": 1,
+   "sea": null,
    "sensor": "CHIRPS",
    "static": null,
    "terrain": null,
@@ -15575,6 +15641,7 @@ var CATALOG = {
    ],
    "ref": 125,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15620,6 +15687,7 @@ var CATALOG = {
    ],
    "ref": 126,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15665,6 +15733,7 @@ var CATALOG = {
    ],
    "ref": 127,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15710,6 +15779,7 @@ var CATALOG = {
    ],
    "ref": 128,
    "scale": 0.01,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15755,6 +15825,7 @@ var CATALOG = {
    ],
    "ref": 129,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15800,6 +15871,7 @@ var CATALOG = {
    ],
    "ref": 130,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15845,6 +15917,7 @@ var CATALOG = {
    ],
    "ref": 131,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15890,6 +15963,7 @@ var CATALOG = {
    ],
    "ref": 132,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15935,6 +16009,7 @@ var CATALOG = {
    ],
    "ref": 133,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -15980,6 +16055,7 @@ var CATALOG = {
    ],
    "ref": 134,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16025,6 +16101,7 @@ var CATALOG = {
    ],
    "ref": 135,
    "scale": 0.1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16069,6 +16146,7 @@ var CATALOG = {
    ],
    "ref": 136,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16113,6 +16191,7 @@ var CATALOG = {
    ],
    "ref": 137,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16157,6 +16236,7 @@ var CATALOG = {
    ],
    "ref": 138,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16202,6 +16282,7 @@ var CATALOG = {
    ],
    "ref": 139,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16246,6 +16327,7 @@ var CATALOG = {
    ],
    "ref": 140,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16290,6 +16372,7 @@ var CATALOG = {
    ],
    "ref": 141,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16334,6 +16417,7 @@ var CATALOG = {
    ],
    "ref": 142,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16378,6 +16462,7 @@ var CATALOG = {
    ],
    "ref": 143,
    "scale": 1,
+   "sea": null,
    "sensor": "WorldClim",
    "static": true,
    "terrain": null,
@@ -16423,6 +16508,7 @@ var CATALOG = {
    ],
    "ref": 144,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Sentinel-2",
    "static": null,
    "terrain": null,
@@ -16468,6 +16554,7 @@ var CATALOG = {
    ],
    "ref": 145,
    "scale": 2.75e-05,
+   "sea": null,
    "sensor": "Landsat",
    "static": null,
    "terrain": null,
@@ -16513,6 +16600,7 @@ var CATALOG = {
    ],
    "ref": 146,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -16558,6 +16646,7 @@ var CATALOG = {
    ],
    "ref": 147,
    "scale": 0.0001,
+   "sea": null,
    "sensor": "Modis",
    "static": null,
    "terrain": null,
@@ -16603,6 +16692,7 @@ var CATALOG = {
    ],
    "ref": 148,
    "scale": 1,
+   "sea": null,
    "sensor": "MERIT Hydro",
    "static": true,
    "terrain": null,
@@ -16637,6 +16727,7 @@ var CATALOG = {
    "pm": null,
    "ref": 149,
    "scale": 1,
+   "sea": null,
    "sensor": "RESOLVE",
    "static": true,
    "terrain": null,
@@ -16671,6 +16762,7 @@ var CATALOG = {
    "pm": null,
    "ref": 150,
    "scale": 1,
+   "sea": null,
    "sensor": "RESOLVE",
    "static": true,
    "terrain": null,
@@ -18717,6 +18809,19 @@ var MonitorEO = (function () {
 	// the table of each level of the administrative units: FAO GAUL 2025 (1 and 2) and the municipalities of Spain (3)
 	var ADMIN_DATASETS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES};
 	var ISLANDS = 'projects/sat-io/open-datasets/shoreline/big_islands';  // areas.ISLANDS
+	// seas.ASSET: the oceans and seas (the sea areas of the IHO, of Marine Regions), a public table with mrgid, name,
+	// area_km2 and search (the name as seaPlain gives it)
+	var SEAS = 'projects/ee-ugr-default-project/assets/monitoreo/seas_iho';
+	var SEA_FIELDS = ['mrgid', 'name', 'area_km2'];
+	// the tables of the regions whose credits and references the app shows under the region (adminCredits): the
+	// administrative units by their level and the seas
+	var CITED_REGIONS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES, sea: SEAS};
+	// areas.LARGE_AREA_KM2, LARGE_PIXEL and NICE_SCALES: the large areas (more than 100,000 km\u00b2) are computed by
+	// default on pixels of 1 to 10 km (defaultScale)
+	var LARGE_AREA_KM2 = 100000;
+	var LARGE_PIXEL = [1000, 10000];
+	var NICE_SCALES = [];
+	for (var ne = 1; ne < 6; ne++) [1, 2, 5].forEach(function (m) { NICE_SCALES.push(m * Math.pow(10, ne)); });
 	var WDPA_MAX_ERROR = 10;
 	var BIOME_MAX_ERROR = 100;  // areas.BIOME_MAX_ERROR: metres, the tolerance of the union of a biome's ecoregions
 	var BIOME_CODES = '1 to 14 or 99 (Rock and Ice)';  // areas.BIOME_CODES: the codes of the biomes, in the messages
@@ -18843,8 +18948,79 @@ var MonitorEO = (function () {
 	// municipalities of Spain of the IGN, 3): {credits: the lines that the terms of use of its data ask for, references:
 	// [{citation, url, text}]}, as catalog.json gives them (build.py writes them into catalog.js, regions)
 	function adminCredits(level) {
-		var d = (CATALOG.regions || {})[ADMIN_DATASETS[level]] || {};
+		var d = (CATALOG.regions || {})[CITED_REGIONS[level]] || {};
 		return {credits: d.credit ? [d.credit] : [], references: d.references || []};
+	}
+
+	// seas.plain: TEXT in lower case, without accents (its NFKD, only the ASCII), its apostrophes as "'" and every
+	// other sign that is not a letter, a digit or "'" as a space, its words separated by one space ('Balearic (Iberian
+	// Sea)' is 'balearic iberian sea'): the property search of the table of the seas (SEAS)
+	function seaPlain(text) {
+		var s = String(text === null || text === undefined ? '' : text).replace(/[\u2019\u2018\u02bc\u00b4]/g, "'")
+			.normalize('NFKD').replace(/[^\x00-\x7f]/g, '');
+		return s.toLowerCase().replace(/[^a-z0-9']+/g, ' ').split(' ').filter(Boolean).join(' ');
+	}
+
+	// areas.find_seas (seas.find): ee.FeatureCollection (without geometries) of the seas whose name contains TEXT (any
+	// case and accents: their property search) or whose MRGID is TEXT, at most LIMIT: the very name first, then those
+	// that begin with it, then the others, each by name; with their mrgid, name and area_km2
+	function findSeas(text, limit) {
+		var t = seaPlain(text);
+		var f = /^[0-9]+$/.test(t) ? ee.Filter.or(ee.Filter.stringContains('search', t), ee.Filter.eq('mrgid', Number(t))) :
+			ee.Filter.stringContains('search', t);
+		return ee.FeatureCollection(SEAS).filter(f).map(function (x) {
+			var s = ee.String(x.get('search'));
+			var rank = ee.Algorithms.If(s.equals(t), '0', ee.Algorithms.If(s.index(t).eq(0), '1', '2'));
+			return ee.Feature(null, x.toDictionary(SEA_FIELDS)).set('order', ee.String(rank).cat(s));
+		}).sort('order').limit(limit || 20);
+	}
+
+	// seas.codes, without the index of the package (the app has not got it, and finds the seas in the table): V (the
+	// MRGID of a sea or its name, or a list of them) as {mrgids: [numbers], names: [names as seaPlain gives them]}; an
+	// Error if there are none
+	function seaCodes(v) {
+		var values = Array.isArray(v) ? v : [v], out = {mrgids: [], names: []};
+		values.forEach(function (x) {
+			var s = String(x === null || x === undefined ? '' : x).trim();
+			if (/^[0-9]+(\.0*)?$/.test(s)) out.mrgids.push(Number(s));
+			else if (seaPlain(s)) out.names.push(seaPlain(s));
+		});
+		if (!out.mrgids.length && !out.names.length) {
+			throw new Error("sea is the MRGID of a sea area of the IHO (e.g. 3324) or its name (e.g. 'Alboran Sea'): " +
+				(values.join(', ') || 'none given') + ' is not one (find them with find_seas)');
+		}
+		return out;
+	}
+
+	// areas.region of {sea: V}: the seas of the MRGIDs or names V (seaCodes), each named by its name
+	function seaRegion(v) {
+		var c = seaCodes(v), fc = ee.FeatureCollection(SEAS), filters = [];
+		if (c.mrgids.length) filters.push(ee.Filter.inList('mrgid', c.mrgids));
+		if (c.names.length) filters.push(ee.Filter.inList('search', c.names));
+		return fc.filter(filters.length > 1 ? ee.Filter.or(filters[0], filters[1]) : filters[0]);
+	}
+
+	// areas.region of {sea_at: [LON, LAT]}: the sea area of the IHO at that point (none on land)
+	function seaAt(lon, lat) {
+		return ee.FeatureCollection(SEAS).filterBounds(ee.Geometry.Point([lon, lat]));
+	}
+
+	// areas.is_sea: whether the region of the parameters SPEC is a sea (sea or sea_at) or within one
+	function isSea(spec) {
+		if (!spec || typeof spec !== 'object') return false;
+		return (spec.sea !== null && spec.sea !== undefined) || (spec.sea_at !== null && spec.sea_at !== undefined) ||
+			isSea(spec.within);
+	}
+
+	// services.sea_warning: the warning of a variable of the catalog ENTRY without data over the open sea (without sea)
+	// computed over a sea (the region of the parameters SPEC, see isSea), or null
+	function seaWarning(spec, entry) {
+		if (!isSea(spec) || !entry || entry.custom || entry.sea) return null;
+		var marine = CATALOG.variables.filter(function (e) { return e.sea; })
+			.map(function (e) { return e.index + ' (' + e.sensor + ')'; });
+		marine = marine.filter(function (m, i) { return marine.indexOf(m) === i; }).sort();
+		return entry.index + ' of ' + entry.sensor + ' has no data over the open sea: its data are of the land ' +
+			'(Sentinel-2 and Landsat see the coastal waters only). Over a sea, use ' + marine.join(', ') + '.';
 	}
 
 	// areas.region of {island_at: [LON, LAT]}: the island of more than 1 km\u00b2 at that point
@@ -19138,11 +19314,7 @@ var MonitorEO = (function () {
 
 	// classes.scale_for, from the AREA of the biggest region (m\u00b2)
 	function areaScale(native, area) {
-		var need = area ? Math.sqrt(area / AREA_TARGET_PIXELS) : native;
-		if (need <= native) return Number(native);
-		var nice = [];
-		for (var e = 1; e < 6; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
-		return nice.filter(function (n) { return n >= need; })[0] || nice[nice.length - 1];
+		return defaultScale(native, area, AREA_TARGET_PIXELS);
 	}
 
 	// classes.hectares: the grouped sum of the true area of the pixels by class over each feature, to evaluate
@@ -19434,15 +19606,27 @@ var MonitorEO = (function () {
 		});
 	}
 
+	// areas.is_large: whether a region of AREA m\u00b2 is a large area (more than LARGE_AREA_KM2)
+	function isLarge(area) {
+		return Boolean(area) && area > LARGE_AREA_KM2 * 1e6;
+	}
+
+	// areas.default_scale: the pixel (m) of the statistics of a region whose biggest feature has AREA m\u00b2, with data of
+	// NATIVE m: that of the data, or bigger so that it has about TARGET pixels (rounded up to NICE_SCALES); in a large
+	// area (isLarge), 1 to 10 km (LARGE_PIXEL), never finer than the data
+	function defaultScale(native, area, target) {
+		native = Number(native);
+		var need = area ? Math.sqrt(area / target) : 0, scale = native;
+		if (need > native) {
+			scale = NICE_SCALES.filter(function (n) { return n >= need; })[0] || NICE_SCALES[NICE_SCALES.length - 1];
+		}
+		if (isLarge(area)) scale = Math.max(native, Math.min(Math.max(scale, LARGE_PIXEL[0]), LARGE_PIXEL[1]));
+		return scale;
+	}
+
 	// timeseries.auto_scale, from the AREA of the biggest region (m\u00b2)
 	function autoScale(entry, area) {
-		var native = Number(entry.m);
-		var need = area ? Math.sqrt(area / TARGET_PIXELS) : native;
-		if (need <= native) return native;
-		var nice = [];
-		for (var e = 1; e <= 5; e++) [1, 2, 5].forEach(function (m) { nice.push(m * Math.pow(10, e)); });
-		for (var i = 0; i < nice.length; i++) if (nice[i] >= need) return nice[i];
-		return nice[nice.length - 1];
+		return defaultScale(entry.m, area, TARGET_PIXELS);
 	}
 
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
@@ -19726,7 +19910,8 @@ var MonitorEO = (function () {
 	// or '' if unknown; the units of the data of Earth Engine are already in UDUNITS ('mm day-1')
 	var UDUNITS = {'[unitless]': '1', '[\u00b0C]': 'degC', '[kg/m\u00b2/8 days]': 'kg m-2 (8 day)-1', '[J/m\u00b2/day]': 'J m-2 day-1',
 		'[mg m\u207b\u00b3]': 'mg m-3', '[%]': '%', '[m]': 'm', '[\u00b0]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
-		'[mm/day]': 'mm day-1', '[kPa]': 'kPa', '[class]': ''};  // [class]: class codes, without a unit (catalog.UDUNITS)
+		'[mm/day]': 'mm day-1', '[kPa]': 'kPa', '[days]': 'day',  // [days]: the snow cover days
+		'[class]': ''};  // [class]: class codes, without a unit (catalog.UDUNITS)
 
 	function udunits(unit) {
 		var text = String(unit || '').replace(/\u00ba/g, '\u00b0').trim();
@@ -20506,7 +20691,8 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
 		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
-		resetNotes: resetNotes, notes: notes, withNotes: withNotes, used: used, sourceText: sourceText,
+		resetNotes: resetNotes, notes: notes, noteWarning: noteWarning, withNotes: withNotes, used: used,
+		sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
@@ -20524,7 +20710,10 @@ var MonitorEO = (function () {
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		MUNICIPALITIES: MUNICIPALITIES, ADMIN_DATASETS: ADMIN_DATASETS, municipalityPlain: municipalityPlain,
 		findMunicipalities: findMunicipalities, municipalityCodes: municipalityCodes,
-		municipalityRegion: municipalityRegion, adminCredits: adminCredits,
+		municipalityRegion: municipalityRegion, adminCredits: adminCredits, SEAS: SEAS, CITED_REGIONS: CITED_REGIONS,
+		seaPlain: seaPlain, findSeas: findSeas, seaCodes: seaCodes, seaRegion: seaRegion, seaAt: seaAt, isSea: isSea,
+		seaWarning: seaWarning, LARGE_AREA_KM2: LARGE_AREA_KM2, LARGE_PIXEL: LARGE_PIXEL, isLarge: isLarge,
+		defaultScale: defaultScale, TARGET_PIXELS: TARGET_PIXELS,
 		islandAt: islandAt, BIOME_MAX_ERROR: BIOME_MAX_ERROR, WITHIN_MAX_ERROR: WITHIN_MAX_ERROR,
 		GLOBAL_CRS: GLOBAL_CRS, WIDE_DEGREES: WIDE_DEGREES, regionCrs: regionCrs, biomes: biomes, biomeName: biomeName,
 		ecoregionsOfBiome: ecoregionsOfBiome, biomeCodes: biomeCodes, biomeFeature: biomeFeature,
@@ -20577,7 +20766,9 @@ var MonitorEO = (function () {
 	var mo = MonitorEO;
 
 	var LIMITS = {
-		maxAreaKm2: 100000,   // the biggest region (km\u00b2, all its polygons)
+		maxAreaKm2: 100000,   // the biggest region (km\u00b2, all its polygons), except with coarse data (largeM)
+		largeM: 250,          // data of pixels of this size (m) or bigger (MODIS, climate) take larger regions, up to
+		maxLargeAreaKm2: 1e8, // this (all the oceans of the IHO), computed on pixels of 1 to 10 km (mo.defaultScale)
 		s2AreaKm2: 5000,      // Sentinel-2 only for regions up to this size; bigger ones, Landsat or MODIS
 		fineM: 20,            // and so the collections given by their ID with pixels of this size (m) or smaller
 		maxSteps: 400,        // steps of a time series (and of the series of the trends and comparisons)
@@ -20598,6 +20789,12 @@ var MonitorEO = (function () {
 				'INE (5 d\u00edgitos, p. ej. 18134).',
 			countryHint: 'Pa\u00eds (ISO3, opcional)', chooseUnit: 'Elige la unidad', noUnit: 'Ninguna unidad con ese nombre.',
 			islandHelp: 'Pulsa en el mapa sobre la isla (de m\u00e1s de 1 km\u00b2).', ramsar: 'Solo sitios Ramsar',
+			mode_sea: 'Mar u oc\u00e9ano (IHO)', seaHint: 'Nombre en ingl\u00e9s, p. ej. Alboran', chooseSea: 'Elige el mar',
+			noSea: 'Ning\u00fan mar con ese nombre: escr\u00edbelo en ingl\u00e9s (Alboran, Biscay, Mediterranean...).',
+			seaHelp: 'Las \u00e1reas marinas de la Organizaci\u00f3n Hidrogr\u00e1fica Internacional (Marine Regions, CC BY 4.0): ' +
+				'b\u00fascalas por su nombre en ingl\u00e9s o pulsa en el mapa sobre el mar. Los oc\u00e9anos son lo que queda fuera ' +
+				'de sus mares, y el Mediterr\u00e1neo son varias \u00e1reas. Son \u00e1reas grandes: p\u00edxeles de 1 a 10 km, y solo la ' +
+				'clorofila de MODIS (Chl-a) tiene datos en mar abierto.',
 			mode_draw: 'Pol\u00edgono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el \u00e1rea', none: 'Ninguna \u00e1rea protegida con ese nombre.',
 			clickHelp: 'Pulsa en el mapa sobre la ecorregi\u00f3n.', useView: 'Usar la vista del mapa', mode_biome: 'Bioma',
@@ -20757,6 +20954,8 @@ var MonitorEO = (function () {
 			yearAxis: 'A\u00f1o', senLine: 'recta de Sen', part: 'Parte del a\u00f1o', significantShort: 'signif.',
 			yes: 's\u00ed', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La regi\u00f3n es demasiado grande para esta app (%s km\u00b2; m\u00e1ximo %s km\u00b2).',
+			largeOnly: 'La regi\u00f3n tiene %s km\u00b2: por encima de %s km\u00b2, esta app solo calcula datos de p\u00edxeles de %s m o ' +
+				'm\u00e1s (MODIS, el clima), sobre p\u00edxeles de 1 a 10 km.',
 			s2TooBig: 'Sentinel-2 solo est\u00e1 disponible para regiones de hasta %s km\u00b2 (esta tiene %s): elige Landsat o MODIS.',
 			fineTooBig: '%s tiene p\u00edxeles de %s m: las colecciones de im\u00e1genes con p\u00edxeles de %s m o menos, como ' +
 				'Sentinel-2, solo est\u00e1n disponibles para regiones de hasta %s km\u00b2 (esta tiene %s).',
@@ -20815,8 +21014,8 @@ var MonitorEO = (function () {
 			noAnalysis: 'la app de Earth Engine no tiene %s: calc\u00falalo con el paquete de Python, la l\u00ednea de comandos o QGIS',
 			notOption: 'no es una opci\u00f3n de la app: %s', noWidget: 'la app no tiene esa opci\u00f3n',
 			regionFile: 'un archivo del ordenador: la app no lee archivos; dibuja el pol\u00edgono o da su GeoJSON (geojson)',
-			regionKind: 'una regi\u00f3n que la app no usa: toma wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
-				'geojson y biome_at dentro de un bbox (within)',
+			regionKind: 'una regi\u00f3n que la app no usa: toma wdpa_id, admin1, admin2, admin3, sea, sea_at, ecoregion_at, ' +
+				'island_at, bbox, geojson y biome_at dentro de un bbox (within)',
 			regionOne: 'la app toma una sola unidad administrativa',
 			lineDrawn: 'la app toma la l\u00ednea dibujada en el mapa (Gradientes: Dibujar una l\u00ednea y su perfil)',
 			whereOne: 'la app toma una condici\u00f3n sobre una variable y una de usos del suelo',
@@ -20844,6 +21043,12 @@ var MonitorEO = (function () {
 				'digits, e.g. 18134).',
 			countryHint: 'Country (ISO3, optional)', chooseUnit: 'Choose the unit', noUnit: 'No unit with that name.',
 			islandHelp: 'Click on the map over the island (of more than 1 km\u00b2).', ramsar: 'Ramsar sites only',
+			mode_sea: 'Sea or ocean (IHO)', seaHint: 'Name in English, e.g. Alboran', chooseSea: 'Choose the sea',
+			noSea: 'No sea with that name: write it in English (Alboran, Biscay, Mediterranean...).',
+			seaHelp: 'The sea areas of the International Hydrographic Organization (Marine Regions, CC BY 4.0): search ' +
+				'them by their English name or click on the map over the sea. The oceans are what is left out of their ' +
+				'seas, and the Mediterranean is several areas. They are large areas: pixels of 1 to 10 km, and only the ' +
+				'chlorophyll of MODIS (Chl-a) has data over the open sea.',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
 			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view', mode_biome: 'Biome',
@@ -21003,6 +21208,8 @@ var MonitorEO = (function () {
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km\u00b2; at most %s km\u00b2).',
+			largeOnly: 'The region has %s km\u00b2: above %s km\u00b2, this app only computes data of pixels of %s m or more ' +
+				'(MODIS, the climate), on pixels of 1 to 10 km.',
 			s2TooBig: 'Sentinel-2 is only available for regions up to %s km\u00b2 (this one has %s): choose Landsat or MODIS.',
 			fineTooBig: '%s has pixels of %s m: collections of images with pixels of %s m or less, like Sentinel-2, are ' +
 				'only available for regions up to %s km\u00b2 (this one has %s).',
@@ -21059,8 +21266,8 @@ var MonitorEO = (function () {
 			noAnalysis: 'the Earth Engine app does not have %s: compute it with the Python package, the command line or QGIS',
 			notOption: 'not an option of the app: %s', noWidget: 'the app has no option for it',
 			regionFile: 'a file of the computer: the app reads no files; draw the polygon, or give its GeoJSON (geojson)',
-			regionKind: 'a region the app cannot use: it takes wdpa_id, admin1, admin2, ecoregion_at, island_at, bbox, ' +
-				'geojson and biome_at within a bbox (within)',
+			regionKind: 'a region the app cannot use: it takes wdpa_id, admin1, admin2, admin3, sea, sea_at, ecoregion_at, ' +
+				'island_at, bbox, geojson and biome_at within a bbox (within)',
 			regionOne: 'the app takes one administrative unit',
 			lineDrawn: 'the app takes the line drawn on the map (Gradients: Draw a line and its profile)',
 			whereOne: 'the app takes one condition on a variable and one of land cover',
@@ -21089,8 +21296,9 @@ var MonitorEO = (function () {
 	var state = {
 		lang: 'en', mode: 'wdpa', wdpaText: 'Sierra Nevada', wdpaItems: null, wdpaNames: {}, wdpaId: null, ramsar: false,
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
+		seaText: '', seaItems: null, seaNames: {}, seaId: null,  // the oceans and seas (mode sea)
 		region: null, regionName: null, info: null,
-		regionAdmin: null,  // the level of the administrative unit that is the region (its credits), or null
+		regionAdmin: null,  // the level of the administrative unit that is the region, or 'sea' (its credits), or null
 		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
@@ -21348,6 +21556,15 @@ var MonitorEO = (function () {
 	}
 
 	map.onClick(function (coords) {
+		if (state.mode === 'sea') {  // the sea at the point: {sea_at: [lon, lat]}
+			var sea = mo.seaAt(coords.lon, coords.lat);
+			sea.aggregate_array('name').evaluate(function (names, error) {
+				if (error) return fail(error);
+				if (!(names && names.length)) return message(t('noSea'), true);
+				setRegion(sea, names[0], {sea_at: [coords.lon, coords.lat]}, undefined, 'sea');
+			});
+			return;
+		}
 		if (state.mode !== 'ecoregion' && state.mode !== 'island' && state.mode !== 'biome') return;
 		var biome = state.mode === 'biome', fc, point = [coords.lon, coords.lat], spec = {};
 		if (biome) {  // a whole biome spans continents: its part in the map view, the region {biome_at, within: bbox}
@@ -21450,6 +21667,31 @@ var MonitorEO = (function () {
 		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec, undefined, Number(state.adminLevel));
 	}
 
+	// The oceans and seas whose name contains the text (the sea areas of the IHO, Marine Regions), listed as 'name \u00b7
+	// area (MRGID)'; the answer of a search left behind (another mode chosen meanwhile) is left out
+	function searchSeas() {
+		message(t('computing'));
+		mo.findSeas(state.seaText, 30).evaluate(function (fc, error) {
+			if (state.mode !== 'sea') return;
+			if (error) return fail(error);
+			state.seaNames = {};
+			state.seaItems = fc.features.map(function (f) {
+				var p = f.properties;
+				state.seaNames[p.mrgid] = p.name;
+				return {value: p.mrgid, label: p.name + ' \u00b7 ' + bigNum(p.area_km2) + ' km\u00b2 (MRGID ' + p.mrgid + ')'};
+			});
+			results.style().set('shown', false);
+			if (!state.seaItems.length) message(t('noSea'));
+			render();
+		});
+	}
+
+	function chooseSea(mrgid) {
+		state.seaId = mrgid;
+		results.style().set('shown', false);
+		setRegion(mo.seaRegion([mrgid]), state.seaNames[mrgid], {sea: mrgid}, undefined, 'sea');
+	}
+
 	function chooseWdpa(id) {
 		state.wdpaId = id;
 		var label = state.wdpaNames[id];
@@ -21463,7 +21705,7 @@ var MonitorEO = (function () {
 
 	function regionWidgets() {
 		var w = [header(t('region'))];
-		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'view', 'draw'].map(function (m) {
+		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'sea', 'view', 'draw'].map(function (m) {
 			return {value: m, label: t('mode_' + m)};
 		});
 		w.push(select(modes, state.mode, function (m) {
@@ -21507,6 +21749,18 @@ var MonitorEO = (function () {
 			}
 		} else if (state.mode === 'island') {
 			w.push(ui.Label(t('islandHelp'), SMALL));
+		} else if (state.mode === 'sea') {
+			w.push(ui.Label(t('seaHelp'), SMALL));
+			var seaName = ui.Textbox({placeholder: t('seaHint'), value: state.seaText,
+				onChange: function (v) { state.seaText = v; }, style: {width: '200px'}});
+			w.push(row(seaName, button(t('search'), function () {
+				state.seaText = seaName.getValue();
+				searchSeas();
+			})));
+			if (state.seaItems && state.seaItems.length) {
+				w.push(ui.Select({items: state.seaItems, placeholder: t('chooseSea'), value: state.seaId,
+					onChange: chooseSea, style: {width: '340px'}}));
+			}
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
 		} else if (state.mode === 'biome') {
@@ -21527,7 +21781,7 @@ var MonitorEO = (function () {
 		if (state.region) {
 			var area = state.info ? ' \u00b7 ' + bigNum(km2(state.info.total)) + ' km\u00b2' : '';
 			w.push(ui.Label(t('regionIs') + state.regionName + area, {fontSize: '12px', color: '#1a73e8'}));
-			if (state.regionAdmin) {  // the credits of its data (FAO GAUL, IGN) and their references, as catalog.json
+			if (state.regionAdmin) {  // the credits of its data (FAO GAUL, IGN, Marine Regions) and their references
 				var cited = mo.adminCredits(state.regionAdmin);
 				cited.credits.forEach(function (c) { w.push(ui.Label(c, SMALL)); });
 				cited.references.forEach(function (r) {
@@ -22107,10 +22361,17 @@ var MonitorEO = (function () {
 			return false;
 		}
 		var area = km2(state.info.total);
-		if (area > LIMITS.maxAreaKm2) {
-			message(fmt(t('tooBig'), bigNum(area), bigNum(LIMITS.maxAreaKm2)), true);
+		// a large area: only with coarse data (MODIS, the climate), on pixels of 1 to 10 km (mo.defaultScale)
+		if (area > LIMITS.maxAreaKm2 && Number(e.m) < LIMITS.largeM) {
+			message(fmt(t('largeOnly'), bigNum(area), bigNum(LIMITS.maxAreaKm2), LIMITS.largeM), true);
 			return false;
 		}
+		if (area > LIMITS.maxLargeAreaKm2) {
+			message(fmt(t('tooBig'), bigNum(area), bigNum(LIMITS.maxLargeAreaKm2)), true);
+			return false;
+		}
+		var sea = mo.seaWarning(state.regionSpec, e);  // a variable of the land over a sea: a warning with the result
+		if (sea) mo.noteWarning(sea);
 		if (e.sensor === 'Sentinel-2' && area > LIMITS.s2AreaKm2) {
 			message(fmt(t('s2TooBig'), bigNum(LIMITS.s2AreaKm2), bigNum(area)), true);
 			return false;
@@ -22152,7 +22413,8 @@ var MonitorEO = (function () {
 		return name.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 90 - suffix.length) + suffix;
 	}
 
-	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow; IMG
+	// Download of an image of the region as GeoTIFF (float, NoData -9999), with pixels as small as LIMITS allow (in a
+	// large area, 1 to 10 km at least, as services._default_grid: mo.defaultScale); IMG
 	// is the image, or a function of the pixel size that gives it (fixed layers: see mo.image). LABEL: that of the
 	// button (default: Download GeoTIFF); SUFFIX: the end of the name of the file (the true colour: '_RGB', as
 	// services.download_rgb)
@@ -22160,10 +22422,11 @@ var MonitorEO = (function () {
 		var panel = ui.Panel();
 		suffix = suffix || '';
 		panel.add(button(label || t('download'), function () {
-			var native = Number(e.m);
-			var pixels = state.info.boundsArea / (native * native);
+			var native = Number(e.m), area = state.info.area;
+			var res = mo.isLarge(area) ? mo.defaultScale(native, area, mo.TARGET_PIXELS) : native;
+			var pixels = state.info.boundsArea / (res * res);
 			var maxPixels = LIMITS.downloadBytes / (4 * bands.length);
-			var scale = native * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
+			var scale = res * Math.max(1, Math.ceil(Math.sqrt(pixels / maxPixels)));
 			panel.clear();
 			panel.add(ui.Label(t('computing'), SMALL));
 			ee.Image(typeof img === 'function' ? img(scale) : img).select(bands).toFloat().unmask(-9999, false).getDownloadURL({
@@ -22199,9 +22462,10 @@ var MonitorEO = (function () {
 		return panel;
 	}
 
-	// Pixel size of the percentiles of the colour ramp: about 250 000 pixels over the bounds of the region
+	// Pixel size of the percentiles of the colour ramp: about 250 000 pixels over the bounds of the region (1 to 10
+	// km when they are of a large area: mo.defaultScale)
 	function rangeScale(e) {
-		return Math.max(Number(e.m), mo.autoScale(e, state.info.boundsArea * 4));
+		return Math.max(Number(e.m), mo.defaultScale(e.m, state.info.boundsArea, 2.5e5));
 	}
 
 	// Map -----------------------------------------------------------------------------------------------------------
@@ -23644,7 +23908,7 @@ var MonitorEO = (function () {
 		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
-		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'bbox', 'point'];
+		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point'];
 
 	var analysisSelect = null;  // the select of the analysis whose parameters are shown
 
@@ -23895,8 +24159,8 @@ var MonitorEO = (function () {
 	}
 
 	// The region R of the parameters (areas.region) as the region of the panel: a protected area (wdpa_id), an
-	// administrative unit (admin1, admin2), the ecoregion, island or biome (within a bbox: its part in the map view)
-	// at a point, a box (bbox) or polygons (geojson). Earth Engine is asked for the region (its names, its area), not
+	// administrative unit (admin1, admin2, admin3), seas (sea, by their MRGIDs or names), the ecoregion, island, sea or
+	// biome (within a bbox: its part in the map view) at a point, a box (bbox) or polygons (geojson). Earth Engine is asked for the region (its names, its area), not
 	// for the analysis. SKIP lists the regions the app cannot use (a file, a country...)
 	function applyRegion(r, skip) {
 		function refuse(reason) {
@@ -23910,8 +24174,8 @@ var MonitorEO = (function () {
 		}
 		var k = keys[0], v = r[k], within = r.within === null || r.within === undefined ? null : r.within;
 		if (k === 'file') return refuse(t('regionFile'));
-		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'ecoregion_at', 'island_at', 'bbox', 'geojson'].indexOf(k) >= 0 &&
-			within === null;
+		var usable = ['wdpa_id', 'admin1', 'admin2', 'admin3', 'sea', 'sea_at', 'ecoregion_at', 'island_at', 'bbox',
+			'geojson'].indexOf(k) >= 0 && within === null;
 		var biome = k === 'biome_at' && within && typeof within === 'object' && within.bbox !== undefined &&
 			Object.keys(within).length === 1;  // as a click on the map: its part in the map view
 		if (!usable && !biome) return refuse(t('regionKind'));
@@ -23960,6 +24224,12 @@ var MonitorEO = (function () {
 				state.adminCode = code;
 				state.adminItems = null;
 				setRegion(mo.adminRegion(level, code), null, spec, undefined, level);
+			} else if (k === 'sea' || k === 'sea_at') {  // the seas of the IHO (Marine Regions): their credits shown
+				var seas = k === 'sea' ? mo.seaRegion(v) : mo.seaAt.apply(null, pointOf(v, k));  // an error if not
+				state.mode = 'sea';
+				state.seaItems = null;
+				state.seaId = k === 'sea' && !Array.isArray(v) && isFinite(Number(v)) ? Number(v) : null;
+				setRegion(seas, null, spec, undefined, 'sea');
 			} else if (k === 'ecoregion_at' || k === 'island_at') {
 				var at = pointOf(v, k);
 				state.mode = k === 'island_at' ? 'island' : 'ecoregion';
