@@ -258,8 +258,13 @@ PRECIP...).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
-"Landsat", always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water \
-are always removed, whatever the quality), so pass no quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
+"Landsat" (30 m, since 1984) or "Modis" (500 m, daily, since 2000), always with metric "mean", also in maps (whose \
+default is the median); its filters are fixed (clouds and water are always removed, whatever the quality), so pass no \
+quality. For the snow season of each year, season ["10-01", "05-31"] (it counts in the year in which it starts).
+- Snow cover days (how many days there is snow): variable "SCD", sensor "Landsat" or "Modis", always with metric \
+"days" (the SCF of each month times its days, summed), the same fixed filters. A time series with step "annual" and \
+the season gives the days of each season; a map of a long period, the mean days per season. With Landsat (an image every \
+8 to 16 days) the days are an estimate that improves with the number of images (n_images); MODIS follows the days better.
 - Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
 "Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.
@@ -434,7 +439,8 @@ pixel on the map, How it is computed in its card, Create report), never its valu
 - Warn about the usual pitfalls when they apply: in high mountains snow and clouds leave few valid pixels in winter; \
 an index of one sensor is not equal to that of another (do not mix sensors in a series or a trend); a MODIS pixel \
 mixes land covers; a trend needs 8 years or more; the NDSI and the NDWI measure what the snow and water filters remove; \
-the thresholds of the snow cover frequency (SCF) were set in Sierra Nevada.
+the thresholds of the snow cover frequency (SCF) and the snow cover days (SCD) of Landsat were set in Sierra Nevada; \
+the snow cover days of Landsat are uncertain in seasons with few images.
 
 The page of the assistant (to explain how to use it):
 - On the left, the conversation; on the right, the results, with the map at the top (in a narrow window, the tabs \

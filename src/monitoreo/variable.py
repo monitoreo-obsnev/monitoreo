@@ -237,6 +237,13 @@ def specs(var, defaults=None, two_periods=False):
 			why = e.get('notes', {}).get('metric')
 			raise ValueError(f"{e['index']} ({e['sensor']}) only takes the metric '{only}'{f': {why}' if why else ''}. "
 			                 f"Use metric '{only}' (the metric between years, interannual, can be any)")
+		if only != composite.DAYS and any(composite.is_days(m) for m in metrics):  # see composite.days
+			what = f"{e['index']} ({e['sensor']})" if e else (base.get('name') or _default_name(base))
+			raise ValueError(f"the metric '{composite.DAYS}' is that of the snow cover days (variable SCD): {what} "
+			                 f"does not take it")
+		if base['temporal'] != 'period' and composite.is_days(base['interannual']):
+			raise ValueError(f"the metric '{composite.DAYS}' is not a metric between the years (interannual): use "
+			                 f"mean, median, min, max...")
 		if base['temporal'] not in composite.TEMPORAL:
 			raise ValueError(f"unknown temporal {base['temporal']}: use {', '.join(composite.TEMPORAL)}")
 		if not base.get('period'):

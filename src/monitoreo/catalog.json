@@ -498,6 +498,18 @@
    "citation": "Riggs, G. A., Hall, D. K., & Román, M. O. (2017). Overview of NASA's MODIS and Visible Infrared Imaging Radiometer Suite (VIIRS) snow-cover Earth System Data Records. Earth System Science Data, 9(2), 765–777.",
    "doi": "10.5194/essd-9-765-2017"
   },
+  "macander2015": {
+   "citation": "Macander, M. J., Swingley, C. S., Joly, K., & Raynolds, M. K. (2015). Landsat-based snow persistence map for northwest Alaska. Remote Sensing of Environment, 163, 23–31.",
+   "doi": "10.1016/j.rse.2015.02.028"
+  },
+  "hammond2018": {
+   "citation": "Hammond, J. C., Saavedra, F. A., & Kampf, S. K. (2018). Global snow zone maps and trends in snow persistence 2001–2016. International Journal of Climatology, 38(12), 4369–4383.",
+   "doi": "10.1002/joc.5674"
+  },
+  "gascoin2015": {
+   "citation": "Gascoin, S., Hagolle, O., Huc, M., Jarlan, L., Dejoux, J.-F., Szczypta, C., Marti, R., & Sánchez, R. (2015). A snow cover climatology for the Pyrenees from MODIS snow products. Hydrology and Earth System Sciences, 19(5), 2337–2351.",
+   "doi": "10.5194/hess-19-2337-2015"
+  },
   "mu2011": {
    "citation": "Mu, Q., Zhao, M., & Running, S. W. (2011). Improvements to a MODIS global terrestrial evapotranspiration algorithm. Remote Sensing of Environment, 115(8), 1781–1800.",
    "doi": "10.1016/j.rse.2011.02.019"

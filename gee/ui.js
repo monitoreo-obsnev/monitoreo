@@ -84,6 +84,14 @@
 			scfNote: 'Frecuencia de nieve: % de las observaciones sin nubes de cada píxel con nieve o hielo. Cada imagen ' +
 				'es 100 (nieve) o 0, así que su métrica es siempre la media. Corrige la sombra del relieve con la ' +
 				'reflectancia TOA por encima de 1500 m; umbrales fijados en Sierra Nevada.',
+			scfModisNote: 'Frecuencia de nieve de MODIS: % de las observaciones sin nubes de cada píxel con nieve o ' +
+				'hielo, con su producto diario de nieve (NDSI ≥ 0,35, el umbral de la de Landsat). Cada imagen es 100 ' +
+				'(nieve) o 0, así que su métrica es siempre la media.',
+			scdNote: 'Días de nieve: en cada píxel, la suma de cada mes de su frecuencia de nieve × sus días (un mes sin ' +
+				'imágenes toma la de los demás). Su métrica es siempre «días». Con «Todo el periodo», la media de los ' +
+				'días de cada temporada o, sin temporada, de cada 12 meses. Es una estimación: mejor con más imágenes.',
+			cfNote: 'Frecuencia de nubes: % de las observaciones de cada píxel con nubes. Cada imagen es 100 (nube) o 0, ' +
+				'así que su métrica es siempre la media.',
 			map: 'Mapa', metric: 'Métrica', temporal: 'Agregación temporal', t_period: 'Todo el periodo',
 			t_annual: 'Cada año y entre años', t_monthly: 'Cada mes y entre años', 't_16-day': 'Cada 16 días y entre años',
 			interannual: 'Métrica entre años', addMap: 'Añadir al mapa', download: 'Descargar GeoTIFF',
@@ -330,6 +338,14 @@
 			scfNote: 'Snow cover frequency: % of the clear observations of each pixel with snow or ice. Each image is ' +
 				'100 (snow) or 0, so its metric is always the mean. It corrects the shadow of the relief with the TOA ' +
 				'reflectance above 1500 m; thresholds set in Sierra Nevada.',
+			scfModisNote: 'Snow cover frequency of MODIS: % of the clear observations of each pixel with snow or ice, ' +
+				'from its daily snow product (NDSI ≥ 0.35, the threshold of that of Landsat). Each image is 100 (snow) ' +
+				'or 0, so its metric is always the mean.',
+			scdNote: 'Snow cover days: on each pixel, the sum over the months of its snow cover frequency × their days ' +
+				'(a month without images takes that of the others). Its metric is always days. With Whole period, the ' +
+				'mean days of each season or, without a season, of each 12 months. An estimate: better with more images.',
+			cfNote: 'Cloud frequency: % of the observations of each pixel with clouds. Each image is 100 (cloud) or 0, ' +
+				'so its metric is always the mean.',
 			map: 'Map', metric: 'Metric', temporal: 'Temporal aggregation', t_period: 'Whole period',
 			t_annual: 'Each year, then between years', t_monthly: 'Each month, then between years',
 			't_16-day': 'Each 16 days, then between years', interannual: 'Metric between years', addMap: 'Add to the map',
@@ -518,9 +534,9 @@
 	var STATS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
 	var METRIC_NAMES = {
 		es: {mean: 'Media', median: 'Mediana', min: 'Mínimo', max: 'Máximo', std: 'Desviación típica',
-			cv: 'Coeficiente de variación (%)', count: 'Número', sum: 'Suma'},
+			cv: 'Coeficiente de variación (%)', count: 'Número', sum: 'Suma', days: 'Días (de nieve)'},
 		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation',
-			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum'}
+			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum', days: 'Days (snow cover)'}
 	};
 
 	var state = {
@@ -1312,9 +1328,19 @@
 
 	// The select of the metric of the images, fixed at the only metric of the variable if it has one (SCF: the mean),
 	// greyed out also for the fixed layers without dates (elevation, slope)
+	// The key of the note under the variable E with a single metric: the SCF of Landsat or MODIS, the snow cover days
+	// or the cloud frequency, or null
+	function variableNote(e) {
+		if (!e.metric) return null;
+		if (e.index === 'SCF') return e.sensor === 'Landsat' ? 'scfNote' : 'scfModisNote';
+		return {SCD: 'scdNote', CF: 'cfNote'}[e.index] || null;
+	}
+
 	function metricSelect(value, onChange) {
 		var only = entry().metric;
-		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
+		// the only metric of a variable that the list of the others has not (the days of the snow cover days)
+		var metrics = METRICS.concat(only && METRICS.indexOf(only) < 0 ? [only] : [])
+			.map(function (m) { return {value: m, label: metricName(m)}; });
 		var s = select(metrics, only || value, onChange);
 		s.setDisabled(Boolean(only) || Boolean(entry().static));
 		return s;
@@ -1345,7 +1371,8 @@
 			var name = state.lang === 'en' ? e.vname_en : e.vname;
 			w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'píxel ') + e.m + ' m', e.dr, e.ft]
 				.filter(function (x) { return x; }).join(' · '), SMALL));
-			if (e.metric) w.push(ui.Label(t('scfNote'), SMALL));
+			var note = variableNote(e);  // how the variables with a single metric are computed
+			if (note) w.push(ui.Label(t(note), SMALL));
 			if (e.static) w.push(ui.Label(t('staticNote'), SMALL));
 			if (mo.isCategorical(e)) w.push(ui.Label(t('categoricalNote'), SMALL));
 		}
