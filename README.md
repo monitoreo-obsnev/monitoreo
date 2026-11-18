@@ -96,6 +96,10 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 - **All tools**: New variables: the snow cover frequency (SCF) and the snow cover days (SCD) of Sentinel-2 (20 m, an image every 5 days, since 2017), with the rules of those of Landsat, its clouds from Cloud Score+.
 
+### [v0.3.52](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.52) · 2026-11-18 · package 0.3.62
+
+- **Assistant, QGIS plugin**: A button "Send the logs" next to each error, and in the menu "Suggest a change or report an error", sends the newest lines of the logs of the computer to the team with the anonymous form: you read them first and may change them, and they go without your name, email, folders, keys or project. The QGIS plugin keeps its own log (qgis.log in the folder MonitorEO), with the traceback of each task that failed.
+
 ### [v0.3.51](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.51) · 2026-11-18 · package 0.3.61
 
 - **Assistant**: The guide to create an Earth Engine account and project, step by step, is in its manual, in the language of the question.

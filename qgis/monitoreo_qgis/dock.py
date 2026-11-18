@@ -41,6 +41,7 @@ from monitoreo.publish import period_text  # noqa: E402
 
 from .helptexts import HELP, MANUAL, data_help, data_summary, data_use, esc, filters_help, variable_help  # noqa: E402
 from .results import KINDS_TIP, MAP_KINDS, parameters_text  # noqa: E402
+from . import sendlogs  # noqa: E402
 
 SETTINGS = 'MonitorEO/'
 STEPS = [('Monthly', 'monthly'), ('Annual', 'annual'), ('16 days', '16-day'), ('Daily (days with images)', 'daily')]
@@ -1743,7 +1744,26 @@ class MonitorEODock(QDockWidget):
 					w.setVisible(shown)
 
 	def message(self, text, lvl='Info', duration=6):
-		self.iface.messageBar().pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+		"""TEXT in the message bar; an error (LVL Critical) goes to the log of the plugin too, with the button "Send
+		the logs" (sendlogs)."""
+		bar = self.iface.messageBar()
+		if lvl != 'Critical':
+			bar.pushMessage('MonitorEO', text, level=level(lvl), duration=duration)
+			return
+		sendlogs.write({'error': text})
+		from monitoreo import about
+		item = bar.createMessage('MonitorEO', text)
+		button = QPushButton(about.LOGS['en']['button'])
+		button.setToolTip(about.LOGS['en']['menu'])
+		button.clicked.connect(lambda checked=False, t=text: self.send_logs(t))
+		item.layout().addWidget(button)
+		bar.pushWidget(item, level(lvl), duration)
+
+	def send_logs(self, error=''):
+		"""The window "Send the logs" (sendlogs.LogsDialog), with the error ERROR to start the description with."""
+		self.logs_dialog = sendlogs.LogsDialog(self, plugin_version(), self.project.text(), error,
+		                                       on_sent=lambda text: self.message(text, 'Success', 10))
+		self.logs_dialog.show()
 
 	def version_label(self):
 		"""The version of the plugin and the date of its release (that of the package monitoreo it carries, released
@@ -1759,7 +1779,7 @@ class MonitorEODock(QDockWidget):
 
 	def feedback_button(self):
 		"""The button to suggest a change or report an error: an issue of GitHub or the anonymous form, filled with
-		the plugin and its version (see monitoreo.about.feedback)."""
+		the plugin and its version (see monitoreo.about.feedback), or "Send the logs" of the plugin (send_logs)."""
 		from monitoreo import __version__, about
 		texts = about.FEEDBACK['en']
 		links = about.feedback('qgis', f'{plugin_version()} (monitoreo {__version__})')
@@ -1771,6 +1791,9 @@ class MonitorEODock(QDockWidget):
 		for key in ('issue', 'form'):
 			action = menu.addAction(texts[key])
 			action.triggered.connect(lambda checked=False, url=links[key]: QDesktopServices.openUrl(QUrl(url)))
+		menu.addSeparator()  # the log of the plugin, with the anonymous form (sendlogs)
+		action = menu.addAction(about.LOGS['en']['menu'])
+		action.triggered.connect(lambda checked=False: self.send_logs())
 		button.setMenu(menu)
 		self.feedback_links = links
 		return button
@@ -2933,7 +2956,8 @@ class MonitorEODock(QDockWidget):
 	# Tasks ------------------------------------------------------------------------------------------------------
 
 	def run_task(self, description, work, done):
-		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar."""
+		"""Run WORK() in a QGIS task and DONE(result) in the main thread; errors go to the message bar. The log of the
+		plugin (sendlogs) has the task, its end and, if it failed, its traceback."""
 		self.save_settings()
 		project = self.project.text().strip() or None
 
@@ -2944,15 +2968,20 @@ class MonitorEODock(QDockWidget):
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
 			if isinstance(exception, services.TooManyPixels):  # nothing computed: until the user closes it
+				sendlogs.write({'task': description, 'end': 'too many pixels'})
 				self.message(too_many_text(description, exception), 'Warning', 0)
 				return
 			if exception is not None:
+				sendlogs.write_failure(description, exception)
 				self.message(f'{description}: {exception}', 'Critical', 15)
 				return
 			try:
 				done(result)
 			except Exception as e:
+				sendlogs.write_failure(f'{description} (showing its result)', e)
 				self.message(f'{description}: {e}', 'Critical', 15)
+			else:
+				sendlogs.write({'task': description, 'end': 'done'})
 			warned = result_warnings(result)
 			if warned:  # days of its period without images of its data: the window of the result shows them too
 				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
@@ -2961,6 +2990,7 @@ class MonitorEODock(QDockWidget):
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
+		sendlogs.write({'task': description, 'account': 'own project' if project else 'shared'})
 		self.message(f'{description}…', 'Info', 3)
 		return task
 

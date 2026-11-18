@@ -156,6 +156,12 @@ dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--p
          width: min(560px, calc(100vw - 32px)); }
 dialog input { width: 100%; margin-top: 4px; }
 dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; margin: 14px 0 0; }
+dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: border-box; }
+#logsDialog { width: min(820px, calc(100vw - 32px)); }
+#logsText { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8em; min-height: 40vh; white-space: pre; }
+.feedback button.logs { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline;
+                        cursor: pointer; text-align: left; }
+.notice.error button.logs { margin-left: 8px; padding: 1px 8px; font-size: .9em; }
 @media (max-width: 600px) {
   .label { min-width: 0; width: 100%; }
   .msg { max-width: 100%; }
@@ -176,6 +182,7 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   <div id="feedback" class="feedback" hidden>
     <a id="feedbackIssue" target="_blank" rel="noopener"></a>
     <a id="feedbackForm" target="_blank" rel="noopener"></a>
+    <button id="feedbackLogs" type="button" class="logs" hidden></button>
   </div>
   <details id="setup" open>
     <summary>Settings <span id="summary" class="muted"></span></summary>
@@ -318,6 +325,16 @@ dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; ma
   </form>
 </dialog>
 
+<dialog id="logsDialog">
+  <form method="dialog">
+    <p id="logsHelp" class="muted"></p>
+    <label><span id="logsDescriptionLabel"></span><textarea id="logsDescription" rows="3"></textarea></label>
+    <label>Logs<textarea id="logsText" rows="16" spellcheck="false" aria-describedby="logsHelp"></textarea></label>
+    <p id="logsStatus" class="muted" role="status"></p>
+    <menu><button value="cancel" formnovalidate>Cancel</button><button id="logsSend" type="button" class="primary">Send</button></menu>
+  </form>
+</dialog>
+
 <script>
 const token = new URLSearchParams(location.search).get('t') || '';
 const $ = id => document.getElementById(id);
@@ -453,6 +470,10 @@ async function refresh() {
       $(id).textContent = '→ ' + fb[key];
       $(id).href = fb.links[key];
     }
+    if (fb.logs) {  // the logs of this computer, with the anonymous form (monitoreo.logs)
+      $('feedbackLogs').textContent = '→ ' + fb.logs.menu;
+      $('feedbackLogs').hidden = false;
+    }
   }
   const up = state.update;
   $('update').hidden = !(up && up.available);
@@ -504,6 +525,20 @@ $('feedbackButton').onclick = () => {
   const box = $('feedback');
   box.hidden = !box.hidden;
   $('feedbackButton').setAttribute('aria-expanded', String(!box.hidden));
+};
+$('feedbackLogs').onclick = () => openLogs();
+$('logsSend').onclick = async () => {
+  if (!$('logsText').value.trim()) { $('logsStatus').textContent = 'There are no logs to send.'; return; }
+  $('logsSend').disabled = true;
+  $('logsStatus').textContent = 'Sending…';
+  try {
+    const r = await api('/api/logs/send', {text: $('logsText').value, description: $('logsDescription').value});
+    $('logsDialog').close();
+    notice(r.text);
+  } catch (e) {
+    $('logsStatus').textContent = e.message;
+    $('logsSend').disabled = false;
+  }
 };
 $('tier').onchange = async () => {
   try { await api('/api/settings', {eecu_tier: $('tier').value}); } catch (e) { notice(e.message, true); }
@@ -695,9 +730,32 @@ $('pull').onclick = async () => {
 // --- chat ---------------------------------------------------------------------------------------------------------
 function scroll() { $('chat').scrollTop = $('chat').scrollHeight; }
 
-function notice(text, error = false) {
-  $('chat').append(el('div', {class: 'notice' + (error ? ' error' : ''), text}));
+function notice(text, error = false, logs = false) {  // LOGS: with the button "Send the logs" (an error of the assistant)
+  const div = el('div', {class: 'notice' + (error ? ' error' : ''), text});
+  const texts = state.feedback && state.feedback.logs;
+  if (logs && texts) {
+    const b = el('button', {type: 'button', class: 'logs', title: texts.menu, text: texts.button});
+    b.onclick = () => openLogs(text);
+    div.append(b);
+  }
+  $('chat').append(div);
   scroll();
+}
+
+async function openLogs(error = '') {  // the window of "Send the logs": the user reads them, and may change them
+  const texts = state.feedback && state.feedback.logs;
+  if (!texts) return;
+  $('logsHelp').textContent = texts.help;
+  $('logsDescriptionLabel').textContent = texts.description;
+  $('logsDescription').value = error ? `The error: ${error}\n` : '';
+  $('logsText').value = 'Reading the logs…';
+  $('logsStatus').textContent = '';
+  $('logsSend').disabled = true;
+  $('logsDialog').showModal();
+  try {
+    $('logsText').value = (await api('/api/logs')).text;
+    $('logsSend').disabled = false;
+  } catch (e) { $('logsText').value = ''; $('logsStatus').textContent = 'The logs could not be read: ' + e.message; }
 }
 
 function inline(text) {  // **bold**, [text](https://...) and https://... of the messages of the model
@@ -1337,7 +1395,7 @@ function show(e) {
     if (card && !card.querySelector('.tomap')) card.querySelector('details').before(mapButton(e.id));
   } else if (e.type === 'error') {
     if (running) { running.classList.add('failed'); running.querySelector('.spinner')?.remove(); running = null; }
-    notice(e.text, true);
+    notice(e.text, true, true);
   } else if (e.type === 'stopped') {
     if (running) { running.classList.add('stopped'); running.querySelector('.spinner')?.remove(); running = null; }
     status(null);
