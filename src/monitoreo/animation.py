@@ -42,7 +42,8 @@ MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'Augus
           'November', 'December']
 FORMATS = ('.gif', '.mp4')
 EARTH = 6378137.0  # radius of web Mercator (m)
-TOTALS = ('sum', 'count')  # metrics that grow with the images: that of the whole period is that of all its steps
+TOTALS = ('sum', 'count', 'days')  # metrics that grow with the images or the days: that of the whole period is that
+# of all its steps
 
 
 def check(step, n_frames=None, dimensions=None, fps=None, path=None):
@@ -88,7 +89,7 @@ def frames(col, regions, steps, metric, vis, res=None, bounds=None, dimensions=D
 	outline = ee.Image().byte().paint(regions, 1, 2).visualize(palette=[OUTLINE])
 	out = []
 	for a, b in steps:
-		value = composite._reduce(col.filterDate(a, b), metric)
+		value = composite.reduce_span(col, metric, a, b)
 		value = maps.coarse(value, res, bounds, dimensions).clipToCollection(regions)
 		out.append(outside.blend(inside).blend(value.visualize(**vis)).blend(outline))
 	return out
@@ -100,7 +101,7 @@ def range_image(col, steps, metric, whole):
 	each step): that of the whole period would be that of all the steps, as many times bigger as they are."""
 	if str(metric).strip().lower() not in TOTALS:
 		return whole
-	return ee.ImageCollection.fromImages([composite._reduce(col.filterDate(a, b), metric) for a, b in steps]) \
+	return ee.ImageCollection.fromImages([composite.reduce_span(col, metric, a, b) for a, b in steps]) \
 		.median().rename('value')
 
 

@@ -166,6 +166,14 @@ def test_cite():
 	assert {'hall1995', 'usgs_landsat89', 'usgs_landsat89_l1', 'chander2009', 'farr2007', 'nasa_srtmgl1'} <= set(_ids(scf))
 	assert 'usgs_landsat45_l1' not in _ids(scf)
 	assert 'Landsat Collection 2 Level-1 data courtesy of the U.S. Geological Survey' in scf['credits']
+	# the SCF and the snow cover days of MODIS: their daily snow product, without the SRTM nor the TOA of Landsat
+	modis = references.cite('time_series', {'variable': 'SCD', 'sensor': 'Modis', 'start': '2021-10-01',
+	                                        'end': '2022-05-31', 'metric': 'days'})
+	assert {'hall1995', 'riggs2017', 'hammond2018', 'gascoin2015', 'mod10a1'} <= set(_ids(modis))
+	assert not {'farr2007', 'nasa_srtmgl1', 'usgs_landsat89'} & set(_ids(modis))
+	scd = references.cite('time_series', {'variable': 'SCD', 'sensor': 'Landsat', 'start': '2022-01-01',
+	                                      'end': '2022-12-31', 'metric': 'days'})
+	assert {'hall1995', 'macander2015', 'farr2007', 'nasa_srtmgl1'} <= set(_ids(scd))
 
 
 def test_services_cite(monkeypatch, tmp_path):

@@ -226,7 +226,7 @@ def offline(monkeypatch, tmp_path):
 	monkeypatch.setattr(services, '_bounds', lambda regions: seen.get('bounds', REGION['bbox']))
 	monkeypatch.setattr(variable, 'image', lambda spec, geom, res: _EE('the map of the period'))
 	monkeypatch.setattr(variable, 'collection', lambda spec, geom, res: _EE('images'))
-	monkeypatch.setattr(composite, '_reduce', lambda col, metric: _EE(f'{metric} of {col!r}'))
+	monkeypatch.setattr(composite, '_reduce', lambda col, metric, *bands_mosaic: _EE(f'{metric} of {col!r}'))
 	monkeypatch.setattr(animation, 'ee', types.SimpleNamespace(ImageCollection=types.SimpleNamespace(
 		fromImages=lambda images: _EE(f'the collection {images!r}'))))
 	monkeypatch.setattr(services, 'ee', types.SimpleNamespace(List=lambda xs: types.SimpleNamespace(
