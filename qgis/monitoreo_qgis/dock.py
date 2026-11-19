@@ -503,8 +503,10 @@ def unit_text(res):
 
 def sea_item(sea):
 	"""The entry of the list Sea for the sea SEA (a row of services.find_seas): its text, with its name, area and
-	MRGID, and its data, the MRGID."""
-	return f"{sea['NAME']} · {sea['AREA_KM2']:,.0f} km² (MRGID {sea['MRGID']})", int(sea['MRGID'])
+	MRGID (and, for a sea of several sea areas, the Mediterranean Sea, how many: one region), and its data, the
+	MRGID."""
+	parts = f" · its {len(sea['PARTS'])} sea areas as one" if sea.get('PARTS') else ''
+	return f"{sea['NAME']} · {sea['AREA_KM2']:,.0f} km²{parts} (MRGID {sea['MRGID']})", int(sea['MRGID'])
 
 
 def admin_item(unit, level):

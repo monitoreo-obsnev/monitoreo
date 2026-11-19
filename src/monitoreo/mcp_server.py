@@ -590,7 +590,8 @@ def find_admin_units(text: str, level: int = 1, country: Optional[str] = None, l
 @tool
 def find_seas(text: str, limit: int = 10) -> str:
 	"""Oceans and seas (IHO sea areas, Marine Regions) whose English name contains TEXT (e.g. "Alboran"): MRGID, NAME,
-	AREA_KM2 and BOUNDS. Use {"sea": MRGID}; the whole Mediterranean is several of them."""
+	AREA_KM2 and BOUNDS. Use {"sea": MRGID}; the whole Mediterranean Sea is 1905, its 10 sea areas as one region (PARTS:
+	their MRGIDs)."""
 	return _text(services.find_seas(text, limit))
 
 

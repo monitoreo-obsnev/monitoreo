@@ -910,7 +910,8 @@ def seas_text(seas):
 	if not seas:
 		return ('No ocean or sea with that name: try its English name (e.g. Alboran, Biscay, Mediterranean, North '
 		        'Atlantic) or a shorter part of it.')
-	lines = [f"- {{\"sea\": {s['MRGID']}}}: {s['NAME']} ({report._num(s['AREA_KM2'])} km²)" for s in seas]
+	lines = [f"- {{\"sea\": {s['MRGID']}}}: {s['NAME']} ({report._num(s['AREA_KM2'])} km²" +
+	         (f", the whole sea: its {len(s['PARTS'])} sea areas as one region)" if s.get('PARTS') else ')') for s in seas]
 	return (f'{len(seas)} oceans and seas (sea areas of the IHO, Marine Regions); the user sees this list and can '
 	        'choose one in it (or several: a list):\n' + '\n'.join(lines))
 

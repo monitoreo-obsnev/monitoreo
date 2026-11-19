@@ -764,8 +764,9 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' Oceans and seas
 #'
 #' The sea areas of the International Hydrographic Organization (its Limits of Oceans and Seas), of Marine Regions, whose
-#' name contains a text, found without Earth Engine. The oceans are what is left of them out of their seas, and the whole
-#' Mediterranean is several sea areas. Seas are large areas: pixels of 1 to 10 km by default.
+#' name contains a text, found without Earth Engine. The oceans are what is left of them out of their seas; the whole
+#' Mediterranean Sea (MRGID 1905, \code{mo_sea(1905)}) is its 10 sea areas as one region (PARTS: their MRGIDs). Seas are
+#' large areas: pixels of 1 to 10 km by default.
 #'
 #' @param text text of their name, in English (any case and accents), or the beginning of an MRGID.
 #' @param limit maximum number of seas.
@@ -776,7 +777,7 @@ mo_admin_units <- function(text, level = 1, country = NULL, limit = 20) {
 #' @examples
 #' \dontrun{
 #' mo_seas("alboran")          # mo_sea(3324) or mo_sea("Alboran Sea")
-#' mo_seas("mediterranean")
+#' mo_seas("mediterranean")     # the whole Mediterranean Sea first: mo_sea(1905), its 10 sea areas as one region
 #' }
 #' @export
 mo_seas <- function(text, limit = 20) {

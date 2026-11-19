@@ -17,13 +17,14 @@ A data.frame of the seas, with their MRGID (for \code{mo_sea()}), name, area (AR
 }
 \description{
 The sea areas of the International Hydrographic Organization (its Limits of Oceans and Seas), of Marine Regions, whose
-name contains a text, found without Earth Engine. The oceans are what is left of them out of their seas, and the whole
-Mediterranean is several sea areas. Seas are large areas: pixels of 1 to 10 km by default.
+name contains a text, found without Earth Engine. The oceans are what is left of them out of their seas; the whole
+Mediterranean Sea (MRGID 1905, \code{mo_sea(1905)}) is its 10 sea areas as one region (PARTS: their MRGIDs). Seas are
+large areas: pixels of 1 to 10 km by default.
 }
 \examples{
 \dontrun{
 mo_seas("alboran")          # mo_sea(3324) or mo_sea("Alboran Sea")
-mo_seas("mediterranean")
+mo_seas("mediterranean")     # the whole Mediterranean Sea first: mo_sea(1905), its 10 sea areas as one region
 }
 }
 \references{
