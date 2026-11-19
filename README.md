@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.59](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.59) · 2026-11-20 · package 0.3.69
 
 - **Assistant, QGIS plugin, MCP server, Command line, R package, Python package** (fix): The bar of the EECUs no longer says that much is left while Earth Engine has counted the whole monthly quota and put the project in restricted mode (on 2026-11-17 the project of MonitorEO was at its limit while the bar said about 45 %): with your own project it reads the monthly quota as Earth Engine counts it (the quota counters of Cloud Monitoring, which also count the computations running or failed and may go down when Earth Engine settles them), against the limit that Earth Engine gives, and shows the larger of that count and what the computations completed have spent, with both in its text; the tier (or `--limit`, `limit`, `MONITOREO_EECU_LIMIT`) is only used when those counters cannot be read. With the shared account, the text says at what percent of its monthly quota Earth Engine has the project of MonitorEO, and warns above 90 % (at 100 % Earth Engine restricts it and the bar is full). Each warning of the EECUs (little left, nothing left, restricted mode) is given once each day, so a "quota reached" is no longer hidden by an earlier "little left". Reading the counters needs only the role Monitoring Viewer, as before.
 
