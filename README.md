@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools**: The whole Mediterranean Sea is one region, `{"sea": 1905}` or `{"sea": "Mediterranean Sea"}`: its 10 sea areas of the IHO (its two basins, the Alboran, Balearic, Ligurian, Tyrrhenian, Adriatic, Ionian and Aegean seas and the Strait of Gibraltar) as one, with one value per step; the searches of "Mediterranean" give it first.
+
 ### [v0.3.55](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.55) · 2026-11-19 · package 0.3.65
 
 - **All tools** (fix): The time series, statistics and downloads of a region wider than 40° of longitude (a biome, Russia, the Mediterranean Sea) no longer fail with «Projection: The CRS of a map projection could not be parsed»: they are computed in EPSG:6933, now given to Earth Engine by its definition, which it reads.

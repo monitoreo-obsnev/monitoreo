@@ -19,6 +19,8 @@ from monitoreo import areas, catalog, classes, cli, readme, references, report, 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALBORAN = 3324
 WESTERN, EASTERN = 4279, 4280  # the two basins of the Mediterranean Sea of the IHO
+MEDITERRANEAN = 1905  # the whole Mediterranean Sea (seas.GROUPS): the union of its 10 sea areas
+MARMARA = 3369
 
 
 def _read(*parts):
@@ -49,7 +51,7 @@ def test_the_index_of_the_package():
 def test_a_sea_by_its_name_in_any_case_and_accents_or_its_mrgid():
 	assert seas.find('ALBORÁN') == [{'MRGID': ALBORAN, 'NAME': 'Alboran Sea', 'AREA_KM2': seas.area_of(ALBORAN),
 	                                 'BOUNDS': [-5.354, 35.071, -1.188, 36.842]}]
-	assert [s['MRGID'] for s in seas.find('mediterranean')] == [EASTERN, WESTERN]
+	assert [s['MRGID'] for s in seas.find('mediterranean')] == [MEDITERRANEAN, EASTERN, WESTERN]
 	assert seas.find('3324')[0]['NAME'] == 'Alboran Sea'
 	assert seas.find('balearic iberian')[0]['MRGID'] == 3322  # 'Balearic (Iberian Sea)'
 	found = seas.find('sea', limit=200)
@@ -111,6 +113,56 @@ def test_the_calls_of_earth_engine_of_a_sea(monkeypatch):
 	assert _chain(monkeypatch, {'sea': ALBORAN}) == _chain(monkeypatch, {'sea': 'alboran sea'})
 	assert _chain(monkeypatch, {'sea_at': [-2.5, 36]}) == [
 		['FeatureCollection', seas.ASSET], ['Geometry.Point', [-2.5, 36.0]], ['filterBounds', '<ee>']]
+
+
+# The whole Mediterranean Sea: a sea of several sea areas as one region ---------------------------------------------
+
+def test_the_mediterranean_sea_is_its_ten_sea_areas():
+	"""The Mediterranean Sea of the gazetteer of Marine Regions (MRGID 1905: its Western Basin with the Alboran,
+	Balearic, Ligurian and Tyrrhenian seas and the Strait of Gibraltar, and its Eastern Basin with the Adriatic, Ionian
+	and Aegean seas, not the Sea of Marmara): found first for "mediterranean", by its MRGID or its name, with its area and
+	bounds, those of its sea areas, and their MRGIDs (PARTS); the other seas have no PARTS."""
+	parts = seas.group_parts(MEDITERRANEAN)
+	assert sorted(parts) == sorted([WESTERN, EASTERN, ALBORAN, 3322, 3346, 3363, 3386, 3314, 3351, 3315])
+	assert MARMARA not in parts and seas.group_parts(ALBORAN) is None and seas.group_parts('1905') == parts
+	rows = {r[0]: r for r in seas.load()['rows']}
+	assert all(p in rows for p in parts) and MEDITERRANEAN not in rows  # the index has only the sea areas
+	whole = seas.find('Mediterranean Sea')[0]
+	area = sum(rows[p][2] for p in parts)
+	assert whole == {'MRGID': MEDITERRANEAN, 'NAME': 'Mediterranean Sea', 'AREA_KM2': round(area),
+	                 'BOUNDS': [-6.033, 30.068, 36.216, 45.809], 'PARTS': parts}
+	assert 2.4e6 < area < 2.6e6  # some 2.5 million km²
+	for p in parts:
+		w, s_, e, n = rows[p][3]
+		assert whole['BOUNDS'][0] <= w and whole['BOUNDS'][1] <= s_ and e <= whole['BOUNDS'][2] and n <= whole['BOUNDS'][3]
+	assert seas.find('1905') == [whole] and seas.find('MEDITERRÁNEAN')[0] == whole
+	assert all('PARTS' not in x for x in seas.find('sea', limit=200) if x['MRGID'] != MEDITERRANEAN)
+	assert seas.name_of(MEDITERRANEAN) == 'Mediterranean Sea' and seas.area_of('1905') == round(area)
+	assert seas.codes('Mediterranean Sea') == seas.codes(1905) == seas.codes('1905') == [MEDITERRANEAN]
+	assert seas.codes([' mediterranean SEA', 1905, MARMARA, ALBORAN]) == [MEDITERRANEAN, MARMARA, ALBORAN]
+	assert areas.is_large(seas.area_of(MEDITERRANEAN) * 1e6)
+
+
+def test_the_mediterranean_sea_is_one_feature(monkeypatch):
+	"""{"sea": 1905} (or its name): one feature, the union of its sea areas in the table (dissolved with
+	seas.GROUP_MAX_ERROR), with its MRGID, name, area and search as those of the table; with other seas, the groups
+	first and then the other seas, each as it is in the table."""
+	from test_regions import _chain
+	parts = seas.group_parts(MEDITERRANEAN)
+	props = {'mrgid': MEDITERRANEAN, 'name': 'Mediterranean Sea', 'area_km2': seas.area_of(MEDITERRANEAN),
+	         'search': 'mediterranean sea'}
+	whole = [['FeatureCollection', seas.ASSET], ['Filter.inList', 'mrgid', parts], ['filter', '<ee>'], ['geometry', 100],
+	         ['dissolve', 100], ['Feature', '<ee>', props], ['FeatureCollection', ['<ee>']]]
+	assert _chain(monkeypatch, {'sea': MEDITERRANEAN}) == whole == _chain(monkeypatch, {'sea': 'Mediterranean Sea'})
+	assert _chain(monkeypatch, {'sea': [MARMARA, 'mediterranean sea']}) == whole + [
+		['Filter.inList', 'mrgid', [MARMARA]], ['filter', '<ee>'], ['merge', '<ee>']]
+	assert seas.GROUP_MAX_ERROR == 100
+
+
+def test_the_names_of_the_whole_mediterranean_sea():
+	"""Its name in the titles, READMEs and reports, and the references of Marine Regions, as any sea."""
+	assert report.region_text({'sea': MEDITERRANEAN}) == 'Mediterranean Sea (IHO sea area, Marine Regions)'
+	assert report.region_text({'sea': 'mediterranean sea'}) == report.region_text({'sea': MEDITERRANEAN})
 
 
 def test_is_sea():
@@ -286,6 +338,13 @@ def test_the_mcp_server_and_the_assistant():
 	both = json.loads(mcp_server.find_seas('mediterranean'))
 	assert assistant.seas_must_choose(both, 'mediterranean') and not assistant.seas_must_choose(found, 'alboran')
 	assert not assistant.seas_must_choose(both, 'mediterranean', 'the sea 4279 please')
+	# the whole Mediterranean Sea: first, said to be its sea areas as one region; asked by its very name, no choice
+	assert both[0]['MRGID'] == MEDITERRANEAN and both[0]['PARTS'] == seas.group_parts(MEDITERRANEAN)
+	assert '{"sea": 1905}: Mediterranean Sea (2,515,083 km², the whole sea: its 10 sea areas as one region)' in \
+		assistant.seas_text(both)
+	whole = json.loads(mcp_server.find_seas('Mediterranean Sea'))
+	assert not assistant.seas_must_choose(whole, 'Mediterranean Sea') and whole[0]['MRGID'] == MEDITERRANEAN
+	assert 'the whole Mediterranean Sea is 1905' in mcp_server.find_seas.__doc__
 	assert '{"sea": MRGID}' in assistant.PROMPT and 'sea_at' in assistant.PROMPT
 
 
@@ -308,6 +367,7 @@ def test_the_page_of_the_assistant_lists_the_seas():
 	page = _read('src', 'monitoreo', 'ui', 'assistant.html')
 	assert "else if (e.type === 'seas') $('chat').append(seasCard(e));" in page
 	assert 'function seasCard(e)' in page and '`, sea ${s.MRGID}`' in page
+	assert "s.PARTS ? ` · its ${s.PARTS.length} sea areas as one` : ''" in page  # the whole Mediterranean Sea
 
 
 def test_the_qgis_plugin_and_the_r_package():
@@ -323,6 +383,10 @@ def test_the_qgis_plugin_and_the_r_package():
 	assert 'export(mo_sea)' in namespace and 'export(mo_seas)' in namespace
 	assert os.path.exists(os.path.join(ROOT, 'r', 'monitoreo', 'man', 'mo_seas.Rd'))
 	assert 'mo_sea(3324)' in _read('r', 'monitoreo', 'man', 'regions.Rd')
+	# the whole Mediterranean Sea (seas.GROUPS): in the list of QGIS with its sea areas, and in their help
+	assert "f\" · its {len(sea['PARTS'])} sea areas as one\" if sea.get('PARTS') else ''" in dock
+	assert '<b>Mediterranean \'\n\t\t\'Sea</b> (MRGID 1905) is all of them as one region' in helps
+	assert 'mo_sea(1905)' in _read('r', 'monitoreo', 'man', 'mo_seas.Rd')
 
 
 def test_the_help_of_the_tools_says_the_pixels_of_the_large_areas():

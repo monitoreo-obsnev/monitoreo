@@ -39,7 +39,8 @@
 			noSea: 'Ningún mar con ese nombre: escríbelo en inglés (Alboran, Biscay, Mediterranean...).',
 			seaHelp: 'Las áreas marinas de la Organización Hidrográfica Internacional (Marine Regions, CC BY 4.0): ' +
 				'búscalas por su nombre en inglés o pulsa en el mapa sobre el mar. Los océanos son lo que queda fuera ' +
-				'de sus mares, y el Mediterráneo son varias áreas. Son áreas grandes: píxeles de 1 a 10 km, y solo la ' +
+				'de sus mares; el mar Mediterráneo entero (Mediterranean Sea, MRGID 1905) son todas sus áreas como una. Son ' +
+				'áreas grandes: píxeles de 1 a 10 km, y solo la ' +
 				'clorofila de MODIS (Chl-a) tiene datos en mar abierto.',
 			mode_draw: 'Polígono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el área', none: 'Ninguna área protegida con ese nombre.',
@@ -305,7 +306,8 @@
 			noSea: 'No sea with that name: write it in English (Alboran, Biscay, Mediterranean...).',
 			seaHelp: 'The sea areas of the International Hydrographic Organization (Marine Regions, CC BY 4.0): search ' +
 				'them by their English name or click on the map over the sea. The oceans are what is left out of their ' +
-				'seas, and the Mediterranean is several areas. They are large areas: pixels of 1 to 10 km, and only the ' +
+				'seas; the whole Mediterranean Sea (Mediterranean Sea, MRGID 1905) is all its areas as one. They are large ' +
+				'areas: pixels of 1 to 10 km, and only the ' +
 				'chlorophyll of MODIS (Chl-a) has data over the open sea.',
 			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',

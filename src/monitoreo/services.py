@@ -876,8 +876,9 @@ def find_protected_areas(text, limit=20, designation=None):
 def find_seas(text, limit=20):
 	"""The oceans and seas (the sea areas of the IHO, of Marine Regions) whose name contains TEXT, in any case and with
 	or without accents (or whose MRGID begins with it), without Earth Engine: [{MRGID, NAME, AREA_KM2, BOUNDS}], the
-	very name first. Use the MRGID or the name as {"sea": 3324} or {"sea": "Alboran Sea"}; {"sea_at": [lon, lat]} is
-	the sea at a point. They are large areas: see areas.LARGE_AREA_KM2."""
+	very name first; the whole Mediterranean Sea (1905) is its 10 sea areas as one region, with their MRGIDs (PARTS).
+	Use the MRGID or the name as {"sea": 3324} or {"sea": "Alboran Sea"}; {"sea_at": [lon, lat]} is the sea at a point.
+	They are large areas: see areas.LARGE_AREA_KM2."""
 	return areas.find_seas(text, limit)
 
 

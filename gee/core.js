@@ -2057,6 +2057,11 @@ var MonitorEO = (function () {
 	// area_km2 and search (the name as seaPlain gives it)
 	var SEAS = 'projects/ee-ugr-default-project/assets/monitoreo/seas_iho';
 	var SEA_FIELDS = ['mrgid', 'name', 'area_km2'];
+	// seas.GROUPS and GROUP_MAX_ERROR: the seas that the IHO divides into several sea areas, each a region of its own,
+	// the union of its areas (metres: the tolerance of the union), by its MRGID in the gazetteer of Marine Regions: the
+	// Mediterranean Sea, with the area of its sea areas (km², seas.area_of)
+	var SEA_GROUPS = {1905: {name: 'Mediterranean Sea', parts: [4279, 4280, 3324, 3322, 3346, 3363, 3386, 3314, 3351, 3315], area_km2: 2515083}};
+	var SEA_GROUP_MAX_ERROR = 100;
 	// the tables of the regions whose credits and references the app shows under the region (adminCredits): the
 	// administrative units by their level and the seas
 	var CITED_REGIONS = {1: GAUL[1], 2: GAUL[2], 3: MUNICIPALITIES, sea: SEAS};
@@ -2208,41 +2213,76 @@ var MonitorEO = (function () {
 
 	// areas.find_seas (seas.find): ee.FeatureCollection (without geometries) of the seas whose name contains TEXT (any
 	// case and accents: their property search) or whose MRGID is TEXT, at most LIMIT: the very name first, then those
-	// that begin with it, then the others, each by name; with their mrgid, name and area_km2
+	// that begin with it, then the others, each by name; with their mrgid, name and area_km2. The seas of SEA_GROUPS
+	// (the Mediterranean Sea), which the table has not got, are added to it so (seaGroupsFound)
 	function findSeas(text, limit) {
 		var t = seaPlain(text);
 		var f = /^[0-9]+$/.test(t) ? ee.Filter.or(ee.Filter.stringContains('search', t), ee.Filter.eq('mrgid', Number(t))) :
 			ee.Filter.stringContains('search', t);
-		return ee.FeatureCollection(SEAS).filter(f).map(function (x) {
+		var found = ee.FeatureCollection(SEAS).filter(f).map(function (x) {
 			var s = ee.String(x.get('search'));
 			var rank = ee.Algorithms.If(s.equals(t), '0', ee.Algorithms.If(s.index(t).eq(0), '1', '2'));
 			return ee.Feature(null, x.toDictionary(SEA_FIELDS)).set('order', ee.String(rank).cat(s));
-		}).sort('order').limit(limit || 20);
+		});
+		var groups = seaGroupsFound(t);
+		if (groups.length) found = found.merge(ee.FeatureCollection(groups));
+		return found.sort('order').limit(limit || 20);
+	}
+
+	// The seas of SEA_GROUPS that findSeas finds for T (seaPlain of its text): those whose name contains it, or whose
+	// MRGID is T, as features without geometry with their mrgid, name, area_km2 and order
+	function seaGroupsFound(t) {
+		return Object.keys(SEA_GROUPS).filter(function (code) {
+			var s = seaPlain(SEA_GROUPS[code].name);
+			return s.indexOf(t) >= 0 || (/^[0-9]+$/.test(t) && Number(t) === Number(code));
+		}).map(function (code) {
+			var g = SEA_GROUPS[code], s = seaPlain(g.name);
+			var rank = s === t ? '0' : s.indexOf(t) === 0 ? '1' : '2';
+			return ee.Feature(null, {mrgid: Number(code), name: g.name, area_km2: g.area_km2, order: rank + s});
+		});
 	}
 
 	// seas.codes, without the index of the package (the app has not got it, and finds the seas in the table): V (the
-	// MRGID of a sea or its name, or a list of them) as {mrgids: [numbers], names: [names as seaPlain gives them]}; an
-	// Error if there are none
+	// MRGID of a sea or its name, or a list of them) as {mrgids: [numbers], names: [names as seaPlain gives them],
+	// groups: [the MRGIDs of those of SEA_GROUPS, by MRGID or name]}; an Error if there are none
 	function seaCodes(v) {
-		var values = Array.isArray(v) ? v : [v], out = {mrgids: [], names: []};
+		var values = Array.isArray(v) ? v : [v], out = {mrgids: [], names: [], groups: []};
+		var named = {};
+		Object.keys(SEA_GROUPS).forEach(function (code) { named[seaPlain(SEA_GROUPS[code].name)] = Number(code); });
 		values.forEach(function (x) {
-			var s = String(x === null || x === undefined ? '' : x).trim();
-			if (/^[0-9]+(\.0*)?$/.test(s)) out.mrgids.push(Number(s));
-			else if (seaPlain(s)) out.names.push(seaPlain(s));
+			var s = String(x === null || x === undefined ? '' : x).trim(), n = Number(s), p = seaPlain(s);
+			if (/^[0-9]+(\.0*)?$/.test(s)) {
+				if (SEA_GROUPS[n]) {
+					if (out.groups.indexOf(n) < 0) out.groups.push(n);
+				} else out.mrgids.push(n);
+			} else if (named[p] !== undefined) {
+				if (out.groups.indexOf(named[p]) < 0) out.groups.push(named[p]);
+			} else if (p) out.names.push(p);
 		});
-		if (!out.mrgids.length && !out.names.length) {
+		if (!out.mrgids.length && !out.names.length && !out.groups.length) {
 			throw new Error("sea is the MRGID of a sea area of the IHO (e.g. 3324) or its name (e.g. 'Alboran Sea'): " +
 				(values.join(', ') || 'none given') + ' is not one (find them with find_seas)');
 		}
 		return out;
 	}
 
-	// areas.region of {sea: V}: the seas of the MRGIDs or names V (seaCodes), each named by its name
+	// areas.region of {sea: V}: the seas of the MRGIDs or names V (seaCodes), each named by its name; each of SEA_GROUPS
+	// (the Mediterranean Sea) as one feature, the union of its sea areas, with its mrgid, name, area_km2 and search
+	// (areas._seas), the groups first
 	function seaRegion(v) {
 		var c = seaCodes(v), fc = ee.FeatureCollection(SEAS), filters = [];
+		var whole = c.groups.map(function (code) {
+			var g = SEA_GROUPS[code];
+			var geom = fc.filter(ee.Filter.inList('mrgid', g.parts)).geometry(SEA_GROUP_MAX_ERROR)
+				.dissolve(SEA_GROUP_MAX_ERROR);
+			return ee.Feature(geom, {mrgid: code, name: g.name, area_km2: g.area_km2, search: seaPlain(g.name)});
+		});
+		var out = whole.length ? ee.FeatureCollection(whole) : null;
 		if (c.mrgids.length) filters.push(ee.Filter.inList('mrgid', c.mrgids));
 		if (c.names.length) filters.push(ee.Filter.inList('search', c.names));
-		return fc.filter(filters.length > 1 ? ee.Filter.or(filters[0], filters[1]) : filters[0]);
+		if (!filters.length) return out;
+		var alone = fc.filter(filters.length > 1 ? ee.Filter.or(filters[0], filters[1]) : filters[0]);
+		return out ? out.merge(alone) : alone;
 	}
 
 	// areas.region of {sea_at: [LON, LAT]}: the sea area of the IHO at that point (none on land)
@@ -3955,7 +3995,7 @@ var MonitorEO = (function () {
 		ecoregionAt: ecoregionAt, bboxRegion: bboxRegion, findAdminUnits: findAdminUnits, adminRegion: adminRegion,
 		MUNICIPALITIES: MUNICIPALITIES, ADMIN_DATASETS: ADMIN_DATASETS, municipalityPlain: municipalityPlain,
 		findMunicipalities: findMunicipalities, municipalityCodes: municipalityCodes,
-		municipalityRegion: municipalityRegion, adminCredits: adminCredits, SEAS: SEAS, CITED_REGIONS: CITED_REGIONS,
+		municipalityRegion: municipalityRegion, adminCredits: adminCredits, SEAS: SEAS, SEA_GROUPS: SEA_GROUPS, SEA_GROUP_MAX_ERROR: SEA_GROUP_MAX_ERROR, CITED_REGIONS: CITED_REGIONS,
 		seaPlain: seaPlain, findSeas: findSeas, seaCodes: seaCodes, seaRegion: seaRegion, seaAt: seaAt, isSea: isSea,
 		seaWarning: seaWarning, LARGE_AREA_KM2: LARGE_AREA_KM2, LARGE_PIXEL: LARGE_PIXEL, isLarge: isLarge,
 		defaultScale: defaultScale, TARGET_PIXELS: TARGET_PIXELS,

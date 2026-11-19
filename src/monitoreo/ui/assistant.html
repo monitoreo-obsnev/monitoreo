@@ -911,7 +911,8 @@ function seasCard(e) {  // the oceans and seas found (the sea areas of the IHO, 
   // with it, by its MRGID
   const list = el('div', {class: 'examples'});
   for (const s of e.seas) {
-    const b = el('button', {type: 'button', text: `${s.NAME} · ${fmt(s.AREA_KM2)} km² (MRGID ${s.MRGID})`});
+    const parts = s.PARTS ? ` · its ${s.PARTS.length} sea areas as one` : '';  // the whole Mediterranean Sea
+    const b = el('button', {type: 'button', text: `${s.NAME} · ${fmt(s.AREA_KM2)} km²${parts} (MRGID ${s.MRGID})`});
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');

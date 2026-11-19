@@ -16,7 +16,8 @@ Each sea is given by its MRGID (the identifier of Marine Regions, e.g. 3324, the
 case and with or without accents ('Alboran Sea'): {"sea": 3324}, {"sea": "Alboran Sea"} or a list of them, a feature
 per sea; {"sea_at": [lon, lat]} is the sea at a point. The oceans are what is left of them out of their seas: the
 North Atlantic Ocean has neither the North Sea nor the Mediterranean. The seas are big regions: see
-areas.LARGE_AREA_KM2.
+areas.LARGE_AREA_KM2. A sea that the IHO divides into several sea areas (GROUPS: the Mediterranean Sea, 1905) is one
+region too, the union of its areas: {"sea": 1905} or {"sea": "Mediterranean Sea"}.
 
 Citation: Flanders Marine Institute (2024). The intersect of the Exclusive Economic Zones and IHO sea areas, version
 5. Available online at https://www.marineregions.org/. https://doi.org/10.14284/699 (credit: CREDIT)."""
@@ -48,6 +49,15 @@ TOLERANCE = 0.001
 LARGE_TOLERANCE = 0.01
 LARGE_KM2 = 100_000
 DIGITS = 5  # decimals of the coordinates (about 1 m)
+# The seas that the IHO divides into several of its sea areas, each a region of its own, the union of those areas: by
+# its MRGID and name in the gazetteer of Marine Regions, {MRGID: (name, MRGIDs of its sea areas)}, from the relations
+# partOf of the gazetteer (checked on 2026-11-19): the Mediterranean Sea (1905) is its Western Basin (4279), with the
+# Alboran (3324), Balearic (3322), Ligurian (3363) and Tyrrhenian (3386) seas and the Strait of Gibraltar (3346), and
+# its Eastern Basin (4280), with the Adriatic (3314), Ionian (3351) and Aegean (3315) seas; not the Sea of Marmara.
+# The table and the index have only the sea areas; the Earth Engine app has the same groups (SEA_GROUPS of
+# gee/core.js), and GROUP_MAX_ERROR is the tolerance (metres) of the union of their areas
+GROUPS = {1905: ('Mediterranean Sea', (4279, 4280, 3324, 3322, 3346, 3363, 3386, 3314, 3351, 3315))}
+GROUP_MAX_ERROR = 100
 
 
 def _get(params, timeout=300, tries=4):
@@ -234,19 +244,40 @@ def plain(text):
 	return ' '.join(re.sub(r"[^a-z0-9']+", ' ', text.lower()).split())
 
 
+def group_rows():
+	"""The seas of GROUPS as rows of the index: [MRGID, name, area (km², the sum of those of its sea areas), bounds
+	(those of all of them)]."""
+	rows = {r[0]: r for r in load()['rows']}
+	out = []
+	for mrgid, (name, parts) in GROUPS.items():
+		boxes = [rows[p][3] for p in parts]
+		out.append([mrgid, name, round(sum(rows[p][2] for p in parts)),
+		            [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes),
+		             max(b[3] for b in boxes)]])
+	return out
+
+
+def group_parts(mrgid):
+	"""The MRGIDs of the sea areas of the sea MRGID if it is one of GROUPS, else None."""
+	group = GROUPS.get(_whole(mrgid))
+	return list(group[1]) if group else None
+
+
 def find(text, limit=20):
 	"""The seas whose name contains TEXT (any case and accents, see plain; also the beginning of an MRGID): the very
 	name first, then those that begin with it, then the others, each group by name: [{'MRGID', 'NAME', 'AREA_KM2',
-	'BOUNDS' ([west, south, east, north])}], without Earth Engine."""
+	'BOUNDS' ([west, south, east, north])}], those of GROUPS (the Mediterranean Sea) with 'PARTS', the MRGIDs of their
+	sea areas, without Earth Engine."""
 	t = plain(text)
 	found = []
-	for mrgid, name, area, bounds in load()['rows']:
+	for mrgid, name, area, bounds in load()['rows'] + group_rows():
 		n = plain(name)
 		if t and t not in n and not str(mrgid).startswith(t):
 			continue
 		found.append(((n != t, not n.startswith(t), n), mrgid, name, area, bounds))
 	found.sort(key=lambda x: x[0])
-	return [{'MRGID': mrgid, 'NAME': name, 'AREA_KM2': area, 'BOUNDS': bounds}
+	return [dict({'MRGID': mrgid, 'NAME': name, 'AREA_KM2': area, 'BOUNDS': bounds},
+	             **({'PARTS': group_parts(mrgid)} if mrgid in GROUPS else {}))
 	        for _, mrgid, name, area, bounds in found[:int(limit)]]
 
 
@@ -260,10 +291,10 @@ def _whole(x):
 
 def codes(v):
 	"""The MRGIDs of the seas V (one, or a list: their MRGIDs, 3324 or '3324', or their names, in any case and with or
-	without accents, e.g. 'alboran sea'), each once, in their order, checked against the index of the package without
-	Earth Engine; else ValueError, with the way to find them."""
+	without accents, e.g. 'alboran sea'; also those of GROUPS, 1905 or 'Mediterranean Sea'), each once, in their order,
+	checked against the index of the package without Earth Engine; else ValueError, with the way to find them."""
 	values = list(v) if isinstance(v, (list, tuple)) else [v]
-	rows = load()['rows']
+	rows = load()['rows'] + group_rows()
 	by_code = {r[0]: r[0] for r in rows}
 	by_name = {plain(r[1]): r[0] for r in rows}
 	out, unknown = [], []
@@ -281,15 +312,15 @@ def codes(v):
 
 
 def name_of(mrgid):
-	"""The name of the sea of MRGID, or None."""
+	"""The name of the sea of MRGID (also of GROUPS), or None."""
 	c = _whole(mrgid)
-	return next((r[1] for r in load()['rows'] if r[0] == c), None)
+	return next((r[1] for r in load()['rows'] + group_rows() if r[0] == c), None)
 
 
 def area_of(mrgid):
-	"""The area (km²) of the sea of MRGID in the index, or None."""
+	"""The area (km²) of the sea of MRGID in the index (of one of GROUPS, that of its sea areas), or None."""
 	c = _whole(mrgid)
-	return next((r[2] for r in load()['rows'] if r[0] == c), None)
+	return next((r[2] for r in load()['rows'] + group_rows() if r[0] == c), None)
 
 
 def simplified(geometry, tolerance):
