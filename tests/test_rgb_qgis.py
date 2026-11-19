@@ -248,11 +248,22 @@ def test_the_help_explains_the_true_colour(plugin):
 
 def test_the_code_of_the_plugin_follows_the_rules_of_bandit():
 	"""plugins.qgis.org scans the plugin with Bandit (qgis/build_plugin.py fails on any finding): no assert and no
-	broad except that only passes."""
-	for name in sorted(os.listdir(PLUGIN)):
-		if not name.endswith('.py'):
-			continue
-		for node in ast.walk(ast.parse(_read(name))):
+	broad except that only passes, in the plugin and in the modules of monitoreo that its zip bundles (those not in
+	build_plugin.MONITOREO_UNUSED: the release v0.3.56 failed on one in services.py, 2026-11-19)."""
+	import importlib.util
+	spec = importlib.util.spec_from_file_location('build_plugin', os.path.join(ROOT, 'qgis', 'build_plugin.py'))
+	build = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(build)
+	package = os.path.join(ROOT, 'src', 'monitoreo')
+	files = [os.path.join(PLUGIN, n) for n in sorted(os.listdir(PLUGIN)) if n.endswith('.py')]
+	files += [os.path.join(package, n) for n in sorted(os.listdir(package))
+	          if n.endswith('.py') and n not in build.MONITOREO_UNUSED]
+	assert any(f.endswith('services.py') for f in files)
+	for path in files:
+		name = os.path.relpath(path, ROOT)
+		with open(path, encoding='utf-8') as f:
+			code = f.read()
+		for node in ast.walk(ast.parse(code)):
 			assert not isinstance(node, ast.Assert), f'{name}:{node.lineno}: assert'
 			if isinstance(node, ast.ExceptHandler):
 				broad = node.type is None or getattr(node.type, 'id', None) in ('Exception', 'BaseException')

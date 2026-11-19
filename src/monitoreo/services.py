@@ -652,7 +652,7 @@ def probe_quota():
 		watch_quota()
 		ee.Number(1).getInfo()
 	except Exception:  # no network, a token refused: the computations will say it
-		pass
+		return
 
 
 def quota_warning(once=False):

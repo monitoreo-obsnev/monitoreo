@@ -94,6 +94,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **QGIS plugin** (fix): It has the changes of v0.3.56 (the whole Mediterranean Sea as one region, the warning of restricted mode before computing), whose plugin was not published: the security scan of plugins.qgis.org stopped it.
+
 ### [v0.3.56](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.56) · 2026-11-19 · package 0.3.66
 
 - **All tools**: The whole Mediterranean Sea is one region, `{"sea": 1905}` or `{"sea": "Mediterranean Sea"}`: its 10 sea areas of the IHO (its two basins, the Alboran, Balearic, Ligurian, Tyrrhenian, Adriatic, Ionian and Aegean seas and the Strait of Gibraltar) as one, with one value per step; the searches of "Mediterranean" give it first.
