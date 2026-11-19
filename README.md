@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.57](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.57) · 2026-11-19 · package 0.3.67
 
 - **QGIS plugin** (fix): It has the changes of v0.3.56 (the whole Mediterranean Sea as one region, the warning of restricted mode before computing), whose plugin was not published: the security scan of plugins.qgis.org stopped it.
 
