@@ -480,7 +480,8 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	in EE_PROJECT (the research EECUs are asked to the broker without connecting, also when they are spent). Both restart
 	on the first day of each month. Answers are kept EECU_TTL seconds (REFRESH asks again). Returns {account ('shared'
 	or 'own'), name, project, used_hours, limit_hours, left_hours, tier, used_percent, left_percent, month, resets, low,
-	warning (None or why to worry), text, bar}, with the texts in LANG ('en' or 'es')."""
+	warning (None or why to worry), text, bar, quota_warning (see quota_warning: Earth Engine has put the project in
+	restricted mode, asked with probe_quota when the account is that connected)}, with the texts in LANG ('en' or 'es')."""
 	lang = 'es' if lang == 'es' else 'en'
 	t = _EECU_TEXT[lang]
 	if shared is None:
@@ -531,6 +532,9 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	       'limit_hours': limit, 'left_hours': round(left, 2), 'tier': tier, 'used_percent': used_pct,
 	       'left_percent': left_pct, 'month': start.isoformat(), 'resets': resets.isoformat(), 'low': left_pct < EECU_LOW,
 	       'warning': warning, 'text': text}
+	if _project and bool(shared) == bool(_shared):  # the account connected: Earth Engine says whether its project is
+		probe_quota()  # in restricted mode, which the broker (with the shared account) does not see
+	out['quota_warning'] = quota_warning()
 	out['bar'] = eecu_bar(out)
 	return out
 
@@ -569,6 +573,8 @@ def eecu_warning(lang='en', limit=None, once=False, python_warning=False):
 QUOTA_MESSAGE = 'Your project has exceeded its noncommercial compute quota'  # the warning of earthengine-api begins so
 QUOTA_TTL = 1800  # seconds after the last warning of restricted mode that the tools still tell it
 QUOTA_EVERY = 300  # seconds between two warnings of restricted mode on stderr
+QUOTA_PROBE = 600  # seconds between two questions of probe_quota to Earth Engine
+_quota_probed = {}  # (project, shared): when probe_quota asked Earth Engine
 _restricted = None  # the last warning of restricted mode: {time, since (the first of those in a row), project, shared}
 _quota_printed = 0.0  # when stderr got a warning of restricted mode
 _quota_given = set()  # (project, since) of the restricted modes whose text quota_warning has given
@@ -630,6 +636,23 @@ def _note_restricted():
 		return False
 	_quota_printed = now
 	return True
+
+
+def probe_quota():
+	"""Ask Earth Engine for a number (ee.Number(1), nothing to compute), at most once every QUOTA_PROBE seconds for the
+	project connected, so that its answer says whether the project is in restricted mode (see watch_quota): the tools
+	can then warn of it before computing, as when the assistant opens (eecu_usage). It never fails."""
+	if not _project:
+		return
+	key = (_project, _shared)
+	if time.time() - _quota_probed.get(key, 0) < QUOTA_PROBE:
+		return
+	_quota_probed[key] = time.time()
+	try:
+		watch_quota()
+		ee.Number(1).getInfo()
+	except Exception:  # no network, a token refused: the computations will say it
+		pass
 
 
 def quota_warning(once=False):

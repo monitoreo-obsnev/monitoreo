@@ -2628,3 +2628,29 @@ def test_stop_cuts_the_request_to_ollama(monkeypatch):
 		assert asyncio.run(run()), 'Ollama did not see the request cut'
 	finally:
 		server.shutdown()
+
+
+def test_restricted_mode_when_the_assistant_opens(monkeypatch):
+	# the EECUs asked when the assistant opens (eecu_events, before any computation) carry quota_warning when Earth
+	# Engine has put the project in restricted mode (services.probe_quota): the page shows it once, with the shared
+	# account with how to use your own project, and a computation afterwards does not show it again
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	quota = 'The shared account of MonitorEO has spent the noncommercial compute quota of its Earth Engine project.'
+	usage = {'account': 'shared', 'name': 'research EECUs', 'project': 'shared-project', 'month': '2026-11-01',
+	         'used_percent': 57.1, 'left_percent': 42.9, 'low': False, 'warning': None, 'quota_warning': quota}
+
+	class Opened(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'eecu_usage':
+				return None, [json.dumps(usage)], []
+			return await super().call(name, args)
+
+	async def run():
+		a = Opened({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
+		a.session, a.tools = object(), assistant.model_tools(TOOLS)
+		return await a.eecu_events(), await a.eecu_events()
+
+	first, second = asyncio.run(run())
+	assert [e['type'] for e in first] == ['eecu', 'quota_warning']
+	assert first[1]['text'].startswith(quota) and 'Use my Google account' in first[1]['text']
+	assert [e['type'] for e in second] == ['eecu']  # once in the conversation

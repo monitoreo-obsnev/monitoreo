@@ -475,9 +475,12 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 	MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: en or
 	es. quota_warning: Earth Engine has put the project in restricted mode (its noncommercial compute quota spent:
 	computations are slow and may fail)."""
+	try:  # connected, so that Earth Engine says whether the project is in restricted mode (services.probe_quota)
+		_ready()
+	except Exception:  # e.g. the research EECUs spent (no token of the broker): the usage says so without connecting
+		pass
 	usage = services.eecu_usage(limit, refresh, lang)
-	quota = services.quota_warning()
-	return _text({**usage, 'quota_warning': quota} if quota else usage)
+	return _text(usage if usage.get('quota_warning') else {k: v for k, v in usage.items() if k != 'quota_warning'})
 
 
 @tool
