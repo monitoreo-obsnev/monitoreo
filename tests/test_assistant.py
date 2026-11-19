@@ -2654,3 +2654,8 @@ def test_restricted_mode_when_the_assistant_opens(monkeypatch):
 	assert [e['type'] for e in first] == ['eecu', 'quota_warning']
 	assert first[1]['text'].startswith(quota) and 'Use my Google account' in first[1]['text']
 	assert [e['type'] for e in second] == ['eecu']  # once in the conversation
+
+	# the broker said it (services.eecu_usage: the warning is the text of restricted mode): only once, as the warning
+	usage.update(warning=quota, quota_warning=quota, left_percent=0, low=True, month='2026-12-01')
+	first, second = asyncio.run(run())
+	assert [e['type'] for e in first] == ['eecu', 'eecu_warning'] and [e['type'] for e in second] == ['eecu']

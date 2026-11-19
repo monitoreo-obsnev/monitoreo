@@ -481,7 +481,8 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	on the first day of each month. Answers are kept EECU_TTL seconds (REFRESH asks again). Returns {account ('shared'
 	or 'own'), name, project, used_hours, limit_hours, left_hours, tier, used_percent, left_percent, month, resets, low,
 	warning (None or why to worry), text, bar, quota_warning (see quota_warning: Earth Engine has put the project in
-	restricted mode, asked with probe_quota when the account is that connected)}, with the texts in LANG ('en' or 'es')."""
+	restricted mode, asked with probe_quota when the account is that connected, and to Earth Engine by the broker for the
+	shared account, also without connecting: then nothing is left)}, with the texts in LANG ('en' or 'es')."""
 	lang = 'es' if lang == 'es' else 'en'
 	t = _EECU_TEXT[lang]
 	if shared is None:
@@ -499,7 +500,8 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 			if shared:
 				d = _broker('/usage', user=user_id())
 				hit = {'used': float(d['used_hours']), 'limit': float(d['limit_hours']), 'project': d.get('project'),
-				       'left': d.get('left_hours'), 'project_left': d.get('project_left_hours')}
+				       'left': d.get('left_hours'), 'project_left': d.get('project_left_hours'),
+				       'restricted': bool(d.get('restricted'))}
 			else:
 				hit = {'used': _own_eecu_hours(_project, start), 'limit': None, 'project': _project}
 		except _MonitoringError as e:
@@ -524,7 +526,10 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	          'resets': _day(resets, lang), 'left': _number(left, lang, 2 if left < 10 else 1),
 	          'project_left': _number(float(hit.get('project_left') or 0), lang, 0)}
 	warning = None
-	if left_pct < EECU_LOW:
+	restricted = shared and hit.get('restricted')  # the broker asks Earth Engine (it gives 0 left)
+	if restricted:
+		warning = _QUOTA_TEXT['shared'].format(project=project)
+	elif left_pct < EECU_LOW:
 		out_key = 'out_project' if by_project and left <= 0 else ('out_' if left_pct <= 0 else 'low_') + kind
 		warning = (t[out_key] + t[kind]).format(**values)
 	text = t['text_' + kind].format(**values) + (t['project_shared'].format(**values) if by_project else '')
@@ -534,7 +539,7 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	       'warning': warning, 'text': text}
 	if _project and bool(shared) == bool(_shared):  # the account connected: Earth Engine says whether its project is
 		probe_quota()  # in restricted mode, which the broker (with the shared account) does not see
-	out['quota_warning'] = quota_warning()
+	out['quota_warning'] = quota_warning() or (warning if restricted else None)
 	out['bar'] = eecu_bar(out)
 	return out
 

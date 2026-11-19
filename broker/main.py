@@ -11,7 +11,7 @@ read Google Drive, Cloud Storage or anything else of the project). See deploy.sh
     GET /usage?user=ID  ->  {"user": ID, "used_hours": <EECU-hours>, "limit_hours": <EECU-hours>,
                              "left_hours": <EECU-hours>, "resets": "YYYY-MM-DD", "project": "...",
                              "project_used_hours": ..., "project_limit_hours": ..., "project_reserve_hours": ...,
-                             "updated": ...}
+                             "restricted": true/false/null, "updated": ...}
     POST /chat?user=ID  ->  the next message of the language model of the assistant of MonitorEO (see below)
     GET /               ->  what this service is
 
@@ -27,6 +27,15 @@ quota but PROJECT_RESERVE EECU-hours, which are kept for the app of Earth Engine
 user): what a user has left (left_hours) is the least of what is left of their own and of the project before its
 reserve. Without an ID (versions of the tools before 0.3.21) there is no token, unless REQUIRE_USER is 0. If Cloud
 Monitoring does not answer, tokens are given.
+
+Earth Engine may also put the project in restricted mode (it has spent its noncommercial compute quota, which is not
+the EECU_LIMIT that this service counts: computations are slow and many fail with too many requests), which Cloud
+Monitoring does not say: every QUOTA_TTL seconds this service asks Earth Engine for a number with a token of
+monitoreo-public, and its answer has the header x-earth-engine-quota-status (parallelism_restricted=true in restricted
+mode). /usage then says restricted (null when it cannot be asked) and, while it is true, that nothing is left
+(left_hours and project_left_hours are 0), so that the tools tell their users to use their own Google Cloud project
+(it said 42.9 % left of the research EECUs of a user while the project was restricted, 2026-11-19). Tokens are still
+given: the shared account still computes, slowly.
 
 /chat is the language model of the assistant of MonitorEO (monitoreo assistant), so that its users need neither a key
 nor a model on their computer: the first one of CHAT_MODELS (Claude Sonnet 5.5) and, only while it has no credit (the
@@ -103,6 +112,10 @@ IAM = 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{}:ge
 MONITORING = 'https://monitoring.googleapis.com/v3/projects/{}/timeSeries?{}'
 EECU_METRIC = 'earthengine.googleapis.com/project/cpu/usage_time'  # "Completed EECU-seconds"
 USAGE_TTL = 300  # seconds that the EECU spent are given again before asking Cloud Monitoring
+EE_COMPUTE = 'https://earthengine.googleapis.com/v1/projects/{}/value:compute'
+QUOTA_HEADER = 'x-earth-engine-quota-status'  # that of earthengine-api (ee/data.py), in each answer of Earth Engine
+QUOTA_RESTRICTED = 'parallelism_restricted=true'  # in QUOTA_HEADER while the project is in restricted mode
+QUOTA_TTL = 600  # seconds that the restricted mode of the project is given again before asking Earth Engine
 ABOUT = {'service': 'Token broker of MonitorEO (Observatorio de Cambio Global de Sierra Nevada, Universidad de Granada)',
          'token': '/token', 'usage': '/usage', 'chat': '/chat',
          'docs': 'https://github.com/monitoreo-obsnev/monitoreo/wiki'}
@@ -115,6 +128,8 @@ _usage = {'month_start': None, 'time': 0, 'users': {}, 'project_hours': 0.0, 'up
 _usage_lock = threading.Lock()
 _no_credit = {}  # model -> time until which it is not asked (it said it had no credit)
 _credit_lock = threading.Lock()
+_quota = {'time': 0, 'restricted': None}  # the last answer of Earth Engine about its restricted mode (see restricted)
+_quota_lock = threading.Lock()
 
 
 def _json(url, data=None, headers=None):
@@ -187,13 +202,48 @@ def usage():
 		return _usage
 
 
-def user_usage(user):
-	"""What /usage answers for USER (None: only the project)."""
+def quota_status(access_token, project):
+	"""The header QUOTA_HEADER of the answer of Earth Engine to a number (a constant: nothing to compute) asked for
+	PROJECT with ACCESS_TOKEN ('' without it)."""
+	body = json.dumps({'expression': {'result': '0', 'values': {'0': {'constantValue': 1}}}}).encode()
+	req = urllib.request.Request(EE_COMPUTE.format(project), data=body, headers={
+		'Authorization': 'Bearer ' + access_token, 'Content-Type': 'application/json'})
+	try:
+		with urllib.request.urlopen(req, timeout=20) as r:
+			return r.headers.get(QUOTA_HEADER) or ''
+	except urllib.error.HTTPError as e:  # too many requests (HTTP 429) also says it
+		status = e.headers.get(QUOTA_HEADER) if e.headers else None
+		if status is None:
+			raise
+		return status
+
+
+def restricted():
+	"""Whether Earth Engine has put PROJECT in restricted mode (asked again every QUOTA_TTL seconds with a token of
+	monitoreo-public), or None when it cannot be asked."""
+	with _quota_lock:
+		if time.time() - _quota['time'] > QUOTA_TTL:
+			try:
+				status = quota_status(token()['access_token'], PROJECT)
+				_quota.update(restricted=QUOTA_RESTRICTED in status)
+			except Exception as e:  # noqa: BLE001  (never the token in the log)
+				print(f'restricted: {type(e).__name__} {getattr(e, "code", "")}', flush=True)
+				_quota.update(restricted=None)
+			_quota['time'] = time.time()
+		return _quota['restricted']
+
+
+def user_usage(user, quota=True):
+	"""What /usage answers for USER (None: only the project); with QUOTA, also whether the project is in restricted
+	mode (see restricted), when nothing is left."""
 	u, (_, resets) = usage(), month()
 	project_left = max(0.0, EECU_LIMIT - PROJECT_RESERVE - u['project_hours'])  # for all the users of the shared account
+	limited = restricted() if quota else None
+	if limited:
+		project_left = 0.0
 	out = {'project': PROJECT, 'project_used_hours': round(u['project_hours'], 3), 'project_limit_hours': EECU_LIMIT,
 	       'project_reserve_hours': PROJECT_RESERVE, 'project_left_hours': round(project_left, 3),
-	       'resets': resets.isoformat(), 'updated': u['updated']}
+	       'restricted': limited, 'resets': resets.isoformat(), 'updated': u['updated']}
 	if user:
 		used = u['users'].get(user, 0.0)
 		out.update(user=user, used_hours=round(used, 3), limit_hours=USER_LIMIT,
@@ -205,7 +255,7 @@ def spent(user):
 	"""Why USER may not get a token (they have spent their research EECUs of this month), or None. Tokens are given
 	when Cloud Monitoring does not answer."""
 	try:
-		u = user_usage(user)
+		u = user_usage(user, quota=False)  # in restricted mode the shared account still computes, slowly
 	except Exception as e:  # noqa: BLE001
 		print(f'usage: {type(e).__name__} {getattr(e, "code", "")}', flush=True)
 		return None

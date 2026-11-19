@@ -3064,7 +3064,7 @@ class MonitorEODock(QDockWidget):
 			self.message(u['warning'] + (OWN_PROJECT if u['account'] == 'shared' else ''), 'Warning', 60)
 		elif asked:
 			self.message(u['text'], 'Info', 10)
-		quota = quota_text(once=True) if u.get('quota_warning') else None
+		quota = quota_text(once=True) if u.get('quota_warning') and u['quota_warning'] != u['warning'] else None
 		if quota:  # Earth Engine has put the project in restricted mode (services.probe_quota): once each time
 			self.message(quota, 'Warning', 60)
 
