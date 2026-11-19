@@ -113,7 +113,11 @@ These are the invariants of MonitorEO. Tests check some of them; the rest depend
   `### Unreleased` at the top of the section `## Changelog` of `README.md` (create the heading if it is not there):
   one line each, with the tools it reaches, `- **QGIS plugin, Earth Engine app**: <what users get>.`, or
   `- **Assistant** (fix): <the error that no longer happens>.` for a fix. Say what users get, not how it was done.
-  The release renames `### Unreleased` to its own heading. `.github/changelog.py` has the format and the tool names;
+  `### Unreleased` is what is in `main` but not yet in the QGIS plugin nor in the Earth Engine app (the README says so
+  to users). **Rule (2026-11-19):** it goes away only with a release of both, the QGIS plugin (its tag) and the Earth
+  Engine app (published): the release renames it to its own heading, and the app of that release is published, after
+  asking, right after its merge (`references/release.md`, steps 2 and 7). Never leave `### Unreleased` after a
+  release, and never rename it without a release of both. `.github/changelog.py` has the format and the tool names;
   `tests/test_changelog.py` and the checker check it.
 
 ## 5. Check before the pull request

@@ -89,8 +89,10 @@ MonitorEO is an output of the EVEREST Project (PID2023-151939OB-I00), funded by 
 What each version brings, newest first. A version is that of the QGIS plugin, the tag of its
 [release](https://github.com/monitoreo-obsnev/monitoreo/releases); the Python and R package `monitoreo` has its own
 number, next to it. **All tools** are those that MonitorEO had at that version, and **(fix)** marks an error that was
-fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
-**Unreleased** before its release.
+fixed. **Unreleased** is what is already in `main` but not yet in the QGIS plugin nor in the Earth Engine app, which
+get it only with a release: the assistant and the MCP server update themselves from `main` when they start, and the
+Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
+Earth Engine app, which gives it its version and date.
 
 ### [v0.3.56](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.56) · 2026-11-19 · package 0.3.66
 
