@@ -1342,7 +1342,7 @@ class Assistant:
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
 		self.eecu = None  # the last answer of eecu_usage (the EECUs of Earth Engine spent this month), or {'error'}
-		self.eecu_warned = set()  # (project, account, month) whose warning of few EECUs left was shown
+		self.eecu_warned = set()  # services.eecu_warning_key of the warnings of the EECUs shown
 		self.quit = None  # stops the web server (see run)
 		self.restart = False  # whether run starts it again (after an update)
 		self.update_info = None  # see check_update
@@ -1663,7 +1663,7 @@ class Assistant:
 			return [{'type': 'eecu', 'usage': self.eecu}]
 		self.eecu = usage
 		events = [{'type': 'eecu', 'usage': usage}]
-		key = (usage['project'], usage['account'], usage['month'])
+		key = services.eecu_warning_key(usage)  # once each kind of warning and day
 		if usage.get('warning') and key not in self.eecu_warned:
 			self.eecu_warned.add(key)
 			events.append({'type': 'eecu_warning', 'text': usage['warning'] +
