@@ -3027,6 +3027,11 @@ class MonitorEODock(QDockWidget):
 		def run(task):
 			if project:  # the research EECUs of the shared account are asked without connecting (also when spent)
 				services.init(project, warn=False)
+			else:  # connected if it can, so that Earth Engine says whether its project is in restricted mode
+				try:
+					services.init(shared=True, warn=False)
+				except Exception:  # e.g. the research EECUs spent: the usage says so without connecting
+					return services.eecu_usage(tier, refresh=refresh, lang='en', shared=True)
 			return services.eecu_usage(tier, refresh=refresh, lang='en', shared=not project)
 
 		def finished(exception, result=None):
@@ -3050,7 +3055,7 @@ class MonitorEODock(QDockWidget):
 		self.eecu_bar.setFormat(f'{used:.1f}% used')
 		self.eecu_label.setText('research EECUs' if u['account'] == 'shared' else 'EECUs of the month')
 		self.eecu_bar.setToolTip(u['text'])
-		color = '#c0392b' if u['low'] else '#d68910' if used >= 75 else '#2e7d32'
+		color = '#c0392b' if u['low'] or u.get('quota_warning') else '#d68910' if used >= 75 else '#2e7d32'
 		self.eecu_bar.setStyleSheet(f'QProgressBar {{ text-align: center; }} '
 		                            f'QProgressBar::chunk {{ background-color: {color}; }}')
 		key = (u['project'], u['account'], u['month'])
@@ -3059,6 +3064,9 @@ class MonitorEODock(QDockWidget):
 			self.message(u['warning'] + (OWN_PROJECT if u['account'] == 'shared' else ''), 'Warning', 60)
 		elif asked:
 			self.message(u['text'], 'Info', 10)
+		quota = quota_text(once=True) if u.get('quota_warning') else None
+		if quota:  # Earth Engine has put the project in restricted mode (services.probe_quota): once each time
+			self.message(quota, 'Warning', 60)
 
 	def authenticate(self):
 		def work():

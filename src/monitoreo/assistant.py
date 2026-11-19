@@ -1668,6 +1668,13 @@ class Assistant:
 			self.eecu_warned.add(key)
 			events.append({'type': 'eecu_warning', 'text': usage['warning'] +
 			               (SWITCH_ACCOUNT if usage['account'] == 'shared' else '')})
+		# Earth Engine has put the project in restricted mode (services.probe_quota, when the assistant opens and after
+		# each computation): once in the conversation, as that of the answers of the tools (run_tool)
+		quota = usage.get('quota_warning')
+		if quota and quota not in self.quota_warned:
+			self.quota_warned.add(quota)
+			events.append({'type': 'quota_warning', 'text': quota + (SWITCH_ACCOUNT if usage['account'] == 'shared'
+			                                                          else '')})
 		return events
 
 	def not_ready(self):

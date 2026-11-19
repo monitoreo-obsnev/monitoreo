@@ -193,3 +193,53 @@ def test_the_qgis_plugin_tells_it(clock, monkeypatch):
 		for m in [m for m in sys.modules if m.startswith('monitoreo_qgis')]:
 			sys.modules.pop(m)
 		sys.modules.update(before)
+
+
+def test_earth_engine_is_asked_with_the_eecus(clock, monkeypatch):
+	"""eecu_usage (when the assistant opens, after each task of QGIS, before each function of R) asks Earth Engine for a
+	number (probe_quota), at most once every QUOTA_PROBE seconds, when the account asked is that connected: its answer
+	says whether the project is in restricted mode, which the broker of the shared account does not see (it said 42.9 %
+	left of the research EECUs of a user while the project was restricted, 2026-11-19)."""
+	asked = []
+
+	class Number:
+		def __init__(self, n):
+			self.n = n
+
+		def getInfo(self):
+			asked.append(self.n)
+			_answer_of_earth_engine()
+			return self.n
+
+	monkeypatch.setattr(services.ee, 'Number', Number)
+	monkeypatch.setattr(services, '_quota_probed', {})
+	monkeypatch.setattr(services, '_eecu', {})
+	monkeypatch.setattr(services, 'user_id', lambda: 'u')
+	monkeypatch.setattr(services, '_broker', lambda path, **kw: {'used_hours': 14.28, 'limit_hours': 25.0,
+	                                                            'left_hours': 10.72, 'project': 'ee-ugr-default-project'})
+	usage = services.eecu_usage(shared=True)
+	assert asked == [1] and usage['warning'] is None and usage['left_percent'] == 42.9
+	assert usage['quota_warning'].startswith('The shared account of MonitorEO has spent')
+	services.eecu_usage(shared=True, refresh=True)
+	assert asked == [1]  # not again before QUOTA_PROBE seconds
+	clock.t += services.QUOTA_PROBE
+	services.eecu_usage(shared=True, refresh=True)
+	assert asked == [1, 1]
+	monkeypatch.setattr(services, '_project', None)  # not connected: nothing asked to Earth Engine
+	clock.t += services.QUOTA_PROBE
+	assert services.eecu_usage(shared=True, refresh=True)['quota_warning'] is None and asked == [1, 1]
+
+
+def test_the_mcp_server_connects_to_tell_it_with_the_eecus(clock, monkeypatch):
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	connected = []
+	monkeypatch.setattr(mcp_server, '_ready', lambda: connected.append(True))
+	monkeypatch.setattr(services, 'eecu_usage', lambda *a: {'used_percent': 1, 'quota_warning': 'restricted'})
+	assert json.loads(mcp_server.eecu_usage())['quota_warning'] == 'restricted' and connected == [True]
+	monkeypatch.setattr(services, 'eecu_usage', lambda *a: {'used_percent': 1, 'quota_warning': None})
+	assert 'quota_warning' not in json.loads(mcp_server.eecu_usage())
+
+	def spent():
+		raise RuntimeError('no token: the research EECUs of this month are spent')
+	monkeypatch.setattr(mcp_server, '_ready', spent)  # the usage is told without connecting
+	assert json.loads(mcp_server.eecu_usage())['used_percent'] == 1

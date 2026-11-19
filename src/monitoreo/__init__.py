@@ -37,5 +37,15 @@ It needs the Earth Engine API (earthengine-api): call services.init() first, wit
 one, to compute with the shared account of MonitorEO.
 """
 
+import os as _os
+
+# numpy of conda-forge on Windows (the environment of the installers of the assistant) multiplies matrices with MKL,
+# whose threads, there with the OpenMP of LLVM (llvm-openmp) instead of that of Intel, end the process at the first
+# product of matrices ("Windows fatal exception: code 0xc06d007f", a function that a DLL loaded late has not got):
+# matplotlib makes one in every chart, so every time series stopped the MCP server of the assistant (checked on
+# Windows 11 with mkl 2026.1 and llvm-openmp 23, 2026-11-19). MKL in one thread does not; it must be set before numpy
+# computes, and a value given by the user is kept. Other BLAS (OpenBLAS, Accelerate) do not read it.
+_os.environ.setdefault('MKL_THREADING_LAYER', 'SEQUENTIAL')
+
 __version__ = '0.3.65'
 __released__ = '2026-11-19'  # the date of the release of this version: that of its heading in the changelog
