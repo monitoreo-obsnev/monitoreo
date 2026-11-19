@@ -339,12 +339,27 @@ def test_the_quota_counters_of_earth_engine():
 	session = _Monitoring({services.QUOTA_LIMIT: [('2026-11-19T00:00:00Z', 3600000)],
 	                       services.QUOTA_USAGE: [('2026-11-19T22:17:00Z', 1586337), ('2026-11-19T22:32:00Z', 1606869),
 	                                              ('2026-11-19T21:32:00Z', 3151042)]})
-	assert services.quota_seconds(session, 'p') == (1606869, 3600000, '2026-11-19T22:32:00Z')
+	import datetime as dt
+	assert services.quota_seconds(session, 'p', now=dt.datetime(2026, 11, 19, 23, tzinfo=dt.timezone.utc)) == \
+		(1606869, 3600000, '2026-11-19T22:32:00Z')
 	assert all('consumer_quota' in a['filter'] and services.QUOTA_METRIC in a['filter'] for a in session.asked)
-	assert services.quota_seconds(_Monitoring({}), 'p') == (None, None, None)
+	assert services.quota_seconds(_Monitoring({}), 'p') == (None, None, None)  # (now)
 	assert services.quota_seconds(_Monitoring({services.QUOTA_LIMIT: [('t', 2 ** 63 - 1)]}), 'p') == (None, None, None)
 	with pytest.raises(services._MonitoringError):
 		services.quota_seconds(_Monitoring({}, status=403), 'p')
+	# only this month (the counter of the last month is not this one) and only the limit of the project
+	now = dt.datetime(2026, 11, 1, 9, 0, tzinfo=dt.timezone.utc)
+	session = _Monitoring({services.QUOTA_LIMIT: [('2026-11-01T08:30:00Z', 3600000)],
+	                       services.QUOTA_USAGE: [('2026-11-01T06:45:00Z', 3559042)]})
+	assert services.quota_seconds(session, 'p', now=now) == (None, 3600000, None)
+	assert all(a['interval.startTime'] == '2026-11-01T07:00:00Z' for a in session.asked)  # midnight, Pacific time
+	assert services.newest_quota([
+		{'metric': {'type': services.QUOTA_LIMIT, 'labels': {'limit_name': 'EarthEngineComputeTimePerMonthPerUser'}},
+		 'points': [{'interval': {'endTime': 't2'}, 'value': {'int64Value': '100'}}]},
+		{'metric': {'type': services.QUOTA_LIMIT, 'labels': {'limit_name': 'EarthEngineComputeTimePerMonthPerProject'}},
+		 'points': [{'interval': {'endTime': 't1'}, 'value': {'int64Value': '3600000'}}]},
+		{'metric': {'type': services.QUOTA_USAGE},
+		 'points': [{'interval': {'endTime': 't1'}, 'value': {'int64Value': '7'}}]}]) == (7, 3600000, 't1')
 
 
 def test_the_bar_of_the_users_project_is_what_earth_engine_counts(clock, monkeypatch):
@@ -397,3 +412,21 @@ def test_the_bar_of_the_shared_account_says_what_earth_engine_counts(clock, monk
 		'quota_reached': False, 'project_quota_percent': 60.2, 'project': 'ee-ugr-default-project'})
 	u = services.eecu_usage(shared=True, lang='es')
 	assert u['source'] == 'quota' and 'lleva el 60,2 % de su cuota mensual' in u['text'] and not u['warning']
+	# near the quota of Earth Engine: a warning (the bar is still that of the user's research EECUs)
+	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
+		'used_hours': 2.0, 'limit_hours': 25.0, 'left_hours': 23.0, 'project_left_hours': 300, 'restricted': False,
+		'quota_reached': False, 'project_quota_percent': 93.4, 'project': 'ee-ugr-default-project'})
+	u = services.eecu_usage(shared=True, refresh=True)
+	assert u['low'] and u['quota_low'] and u['left_percent'] == 92
+	assert u['warning'].startswith('The project of the shared account of MonitorEO is at 93.4% of its monthly EECU')
+	assert services.eecu_warning_key(u)[2] == 'project'
+
+
+def test_each_kind_of_warning_once_a_day():
+	"""A warning of little left does not hide that of the quota reached (as on 2026-11-17)."""
+	low = {'project': 'p', 'account': 'own', 'warning': 'Less than 10%', 'quota_warning': None, 'left_percent': 5}
+	reached = dict(low, warning='Your project has exceeded', quota_warning='Your project has exceeded',
+	               quota_reached=True, left_percent=0)
+	other = dict(low, quota_warning='restricted (seen by earthengine-api)')  # little left, while restricted
+	keys = [services.eecu_warning_key(u)[:3] for u in (low, reached, other, dict(low, left_percent=0))]
+	assert keys == [('p', 'own', 'low'), ('p', 'own', 'reached'), ('p', 'own', 'low'), ('p', 'own', 'out')]

@@ -34,10 +34,10 @@ Earth Engine counts the monthly quota of the project its own way: the quota coun
 consumer_quota, quota/allocation/usage and quota/limit of QUOTA_METRIC), which also have the computations running or
 failed and go down when Earth Engine settles them (it reached the limit on 2026-11-17 while the computations completed
 were 45 % of it). This service reads them with the EECUs of the users: the limit of the project is quota/limit
-(EECU_LIMIT only without it) and what is left for the users is what is left of the larger of the two counts, so that
-the tools warn before Earth Engine restricts the project; quota_reached is whether Earth Engine has counted it all.
-The users' own research EECUs are still those of their completed computations (the counter is not by user), and the
-tokens are not refused by the counter (it may go down the next day): only by the computations completed.
+(EECU_LIMIT only without it), project_quota_percent is how much of it Earth Engine has counted, so that the tools
+warn before Earth Engine restricts the project, and quota_reached is whether it has counted it all (then restricted,
+and nothing left). What is left for the users is still that of their completed computations (the counter is not by
+user, and may go down the next day), which alone may refuse them tokens.
 
 Earth Engine may also put the project in restricted mode (it has spent its noncommercial compute quota, which is not
 the EECU_LIMIT that this service counts: computations are slow and many fail with too many requests), which Cloud
@@ -127,6 +127,7 @@ QUOTA_METRIC = 'earthengine.googleapis.com/monthly_eecu_usage_time'  # the month
 QUOTA_USAGE = 'serviceruntime.googleapis.com/quota/allocation/usage'  # what Earth Engine has counted of it
 QUOTA_LIMIT = 'serviceruntime.googleapis.com/quota/limit'  # and its limit
 QUOTA_REACHED = 0.995  # of the limit: Earth Engine has counted it all (it goes a little over the limit)
+QUOTA_HOURS = 50  # of the newest points of the quota counters (the limit is written about once a day)
 EE_COMPUTE = 'https://earthengine.googleapis.com/v1/projects/{}/value:compute'
 QUOTA_HEADER = 'x-earth-engine-quota-status'  # that of earthengine-api (ee/data.py), in each answer of Earth Engine
 QUOTA_RESTRICTED = 'parallelism_restricted=true'  # in QUOTA_HEADER while the project is in restricted mode
@@ -206,26 +207,31 @@ def eecu_hours_by_tag(token, project, start, end):
 
 def quota_seconds(token, project, now=None):
 	"""(EECU-seconds counted by Earth Engine for the monthly quota of PROJECT, its limit, UTC time of the count) from
-	the quota counters of Cloud Monitoring; None for what they do not have."""
+	the quota counters of Cloud Monitoring: the newest point of each in the last QUOTA_HOURS hours of this month; None
+	for what they do not have (a project without them, or without a monthly limit: int64 max)."""
 	now = now or dt.datetime.now(dt.timezone.utc)
-
-	def newest(metric, hours):
+	since = max(now - dt.timedelta(hours=QUOTA_HOURS), month(now)[0])
+	newest = {}
+	for metric in (QUOTA_LIMIT, QUOTA_USAGE):  # one metric per request of Cloud Monitoring
 		params = {'filter': f'metric.type = "{metric}" AND resource.type = "consumer_quota" AND '
 		                    f'metric.labels.quota_metric = "{QUOTA_METRIC}"',
-		          'interval.startTime': (now - dt.timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+		          'interval.startTime': since.strftime('%Y-%m-%dT%H:%M:%SZ'),
 		          'interval.endTime': now.strftime('%Y-%m-%dT%H:%M:%SZ')}
 		d = _json(MONITORING.format(project, urllib.parse.urlencode(params)), headers={'Authorization': 'Bearer ' + token})
-		points = [(p['interval']['endTime'], p.get('value', {})) for series in d.get('timeSeries', [])
-		          for p in series.get('points', [])]
-		if not points:
-			return None, None
-		time_, v = max(points, key=lambda x: x[0])
-		return float(v.get('int64Value', v.get('doubleValue', 0))), time_
-
-	limit, _ = newest(QUOTA_LIMIT, 50)  # written about once a day
-	if limit is not None and not 0 < limit < 2 ** 62:
-		limit = None
-	used, time_ = newest(QUOTA_USAGE, 6) if limit else (None, None)  # every 15 minutes while it changes
+		for series in d.get('timeSeries', []):
+			name = series.get('metric', {}).get('labels', {}).get('limit_name', '')
+			if name and not name.endswith('PerProject'):  # only the limit of the project
+				continue
+			for p in series.get('points', []):
+				t, v = p['interval']['endTime'], p.get('value', {})
+				if t < params['interval.startTime']:  # of the last month
+					continue
+				if metric not in newest or newest[metric][0] < t:
+					newest[metric] = (t, float(v.get('int64Value', v.get('doubleValue', 0))))
+		limit = newest.get(QUOTA_LIMIT, (None, None))[1]
+		if limit is None or not 0 < limit < 2 ** 62:
+			return None, None, None
+	time_, used = newest.get(QUOTA_USAGE, (None, None))
 	return used, limit, time_
 
 
@@ -284,10 +290,11 @@ def user_usage(user, quota=True):
 	u, (_, resets) = usage(), month()
 	counted, quota_limit, counted_at = u.get('quota') or (None, None, None)
 	limit = quota_limit / 3600 if quota_limit else EECU_LIMIT  # the limit of the project, as Earth Engine has it
-	reserve = PROJECT_RESERVE * limit / EECU_LIMIT
+	reserve = PROJECT_RESERVE * limit / EECU_LIMIT if EECU_LIMIT > 0 else 0.1 * limit
 	counted_hours = None if counted is None else counted / 3600
-	# for all the users of the shared account: what is left of the larger of the two counts
-	project_left = max(0.0, limit - reserve - max(u['project_hours'], counted_hours or 0.0))
+	# for all the users of the shared account: what is left of the computations completed (by those, and not by the
+	# counter of Earth Engine, which may go down the next day, the users get no more tokens: see spent)
+	project_left = max(0.0, limit - reserve - u['project_hours'])
 	reached = counted_hours is not None and counted_hours >= QUOTA_REACHED * limit
 	limited = restricted() if quota else None
 	if reached and quota:

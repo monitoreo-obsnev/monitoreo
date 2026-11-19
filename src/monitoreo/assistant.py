@@ -16,11 +16,13 @@ signs in from the browser, as with `earthengine authenticate`) and that project,
 Drive; the model gets only the text of the conversation, and that of the documents the user uploads to explain their
 questions (reports, tables, notes: monitoreo.documents reads them on this computer; 10 MB in all, in
 ~/MonitorEO/documentos), never their files nor the results. The page shows the EECUs of Earth Engine spent this month
-(with the shared account, the research EECUs of this user, only for research; with the user's own, those of their
-project, against the quota of its tier) and warns when less than 10 % are left, and when Earth Engine has put the
-project in restricted mode (it has spent its noncommercial compute quota: computations are slow and may fail; see
-services.quota_warning), which the model gets too, to tell why. The settings (project, tier of the
-project, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
+(with the shared account, the research EECUs of this user, only for research; with the user's own, the monthly quota
+of their project as Earth Engine counts it in the quota counters of Cloud Monitoring, against the limit that Earth
+Engine gives, or the quota of its tier only when they cannot be read) and warns, once each kind of warning and day
+(services.eecu_warning_key), when less than 10 % are left, and when Earth Engine has put the project in restricted mode
+(it has spent its noncommercial compute quota: computations are slow and may fail; see services.quota_warning), which
+the model gets too, to tell why. The settings (project, tier of the project, used only when the quota counters cannot
+be read, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
 cloud_model, if there, asks the broker for one of its models (to compare them).
 
 While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
@@ -457,7 +459,9 @@ example; below the box are the buttons Upload study area, Upload documents, Crea
 Cloud project, needed to export to Google Drive) and the language model (the model of MonitorEO in the cloud, or a \
 model on the computer with Ollama).
 - The bar of research EECUs: what the user has spent this month of the compute of Earth Engine (with the shared \
-account, 25 EECU-hours a month, only for research); Check asks again.
+account, 25 EECU-hours a month, only for research; with their own project, its monthly quota as Earth Engine counts \
+it, which also counts the computations running or failed and may go down when it settles them; the tier of the \
+settings is used only when Earth Engine's quota counters cannot be read); Check asks again.
 - Protected areas: the search shows the designations with that name; when several fit, the assistant asks which one \
 and waits, and clicking one in the list computes with it (clicking another later repeats the computation with that \
 one).

@@ -959,22 +959,26 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 
 		# the quota counters of Earth Engine: its limit (40 EECU-hours, not EECU_LIMIT) and what it has counted, the
 		# newest point (it counts more than the computations completed: 20 of 40, the users have 40 - 4 - 20 left)
-		counters[broker.QUOTA_LIMIT] = [('2026-11-19T00:00:00Z', 40 * 3600)]
-		counters[broker.QUOTA_USAGE] = [('2026-11-19T10:00:00Z', 30 * 3600), ('2026-11-19T11:00:00Z', 20 * 3600)]
+		def ago(hours):  # an end time of a point of Cloud Monitoring, HOURS before now (this month, within 50 hours)
+			return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+		counters[broker.QUOTA_LIMIT] = [(ago(0.2), 40 * 3600)]
+		counters[broker.QUOTA_USAGE] = [(ago(0.15), 30 * 3600), (ago(0.1), 20 * 3600)]
+		newest = counters[broker.QUOTA_USAGE][-1][0]
 		broker._usage['time'] = broker._quota['time'] = 0
 		u = services._broker('/usage', user=alice)
 		assert u['project_limit_hours'] == 40 and u['project_reserve_hours'] == 4 and u['project_used_hours'] == 14.5
 		assert u['project_quota_used_hours'] == 20 and u['project_quota_percent'] == 50
-		assert u['project_quota_time'] == '2026-11-19T11:00:00Z' and u['project_left_hours'] == 16
+		assert u['project_quota_time'] == newest
+		assert u['project_left_hours'] == 21.5  # of the computations completed (40 - 4 - 14.5), not of the counter
 		assert u['left_hours'] == 7 and u['restricted'] is False and u['quota_reached'] is False
 		# Earth Engine has counted it all: restricted mode (without its header), nothing left, tokens still given
-		counters[broker.QUOTA_USAGE].append(('2026-11-19T12:00:00Z', 40 * 3600 + 100))
+		counters[broker.QUOTA_USAGE].append((ago(0.05), 40 * 3600 + 100))
 		broker._usage['time'] = broker._quota['time'] = 0
 		u = services._broker('/usage', user=alice)
 		assert u['quota_reached'] is True and u['restricted'] is True and u['left_hours'] == 0
 		assert services._broker('/token', user=alice)['access_token'] == 'shared-token'
 		# a project without a monthly limit (int64 max): EECU_LIMIT, and no count of Earth Engine
-		counters[broker.QUOTA_LIMIT] = [('2026-11-19T00:00:00Z', 2 ** 63 - 1)]
+		counters[broker.QUOTA_LIMIT] = [(ago(0.2), 2 ** 63 - 1)]
 		broker._usage['time'] = broker._quota['time'] = 0
 		u = services._broker('/usage', user=alice)
 		assert u['project_limit_hours'] == 30 and 'project_quota_percent' not in u and u['quota_reached'] is False and 'workload_tag' in monitoring[0]  # one query for every user, kept 5 minutes
