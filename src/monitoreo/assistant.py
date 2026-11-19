@@ -17,7 +17,9 @@ Drive; the model gets only the text of the conversation, and that of the documen
 questions (reports, tables, notes: monitoreo.documents reads them on this computer; 10 MB in all, in
 ~/MonitorEO/documentos), never their files nor the results. The page shows the EECUs of Earth Engine spent this month
 (with the shared account, the research EECUs of this user, only for research; with the user's own, those of their
-project, against the quota of its tier) and warns when less than 10 % are left. The settings (project, tier of the
+project, against the quota of its tier) and warns when less than 10 % are left, and when Earth Engine has put the
+project in restricted mode (it has spent its noncommercial compute quota: computations are slow and may fail; see
+services.quota_warning), which the model gets too, to tell why. The settings (project, tier of the
 project, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
 cloud_model, if there, asks the broker for one of its models (to compare them).
 
@@ -936,6 +938,13 @@ def warnings_text(warned):
 	        + ' '.join(warned))
 
 
+def quota_text(warning):
+	"""What the model gets of the WARNING of restricted mode of Earth Engine (quota_warning of the answers of the MCP
+	server, see services.quota_warning), which the page shows: to tell the user why it is slow."""
+	return (' The page also shows this warning of Earth Engine, which you must tell the user in your answer (it is why '
+	        'computations are slow or fail): ' + warning)
+
+
 def receipt(n, title):
 	"""What the model gets of a result: that it was computed and shown, without its values."""
 	return (f'Done: «{title}» has been computed in Google Earth Engine and the assistant shows it to the user, with its '
@@ -953,6 +962,29 @@ def connection_closed(error):
 		pass
 	code = getattr(getattr(error, 'error', None), 'code', None)  # McpError (1.x), MCPError (2.x): their ErrorData
 	return code == CONNECTION_CLOSED
+
+
+def stopped_text(name, before):
+	"""What the log says when the call of the tool NAME finds the MCP server stopped on its own: during that call or
+	before it (a session closed refuses the calls at once, so the next call, whatever its tool, finds it), with BEFORE,
+	the last call that it answered ({name, arguments, time}, or None), and where its traceback is if it crashed."""
+	answered = f'the last call that it answered: {before["name"]}, {round(time.time() - before["time"])} s before' \
+		if before else 'it had answered no call since it started'
+	return (f'the MCP server of MonitorEO stopped on its own before or during the call of the tool {name} '
+	        f'({answered}); if it crashed, its traceback is in the output of the assistant (assistant-output.log): '
+	        '«Fatal Python error» or «Windows fatal exception», but for a fail-fast of Windows (exit code 0xC0000409, '
+	        'e.g. an invalid argument of a native library to the C runtime), which ends the process without it: then '
+	        'its exception code and faulting module are in the Event Viewer of Windows (Windows Logs > Application, '
+	        '«Application Error», event 1000, of python.exe or pythonw.exe)')
+
+
+def has_stderr():
+	"""Whether sys.stderr has a file descriptor (not None, as under pythonw.exe, or a stream of text without one), which
+	the MCP server gets as its own: where faulthandler can write the traceback of a crash."""
+	try:
+		return sys.stderr.fileno() >= 0
+	except (AttributeError, OSError, ValueError):
+		return False
 
 
 def abortable(sockets):
@@ -1298,6 +1330,7 @@ class Assistant:
 		self.server_ready = asyncio.Event()  # set while the MCP server can be called
 		self.session_closed = None  # an event set when the session of the MCP server in use closes (see call)
 		self.restart_task = None  # the restart of the MCP server in progress (see restart_mcp)
+		self.answered = None  # the last call that the MCP server running has answered: {name, arguments, time}
 		self.events, self.offset, self.changed = [], 0, asyncio.Event()  # those of the conversation, from seq offset
 		self.loop, self.closing = None, False  # that of the web server; closing: the pages stop following
 		self.layers = load_layers()
@@ -1349,6 +1382,8 @@ class Assistant:
 		self.inline_used = 0  # characters of documents put in the conversation (also of those removed since)
 		self.dropped = []  # those removed by the user since they were there (the model is told at the next message)
 		self.interrupted = False  # whether the user stopped the last answer (the model is told with the next message)
+		self.quota_warned = set()  # the warnings of restricted mode of Earth Engine shown in this conversation (run_tool)
+		self.quota_note = None  # one of them for the model, with the answer of the tool that brought it (_tool_message)
 
 	def running(self):
 		"""Whether a message is being answered."""
@@ -1483,14 +1518,18 @@ class Assistant:
 		env.update({'MONITOREO_OUTPUT': OUTPUT, 'PYTHONIOENCODING': 'utf-8'})
 		if self.settings.get('project'):
 			env['EE_PROJECT'] = self.settings['project']
-		args = (['-s'] if sys.flags.no_user_site else []) + ['-m', 'monitoreo.mcp_server']
+		# with faulthandler from the start of its interpreter (see mcp_server.main: a crash while it imports its modules
+		# writes its traceback too), if the stderr that it gets, that of the assistant, has a file descriptor (not that
+		# of pythonw.exe without its log, which could stop its start)
+		args = (['-s'] if sys.flags.no_user_site else []) + (['-X', 'faulthandler'] if has_stderr() else []) + \
+		       ['-m', 'monitoreo.mcp_server']
 		try:
 			async with stdio_client(StdioServerParameters(command=sys.executable, args=args, env=env)) as (read, write):
 				async with ClientSession(read, write) as session:
 					await session.initialize()
 					listed = await session.list_tools()
 					self.tools = model_tools([_json(t) for t in listed.tools]) + [MANUAL_TOOL, DOCUMENT_TOOL]
-					self.session, self.session_closed = session, asyncio.Event()
+					self.session, self.session_closed, self.answered = session, asyncio.Event(), None
 					closed = self.session_closed
 					self.server_ready.set()
 					ready.set_result(None)
@@ -1558,7 +1597,8 @@ class Assistant:
 
 	async def _until_closed(self, session, closed, name, args):
 		"""The answer of SESSION to the call of the tool NAME, or RuntimeError if the session closes first (CLOSED:
-		a stop, which starts the server again) or the server had stopped on its own (then it starts again)."""
+		a stop, which starts the server again) or the server had stopped on its own (then it starts again, and the log
+		says before or during which call, and the last call that it answered: see stopped_text)."""
 		pending = asyncio.ensure_future(session.call_tool(name, args))
 		pending.add_done_callback(lambda t: t.cancelled() or t.exception())  # an answer not waited for any more
 		gone = asyncio.ensure_future(closed.wait()) if closed else None
@@ -1572,16 +1612,24 @@ class Assistant:
 		if not pending.done() or pending.cancelled():  # the session closed first (its cancellation is on its way)
 			raise RuntimeError('the MCP server of MonitorEO started again (button Stop): ask for it again')
 		try:
-			return pending.result()
+			answer = pending.result()
 		except Exception as e:
 			if not connection_closed(e) or session is not self.session or (self.server_stop and self.server_stop.is_set()):
 				raise
-			try:  # the server stopped on its own (it ran out of memory, or crashed): it starts again
+			# the server stopped on its own (it ran out of memory, or crashed), during this call or before it (a session
+			# closed refuses the calls at once): the log says so, with the last call that it answered
+			before = self.answered
+			_log({'error': stopped_text(name, before), 'call': {'name': name, 'arguments': args},
+			      **({'answered': {'name': before['name'], 'arguments': before['arguments']}} if before else {})})
+			try:  # it starts again
 				await asyncio.shield(self.restart_mcp())
 			except Exception as again:
 				raise RuntimeError(f'the MCP server of MonitorEO had stopped and could not start again ({again}): close '
 				                   'the assistant and open it again') from e
 			raise RuntimeError('the MCP server of MonitorEO had stopped, and has started again: ask for it again') from e
+		if session is self.session:  # not the answer of a server that has started again since
+			self.answered = {'name': name, 'arguments': args, 'time': time.time()}
+		return answer
 
 	async def connect(self, project):
 		"""Use this Google Cloud project (empty: the shared account of MonitorEO); returns the answer of the MCP
@@ -1760,9 +1808,21 @@ class Assistant:
 			error, texts, images = await self.call(tool, args)
 		except Exception as e:  # the MCP server stopped
 			error, texts, images = f'{type(e).__name__}: {e}', [], []
+		# Earth Engine in restricted mode: the page and the model get it once, and with each error that it explains (the
+		# MCP server ends it with its text, which says how to use your own project only in Python: here, in Settings)
+		texts, quota = _without_quota_warning(texts)
+		error, failed = _without_quota_text(error) if error else (error, None)
+		quota = failed or quota
+		if quota and (failed or quota not in self.quota_warned):
+			self.quota_warned.add(quota)
+			quota += '' if self.settings.get('project') else SWITCH_ACCOUNT
+			self.quota_note = quota  # with the answer of this call (see _tool_message)
+			if not failed:  # that of an error goes in it
+				yield {'type': 'quota_warning', 'text': quota}
 		if error:
 			what = f'The computation «{title}»' if name in RESULTS else f'The request {name}'
-			yield {'type': 'error', 'text': f"{what} has failed: {re.sub(r'^[A-Za-z]+Error: ', '', error)}"}
+			yield {'type': 'error', 'text': f"{what} has failed: {re.sub(r'^[A-Za-z]+Error: ', '', error)}" +
+			                                (f' {quota}' if failed else '')}
 			self._tool_message(name, f'Error: {error}')
 			return
 		if name in ADVICE:
@@ -2586,13 +2646,29 @@ class Assistant:
 		self._tool_message('read_document', answer[:max(self.advice_limit(), size + 400)])
 
 	def _tool_message(self, name, text):
-		self.messages.append({'role': 'tool', 'tool_name': name, 'content': text,
+		"""Give the model the answer TEXT of its call of the tool NAME, with the warning of restricted mode of Earth
+		Engine that the call brought (quota_note, see run_tool), and keep it in the log."""
+		quota, self.quota_note = self.quota_note, None
+		self.messages.append({'role': 'tool', 'tool_name': name, 'content': text + (quota_text(quota) if quota else ''),
 		                      **({'tool_call_id': self.call_id} if self.call_id else {})})
-		_log({'tool': name, 'call': next((c.get('function') for m in reversed(self.messages[:-1])
-		                                   for c in m.get('tool_calls') or [] if (c.get('function') or {}).get('name') == name),
-		                                  None),
+		_log({'tool': name, 'call': self._answered_call(name),
 		      # the text of the documents of the user stays out of the log
-		      'answer': f'({len(text)} characters of a document)' if name == 'read_document' else text[:300]})
+		      'answer': f'({len(text)} characters of a document)' if name == 'read_document' else text[:300],
+		      **({'quota_warning': quota} if quota else {})})
+
+	def _answered_call(self, name):
+		"""The call (its function: name and arguments) of the last message of the model that the last answer of the
+		tool NAME answers: that of its id (self.call_id), else (calls without id, as those of Ollama) the k-th call of
+		NAME of that message for its k-th answer of NAME; None if there is none."""
+		last = next((i for i in range(len(self.messages) - 2, -1, -1) if self.messages[i]['role'] != 'tool'), None)
+		if last is None:
+			return None
+		calls = [c for c in self.messages[last].get('tool_calls') or [] if (c.get('function') or {}).get('name') == name]
+		call = next((c for c in calls if self.call_id and c.get('id') == self.call_id), None)
+		if call is None:
+			k = sum(m.get('tool_name') == name for m in self.messages[last + 1:-1])
+			call = calls[k] if k < len(calls) else None
+		return call.get('function') if call else None
 
 	def _remember_units(self, text):
 		"""Keep the names of the administrative units of an answer of find_admin_units (and of their countries), and
@@ -2994,6 +3070,33 @@ def _without_eecu_warning(text):
 		res.pop('eecu_warning', None)
 		return json.dumps(res, ensure_ascii=False, indent=1, default=str)
 	return text
+
+
+def _without_quota_warning(texts):
+	"""(TEXTS, the answer of a call of a tool of the MCP server, without the quota_warning of its first one, that
+	warning or None): Earth Engine has put the project in restricted mode (see services.quota_warning), which the page
+	shows and the model gets apart (see Assistant.run_tool), so that the results keep only their values."""
+	if not texts or '"quota_warning"' not in texts[0]:
+		return texts, None
+	try:
+		res = json.loads(texts[0])
+	except ValueError:
+		return texts, None
+	if not isinstance(res, dict) or not res.get('quota_warning'):
+		return texts, None
+	warning = res.pop('quota_warning')
+	return [json.dumps(res, ensure_ascii=False, indent=1, default=str)] + list(texts[1:]), warning
+
+
+def _without_quota_text(error):
+	"""(ERROR, the error of a call of a tool of the MCP server, without the text of restricted mode of Earth Engine at
+	its end, that text or None): the MCP server ends so the error of a computation when Earth Engine has the project in
+	restricted mode (see mcp_server.tool and services.quota_warning)."""
+	for text in services._QUOTA_TEXT.values():
+		found = re.search(r'\s*(' + re.escape(text).replace(re.escape('{project}'), r'\S+') + r')\s*$', error)
+		if found:
+			return error[:found.start()], found.group(1)
+	return error, None
 
 
 async def _threaded(produce):

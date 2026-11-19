@@ -65,7 +65,15 @@ WITHIN_MAX_ERROR = 100  # metres: tolerance of the union of the region of within
 # The automatic CRS: the UTM zone of the centre of the region, unless its bounds span more than WIDE_DEGREES of
 # longitude (or cross the antimeridian: then they span 360), where a UTM zone distorts it; then GLOBAL_CRS, WGS 84 /
 # NSIDC EASE-Grid 2.0 Global (equal area, in metres). Spain with the Canary Islands spans some 22 degrees: UTM.
-GLOBAL_CRS = 'EPSG:6933'
+# GLOBAL_CRS is its WKT, not its code (GLOBAL_CRS_CODE): Earth Engine does not parse the code EPSG:6933 ("Projection:
+# The CRS of a map projection could not be parsed", nor EPSG:8857, ESRI:54009 or ESRI:54034; checked on 2026-11-19),
+# but it does this WKT, which gives the same statistics (a month of MODIS chlorophyll over the Mediterranean: as in
+# UTM to 0.01 %) and which GDAL reads as EPSG:6933 too (see crs_code)
+GLOBAL_CRS_CODE = 'EPSG:6933'
+GLOBAL_CRS = ('PROJCS["WGS 84 / NSIDC EASE-Grid 2.0 Global",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,'
+              '298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],'
+              'PROJECTION["Cylindrical_Equal_Area"],PARAMETER["standard_parallel_1",30],PARAMETER["central_meridian",0],'
+              'PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]')
 WIDE_DEGREES = 40
 # A region across the antimeridian has bounds of 360 degrees in EPSG:4326, however small it is (an island of Fiji): its
 # real span is that of its bounds in a Mercator centred on the Pacific (WGS 84 / PDC Mercator, its seam at 30° W), whose
@@ -109,6 +117,28 @@ def srs_of(crs):
 	srs.SetFromUserInput(crs)
 	srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 	return srs
+
+
+def crs_code(srs):
+	"""The code ('EPSG:6933') of the OSR spatial reference SRS: its own or, for a CRS given by its WKT without one
+	(GLOBAL_CRS), that of the CRS that GDAL identifies as the same one (a full match); else None."""
+	code = srs.GetAuthorityCode(None)
+	if code:
+		return f'{srs.GetAuthorityName(None) or "EPSG"}:{code}'
+	try:
+		matches = srs.FindMatches()
+	except Exception:  # an old GDAL, or a CRS that PROJ cannot compare
+		return None
+	for match, confidence in matches or []:
+		if confidence >= 100 and match.GetAuthorityCode(None):
+			return f'{match.GetAuthorityName(None) or "EPSG"}:{match.GetAuthorityCode(None)}'
+	return None
+
+
+def crs_name(crs):
+	"""How the CRS text CRS, as the tools use it ('EPSG:32630', or GLOBAL_CRS), is named to the users: GLOBAL_CRS by
+	its code (GLOBAL_CRS_CODE), any other as it is."""
+	return GLOBAL_CRS_CODE if crs == GLOBAL_CRS else crs
 
 
 def read_vector(path, layer=None):

@@ -97,7 +97,9 @@ km²: a country, a biome, most seas) are computed by default on pixels of 1 to 1
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
 EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
-are left, and when the period begins before the first image of the data or ends (or even begins) after the last one of
+are left, when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
+computations are slow and may fail with too many requests; with the shared account, use your own project), and when
+the period begins before the first image of the data or ends (or even begins) after the last one of
 data that ended in the copy of the Earth Engine data catalog, which Earth Engine may have extended since (a period that
 ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is an error that says their
 dates); their charts say where the values come from, in a line «Data: ...» (the Earth Engine collection and its
@@ -854,10 +856,16 @@ def _data_warnings():
 
 
 def _eecu_notice(services):
-	"""After a command that computes, warn when less than 10 % of the EECUs of the month are left."""
+	"""After a command that computes (also when it fails), warn when less than 10 % of the EECUs of the month are left,
+	and when Earth Engine has put the project in restricted mode (see services.quota_warning: with the shared account,
+	how to compute with your own project)."""
 	warning = services.eecu_warning()
 	if warning:
 		print(f'\nWARNING: {warning}', file=sys.stderr)
+	quota = services.quota_warning()
+	if quota:
+		own = ' In the command line: --project YOUR_PROJECT.' if services.shared() else ''
+		print(f'\nWARNING: {quota}{own}', file=sys.stderr)
 
 
 def _community(args, services):

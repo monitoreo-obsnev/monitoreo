@@ -6,7 +6,8 @@ services.describe_asset), or a dataset of the GEE Community Catalog chosen by it
 community_datasets). The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
 function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the EECUs of Earth Engine
 spent this month (the research EECUs of this user with the shared account, or the monthly quota of the user's project)
-and the message bar warns when less than 10 % are left.
+and the message bar warns when less than 10 % are left, and when Earth Engine has put the project in restricted mode
+(quota_text: it has spent its noncommercial compute quota, so computations are slow and may fail).
 The parameters of each analysis (monitoreo.parameters: the JSON of the function of monitoreo.services and its
 arguments, the same in every tool) are copied or saved by the button Parameters beside its button, from the arguments
 that its button computes with; Apply parameters pastes or opens them and fills the fields of the panel, without
@@ -111,6 +112,8 @@ ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < AL
 MAX_VERTICES = 20000
 MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB), always those of the data; a bigger
 # region is not computed (services.check_pixels: a warning with what to change)
+# how to compute with the user's own account instead of the shared one of MonitorEO, after its warnings
+OWN_PROJECT = ' In this panel: write your project in "Project" and press "Authenticate…".'
 # the data of Earth Engine outside the catalog (monitoreo.assets): images with dates, aggregated in time like the
 # variables (collection=), or a fixed image without dates, like the elevation (image=)
 USES = [('Images with dates (collection)', 'collection'), ('Fixed image (image)', 'image')]
@@ -285,6 +288,14 @@ def result_maps(tool, args):
 	else:
 		main = {'key': '', 'label': f'Whole period ({period})', 'start': args['start'], 'end': args['end']}
 	return [main] + steps.map_steps(tool, args)
+
+
+def quota_text(once=False):
+	"""The warning of services.quota_warning (Earth Engine has put the project in restricted mode: it has spent its
+	noncommercial compute quota, so computations are slow and may fail), with the shared account of MonitorEO followed
+	by how to use the user's own project in this panel; or None. ONCE: only the first time of each restricted mode."""
+	text = services.quota_warning(once=once)
+	return text + OWN_PROJECT if text and services.shared() else text
 
 
 def too_many_text(description, e):
@@ -2973,7 +2984,9 @@ class MonitorEODock(QDockWidget):
 				return
 			if exception is not None:
 				sendlogs.write_failure(description, exception)
-				self.message(f'{description}: {exception}', 'Critical', 15)
+				# why it failed, perhaps (not for the errors of its arguments): Earth Engine in restricted mode
+				quota = None if isinstance(exception, (ValueError, KeyError, TypeError)) else quota_text()
+				self.message(f'{description}: {exception}' + (f' {quota}' if quota else ''), 'Critical', 15)
 				return
 			try:
 				done(result)
@@ -2985,6 +2998,9 @@ class MonitorEODock(QDockWidget):
 			warned = result_warnings(result)
 			if warned:  # days of its period without images of its data: the window of the result shows them too
 				self.message(f"{description}: {' '.join(warned)}", 'Warning', 30)
+			quota = quota_text(once=True)
+			if quota:  # Earth Engine has put the project in restricted mode: once each time
+				self.message(quota, 'Warning', 60)
 			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
@@ -3038,9 +3054,7 @@ class MonitorEODock(QDockWidget):
 		key = (u['project'], u['account'], u['month'])
 		if u['warning'] and (asked or key not in self.eecu_warned):
 			self.eecu_warned.add(key)
-			hint = ' In this panel: write your project in "Project" and press "Authenticate…".' \
-				if u['account'] == 'shared' else ''
-			self.message(u['warning'] + hint, 'Warning', 60)
+			self.message(u['warning'] + (OWN_PROJECT if u['account'] == 'shared' else ''), 'Warning', 60)
 		elif asked:
 			self.message(u['text'], 'Info', 10)
 

@@ -1370,6 +1370,7 @@ function show(e) {
   else if (e.type === 'layers') renderLayers(e.layers);  // a study area made by a result: the perimeter of a fire
   else if (e.type === 'eecu') renderEecu(e.usage);
   else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);
+  else if (e.type === 'quota_warning') notice('⚠ ' + e.text, true);  // Earth Engine in restricted mode: it is slow
   else if (e.type === 'data_warning') notice('⚠ ' + e.text, true);  // days of the period without images of its data
   else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'For ' + e.what + ', MonitorEO has ',
     el('b', {text: e.name}), ': ', el('a', {href: e.url, target: '_blank', rel: 'noopener', text: 'its manual'}), '.'));

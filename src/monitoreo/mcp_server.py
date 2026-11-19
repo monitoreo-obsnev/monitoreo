@@ -9,18 +9,24 @@ With a project (the variable EE_PROJECT or the tool connect) it computes with th
 `earthengine authenticate` and that project; without one, with the shared account of MonitorEO (no exports to
 Google Drive): each user has its research EECUs for each month, only for research. The tool eecu_usage tells the EECUs
 of Earth Engine spent this month (with the shared account, the research EECUs of this user; with the user's own, the
-monthly quota of their project), and the answers of the tools carry eecu_warning when less than 10 % are left. Files
-(CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
+monthly quota of their project), and the answers of the tools carry eecu_warning when less than 10 % are left, and
+quota_warning when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
+computations are slow and may fail with too many requests; see services.quota_warning), which their errors say too.
+Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
 ~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
-that produced each file it publishes. Works with the MCP Python SDK 1.x (FastMCP) and 2.x (MCPServer).
+that produced each file it publishes. If it crashes (a fatal error: an access violation, a stack overflow, an abort),
+the Python traceback of each of its threads goes to its stderr (faulthandler). Works with the MCP Python SDK 1.x
+(FastMCP) and 2.x (MCPServer).
 """
 
 import datetime as dt
+import faulthandler
 import functools
 import inspect
 import json
 import os
 import re
+import sys
 from typing import List, Optional, Union
 
 try:
@@ -185,7 +191,10 @@ has spent them cannot compute with it until the next month, and nor can anyone w
 have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. eecu_usage tells the percent of them spent (with the
 user's own account, of the monthly EECU quota of their project). When an answer has eecu_warning (less than 10 % of
 the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
-Engine account and Google Cloud project (connect).
+Engine account and Google Cloud project (connect). When an answer has quota_warning, or an error ends with its text
+(Earth Engine has put the project in restricted mode: it has spent its noncommercial compute quota, so computations
+are slow and may fail with too many requests), tell the user why it is slow or failed; with the shared account, that
+to compute without waiting they can use their own Google Cloud project registered in Earth Engine (connect).
 
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
 Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes, list_classes) when
@@ -230,9 +239,11 @@ TERRAIN_DOC = """
 
 
 def tool(fn):
-	"""Register FN as a tool whose errors reach the client with their message, and whose calls that write files are
-	kept in the log of OUTPUT (see _log); the tools of the data of Earth Engine by its ID (band) get their explanation
-	(SOURCE_DOC, TERRAIN_DOC) in their description, and those with where, its explanation (WHERE_DOC)."""
+	"""Register FN as a tool whose errors reach the client with their message (those of the tools that compute, but
+	the errors of their arguments, with the text of services.quota_warning when Earth Engine is in restricted mode), and
+	whose calls that write files are kept in the log of OUTPUT (see _log); the tools of the data of Earth Engine by its
+	ID (band) get their explanation (SOURCE_DOC, TERRAIN_DOC) in their description, and those with where, its
+	explanation (WHERE_DOC)."""
 	sig = inspect.signature(fn)
 	if 'band' in sig.parameters:
 		fn.__doc__ = fn.__doc__.rstrip() + SOURCE_DOC + (TERRAIN_DOC if 'terrain' in sig.parameters else '')
@@ -246,7 +257,10 @@ def tool(fn):
 		except ToolError:
 			raise
 		except Exception as e:
-			raise ToolError(f'{type(e).__name__}: {e}') from e
+			error = f'{type(e).__name__}: {e}'
+			quota = None if fn.__name__ in NO_EECU_WARNING or isinstance(e, (ValueError, KeyError, TypeError)) else \
+				services.quota_warning()  # why it failed, perhaps: Earth Engine in restricted mode
+			raise ToolError(f"{error}{'' if error.endswith('.') else '.'} {quota}" if quota else error) from e
 		_log(fn.__name__, sig, args, kwargs, out)
 		return out if fn.__name__ in NO_EECU_WARNING else _eecu_warning(out)
 	return server.tool()(wrapped)
@@ -259,10 +273,12 @@ NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'p
 
 def _eecu_warning(out):
 	"""The answer OUT of a tool with the warning of services.eecu_warning (eecu_warning in its JSON object) when less
-	than 10 % of the EECUs of the month are left."""
-	warning = services.eecu_warning()
+	than 10 % of the EECUs of the month are left, and that of services.quota_warning (quota_warning) when Earth Engine
+	has put the project in restricted mode."""
+	warned = {k: w for k, w in (('eecu_warning', services.eecu_warning()), ('quota_warning', services.quota_warning()))
+	          if w}
 	text = out[0] if isinstance(out, list) and out else out
-	if not warning or not isinstance(text, str):
+	if not warned or not isinstance(text, str):
 		return out
 	try:
 		res = json.loads(text)
@@ -270,7 +286,7 @@ def _eecu_warning(out):
 		return out
 	if not isinstance(res, dict):
 		return out
-	text = _text({**res, 'eecu_warning': warning})
+	text = _text({**res, **warned})
 	return [text] + out[1:] if isinstance(out, list) else text
 
 
@@ -443,7 +459,7 @@ def connect(project: str = '') -> str:
 	p = services.init(project or None, shared=not project, warn=False)
 	text = f'Connected to Earth Engine with the shared account of MonitorEO (project {p}): the research EECUs of each ' \
 	       'user are only for research' if services.shared() else f'Connected to Earth Engine with the project {p}'
-	warning = services.eecu_warning()
+	warning = ' '.join(w for w in (services.eecu_warning(), services.quota_warning()) if w)
 	return f'{text}. {warning}' if warning else text
 
 
@@ -457,8 +473,11 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 	the user's own project, the monthly quota of that project (the Cloud Monitoring API must be enabled in it), against
 	limit: its EECU-hours a month or tier (Community 150, Contributor 1000, Partner 100000; default
 	MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: en or
-	es."""
-	return _text(services.eecu_usage(limit, refresh, lang))
+	es. quota_warning: Earth Engine has put the project in restricted mode (its noncommercial compute quota spent:
+	computations are slow and may fail)."""
+	usage = services.eecu_usage(limit, refresh, lang)
+	quota = services.quota_warning()
+	return _text({**usage, 'quota_warning': quota} if quota else usage)
 
 
 @tool
@@ -1246,6 +1265,13 @@ def task_status(operation: str) -> str:
 
 
 def main():
+	"""Run the server; if it crashes (a fatal error: an access violation, a stack overflow, an abort), the Python
+	traceback of each of its threads goes to its stderr, never to its stdout (the channel of the MCP protocol), so that
+	the log of its client says where (that of the assistant: assistant-output.log as an app)."""
+	try:
+		faulthandler.enable(file=sys.stderr, all_threads=True)
+	except Exception:  # no stderr with a file descriptor (pythonw.exe: None): no traceback, but the server starts
+		pass
 	server.run()
 
 
