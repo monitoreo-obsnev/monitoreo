@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.58](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.58) · 2026-11-19 · package 0.3.68
 
 - **Assistant, QGIS plugin, MCP server, Command line, R package, Python package** (fix): With the shared account, the bar of the research EECUs no longer says that some are left while Earth Engine has put the project of MonitorEO in restricted mode (it said 42.9 %): the broker asks Earth Engine, and then the bar is full and the tools say to use your own Google Cloud project, also before connecting. The shared account still computes, slowly.
 
