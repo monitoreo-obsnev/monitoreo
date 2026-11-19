@@ -92,6 +92,10 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **Earth Engine app**: A button ? beside the title «Only the pixels where» explains what it does, with examples (the pixels above 1,500 m, the gentle slopes, the wet valley bottoms), and links to its section of the manual.
+
 ### [v0.3.53](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.53) · 2026-11-18 · package 0.3.63
 
 - **All tools**: New variables: the snow cover frequency (SCF) and the snow cover days (SCD) of Sentinel-2 (20 m, an image every 5 days, since 2017), with the rules of those of Landsat, its clouds from Cloud Score+.

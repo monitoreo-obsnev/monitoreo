@@ -58,6 +58,16 @@
 				'datos (CORINE fuera de Europa). Qué clases de cada mapa son cada uso: manual, Conceptos.',
 			noLandcover: 'Máscara de usos del suelo: marca los usos que quitar (o desmarca la máscara).',
 			whereHeader: 'Solo los píxeles donde', whereOn: 'una variable está entre dos valores', between: 'entre',
+			whereHelp: 'Para calcular solo en una parte de la región: los píxeles donde una variable está entre un mínimo ' +
+				'y un máximo. Los mapas, series, tendencias, comparaciones e incendios usan solo esos píxeles, como si los ' +
+				'demás estuvieran fuera de la región.\n' +
+				'Por ejemplo, ELEVATION · Copernicus entre 1500 y nada guarda los píxeles por encima de 1.500 m; SLOPE · ' +
+				'Copernicus entre nada y 20, las pendientes de menos de 20°; TWI · MERIT Hydro desde 10, los fondos de ' +
+				'valle húmedos.\n' +
+				'Una variable con fechas (NDVI, PRECIP...) es su media en el periodo de arriba, la misma para cada paso y ' +
+				'para los dos periodos de una comparación. Con una capa categórica (ECOREGION, BIOME), en lugar de dos ' +
+				'valores, se guardan o se quitan algunas de sus clases, por sus códigos.',
+			whereManual: 'Más en el manual: Filtrar el área de estudio',
 			and: 'y', whereNote: 'Mín. o máx. vacío: sin límite. Una variable con fechas es su media en el periodo, la ' +
 			'misma para cada paso y para los dos periodos de una comparación.',
 			badLimit: 'El límite %s no es un número.', noLimit: 'Da un mínimo, un máximo o los dos.',
@@ -314,6 +324,16 @@
 				'no data (CORINE outside Europe). Which classes of each map are each land cover: manual, Concepts.',
 			noLandcover: 'Land cover mask: check the land covers to leave out (or uncheck the mask).',
 			whereHeader: 'Only the pixels where', whereOn: 'a variable is between two values', between: 'between',
+			whereHelp: 'To compute over only a part of the region: the pixels where a variable is between a min and a ' +
+				'max. The maps, series, trends, comparisons and fires use only those pixels, as if the others were ' +
+				'outside the region.\n' +
+				'For example, ELEVATION · Copernicus between 1500 and nothing keeps the pixels above 1,500 m; SLOPE · ' +
+				'Copernicus between nothing and 20, the slopes under 20°; TWI · MERIT Hydro from 10, the wet valley ' +
+				'bottoms.\n' +
+				'A variable with dates (NDVI, PRECIP...) is its mean over the period above, the same for every step and ' +
+				'for both periods of a comparison. With a categorical layer (ECOREGION, BIOME), instead of two values, ' +
+				'some of its classes are kept or left out, by their codes.',
+			whereManual: 'More in the manual: Filtering the study area',
 			and: 'and', whereNote: 'An empty min or max: no limit. A variable with dates is its mean over the period, the ' +
 			'same for every step and for both periods of a comparison.',
 			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
@@ -549,7 +569,7 @@
 		seaText: '', seaItems: null, seaNames: {}, seaId: null,  // the oceans and seas (mode sea)
 		region: null, regionName: null, info: null,
 		regionAdmin: null,  // the level of the administrative unit that is the region, or 'sea' (its credits), or null
-		feedbackOpen: false, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
+		feedbackOpen: false, help: {}, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		// the filters chosen by the user while a variable with fixed filters (SCF, CF, data by ID) is selected: those of
@@ -642,6 +662,25 @@
 
 	function header(text) {
 		return ui.Label(text, H);
+	}
+
+	// The title of a group of the panel with a button ? beside it that shows or hides, under it, its help (the text
+	// KEY + 'Help') and a link to its section of the manual (the text KEY + 'Manual'; PAGES: the page#section in
+	// Spanish and in English), as the ⓘ of the QGIS plugin
+	var HELP_BUTTON = {padding: '0', margin: '10px 0 0 2px', fontWeight: 'bold', color: '#1a73e8'};
+	var HELP_TEXT = {fontSize: '12px', color: '#333', backgroundColor: '#eef3fb', padding: '6px 8px',
+		margin: '0 8px 4px 8px', whiteSpace: 'pre-wrap'};
+	function helpHeader(text, key, pages) {
+		var w = [row(header(text), ui.Button({label: '?', style: HELP_BUTTON, onClick: function () {
+			state.help[key] = !state.help[key];
+			render();
+		}}))];
+		if (state.help[key]) {
+			w.push(ui.Label(t(key + 'Help'), HELP_TEXT));
+			w.push(ui.Label('→ ' + t(key + 'Manual'), {fontSize: '12px', margin: '0 8px 4px 8px'},
+				mo.CATALOG.about.manual + '/' + pages[state.lang === 'en' ? 1 : 0]));
+		}
+		return w;
 	}
 
 	function row() {
@@ -1422,7 +1461,8 @@
 		mo.conflicts(e, state.quality).forEach(function (f) {
 			w.push(ui.Label(fmt(t('conflict'), t(f)), {fontSize: '12px', color: '#b06000'}));
 		});
-		w.push(header(t('whereHeader')));
+		w = w.concat(helpHeader(t('whereHeader'), 'where',
+			['Conceptos#filtrar-el-área-de-estudio', 'Concepts#filtering-the-study-area']));
 		w.push(check(t('whereOn'), state.whereOn, function (v) {
 			state.whereOn = v;
 			render();
