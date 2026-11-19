@@ -27,7 +27,10 @@ Call init() first. With a project (init(project) or the variable EE_PROJECT) it 
 `earthengine authenticate` and the quota of that project; without one, with the shared account of MonitorEO, whose
 research EECUs (the compute of Earth Engine of each month: the same for each user, who is the anonymous ID of each
 installation) are only for research. eecu_usage tells how much of them (or, with the user's own account, of the monthly
-EECU quota of their project) has been spent, and the tools warn when less than 10 % is left (see eecu_warning).
+EECU quota of their project) has been spent, and the tools warn when less than 10 % is left (see eecu_warning). When
+Earth Engine puts the project in restricted mode (it has spent its noncommercial compute quota: computations are slow
+and may fail with too many requests), the tools tell it too, with the shared account that the user can compute with
+their own Google Cloud project (see quota_warning).
 
 The periods are checked against the dates of the images of the data before computing (see monitoreo.coverage): a period
 that ends before the first image, falls in a gap between the collections or begins after today is an error, and one
@@ -52,6 +55,7 @@ import json
 import math
 import os
 import re
+import threading
 import time
 import warnings
 
@@ -143,8 +147,10 @@ def init(project=None, shared=False, warn=True):
 	project left empty), with the shared account of MonitorEO: a token of one hour from its broker, renewed by itself,
 	and the project of MonitorEO; it cannot export to Google Drive (see need_own_account), and each user has research
 	EECUs for each month (see eecu_usage): who has spent theirs gets no token until the next month. When it connects,
-	with WARN it gives a Python warning (EECUWarning) if less than 10 % of the EECUs of the month are left."""
+	with WARN it gives a Python warning (EECUWarning) if less than 10 % of the EECUs of the month are left. It notes
+	the warnings of Earth Engine of its restricted mode (see watch_quota and quota_warning)."""
 	global _project, _shared
+	watch_quota()
 	project = None if shared else project or os.environ.get('EE_PROJECT') or os.environ.get('GOOGLE_CLOUD_PROJECT')
 	if not project:
 		was = _shared
@@ -556,6 +562,96 @@ def eecu_warning(lang='en', limit=None, once=False, python_warning=False):
 	if python_warning:
 		warnings.warn(usage['warning'], EECUWarning, stacklevel=3)
 	return usage['warning']
+
+
+# Restricted mode: Earth Engine slows down a project that has spent its noncommercial compute quota -----------------
+
+QUOTA_MESSAGE = 'Your project has exceeded its noncommercial compute quota'  # the warning of earthengine-api begins so
+QUOTA_TTL = 1800  # seconds after the last warning of restricted mode that the tools still tell it
+QUOTA_EVERY = 300  # seconds between two warnings of restricted mode on stderr
+_restricted = None  # the last warning of restricted mode: {time, since (the first of those in a row), project, shared}
+_quota_printed = 0.0  # when stderr got a warning of restricted mode
+_quota_given = set()  # (project, since) of the restricted modes whose text quota_warning has given
+_quota_passing = threading.local()  # a warning of restricted mode on its way to stderr, in this thread
+
+_QUOTA_TEXT = {
+	'shared': 'The shared account of MonitorEO has spent the noncommercial compute quota of its Earth Engine project '
+	          'for now, and Earth Engine has put it in restricted mode: computations are slow (fewer at the same time) '
+	          'and may fail with too many requests (HTTP 429). To compute without waiting, use your own Google Cloud '
+	          'project registered in Earth Engine (https://developers.google.com/earth-engine/guides/access); in Python, '
+	          'after `earthengine authenticate`: init(project=...) or the variable EE_PROJECT.',
+	'own': 'Your Earth Engine project {project} has exceeded its noncommercial compute quota, and Earth Engine has put it '
+	       'in restricted mode: computations are slow (fewer at the same time) and may fail with too many requests '
+	       '(HTTP 429); see ' + TIERS_URL + '#restricted_mode. For more quota, raise the tier of the project: '
+	       'https://console.cloud.google.com/earth-engine/configuration?project={project}',
+}
+
+
+def watch_quota():
+	"""Note the warnings of restricted mode of earthengine-api (see quota_warning): a hook of warnings.showwarning over
+	the one there, which passes every warning on to it but those of restricted mode, at most one every QUOTA_EVERY
+	seconds (Earth Engine warns with each answer), and a filter that lets each of them reach it (Python would show only
+	the first one of each place). At the import of the services, and again in init if another hook has replaced it; it
+	only sets values, so the threads of the QGIS plugin can warn at the same time."""
+	if not getattr(warnings.showwarning, 'monitoreo_quota', False):
+		warnings.showwarning = _quota_hook(warnings.showwarning)
+	pattern = re.escape(QUOTA_MESSAGE)
+	if not any(f[0] == 'always' and getattr(f[1], 'pattern', None) == pattern for f in warnings.filters):
+		warnings.filterwarnings('always', message=pattern, category=UserWarning)
+
+
+def _quota_hook(shown):
+	"""warnings.showwarning that notes the warnings of restricted mode (see watch_quota) and passes them on to SHOWN,
+	the previous hook, at most one every QUOTA_EVERY seconds, and every other warning always."""
+	def show(message, category, filename, lineno, file=None, line=None):
+		if getattr(_quota_passing, 'on', False) or not (isinstance(category, type) and
+		                                                issubclass(category, UserWarning) and
+		                                                str(message).startswith(QUOTA_MESSAGE)):
+			return shown(message, category, filename, lineno, file, line)
+		if not _note_restricted():
+			return None
+		_quota_passing.on = True  # through the hooks below this one, which may be this one again (see watch_quota)
+		try:
+			return shown(message, category, filename, lineno, file, line)
+		finally:
+			_quota_passing.on = False
+	show.monitoreo_quota = True
+	return show
+
+
+def _note_restricted():
+	"""Note a warning of restricted mode of Earth Engine for the project connected; whether it goes on to stderr (none
+	did in the last QUOTA_EVERY seconds)."""
+	global _restricted, _quota_printed
+	now, seen = time.time(), _restricted
+	same = bool(seen) and (seen['project'], seen['shared']) == (_project, _shared) and now - seen['time'] <= QUOTA_TTL
+	_restricted = {'time': now, 'since': seen['since'] if same else now, 'project': _project, 'shared': _shared}
+	if now - _quota_printed < QUOTA_EVERY:
+		return False
+	_quota_printed = now
+	return True
+
+
+def quota_warning(once=False):
+	"""Why Earth Engine computes slowly, or None: the text of its restricted mode when earthengine-api has warned of it
+	(see watch_quota) for the project connected in the last QUOTA_TTL seconds. Earth Engine puts a project that has
+	spent its noncommercial compute quota in restricted mode: fewer requests at the same time, many answered «too many
+	requests» (HTTP 429, which earthengine-api tries again), so computations are slow or fail. With the shared account of
+	MonitorEO, the text says to use the user's own Google Cloud project; with theirs, that it has spent its quota. With
+	ONCE, only the first time of each restricted mode (one more begins when Earth Engine warns again after QUOTA_TTL
+	seconds without warnings). It never fails, and asks nothing to Earth Engine: the tools call it after computing."""
+	seen = _restricted
+	if not seen or not _project or (seen['project'], seen['shared']) != (_project, _shared) or \
+			time.time() - seen['time'] > QUOTA_TTL:
+		return None
+	key = (seen['project'], seen['since'])
+	if once and key in _quota_given:
+		return None
+	_quota_given.add(key)
+	return _QUOTA_TEXT['shared' if seen['shared'] else 'own'].format(project=seen['project'])
+
+
+watch_quota()
 
 
 def about(lang='en'):

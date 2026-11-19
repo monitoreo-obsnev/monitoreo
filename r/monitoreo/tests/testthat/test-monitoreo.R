@@ -921,6 +921,38 @@ test_that("the dates of the data: the warnings of the period as R warnings, its 
   expect_equal(ggplot2::get_labs(mo_plot(ts))$caption, paste("Data:", src))
 })
 
+test_that("Earth Engine in restricted mode: a computation that fails says why with its error, without Earth Engine", {
+  # the services of Python (monitoreo.services): Earth Engine warns of its restricted mode while it computes (see
+  # services.quota_warning), and the computation fails with too many requests
+  text <- paste("The shared account of MonitorEO has spent the noncommercial compute quota of its Earth Engine",
+                "project for now, and Earth Engine has put it in restricted mode.")
+  restricted <- FALSE
+  given <- FALSE
+  fake <- list(
+    eecu_warning = function(...) NULL,
+    shared = function() TRUE,
+    quota_warning = function(once = FALSE) {
+      if (!restricted || (once && given)) return(NULL)
+      given <<- TRUE
+      text
+    },
+    time_series = function(...) {
+      restricted <<- TRUE
+      stop("ee.ee_exception.EEException: Too many concurrent aggregations.", call. = FALSE)
+    })
+  mo <- getFromNamespace(".mo", "monitoreo")
+  before <- mo$services
+  mo$services <- fake
+  on.exit(mo$services <- before, add = TRUE)
+  region <- mo_bbox(-3.45, 37.02, -3.30, 37.12)
+  expect_warning(expect_error(mo_time_series(region, "NDVI", "Sentinel-2", "2020-01-01", "2020-12-31"),
+                              "Too many concurrent aggregations"),
+                 paste(text, "In R: mo_init(\"<your project>\")."), fixed = TRUE)
+  # once each time it begins
+  expect_no_warning(expect_error(mo_time_series(region, "NDVI", "Sentinel-2", "2020-01-01", "2020-12-31"),
+                                 "Too many concurrent aggregations"))
+})
+
 test_that("the dates of the data from Python, without Earth Engine: a period without images is an error", {
   skip_if_no_python()
   d <- mo_describe("NDVI", "Sentinel-2")

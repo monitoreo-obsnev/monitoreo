@@ -111,9 +111,10 @@ cited <- function(df, res) {
 
 # The warnings of the period of the answer RES of Python (the days without images of its data: the period begins
 # before the first image, or ends after the last one of data that ended; see monitoreo.coverage) as R warnings, each
-# once. RES, invisibly.
+# once, and that of Earth Engine in restricted mode if it began while computing it (quota_check). RES, invisibly.
 data_warnings <- function(res) {
   for (w in unique(as.character(unlist(res$warnings)))) warning(w, call. = FALSE)
+  if (!is.null(.mo$services)) quota_check(.mo$services)
   invisible(res)
 }
 
@@ -288,6 +289,9 @@ check_data <- function(variable, sensor, collection = NULL, image = NULL, band =
   invisible(TRUE)
 }
 
+# The services of Python (monitoreo.services), after the R warnings of eecu_check. When the function that called it
+# ends, also with an error, the R warning of quota_check if Earth Engine has put the project in restricted mode
+# meanwhile: a computation that fails then (too many requests) says why, after its error.
 services <- function() {
   if (is.null(.mo$services)) {
     if (!reticulate::py_module_available("monitoreo")) {
@@ -301,15 +305,27 @@ services <- function() {
       "ignore", category = reticulate::import("monitoreo.coverage")$DataDatesWarning), error = function(e) NULL)
   }
   eecu_check(.mo$services)
+  do.call(on.exit, list(quote(quota_check(.mo$services)), add = TRUE), envir = parent.frame())
   .mo$services
 }
 
 # An R warning, once a month and project, when less than 10 % of the EECUs of Earth Engine of the month are left (with
-# the shared account, its research EECUs: then switch to your own account). Nothing before mo_init().
+# the shared account, its research EECUs: then switch to your own account), and that of quota_check. Nothing before
+# mo_init().
 eecu_check <- function(s) {
   w <- tryCatch(s$eecu_warning(once = TRUE), error = function(e) NULL)
   if (!is.null(w)) warning(w, if (isTRUE(s$shared())) " In R: mo_init(\"<your project>\")." else "", call. = FALSE)
+  quota_check(s)
   invisible(w)
+}
+
+# An R warning, once each time it begins, when Earth Engine has put the project in restricted mode (it has spent its
+# noncommercial compute quota: computations are slow and may fail with too many requests; with the shared account,
+# then use your own project): see services.quota_warning. Nothing before mo_init().
+quota_check <- function(s) {
+  q <- tryCatch(s$quota_warning(once = TRUE), error = function(e) NULL)
+  if (!is.null(q)) warning(q, if (isTRUE(s$shared())) " In R: mo_init(\"<your project>\")." else "", call. = FALSE)
+  invisible(q)
 }
 
 #' Install the Python package monitoreo
@@ -335,7 +351,9 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
 #' \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
 #' Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
 #' (who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
-#' month are left (see \code{mo_eecu()}).
+#' month are left (see \code{mo_eecu()}), and when Earth Engine has put the project in restricted mode (it has spent
+#' its noncommercial compute quota: computations are slow and may fail with too many requests; with the shared
+#' account, use your own project to compute without waiting), also after the error of a computation that fails then.
 #' @param project Google Cloud project (default: the variable \code{EE_PROJECT}; \code{""}: the shared account of
 #'   MonitorEO).
 #' @param python optional path of the Python with monitoreo (see \code{reticulate::use_python()}).

@@ -269,10 +269,13 @@ def _csv_header(path):
 def _bands(path):
 	"""[(number, name, unit)] of the bands of a GeoTIFF and its grid {crs, resolution, width, height}."""
 	from osgeo import gdal, osr
+
+	from . import areas
 	gdal.UseExceptions()
 	ds = gdal.Open(path)
 	srs = osr.SpatialReference(wkt=ds.GetProjection()) if ds.GetProjection() else None
-	crs = f"EPSG:{srs.GetAuthorityCode(None)}" if srs is not None and srs.GetAuthorityCode(None) else 'unknown CRS'
+	# a CRS without a code (one given by its WKT, as areas.GLOBAL_CRS) by the code of the same CRS, else by its name
+	crs = (areas.crs_code(srs) or srs.GetName() or 'unknown CRS') if srs is not None else 'unknown CRS'
 	grid = {'crs': crs, 'resolution': abs(ds.GetGeoTransform()[1]), 'width': ds.RasterXSize,
 	        'height': ds.RasterYSize}
 	bands = [(i, ds.GetRasterBand(i).GetDescription(), ds.GetRasterBand(i).GetUnitType())

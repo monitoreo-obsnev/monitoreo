@@ -51,7 +51,7 @@ class Grid:
 		return self.xmin, self.ymax - self.height * self.res, self.xmin + self.width * self.res, self.ymax
 
 	def describe(self):
-		return {'crs': self.crs, 'resolution': self.res, 'width': self.width, 'height': self.height,
+		return {'crs': areas.crs_name(self.crs), 'resolution': self.res, 'width': self.width, 'height': self.height,
 		        'extent': list(self.extent)}
 
 	def region(self):
@@ -68,6 +68,8 @@ class Grid:
 		}
 		if self.crs.upper().startswith(('EPSG:', 'ESRI:', 'SR-ORG:')):
 			grid['crsCode'] = self.crs
+		elif self.crs == areas.GLOBAL_CRS:  # its WKT as it is: the one that Earth Engine parses (see areas.GLOBAL_CRS)
+			grid['crsWkt'] = self.crs
 		else:
 			grid['crsWkt'] = areas.srs_of(self.crs).ExportToWkt()
 		return grid

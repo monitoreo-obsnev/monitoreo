@@ -2071,8 +2071,9 @@ var MonitorEO = (function () {
 	var BIOME_CODES = '1 to 14 or 99 (Rock and Ice)';  // areas.BIOME_CODES: the codes of the biomes, in the messages
 	var WITHIN_MAX_ERROR = 100;  // areas.WITHIN_MAX_ERROR: metres, the union of the region of within, the part inside
 	// areas.GLOBAL_CRS and WIDE_DEGREES: the CRS (equal area, metres) of the regions whose bounds span more degrees of
-	// longitude than that (or cross the antimeridian), too wide for a UTM zone
-	var GLOBAL_CRS = 'EPSG:6933';
+	// longitude than that (or cross the antimeridian), too wide for a UTM zone: EPSG:6933 by its WKT, which Earth
+	// Engine parses (not its code: "Projection: The CRS of a map projection could not be parsed")
+	var GLOBAL_CRS = 'PROJCS["WGS 84 / NSIDC EASE-Grid 2.0 Global",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Cylindrical_Equal_Area"],PARAMETER["standard_parallel_1",30],PARAMETER["central_meridian",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1]]';
 	var WIDE_DEGREES = 40;
 	// areas.PACIFIC_CRS: the span of a region across the antimeridian (360 in EPSG:4326) is that of its bounds in a
 	// Mercator centred on the Pacific, PACIFIC_M_PER_DEGREE metres of x per degree

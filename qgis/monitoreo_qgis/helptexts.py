@@ -81,6 +81,10 @@ HELP = {
 		'Engine does not stop, but it computes much more slowly until the next month.</p>'
 		'<p>It warns when less than 10% is left. The bar is updated after each computation; <b>Check</b> asks '
 		'again.</p>'
+		'<p>It also warns when Earth Engine has put the project in <b>restricted mode</b>: its noncommercial compute '
+		'quota is spent, so the computations are slow and may fail with too many requests. When it is the project of '
+		'the shared account, write your own project in <b>Project</b> and press <b>Authenticate…</b> to compute '
+		'without waiting.</p>'
 		+ manual('Concepts#eecus-spent-this-month'),
 	'region':
 		'<p>What is computed over:</p><ul>'

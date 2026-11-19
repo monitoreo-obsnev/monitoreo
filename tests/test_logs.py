@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import textwrap
 import types
 import urllib.error
 import urllib.parse
@@ -24,6 +25,23 @@ TOKEN = 'ya29.' + 'a0Fake' * 6
 REFRESH = '1//' + '0gFake' * 6
 CLAUDE_KEY = 'sk-ant-' + 'api03-fake' * 4
 GOOGLE_KEY = 'AIza' + 'Fake' * 9
+# what assistant-output.log had for a user on Windows (0.3.63) whose project exceeded its quota of Earth Engine
+QUOTA = ['C:\\Users\\Someone\\MonitorEO\\entorno\\Lib\\site-packages\\ee\\data.py:335: UserWarning: Your project has '
+         'exceeded its noncommercial compute quota and is now in restricted mode. Visit '
+         'https://developers.google.com/earth-engine/guides/noncommercial_tiers#restricted_mode to learn more.',
+         '  warnings.warn(']
+URL = 'https://earthengine.googleapis.com/v1/projects/ee-someone/value:compute?prettyPrint=false&alt=json'
+TRACEBACK = ['Traceback (most recent call last):',
+             '  File "C:\\Users\\Someone\\MonitorEO\\entorno\\Lib\\site-packages\\monitoreo\\assistant.py", '
+             'line 812, in run',
+             '    result = tool(**arguments)',
+             '             ^^^^^^^^^^^^^^^^',
+             'ee.ee_exception.EEException: Too many concurrent aggregations.']
+CRASH = ['Windows fatal exception: access violation', '',
+         'Current thread 0x00002a4c (most recent call first):',
+         '  File "C:\\Program Files\\QGIS 3.40\\apps\\Python312\\Lib\\threading.py", line 359 in wait',
+         '  File "C:\\Program Files\\QGIS 3.40\\apps\\Python312\\Lib\\threading.py", line 359 in wait',
+         '  <no Python frame>']
 
 
 # What the logs lose -------------------------------------------------------------------------------------------------
@@ -102,8 +120,8 @@ def test_the_logs_of_each_tool(tmp_path, monkeypatch):
 	assert text.startswith(f'Logs of the Assistant 1.2.3 (monitoreo {__version__})\n')
 	assert 'System: ' in text and 'Language model: that of MonitorEO' in text
 	assert '== assistant-output.log (its newest lines) ==\nTraceback' in text and 'KeyError: start' in text
-	assert '== assistant.log (its newest lines) ==\n{"error"' in text and 'qgis.log' not in text
-	assert len(text) <= logs.MAX_CHARS
+	assert '== assistant.log (its newest lines) ==\n{"error": "Language model: HTTP 500"} (repeated 3000 times)' in text
+	assert 'qgis.log' not in text and logs.size(text) <= logs.LOGS_BYTES
 	qgis = logs.collect('qgis', '0.3.9', where=str(tmp_path))
 	assert qgis.startswith('Logs of the QGIS plugin 0.3.9') and 'EEException: quota' in qgis and 'assistant' not in qgis
 	assert 'There is no log of the QGIS plugin on this computer yet' in logs.collect('qgis', where=str(tmp_path / 'x'))
@@ -168,8 +186,114 @@ def test_long_logs_keep_their_start_and_their_newest_lines(form):
 	text = 'Logs of the Assistant 1.0\n' + ''.join(f'line {i}\n' for i in range(20000))
 	logs.send(text, 'assistant')
 	sent = _fields(form.requests[0])[about.FORM_FIELDS['logs']]
-	assert len(sent) <= logs.MAX_CHARS and sent.startswith('Logs of the Assistant 1.0\n')
+	assert len(form.requests[0].data) <= logs.BODY_BYTES and sent.startswith('Logs of the Assistant 1.0\n')
 	assert '[…]' in sent and sent.endswith('line 19999')
+
+
+def test_what_is_sent_always_fits_the_form(form):
+	"""The form answers HTTP 413 to a request of 32,829 bytes or more (2026-11-19): JSON lines with accents, quotes and
+	braces take three times their characters or more once encoded (%XX), and the description may be long too."""
+	assert logs.BODY_BYTES < 32673  # the largest request that the form took
+	lines = [json.dumps({'time': f'2026-11-19T10:{i // 60 % 60:02d}:{i % 60:02d}', 'tool': 'time_series',
+	                     'error': f'Mapa {i} de «Doñana»: cuota excedida, ñ €'}, ensure_ascii=False) for i in range(1300)]
+	head = 'Logs of the Assistant 0.3.63 (monitoreo 0.3.73)\nSystem: Windows-11-10.0.26100-SP0; Python 3.12.10\n'
+	text = head + '\n== assistant.log (its newest lines) ==\n' + '\n'.join(lines) + '\n'
+	assert len(text) > 100000
+	ids = about.FORM_FIELDS
+	for description in ('', 'El mapa falló.', 'Estaba calculando la serie de «Doñana» y falló. ' * 2000):
+		logs.send(text, 'assistant', '0.3.63', description)
+		request = form.requests[-1]
+		assert len(request.data) <= logs.BODY_BYTES
+		f = _fields(request)
+		sent, said = f[ids['logs']], f[ids['description']]
+		assert sent.startswith(head + '[…]\n') and sent.endswith(lines[-1])
+		assert said == (description or logs.NO_DESCRIPTION) or (said.startswith('Estaba calculando la serie de «Doñana» y')
+		                                                        and said.endswith('[…]'))
+		assert logs.size(said) >= min(logs.size(description), logs.DESCRIPTION_BYTES) - 10  # its start, at least
+	edited = 'my own words ñ ' * 2000  # the user may write anything in the logs, without lines
+	logs.send(edited, 'qgis', '0.3.9', 'x' * 60000)
+	assert len(form.requests[-1].data) <= logs.BODY_BYTES
+
+
+def test_what_the_user_sees_is_what_is_sent(tmp_path, monkeypatch, form):
+	"""collect() gathers logs that fit the form with a description of the user: send() sends them as they are."""
+	monkeypatch.setattr(logs, '_user', lambda: None)
+	monkeypatch.setattr(logs, '_computer', lambda: None)
+	(tmp_path / 'assistant-output.log').write_text('\n'.join(_output_log(300) + TRACEBACK) + '\n', encoding='utf-8')
+	calls = [json.dumps({'time': f'2026-11-18T16:{i // 60 % 60:02d}:{i % 60:02d}', 'tool': 'time_series',
+	                     'call': {'name': 'time_series', 'arguments': {'region': 'Parque Nacional de Doñana'}},
+	                     'answer': 'Hecho: «Serie mensual de NDVI»'}, ensure_ascii=False) for i in range(3000)]
+	(tmp_path / 'assistant.log').write_text('\n'.join(calls) + '\n', encoding='utf-8')
+	text = logs.collect('assistant', '0.3.63', where=str(tmp_path), hide=['ee-someone'])
+	assert logs.size(text) <= logs.LOGS_BYTES and text.startswith('Logs of the Assistant 0.3.63')
+	assert logs.redact('\n'.join(TRACEBACK)) + '\n' in text and text.endswith(calls[-1] + '\n')  # the newest, whole
+	assert sum('UserWarning' in x for x in text.splitlines()) == 1 and '(300 times; only the last one is shown)' in text
+	assert 'ee-someone' not in text and 'projects/<project>/value:compute' in text  # the address in one line: hidden
+	assert text.count('Assistant of MonitorEO 0.3.63:') >= 20  # its newest sessions (6 with the noise)
+	description = 'Estaba calculando la serie de «Doñana» y falló. ' * 30
+	logs.send(text, 'assistant', '0.3.63', description)
+	f = _fields(form.requests[-1])
+	assert f[about.FORM_FIELDS['logs']] == text.strip() and f[about.FORM_FIELDS['description']] == description.strip()
+
+
+# What repeats in the logs ---------------------------------------------------------------------------------------------
+
+def _retry(time, n, sleep='1.20', after='429'):
+	"""A warning of googleapiclient that it retries a request (the N-th), as rich writes it in assistant-output.log: in
+	columns of 80 characters, wrapped, with the TIME only when it changes (else None)."""
+	text = textwrap.wrap(f'Sleeping {sleep} seconds before retry {n} of 5 for request: POST {URL}, after {after}', 39,
+	                     break_on_hyphens=False)
+	return [f'{f"[{time}]" if time else "":<20}WARNING  {text[0]:<39} http.py:177'] + [f'{"":29}{t:<51}' for t in text[1:]]
+
+
+def _output_log(sessions):
+	"""The lines of assistant-output.log of SESSIONS of the assistant, each with the warning of Earth Engine that the
+	quota of the project was exceeded and three retries of googleapiclient, after HTTP 429 and 503."""
+	lines = []
+	for s in range(sessions):
+		lines += [f'Assistant of MonitorEO 0.3.63: http://127.0.0.1:8765/?t=t{s} (Ctrl+C to stop it)', *QUOTA,
+		          *_retry(f'11/18/26 02:{s % 60:02d}:55', 1), *_retry(None, 2, '2.35'),
+		          *_retry(f'11/18/26 02:{s % 60:02d}:58', 3, '10.03', after='503'),
+		          'The assistant of MonitorEO is closed.']
+	return lines
+
+
+def test_repeated_warnings_and_retries_take_a_line(tmp_path):
+	assert _retry(None, 3, '10.03')[0].endswith('before retry 3   http.py:177')  # «of 5» in the next line, as on Windows
+	text = '\n'.join(_output_log(40) + TRACEBACK + CRASH) + '\n'
+	out = logs.compact(text).splitlines()
+	assert logs.compact(text.replace('\n', '\r\n')) == logs.compact(text)  # the lines of Windows, the same
+	quota = QUOTA[0] + ' (40 times; only the last one is shown)'
+	assert [x for x in out if 'UserWarning' in x] == [quota] and out.count(QUOTA[1]) == 1
+	retries = [x for x in out if 'retr' in x]  # each session, one line
+	assert len(retries) == 40 and retries[-1] == ('[11/18/26 02:39:55] WARNING  googleapiclient retried requests 3 times '
+	                                              f'until [11/18/26 02:39:58]: 2 after 429, 1 after 503; POST {URL}')
+	assert not any(x.startswith(' ' * 20) for x in out)  # no line of a wrapped warning is left
+	# the newest last, and the traceback and the crash whole (also the lines of the crash repeated in a row)
+	assert out[-len(TRACEBACK + CRASH) - 4:] == [quota, QUOTA[1], retries[-1], 'The assistant of MonitorEO is closed.',
+	                                            *TRACEBACK, *CRASH]
+	assert len(out) == 40 * 3 + len(QUOTA + TRACEBACK + CRASH)
+
+
+def test_a_retry_alone_takes_a_line_and_one_after_an_error_stays_as_it_was():
+	one = _retry('11/18/26 02:03:55', 1, '1.03')
+	assert len(one) > 3 and logs.compact('\n'.join(one)) == (
+		f'[11/18/26 02:03:55] WARNING  Sleeping 1.03 seconds before retry 1 of 5 for request: POST {URL}, after 429')
+	reset = _retry(None, 2, after="ConnectionResetError(10054, 'An existing connection was forcibly closed')")
+	assert logs.compact('\n'.join(one + reset)).split('\n')[1:] == reset
+
+
+def test_the_lines_of_the_assistant_and_its_tracebacks_stay():
+	calls = [json.dumps({'time': f'2026-11-18T16:{i:02d}:00', 'tool': 'time_series', 'region': 'Doñana',
+	                     'error': 'EEException: Too many concurrent aggregations.'}, ensure_ascii=False)
+	         for i in range(50)]
+	text = '\n'.join(calls + TRACEBACK + ['', 'During handling of the above exception, another exception occurred:', '']
+	                 + TRACEBACK + CRASH) + '\n'
+	assert logs.compact(text) == text
+	same = '{"error": "Language model: HTTP 500"}'
+	assert logs.compact(f'{calls[0]}\n{same}\n{same}\n{same}\n{calls[1]}\n') == (
+		f'{calls[0]}\n{same} (repeated 3 times)\n{calls[1]}\n')
+	assert logs.compact('a\na\n\n\nb') == 'a (repeated 2 times)\n\n\nb'  # empty lines stay
 
 
 def test_what_to_do_when_the_form_does_not_take_them(form):

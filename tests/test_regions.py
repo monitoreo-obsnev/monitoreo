@@ -156,9 +156,35 @@ def test_the_automatic_crs():
 	EPSG:6933 (equal area, metres) for the regions wider than 40 degrees (the USA, Chile with Easter Island) or across
 	the antimeridian (Russia, the Tundra: their bounds span 360)."""
 	got = [areas.crs_for(i) for i in INFOS]
-	assert got == ['EPSG:32630', 'EPSG:32630', 'EPSG:6933', 'EPSG:6933', 'EPSG:6933', 'EPSG:32636', 'EPSG:6933',
-	               'EPSG:32757', 'EPSG:32630', 'EPSG:32760', 'EPSG:6933']
-	assert areas.GLOBAL_CRS == 'EPSG:6933' and areas.WIDE_DEGREES == 40
+	wide = areas.GLOBAL_CRS
+	assert got == ['EPSG:32630', 'EPSG:32630', wide, wide, wide, 'EPSG:32636', wide, 'EPSG:32757', 'EPSG:32630',
+	               'EPSG:32760', wide]
+	assert areas.GLOBAL_CRS_CODE == 'EPSG:6933' and areas.WIDE_DEGREES == 40
+
+
+def test_the_global_crs_is_epsg_6933_by_its_wkt(tmp_path):
+	"""Earth Engine does not parse the code EPSG:6933 ("Projection: The CRS of a map projection could not be parsed",
+	the time series of the Mediterranean of a user, 2026-11-18), but it does its WKT: GLOBAL_CRS is that WKT, which GDAL
+	identifies as EPSG:6933 (equal area, metres), which the grids give to computePixels as it is and which the tools name
+	by its code (in the answers and in the READMEs of the GeoTIFFs)."""
+	from osgeo import gdal
+	from monitoreo import grid, readme
+	assert not areas.GLOBAL_CRS.upper().startswith(('EPSG:', 'ESRI:'))
+	srs = areas.srs_of(areas.GLOBAL_CRS)
+	assert areas.crs_code(srs) == 'EPSG:6933' and srs.GetAttrValue('PROJECTION') == 'Cylindrical_Equal_Area'
+	assert srs.GetLinearUnitsName() in ('metre', 'meter')
+	assert areas.crs_name(areas.GLOBAL_CRS) == 'EPSG:6933' and areas.crs_name('EPSG:32630') == 'EPSG:32630'
+	assert areas.crs_code(areas.srs_of('EPSG:32630')) == 'EPSG:32630'
+	g = grid.Grid(areas.GLOBAL_CRS, 5000, -578918, 5e6, 10, 10)
+	assert g.ee_grid(0, 0, 10, 10)['crsWkt'] == areas.GLOBAL_CRS and 'crsCode' not in g.ee_grid(0, 0, 10, 10)
+	assert g.describe()['crs'] == 'EPSG:6933'
+	assert grid.Grid('EPSG:32630', 10, 0, 0, 1, 1).ee_grid(0, 0, 1, 1)['crsCode'] == 'EPSG:32630'
+	path = str(tmp_path / 'wide.tif')  # a GeoTIFF on that grid, as a download writes it
+	ds = gdal.GetDriverByName('GTiff').Create(path, 10, 10, 1, gdal.GDT_Float32)
+	ds.SetProjection(areas.GLOBAL_CRS)
+	ds.SetGeoTransform(g.geotransform)
+	ds = None
+	assert readme._bands(path)[1]['crs'] == 'EPSG:6933'
 
 
 def test_auto_crs_asks_earth_engine_once(monkeypatch):
@@ -197,7 +223,7 @@ def test_auto_crs_asks_earth_engine_once(monkeypatch):
 	assert areas.auto_crs(Geom()) == 'EPSG:32630' and asked == [{'centroid': ('centroid', 1000),
 	                                                              'bounds': ('bounds', 1000)}]
 	# Russia: across the antimeridian (bounds of 360), so a second request, its span in the Mercator of the Pacific
-	assert areas.auto_crs(Geom(), 1) == 'EPSG:6933' and asked[-2]['bounds'] == ('bounds', 1)
+	assert areas.auto_crs(Geom(), 1) == areas.GLOBAL_CRS and asked[-2]['bounds'] == ('bounds', 1)
 	assert asked[-1] == (('bounds', 'EPSG:3832'), 1)
 
 

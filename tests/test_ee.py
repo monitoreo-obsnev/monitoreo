@@ -465,3 +465,14 @@ def test_the_chlorophyll_of_the_alboran_sea_on_its_pixels():
 	assert not any('open sea' in w for w in out.get('warnings') or [])
 	assert any(r['doi'] == '10.14284/699' for r in out['references'])
 
+
+
+def test_a_region_wider_than_40_degrees_in_the_global_crs():
+	"""The time series of a region wider than a UTM zone (the box of the Mediterranean, 42.5 degrees of longitude) in
+	areas.GLOBAL_CRS: with the code EPSG:6933, Earth Engine answered "Projection: The CRS of a map projection could not
+	be parsed" (a user, 2026-11-18); with its WKT, the same values as in a UTM zone."""
+	from monitoreo import areas
+	box = {'bbox': [-6, 30, 36.5, 46]}
+	out = services.time_series(box, 'Chl-a', 'Modis', '2021-01-01', '2021-01-31', step='monthly')
+	assert len(out['rows']) == 1 and 0.05 < out['rows'][0]['value'] < 5 and out['rows'][0]['n_pixels'] > 0, out['rows']
+	assert areas.auto_crs(areas.region(box).geometry()) == areas.GLOBAL_CRS

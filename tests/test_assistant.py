@@ -1818,6 +1818,81 @@ def test_eecu_bar_and_warning(monkeypatch):
 	assert assistant._without_eecu_warning(json.dumps({'a': 1, 'eecu_warning': 'x'})) == '{\n "a": 1\n}'
 
 
+def test_restricted_mode_of_earth_engine(monkeypatch):
+	# an answer of the MCP server with quota_warning (Earth Engine has put the project in restricted mode: see
+	# services.quota_warning): the page shows it once, with the shared account with how to use your own project, and
+	# the model gets it with the receipt, to tell why it is slow; the result keeps only its values
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	quota = 'The shared account of MonitorEO has spent the noncommercial compute quota of its Earth Engine project.'
+
+	class Restricted(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'eecu_usage':
+				return 'RuntimeError: no EECUs in this test', [], []
+			error, texts, images = await super().call(name, args)
+			return error, [json.dumps({**json.loads(texts[0]), 'quota_warning': quota})] + texts[1:], images
+
+	async def run():
+		a = Restricted({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
+		a.session, a.tools = object(), assistant.model_tools(TOOLS)
+		args = {**ARGS, 'region': {'bbox': [-3.5, 37, -3, 37.2]}}
+		first = [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
+		second = [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
+		return a, first, second
+
+	a, first, second = asyncio.run(run())
+	shown = [e['text'] for e in first if e['type'] == 'quota_warning']
+	assert shown == [quota + assistant.SWITCH_ACCOUNT]
+	assert 'quota_warning' not in [e['type'] for e in second]  # once
+	told = [m['content'] for m in a.messages if m['role'] == 'tool']
+	assert len(told) == 2 and told[0].endswith(assistant.quota_text(shown[0])) and quota not in told[1]
+	assert 'tell the user in your answer' in assistant.quota_text(shown[0])
+	assert all('quota_warning' not in r['result'] for r in a.results)
+	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
+	assert "e.type === 'quota_warning'" in page
+
+
+@pytest.mark.parametrize('project', ['', 'my-project'])
+def test_a_computation_that_fails_in_restricted_mode(monkeypatch, project):
+	"""A computation that fails while Earth Engine has the project in restricted mode, whose error ends with the text of
+	services.quota_warning (see mcp_server.tool): its error on the page and the one that the model gets (told to say
+	why it failed) have, with the shared account, how to use your own project in the assistant (that text says only
+	how in Python), each time it fails; an answer with quota_warning afterwards brings no other warning of it."""
+	from monitoreo import services
+	monkeypatch.setattr(assistant, 'signed_in', lambda: bool(project))
+	quota = services._QUOTA_TEXT['own' if project else 'shared'].format(project=project)
+	failing = [True, False, True]
+
+	class Restricted(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'eecu_usage':
+				return 'RuntimeError: no EECUs in this test', [], []
+			if name == 'time_series' and failing.pop(0):  # the error of the MCP server
+				error = f'EEException: Too many concurrent aggregations. {quota}'
+				return error, [error], []
+			error, texts, images = await super().call(name, args)
+			return error, [json.dumps({**json.loads(texts[0]), 'quota_warning': quota})] + texts[1:], images
+
+	async def run():
+		a = Restricted({**assistant.DEFAULTS, 'project': project, 'ollama': 'http://127.0.0.1:1'})
+		a.session, a.tools = object(), assistant.model_tools(TOOLS)
+		args = {**ARGS, 'region': {'bbox': [-3.5, 37, -3, 37.2]}}
+		return a, [[e async for e in a.run_tool({'name': 'time_series', 'arguments': args})] for _ in range(3)]
+
+	a, (first, second, third) = asyncio.run(run())
+	told = quota + ('' if project else assistant.SWITCH_ACCOUNT)
+	sent = [m['content'] for m in a.messages if m['role'] == 'tool']
+	for events, message in ((first, sent[0]), (third, sent[2])):  # each failure says why, with what to do here
+		errors = [e['text'] for e in events if e['type'] == 'error']
+		assert len(errors) == 1
+		assert errors[0].endswith('has failed: EEException: Too many concurrent aggregations. ' + told)
+		assert message == 'Error: EEException: Too many concurrent aggregations.' + assistant.quota_text(told)
+		assert 'quota_warning' not in [e['type'] for e in events]  # in the error itself, not twice
+	assert ('«Use my Google account»' in told) == (not project)
+	assert 'quota_warning' not in [e['type'] for e in second] and quota not in sent[1]  # told already
+	assert len(a.results) == 1 and 'quota_warning' not in a.results[0]['result']
+
+
 def test_sign_out(monkeypatch, tmp_path):
 	# «Log out»: the refresh token is revoked at Google and the credentials of `earthengine authenticate` deleted
 	import ee
@@ -2279,6 +2354,65 @@ def test_stopped_answers_each_call_once(ids):
 	assert not any('answered' in str(m.get('content')) for m in sent if m['role'] == 'user')
 
 
+@pytest.mark.parametrize('ids', [True, False])
+def test_the_log_has_the_arguments_of_each_call(monkeypatch, ids):
+	"""Each answer of a tool goes to the log with the arguments of its own call, also when the model calls the same
+	tool several times in one answer (parallel calls), and with an error or STOPPED: by the id of the call (the models
+	of the cloud, also when a call is answered before an earlier one) or by its place among the calls of that tool
+	(Ollama, whose calls have no id)."""
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	seas = ['Tyrrhenian', 'Alboran', 'Nowhere', 'Ligurian']
+
+	class Seas(FakeAssistant):
+		async def call(self, name, args):
+			if name == 'find_seas':
+				if args['text'] == 'Nowhere':
+					return 'ValueError: no sea called Nowhere', [], []
+				return None, [json.dumps([{'MRGID': 3000 + seas.index(args['text']), 'NAME': args['text'],
+				                           'AREA_KM2': 1000}])], []
+			return await super().call(name, args)
+
+	def call(n, name, args):
+		return {**({'id': f'c{n}'} if ids else {}), 'function': {'name': name, 'arguments': args}}
+
+	calls = [call(n, 'find_seas', {'text': s}) for n, s in enumerate(seas, 1)]
+	calls.insert(1, call(9, 'find_protected_areas', {'text': 'Sierra'}))  # another tool between them
+	answers = iter([{'content': '', 'tool_calls': calls}, {'content': 'Done.'}])
+	monkeypatch.setattr(assistant, 'chat_model', lambda settings, system, messages, tools: next(answers))
+	sea_tool = {'name': 'find_seas', 'description': 'Seas.', 'inputSchema': {'type': 'object', 'properties': {
+		'text': {'type': 'string'}}, 'required': ['text']}}
+
+	async def run():
+		a = Seas({**assistant.DEFAULTS, 'project': 'p', 'ollama': 'http://127.0.0.1:1'})
+		a.tools = assistant.model_tools(TOOLS + [sea_tool])
+		return a, [e async for e in a.chat('The seas of the Mediterranean')]
+
+	a, _ = asyncio.run(run())
+
+	def logged():
+		with open(assistant.LOG, encoding='utf-8') as f:
+			return [e for e in map(json.loads, f) if 'tool' in e]
+
+	entries = logged()
+	assert [(e['tool'], e['call']['arguments']['text']) for e in entries] == [
+		('find_seas', 'Tyrrhenian'), ('find_protected_areas', 'Sierra'), ('find_seas', 'Alboran'),
+		('find_seas', 'Nowhere'), ('find_seas', 'Ligurian')]
+	for e in entries:  # each answer with its own call
+		assert e['call']['arguments']['text'] in e['answer']
+	# a stopped answer: each call without its answer gets STOPPED, in the log with its own arguments; with ids, the
+	# second call had answered (so only its id, not its place, says that the answer is of Ionian), else the first one
+	open(assistant.LOG, 'w').close()
+	a.messages.append({'role': 'assistant', 'content': '', 'tool_calls': [
+		call(n, 'find_seas', {'text': s}) for n, s in enumerate(['Adriatic', 'Ionian', 'Aegean'], 11)]})
+	answered, others = ('Ionian', ['Adriatic', 'Aegean']) if ids else ('Adriatic', ['Ionian', 'Aegean'])
+	a.call_id = 'c12' if ids else None
+	a._tool_message('find_seas', f'- {{"sea": 3000}}: {answered}')
+	a.call_id = None
+	a.stopped()
+	assert [(e['call']['arguments']['text'], e['answer']) for e in logged()] == [
+		(answered, f'- {{"sea": 3000}}: {answered}')] + [(s, assistant.STOPPED) for s in others]
+
+
 class Never:
 	"""A session of the MCP server whose call does not end."""
 
@@ -2308,15 +2442,30 @@ def test_a_call_ends_when_its_session_closes():
 
 
 def test_a_server_that_stopped_on_its_own_starts_again():
+	"""A call that finds the MCP server stopped on its own (it crashed, or ran out of memory) starts it again, and the
+	log says that it stopped before or during that call (a session closed refuses the calls after it at once), the last
+	call that it had answered, and where the traceback of a crash is (the output of the assistant) or, without one (a
+	fail-fast of Windows), its exception code (the Event Viewer of Windows), so that the logs sent by a user connect the
+	crash with its call."""
 
 	class Closed(Exception):  # an MCPError (2.x) or McpError (1.x) of a closed connection
 		def __init__(self):
 			super().__init__('Connection closed')
 			self.error = type('ErrorData', (), {'code': assistant.CONNECTION_CLOSED})()
 
-	class Dead:
+	class Answer:  # a result of the MCP SDK
+		def model_dump(self, **kwargs):
+			return {'content': [{'type': 'text', 'text': '{"rows": []}'}]}
+
+	class Dies:  # it answers the first call, and then its process ends (after that answer, or during the next call)
+		def __init__(self):
+			self.calls = 0
+
 		async def call_tool(self, name, args):
-			raise Closed()
+			self.calls += 1
+			if self.calls > 1:
+				raise Closed()
+			return Answer()
 
 	class Fine:
 		async def call_tool(self, name, args):
@@ -2324,7 +2473,7 @@ def test_a_server_that_stopped_on_its_own_starts_again():
 
 	async def run():
 		a = FakeAssistant.__mro__[1]({**assistant.DEFAULTS, 'project': ''})
-		a.session, a.session_closed = Dead(), asyncio.Event()
+		a.session, a.session_closed = Dies(), asyncio.Event()
 		restarts = []
 
 		async def restart():
@@ -2332,16 +2481,111 @@ def test_a_server_that_stopped_on_its_own_starts_again():
 			a.session = Fine()
 
 		a.restart_server = restart
+		assert await a.call('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2'}) == (None, ['{"rows": []}'], [])
 		with pytest.raises(RuntimeError, match='had stopped, and has started again'):
-			await a.call('time_series', {})
+			await a.call('eecu_usage', {'lang': 'en'})
 		assert restarts == [True]
 		with pytest.raises(ValueError, match='another error'):  # the other errors are not a closed connection
-			await a.call('time_series', {})
+			await a.call('map_layer', {})
 		assert restarts == [True]
 
 	asyncio.run(run())
 	assert assistant.connection_closed(__import__('anyio').ClosedResourceError())
 	assert not assistant.connection_closed(ValueError('x'))
+	with open(assistant.LOG, encoding='utf-8') as f:
+		entries = [json.loads(line) for line in f]
+	stopped = [e for e in entries if 'stopped' in e.get('error', '')]
+	assert len(stopped) == 1  # not the other error
+	error = stopped[0]['error']
+	assert stopped[0]['call'] == {'name': 'eecu_usage', 'arguments': {'lang': 'en'}}
+	assert 'before or during the call of the tool eecu_usage' in error
+	assert stopped[0]['answered']['name'] == 'time_series' and 'last call that it answered: time_series' in error
+	assert stopped[0]['answered']['arguments'] == {'variable': 'NDVI', 'sensor': 'Sentinel-2'}
+	assert 'assistant-output.log' in error and 'Fatal Python error' in error and 'Windows fatal exception' in error
+	assert '0xC0000409' in error and 'Event Viewer' in error and 'event 1000' in error
+	# a server that had answered nothing
+	open(assistant.LOG, 'w').close()
+
+	async def again():
+		a = FakeAssistant.__mro__[1]({**assistant.DEFAULTS, 'project': ''})
+		a.session, a.session_closed = Dies(), asyncio.Event()
+		a.session.calls = 1
+
+		async def restart():
+			a.session = Fine()
+
+		a.restart_server = restart
+		with pytest.raises(RuntimeError, match='had stopped'):
+			await a.call('time_series', {})
+
+	asyncio.run(again())
+	with open(assistant.LOG, encoding='utf-8') as f:
+		stopped = [e for e in map(json.loads, f) if 'stopped' in e.get('error', '')]
+	assert 'it had answered no call since it started' in stopped[0]['error'] and 'answered' not in stopped[0]
+
+
+def test_the_mcp_server_writes_the_traceback_of_a_crash(monkeypatch):
+	"""If the MCP server crashes (a fatal error: an access violation, a stack overflow, an abort), the Python traceback
+	of each thread goes to its stderr (that of the assistant: assistant-output.log as an app), never to its stdout (the
+	channel of the MCP protocol); without a usable stderr (pythonw.exe: None, or a stream without a file descriptor), the
+	server starts all the same."""
+	import faulthandler
+	import io
+	import sys
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	enable, enabled, started = faulthandler.enable, [], []
+	monkeypatch.setattr(mcp_server.server, 'run', lambda *args, **kwargs: started.append(True))
+	# not the real one here: the faulthandler of pytest stays as it is
+	monkeypatch.setattr(faulthandler, 'enable', lambda file=None, all_threads=True: enabled.append((file, all_threads)))
+	mcp_server.main()
+	assert enabled == [(sys.stderr, True)] and enabled[0][0] is not sys.stdout and started == [True]
+	# the real one, which fails (before changing anything) without a stderr with a file descriptor
+	monkeypatch.setattr(faulthandler, 'enable', enable)
+	for stderr in (None, io.StringIO()):
+		monkeypatch.setattr(sys, 'stderr', stderr)
+		with pytest.raises((RuntimeError, OSError, ValueError)):
+			faulthandler.enable(file=sys.stderr)
+		mcp_server.main()
+	assert started == [True] * 3
+
+
+@pytest.mark.parametrize('stderr', ['file', None, 'text'])
+def test_the_assistant_starts_the_mcp_server_with_faulthandler(monkeypatch, tmp_path, stderr):
+	"""The assistant starts the MCP server with faulthandler from the start of its interpreter (-X faulthandler), so that
+	a crash while it imports its modules writes its traceback too, to the stderr of the assistant (as an app,
+	assistant-output.log); without one with a file descriptor (pythonw.exe), without it, so that the server starts."""
+	pytest.importorskip('mcp')
+	import contextlib
+	import io
+	import sys
+	import mcp.client.stdio
+	servers = []
+
+	@contextlib.asynccontextmanager
+	async def stdio_client(server, *args, **kwargs):  # it only says how it would start the server
+		servers.append(server)
+		raise OSError('the MCP server does not start in the tests')
+		yield
+
+	monkeypatch.setattr(mcp.client.stdio, 'stdio_client', stdio_client)
+	log = open(tmp_path / 'assistant-output.log', 'w', encoding='utf-8')
+	monkeypatch.setattr(sys, 'stderr', {'file': log, None: None, 'text': io.StringIO()}[stderr])
+
+	async def run():
+		a = assistant.Assistant({**assistant.DEFAULTS, 'project': ''})
+		with pytest.raises(OSError, match='does not start'):
+			await a.start_server()
+
+	try:
+		asyncio.run(run())
+	finally:
+		log.close()
+	args = servers[0].args
+	assert args[-2:] == ['-m', 'monitoreo.mcp_server']
+	if stderr == 'file':
+		assert args[args.index('-X') + 1] == 'faulthandler' and args.index('-X') < args.index('-m')
+	else:
+		assert '-X' not in args and 'faulthandler' not in args
 
 
 def test_stop_cuts_the_request_to_ollama(monkeypatch):

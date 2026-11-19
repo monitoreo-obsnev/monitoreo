@@ -21,7 +21,9 @@ With a Google Cloud project registered in Earth Engine, it computes with the cre
 \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
 Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
 (who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
-month are left (see \code{mo_eecu()}).
+month are left (see \code{mo_eecu()}), and when Earth Engine has put the project in restricted mode (it has spent
+its noncommercial compute quota: computations are slow and may fail with too many requests; with the shared
+account, use your own project to compute without waiting), also after the error of a computation that fails then.
 }
 \examples{
 \dontrun{

@@ -92,6 +92,14 @@ number, next to it. **All tools** are those that MonitorEO had at that version, 
 fixed. The assistant and the MCP server update themselves from `main` when they start, so they have what is under
 **Unreleased** before its release.
 
+### Unreleased
+
+- **All tools** (fix): The time series, statistics and downloads of a region wider than 40° of longitude (a biome, Russia, the Mediterranean Sea) no longer fail with «Projection: The CRS of a map projection could not be parsed»: they are computed in EPSG:6933, now given to Earth Engine by its definition, which it reads.
+- **Assistant, QGIS plugin** (fix): "Send the logs" no longer fails with «The form did not take the logs (HTTP 413)»: the logs always fit the form, and the warnings repeated and the retries of the requests to Earth Engine take a line each, so more of the useful lines fit.
+- **Assistant, MCP server, QGIS plugin, Command line, R package**: They warn when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota, so computations are slow and may fail with too many requests), also with the error of a computation that fails then; with the shared account of MonitorEO, how to compute with your own Google Cloud project.
+- **Assistant, MCP server**: When the MCP server stops on its own (a crash), the log of the assistant says before or during which call, and the traceback of the crash goes to the output of the assistant, which "Send the logs" sends.
+- **Assistant** (fix): The log of the assistant gives each answer of a tool the arguments of its own call when the model calls a tool several times at once (they all had those of the first one).
+
 ### [v0.3.54](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.54) · 2026-11-19 · package 0.3.64
 
 - **Earth Engine app**: A button ? beside the title «Only the pixels where» explains what it does, with examples (the pixels above 1,500 m, the gentle slopes, the wet valley bottoms), and links to its section of the manual.

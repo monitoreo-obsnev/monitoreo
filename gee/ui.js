@@ -827,7 +827,7 @@
 			if (state.region !== fc) return;
 			state.info = d.info;
 			state.info.n = d.n;
-			state.info.crs = mo.regionCrs(d.info);  // areas.auto_crs: the UTM zone of the centre, or EPSG:6933 if wide
+			state.info.crs = mo.regionCrs(d.info);  // areas.auto_crs: the UTM zone of the centre, or EPSG:6933 (its WKT) if wide
 			if (!named) {
 				state.regionName = (d.names || []).join(', ') + (suffix || '');
 				if (regionLayer && regionLayer.setName) regionLayer.setName(state.regionName);
