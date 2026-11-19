@@ -149,3 +149,66 @@ def test_every_tool_with_a_region_takes_data_by_its_id():
 		assert mcp_server.SOURCE_DOC.strip() in fn.__doc__, name
 		assert (mcp_server.TERRAIN_DOC.strip() in fn.__doc__) == (name in FIXED), name
 		assert 'Required: region' in ' '.join(fn.__doc__.split()), name
+
+
+# The help of «Only the pixels where» in the panel of the app (gee/ui.js in Node with the ui of tests/test_themes.py,
+# which draws nothing): its button ? opens it, in English and in Spanish, and closes it
+HELP_STEPS = r"""
+function help() {
+	return find(controls, 'Label', function (w) { return w.opts.value && w.opts.url; }).map(function (w) {
+		return [w.opts.value, w.opts.url];
+	});
+}
+out.closed = texts(controls);
+button('?').opts.onClick();
+out.open = texts(controls);
+out.links = help();
+button('Español').opts.onClick();
+out.spanish = texts(controls);
+out.spanishLinks = help();
+button('?').opts.onClick();
+out.closedAgain = texts(controls);
+out.buttons = find(controls, 'Button', function (w) { return w.opts.label === '?'; }).length;
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_the_app_explains_only_the_pixels_where():
+	"""A button ? beside the title «Only the pixels where» of the app shows under it what the group does, with
+	examples, and a link to its section of the manual (Concepts, Filtering the study area), in the language of the
+	panel; a second click hides it."""
+	import json
+	import os
+	import shutil
+	import subprocess
+
+	from test_themes import GEE, PANEL, _build, _ui_texts
+
+	from monitoreo import catalog
+
+	if not shutil.which('node'):
+		pytest.skip('no Node')
+	with open(os.path.join(GEE, 'ui.js'), encoding='utf-8') as f:
+		ui = f.read()
+	en, es = _ui_texts(ui, 'en'), _ui_texts(ui, 'es')
+	setup = PANEL[:PANEL.index('var out = {};') + len('var out = {};')]
+	data = {'community': _build().community_index(), 'other_themes': catalog.OTHER_THEMES, 'assets': {}}
+	run = subprocess.run(['node', '-e', setup + HELP_STEPS, GEE], input=json.dumps(data), capture_output=True,
+	                     text=True, timeout=120)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout)
+	assert out['buttons'] == 1  # only that group has it
+
+	def shown(texts, lang):
+		return [t for t in texts if t.startswith(lang['whereHelp'])]
+
+	assert not shown(out['closed'], en) and not shown(out['closedAgain'], es)
+	text, = shown(out['open'], en)
+	assert out['open'][out['open'].index(text) - 1] == en['whereHeader']  # under the title
+	assert 'ELEVATION · Copernicus between 1500 and nothing' in text and text.count('\n') == 2
+	manual = 'https://github.com/monitoreo-obsnev/monitoreo/wiki/'
+	assert ['→ ' + en['whereManual'], manual + 'Concepts#filtering-the-study-area'] in out['links']
+	text, = shown(out['spanish'], es)
+	assert out['spanish'][out['spanish'].index(text) - 1] == es['whereHeader']
+	assert 'ELEVATION · Copernicus entre 1500 y nada' in text
+	assert ['→ ' + es['whereManual'], manual + 'Conceptos#filtrar-el-área-de-estudio'] in out['spanishLinks']
