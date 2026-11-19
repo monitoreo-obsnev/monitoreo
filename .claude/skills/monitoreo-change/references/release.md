@@ -70,6 +70,11 @@ Raise both by one patch step unless the developer says otherwise. The last relea
 
 ## Who gets what, and when
 
+`### Unreleased` in the changelog is what is in `main` but not yet in the QGIS plugin nor in the Earth Engine app.
+**Rule (2026-11-19):** it goes away only with a release of both: step 2 renames it to the heading of the release, and
+step 7 publishes the app of that same release (after asking; if the developer says not yet, say in the report that the
+app is behind its release). Never leave `### Unreleased` after a release, nor rename it without one.
+
 - The assistant and the MCP server update themselves from `main` when they start, so their users get every merged
   PR without a release: what is under `### Unreleased` in the changelog.
 - The QGIS plugin reaches users through plugins.qgis.org, so only with a release.

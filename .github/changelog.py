@@ -12,8 +12,9 @@ R package, followed by its entries, one per line, each with the tools it reaches
     - **Assistant**: A button to suggest a change or report an error.
     - **QGIS plugin, Earth Engine app** (fix): The map of a period without images no longer stops with an error.
 
-Above the releases, "### Unreleased" holds the entries of the pull requests merged since the last release (the
-assistant and the MCP server have them already: they update themselves from main); the release renames it. The
+Above the releases, "### Unreleased" holds the entries of the pull requests merged since the last release: what is in
+main but not yet in the QGIS plugin nor in the Earth Engine app (the assistant and the MCP server have them already:
+they update themselves from main). It goes away only with a release of both, which renames it to its heading. The
 workflow qgis-plugin.yml takes the notes of each GitHub release from here, and qgis/build_plugin.py the changelog that
 the plugin manager of QGIS shows. Only the standard library: it runs in the workflows and in the build of the plugin.
 """
