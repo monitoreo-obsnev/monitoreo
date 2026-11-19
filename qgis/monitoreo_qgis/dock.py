@@ -1053,7 +1053,7 @@ class MonitorEODock(QDockWidget):
 		self.exports = []        # export tasks of Earth Engine being followed
 		self.timer = QTimer(self)
 		self.timer.timeout.connect(self.poll_exports)
-		self.eecu_warned = set()  # (project, account, month) whose warning of few EECUs left was shown
+		self.eecu_warned = set()  # services.eecu_warning_key of the warnings of the EECUs shown
 		self.group_boxes = {}  # the group of each analysis of the panel (see PANEL)
 		self.applied = []  # what applying some parameters did besides setting fields (a layer added)
 		self.build()
@@ -3058,7 +3058,7 @@ class MonitorEODock(QDockWidget):
 		color = '#c0392b' if u['low'] or u.get('quota_warning') else '#d68910' if used >= 75 else '#2e7d32'
 		self.eecu_bar.setStyleSheet(f'QProgressBar {{ text-align: center; }} '
 		                            f'QProgressBar::chunk {{ background-color: {color}; }}')
-		key = (u['project'], u['account'], u['month'])
+		key = services.eecu_warning_key(u)  # once each kind of warning and day
 		if u['warning'] and (asked or key not in self.eecu_warned):
 			self.eecu_warned.add(key)
 			self.message(u['warning'] + (OWN_PROJECT if u['account'] == 'shared' else ''), 'Warning', 60)

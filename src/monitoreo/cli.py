@@ -78,7 +78,9 @@
                                                      update its viewer (after updating monitoreo) and its catalogue
     monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
     monitoreo eecu [--limit H|TIER] [--lang es]      EECUs of Earth Engine spent this month: your research EECUs with
-                                                     the shared account of MonitorEO, or the quota of your project
+                                                     the shared account of MonitorEO, or the monthly quota of your
+                                                     project as Earth Engine counts it (--limit: only when its quota
+                                                     counters cannot be read)
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
@@ -633,9 +635,13 @@ def main(argv=None):
 	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
 	p.add_argument('--port', type=int, default=8000)
 	p = sub.add_parser('eecu', help='EECUs of Earth Engine spent this month: your research EECUs with the shared account '
-	                                'of MonitorEO, or the monthly quota of your project')
-	p.add_argument('--limit', help='monthly quota of your project: EECU-hours or tier (Community, Contributor, Partner; '
-	                               'default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
+	                                'of MonitorEO, or the monthly quota of your project as Earth Engine counts it (the '
+	                                'quota counters of Cloud Monitoring, which also count the computations running or '
+	                                'failed and may go down when Earth Engine settles them), next to what the '
+	                                'computations completed have spent')
+	p.add_argument('--limit', help='only when the quota counters of your project cannot be read (Earth Engine gives its '
+	                               'limit otherwise): its monthly quota in EECU-hours or tier (Community, Contributor, '
+	                               'Partner; default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	params = p = sub.add_parser('parameters', help='what of a JSON file of parameters of an analysis can be applied '
 	                                              '(those that MonitorEO writes next to the files of each result, '

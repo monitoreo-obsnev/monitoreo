@@ -5,16 +5,19 @@
 #
 # PROJECT must be registered in Earth Engine and have billing (Cloud Run). It can be run again: what exists is kept.
 # USER_LIMIT (default 25) is the research EECU-hours of each user of the shared account a month: who spends them gets no
-# more tokens until the next month. EECU_LIMIT is the EECU-hours a month of the Earth Engine tier of PROJECT (150
-# Community, 1000 Contributor, 100000 Partner; default 1000): the users of the shared account stop getting tokens when
-# the project has spent all of it but PROJECT_RESERVE (default 10 % of EECU_LIMIT), kept for the app of Earth Engine
-# and the team. REQUIRE_USER=0 gives tokens to the versions of the tools without the ID of their user (before 0.3.21),
-# outside those limits.
+# more tokens until the next month. The monthly EECU quota of PROJECT is read from the quota counters of Cloud
+# Monitoring (quota/limit and quota/allocation/usage of earthengine.googleapis.com/monthly_eecu_usage_time, as Earth
+# Engine counts it); EECU_LIMIT, the EECU-hours a month of the Earth Engine tier of PROJECT (150 Community, 1000
+# Contributor, 100000 Partner; default 1000), is only a fallback when they cannot be read. The users of the shared
+# account stop getting tokens when the computations completed of the project have spent all of it but PROJECT_RESERVE
+# (default 10 % of EECU_LIMIT, scaled to the limit of the quota counters), kept for the app of Earth Engine and the
+# team. REQUIRE_USER=0 gives tokens to the versions of the tools without the ID of their user (before 0.3.21), outside
+# those limits.
 # It creates two service accounts, without keys:
 #   monitoreo-public  computes in Earth Engine with the quota of PROJECT and nothing else (the role monitoreoCompute,
 #                     below); the broker gives tokens of 1 hour of this account.
 #   monitoreo-broker  runs the service and may only create tokens of monitoreo-public and read the metrics of
-#                     PROJECT (Monitoring Viewer: the EECUs spent this month by each user).
+#                     PROJECT (Monitoring Viewer: the EECUs spent this month by each user and the quota counters).
 #   monitoreo-build   builds its container in Cloud Build (role run.builder), instead of the default service account.
 # monitoreoCompute is not earthengine.viewer on purpose: that role would also let anyone with a token read every asset
 # of PROJECT and list its tasks. This one only computes (values, pixels, maps, thumbnails and tables of the public

@@ -309,9 +309,9 @@ services <- function() {
   .mo$services
 }
 
-# An R warning, once a month and project, when less than 10 % of the EECUs of Earth Engine of the month are left (with
-# the shared account, its research EECUs: then switch to your own account), and that of quota_check. Nothing before
-# mo_init().
+# An R warning, once each kind of warning (little left, nothing left, restricted mode), project and day, when less than
+# 10 % of the EECUs of Earth Engine of the month are left (with the shared account, its research EECUs: then switch to
+# your own account), and that of quota_check. Nothing before mo_init().
 eecu_check <- function(s) {
   w <- tryCatch(s$eecu_warning(once = TRUE), error = function(e) NULL)
   if (!is.null(w)) warning(w, if (isTRUE(s$shared())) " In R: mo_init(\"<your project>\")." else "", call. = FALSE)
@@ -351,9 +351,10 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
 #' \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
 #' Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
 #' (who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
-#' month are left (see \code{mo_eecu()}), and when Earth Engine has put the project in restricted mode (it has spent
-#' its noncommercial compute quota: computations are slow and may fail with too many requests; with the shared
-#' account, use your own project to compute without waiting), also after the error of a computation that fails then.
+#' month are left (see \code{mo_eecu()}; with your own project, of its monthly quota as Earth Engine counts it), and
+#' when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota: computations
+#' are slow and may fail with too many requests; with the shared account, use your own project to compute without
+#' waiting), also after the error of a computation that fails then. Each warning is given once each kind and day.
 #' @param project Google Cloud project (default: the variable \code{EE_PROJECT}; \code{""}: the shared account of
 #'   MonitorEO).
 #' @param python optional path of the Python with monitoreo (see \code{reticulate::use_python()}).
@@ -382,13 +383,21 @@ mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
 #' month. With the shared account of MonitorEO they are your research EECUs (25 EECU-hours a month, only for research):
 #' when they are spent it does not compute for you until the next month, so switch to your own account
 #' (\code{mo_init("<your project>")}). With your own project (the Cloud Monitoring API must be enabled in it), the
-#' monthly quota of that project, against \code{limit}.
-#' @param limit monthly quota of your project: EECU-hours or tier (\code{"Community"}, 150; \code{"Contributor"},
-#'   1000; \code{"Partner"}, 100000; default: the variable \code{MONITOREO_EECU_LIMIT} or \code{"Community"}).
+#' monthly quota of that project as Earth Engine counts it in the quota counters of Cloud Monitoring, against the limit
+#' that Earth Engine gives: Earth Engine also counts the computations running or failed and settles them later (its
+#' count may go down during the month), so the EECUs used are the larger of what it counts and what the computations
+#' completed have spent, and the text gives both. With the shared account the text also gives the percent of the
+#' monthly quota of its project that Earth Engine counts.
+#' @param limit only when the quota counters of your project cannot be read (otherwise Earth Engine gives the limit):
+#'   its monthly quota in EECU-hours or tier (\code{"Community"}, 150; \code{"Contributor"}, 1000; \code{"Partner"},
+#'   100000; default: the variable \code{MONITOREO_EECU_LIMIT} or \code{"Community"}).
 #' @param refresh ask again (the answers are kept 5 minutes).
 #' @param lang language of the texts: \code{"en"} or \code{"es"}.
-#' @return A list (account, name, project, used_hours, limit_hours, tier, used_percent, left_percent, month, resets,
-#'   low, warning, text, bar), invisibly; prints a bar and the text, and warns when less than 10 \% are left.
+#' @return A list (account, name, project, used_hours, limit_hours, left_hours, tier, used_percent, left_percent,
+#'   month, resets, low, warning, text, spent_hours: what the computations completed have spent, source:
+#'   \code{"quota"} when the quota counters of Earth Engine were read or \code{"completed"}, quota_reached: Earth
+#'   Engine has counted the whole quota, quota_warning, bar), invisibly; prints a bar and the text, and warns when less
+#'   than 10 \% are left.
 #' @examples
 #' \dontrun{
 #' mo_init()

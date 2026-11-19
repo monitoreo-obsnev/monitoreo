@@ -11,7 +11,9 @@ read Google Drive, Cloud Storage or anything else of the project). See deploy.sh
     GET /usage?user=ID  ->  {"user": ID, "used_hours": <EECU-hours>, "limit_hours": <EECU-hours>,
                              "left_hours": <EECU-hours>, "resets": "YYYY-MM-DD", "project": "...",
                              "project_used_hours": ..., "project_limit_hours": ..., "project_reserve_hours": ...,
-                             "restricted": true/false/null, "updated": ...}
+                             "restricted": true/false/null, "quota_reached": true/false,
+                             "project_quota_used_hours": ..., "project_quota_limit_hours": ...,
+                             "project_quota_percent": ..., "project_quota_time": "...", "updated": ...}
     POST /chat?user=ID  ->  the next message of the language model of the assistant of MonitorEO (see below)
     GET /               ->  what this service is
 
@@ -27,6 +29,15 @@ quota but PROJECT_RESERVE EECU-hours, which are kept for the app of Earth Engine
 user): what a user has left (left_hours) is the least of what is left of their own and of the project before its
 reserve. Without an ID (versions of the tools before 0.3.21) there is no token, unless REQUIRE_USER is 0. If Cloud
 Monitoring does not answer, tokens are given.
+
+Earth Engine counts the monthly quota of the project its own way: the quota counters of Cloud Monitoring (resource
+consumer_quota, quota/allocation/usage and quota/limit of QUOTA_METRIC), which also have the computations running or
+failed and go down when Earth Engine settles them (it reached the limit on 2026-11-17 while the computations completed
+were 45 % of it). This service reads them with the EECUs of the users: the limit of the project is quota/limit
+(EECU_LIMIT only without it), project_quota_percent is how much of it Earth Engine has counted, so that the tools
+warn before Earth Engine restricts the project, and quota_reached is whether it has counted it all (then restricted,
+and nothing left). What is left for the users is still that of their completed computations (the counter is not by
+user, and may go down the next day), which alone may refuse them tokens.
 
 Earth Engine may also put the project in restricted mode (it has spent its noncommercial compute quota, which is not
 the EECU_LIMIT that this service counts: computations are slow and many fail with too many requests), which Cloud
@@ -112,6 +123,11 @@ IAM = 'https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{}:ge
 MONITORING = 'https://monitoring.googleapis.com/v3/projects/{}/timeSeries?{}'
 EECU_METRIC = 'earthengine.googleapis.com/project/cpu/usage_time'  # "Completed EECU-seconds"
 USAGE_TTL = 300  # seconds that the EECU spent are given again before asking Cloud Monitoring
+QUOTA_METRIC = 'earthengine.googleapis.com/monthly_eecu_usage_time'  # the monthly quota of EECUs of Earth Engine
+QUOTA_USAGE = 'serviceruntime.googleapis.com/quota/allocation/usage'  # what Earth Engine has counted of it
+QUOTA_LIMIT = 'serviceruntime.googleapis.com/quota/limit'  # and its limit
+QUOTA_REACHED = 0.995  # of the limit: Earth Engine has counted it all (it goes a little over the limit)
+QUOTA_HOURS = 50  # of the newest points of the quota counters (the limit is written about once a day)
 EE_COMPUTE = 'https://earthengine.googleapis.com/v1/projects/{}/value:compute'
 QUOTA_HEADER = 'x-earth-engine-quota-status'  # that of earthengine-api (ee/data.py), in each answer of Earth Engine
 QUOTA_RESTRICTED = 'parallelism_restricted=true'  # in QUOTA_HEADER while the project is in restricted mode
@@ -124,7 +140,7 @@ _token = {'access_token': None, 'expires_at': 0}
 _token_lock = threading.Lock()
 _hits = {}  # address -> [hour, requests]
 _hits_lock = threading.Lock()
-_usage = {'month_start': None, 'time': 0, 'users': {}, 'project_hours': 0.0, 'updated': 0}
+_usage = {'month_start': None, 'time': 0, 'users': {}, 'project_hours': 0.0, 'updated': 0, 'quota': (None, None, None)}
 _usage_lock = threading.Lock()
 _no_credit = {}  # model -> time until which it is not asked (it said it had no credit)
 _credit_lock = threading.Lock()
@@ -189,6 +205,36 @@ def eecu_hours_by_tag(token, project, start, end):
 		params['pageToken'] = d['nextPageToken']
 
 
+def quota_seconds(token, project, now=None):
+	"""(EECU-seconds counted by Earth Engine for the monthly quota of PROJECT, its limit, UTC time of the count) from
+	the quota counters of Cloud Monitoring: the newest point of each in the last QUOTA_HOURS hours of this month; None
+	for what they do not have (a project without them, or without a monthly limit: int64 max)."""
+	now = now or dt.datetime.now(dt.timezone.utc)
+	since = max(now - dt.timedelta(hours=QUOTA_HOURS), month(now)[0])
+	newest = {}
+	for metric in (QUOTA_LIMIT, QUOTA_USAGE):  # one metric per request of Cloud Monitoring
+		params = {'filter': f'metric.type = "{metric}" AND resource.type = "consumer_quota" AND '
+		                    f'metric.labels.quota_metric = "{QUOTA_METRIC}"',
+		          'interval.startTime': since.strftime('%Y-%m-%dT%H:%M:%SZ'),
+		          'interval.endTime': now.strftime('%Y-%m-%dT%H:%M:%SZ')}
+		d = _json(MONITORING.format(project, urllib.parse.urlencode(params)), headers={'Authorization': 'Bearer ' + token})
+		for series in d.get('timeSeries', []):
+			name = series.get('metric', {}).get('labels', {}).get('limit_name', '')
+			if name and not name.endswith('PerProject'):  # only the limit of the project
+				continue
+			for p in series.get('points', []):
+				t, v = p['interval']['endTime'], p.get('value', {})
+				if t < params['interval.startTime']:  # of the last month
+					continue
+				if metric not in newest or newest[metric][0] < t:
+					newest[metric] = (t, float(v.get('int64Value', v.get('doubleValue', 0))))
+		limit = newest.get(QUOTA_LIMIT, (None, None))[1]
+		if limit is None or not 0 < limit < 2 ** 62:
+			return None, None, None
+	time_, used = newest.get(QUOTA_USAGE, (None, None))
+	return used, limit, time_
+
+
 def usage():
 	"""The EECU-hours spent this month by each user (workload tag) and by the whole project (asked again every USAGE_TTL
 	seconds)."""
@@ -197,8 +243,13 @@ def usage():
 		if _usage['month_start'] != start or time.time() - _usage['time'] > USAGE_TTL:
 			own = _json(METADATA, headers={'Metadata-Flavor': 'Google'})['access_token']
 			hours = eecu_hours_by_tag(own, PROJECT, start, dt.datetime.now(dt.timezone.utc))
+			try:
+				quota = quota_seconds(own, PROJECT)
+			except Exception as e:  # noqa: BLE001  (then the computations completed, against EECU_LIMIT)
+				print(f'quota: {type(e).__name__} {getattr(e, "code", "")}', flush=True)
+				quota = (None, None, None)
 			_usage.update(month_start=start, time=time.time(), users=hours, project_hours=sum(hours.values()),
-			              updated=int(time.time()))
+			              updated=int(time.time()), quota=quota)
 		return _usage
 
 
@@ -237,13 +288,25 @@ def user_usage(user, quota=True):
 	"""What /usage answers for USER (None: only the project); with QUOTA, also whether the project is in restricted
 	mode (see restricted), when nothing is left."""
 	u, (_, resets) = usage(), month()
-	project_left = max(0.0, EECU_LIMIT - PROJECT_RESERVE - u['project_hours'])  # for all the users of the shared account
+	counted, quota_limit, counted_at = u.get('quota') or (None, None, None)
+	limit = quota_limit / 3600 if quota_limit else EECU_LIMIT  # the limit of the project, as Earth Engine has it
+	reserve = PROJECT_RESERVE * limit / EECU_LIMIT if EECU_LIMIT > 0 else 0.1 * limit
+	counted_hours = None if counted is None else counted / 3600
+	# for all the users of the shared account: what is left of the computations completed (by those, and not by the
+	# counter of Earth Engine, which may go down the next day, the users get no more tokens: see spent)
+	project_left = max(0.0, limit - reserve - u['project_hours'])
+	reached = counted_hours is not None and counted_hours >= QUOTA_REACHED * limit
 	limited = restricted() if quota else None
+	if reached and quota:
+		limited = True  # Earth Engine has counted the whole quota: restricted mode, also without its header
 	if limited:
 		project_left = 0.0
-	out = {'project': PROJECT, 'project_used_hours': round(u['project_hours'], 3), 'project_limit_hours': EECU_LIMIT,
-	       'project_reserve_hours': PROJECT_RESERVE, 'project_left_hours': round(project_left, 3),
-	       'restricted': limited, 'resets': resets.isoformat(), 'updated': u['updated']}
+	out = {'project': PROJECT, 'project_used_hours': round(u['project_hours'], 3), 'project_limit_hours': limit,
+	       'project_reserve_hours': round(reserve, 3), 'project_left_hours': round(project_left, 3),
+	       'restricted': limited, 'quota_reached': reached, 'resets': resets.isoformat(), 'updated': u['updated']}
+	if counted_hours is not None:
+		out.update(project_quota_used_hours=round(counted_hours, 3), project_quota_limit_hours=limit,
+		           project_quota_percent=round(100 * counted_hours / limit, 1), project_quota_time=counted_at)
 	if user:
 		used = u['users'].get(user, 0.0)
 		out.update(user=user, used_hours=round(used, 3), limit_hours=USER_LIMIT,
@@ -263,12 +326,13 @@ def spent(user):
 		return {'code': 'spent', 'used_hours': u['used_hours'], 'limit_hours': USER_LIMIT, 'resets': u['resets'],
 		        'error': f"you have spent your research EECUs of this month ({u['used_hours']:.1f} of {USER_LIMIT:g} "
 		                 f"EECU-hours): the shared account of MonitorEO computes for you again on {u['resets']}"}
-	if u['project_left_hours'] <= 0:
+	limit, reserve = u['project_limit_hours'], u['project_reserve_hours']
+	if u['project_used_hours'] >= limit - reserve:  # the computations completed: not the counter of Earth Engine
 		return {'code': 'project', 'used_hours': u['used_hours'], 'limit_hours': USER_LIMIT, 'resets': u['resets'],
-		        'project_used_hours': u['project_used_hours'], 'project_limit_hours': EECU_LIMIT,
+		        'project_used_hours': u['project_used_hours'], 'project_limit_hours': limit,
 		        'error': f"the shared account of MonitorEO has spent the EECUs of this month for its users "
-		                 f"({u['project_used_hours']:.0f} of {EECU_LIMIT:g} EECU-hours of the project, of which "
-		                 f"{PROJECT_RESERVE:g} are kept for the app of Earth Engine): it computes again on {u['resets']}"}
+		                 f"({u['project_used_hours']:.0f} of {limit:g} EECU-hours of the project, of which "
+		                 f"{reserve:g} are kept for the app of Earth Engine): it computes again on {u['resets']}"}
 	return None
 
 

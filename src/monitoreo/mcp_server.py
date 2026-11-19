@@ -9,7 +9,8 @@ With a project (the variable EE_PROJECT or the tool connect) it computes with th
 `earthengine authenticate` and that project; without one, with the shared account of MonitorEO (no exports to
 Google Drive): each user has its research EECUs for each month, only for research. The tool eecu_usage tells the EECUs
 of Earth Engine spent this month (with the shared account, the research EECUs of this user; with the user's own, the
-monthly quota of their project), and the answers of the tools carry eecu_warning when less than 10 % are left, and
+monthly quota of their project as Earth Engine counts it in the quota counters of Cloud Monitoring, see
+services.quota_seconds), and the answers of the tools carry eecu_warning when less than 10 % are left, and
 quota_warning when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
 computations are slow and may fail with too many requests; see services.quota_warning), which their errors say too.
 Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
@@ -188,9 +189,12 @@ Without a project of the user (EE_PROJECT or connect) the tools compute with the
 cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
 account each user has research EECUs for each month (compute of Earth Engine, 25 EECU-hours), only for research; who
 has spent them cannot compute with it until the next month, and nor can anyone when the users of the shared account
-have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. eecu_usage tells the percent of them spent (with the
-user's own account, of the monthly EECU quota of their project). When an answer has eecu_warning (less than 10 % of
-the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
+have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. eecu_usage
+tells the percent of them spent (with the user's own account, of the monthly EECU quota of their project as Earth
+Engine counts it, which also counts the computations running or failed and settles them later, so it may go down;
+quota_reached: Earth Engine has counted it all and the project is in restricted mode; with the shared account, the
+percent of the monthly quota of its project that Earth Engine counts). When an answer has eecu_warning (less than 10 %
+of the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
 Engine account and Google Cloud project (connect). When an answer has quota_warning, or an error ends with its text
 (Earth Engine has put the project in restricted mode: it has spent its noncommercial compute quota, so computations
 are slow and may fail with too many requests), tell the user why it is slow or failed; with the shared account, that
@@ -470,11 +474,16 @@ def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = '
 	shared account of MonitorEO they are the research EECUs of this user (25 EECU-hours a month, only for research,
 	and at most what the project has left for all the users of the shared account; when they are spent, the shared
 	account does not compute for them until the next month and they must switch to their own account: connect). With
-	the user's own project, the monthly quota of that project (the Cloud Monitoring API must be enabled in it), against
-	limit: its EECU-hours a month or tier (Community 150, Contributor 1000, Partner 100000; default
-	MONITOREO_EECU_LIMIT or Community). refresh: ask again (answers are kept 5 minutes). lang: en or
-	es. quota_warning: Earth Engine has put the project in restricted mode (its noncommercial compute quota spent:
-	computations are slow and may fail)."""
+	the user's own project, the monthly quota of that project as Earth Engine counts it in the quota counters of Cloud
+	Monitoring (the Cloud Monitoring API must be enabled in it): used_hours is the larger of what Earth Engine counts
+	(also the computations running or failed, which it settles later, so it may go down) and what the computations
+	completed have spent (spent_hours), against the limit of the quota that Earth Engine gives; source: quota (the
+	quota counters were read) or completed (only the computations completed). limit: only when the quota counters
+	cannot be read, the EECU-hours a month of the project or its tier (Community 150, Contributor 1000, Partner 100000;
+	default MONITOREO_EECU_LIMIT or Community). With the shared account the text also gives the percent of the monthly
+	quota of its project that Earth Engine counts. refresh: ask again (answers are kept 5 minutes). lang: en or es.
+	quota_reached: Earth Engine has counted the whole monthly quota (nothing is left). quota_warning: Earth Engine has
+	put the project in restricted mode (its noncommercial compute quota spent: computations are slow and may fail)."""
 	try:  # connected, so that Earth Engine says whether the project is in restricted mode (services.probe_quota)
 		_ready()
 	except Exception:  # e.g. the research EECUs spent (no token of the broker): the usage says so without connecting

@@ -855,6 +855,7 @@ def test_eecu(monkeypatch, tmp_path):
 	monkeypatch.setattr(services, '_project', 'mine')
 	monkeypatch.setattr(services, '_shared', False)
 	monkeypatch.setattr(services, '_own_eecu_hours', lambda project, start: 950.0)
+	monkeypatch.setattr(services, '_own_quota', lambda project: (None, None, None))  # without its quota counters
 	u = services.eecu_usage('Contributor', lang='en')
 	assert u['account'] == 'own' and u['tier'] == 'Contributor' and u['used_percent'] == 95 and u['low']
 	assert 'monthly EECU quota of the project mine' in u['warning'] and 'research' not in u['warning']
@@ -874,6 +875,7 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 	import importlib.util
 	import os
 	import threading
+	import urllib.parse
 	from http.server import ThreadingHTTPServer
 	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
 	monkeypatch.setenv('EE_PROJECT', 'shared-project')
@@ -893,9 +895,15 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 	alice, bob = 'mo-' + 'a' * 16, 'mo-' + 'b' * 16
 	monitoring = []
 
+	counters = {}  # the quota counters of Earth Engine (consumer_quota): none yet
+
 	def fake_json(url, data=None, headers=None):
 		if url == broker.METADATA:
 			return {'access_token': 'broker-token'}
+		if 'consumer_quota' in urllib.parse.unquote_plus(url):
+			metric = broker.QUOTA_LIMIT if broker.QUOTA_LIMIT in urllib.parse.unquote_plus(url) else broker.QUOTA_USAGE
+			return {'timeSeries': [{'points': [{'interval': {'endTime': t}, 'value': {'int64Value': str(v)}}
+			                                   for t, v in counters.get(metric, [])]}] if metric in counters else []}
 		monitoring.append(url)
 		seconds = {alice: 3 * 3600, bob: 10.5 * 3600}
 		return {'timeSeries': [{'metric': {'labels': {'workload_tag': k}}, 'points': [{'value': {'doubleValue': v}}]}
@@ -944,8 +952,36 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 		monkeypatch.setattr(broker, 'quota_status', fails)
 		broker._quota['time'] = 0
 		u = services._broker('/usage', user=alice)  # unknown: what the EECUs say
-		assert u['restricted'] is None and u['left_hours'] == 7
-		assert len(monitoring) == 1 and 'workload_tag' in monitoring[0]  # one query for every user, kept 5 minutes
+		assert u['restricted'] is None and u['left_hours'] == 7 and u['quota_reached'] is False
+		assert 'project_quota_percent' not in u  # without the quota counters of Earth Engine
+		assert len(monitoring) == 1
+		monkeypatch.setattr(broker, 'quota_status', lambda access_token, project: '')
+
+		# the quota counters of Earth Engine: its limit (40 EECU-hours, not EECU_LIMIT) and what it has counted, the
+		# newest point (it counts more than the computations completed: 20 of 40, the users have 40 - 4 - 20 left)
+		def ago(hours):  # an end time of a point of Cloud Monitoring, HOURS before now (this month, within 50 hours)
+			return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+		counters[broker.QUOTA_LIMIT] = [(ago(0.2), 40 * 3600)]
+		counters[broker.QUOTA_USAGE] = [(ago(0.15), 30 * 3600), (ago(0.1), 20 * 3600)]
+		newest = counters[broker.QUOTA_USAGE][-1][0]
+		broker._usage['time'] = broker._quota['time'] = 0
+		u = services._broker('/usage', user=alice)
+		assert u['project_limit_hours'] == 40 and u['project_reserve_hours'] == 4 and u['project_used_hours'] == 14.5
+		assert u['project_quota_used_hours'] == 20 and u['project_quota_percent'] == 50
+		assert u['project_quota_time'] == newest
+		assert u['project_left_hours'] == 21.5  # of the computations completed (40 - 4 - 14.5), not of the counter
+		assert u['left_hours'] == 7 and u['restricted'] is False and u['quota_reached'] is False
+		# Earth Engine has counted it all: restricted mode (without its header), nothing left, tokens still given
+		counters[broker.QUOTA_USAGE].append((ago(0.05), 40 * 3600 + 100))
+		broker._usage['time'] = broker._quota['time'] = 0
+		u = services._broker('/usage', user=alice)
+		assert u['quota_reached'] is True and u['restricted'] is True and u['left_hours'] == 0
+		assert services._broker('/token', user=alice)['access_token'] == 'shared-token'
+		# a project without a monthly limit (int64 max): EECU_LIMIT, and no count of Earth Engine
+		counters[broker.QUOTA_LIMIT] = [(ago(0.2), 2 ** 63 - 1)]
+		broker._usage['time'] = broker._quota['time'] = 0
+		u = services._broker('/usage', user=alice)
+		assert u['project_limit_hours'] == 30 and 'project_quota_percent' not in u and u['quota_reached'] is False and 'workload_tag' in monitoring[0]  # one query for every user, kept 5 minutes
 
 		# the package: the research EECUs of the user of this installation, and no connection once they are spent
 		for v in ('GOOGLE_CLOUD_PROJECT',):

@@ -291,6 +291,16 @@ def need_own_account(what='Exporting to Google Drive'):
 # EECU: the compute of Earth Engine spent this month ----------------------------------------------------------------
 
 EECU_METRIC = 'earthengine.googleapis.com/project/cpu/usage_time'  # "Completed EECU-seconds" of Cloud Monitoring
+# The monthly EECU quota as Earth Engine counts it (what puts a project in restricted mode), and its limit: the quota
+# counters of Cloud Monitoring (resource consumer_quota). Earth Engine counts there more than the computations completed
+# (also those running or failed, which it settles later: the counter may go down during the month)
+QUOTA_METRIC = 'earthengine.googleapis.com/monthly_eecu_usage_time'
+QUOTA_USAGE = 'serviceruntime.googleapis.com/quota/allocation/usage'
+QUOTA_LIMIT = 'serviceruntime.googleapis.com/quota/limit'
+QUOTA_REACHED = 0.995  # of the limit: Earth Engine has counted it all (the counter goes a little over the limit)
+QUOTA_HOURS = 50  # of the newest points of the quota counters (the limit is written about once a day, the count
+# every 15 minutes while it changes)
+QUOTA_TIMEOUT = 10  # seconds: the quota counters are not needed to compute
 EECU_TIERS = {'Community': 150, 'Contributor': 1000, 'Partner': 100000}  # EECU-hours a month of the noncommercial tiers
 KNOWN_TIERS = {'ee-ugr-default-project': 'Contributor'}  # the tier of the projects that MonitorEO knows: its own
 EECU_LOW = 10  # percent of the EECU of the month left under which the tools warn
@@ -312,6 +322,13 @@ _EECU_TEXT = {
 		              'MonitorEO no calcula para ti hasta el {resets}.',
 		'project_shared': ' La cuenta compartida solo tiene {project_left} EECU-h para todos sus usuarios hasta el '
 		                  '{resets}, así que te quedan {left}.',
+		'counted': ' Earth Engine cuenta {counted} EECU-h para la cuota (a las {at} UTC: también los cálculos en curso o '
+		           'que fallaron, y lo ajusta después) y los cálculos completados han gastado {spent}: la barra muestra '
+		           'lo mayor.',
+		'counted_shared': ' El proyecto de la cuenta compartida lleva el {quota_pct} % de su cuota mensual, según '
+		                  'Earth Engine.',
+		'quota_low_shared': 'El proyecto de la cuenta compartida de MonitorEO lleva el {quota_pct} % de su cuota mensual '
+		                    'de EECU, según Earth Engine: cuando la agote, calculará despacio (modo restringido).',
 		'out_project': 'La cuenta compartida de MonitorEO ha gastado los EECU de este mes para sus usuarios: no calcula '
 		               'hasta el {resets}.',
 		'shared': ' Son solo para investigación y cada usuario tiene los suyos: cambia a tu propia cuenta de Earth '
@@ -342,6 +359,13 @@ _EECU_TEXT = {
 		              'account of MonitorEO does not compute for you until {resets}.',
 		'project_shared': ' The shared account has only {project_left} EECU-hours left for all its users until '
 		                  '{resets}, so you have {left} left.',
+		'counted': ' Earth Engine counts {counted} EECU-hours for the quota (at {at} UTC: also the computations running '
+		           'or failed, which it settles later) and the computations completed have spent {spent}: the bar shows '
+		           'the larger.',
+		'counted_shared': ' The project of the shared account is at {quota_pct}% of its monthly quota, as Earth Engine '
+		                  'counts it.',
+		'quota_low_shared': 'The project of the shared account of MonitorEO is at {quota_pct}% of its monthly EECU quota, '
+		                    'as Earth Engine counts it: when it reaches it, it computes slowly (restricted mode).',
 		'out_project': 'The shared account of MonitorEO has spent the EECUs of this month for its users: it does not '
 		               'compute until {resets}.',
 		'shared': ' They are only for research and each user has their own: switch to your own Earth Engine account '
@@ -424,6 +448,53 @@ def eecu_hours(session, project, start, end=None):
 		params['pageToken'] = d['nextPageToken']
 
 
+def quota_seconds(session, project, now=None, start=None):
+	"""(EECU-seconds counted by Earth Engine for the monthly quota of PROJECT, its limit in EECU-seconds, UTC time of
+	that count), from the quota counters of Cloud Monitoring (QUOTA_USAGE and QUOTA_LIMIT of QUOTA_METRIC, the newest
+	point of each in the last QUOTA_HOURS hours, since START: the beginning of the month of the quotas), with SESSION;
+	None for what they do not have (a project without them, or without a monthly limit)."""
+	now = now or dt.datetime.now(dt.timezone.utc)
+	since = max(now - dt.timedelta(hours=QUOTA_HOURS), start or eecu_month(now)[0])
+	series = []
+	for metric in (QUOTA_LIMIT, QUOTA_USAGE):  # one metric per request of Cloud Monitoring
+		params = {'filter': f'metric.type = "{metric}" AND resource.type = "consumer_quota" AND '
+		                    f'metric.labels.quota_metric = "{QUOTA_METRIC}"',
+		          'interval.startTime': since.strftime('%Y-%m-%dT%H:%M:%SZ'),
+		          'interval.endTime': now.strftime('%Y-%m-%dT%H:%M:%SZ')}
+		r = session.get(f'https://monitoring.googleapis.com/v3/projects/{project}/timeSeries', params=params,
+		                timeout=QUOTA_TIMEOUT)
+		if r.status_code != 200:
+			raise _MonitoringError(r)
+		begin = params['interval.startTime']  # (Cloud Monitoring may give the point that ends just before)
+		series += [dict(s, metric=dict(s.get('metric') or {}, type=metric),
+		                points=[p for p in s.get('points', []) if p['interval']['endTime'] >= begin])
+		           for s in r.json().get('timeSeries', [])]
+		if metric == QUOTA_LIMIT and newest_quota(series)[1] is None:
+			return None, None, None  # without a monthly limit: what it counts does not matter
+	return newest_quota(series)
+
+
+def newest_quota(series):
+	"""(used, limit, time of used) of the newest points of the time SERIES of quota_seconds: the limit only that of the
+	project (limit_name ...PerProject) and below 2^62 (a project without a monthly limit has int64 max)."""
+	newest = {}
+	for s in series:
+		metric = s.get('metric', {})
+		name = metric.get('labels', {}).get('limit_name', '')
+		if metric.get('type') == QUOTA_LIMIT and name and not name.endswith('PerProject'):
+			continue
+		for p in s.get('points', []):
+			t, v = p['interval']['endTime'], p.get('value', {})
+			if metric.get('type') in newest and newest[metric.get('type')][0] >= t:
+				continue
+			newest[metric.get('type')] = (t, float(v.get('int64Value', v.get('doubleValue', 0))))
+	limit = newest.get(QUOTA_LIMIT, (None, None))[1]
+	if limit is None or not 0 < limit < 2 ** 62:
+		return None, None, None
+	time_, used = newest.get(QUOTA_USAGE, (None, None))
+	return used, limit, time_
+
+
 class _MonitoringError(RuntimeError):
 	def __init__(self, response):
 		try:
@@ -444,11 +515,23 @@ def _ee_credentials():
 	return credentials or ee.data.get_persistent_credentials()
 
 
-def _own_eecu_hours(project, start):
+def _own_session(project):
 	import google.auth.transport.requests
 	session = google.auth.transport.requests.AuthorizedSession(_ee_credentials())
 	session.headers['x-goog-user-project'] = project  # the quota of the user's project, not that of the client of EE
-	return eecu_hours(session, project, start)
+	return session
+
+
+def _own_eecu_hours(project, start):
+	return eecu_hours(_own_session(project), project, start)
+
+
+def _own_quota(project):
+	"""quota_seconds of the user's own PROJECT, or (None, None, None) when its quota counters cannot be read."""
+	try:
+		return quota_seconds(_own_session(project), project)
+	except Exception:  # then the EECU completed, against the limit of the tier
+		return None, None, None
 
 
 def _number(x, lang, decimals=1):
@@ -501,9 +584,13 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 				d = _broker('/usage', user=user_id())
 				hit = {'used': float(d['used_hours']), 'limit': float(d['limit_hours']), 'project': d.get('project'),
 				       'left': d.get('left_hours'), 'project_left': d.get('project_left_hours'),
-				       'restricted': bool(d.get('restricted'))}
+				       'restricted': bool(d.get('restricted')), 'quota_reached': bool(d.get('quota_reached')),
+				       'quota_percent': d.get('project_quota_percent'), 'counted_at': d.get('project_quota_time')}
 			else:
-				hit = {'used': _own_eecu_hours(_project, start), 'limit': None, 'project': _project}
+				spent = _own_eecu_hours(_project, start)
+				counted, quota, counted_at = _own_quota(_project)
+				hit = {'used': spent, 'limit': None, 'project': _project, 'counted_at': counted_at,
+				       'counted': None if counted is None else counted / 3600, 'quota': quota and quota / 3600}
 		except _MonitoringError as e:
 			raise RuntimeError(t[e.reason].format(project=_project) if e.reason else str(e)) from e
 		except Exception as e:
@@ -512,11 +599,19 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 			raise
 		hit.update(time=time.time(), start=start)
 		_eecu[key] = hit
-	used, limit, project = hit['used'], hit['limit'] or own_limit, hit['project']
+	# the user's own project: what Earth Engine counts for its monthly quota, against its limit (the tier only when
+	# Cloud Monitoring has no quota counters), and at least the EECU of the computations completed (spent)
+	spent = hit['used']
+	used, limit, project = spent, hit.get('quota') or hit['limit'] or own_limit, hit['project']
+	if not shared and hit.get('counted') is not None:
+		used = max(spent, hit['counted'])
 	tier = None if shared else next((k for k, v in EECU_TIERS.items() if v == limit), None)
 	used_pct = round(100 * used / limit, 1)
 	# with the shared account, the broker says what is left: at most what is left of the project for all its users
 	left = max(0.0, limit - used) if hit.get('left') is None else max(0.0, float(hit['left']))
+	reached = not shared and hit.get('counted') is not None and hit['counted'] >= QUOTA_REACHED * limit
+	if reached:  # Earth Engine has counted the whole quota (it goes a little over the limit): nothing left
+		left = 0.0
 	by_project = shared and left < limit - used - 0.005
 	left_pct = round(max(0.0, 100 * left / limit), 1)
 	kind = 'shared' if shared else 'own'
@@ -527,19 +622,37 @@ def eecu_usage(limit=None, refresh=False, lang='en', shared=None):
 	          'project_left': _number(float(hit.get('project_left') or 0), lang, 0)}
 	warning = None
 	restricted = shared and hit.get('restricted')  # the broker asks Earth Engine (it gives 0 left)
+	# the project of the shared account near its quota, as Earth Engine counts it (then it restricts it)
+	quota_low = shared and not restricted and float(hit.get('quota_percent') or 0) >= 100 - EECU_LOW
 	if restricted:
 		warning = _QUOTA_TEXT['shared'].format(project=project)
+	elif quota_low:
+		values.update(quota_pct=_number(float(hit['quota_percent']), lang))
+		warning = (t['quota_low_shared'] + t['shared']).format(**values)
+	elif reached:  # Earth Engine has counted the whole quota: restricted mode
+		warning = _QUOTA_TEXT['own'].format(project=project)
 	elif left_pct < EECU_LOW:
 		out_key = 'out_project' if by_project and left <= 0 else ('out_' if left_pct <= 0 else 'low_') + kind
 		warning = (t[out_key] + t[kind]).format(**values)
 	text = t['text_' + kind].format(**values) + (t['project_shared'].format(**values) if by_project else '')
+	if not shared and hit.get('counted') is not None:  # what the quota counter of Earth Engine says
+		values.update(spent=_number(spent, lang, 2 if spent < 10 else 1), at=str(hit.get('counted_at') or '')[11:16],
+		              counted=_number(hit['counted'], lang, 2 if hit['counted'] < 10 else 1))
+		text += t['counted'].format(**values)
+	elif shared and hit.get('quota_percent') is not None:
+		values.update(quota_pct=_number(float(hit['quota_percent']), lang))
+		text += t['counted_shared'].format(**values)
 	out = {'account': kind, 'name': t['name_' + kind], 'project': project, 'used_hours': round(used, 2),
 	       'limit_hours': limit, 'left_hours': round(left, 2), 'tier': tier, 'used_percent': used_pct,
 	       'left_percent': left_pct, 'month': start.isoformat(), 'resets': resets.isoformat(), 'low': left_pct < EECU_LOW,
-	       'warning': warning, 'text': text}
+	       'warning': warning, 'text': text, 'spent_hours': round(spent, 2),
+	       'source': 'quota' if hit.get('counted') is not None or hit.get('quota_percent') is not None else 'completed',
+	       'quota_reached': bool(reached or (shared and hit.get('quota_reached'))), 'quota_low': bool(quota_low)}
+	if quota_low:
+		out['low'] = True
 	if _project and bool(shared) == bool(_shared):  # the account connected: Earth Engine says whether its project is
 		probe_quota()  # in restricted mode, which the broker (with the shared account) does not see
-	out['quota_warning'] = quota_warning() or (warning if restricted else None)
+	out['quota_warning'] = quota_warning() or (warning if restricted or reached else None)
 	out['bar'] = eecu_bar(out)
 	return out
 
@@ -552,10 +665,20 @@ def eecu_bar(usage, width=30):
 	return f"[{'#' * filled}{'-' * (width - filled)}] {usage['used_percent']:g}%"
 
 
+def eecu_warning_key(usage):
+	"""What tells apart the warnings of eecu_usage USAGE, so that each one is given once: its project, account, kind
+	(Earth Engine counted the whole quota, nothing left, little left) and day (the counter of Earth Engine goes down
+	too, so the same warning may come again another day of the month)."""
+	kind = 'reached' if usage.get('quota_reached') or usage['warning'] == usage.get('quota_warning') else \
+		'project' if usage.get('quota_low') else 'out' if usage.get('left_percent', 100) <= 0 else 'low'
+	return usage['project'], usage['account'], kind, dt.date.today().isoformat()
+
+
 def eecu_warning(lang='en', limit=None, once=False, python_warning=False):
 	"""The warning of eecu_usage when less than EECU_LOW % of the EECU of the month are left, or None (also when
 	Earth Engine is not connected or the EECU cannot be read: it never fails, so the tools call it after computing).
-	With ONCE, only the first time of each project and month; with PYTHON_WARNING, also as an EECUWarning."""
+	With ONCE, only the first time of each kind of warning and day (see eecu_warning_key); with PYTHON_WARNING, also
+	as an EECUWarning."""
 	if not _project:
 		return None
 	try:
@@ -564,7 +687,8 @@ def eecu_warning(lang='en', limit=None, once=False, python_warning=False):
 		return None
 	if not usage['warning']:
 		return None
-	key = (usage['project'], usage['account'], usage['month'])
+	# once for each warning (low, spent, restricted mode) and day: the quota counter of Earth Engine goes down too
+	key = eecu_warning_key(usage)
 	if once and key in _eecu_warned:
 		return None
 	_eecu_warned.add(key)
