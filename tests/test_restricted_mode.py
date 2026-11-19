@@ -243,3 +243,75 @@ def test_the_mcp_server_connects_to_tell_it_with_the_eecus(clock, monkeypatch):
 		raise RuntimeError('no token: the research EECUs of this month are spent')
 	monkeypatch.setattr(mcp_server, '_ready', spent)  # the usage is told without connecting
 	assert json.loads(mcp_server.eecu_usage())['used_percent'] == 1
+
+
+def test_the_broker_asks_earth_engine(monkeypatch):
+	"""The broker of the shared account reads the header of restricted mode in the answer of Earth Engine to a number,
+	also in an answer «too many requests» (HTTP 429); without the header, an error is an error (here, a fake Earth
+	Engine on this computer)."""
+	import importlib.util
+	import threading
+	from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
+	monkeypatch.setenv('EE_PROJECT', 'shared-project')
+	spec = importlib.util.spec_from_file_location('broker_main', os.path.join(ROOT, 'broker', 'main.py'))
+	broker = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(broker)
+	answers, asked = [], []
+
+	class EarthEngine(BaseHTTPRequestHandler):
+		def do_POST(self):
+			body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+			asked.append((self.path, self.headers['Authorization'], body))
+			status, header = answers.pop(0)
+			self.send_response(status)
+			if header is not None:
+				self.send_header(broker.QUOTA_HEADER, header)
+			self.send_header('Content-Length', '2')
+			self.end_headers()
+			self.wfile.write(b'{}')
+
+		def log_message(self, *args):
+			pass
+	server = ThreadingHTTPServer(('127.0.0.1', 0), EarthEngine)
+	threading.Thread(target=server.serve_forever, daemon=True).start()
+	monkeypatch.setattr(broker, 'EE_COMPUTE', f'http://127.0.0.1:{server.server_port}/v1/projects/{{}}/value:compute')
+	try:
+		answers.append((200, 'parallelism_restricted=false'))
+		assert broker.quota_status('t', 'shared-project') == 'parallelism_restricted=false'
+		assert asked[0][:2] == ('/v1/projects/shared-project/value:compute', 'Bearer t')
+		assert asked[0][2]['expression']['values']['0'] == {'constantValue': 1}
+		answers.append((429, 'parallelism_restricted=true'))
+		assert broker.quota_status('t', 'shared-project') == 'parallelism_restricted=true'
+		answers.append((200, None))
+		assert broker.quota_status('t', 'shared-project') == ''
+		answers.append((403, None))
+		with pytest.raises(broker.urllib.error.HTTPError):
+			broker.quota_status('t', 'shared-project')
+		monkeypatch.setattr(broker, 'token', lambda: {'access_token': 't'})
+		answers.append((429, 'parallelism_restricted=true'))
+		assert broker.restricted() is True
+		assert broker.restricted() is True and len(asked) == 5  # kept QUOTA_TTL seconds
+	finally:
+		server.shutdown()
+
+
+def test_the_broker_tells_it_without_connecting(clock, monkeypatch):
+	"""The broker says that the project of the shared account is in restricted mode (restricted, with nothing left):
+	eecu_usage warns of it without connecting to Earth Engine (when the assistant and QGIS open), with the text of
+	the shared account and a full bar."""
+	monkeypatch.setattr(services, '_project', None)
+	monkeypatch.setattr(services, '_eecu', {})
+	monkeypatch.setattr(services, 'user_id', lambda: 'u')
+	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
+		'used_hours': 14.28, 'limit_hours': 25.0, 'left_hours': 0, 'project_left_hours': 0, 'restricted': True,
+		'project': 'ee-ugr-default-project'})
+	usage = services.eecu_usage(shared=True)
+	assert usage['left_percent'] == 0 and usage['low'] and usage['bar'].startswith('[' + '#' * 30 + ']')
+	assert usage['warning'].startswith('The shared account of MonitorEO has spent the noncommercial compute quota')
+	assert usage['quota_warning'] == usage['warning']  # the assistant shows it once (test_assistant)
+	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
+		'used_hours': 14.28, 'limit_hours': 25.0, 'left_hours': 10.72, 'project_left_hours': 500, 'restricted': False,
+		'project': 'ee-ugr-default-project'})
+	usage = services.eecu_usage(shared=True, refresh=True)
+	assert usage['warning'] is None and usage['quota_warning'] is None and usage['left_percent'] == 42.9

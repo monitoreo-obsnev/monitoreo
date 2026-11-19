@@ -903,6 +903,8 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 	monkeypatch.setattr(broker, '_json', fake_json)
 	monkeypatch.setattr(broker, 'token', lambda: {'access_token': 'shared-token', 'expires_at': 2e9,
 	                                              'project': 'shared-project'})
+	quota = {'status': ''}  # the header of Earth Engine about its restricted mode (none: not restricted)
+	monkeypatch.setattr(broker, 'quota_status', lambda access_token, project: quota['status'])
 	server = ThreadingHTTPServer(('127.0.0.1', 0), broker.Handler)
 	threading.Thread(target=server.serve_forever, daemon=True).start()
 	monkeypatch.setenv('MONITOREO_BROKER', f'http://127.0.0.1:{server.server_port}')
@@ -926,6 +928,23 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 		assert e.value.code == 'project' and 'kept for the app of Earth Engine' in str(e.value)
 		assert services._broker('/usage', user=alice)['left_hours'] == 0
 		monkeypatch.setattr(broker, 'EECU_LIMIT', 30.0)
+		assert services._broker('/usage', user=alice)['restricted'] is False
+
+		# Earth Engine has put the project in restricted mode: nothing left, but tokens are still given (slowly)
+		quota['status'] = 'parallelism_restricted=true'
+		assert services._broker('/usage', user=alice)['restricted'] is False  # asked again after QUOTA_TTL seconds
+		broker._quota['time'] = 0
+		u = services._broker('/usage', user=alice)
+		assert u['restricted'] is True and u['left_hours'] == 0 and u['project_left_hours'] == 0
+		assert u['used_hours'] == 3 and u['project_used_hours'] == 14.5
+		assert services._broker('/token', user=alice)['access_token'] == 'shared-token'
+
+		def fails(access_token, project):
+			raise OSError('no network')
+		monkeypatch.setattr(broker, 'quota_status', fails)
+		broker._quota['time'] = 0
+		u = services._broker('/usage', user=alice)  # unknown: what the EECUs say
+		assert u['restricted'] is None and u['left_hours'] == 7
 		assert len(monitoring) == 1 and 'workload_tag' in monitoring[0]  # one query for every user, kept 5 minutes
 
 		# the package: the research EECUs of the user of this installation, and no connection once they are spent
