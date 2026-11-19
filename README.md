@@ -94,6 +94,7 @@ fixed. The assistant and the MCP server update themselves from `main` when they 
 
 ### Unreleased
 
+- **All tools**: The whole Mediterranean Sea is one region, `{"sea": 1905}` or `{"sea": "Mediterranean Sea"}`: its 10 sea areas of the IHO (its two basins, the Alboran, Balearic, Ligurian, Tyrrhenian, Adriatic, Ionian and Aegean seas and the Strait of Gibraltar) as one, with one value per step; the searches of "Mediterranean" give it first.
 - **Assistant, QGIS plugin, MCP server, Command line, R package**: The warning that Earth Engine has put the project in restricted mode (with the shared account, how to use your own project) comes when the assistant opens and with the EECUs of the month, not only after a computation: the tools ask Earth Engine, as the broker of the shared account does not see it.
 - **Assistant, MCP server, Python package, Command line, R package** (fix): On Windows, with the environment of the installer, a chart (so every time series of the assistant) no longer ends the process with «the MCP server of MonitorEO had stopped, and has started again»: numpy multiplies matrices with MKL in one thread, as its threads with the OpenMP of LLVM of conda-forge crashed.
 

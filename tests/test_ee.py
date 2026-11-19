@@ -476,3 +476,17 @@ def test_a_region_wider_than_40_degrees_in_the_global_crs():
 	out = services.time_series(box, 'Chl-a', 'Modis', '2021-01-01', '2021-01-31', step='monthly')
 	assert len(out['rows']) == 1 and 0.05 < out['rows'][0]['value'] < 5 and out['rows'][0]['n_pixels'] > 0, out['rows']
 	assert areas.auto_crs(areas.region(box).geometry()) == areas.GLOBAL_CRS
+
+
+def test_the_whole_mediterranean_sea_is_one_region():
+	"""{"sea": 1905}: the Mediterranean Sea as one feature, the union of its 10 sea areas of the table, with their
+	area (within 4 %), and a monthly series of the chlorophyll of MODIS over it with one line (one region)."""
+	from monitoreo import areas, seas
+	fc = areas.region({'sea': 'Mediterranean Sea'})
+	got = fc.map(lambda f: ee.Feature(None, {'name': f.get('name'), 'km2': f.geometry().area(1000).divide(1e6)}))
+	rows = [r['properties'] for r in got.getInfo()['features']]
+	assert len(rows) == 1 and rows[0]['name'] == 'Mediterranean Sea', rows
+	assert abs(rows[0]['km2'] - seas.area_of(1905)) < 0.04 * seas.area_of(1905), rows
+	out = services.time_series({'sea': 1905}, 'Chl-a', 'Modis', '2021-01-01', '2021-01-31', step='monthly')
+	assert out['regions'] == ['Mediterranean Sea'] and len(out['rows']) == 1, out['rows']
+	assert 0.05 < out['rows'][0]['value'] < 5 and out['rows'][0]['n_pixels'] > 0

@@ -557,7 +557,7 @@ def _of(k, v, spec, inside):
 		from . import seas
 		fc = ee.FeatureCollection(seas.ASSET)
 		if k == 'sea':
-			return fc.filter(ee.Filter.inList('mrgid', seas.codes(v)))
+			return _seas(fc, seas.codes(v))
 		return fc.filterBounds(ee.Geometry.Point(_point(v, k)))
 	if k == 'bbox':
 		return ee.FeatureCollection([ee.Feature(ee.Geometry.Rectangle(list(v), None, False), {'name': 'bbox'})])
@@ -565,6 +565,26 @@ def _of(k, v, spec, inside):
 	if spec.get('buffer'):
 		geom = geom.buffer(float(spec['buffer']))
 	return ee.FeatureCollection([ee.Feature(geom, {'name': 'point'})])
+
+
+def _seas(fc, codes):
+	"""The seas of the MRGIDs CODES (seas.codes) in FC, the table of the sea areas: each sea area as it is there, and
+	each sea of seas.GROUPS (the Mediterranean Sea) as one feature, the union of its sea areas, with its MRGID, name,
+	area and search, as those of the table (seas.GROUP_MAX_ERROR); the groups first."""
+	from . import seas
+	alone = [c for c in codes if c not in seas.GROUPS]
+	groups = [c for c in codes if c in seas.GROUPS]
+	if not groups:
+		return fc.filter(ee.Filter.inList('mrgid', alone))
+	whole = []
+	for code in groups:
+		name, parts = seas.GROUPS[code]
+		geom = fc.filter(ee.Filter.inList('mrgid', list(parts))).geometry(seas.GROUP_MAX_ERROR) \
+			.dissolve(seas.GROUP_MAX_ERROR)
+		whole.append(ee.Feature(geom, {'mrgid': code, 'name': name, 'area_km2': seas.area_of(code),
+		                               'search': seas.plain(name)}))
+	out = ee.FeatureCollection(whole)
+	return out.merge(fc.filter(ee.Filter.inList('mrgid', alone))) if alone else out
 
 
 def _country(code):
@@ -652,7 +672,8 @@ def is_sea(region):
 def find_seas(text, limit=20):
 	"""The sea areas of the IHO (Marine Regions, see monitoreo.seas) whose name contains TEXT, in any case and with or
 	without accents (or whose MRGID begins with it), without Earth Engine: [{MRGID, NAME, AREA_KM2, BOUNDS}], the very
-	name first. Use the MRGID or the name as {"sea": 3324} or {"sea": "Alboran Sea"}."""
+	name first, and the whole Mediterranean Sea (1905, seas.GROUPS: its sea areas as one region, PARTS). Use the MRGID
+	or the name as {"sea": 3324} or {"sea": "Alboran Sea"}."""
 	from . import seas
 	return seas.find(text, limit=limit)
 

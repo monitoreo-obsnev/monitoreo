@@ -24,8 +24,10 @@ ALBORAN, WESTERN = 3324, 4279
 NAMES = ['Alboran Sea', 'Balearic (Iberian Sea)', 'Mediterranean Sea - Eastern Basin', 'Gulf of St. Lawrence',
          'MAR DE ALBORÁN', '  many   spaces\tand\nlines ', 'L’x', 'ß æ ø', 'ﬁ', '', ' ', '3324', 'Bay of Fundy',
          'Sea of Marmara', 'emoji 😀 sea', 'a/b-c', "Côte d'Ivoire"]
-VALUES = [ALBORAN, '3324', 3324.0, 'Alboran Sea', '  alborán SEA ', ['Alboran Sea', WESTERN], [], '', None]
-SPECS = [ALBORAN, [ALBORAN, WESTERN], '3324']
+MEDITERRANEAN, MARMARA = 1905, 3369  # the whole Mediterranean Sea (seas.GROUPS) and a sea that is not part of it
+VALUES = [ALBORAN, '3324', 3324.0, 'Alboran Sea', '  alborán SEA ', ['Alboran Sea', WESTERN], [], '', None,
+          MEDITERRANEAN, '1905', ' Mediterranean SEA', ['mediterranean sea', ALBORAN, 1905, 'Alboran Sea']]
+SPECS = [ALBORAN, [ALBORAN, WESTERN], '3324', MEDITERRANEAN, 'Mediterranean Sea', [MARMARA, MEDITERRANEAN]]
 # (native, area in km², target): the pixels of the statistics (1e6) and of the areas by class (1e7)
 SCALES = [(native, km2, target) for native in (10, 30, 250, 463, 500, 1000, 4616, 11132, 27830)
           for km2 in (0, 1, 5000, 54_482, 99_999, 100_000, 100_001, 120_000, 476_707, 3e6, 7.7e7)
@@ -69,6 +71,8 @@ out.named = chain(function () { mo.seaRegion(['Alboran Sea', 4279]); });
 out.at = chain(function () { mo.seaAt(-2.5, 36); });
 out.find = chain(function () { mo.findSeas('  Alborán ', 30); });
 out.findCode = chain(function () { mo.findSeas('3324'); });
+out.findGroup = chain(function () { mo.findSeas('Mediterranean', 30); });
+out.findGroupCode = chain(function () { mo.findSeas('1905'); });
 out.scales = input.scales.map(function (s) { return mo.defaultScale(s[0], s[1] * 1e6, s[2]); });
 out.auto = [mo.autoScale({m: 250}, 476707e6), mo.areaScale(30, 200000e6)];
 out.large = [mo.isLarge(1e11), mo.isLarge(1e11 + 1), mo.isLarge(0), mo.LARGE_AREA_KM2, mo.LARGE_PIXEL];
@@ -76,7 +80,7 @@ out.isSea = [{sea: 1}, {sea_at: [0, 0]}, {bbox: [0, 0, 1, 1], within: {sea: 1}},
 	.map(mo.isSea);
 out.warnings = input.warnings.map(function (w) { return mo.seaWarning(w[0], w[1] === null ? null : mo.byRef(w[1])); });
 out.credits = mo.adminCredits('sea');
-out.constants = [mo.SEAS, mo.CITED_REGIONS];
+out.constants = [mo.SEAS, mo.CITED_REGIONS, mo.SEA_GROUPS, mo.SEA_GROUP_MAX_ERROR];
 process.stdout.write(JSON.stringify(out));
 """
 WARNINGS = [({'sea': ALBORAN}, e['ref']) for e in catalog.variables()] + [
@@ -122,9 +126,16 @@ def test_the_app_builds_the_region_of_a_sea_as_the_package(app, monkeypatch):
 
 def test_the_app_checks_the_seas(app):
 	codes = dict(zip((json.dumps(v, ensure_ascii=False) for v in VALUES), app['codes']))
-	assert codes['3324'] == codes['"3324"'] == codes['3324.0'] == {'value': {'mrgids': [ALBORAN], 'names': []}}
-	assert codes['"  alborán SEA "'] == {'value': {'mrgids': [], 'names': ['alboran sea']}}
-	assert codes[json.dumps(['Alboran Sea', WESTERN])] == {'value': {'mrgids': [WESTERN], 'names': ['alboran sea']}}
+	assert codes['3324'] == codes['"3324"'] == codes['3324.0'] == {'value': {'mrgids': [ALBORAN], 'names': [],
+	                                                                          'groups': []}}
+	assert codes['"  alborán SEA "'] == {'value': {'mrgids': [], 'names': ['alboran sea'], 'groups': []}}
+	assert codes[json.dumps(['Alboran Sea', WESTERN])] == {'value': {'mrgids': [WESTERN], 'names': ['alboran sea'],
+	                                                                 'groups': []}}
+	# the whole Mediterranean Sea (seas.GROUPS), by its MRGID or its name, once
+	group = {'value': {'mrgids': [], 'names': [], 'groups': [MEDITERRANEAN]}}
+	assert codes['1905'] == codes['"1905"'] == codes['" Mediterranean SEA"'] == group
+	assert codes[json.dumps(['mediterranean sea', ALBORAN, 1905, 'Alboran Sea'])] == {
+		'value': {'mrgids': [ALBORAN], 'names': ['alboran sea'], 'groups': [MEDITERRANEAN]}}
 	for empty in ('[]', '""', 'null'):
 		assert codes[empty]['error'].startswith("sea is the MRGID of a sea area of the IHO (e.g. 3324) or its name")
 		assert codes[empty]['error'].endswith('(find them with find_seas)')
@@ -148,12 +159,27 @@ def test_the_order_of_the_server_is_that_of_the_package(text):
 	"""The order of findSeas (its property order) lists the same seas as seas.find."""
 	t = seas.plain(text)
 	found = []
-	for mrgid, name, _, _ in seas.load()['rows']:
+	for mrgid, name, _, _ in seas.load()['rows'] + seas.group_rows():  # the table, and the groups of the app
 		s = seas.plain(name)
 		if t in s:
 			found.append(('0' if s == t else '1' if s.startswith(t) else '2') + s)
 	server = [o[1:] for o in sorted(found)[:30]]
 	assert server == [seas.plain(s['NAME']) for s in seas.find(text, limit=30) if t in seas.plain(s['NAME'])]
+
+
+def test_the_app_has_the_whole_mediterranean_sea_as_the_package(app):
+	"""SEA_GROUPS of the app is seas.GROUPS, with the area of its sea areas; findSeas adds it to what the table finds
+	(it is not there), as a feature without geometry with its mrgid, name, area_km2 and order."""
+	groups, max_error = app['constants'][2:]
+	assert groups == {str(c): {'name': n, 'parts': list(p), 'area_km2': seas.area_of(c)} for c, (n, p) in seas.GROUPS.items()}
+	assert max_error == seas.GROUP_MAX_ERROR
+	props = {'mrgid': MEDITERRANEAN, 'name': 'Mediterranean Sea', 'area_km2': seas.area_of(MEDITERRANEAN),
+	         'order': '1mediterranean sea'}
+	log = app['findGroup']
+	assert ['Feature', None, props] in log and log[-4:] == [['FeatureCollection', ['<ee>']], ['merge', '<ee>'],
+	                                                         ['sort', 'order'], ['limit', 30]]
+	assert ['Feature', None, dict(props, order='2mediterranean sea')] in app['findGroupCode']
+	assert not any(c[0] == 'merge' for c in app['find'])  # "Alborán": no group
 
 
 def test_the_app_chooses_the_pixel_as_the_package(app):
