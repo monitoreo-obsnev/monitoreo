@@ -151,13 +151,16 @@ def test_the_command_line_takes_the_percentiles(monkeypatch, tmp_path, capsys):
 	monkeypatch.setattr(services, 'download_image', download_image)
 	region = json.dumps({'bbox': [-3.45, 37.02, -3.3, 37.12]})
 	cli.main(['timelapse', 'NDVI', '--sensor', 'Modis', '--region', region, '--start', '2021-01-01', '--end',
-	          '2022-12-31', '--out', str(tmp_path / 'a.gif'), '--percentiles', '2', '98'])
+	          '2022-12-31', '--out', str(tmp_path / 'a.gif'), '--percentiles', '2', '98', '--own-colours'])
 	assert calls[-1]['percentiles'] == [2, 98] and calls[-1]['same_colours'] is False
 	out = capsys.readouterr().out
 	assert '0.1 to 0.5' in out and '0.3 to 0.9' in out and 'percentiles 2 and 98 of the values of each frame' in out
 	cli.main(['timelapse', 'NDVI', '--sensor', 'Modis', '--region', region, '--start', '2021-01-01', '--end',
-	          '2022-12-31', '--out', str(tmp_path / 'a.gif'), '--same-colours'])
+	          '2022-12-31', '--out', str(tmp_path / 'a.gif')])  # by default, the same colours for every frame
 	assert calls[-1]['percentiles'] is None and calls[-1]['same_colours'] is True
+	cli.main(['timelapse', 'NDVI', '--sensor', 'Modis', '--region', region, '--start', '2021-01-01', '--end',
+	          '2022-12-31', '--out', str(tmp_path / 'a.gif'), '--same-colours'])  # (kept for the scripts of before)
+	assert calls[-1]['same_colours'] is True
 	cli.main(['image', 'NDVI', '--sensor', 'Sentinel-2', '--region', region, '--start', '2021-01-01', '--end',
 	          '2021-12-31', '--out', str(tmp_path / 'a.tif'), '--vmin', '0', '--vmax', '0.8'])
 	assert (calls[-1]['vmin'], calls[-1]['vmax']) == (0, 0.8) and 'colours given 0 to 0.8' in capsys.readouterr().out

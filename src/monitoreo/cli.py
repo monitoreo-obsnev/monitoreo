@@ -576,9 +576,11 @@ def main(argv=None):
 	p.add_argument('--vmax', type=float, help='value of the last colour of every frame (default: the high percentile)')
 	p.add_argument('--percentiles', nargs=2, type=float, metavar=('LOW', 'HIGH'),
 	               help=PERCENTILES_HELP)
-	p.add_argument('--same-colours', action='store_true',
-	               help='one colour ramp for every frame, from the percentiles of the map of the whole period (with '
-	                    '--metric sum or count, of the median of the frames), instead of each frame its own')
+	p.add_argument('--own-colours', action='store_false', dest='same_colours',
+	               help='each frame with its own colour ramp (the percentiles of its own values), instead of one ramp '
+	                    'for every frame, from the percentiles of the map of the whole period (with --metric sum or '
+	                    'count, of the median of the frames), the default')
+	p.add_argument('--same-colours', action='store_true', help=argparse.SUPPRESS)  # the default: kept for scripts
 	p.add_argument('--fps', type=float, default=1, help='frames per second (default: 1)')
 	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
 	p.add_argument('--out', required=True, help='GIF (.gif) or video (.mp4, needs ffmpeg) of the animation')

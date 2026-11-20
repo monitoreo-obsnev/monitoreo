@@ -2658,8 +2658,8 @@ def test_stop_cuts_the_request_to_ollama(monkeypatch):
 
 def test_the_user_chooses_the_range_of_the_colours():
 	"""The box «Colours» of the map of the page (set_range): the map of the result made again with the percentiles or the
-	minimum and maximum the user gives, and the maps of its dates with them too (each step, by default, between its own
-	percentiles 1 and 99); the maps of classes keep the colour of each class, and wrong ranges are refused."""
+	minimum and maximum the user gives, and the maps of its dates with its new range (every date, by default, with the
+	range of the map of the result); the maps of classes keep the colour of each class, and wrong ranges are refused."""
 	calls = []
 
 	class Maps(FakeAssistant):
@@ -2686,10 +2686,11 @@ def test_the_user_chooses_the_range_of_the_colours():
 		return a, key, before, main, step, fixed
 
 	a, key, before, main, step, fixed = asyncio.run(run())
-	assert 'vmin' not in calls[0][1] and calls[0][1]['quick'] is False  # a step: its own percentiles
+	assert (calls[0][1]['vmin'], calls[0][1]['vmax']) == (0.1, 0.6) and calls[0][1]['quick'] is False  # its range
 	assert calls[1] == ('map_layer', {**args, 'quick': False, 'preview': False, 'percentiles': [2, 98]})
 	assert main['legend']['min'] == 0.2 and main['map']['url'] == 'https://ee/2/{z}/{x}/{y}'
-	assert calls[2][1]['percentiles'] == [2, 98] and step['map']['url'] == 'https://ee/3/{z}/{x}/{y}'
+	assert (calls[2][1]['vmin'], calls[2][1]['vmax']) == (0.2, 0.7) and 'percentiles' not in calls[2][1]
+	assert step['map']['url'] == 'https://ee/3/{z}/{x}/{y}'  # the new range of the map of the result
 	assert (calls[3][1]['vmin'], calls[3][1]['vmax']) == (0.0, 0.5) and fixed['key'] == key
 	assert (fixed['legend']['min'], fixed['legend']['max']) == (0.0, 0.5)
 	assert a.results[0]['range'] == {'percentiles': [1, 99], 'vmin': 0.0, 'vmax': 0.5}
@@ -2708,7 +2709,9 @@ def test_the_user_chooses_the_range_of_the_colours():
 def test_the_range_of_the_colours_of_the_dates_and_its_errors(monkeypatch):
 	"""The page gets the map of the result made again with the date it asked for; a range that Earth Engine cannot
 	make is not kept; the percentiles that the model gave reach the maps of each date; and the fixed ramps of the tau
-	and p-value of a trend have no range to choose."""
+	and p-value of a trend have no range to choose. Every date has the colours of the map of the result (the
+	developer, 2026-11-20: the same range for every map of an animation), made with the percentiles of the model or
+	those the user chose."""
 	calls, failing = [], []
 
 	class Maps(FakeAssistant):
@@ -2729,10 +2732,12 @@ def test_the_range_of_the_colours_of_the_dates_and_its_errors(monkeypatch):
 	assert card['range'] is True
 	key = a.results[0]['steps'][0]['key']
 	asyncio.run(a.step_map(1, key))
-	assert calls[-1][1]['percentiles'] == [5, 95]  # those of the model, for each date too
+	assert (calls[-1][1]['vmin'], calls[-1][1]['vmax']) == (0.1, 0.6)  # the range of the map of the result
+	assert 'percentiles' not in calls[-1][1]  # (made with the percentiles of the model)
 	shown = asyncio.run(a.set_range(1, key + '|p<0.05', [2, 98]))  # the key of a variant: its date
 	assert shown['key'] == key and shown['main']['map']['url'].startswith('https://ee/')
-	assert calls[-1][1]['percentiles'] == [2, 98] and 'vmin' not in calls[-1][1]
+	assert calls[-2][1]['percentiles'] == [2, 98] and 'vmin' not in calls[-2][1]  # the map of the result again
+	assert (calls[-1][1]['vmin'], calls[-1][1]['vmax']) == (0.2, 0.7)  # and its date with its new range
 	failing.append(True)
 	with pytest.raises(RuntimeError, match='memory'):
 		asyncio.run(a.set_range(1, '', [10, 90]))
@@ -2780,3 +2785,15 @@ def test_the_page_in_spanish():
 				assert a.settings['ui_lang'] == kept  # only English or Spanish
 		finally:
 			assistant.SETTINGS = old
+
+
+def test_the_dates_have_the_colours_of_the_map_of_the_result():
+	"""common_range: the dates of a map of a variable get its range, but not those of a sum, a count or the days of
+	snow (animation.TOTALS: the range of the whole period would be as many times bigger), nor the maps of classes or of
+	the true colour, which keep their own."""
+	ramp = {'tool': 'map_layer', 'args': {'metric': 'median'}, 'result': {'min': 0.1, 'max': 0.8, 'palette': ['fff']}}
+	assert assistant.common_range(ramp) == (0.1, 0.8) and assistant.common_range(ramp, 'mean') == (0.1, 0.8)
+	assert assistant.common_range(ramp, 'sum') is None and assistant.common_range(ramp, 'count') is None
+	assert assistant.common_range({**ramp, 'args': {'metric': 'days'}}, 'median') is None
+	assert assistant.common_range({**ramp, 'tool': 'rgb_map'}) is None
+	assert assistant.common_range({**ramp, 'result': {'min': None, 'max': None}}) is None

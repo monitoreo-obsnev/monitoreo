@@ -94,6 +94,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: The frames of an animation have the same colours by default, those of the map of the whole period, so that they can be compared (each frame its own range: `same_colours` false, `--own-colours` or the checkbox unchecked); in the assistant, the dates of the map of a result too (not sums and counts), and in the QGIS plugin the maps of a series or of trends.
+
 ### [v0.3.62](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.62) · 2026-11-20 · package 0.3.72
 
 - **Assistant, QGIS plugin, Command line, MCP server, R package**: After signing in with your Google account, a list of your Google Cloud projects registered in Earth Engine to choose the one to compute with (`monitoreo projects`, `own_projects`, `mo_projects()`); another one can still be written.

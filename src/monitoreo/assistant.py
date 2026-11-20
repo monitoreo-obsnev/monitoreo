@@ -354,9 +354,11 @@ region_stats with zones (e.g. the NDVI of each elevation band of 500 m) and tran
 the elevation). A figure of a map for a report or a paper (grid, scale bar, north arrow): map_layer with figure \
 true. Animation of the change, a frame per year (or month) with its date: timelapse \
 (step "annual" or "monthly", at most 120 frames; it takes some minutes). Fire: burn_severity.
-- Colours of the maps: each map, each date of the maps of a result and each frame of an animation is stretched \
-between the percentiles 1 and 99 of its own values. Other percentiles: percentiles (e.g. [2, 98]); one ramp for every \
-frame: timelapse with same_colours true; an exact minimum and maximum: the box «Colours» over the map of the page.
+- Colours of the maps: each map is stretched between the percentiles 1 and 99 of its own values; the dates of the \
+maps of a result and the frames of an animation all have the same colours, those of the map of the whole period, so \
+that they can be compared (sums and counts in the page: each date its own). Other percentiles: percentiles (e.g. \
+[2, 98]); each frame of an animation with its own range: timelapse with same_colours false; an exact minimum and \
+maximum: the box «Colours» over the map of the page.
 - True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
 colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \
 and download_rgb, with those of download_image, for its GeoTIFF; only variables of Sentinel-2, Landsat and the cloud \
@@ -1932,8 +1934,9 @@ class Assistant:
 
 	async def step_map(self, rid, key, significant=False, rgb=False):
 		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time,
-		with its colours stretched between the percentiles 1 and 99 of its own values (each step its own range, as the
-		developer asked), or with the range the user chose for the maps of the result (set_range); of a trend with
+		with the range of colours of the map of the result (that of the whole period: the percentiles 1 and 99 of its
+		values, or the range the user chose for the maps of the result, set_range), the same for every date, so that
+		they can be compared as the frames of an animation (common_range); of a trend with
 		SIGNIFICANT, only its pixels with Mann-Kendall p < ALPHA; with RGB, the true colour of its images (rgb_map with
 		the same arguments: the same images, dates and pixels; key with RGB), stretched between the percentiles 2 and
 		98 of its own reflectance. What the page shows of it, with the key that names it."""
@@ -1970,7 +1973,14 @@ class Assistant:
 					args['alpha'] = ALPHA
 				if rgb:  # the same images in true colour, stretched between the percentiles of their own reflectance
 					tool = 'rgb_map'
-				error, texts, _ = await self.call(tool, self.map_call(tool, args, None if rgb else item))
+				call = self.map_call(tool, args, None if rgb else item)
+				common = None if rgb or not key or 'part' in step else common_range(main, args.get('metric'))
+				if common:  # every date with the colours of the map of the result
+					call = {k: v for k, v in call.items() if k not in RANGE}
+					call.update(vmin=common[0], vmax=common[1])
+					args = {k: v for k, v in args.items() if k not in RANGE}
+					args.update(vmin=common[0], vmax=common[1])
+				error, texts, _ = await self.call(tool, call)
 				if error:
 					raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 				maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
@@ -2781,6 +2791,20 @@ def stretch_text(result):
 	without it."""
 	st = result.get('stretch') if isinstance(result, dict) else None
 	return st.get('text') or None if isinstance(st, dict) else None
+
+
+def common_range(main, metric=None):
+	"""(min, max) of the colours of MAIN, the map of a result, for the maps of its dates (step_map), whose METRIC is
+	that of the images of each date, or None: not for the maps of classes, the true colour, nor the metrics that grow
+	with the images or the days (animation.TOTALS: the range of the whole period would be as many times bigger as its
+	dates), which keep their own range."""
+	from . import animation
+	res, args = main.get('result') or {}, main.get('args') or {}
+	if main.get('tool') != 'map_layer' or report._map_classes(res) or res.get('min') is None or res.get('max') is None:
+		return None
+	if any(str(m or 'median').strip().lower() in animation.TOTALS for m in (metric, args.get('metric'))):
+		return None
+	return float(res['min']), float(res['max'])
 
 
 def _facts(name, args, result, names):

@@ -248,12 +248,20 @@ def offline(monkeypatch, tmp_path):
 	return seen
 
 
-def test_each_frame_has_the_colours_of_its_own_values(offline):
-	"""By default each frame is stretched between the percentiles 1 and 99 of its own values over the region (as the
-	developer asked: «the map of each time unit must use a colour palette with a range fitted to its p1-99 values»),
-	in a single request for all of them; a frame without values gets the range of the catalog; the range of each
-	frame is written on it and is in the result, and the README says how."""
+def test_every_frame_has_the_same_colours_by_default(offline):
+	"""By default every frame has the same colours, those of the map of the whole period (the developer, 2026-11-20:
+	the same range for every map of an animation, so that they can be compared)."""
 	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric='median')
+	assert offline['range'] == 'the map of the period.clipToCollection(regions)'
+	assert res['stretch']['text'].endswith('of the map of the whole period: the same colours for every frame')
+	assert len({(f['min'], f['max']) for f in res['frames']}) == 1
+
+
+def test_each_frame_has_the_colours_of_its_own_values(offline):
+	"""With same_colours false each frame is stretched between the percentiles 1 and 99 of its own values over the
+	region, in a single request for all of them; a frame without values gets the range of the catalog; the range of
+	each frame is written on it and is in the result, and the README says how."""
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric='median', same_colours=False)
 	assert len(offline['frames']) == 3 and offline['percentiles'] == (1, 99)
 	assert "median of images.filterDate('2002-01-01', '2003-01-01')" in offline['frames'][1]
 	assert 'range' not in offline  # no map of the whole period
@@ -262,9 +270,10 @@ def test_each_frame_has_the_colours_of_its_own_values(offline):
 	assert (res['min'], res['max']) == (0, 30)
 	assert res['stretch']['percentiles'] == [1, 99] and res['stretch'].get('per_frame')
 	assert 'each frame has its own range' in readme.text('timelapse', ARGS, res)
-	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', percentiles=[2, 98])
+	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', percentiles=[2, 98], same_colours=False)
 	assert offline['percentiles'] == (2, 98)
-	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', vmin=-1, vmax=1)  # the same range
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', vmin=-1, vmax=1,
+	                         same_colours=False)  # both ends given: the same range anyway
 	assert offline['ramps'] == [(-1, 1)] * 3 and res['stretch']['method'] == 'given'
 	with pytest.raises(ValueError, match='percentiles'):
 		services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', percentiles=[99, 1])

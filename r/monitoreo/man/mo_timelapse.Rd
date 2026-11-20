@@ -27,7 +27,7 @@ mo_timelapse(
   band_offset = NULL,
   unit = NULL,
   percentiles = NULL,
-  same_colours = FALSE
+  same_colours = TRUE
 )
 }
 \arguments{
@@ -118,12 +118,13 @@ sum of bands is not turned from a rate into a total (12 monthly bands in mm sum 
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
 
-\item{percentiles}{two numbers, the percentiles of the values of each frame over the region between which its
-colour ramp is stretched (default \code{NULL}: \code{c(1, 99)}); with \code{same_colours}, those of the map of
-the whole period, for every frame.}
+\item{percentiles}{two numbers, the percentiles of the values of the map of the whole period over the region
+between which the colour ramp of every frame is stretched (default \code{NULL}: \code{c(1, 99)}); with
+\code{same_colours = FALSE}, those of each frame.}
 
-\item{same_colours}{\code{TRUE}: one colour ramp for every frame, so that they can be compared; \code{FALSE}
-(default): each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if given).}
+\item{same_colours}{\code{TRUE} (default): one colour ramp for every frame, so that they can be compared;
+\code{FALSE}: each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if
+given).}
 }
 \value{
 A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label,
@@ -134,11 +135,11 @@ A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), fra
 }
 \description{
 A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
-temporal metric of the images of the step on each pixel, coloured by default with its own colour range (from its
-\code{percentiles}, 1 and 99, over the region: each frame its own, written on it) or, with \code{same_colours} or
-both \code{vmin} and \code{vmax}, with one colour ramp for every frame (from \code{vmin} to \code{vmax}, or from
-the \code{percentiles} of the map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which
-grow with the images, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+temporal metric of the images of the step on each pixel, coloured by default with one colour ramp for every frame,
+so that they can be compared (from \code{vmin} to \code{vmax}, or from the \code{percentiles}, 1 and 99, of the
+map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which grow with the images, of the
+median of the frames) or, with \code{same_colours = FALSE}, each frame with its own colour range (from its
+\code{percentiles} over the region, written on it) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
 lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
 colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
 not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the

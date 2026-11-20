@@ -2,7 +2,8 @@
 of the package (maps.STRETCH, 1 and 99; the true colour maps.RGB_STRETCH), core.js checks the percentiles and makes
 the ramp as maps.check_percentiles and maps.vis_params, and in the app (gee/ui.js in Node, with the ui and ee of
 tests/test_themes.py, which compute nothing) the percentiles, minimum and maximum given reach the reducer and the
-colours, and the animation stretches each frame between the percentiles of its own values unless Same colours."""
+colours, and the animation has one range for every frame (Same colours, checked by default) or, unchecked, each frame
+between the percentiles of its own values."""
 
 import json
 import os
@@ -172,7 +173,10 @@ button('Add to the map').opts.onClick();
 out.badEnds = texts(results_());
 ends[0].opts.onChange('');
 ends[1].opts.onChange('');
-// the animation of a frame per month: each frame between the percentiles of its own values, in one request
+// the animation of a frame per month, with Same colours unchecked (checked by default): each frame between the
+// percentiles of its own values, in one request
+out.sameByDefault = check('Same colours in every frame').opts.value;
+check('Same colours in every frame').opts.onChange(false);
 find(controls, 'Select', function (w) {
 	return (w.opts.items || []).some(function (i) { return i.label === 'Month'; });
 })[0].opts.onChange('monthly');
@@ -215,6 +219,7 @@ def test_the_colour_range_of_the_app():
 	assert any('percentiles must be two numbers 0 <= low < high <= 100' in t for t in out['badPercentiles'])
 	assert any('must be lower than its maximum' in t for t in out['badEnds'])
 	# the animation: each frame its own range (one request, the reducer once per frame), written beside each frame
+	assert out['sameByDefault'] is True  # one range for every frame by default
 	frames = out['frames']
 	assert frames['reducers'] == 12
 	summary = next(t for t in frames['texts'] if t.startswith('12 frames'))

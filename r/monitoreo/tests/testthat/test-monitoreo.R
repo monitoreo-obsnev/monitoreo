@@ -544,12 +544,14 @@ test_that("the colour range of the maps: percentiles, vmin, vmax and same_colour
   expect_equal(c(calls$trend_map$vmin, calls$trend_map$vmax), c(-0.01, 0.01))
   expect_equal(calls$compare_map$vmax, 0.2)
   expect_true(calls$timelapse$same_colours)
-  # by default, none: the percentiles 1 and 99 of the package, each frame of an animation with its own
+  # by default, none: the percentiles 1 and 99 of the package, every frame of an animation with the same colours
   mo_map_layer(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
   mo_timelapse(region, "NDVI", "Sentinel-2", "2020-01-01", "2021-12-31", "ndvi.gif")
   expect_null(calls$map_layer$percentiles)
   expect_null(calls$timelapse$percentiles)
-  expect_false(calls$timelapse$same_colours)
+  expect_true(calls$timelapse$same_colours)
+  mo_timelapse(region, "NDVI", "Sentinel-2", "2020-01-01", "2021-12-31", "ndvi.gif", same_colours = FALSE)
+  expect_false(calls$timelapse$same_colours)  # each frame its own
   # two numbers 0 <= low < high <= 100, before Earth Engine
   for (bad in list(99, c(99, 1), c(-1, 50), c(1, 101), c("a", "b"), c(1, 2, 3))) {
     expect_error(mo_map_layer(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", percentiles = bad),

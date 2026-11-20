@@ -279,7 +279,7 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
         <option value="pnoa">PNOA orthophoto (Spain only)</option>
       </select></label>
       <label>Opacity <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
-      <span id="rangelabel" class="range" hidden title="The colours of each map (and of each of its dates) are stretched between the percentiles 1 and 99 of its own values over the region. Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.">Colours: percentiles
+      <span id="rangelabel" class="range" hidden title="The colours of the map of the result are stretched between the percentiles 1 and 99 of its values over the region, and its dates have the same colours, so that they can be compared (a sum or a count: each date its own). Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.">Colours: percentiles
         <input id="plo" type="number" min="0" max="100" step="0.5" value="1" aria-label="Low percentile of the colours"> –
         <input id="phi" type="number" min="0" max="100" step="0.5" value="99" aria-label="High percentile of the colours">
         or min <input id="cmin" type="number" step="any" placeholder="auto" aria-label="Value of the first colour">
@@ -448,8 +448,8 @@ const ES = {
   'Base map': 'Mapa base', 'Mapa (OpenStreetMap)': 'Mapa (OpenStreetMap)',
   'Sentinel-2 cloudless (EOX, whole world)': 'Sentinel-2 sin nubes (EOX, todo el mundo)',
   'PNOA orthophoto (Spain only)': 'Ortofoto del PNOA (solo España)', 'Opacity': 'Opacidad',
-  'The colours of each map (and of each of its dates) are stretched between the percentiles 1 and 99 of its own values over the region. Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.':
-    'Los colores de cada mapa (y de cada una de sus fechas) se estiran entre los percentiles 1 y 99 de sus propios valores en la región. Indica otros percentiles, o el valor del primer y del último color (vacío: el del percentil), y pulsa Aplicar: los mapas de este resultado se vuelven a hacer con ellos en Google Earth Engine. Los mapas de clases conservan el color de cada clase.',
+  'The colours of the map of the result are stretched between the percentiles 1 and 99 of its values over the region, and its dates have the same colours, so that they can be compared (a sum or a count: each date its own). Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.':
+    'Los colores del mapa del resultado se estiran entre los percentiles 1 y 99 de sus valores en la región, y sus fechas tienen los mismos colores, para poder compararlas (una suma o un recuento: cada fecha los suyos). Indica otros percentiles, o el valor del primer y del último color (vacío: el del percentil), y pulsa Aplicar: los mapas de este resultado se vuelven a hacer con ellos en Google Earth Engine. Los mapas de clases conservan el color de cada clase.',
   'Colours: percentiles': 'Colores: percentiles', 'Colours': 'Colores',
   'Low percentile of the colours': 'Percentil inferior de los colores',
   'High percentile of the colours': 'Percentil superior de los colores',
