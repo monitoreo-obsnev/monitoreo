@@ -26,7 +26,10 @@ mo_download_trend(
   band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  vmin = NULL,
+  vmax = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -123,10 +126,15 @@ reaches the CSV, the README and the GeoTIFF. With several bands, that of every b
 sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
+
+\item{vmin, vmax}{range of the colours of the slope (default: symmetric around 0, from \code{percentiles}).}
+
+\item{percentiles}{two numbers (default \code{NULL}: \code{c(1, 99)}): the colours of the slope, symmetric around
+0 up to the largest of these percentiles of its values in the file in absolute value.}
 }
 \value{
-A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
-  credits).
+A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, stretch: how the
+  colours of the slope were computed, with its text, references, credits).
 }
 \description{
 A GeoTIFF with the bands slope, tau, z, p_value, intercept and n (see \code{mo_trend_map()}), e.g. for

@@ -26,7 +26,8 @@ mo_map_layer(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  terrain = NULL
+  terrain = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -71,7 +72,8 @@ Engine may have added images since), gives an R warning, as those days may have 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
-\item{vmin, vmax}{range of the colour ramp (default: percentiles 5 and 95 of the map).}
+\item{vmin, vmax}{range of the colour ramp (default: from \code{percentiles}); with only one of them, the other end
+from its percentile.}
 
 \item{thumbnail}{optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).}
@@ -124,9 +126,15 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 \item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation; one band)
 instead of its values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"};
 not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+
+\item{percentiles}{two numbers, the percentiles of the values of the map over the region between which its colour
+ramp is stretched (default \code{NULL}: \code{c(1, 99)}), each map with its own; e.g. \code{c(5, 95)} for more
+contrast, \code{c(0, 100)} for the whole range. The result says how in \code{stretch} (its \code{text} goes to
+the legends and the README). The categorical layers (ECOREGION, BIOME) keep the colour of each class.}
 }
 \value{
-A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+  bounds, thumbnail, references, credits).
 }
 \description{
 The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and

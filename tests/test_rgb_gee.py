@@ -77,13 +77,13 @@ def _python_check(c):
 
 
 VIS = [  # [percentiles of the bands, vmin, vmax]
-	[{'red_p2': 0.03, 'red_p98': 0.21, 'green_p2': 0.025, 'green_p98': 0.18, 'blue_p2': 0.011, 'blue_p98': 0.16},
+	[{'red_lo': 0.03, 'red_hi': 0.21, 'green_lo': 0.025, 'green_hi': 0.18, 'blue_lo': 0.011, 'blue_hi': 0.16},
 	 None, None],
-	[{'red_p2': 0.03, 'red_p98': 0.21, 'green_p2': None, 'green_p98': 0.18, 'blue_p2': 0.011, 'blue_p98': 0.16},
+	[{'red_lo': 0.03, 'red_hi': 0.21, 'green_lo': None, 'green_hi': 0.18, 'blue_lo': 0.011, 'blue_hi': 0.16},
 	 None, None],  # a band without data: the fixed range
 	[{}, None, None],
-	[{'red_p2': 0.1, 'red_p98': 0.1, 'green_p2': 0.1, 'green_p98': 0.1, 'blue_p2': 0.1, 'blue_p98': 0.1}, None, None],
-	[{'red_p2': 0.03, 'red_p98': 0.21, 'green_p2': 0.025, 'green_p98': 0.18, 'blue_p2': 0.011, 'blue_p98': 0.16},
+	[{'red_lo': 0.1, 'red_hi': 0.1, 'green_lo': 0.1, 'green_hi': 0.1, 'blue_lo': 0.1, 'blue_hi': 0.1}, None, None],
+	[{'red_lo': 0.03, 'red_hi': 0.21, 'green_lo': 0.025, 'green_hi': 0.18, 'blue_lo': 0.011, 'blue_hi': 0.16},
 	 0.0, None],
 	[None, 0.02, 0.25],
 ]
@@ -167,7 +167,7 @@ def test_the_stretch_and_the_mosaics_of_the_app(app, monkeypatch):
 		def getInfo(self):
 			return self.stats
 
-	fake = types.SimpleNamespace(Image=Image, Reducer=types.SimpleNamespace(percentile=lambda p: p),
+	fake = types.SimpleNamespace(Image=Image, Reducer=types.SimpleNamespace(percentile=lambda *a: a),
 	                             EEException=Exception)
 	monkeypatch.setattr(maps, 'ee', fake)
 	for (stats, vmin, vmax), js in zip(VIS, app['vis']):
@@ -244,7 +244,7 @@ def test_the_stretch_reduces_as_the_app(monkeypatch):
 		def getInfo(self):
 			return {}
 
-	fake = types.SimpleNamespace(Image=Image, Reducer=types.SimpleNamespace(percentile=lambda p: p),
+	fake = types.SimpleNamespace(Image=Image, Reducer=types.SimpleNamespace(percentile=lambda *a: a),
 	                             EEException=Exception)
 	monkeypatch.setattr(maps, 'ee', fake)
 	maps.rgb_vis(None, None, 30)

@@ -162,7 +162,7 @@ def test_the_readme_and_the_report_of_an_animation(tmp_path):
 	assert 'ndvi.gif: animation (GIF), a frame per time step' in text
 	assert '2 2022: 2022-01-01 to the day before 2023-01-01, 0 images' in text
 	assert 'Frames: 3, 2 per second; 1 without images (grey)' in text
-	assert 'Colours: from 0.1 to 0.8, the same in every frame' in text
+	assert 'Colours: 0.1 to 0.8: the same in every frame' in text  # a result of before the stretch of each frame
 	assert 'mo.timelapse(region=' in text and 'Wu, Q. (2020). geemap' in text
 	assert report.item_title('timelapse', ARGS) == 'Animation of NDVI (Sentinel-2), 2021-2023'
 	assert readme.document('timelapse', ARGS, result) == str(tmp_path / 'ndvi.README.txt')
@@ -213,12 +213,20 @@ def offline(monkeypatch, tmp_path):
 	from monitoreo import areas, composite, maps, variable
 	seen = {}
 
-	def vis_params(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True):
-		seen['range'] = repr(image)
-		return {'min': 0, 'max': 1, 'palette': ['000000', 'ffffff']}
+	def vis_params(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True,
+	               percentiles=None, describe=False):
+		if compute:
+			seen['range'] = repr(image)
+		vis = {'min': 0 if vmin is None else vmin, 'max': 1 if vmax is None else vmax, 'palette': ['000000', 'ffffff']}
+		return (vis, maps.stretch_of(None, maps.check_percentiles(percentiles), vmin is not None,
+		                             vmax is not None)) if describe else vis
+
+	def frame_ranges(images, geom, scale=None, percentiles=None):
+		seen['frames'], seen['percentiles'] = [repr(i) for i in images], maps.check_percentiles(percentiles)
+		return [(i, 10 * (i + 1)) if i != 1 else (None, None) for i in range(len(images))]  # the second without values
 
 	def write(pictures, path, labels, title, vmin, vmax, palette, unit='', credits='', fps=animation.FPS):
-		seen['credits'], seen['gif'], seen['fps'] = credits, path, fps
+		seen['credits'], seen['gif'], seen['fps'], seen['ramps'] = credits, path, fps, list(zip(vmin, vmax))
 		return path
 
 	monkeypatch.setattr(animation, 'can_draw', lambda: None)
@@ -232,6 +240,7 @@ def offline(monkeypatch, tmp_path):
 	monkeypatch.setattr(services, 'ee', types.SimpleNamespace(List=lambda xs: types.SimpleNamespace(
 		getInfo=lambda: [1] * len(xs))))
 	monkeypatch.setattr(maps, 'vis_params', vis_params)
+	monkeypatch.setattr(maps, 'frame_ranges', frame_ranges)
 	monkeypatch.setattr(animation, 'frames', lambda col, regions, steps, *a, **k: [None] * len(steps))
 	monkeypatch.setattr(animation, 'fetch_frames', lambda frames, grid, progress=None: frames)
 	monkeypatch.setattr(animation, 'write', write)
@@ -239,19 +248,43 @@ def offline(monkeypatch, tmp_path):
 	return seen
 
 
+def test_each_frame_has_the_colours_of_its_own_values(offline):
+	"""By default each frame is stretched between the percentiles 1 and 99 of its own values over the region (as the
+	developer asked: «the map of each time unit must use a colour palette with a range fitted to its p1-99 values»),
+	in a single request for all of them; a frame without values gets the range of the catalog; the range of each
+	frame is written on it and is in the result, and the README says how."""
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric='median')
+	assert len(offline['frames']) == 3 and offline['percentiles'] == (1, 99)
+	assert "median of images.filterDate('2002-01-01', '2003-01-01')" in offline['frames'][1]
+	assert 'range' not in offline  # no map of the whole period
+	assert offline['ramps'] == [(0, 10), (0, 1), (2, 30)]  # the second: that of the catalog (vis_params without compute)
+	assert [(f['min'], f['max']) for f in res['frames']] == offline['ramps']
+	assert (res['min'], res['max']) == (0, 30)
+	assert res['stretch']['percentiles'] == [1, 99] and res['stretch'].get('per_frame')
+	assert 'each frame has its own range' in readme.text('timelapse', ARGS, res)
+	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', percentiles=[2, 98])
+	assert offline['percentiles'] == (2, 98)
+	res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', vmin=-1, vmax=1)  # the same range
+	assert offline['ramps'] == [(-1, 1)] * 3 and res['stretch']['method'] == 'given'
+	with pytest.raises(ValueError, match='percentiles'):
+		services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', percentiles=[99, 1])
+
+
 def test_the_colours_of_a_sum_or_a_count_are_those_of_a_frame(offline):
-	"""The colours of every frame come from the map of the whole period, but those of a sum or a count, which grow with
-	the images, from the median of the frames: the sum of 3 years of precipitation would be 3 times that of each frame,
-	all of them painted with the first colour."""
-	services.timelapse(REGION, 'PRECIP', 'TerraClimate', '2001-01-01', '2003-12-31', metric='sum')
+	"""With the same colours for every frame (same_colours), they come from the map of the whole period, but those of a
+	sum or a count, which grow with the images, from the median of the frames: the sum of 3 years of precipitation would
+	be 3 times that of each frame, all of them painted with the first colour."""
+	services.timelapse(REGION, 'PRECIP', 'TerraClimate', '2001-01-01', '2003-12-31', metric='sum', same_colours=True)
 	years = ', '.join(f"sum of images.filterDate('{y}-01-01', '{y + 1}-01-01')" for y in (2001, 2002, 2003))
 	assert offline['range'] == f"the collection [{years}].median().rename('value').clipToCollection(regions)"
-	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', step='monthly', metric='count')
+	services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', step='monthly', metric='count',
+	                   same_colours=True)
 	assert offline['range'].startswith("the collection [count of images.filterDate('2001-01-01', '2001-02-01'), ")
 	assert offline['range'].count('count of images') == 36
 	for metric in ('median', 'mean', 'p90', 'cv'):  # on the scale of a frame: the map of the whole period
-		services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric=metric)
+		res = services.timelapse(REGION, 'NDVI', 'Modis', '2001-01-01', '2003-12-31', metric=metric, same_colours=True)
 		assert offline['range'] == 'the map of the period.clipToCollection(regions)', metric
+		assert res['stretch']['text'].endswith('of the map of the whole period: the same colours for every frame')
 
 
 def test_the_credits_of_the_region_are_written_on_the_frames(offline):

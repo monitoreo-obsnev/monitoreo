@@ -251,6 +251,9 @@ pick(dock.map_metric, 'max')
 pick(dock.temporal, 'annual')
 pick(dock.interannual, 'median')
 pick(dock.map_kind, 'both')
+dock.map_colours.low.setValue(5)  # the Colour range: percentiles 5 and 95 and a maximum
+dock.map_colours.high.setValue(95)
+dock.map_colours.vmax.setText('0.8')
 
 
 def change_map():
@@ -258,10 +261,13 @@ def change_map():
 	pick(dock.region_kind, 'country')
 	pick(dock.map_metric, 'mean')
 	pick(dock.temporal, 'period')
+	dock.map_colours.put({})
 
 
 call = roundtrip('map', change_map)
 assert call[0] == 'download_image' and call[1]['region'] == {'wdpa_id': 555588816}
+assert call[1]['percentiles'] == [5, 95] and call[1]['vmax'] == 0.8 and 'vmin' not in call[1]
+dock.map_colours.put({})
 assert 'WDPA 555588816' in dock.wdpa.currentText() and dock.map_kind.currentData() == 'both'
 pick(dock.map_kind, 'rgb')
 call = roundtrip('map', lambda: pick(dock.map_kind, 'index'))
@@ -315,7 +321,20 @@ dock.zone_breaks.setText('1000, 2000')
 roundtrip('zones', lambda: dock.zone_breaks.setText('1500'))
 pick(dock.anim_step, 'monthly')
 dock.anim_fps.setValue(4)
-roundtrip('animation', lambda: dock.anim_fps.setValue(1))
+dock.anim_same.setChecked(True)
+dock.anim_colours.low.setValue(2.5)
+
+
+def change_animation():
+	dock.anim_fps.setValue(1)
+	dock.anim_same.setChecked(False)
+	dock.anim_colours.put({})
+
+
+call = roundtrip('animation', change_animation)
+assert call[1]['same_colours'] is True and call[1]['percentiles'] == [2.5, 99]
+dock.anim_same.setChecked(False)
+dock.anim_colours.put({})
 dock.resolution.setValue(100)
 call = roundtrip('export_map', lambda: dock.resolution.setValue(0))
 assert call[1]['resolution'] == 100

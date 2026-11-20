@@ -20,7 +20,10 @@ mo_download_rgb(
   crs = "auto",
   clip = TRUE,
   collection = NULL,
-  where = NULL
+  where = NULL,
+  percentiles = NULL,
+  vmin = NULL,
+  vmax = NULL
 )
 }
 \arguments{
@@ -94,11 +97,16 @@ covers), e.g. without the water bodies and the built-up areas of CORINE Land Cov
 categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
 classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
 Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
+
+\item{percentiles}{two numbers, the percentiles of the reflectance of the three bands of the file between which they
+are shown together (default \code{NULL}: \code{c(2, 98)}, those of the true colour).}
+
+\item{vmin, vmax}{range of the reflectance of the three bands together (default: from \code{percentiles}).}
 }
 \value{
 A list (file, grid, resolution, native_resolution, images, name, unit, bands: red, green and blue, min and
-  max: the lowest percentile 2 and the highest percentile 98 of the three bands, the range to show them together,
-  references, credits, readme), without palette.
+  max: the lowest low percentile and the highest high percentile of the three bands (by default 2 and 98), the
+  range to show them together, stretch: how, with its text, references, credits, readme), without palette.
 }
 \description{
 The true colour of the images of a variable (the red, green and blue surface reflectance of the same images and

@@ -867,7 +867,7 @@ out.filters = ['clouds and shadows', 'water', 'snow', 'aerosols'].map(function (
 });
 out.controls = texts(controls);
 // the map, its GeoTIFF, the time series and its CSV
-answer = {value_p5: 2, value_p95: 80};
+answer = {value_lo: 2, value_hi: 80};
 button('Add to the map').opts.onClick();
 out.map = {layer: layers[layers.length - 1], legend: legendTitle(), results: last()};
 find(results, 'Button', function (w) { return w.opts.label === 'Download GeoTIFF'; })[0].opts.onClick();
@@ -877,7 +877,7 @@ out.series = last();
 find(results, 'Button', function (w) { return w.opts.label === 'Download CSV'; })[0].opts.onClick();
 // the comparison of two periods: its map and its series
 check('Compare with another period').opts.onChange(true);
-answer = {value_p5: -5, value_p95: 5};
+answer = {value_lo: -5, value_hi: 5};
 button('Add to the map').opts.onClick();
 out.compareMap = {layer: layers[layers.length - 1], results: last()};
 answer = 'rows';
@@ -889,12 +889,12 @@ textbox(function (w) { return w.opts.value === '2025-01-01'; }).opts.onChange('2
 answer = 'rows';
 button('Trend table').opts.onClick();
 out.trendTable = last();
-answer = {value_p5: -1, value_p95: 1};
+answer = {value_lo: -1, value_hi: 1};
 button('Trend map').opts.onClick();
 out.trendMap = {layer: layers[layers.length - 1], legend: legendTitle(), results: last()};
 // only the pixels above 1500 m
 check('a variable is between two values').opts.onChange(true);
-answer = {value_p5: 2, value_p95: 80};
+answer = {value_lo: 2, value_hi: 80};
 button('Add to the map').opts.onClick();
 out.where = {layer: layers[layers.length - 1], results: last()};
 check('a variable is between two values').opts.onChange(false);
@@ -920,7 +920,7 @@ out.combine.controls = texts(controls);
 button('Add to the map').opts.onClick();
 out.combine.one = last();  // one band checked: not yet
 bandChecks()[0].opts.onChange(true);  // aet
-answer = {value_p5: 2, value_p95: 80};
+answer = {value_lo: 2, value_hi: 80};
 button('Add to the map').opts.onClick();
 out.combine.map = {layer: layers[layers.length - 1], legend: legendTitle()};
 selectWith('one').opts.onChange('one');
@@ -930,7 +930,7 @@ selectWith('image').opts.onChange('image');
 out.fixed = {controls: texts(controls), series: button('Compute the time series').disabled,
 	trends: [button('Trend table').disabled, button('Trend map').disabled],
 	compare: check('Compare with another period').disabled, metric: selectWith('median').disabled};
-answer = {value_p5: 2, value_p95: 80};
+answer = {value_lo: 2, value_hi: 80};
 button('Add to the map').opts.onClick();
 out.fixed.layer = layers[layers.length - 1];
 out.fixed.legend = legendTitle();
@@ -982,7 +982,7 @@ function metricSelects() {  // of the map, of each step of the series and of eac
 theme('earth_engine');
 read('projects/someone/assets/slow', null);
 theme('vegetation');
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Add to the map').opts.onClick();
 out.late = {map: last()};
 later.shift()();
@@ -994,14 +994,14 @@ out.late.controls = texts(controls);
 answer = {info: {area: 5e10, centroid: [-3.56, 36.9], total: 5e10, boundsArea: 6e10}, n: 1};
 button('Use the map view').opts.onClick();
 read('COPERNICUS/S2_SR_HARMONIZED', {bands: ['B4', 'B1'], scales: {B4: 10, B1: 60}, dated: true});
-answer = {value_p5: 0, value_p95: 3000};
+answer = {value_lo: 0, value_hi: 3000};
 button('Add to the map').opts.onClick();
 out.fine = {s2: last()};
 answer = 'rows';
 button('Compute the time series').opts.onClick();
 out.fine.series = last();
 selectWith('B4').opts.onChange('B1');
-answer = {value_p5: 0, value_p95: 3000};
+answer = {value_lo: 0, value_hi: 3000};
 button('Add to the map').opts.onClick();
 out.fine.coarse = last();
 selectWith('B4').opts.onChange('B4');
@@ -1017,13 +1017,13 @@ selectWith('pr').opts.onChange('pr');
 field('e.g. mm, degC, kg m-2, 1').opts.onChange('mm month-1');
 metricSelects()[0].opts.onChange('sum');
 selectWith('image').opts.onChange('image');
-answer = {value_p5: 2, value_p95: 80};
+answer = {value_lo: 2, value_hi: 80};
 button('Add to the map').opts.onClick();
 out.fixedRate = legendTitle();
 // SCF (Snow) takes only the mean: the data of Earth Engine let the metrics change, and back in Snow they are the mean
 theme('snow');
 selectWith(105).opts.onChange(105);
-answer = {value_p5: 0, value_p95: 100};
+answer = {value_lo: 0, value_hi: 100};
 button('Make the animation').opts.onClick();  // the variable chosen: its frames are the mean too
 out.scfAnimation = last();
 theme('earth_engine');
@@ -1034,7 +1034,7 @@ metricSelects()[1].opts.onChange('max');
 metricSelects()[2].opts.onChange('max');
 theme('snow');
 out.scf.selects = metricSelects().map(function (w) { return [w.opts.value, w.disabled]; });
-answer = {value_p5: 0, value_p95: 100};
+answer = {value_lo: 0, value_hi: 100};
 button('Add to the map').opts.onClick();
 out.scf.map = last();
 answer = 'rows';
@@ -1043,7 +1043,8 @@ out.scf.series = last();
 answer = 'rows';
 button('Trend table').opts.onClick();
 out.scf.trends = last();
-answer = {value_p5: 0, value_p95: 100};
+// each frame between the percentiles of its own values (one request: a list with those of each frame)
+answer = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (i) { return {value_lo: i, value_hi: 50 + i}; });
 button('Make the animation').opts.onClick();
 out.scf.animation = last();
 out.files = files;
@@ -1171,4 +1172,6 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	# its animation too, a frame per year of the mean (the select of the animation, greyed out, cannot change it)
 	assert out['scfAnimation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
 	assert scf['animation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
-	assert scf['animation']['texts'][1].startswith('11 frames, with the same colours (from 0 to 100): 2015, 2016')
+	assert scf['animation']['texts'][1].startswith('11 frames, each with the colours of its own values (its range in '
+	                                               'brackets): 2015 (0 – 50), 2016 (1 – 51), 2017 (2 – 52)')
+	assert scf['animation']['texts'][2] == 'Colours: p1–p99 of each frame over the region (each one its own range).'

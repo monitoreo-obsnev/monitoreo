@@ -19408,16 +19408,43 @@ var MonitorEO = (function () {
 		return steps;
 	}
 
-	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
-	// METRIC of its images coloured with VIS
-	function animationFrames(s, regions, steps, metric, vis) {
+	// The images of the frames of S over REGIONS (the METRIC of the images of each of STEPS, cut to REGIONS)
+	function frameImages(s, regions, steps, metric) {
 		var col = collection(s, regions.geometry());
+		return steps.map(function (b) { return reduceSpan(col, metric, b[0], b[1]).clipToCollection(regions); });
+	}
+
+	// maps.frame_ranges: ee.List of the percentiles PCTS of each frame of S over REGIONS ({value_lo, value_hi}, null
+	// for a frame without values) on pixels of SCALE, to evaluate once: each frame stretched between those of its own
+	// values (services.timelapse by default)
+	function frameRanges(s, regions, steps, metric, scale, pcts) {
+		var geom = regions.geometry();
+		return ee.List(frameImages(s, regions, steps, metric).map(function (img) {
+			return percentiles(img, geom, scale, pcts);
+		}));
+	}
+
+	// The colour ramp of each frame (services.timelapse) from the evaluated RANGES of frameRanges: between the
+	// percentiles of each frame, or VMIN and VMAX for the ends given; a frame without values (or all of them, if Earth
+	// Engine could not compute them: RANGES not a list) has the range of the catalog of ENTRY
+	function frameVis(ranges, entry, palette, vmin, vmax, n) {
+		var out = [];
+		for (var i = 0; i < n; i++) {
+			out.push(visParams(Array.isArray(ranges) ? ranges[i] : null, entry, palette, vmin, vmax));
+		}
+		return out;
+	}
+
+	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
+	// METRIC of its images coloured with VIS (one for every frame, or a list with one per frame)
+	function animationFrames(s, regions, steps, metric, vis) {
 		var outside = ee.Image.constant(0).visualize({palette: [FRAME_COLOURS.outside]});
 		var inside = ee.Image.constant(0).clipToCollection(regions).visualize({palette: [FRAME_COLOURS.noData]});
 		var outline = ee.Image().byte().paint(regions, 1, 2).visualize({palette: [FRAME_COLOURS.outline]});
-		return ee.ImageCollection.fromImages(steps.map(function (b) {
-			var value = reduceSpan(col, metric, b[0], b[1]).clipToCollection(regions);
-			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
+		var images = frameImages(s, regions, steps, metric);
+		return ee.ImageCollection.fromImages(steps.map(function (b, i) {
+			var v = Array.isArray(vis) ? vis[i] : vis;
+			return outside.blend(inside).blend(images[i].visualize(v)).blend(outline)
 				.set('system:time_start', date(b[0]).getTime());
 		}));
 	}
@@ -19723,7 +19750,7 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// animation.range_image: the map of S over REGIONS whose percentiles colour every frame (Same colours), that of the whole
 	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
 	// (that of the whole period would be that of all the steps, as many times bigger as they are)
 	function animationRange(s, regions, steps, metric) {
@@ -20705,21 +20732,95 @@ var MonitorEO = (function () {
 		return (colours || (entry || {}).pm || DEFAULT_PALETTE).map(function (c) { return String(c).replace(/^#/, ''); });
 	}
 
-	// The percentiles 5 and 95 of a single band image over REGION, to evaluate: then visParams
-	function percentiles(img, region, scale) {
-		return ee.Image(img).rename('value').reduceRegion({reducer: ee.Reducer.percentile([5, 95]), geometry: region,
-			scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	// maps.STRETCH: the percentiles of the values of a map between which its colour ramp is stretched (default)
+	var STRETCH = [1, 99];
+
+	function given(x) {
+		return x !== null && x !== undefined && x !== '';
 	}
 
-	// maps.vis_params from the evaluated percentiles
-	function visParams(stats, entry, palette) {
-		var lo = stats ? stats.value_p5 : null, hi = stats ? stats.value_p95 : null;
+	// maps.check_percentiles: the two percentiles [lo, hi] of PCTS (a list of two numbers, or a text such as '1,99' or
+	// '2 98') between which a colour ramp is stretched, 0 <= lo < hi <= 100; DEFAULT (STRETCH if none) without them
+	function checkPercentiles(pcts, fallback) {
+		if (!given(pcts) || (Array.isArray(pcts) && !pcts.length)) return (fallback || STRETCH).slice();
+		var parts = typeof pcts === 'string' ? pcts.trim().split(/[\s,;]+/).filter(function (x) { return x; }) : pcts;
+		var nums = Array.isArray(parts) && parts.length === 2 && parts.every(given) ? parts.map(Number) : [];
+		if (nums.length !== 2 || !nums.every(isFinite)) {
+			throw new Error('percentiles must be two numbers between 0 and 100, e.g. [1, 99], not ' +
+				JSON.stringify(pcts));
+		}
+		if (!(nums[0] >= 0 && nums[0] < nums[1] && nums[1] <= 100)) {
+			throw new Error('percentiles must be two numbers 0 <= low < high <= 100, e.g. [1, 99], not [' +
+				nums[0] + ', ' + nums[1] + ']');
+		}
+		return nums;
+	}
+
+	// The minimum and maximum of a colour ramp given by the user ([vmin, vmax], null for an end not given): numbers
+	// (a decimal comma too), the minimum lower than the maximum
+	function checkRange(vmin, vmax) {
+		function number(x, name) {
+			if (!given(x) || String(x).trim() === '') return null;
+			var v = Number(String(x).trim().replace(',', '.'));
+			if (!isFinite(v)) throw new Error('the ' + name + ' of the colour range must be a number, not ' + JSON.stringify(x));
+			return v;
+		}
+		var lo = number(vmin, 'minimum'), hi = number(vmax, 'maximum');
+		if (lo !== null && hi !== null && hi <= lo) {
+			throw new Error('the minimum of the colour range (' + lo + ') must be lower than its maximum (' + hi + ')');
+		}
+		return [lo, hi];
+	}
+
+	// The reducer of the percentiles LO and HI of PCTS, named lo and hi (value_lo, value_hi: those of Earth Engine for
+	// a percentile with decimals are not obvious), as maps._reducer
+	function stretchReducer(pcts) {
+		return ee.Reducer.percentile(pcts, ['lo', 'hi']);
+	}
+
+	// The percentiles PCTS (default STRETCH, 1 and 99) of a single band image over REGION ({value_lo, value_hi}), to
+	// evaluate: then visParams
+	function percentiles(img, region, scale, pcts) {
+		return ee.Image(img).rename('value').reduceRegion({reducer: stretchReducer(checkPercentiles(pcts)),
+			geometry: region, scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	}
+
+	// maps.vis_params from the evaluated percentiles STATS ({value_lo, value_hi}) or VMIN and VMAX (either of them, the
+	// other end from its percentile); the range of the catalog (ENTRY: minp, maxp; 0 to 1 without them) when Earth
+	// Engine could not compute them
+	function visParams(stats, entry, palette, vmin, vmax) {
+		var lo = stats ? stats.value_lo : null, hi = stats ? stats.value_hi : null;
 		if (lo === null || lo === undefined || hi === null || hi === undefined) {
 			lo = entry && typeof entry.minp === 'number' ? entry.minp : 0;
 			hi = entry && typeof entry.maxp === 'number' ? entry.maxp : 1;
 		}
+		if (given(vmin)) lo = Number(vmin);
+		if (given(vmax)) hi = Number(vmax);
+		var ends = ordered(lo, hi, given(vmin), given(vmax));
+		return {min: ends[0], max: ends[1], palette: ramp(entry, palette)};
+	}
+
+	// maps.ordered: [LO, HI] of a colour ramp, the maximum above the minimum: an error when only one end was given by
+	// the user (VMIN_GIVEN, VMAX_GIVEN) and it crosses the other one (the ramp would be painted the other way round);
+	// HI a little above LO when they are equal
+	function ordered(lo, hi, vminGiven, vmaxGiven, what) {
+		if (hi <= lo && Boolean(vminGiven) !== Boolean(vmaxGiven)) {
+			throw new Error('the ' + (vminGiven ? 'minimum' : 'maximum') + ' of the colours given, ' +
+				(vminGiven ? lo : hi) + ', is beyond the other end of the colours of ' + (what || 'the map') + ' (' +
+				(vminGiven ? hi : lo) + '): give both the minimum and the maximum, or other percentiles');
+		}
 		if (hi === lo) hi = lo + 1e-6;
-		return {min: lo, max: hi, palette: ramp(entry, palette)};
+		return [lo, hi];
+	}
+
+	// maps.stretch_of: how a colour ramp was stretched (for its legend): {method: 'percentiles', 'given', 'mixed' (the
+	// end GIVEN, 'min' or 'max', by the user, the other from its percentile) or 'catalog' (the percentiles could not be
+	// computed), percentiles: PCTS (when they were used)}
+	function stretchOf(pcts, vminGiven, vmaxGiven, catalog) {
+		if (vminGiven && vmaxGiven) return {method: 'given'};
+		if (catalog) return {method: 'catalog'};
+		if (vminGiven || vmaxGiven) return {method: 'mixed', percentiles: pcts.slice(), given: vminGiven ? 'min' : 'max'};
+		return {method: 'percentiles', percentiles: pcts.slice()};
 	}
 
 	// services.spread: whether the values of a map with METRIC (and INTERANNUAL between the years, unless TEMPORAL is
@@ -20752,20 +20853,20 @@ var MonitorEO = (function () {
 	var RGB_STRETCH = [2, 98];
 	var RGB_RANGE = [0.0, 0.3];
 
-	// The percentiles 2 and 98 of the bands red, green and blue of a true colour image over REGION (maps.rgb_vis), to
-	// evaluate: then rgbVis
-	function rgbPercentiles(img, region, scale) {
-		return ee.Image(img).select(RGB_BANDS).reduceRegion({reducer: ee.Reducer.percentile(RGB_STRETCH), geometry: region,
-			scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	// The percentiles PCTS (default RGB_STRETCH, 2 and 98) of the bands red, green and blue of a true colour image over
+	// REGION ({red_lo, red_hi, green_lo...}; maps.rgb_vis), to evaluate: then rgbVis
+	function rgbPercentiles(img, region, scale, pcts) {
+		return ee.Image(img).select(RGB_BANDS).reduceRegion({reducer: stretchReducer(checkPercentiles(pcts, RGB_STRETCH)),
+			geometry: region, scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
 	}
 
 	// maps.rgb_vis from the evaluated percentiles STATS (or VMIN and VMAX): the three bands stretched together between
-	// the lowest percentile 2 and the highest percentile 98 of the bands (one range for the three, so that the colours
-	// keep their balance); RGB_RANGE without them. {bands, min, max}
+	// the lowest percentile low and the highest percentile high of the bands (one range for the three, so that the
+	// colours keep their balance); RGB_RANGE without them. {bands, min, max}
 	function rgbVis(stats, vmin, vmax) {
 		if (vmin === null || vmin === undefined || vmax === null || vmax === undefined) {
-			var lows = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[0]] : null; });
-			var highs = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[1]] : null; });
+			var lows = RGB_BANDS.map(function (b) { return stats ? stats[b + '_lo'] : null; });
+			var highs = RGB_BANDS.map(function (b) { return stats ? stats[b + '_hi'] : null; });
 			var lo = RGB_RANGE[0], hi = RGB_RANGE[1];
 			if (!lows.concat(highs).some(function (v) { return v === null || v === undefined; })) {
 				lo = Math.min.apply(null, lows);
@@ -20908,7 +21009,10 @@ var MonitorEO = (function () {
 		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
 		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
 		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter,
-		ramp: ramp, percentiles: percentiles, visParams: visParams, spread: spread, rampEntry: rampEntry,
+		ramp: ramp, STRETCH: STRETCH, checkPercentiles: checkPercentiles, checkRange: checkRange,
+		stretchReducer: stretchReducer, stretchOf: stretchOf, frameImages: frameImages, frameRanges: frameRanges,
+		ordered: ordered, frameVis: frameVis, percentiles: percentiles, visParams: visParams, spread: spread,
+		rampEntry: rampEntry,
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
@@ -21075,7 +21179,7 @@ var MonitorEO = (function () {
 				'percentil (tambi\u00e9n entre a\u00f1os).',
 			rgbLegend: 'Color verdadero (rojo, verde, azul): reflectancia de %s a %s',
 			rgbRangeNote: 'Color verdadero con la reflectancia de 0 a 0,3: Earth Engine no pudo calcular los percentiles ' +
-				'2 y 98 de la regi\u00f3n.',
+				'de la regi\u00f3n.',
 			downloadRgb: 'Descargar GeoTIFF del color verdadero (bandas red, green, blue)',
 			series: 'Serie temporal', step: 'Paso', s_daily: 'Diario (d\u00edas con im\u00e1genes)', 's_16-day': '16 d\u00edas',
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'M\u00e9trica de cada paso', stat: 'Estad\u00edstico de la regi\u00f3n',
@@ -21141,9 +21245,36 @@ var MonitorEO = (function () {
 			fewYears: 'Las tendencias necesitan un periodo de al menos dos a\u00f1os.',
 			badDate: 'Fecha no v\u00e1lida: \u00ab%s\u00bb. Usa AAAA-MM-DD (y MM-DD en la temporada).', error: 'Error: ',
 			noData: 'No hay datos en ese periodo.',
-			rangeNote: 'Colores con el rango del cat\u00e1logo: Earth Engine no pudo calcular los percentiles 5 y 95 de la regi\u00f3n.',
+			rangeNote: 'Colores con el rango del cat\u00e1logo: Earth Engine no pudo calcular los percentiles del rango de ' +
+				'colores en la regi\u00f3n.',
 			rangeNoteData: 'Colores de un rango fijo (de 0 a 1; de \u22120,1 a 0,1 para una diferencia): Earth Engine no pudo ' +
-				'calcular los percentiles 5 y 95 de la regi\u00f3n.',
+				'calcular los percentiles del rango de colores en la regi\u00f3n.',
+			colourRange: 'Rango de colores (percentiles)', rangeMin: 'M\u00edn.', rangeMax: 'M\u00e1x.', rangeOptional: 'opcional',
+			colourRangeNote: 'Cada mapa (tambi\u00e9n la comparaci\u00f3n, el mapa de tendencias, la animaci\u00f3n y el color ' +
+				'verdadero) estira sus colores entre estos percentiles de sus propios valores en la regi\u00f3n; M\u00edn. y M\u00e1x., ' +
+				'si se dan, son sus extremos. El color verdadero mantiene los percentiles 2 y 98 si no se cambian estos, y ' +
+				'no usa M\u00edn. ni M\u00e1x.; las clases, la severidad del fuego y la tau y el valor p de una tendencia mantienen ' +
+				'sus colores fijos.',
+			colourRangeSee: 'Colores: el rango de colores de Mapa.',
+			sameColours: 'Los mismos colores en todos los fotogramas',
+			animFramesEach: '%s fotogramas, cada uno con los colores de sus propios valores (su rango entre par\u00e9ntesis): %s.',
+			st_percentiles: 'Colores: p%s\u2013p%s de %s.',
+			st_symmetric: 'Colores: sim\u00e9tricos en torno a 0, hasta el mayor de |p%s| y |p%s| de %s.',
+			st_minGiven: 'Colores: m\u00ednimo dado, m\u00e1ximo el p%s de %s.',
+			st_maxGiven: 'Colores: m\u00e1ximo dado, m\u00ednimo el p%s de %s.',
+			rgbNoEnds: 'el color verdadero de la app no toma m\u00ednimo ni m\u00e1ximo (su reflectancia): solo percentiles',
+			st_minGivenSym: 'Colores: m\u00ednimo dado, el otro extremo sim\u00e9trico en torno a 0, el mayor de |p%s| y |p%s| de %s.',
+			st_maxGivenSym: 'Colores: m\u00e1ximo dado, el otro extremo sim\u00e9trico en torno a 0, el mayor de |p%s| y |p%s| de %s.',
+			st_given: 'Colores: rango dado (M\u00edn. y M\u00e1x.).',
+			st_catalog: 'Colores: rango del cat\u00e1logo (Earth Engine no pudo calcular los percentiles).',
+			st_rgbCatalog: 'Colores: reflectancia de 0 a 0,3 (Earth Engine no pudo calcular los percentiles).',
+			st_fixed: 'Colores: rango fijo.',
+			st_of_map: 'el mapa en la regi\u00f3n', st_of_difference: 'la diferencia en la regi\u00f3n',
+			st_of_periods: 'los dos periodos en la regi\u00f3n',
+			st_of_frames: 'cada fotograma en la regi\u00f3n (cada uno con su propio rango)',
+			st_of_whole: 'el mapa de todo el periodo (los mismos colores en todos los fotogramas)',
+			st_of_totals: 'la mediana de los fotogramas (los mismos colores en todos los fotogramas)',
+			st_of_rgb: 'la reflectancia roja, verde y azul en la regi\u00f3n',
 			assetId: 'ID de Earth Engine', assetHint: 'p. ej. IDAHO_EPSCOR/TERRACLIMATE', read: 'Leer',
 			reading: 'Leyendo el ID en Earth Engine\u2026',
 			readFirst: 'Escribe el ID de una imagen o una colecci\u00f3n de im\u00e1genes de Earth Engine y pulsa Leer.',
@@ -21342,7 +21473,7 @@ var MonitorEO = (function () {
 				'(also between years).',
 			rgbLegend: 'True colour (red, green, blue): reflectance from %s to %s',
 			rgbRangeNote: 'True colour with the reflectance from 0 to 0.3: Earth Engine could not compute the ' +
-				'percentiles 2 and 98 of the region.',
+				'percentiles of the region.',
 			downloadRgb: 'Download GeoTIFF of the true colour (bands red, green, blue)',
 			series: 'Time series', step: 'Step', s_daily: 'Daily (days with images)', 's_16-day': '16 days',
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
@@ -21408,9 +21539,36 @@ var MonitorEO = (function () {
 			fewYears: 'Trends need a period of at least two years.',
 			badDate: 'Not a valid date: "%s". Use YYYY-MM-DD (and MM-DD for the season).', error: 'Error: ',
 			noData: 'No data in that period.',
-			rangeNote: 'Colours with the range of the catalog: Earth Engine could not compute the percentiles 5 and 95 of the region.',
+			rangeNote: 'Colours with the range of the catalog: Earth Engine could not compute the percentiles of the ' +
+				'colour range over the region.',
 			rangeNoteData: 'Colours of a fixed range (0 to 1; \u22120.1 to 0.1 for a difference): Earth Engine could not ' +
-				'compute the percentiles 5 and 95 of the region.',
+				'compute the percentiles of the colour range over the region.',
+			colourRange: 'Colour range (percentiles)', rangeMin: 'Min', rangeMax: 'Max', rangeOptional: 'optional',
+			colourRangeNote: 'Every map (also the comparison, the trend map, the animation and the true colour) ' +
+				'stretches its colours between these percentiles of its own values over the region; Min and Max, if ' +
+				'given, are its ends. The true colour keeps the percentiles 2 and 98 unless these are changed, and takes ' +
+				'no Min and Max; the classes, the burn severity and the tau and p-value of a trend keep their fixed ' +
+				'colours.',
+			colourRangeSee: 'Colours: the colour range of Map.',
+			sameColours: 'Same colours in every frame',
+			animFramesEach: '%s frames, each with the colours of its own values (its range in brackets): %s.',
+			st_percentiles: 'Colours: p%s\u2013p%s of %s.',
+			st_symmetric: 'Colours: symmetric around 0, up to the largest of |p%s| and |p%s| of %s.',
+			st_minGiven: 'Colours: minimum given, maximum the p%s of %s.',
+			st_maxGiven: 'Colours: maximum given, minimum the p%s of %s.',
+			rgbNoEnds: 'the true colour of the app takes no minimum nor maximum (its reflectance): only percentiles',
+			st_minGivenSym: 'Colours: minimum given, the other end symmetric around 0, the largest of |p%s| and |p%s| of %s.',
+			st_maxGivenSym: 'Colours: maximum given, the other end symmetric around 0, the largest of |p%s| and |p%s| of %s.',
+			st_given: 'Colours: range given (Min and Max).',
+			st_catalog: 'Colours: range of the catalog (Earth Engine could not compute the percentiles).',
+			st_rgbCatalog: 'Colours: reflectance from 0 to 0.3 (Earth Engine could not compute the percentiles).',
+			st_fixed: 'Colours: fixed range.',
+			st_of_map: 'the map over the region', st_of_difference: 'the difference over the region',
+			st_of_periods: 'the two periods over the region',
+			st_of_frames: 'each frame over the region (each one its own range)',
+			st_of_whole: 'the map of the whole period (the same colours in every frame)',
+			st_of_totals: 'the median of the frames (the same colours in every frame)',
+			st_of_rgb: 'the red, green and blue reflectance over the region',
 			assetId: 'Earth Engine ID', assetHint: 'e.g. IDAHO_EPSCOR/TERRACLIMATE', read: 'Read',
 			reading: 'Reading the ID in Earth Engine\u2026',
 			readFirst: 'Write the ID of an image or a collection of images of Earth Engine and press Read.',
@@ -21504,7 +21662,12 @@ var MonitorEO = (function () {
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
-		animStep: 'annual', animMetric: 'median', doy: false,  // doy: the series with a line per year
+		animStep: 'annual', animMetric: 'median', doy: false,
+		// the colour range of every map (Colour range, with the options of Map): its percentiles (maps.STRETCH by
+		// default) and the minimum and maximum given ('': from its percentile); the animation, each frame its own range
+		// unless sameColours
+		pctLo: String(mo.STRETCH[0]), pctHi: String(mo.STRETCH[1]), rangeMin: '', rangeMax: '', sameColours: false,
+		pctSet: false,  // whether the user changed the percentiles (else the true colour takes its own, 2 and 98)  // doy: the series with a line per year
 		// or, by day of the year, its seasonal profile: the metric between the years ('years': a line per year) and the
 		// variable of the right axis ('none', or its ref)
 		doyBetween: 'years', doyOther: 'none',
@@ -21675,20 +21838,21 @@ var MonitorEO = (function () {
 		return run;
 	}
 
-	function colourBar(vis, title) {
+	function colourBar(vis, title, note) {
 		legend.clear();
-		addColourBar(vis, title);
+		addColourBar(vis, title, null, null, note);
 	}
 
 	// The colour bar of VIS with its TITLE at the end of the legend, or of PANEL (MARGIN: that of the title; below the
-	// classes of the RdNBR, that of its continuous layer)
-	function addColourBar(vis, title, margin, panel) {
+	// classes of the RdNBR, that of its continuous layer), and under it NOTE (how its range was computed: stretchText)
+	function addColourBar(vis, title, margin, panel, note) {
 		panel = panel || legend;
 		panel.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: margin || '0 0 4px 0'}));
 		panel.add(ui.Thumbnail({image: ee.Image.pixelLonLat().select(0), params: {bbox: [0, 0, 1, 0.1],
 			dimensions: '200x12', format: 'png', min: 0, max: 1, palette: vis.palette}, style: {margin: '0'}}));
 		panel.add(row(ui.Label(num(vis.min), {fontSize: '11px', margin: '0'}),
 			ui.Label(num(vis.max), {fontSize: '11px', margin: '0 0 0 150px'})));
+		if (note) panel.add(ui.Label(note, {fontSize: '11px', color: '#555', margin: '2px 0 0 0', maxWidth: '220px'}));
 		panel.style().set('shown', true);
 	}
 
@@ -21704,12 +21868,13 @@ var MonitorEO = (function () {
 
 	// The legend of the true colour VIS: TITLE and its range, or only its range below the colour bar of the index of
 	// the same map (BELOW: the layer Both)
-	function rgbLegend(vis, title, below) {
+	function rgbLegend(vis, title, below, note) {
 		if (!below) {
 			legend.clear();
 			legend.add(ui.Label(title, {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
 		}
 		legend.add(ui.Label(rgbCaption(vis), {fontSize: '11px', margin: below ? '4px 0 0 0' : '0'}));
+		if (note) legend.add(ui.Label(note, {fontSize: '11px', color: '#555', margin: '2px 0 0 0', maxWidth: '220px'}));
 		legend.style().set('shown', true);
 	}
 
@@ -22678,6 +22843,70 @@ var MonitorEO = (function () {
 		return Math.max(Number(e.m), mo.defaultScale(e.m, state.info.boundsArea, 2.5e5));
 	}
 
+	// The colour range chosen by the user (Colour range, with the options of Map), for every map with a colour ramp:
+	// {pcts: its percentiles (mo.checkPercentiles; a decimal comma too), vmin, vmax: the ends given (null: from its
+	// percentile)}; its errors before Earth Engine
+	function colourRange() {
+		var pcts = mo.checkPercentiles([state.pctLo, state.pctHi].map(function (x) {
+			return String(x === null || x === undefined ? '' : x).trim().replace(',', '.');
+		}));
+		var ends = mo.checkRange(state.rangeMin, state.rangeMax);
+		return {pcts: pcts, vmin: ends[0], vmax: ends[1]};
+	}
+
+	// The percentiles of the true colour with the colour range CR: those of the user if they changed them (also to 1
+	// and 99), those of the true colour (maps.RGB_STRETCH, 2 and 98) otherwise; it takes no minimum nor maximum
+	function rgbPcts(cr) {
+		return state.pctSet ? cr.pcts.slice() : mo.RGB_STRETCH.slice();
+	}
+
+	function isNumber(x) {
+		return typeof x === 'number' && isFinite(x);
+	}
+
+	// Whether the evaluated percentiles ST of a map ({value_lo, value_hi}) are numbers (null: a map without pixels)
+	function hasRange(st) {
+		return Boolean(st) && isNumber(st.value_lo) && isNumber(st.value_hi);
+	}
+
+	// A percentile as the legend writes it (1, 2.5; 2,5 in Spanish)
+	function pctNum(p) {
+		var x = String(Number(p));
+		return state.lang === 'es' ? x.replace('.', ',') : x;
+	}
+
+	// How the colour ramp of a map was stretched, in words (maps.stretch_text), from STRETCH (mo.stretchOf; symmetric:
+	// around 0, as the difference and the slope) over OVER (a key st_of_*: 'map', 'difference', 'frames'...)
+	function stretchText(stretch, over) {
+		if (!stretch) return '';
+		if (stretch.method === 'given') return t('st_given');
+		if (stretch.method === 'catalog') return t(over === 'rgb' ? 'st_rgbCatalog' : 'st_catalog');
+		if (stretch.method === 'fixed') return t('st_fixed');
+		var p = stretch.percentiles.map(pctNum), of = t('st_of_' + (over || 'map'));
+		if (stretch.method === 'mixed' && stretch.symmetric) {  // the other end, symmetric around 0
+			return fmt(t(stretch.given === 'min' ? 'st_minGivenSym' : 'st_maxGivenSym'), p[0], p[1], of);
+		}
+		if (stretch.method === 'mixed') {
+			return stretch.given === 'min' ? fmt(t('st_minGiven'), p[1], of) : fmt(t('st_maxGiven'), p[0], of);
+		}
+		return fmt(t(stretch.symmetric ? 'st_symmetric' : 'st_percentiles'), p[0], p[1], of);
+	}
+
+	// The boxes of the colour range: the two percentiles, and the minimum and maximum (optional)
+	function colourRangeWidgets() {
+		function textbox(key, width, hint) {
+			return ui.Textbox({placeholder: hint || '', value: state[key], style: {width: width},
+				onChange: function (v) {
+					state[key] = v;
+					if (key === 'pctLo' || key === 'pctHi') state.pctSet = true;
+				}});
+		}
+		return [row(ui.Label(t('colourRange')), textbox('pctLo', '45px'), ui.Label('\u2013'), textbox('pctHi', '45px')),
+			row(ui.Label(t('rangeMin')), textbox('rangeMin', '70px', t('rangeOptional')), ui.Label(t('rangeMax')),
+				textbox('rangeMax', '70px', t('rangeOptional'))),
+			ui.Label(t('colourRangeNote'), SMALL)];
+	}
+
 	// Map -----------------------------------------------------------------------------------------------------------
 
 	// Why the map of the variable cannot have the true colour of its images (a key of T), or null if it can: a fixed
@@ -22731,6 +22960,8 @@ var MonitorEO = (function () {
 		// the true colour of the same images and pixels, with the same metric (services.rgb_map)
 		var rgb = layer === 'index' ? null : mo.image(s, geom, null, true).clipToCollection(state.region);
 		var rgbName = name + ' \u00b7 ' + t('l_rgb');
+		var cr = colourRange();  // its errors before Earth Engine
+		var given = [cr.vmin !== null, cr.vmax !== null];
 		var id = start();
 		var compare = state.compareOn && !e.static;
 		var band = e.static ? img() : compare ? img.select('difference') : img;
@@ -22748,36 +22979,65 @@ var MonitorEO = (function () {
 				if (--pending === 0) draw();
 			};
 		}
-		if (layer !== 'rgb') pending++;
+		// the percentiles of the colour range (maps.STRETCH by default) of the index, unless both ends are given, and
+		// those of the true colour
+		var indexRange = layer !== 'rgb' && !(given[0] && given[1]);
+		if (indexRange) pending++;
 		if (rgb) pending++;
-		if (layer !== 'rgb') mo.percentiles(band, geom, scale).evaluate(got('index'));
-		if (rgb) mo.rgbPercentiles(rgb, geom, scale).evaluate(got('rgb'));
+		if (indexRange) mo.percentiles(band, geom, scale, cr.pcts).evaluate(got('index'));
+		if (rgb) mo.rgbPercentiles(rgb, geom, scale, rgbPcts(cr)).evaluate(got('rgb'));
+		if (!indexRange && !rgb) draw();
 
 		function draw() {
 			if (id !== run) return;
+			try {
+				drawLayers();
+			} catch (err) {  // e.g. an end of the colour range beyond the other (mo.ordered)
+				message(err.message || String(err), true);
+			}
+		}
+
+		function drawLayers() {
 			var widgets = [];
 			var rvis = rgb ? mo.rgbVis(failed.rgb ? null : st.rgb) : null;  // 0 to 0.3 if they cannot be computed
+			var rgbFixed = rgb && (failed.rgb || !mo.RGB_BANDS.every(function (b) {
+				return st.rgb && isNumber(st.rgb[b + '_lo']) && isNumber(st.rgb[b + '_hi']);
+			}));
 			if (rgb) map.addLayer(rgb, rvis, rgbName);  // first, under the index (Both)
 			if (layer !== 'rgb') {
-				var stats = failed.index ? null : st.index;
+				var stats = indexRange && !failed.index && hasRange(st.index) ? st.index : null;
+				var catalog = indexRange && !stats;  // the range of the catalog (0 to 1 for the data outside it)
+				var stretch = mo.stretchOf(cr.pcts, given[0], given[1], catalog);
 				var vis;
-				if (failed.index) {  // the range of the catalog (0 to 1 for the data outside it)
+				if (compare && given[0] && given[1]) {
+					vis = {min: cr.vmin, max: cr.vmax, palette: mo.DIVERGING};
+				} else if (compare && catalog) {
 					var span = typeof ramped.minp === 'number' && typeof ramped.maxp === 'number' ?
 						(ramped.maxp - ramped.minp) / 4 : 0.1;
-					vis = compare ? {min: -span, max: span, palette: mo.DIVERGING} : mo.visParams(null, ramped);
+					vis = {min: given[0] ? cr.vmin : -span, max: given[1] ? cr.vmax : span, palette: mo.DIVERGING};
+				} else if (compare) {  // symmetric around 0 (services.compare_map), then the end given
+					var auto = mo.visParams(stats, null);
+					vis = mo.trendVis('difference', auto.min, auto.max);
+					if (given[0]) vis.min = cr.vmin;
+					if (given[1]) vis.max = cr.vmax;
+					var ends = mo.ordered(vis.min, vis.max, given[0], given[1], 'the difference');
+					vis.min = ends[0];
+					vis.max = ends[1];
+					stretch.symmetric = stretch.method === 'percentiles' || stretch.method === 'mixed';
 				} else {
-					vis = compare ? mo.trendVis('difference', stats.value_p5, stats.value_p95) : mo.visParams(stats, ramped);
+					vis = mo.visParams(stats, ramped, null, cr.vmin, cr.vmax);
 				}
 				map.addLayer(band, vis, name);
 				var unit = unitText(e, state.mapMetric, state.temporal === 'period' ? null : state.interannual);
-				colourBar(vis, name + (unit ? ' ' + unit : ''));
+				colourBar(vis, name + (unit ? ' ' + unit : ''), stretchText(stretch, compare ? 'difference' : 'map'));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
-				if (failed.index) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
+				if (catalog) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
 				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
-				if (compare) widgets.push(button(t('swipe'), function () { swipePeriods(img, e, ramped, s, o); }));
+				if (compare) widgets.push(button(t('swipe'), function () { swipePeriods(img, e, ramped, s, o, cr); }));
 			}
 			if (rgb) {
-				rgbLegend(rvis, rgbName, layer === 'both');
+				rgbLegend(rvis, rgbName, layer === 'both',
+					stretchText(rgbFixed ? {method: 'catalog'} : mo.stretchOf(rgbPcts(cr)), 'rgb'));
 				widgets.push(ui.Label(rgbName, {fontWeight: 'bold'}));
 				widgets.push(ui.Label(rgbCaption(rvis), SMALL));
 				if (failed.rgb) widgets.push(ui.Label(t('rgbRangeNote'), SMALL));
@@ -22807,29 +23067,34 @@ var MonitorEO = (function () {
 	}
 
 	// The swipe of a comparison (as the split maps of geemap): the reference period on the left and the other one on the
-	// right, in two maps that move together, with the same colours (from the percentiles of both, those of a period
-	// without pixels left out; the range of the catalog if neither has them) and their colour bar on the left map. The
+	// right, in two maps that move together, with the same colours (from the percentiles of the colour range of both,
+	// those of a period without pixels left out; the range of the catalog if neither has them; the ends given) and their colour bar on the left map. The
 	// legend of the map of the app (that of the difference) stays as it is; any other result, Close or Back to one map
 	// show that map again (oneMap)
-	function swipePeriods(img, e, ramped, s, o) {
+	function swipePeriods(img, e, ramped, s, o, cr) {
+		cr = cr || colourRange();  // that of the map of the comparison
 		var geom = state.region.geometry();
 		var both = img.select('reference').addBands(img.select('other'));
 		var id = start();
-		both.reduceRegion({reducer: ee.Reducer.percentile([5, 95]), geometry: geom, scale: rangeScale(e), bestEffort: true,
+		both.reduceRegion({reducer: mo.stretchReducer(cr.pcts), geometry: geom, scale: rangeScale(e), bestEffort: true,
 			maxPixels: 1e6, tileScale: 4}).evaluate(guardedAsync(id, function (st) {
 			function numbers(values) {  // null for a period without pixels (Math.min would take it as 0)
-				return values.filter(function (v) { return typeof v === 'number' && isFinite(v); });
+				return values.filter(isNumber);
 			}
-			var los = numbers([st.reference_p5, st.other_p5]), his = numbers([st.reference_p95, st.other_p95]);
-			var vis = mo.visParams(los.length && his.length ?
-				{value_p5: Math.min.apply(null, los), value_p95: Math.max.apply(null, his)} : null, ramped);
+			st = st || {};
+			var los = numbers([st.reference_lo, st.other_lo]), his = numbers([st.reference_hi, st.other_hi]);
+			var computed = los.length > 0 && his.length > 0;
+			var vis = mo.visParams(computed ? {value_lo: Math.min.apply(null, los), value_hi: Math.max.apply(null, his)} :
+				null, ramped, null, cr.vmin, cr.vmax);
+			var stretch = mo.stretchOf(cr.pcts, cr.vmin !== null, cr.vmax !== null, !computed);
 			var left = ui.Map(), right = ui.Map();
 			[left, right].forEach(function (m) { m.setOptions('HYBRID'); m.setControlVisibility({layerList: false}); });
 			left.addLayer(img.select('reference'), vis, s.period.join('/'));
 			right.addLayer(img.select('other'), vis, o.period.join('/'));
 			var key = ui.Panel({style: {position: 'bottom-left', padding: '6px 8px'}});
 			var unit = unitText(e, s.metric, s.temporal === 'period' ? null : s.interannual);
-			addColourBar(vis, title(e, [metricName(s.metric)]) + (unit ? ' ' + unit : ''), null, key);
+			addColourBar(vis, title(e, [metricName(s.metric)]) + (unit ? ' ' + unit : ''), null, key,
+				stretchText(stretch, 'periods'));
 			left.add(key);
 			ui.Map.Linker([left, right]);
 			left.centerObject(geom);
@@ -22875,6 +23140,7 @@ var MonitorEO = (function () {
 		w.push(row(ui.Label(t('layer')), layer));
 		if (why) w.push(ui.Label(t(why), SMALL));
 		else if (state.mapLayer !== 'index') w.push(ui.Label(t('rgbNote'), SMALL));
+		w = w.concat(colourRangeWidgets());
 		w.push(button(t('addMap'), guarded(addMap)));
 		return w;
 	}
@@ -23191,10 +23457,11 @@ var MonitorEO = (function () {
 
 	// Animation (services.timelapse) -------------------------------------------------------------------------------
 
-	// The frames of the period, one per year, month or 16 days, each the metric of its images with the colours of the
-	// map of the whole period (its percentiles 5 and 95, as services.timelapse; of the count, those of the median of
-	// the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar; and the GIF to
-	// download
+	// The frames of the period, one per year, month or 16 days, each the metric of its images coloured between the
+	// percentiles of the colour range of its own values (each frame its own range, as services.timelapse; the ends
+	// given) or, with Same colours (or both ends given), with those of the map of the whole period (of the count, those
+	// of the median of the frames: mo.animationRange), as a thumbnail that plays them, its dates and its colour bar (that
+	// of the frame on the map); and the GIF to download
 	function timelapse() {
 		var e = entry();
 		computed('timelapse');
@@ -23202,20 +23469,47 @@ var MonitorEO = (function () {
 		var s = specOf(null, state.animMetric);
 		var step = state.animStep;
 		var steps = mo.animationSteps(s, step);  // its errors before Earth Engine
+		var cr = colourRange();
+		var given = [cr.vmin !== null, cr.vmax !== null];
 		var geom = state.region.geometry();
 		var region = state.region;
 		var name = title(e, [metricName(state.animMetric), s.period.join('/')]);
 		var ramped = mo.rampEntry(e, state.animMetric, 'period');
+		var unit = unitText(e, state.animMetric, null);
+		var same = state.sameColours || (given[0] && given[1]);
 		var id = start();
-		var range = mo.animationRange(s, region, steps, state.animMetric);
-		mo.percentiles(range, geom, rangeScale(e)).evaluate(function (st, error) {
-			if (id !== run) return;
-			var vis = mo.visParams(error ? null : st, ramped);
-			var frames = mo.animationFrames(s, region, steps, state.animMetric, vis);
+		if (same && given[0] && given[1]) {
+			play(steps.map(function () { return mo.visParams(null, ramped, null, cr.vmin, cr.vmax); }),
+				mo.stretchOf(cr.pcts, true, true));
+		} else if (same) {
+			var range = mo.animationRange(s, region, steps, state.animMetric);
+			mo.percentiles(range, geom, rangeScale(e), cr.pcts).evaluate(function (st, error) {
+				if (id !== run) return;
+				var ok = !error && hasRange(st);
+				var vis = mo.visParams(ok ? st : null, ramped, null, cr.vmin, cr.vmax);
+				var totals = mo.TOTALS.indexOf(String(state.animMetric).trim().toLowerCase()) >= 0;
+				play(steps.map(function () { return vis; }), mo.stretchOf(cr.pcts, given[0], given[1], !ok),
+					totals ? 'totals' : 'whole');
+			});
+		} else {  // each frame between the percentiles of its own values, in a single request
+			mo.frameRanges(s, region, steps, state.animMetric, rangeScale(e), cr.pcts).evaluate(function (ranges, error) {
+				if (id !== run) return;
+				if (error || !Array.isArray(ranges)) ranges = null;
+				var vises = mo.frameVis(ranges, ramped, null, cr.vmin, cr.vmax, steps.length);
+				var ok = Boolean(ranges) && ranges.some(hasRange);
+				play(vises, mo.stretchOf(cr.pcts, given[0], given[1], !ok), 'frames');
+			});
+		}
+
+		// the animation with the colour ramp VISES of each frame, stretched as STRETCH says over OVER (stretchText)
+		function play(vises, stretch, over) {
+			var frames = mo.animationFrames(s, region, steps, state.animMetric, same ? vises[0] : vises);
 			var params = {dimensions: 600, region: geom.bounds(1000), framesPerSecond: 1, crs: 'EPSG:3857'};
 			var labels = steps.map(function (b) { return mo.frameLabel(step, b[0], b[1], state.lang); });
-			var unit = unitText(e, state.animMetric, null);
-			colourBar(vis, name + (unit ? ' ' + unit : ''));
+			var note = stretchText(stretch, over);
+			var bar = name + (unit ? ' ' + unit : '');
+			function rangeOf(i) { return num(vises[i].min) + ' \u2013 ' + num(vises[i].max); }
+			colourBar(vises[0], bar, note);
 			var gif = ui.Panel();
 			gif.add(button(t('animGif'), function () {
 				gif.clear();
@@ -23227,23 +23521,31 @@ var MonitorEO = (function () {
 				});
 			}));
 			// the time slider: a frame on the map, chosen with a slider (as the time sliders of geemap), cut to the
-			// region: the white outside it (that of the thumbnail and the GIF) would hide the whole map
+			// region: the white outside it (that of the thumbnail and the GIF) would hide the whole map; its range
+			// beside it, and its colour bar in the legend
 			var list = frames.toList(steps.length);
 			var frameOf = function (i) { return ee.Image(list.get(i)).clipToCollection(region); };
 			var frameLayer = ui.Map.Layer(frameOf(0), {}, labels[0]);
 			map.layers().add(frameLayer);
 			var current = ui.Label(labels[0], {fontSize: '12px'});
+			var frameRange = ui.Label(rangeOf(0), {fontSize: '12px', color: '#555'});
 			var slider = ui.Slider({min: 0, max: steps.length - 1, step: 1, value: 0, style: {stretch: 'horizontal'},
 				onChange: function (i) {
 					frameLayer.setEeObject(frameOf(i));
 					frameLayer.setName(labels[i]);
 					current.setValue(labels[i]);
+					frameRange.setValue(rangeOf(i));
+					if (!same) colourBar(vises[i], bar + ' \u00b7 ' + labels[i], note);
 				}});
+			var summary = same ? fmt(t('animFrames'), steps.length, num(vises[0].min), num(vises[0].max), labels.join(', ')) :
+				fmt(t('animFramesEach'), steps.length, labels.map(function (l, i) {
+					return l + ' (' + rangeOf(i) + ')';
+				}).join(', '));
 			show([ui.Label(name, {fontWeight: 'bold'}), ui.Thumbnail({image: frames, params: params}),
-				ui.Label(fmt(t('animFrames'), steps.length, num(vis.min), num(vis.max), labels.join(', ')), SMALL),
-				ui.Label(t('animNote'), SMALL), gif].concat(steps.length > 1 ?
-				[ui.Label(t('animSlider'), {fontWeight: 'bold', fontSize: '12px'}), row(slider, current)] : []));
-		});
+				ui.Label(summary, SMALL), ui.Label(note, SMALL), ui.Label(t('animNote'), SMALL), gif]
+				.concat(steps.length > 1 ?
+				[ui.Label(t('animSlider'), {fontWeight: 'bold', fontSize: '12px'}), row(slider, current, frameRange)] : []));
+		}
 	}
 
 	function animationWidgets() {
@@ -23251,6 +23553,8 @@ var MonitorEO = (function () {
 		var steps = mo.ANIMATION_STEPS.map(function (x) { return {value: x, label: t('a_' + x)}; });
 		w.push(row(ui.Label(t('animStep')), select(steps, state.animStep, function (v) { state.animStep = v; })));
 		w.push(row(ui.Label(t('animMetric')), metricSelect(state.animMetric, function (v) { state.animMetric = v; })));
+		w.push(check(t('sameColours'), state.sameColours, function (v) { state.sameColours = v; }));
+		w.push(ui.Label(t('colourRangeSee'), SMALL));
 		w.push(button(t('makeAnimation'), guarded(timelapse)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no animation
 	}
@@ -23768,17 +24072,35 @@ var MonitorEO = (function () {
 		var value = unitText(e, state.trendMetric);
 		var unit = output === 'slope' ? (value ? value + ' / ' + (state.lang === 'es' ? 'a\u00f1o' : 'year') : '') :
 			output === 'intercept' ? value : '';
+		var cr = colourRange();  // tau and p_value keep their fixed ramps
 		var id = start();
-		function add(vis) {
+		function add(vis, stretch) {
 			map.addLayer(band, vis, name);
-			colourBar(vis, name + (unit ? ' ' + unit : ''));
+			colourBar(vis, name + (unit ? ' ' + unit : ''), stretchText(stretch, 'map'));
 			show([ui.Label(name, {fontWeight: 'bold'}), downloadWidget(img, e, mo.OUTPUTS, name)]);
 		}
 		var fixed = mo.trendVis(output);
-		if (fixed && output !== 'slope' && output !== 'z' && output !== 'n') return add(fixed);
-		mo.percentiles(band, geom, rangeScale(e)).evaluate(guardedAsync(id, function (stats) {
-			var auto = mo.visParams(stats, mo.rampEntry(e, state.trendMetric));
-			add(mo.trendVis(output, auto.min, auto.max) || auto);
+		if (fixed && output !== 'slope' && output !== 'z' && output !== 'n') return add(fixed, {method: 'fixed'});
+		var entryRamp = mo.rampEntry(e, state.trendMetric);
+		// as services.trend_map: the slope and z symmetric around 0, the ends given over that
+		function withGiven(vis) {
+			var out = {min: cr.vmin !== null ? cr.vmin : vis.min, max: cr.vmax !== null ? cr.vmax : vis.max,
+				palette: vis.palette};
+			var ends = mo.ordered(out.min, out.max, cr.vmin !== null, cr.vmax !== null, 'the ' + output);
+			out.min = ends[0];
+			out.max = ends[1];
+			return out;
+		}
+		if (cr.vmin !== null && cr.vmax !== null) {
+			return add(withGiven(fixed || mo.visParams(null, entryRamp)), mo.stretchOf(cr.pcts, true, true));
+		}
+		mo.percentiles(band, geom, rangeScale(e), cr.pcts).evaluate(guardedAsync(id, function (stats) {
+			var ok = hasRange(stats);
+			var auto = mo.visParams(ok ? stats : null, entryRamp);
+			var stretch = mo.stretchOf(cr.pcts, cr.vmin !== null, cr.vmax !== null, !ok);
+			stretch.symmetric = (output === 'slope' || output === 'z') &&
+				(stretch.method === 'percentiles' || stretch.method === 'mixed');
+			add(withGiven(mo.trendVis(output, auto.min, auto.max) || auto), stretch);
 		}));
 	}
 
@@ -23801,6 +24123,7 @@ var MonitorEO = (function () {
 		var outputs = mo.OUTPUTS.map(function (o) { return {value: o, label: t('o_' + o)}; });
 		w.push(row(ui.Label(t('output')), select(outputs, state.output, function (v) { state.output = v; }, '190px')));
 		w.push(check(t('significant'), state.significant, function (v) { state.significant = v; }));
+		w.push(ui.Label(t('colourRangeSee'), SMALL));
 		w.push(button(t('trendMap'), guarded(trendMap)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no trends
 	}
@@ -24092,13 +24415,15 @@ var MonitorEO = (function () {
 	var PIXELS = ['start', 'end', 'season', 'quality', 'where'];
 	var MAP_OPTIONS = ['metric', 'temporal', 'interannual'];
 	var MAP_DEFAULTS = {metric: 'median', temporal: 'period', interannual: 'mean'};
+	var RANGE = ['percentiles', 'vmin', 'vmax'];  // the colour range (maps.vis_params), the same in the services
 	var ANALYSES = {
-		map_layer: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS),
+		map_layer: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS, RANGE),
 			defaults: MAP_DEFAULTS},
-		rgb_map: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS),
+		rgb_map: {group: 'map', button: 'addMap', takes: ['region'].concat(SOURCE, PIXELS, MAP_OPTIONS, RANGE),
 			defaults: MAP_DEFAULTS},
 		compare_map: {group: 'map', button: 'addMap',
-			takes: ['region', 'other_start', 'other_end'].concat(SOURCE, PIXELS, MAP_OPTIONS), defaults: MAP_DEFAULTS},
+			takes: ['region', 'other_start', 'other_end'].concat(SOURCE, PIXELS, MAP_OPTIONS, RANGE),
+			defaults: MAP_DEFAULTS},
 		area_by_class: {group: 'areas', button: 'computeAreas',
 			takes: ['region', 'landcover', 'year', 'other_year', 'breaks', 'trend', 'step', 'part', 'alpha'].concat(SOURCE,
 				PIXELS, MAP_OPTIONS),
@@ -24107,7 +24432,8 @@ var MonitorEO = (function () {
 			MAP_OPTIONS), defaults: MAP_DEFAULTS},
 		transect: {group: 'gradients', button: 'drawLine', takes: ['line'].concat(SOURCE, PIXELS, MAP_OPTIONS),
 			defaults: MAP_DEFAULTS},
-		timelapse: {group: 'animation', button: 'makeAnimation', takes: ['region', 'step', 'metric'].concat(SOURCE, PIXELS),
+		timelapse: {group: 'animation', button: 'makeAnimation',
+			takes: ['region', 'step', 'metric'].concat(SOURCE, PIXELS, RANGE, ['same_colours']),
 			defaults: {step: 'annual', metric: 'median'}},
 		time_series: {group: 'series', button: 'computeSeries',
 			takes: ['region', 'step', 'metric', 'stat', 'doy', 'interannual', 'other_variable', 'other_sensor'].concat(
@@ -24119,7 +24445,7 @@ var MonitorEO = (function () {
 			takes: ['region', 'step', 'metric', 'stat', 'alpha'].concat(SOURCE, PIXELS),
 			defaults: {step: 'annual', metric: 'mean', stat: 'mean', alpha: 0.05}},
 		trend_map: {group: 'trends', button: 'trendMap',
-			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha'].concat(SOURCE, PIXELS),
+			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha'].concat(SOURCE, PIXELS, RANGE),
 			defaults: {step: 'annual', output: 'slope', metric: 'mean'}},
 		burn_severity: {group: 'fire', button: 'burn',
 			takes: ['region', 'sensor', 'collection', 'start', 'end', 'other_start', 'other_end', 'index', 'metric',
@@ -24134,7 +24460,8 @@ var MonitorEO = (function () {
 	var PARAMETER_ORDER = ['region', 'line', 'variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer',
 		'band_scale', 'band_offset', 'unit', 'start', 'end', 'other_start', 'other_end', 'landcover', 'year', 'other_year',
 		'breaks', 'trend', 'zones', 'index', 'step', 'part', 'output', 'metric', 'temporal', 'interannual', 'stat', 'alpha',
-		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where'];
+		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where', 'vmin', 'vmax', 'percentiles',
+		'same_colours'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
 		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point'];
@@ -24335,8 +24662,23 @@ var MonitorEO = (function () {
 		if (analysis === 'timelapse') {
 			p.step = state.animStep;
 			p.metric = state.animMetric;
+			if (state.sameColours) p.same_colours = true;
 		}
+		if (ANALYSES[analysis].takes.indexOf('percentiles') >= 0) rangeParameters(p, analysis);
 		return {parameters: ordered(p), notes: notes};
+	}
+
+	// The colour range of the panel in P (left out at the defaults of the services: maps.STRETCH, or maps.RGB_STRETCH
+	// for the true colour, and no ends); the true colour takes no minimum nor maximum in the app
+	function rangeParameters(p, analysis) {
+		var cr = colourRange();
+		var pcts = analysis === 'rgb_map' ? rgbPcts(cr) : cr.pcts;
+		var defaults = analysis === 'rgb_map' ? mo.RGB_STRETCH : mo.STRETCH;
+		if (pcts[0] !== defaults[0] || pcts[1] !== defaults[1]) p.percentiles = pcts.slice();
+		if (analysis !== 'rgb_map') {
+			if (cr.vmin !== null) p.vmin = cr.vmin;
+			if (cr.vmax !== null) p.vmax = cr.vmax;
+		}
 	}
 
 	// Show: the parameters of the analysis chosen in the box, as JSON (parameters.make), to copy them
@@ -24792,6 +25134,30 @@ var MonitorEO = (function () {
 		function significance() {  // the app takes the trends as significant with p < 0.05
 			if (o.alpha !== undefined && Number(o.alpha) !== 0.05) skip('alpha', t('onlyAlpha'));
 		}
+		// the colour range: that given, or the defaults of the services (maps.STRETCH and no ends)
+		function colours() {
+			state.pctLo = String(mo.STRETCH[0]);
+			state.pctHi = String(mo.STRETCH[1]);
+			state.rangeMin = state.rangeMax = '';
+			state.pctSet = o.percentiles !== undefined;
+			if (o.percentiles !== undefined) {
+				try {
+					var pcts = mo.checkPercentiles(o.percentiles);
+					state.pctLo = String(pcts[0]);
+					state.pctHi = String(pcts[1]);
+				} catch (err) {
+					skip('percentiles', err.message || String(err));
+				}
+			}
+			['vmin', 'vmax'].forEach(function (name) {
+				if (o[name] === undefined) return;
+				if (analysis === 'rgb_map') return skip(name, t('rgbNoEnds'));
+				if (typeof o[name] !== 'number' || !isFinite(o[name])) return skip(name, name + ' is a number');
+				state[name === 'vmin' ? 'rangeMin' : 'rangeMax'] = String(o[name]);
+			});
+			if (analysis === 'timelapse') state.sameColours = Boolean(o.same_colours);
+		}
+		if (ANALYSES[analysis].takes.indexOf('percentiles') >= 0) colours();
 		if (analysis === 'map_layer' || analysis === 'compare_map') state.mapLayer = 'index';
 		if (analysis === 'rgb_map') state.mapLayer = 'rgb';
 		if (['map_layer', 'rgb_map', 'compare_map', 'region_stats', 'transect'].indexOf(analysis) >= 0) mapOptions();

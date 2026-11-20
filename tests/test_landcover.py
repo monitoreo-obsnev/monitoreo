@@ -258,7 +258,7 @@ out.corine = {year: selectWith(2018).opts.value, years: selectWith(2018).opts.it
 answer = {info: {area: 8e7, centroid: [-3.56, 36.9], total: 8e7, boundsArea: 9e7}, n: 1};
 selectWith('view').opts.onChange('view');
 button('Use the map view').opts.onClick();
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Add to the map').opts.onClick();
 out.map = {layer: layers[layers.length - 1], results: last()};
 // without land covers: what to do
@@ -267,7 +267,7 @@ check('Built-up (111, 112, 121, 122, 123, 124, 131, 132, 133, 141, 142)').opts.o
 button('Add to the map').opts.onClick();
 out.none = last();
 check(lc).opts.onChange(false);
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Add to the map').opts.onClick();
 out.off = layers[layers.length - 1];
 console.log(JSON.stringify(out));

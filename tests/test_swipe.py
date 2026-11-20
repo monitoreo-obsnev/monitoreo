@@ -28,11 +28,11 @@ button('Use the map view').opts.onClick();
 function inResults(kind, test) { return find(results_(), kind, test); }
 // a comparison of two periods, its map, and its swipe
 check('Compare with another period').opts.onChange(true);
-answer = {value_p5: -0.1, value_p95: 0.1};
+answer = {value_lo: -0.1, value_hi: 0.1};
 button('Add to the map').opts.onClick();
 var swipe = inResults('Button', function (w) { return w.opts.label === 'Swipe: the two periods side by side'; })[0];
 out.swipeButton = Boolean(swipe);
-answer = {reference_p5: 0.2, reference_p95: 0.7, other_p5: 0.1, other_p95: 0.8};
+answer = {reference_lo: 0.2, reference_hi: 0.7, other_lo: 0.1, other_hi: 0.8};
 swipe.opts.onClick();
 out.split = root.children[1].kind;
 out.wipe = root.children[1].opts.wipe;
@@ -44,7 +44,7 @@ check('Compare with another period').opts.onChange(false);
 find(controls, 'Select', function (w) {
 	return (w.opts.items || []).some(function (i) { return i.label === 'Month'; });
 })[0].opts.onChange('monthly');
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Make the animation').opts.onClick();
 var slider = inResults('Slider')[0];
 out.slider = slider ? [slider.opts.min, slider.opts.max] : null;
@@ -94,7 +94,7 @@ check('Compare with another period').opts.onChange(true);
 // the map of a comparison and its swipe with the percentiles ST of the two periods: the range of the two maps and what
 // the split shows
 function swipe(st) {
-	answer = {value_p5: -0.1, value_p95: 0.1};
+	answer = {value_lo: -0.1, value_hi: 0.1};
 	button('Add to the map').opts.onClick();
 	answer = st;
 	resultButton('Swipe: the two periods side by side').opts.onClick();
@@ -102,33 +102,33 @@ function swipe(st) {
 	return {split: split.kind, range: [left.vis[0], right.vis[0]].map(function (v) { return [v.min, v.max]; }),
 		left: texts(left), right: texts(right)};
 }
-out.legend = (function () { answer = {value_p5: -0.1, value_p95: 0.1}; button('Add to the map').opts.onClick();
+out.legend = (function () { answer = {value_lo: -0.1, value_hi: 0.1}; button('Add to the map').opts.onClick();
 	return texts(legend); })();
-out.swipe = swipe({reference_p5: 0.2, reference_p95: 0.7, other_p5: 0.1, other_p95: 0.8});
+out.swipe = swipe({reference_lo: 0.2, reference_hi: 0.7, other_lo: 0.1, other_hi: 0.8});
 out.legendSwiped = texts(legend);  // that of the map of the app, as it was
 resultButton('Back to one map').opts.onClick();
 out.back = [root.children[1] === map, texts(legend)];
 // a period without pixels (its percentiles null), and both
-out.oneEmpty = swipe({reference_p5: null, reference_p95: null, other_p5: 0.2, other_p95: 0.8}).range;
-out.oneEmptyNegative = swipe({reference_p5: -0.5, reference_p95: -0.1, other_p5: null, other_p95: null}).range;
-out.bothEmpty = swipe({reference_p5: null, reference_p95: null, other_p5: null, other_p95: null}).range;
+out.oneEmpty = swipe({reference_lo: null, reference_hi: null, other_lo: 0.2, other_hi: 0.8}).range;
+out.oneEmptyNegative = swipe({reference_lo: -0.5, reference_hi: -0.1, other_lo: null, other_hi: null}).range;
+out.bothEmpty = swipe({reference_lo: null, reference_hi: null, other_lo: null, other_hi: null}).range;
 var e = MonitorEO.byRef(27), catalogVis = MonitorEO.visParams(null, MonitorEO.rampEntry(e, 'median', 'period'));
 out.catalog = [catalogVis.min, catalogVis.max];
 // Close, any other result, a region (its layer) and the tools to draw bring the map of the app back
 resultButton('Close').opts.onClick();
 out.close = root.children[1] === map;
-swipe({reference_p5: 0.2, reference_p95: 0.7, other_p5: 0.1, other_p95: 0.8});
+swipe({reference_lo: 0.2, reference_hi: 0.7, other_lo: 0.1, other_hi: 0.8});
 answer = {info: {area: 8e7, centroid: [-3.56, 36.9], total: 8e7, boundsArea: 9e7}, n: 1};
 button('Use the map view').opts.onClick();
 out.region = root.children[1] === map;
-swipe({reference_p5: 0.2, reference_p95: 0.7, other_p5: 0.1, other_p95: 0.8});
+swipe({reference_lo: 0.2, reference_hi: 0.7, other_lo: 0.1, other_hi: 0.8});
 selectWith('view').opts.onChange('draw');
 out.draw = root.children[1] === map;
 selectWith('draw').opts.onChange('view');
-swipe({reference_p5: 0.2, reference_p95: 0.7, other_p5: 0.1, other_p95: 0.8});
+swipe({reference_lo: 0.2, reference_hi: 0.7, other_lo: 0.1, other_hi: 0.8});
 check('Compare with another period').opts.onChange(false);
 var before = layers.length;
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Add to the map').opts.onClick();
 out.other = [root.children[1] === map, layers.length - before, Boolean(resultButton('Back to one map'))];
 // the frame on the map: the calls made on its image, the last ones before ui.Map.Layer and setEeObject
@@ -158,9 +158,11 @@ def test_the_swipe_of_the_app_has_its_colour_bar_and_goes_back():
 	assert out['swipe']['split'] == 'SplitPanel' and out['swipe']['range'] == [[0.1, 0.8], [0.1, 0.8]]
 	# the colour bar of the two periods on the left map, with its unit; the legend of the map of the app (that of the
 	# difference) stays, and is right again after Back to one map
-	assert out['swipe']['left'] == ['NDVI Sentinel-2 · Map view · Median [unitless]', '0.1000', '0.8000']
+	assert out['swipe']['left'] == ['NDVI Sentinel-2 · Map view · Median [unitless]', '0.1000', '0.8000',
+	                                'Colours: p1–p99 of the two periods over the region.']
 	assert out['swipe']['right'] == []
-	assert out['legend'][1:] == ['-0.1000', '0.1000'] and ' − ' in out['legend'][0]
+	assert out['legend'][1:] == ['-0.1000', '0.1000', 'Colours: symmetric around 0, up to the largest of |p1| and '
+	                             '|p99| of the difference over the region.'] and ' − ' in out['legend'][0]
 	assert out['legendSwiped'] == out['legend'] and out['back'] == [True, out['legend']]
 	# the range of the periods with pixels; that of the catalog when none has
 	assert out['oneEmpty'] == [[0.2, 0.8], [0.2, 0.8]]
@@ -211,7 +213,8 @@ class Elem {
 const dom = {};
 ['mapsel', 'mapstep', 'steplabel', 'steptitle', 'layerlabel', 'layer', 'maptitle', 'mapbox', 'pixel', 'siglabel',
  'significant', 'maplegend', 'maphint', 'query', 'map', 'stepslider', 'play', 'swipebar', 'swipesel', 'swipe',
- 'swipenote', 'basemap', 'opacity', 'snapshot'].forEach(id => { dom[id] = new Elem('x', {id}); });
+ 'swipenote', 'basemap', 'opacity', 'snapshot', 'rangelabel', 'plo', 'phi', 'cmin', 'cmax', 'applyrange']
+  .forEach(id => { dom[id] = new Elem('x', {id}); });
 dom.basemap.value = 'osm'; dom.opacity.value = '0.8'; dom.swipe.value = '50';
 const $ = id => dom[id] || null;
 function el(tag, attrs = {}, ...children) { const e = new Elem(tag, attrs); e.append(...children.filter(c => c != null)); return e; }

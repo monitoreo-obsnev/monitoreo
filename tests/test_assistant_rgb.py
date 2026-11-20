@@ -113,11 +113,11 @@ def test_card_of_the_true_colour_map(tmp_path):
 	assert a.calls[0] == ('rgb_map', NDVI) and 'Done:' in a.messages[-1]['content']
 	assert '0.3' not in a.messages[-1]['content']  # the model gets no values
 	assert 'Colours' in dict(result['facts'])
-	# a year: the true colour of its images, with the colours of the map of the result
+	# a year: the true colour of its images, stretched between the percentiles of its own reflectance
 	shown = asyncio.run(a.step_map(1, '2019-01-01/2019-12-31'))
 	assert a.calls[-1] == ('rgb_map', {'region': REGION, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
-	                                   'start': '2019-01-01', 'end': '2019-12-31', 'metric': 'median', 'vmin': 0.0,
-	                                   'vmax': 0.3, 'quick': True})
+	                                   'start': '2019-01-01', 'end': '2019-12-31', 'metric': 'median', 'quick': False,
+	                                   'preview': False})
 	assert shown['legend'] == {'text': TEXT} and shown['map']['pixel'] is False
 	assert shown['heading'].startswith('True colour of the images of Normalized Difference Vegetation Index (NDVI, '
 	                                   'Sentinel-2), 2019')
@@ -241,20 +241,21 @@ def test_the_true_colour_of_each_date():
 	a.calls.clear()
 	main = asyncio.run(a.step_map(1, '', rgb=True))
 	assert main['key'] == '|rgb' and main['legend'] == {'text': TEXT} and main['map']['pixel'] is False
-	assert a.calls == [('rgb_map', {**NDVI, 'vmin': None, 'vmax': None, 'quick': False, 'preview': False})]  # its range
+	assert a.calls == [('rgb_map', {**NDVI, 'quick': False, 'preview': False})]  # its range
 	# (once, without the PNG preview of the region, which the page does not show)
 	asyncio.run(a.step_map(1, '', rgb=True))
 	assert len(a.calls) == 1  # made once
 	assert a.results[0]['maps']['|rgb']['title'].startswith('True colour of the images of NDVI (Sentinel-2), 2018-2021')
-	# a year: its map of the variable and its true colour, with the colours of the first true colour
+	# a year: its map of the variable and its true colour, each stretched between the percentiles of its own values
 	year = '2019-01-01/2019-12-31'
 	index = asyncio.run(a.step_map(1, year))
 	colour = asyncio.run(a.step_map(1, year, rgb=True))
 	assert index['key'] == year and colour['key'] == year + assistant.RGB
 	step = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2019-01-01', 'end': '2019-12-31',
 	        'metric': 'median', 'quick': True}
-	assert a.calls[1] == ('map_layer', {**step, 'vmin': INDEX['min'], 'vmax': INDEX['max']})
-	assert a.calls[2] == ('rgb_map', {**step, 'vmin': RGB['min'], 'vmax': RGB['max'], 'preview': False})
+	own = {**{k: v for k, v in step.items() if k != 'quick'}, 'quick': False, 'preview': False}
+	assert a.calls[1] == ('map_layer', own)
+	assert a.calls[2] == ('rgb_map', own)
 	assert colour['heading'].startswith('True colour of the images of Normalized Difference Vegetation Index (NDVI, '
 	                                    'Sentinel-2), 2019')
 	# its tiles again, with the same colours
@@ -361,9 +362,9 @@ def test_the_page_has_the_select_layer():
 	assert "layer: under ? 'both'" in page  # the view of the report, as seen
 
 
-def test_two_true_colours_at_once_share_the_range():
-	"""Two dates asked at the same time (the page and a refresh): the first true colour computes the range and the
-	other waits for it and takes it, so that the dates can be compared."""
+def test_two_true_colours_at_once_have_their_own_range():
+	"""Two dates asked at the same time (the page and a refresh): each true colour is stretched between the percentiles
+	of its own reflectance, one after the other."""
 	a = new()
 	run(a, 'map_layer', NDVI)
 	a.calls.clear()
@@ -380,6 +381,5 @@ def test_two_true_colours_at_once_share_the_range():
 
 	asyncio.run(both())
 	rgb = [c[1] for c in a.calls if c[0] == 'rgb_map']
-	assert len(rgb) == 2 and sorted(c['quick'] for c in rgb) == [False, True]
-	rgb.sort(key=lambda c: c['quick'])
-	assert (rgb[1]['vmin'], rgb[1]['vmax']) == (RGB['min'], RGB['max'])
+	assert len(rgb) == 2 and [c['quick'] for c in rgb] == [False, False]
+	assert not any('vmin' in c for c in rgb)

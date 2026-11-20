@@ -262,9 +262,11 @@ def test_the_maps_of_a_spread_take_their_range_from_the_map(monkeypatch):
 	monkeypatch.setattr(services, '_preview', lambda out, *a, **k: out)
 	monkeypatch.setattr(maps, 'tile_url', lambda img, vis: 'https://ee/{z}/{x}/{y}')
 
-	def vis(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True):
+	def vis(image, geom, entry=None, scale=None, vmin=None, vmax=None, palette=None, compute=True, percentiles=None,
+	        describe=False):
 		seen.append((compute, entry))
-		return {'min': 0, 'max': 1, 'palette': maps.ramp(entry)}
+		out = {'min': 0, 'max': 1, 'palette': maps.ramp(entry)}
+		return (out, maps.stretch_of(None, (1, 99), False, False, catalog=not compute)) if describe else out
 	monkeypatch.setattr(maps, 'vis_params', vis)
 	for args, compute, maxp in [({'metric': 'cv'}, True, 100), ({'metric': 'mean', 'temporal': 'annual',
 	                                                              'interannual': 'cv'}, True, 100),
