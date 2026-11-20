@@ -721,7 +721,12 @@ function Widget(kind, opts) {
 	this.children = [];
 	this.disabled = false;
 }
-Widget.prototype.style = function () { return {set: function () {}}; };
+Widget.prototype.style = function () {  // the style given and set (shown: whether a section is unfolded)
+	var self = this;
+	self.styles = self.styles || {};
+	return {set: function (k, v) { self.styles[k] = v; }};
+};
+Widget.prototype.setLabel = function (v) { this.opts.label = v; };
 Widget.prototype.add = function (w) { this.children.push(w); };
 Widget.prototype.clear = function () { this.children = []; };
 Widget.prototype.setDisabled = function (v) { this.disabled = Boolean(v); };
@@ -756,9 +761,10 @@ global.ui = {
 		Linker: nothing}),
 	Slider: function (o) { return new Widget('Slider', o); },
 	SplitPanel: function (o) { return new Widget('SplitPanel', o); },
-	Panel: Object.assign(function (items) {
+	Panel: Object.assign(function (items, layout, style) {
 		var w = new Widget('Panel');
 		w.widgets = widgets;
+		w.styles = Object.assign({}, style);
 		if (Array.isArray(items)) w.children = items.slice();
 		return w;
 	}, {Layout: {flow: function () {}}}),
