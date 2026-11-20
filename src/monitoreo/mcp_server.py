@@ -119,7 +119,11 @@ images and pixels as a map, with the same arguments, shows what is on the ground
 (burned areas, bare soil, snow, water, clouds left): rgb_map (tiles and preview) and download_rgb (GeoTIFF), only for
 the variables with rgb in list_variables (Sentinel-2, Landsat and the cloud frequency of MODIS) and the metrics
 median, mean, min, max and pN. A map whose preview Earth Engine cannot make in some minutes comes without it
-(thumbnail_error says why): its tiles are the map, so do not ask for it again. GeoTIFFs on this computer: download_image (one map of a small
+(thumbnail_error says why): its tiles are the map, so do not ask for it again. The colour ramp of every map (map_layer, trend_map,
+compare_map, timelapse, download_image) is stretched between the percentiles 1 and 99 of its own values over the region
+(each frame of an animation, its own), and its answer says the range and how it was computed (stretch): when the user
+asks for other limits, give percentiles (e.g. [2, 98]) or vmin and vmax; timelapse with same_colours true keeps one
+ramp for every frame. Maps of classes (land cover, ecoregions, burn severity) keep the colour of each class. GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
@@ -666,28 +670,30 @@ def map_layer(region: dict, variable: Optional[str] = None, sensor: Optional[str
               vmax: Optional[float] = None, collection: Optional[str] = None, image: Optional[str] = None,
               band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-              terrain: Optional[str] = None, where: Optional[list] = None, quick: bool = False, figure: bool = False):
+              terrain: Optional[str] = None, where: Optional[list] = None, quick: bool = False, figure: bool = False,
+              percentiles: Optional[List[float]] = None, preview: bool = True):
 	"""Map of a variable over a region aggregated in time (e.g. the median NDVI of a period): returns the URL of
 	its Earth Engine map tiles (XYZ, {z}/{x}/{y}, valid for some hours; add it to QGIS as an XYZ layer), the colour
 	ramp and a PNG preview with the outline of the region. temporal: 'period' (METRIC over all the images),
 	'annual', 'monthly' or '16-day' (METRIC of each, then INTERANNUAL between the years). quick: only the tiles, at
 	once (without the preview, and with the colour ramp of the catalog instead of that of the map). figure: instead
 	of the tiles, a figure for a report or a paper (PNG of 300 dpi with grid, scale bar, north arrow, colour ramp and
-	credits), in file. Required: region, and variable and sensor or collection or image and band; start and end,
-	except for the fixed layers."""
+	credits), in file. percentiles: its colours between these percentiles of the map (default [1, 99]); stretch says
+	how. Required: region, and variable and sensor or collection or image and band; start and end, except for the
+	fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
 	                 band_reducer=band_reducer)
 	_ready()
 	if figure:
 		path = _out(_stem('figure', _data(variable, sensor, source), *(() if image else (metric, start, end))), 'png')
 		fig = services.map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-		                          vmin, vmax, path=path, where=where, **source)
+		                          vmin, vmax, path=path, where=where, percentiles=percentiles, **source)
 		with open(fig['file'], 'rb') as f:
 			return [_text(fig)] + [Image(data=f.read(), format='png')]
-	png = None if quick else _out(_stem('map', _data(variable, sensor, source),
-	                                    *(() if image else (metric, start, end))), 'png')
+	png = None if quick or not preview else _out(_stem('map', _data(variable, sensor, source),
+	                                                   *(() if image else (metric, start, end))), 'png')
 	res = services.map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-	                         vmin, vmax, thumbnail=png, quick=quick, where=where, **source)
+	                         vmin, vmax, thumbnail=png, quick=quick, where=where, percentiles=percentiles, **source)
 	return [_text(res)] + _preview(res)
 
 
@@ -698,25 +704,28 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
               fps: float = 1, dimensions: int = 600, video: bool = False, collection: Optional[str] = None,
               band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-              where: Optional[list] = None):
+              where: Optional[list] = None, percentiles: Optional[List[float]] = None, same_colours: bool = False):
 	"""Animation of a variable over a region (a timelapse): a frame per step ('annual', 'monthly', '16-day' or 'daily')
-	of the period (and season), each the METRIC of the images of the step on each pixel, with one colour ramp for every
-	frame (vmin to vmax; by default from the percentiles 5 and 95 of the map of the whole period or, for the metrics
-	sum and count, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit
-	and the credits of the data and of the region; the pixels without data in a step are light grey. At most 120
-	frames: annual or monthly steps for long periods. Writes a GIF (and, with video, an MP4 too; it needs ffmpeg: without it, note says so and the GIF is the file) and
-	returns its last frame as a picture, the date and the number of images of each frame, and the colour ramp. It
-	takes some minutes (Earth Engine makes each frame). fps: frames per second; dimensions: width or height of the map
-	in pixels (64 to 1200). Not for the fixed layers, which have no dates. Required: region, start and end, and
-	variable and sensor or collection and band."""
+	of the period (and season), each the METRIC of the images of the step on each pixel, each frame with its colours
+	between the percentiles (default [1, 99]) of its values (frames: min, max); same_colours: one ramp for all, from
+	the map of the period. Written on each frame, its date, the
+	title, the colour ramp with its unit and the credits of the data and of the region; the pixels without data in a
+	step are light grey. At most 120 frames: annual or monthly steps for long periods. Writes a GIF (and, with
+	video, an MP4 too; it needs ffmpeg: without it, note says so and the GIF is the file) and returns its last frame
+	as a picture, the date and the number of images of each frame, and the colour ramp. It takes some minutes (Earth
+	Engine makes each frame). fps: frames per second; dimensions: width or height of the map in pixels (64 to 1200).
+	Not for the fixed layers, which have no dates. Required: region, start and end, and variable and sensor or
+	collection and band."""
 	source = _source(variable, sensor, collection, None, band, band_scale, band_offset, unit, band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'animations', start=start, end=end)
 	_ready()
 	path = _out(_stem('animation', _data(variable, sensor, source), step, metric, start, end), 'mp4' if video else 'gif')
 	res = services.timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
-	                         fps=fps, dimensions=dimensions, path=path, where=where, **source)
-	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'file',
-	                                    'gif', 'note', 'readme', 'parameters', 'references', 'credits', 'manual')}
+	                         fps=fps, dimensions=dimensions, path=path, where=where, percentiles=percentiles,
+	                         same_colours=same_colours, **source)
+	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'stretch',
+	                                    'file', 'gif', 'note', 'readme', 'parameters', 'references', 'credits',
+	                                    'manual')}
 	_notes(summary, res)
 	summary['frames'] = res.get('frames') or []
 	return [_text(summary)] + _last_frame(res.get('gif'))
@@ -744,7 +753,8 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
             temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
             quality: Optional[dict] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
             collection: Optional[str] = None,
-            where: Optional[list] = None, quick: bool = False, preview: bool = True):
+            where: Optional[list] = None, quick: bool = False, preview: bool = True,
+            percentiles: Optional[List[float]] = None):
 	"""True colour of the images of a variable over a region: the red, green and blue surface reflectance of the
 	same images and pixels as its map (map_layer with the same arguments: period, season, pixel filters, where),
 	aggregated in time with the same metric (median, mean and pN band by band; max and min, the colours of the image
@@ -753,13 +763,14 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 	variables with rgb in list_variables (those of Sentinel-2 and Landsat, and the cloud frequency of MODIS); not the
 	fixed layers, the climate nor the other MODIS products. Returns the URL of its Earth Engine map tiles (XYZ,
 	{z}/{x}/{y}, valid for some hours), the bands red, green and blue stretched together from min to max
-	(reflectance: the lowest percentile 2 and the highest percentile 98 of the bands over the region, or vmin and
-	vmax) and a PNG preview with the outline of the region. quick: only the tiles, at once (without the preview, and
+	(reflectance: the lowest percentile 2 and the highest percentile 98 of the bands over the region, or of
+	percentiles, or vmin and vmax) and a PNG preview with the outline of the region. quick: only the tiles, at once (without the preview, and
 	from 0 to 0.3 instead of the range of the map); preview false: the tiles and their range, without the preview."""
 	_ready()
 	png = None if quick or not preview else _out(f'rgb_{variable}_{sensor}_{metric}_{start}_{end}', 'png')
 	res = services.rgb_map(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where)
+	                       vmin, vmax, thumbnail=png, quick=quick, collection=collection, where=where,
+	                       percentiles=percentiles)
 	return [_text(res)] + _preview(res)
 
 
@@ -918,11 +929,13 @@ def download_image(region: dict, variable: Optional[str] = None, sensor: Optiona
                    clip: bool = True, collection: Optional[str] = None, image: Optional[str] = None,
                    band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                    band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-                   terrain: Optional[str] = None, where: Optional[list] = None) -> str:
+                   terrain: Optional[str] = None, where: Optional[list] = None, vmin: Optional[float] = None,
+                   vmax: Optional[float] = None, percentiles: Optional[List[float]] = None) -> str:
 	"""Download the map of a variable over a region to a GeoTIFF on this computer (float32, NoData -9999), computed
 	by Earth Engine in tiles: for small regions (up to some million pixels); bigger ones, export_image_to_drive.
 	resolution: pixel size in metres (default: that of the data); crs: 'auto' (UTM zone of the region; EPSG:6933
-	over 40° of longitude) or e.g. 'EPSG:25830'. Returns the path of the file and its grid. Required: region, and
+	over 40° of longitude) or e.g. 'EPSG:25830'. Returns the path of the file, its grid and its colours (min, max: its
+	percentiles, default [1, 99], or vmin and vmax). Required: region, and
 	variable and sensor or collection or image and band; start and end, except for the fixed layers."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
 	                 band_reducer=band_reducer)
@@ -931,7 +944,8 @@ def download_image(region: dict, variable: Optional[str] = None, sensor: Optiona
 	return _text(services.download_image(region, variable, sensor, start, end, metric, temporal, interannual,
 	                                     season=season,
 	                                     quality=quality, resolution=resolution, crs=crs, clip=clip,
-	                                     path=_out(stem, 'tif'), where=where, **source))
+	                                     path=_out(stem, 'tif'), where=where, vmin=vmin, vmax=vmax,
+	                                     percentiles=percentiles, **source))
 
 
 @tool
@@ -939,18 +953,21 @@ def download_rgb(region: dict, variable: str, sensor: str, start: str, end: str,
                  temporal: str = 'period', interannual: str = 'mean', season: Optional[List[str]] = None,
                  quality: Optional[dict] = None, resolution: Optional[float] = None, crs: str = 'auto',
                  clip: bool = True, collection: Optional[str] = None,
-                 where: Optional[list] = None) -> str:
+                 where: Optional[list] = None, percentiles: Optional[List[float]] = None,
+                 vmin: Optional[float] = None, vmax: Optional[float] = None) -> str:
 	"""Download the true colour of the images of a variable over a region (see rgb_map: the red, green and blue
 	surface reflectance of the same images and pixels as its map, with the same metric) to a GeoTIFF on this
 	computer with the bands red, green and blue (float32 reflectance, NoData -9999), on the same grid as
 	download_image with the same arguments (resolution, crs): to compare the values of an index with what is on the
 	ground. For small regions. Returns the path of the file, its grid and min and max, the range of reflectance to
-	show the three bands together (the lowest percentile 2 and the highest percentile 98 of the bands)."""
+	show the three bands together (the lowest percentile 2 and the highest percentile 98 of the bands, or of
+	percentiles)."""
 	_ready()
 	return _text(services.download_rgb(region, variable, sensor, start, end, metric, temporal, interannual,
 	                                   season=season, quality=quality, resolution=resolution, crs=crs, clip=clip,
 	                                   path=_out(f'{variable}_{sensor}_{metric}_{start}_{end}_RGB', 'tif'),
-	                                   collection=collection, where=where))
+	                                   collection=collection, where=where, percentiles=percentiles, vmin=vmin,
+	                                   vmax=vmax))
 
 
 @tool
@@ -1020,21 +1037,23 @@ def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str
               band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
               where: Optional[list] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
-              quick: bool = False):
+              quick: bool = False, percentiles: Optional[List[float]] = None, preview: bool = True):
 	"""Map of the trend of a part of the year computed on each pixel (see trend_table): part is the month (1-12)
 	with step 'monthly', 1-23 with '16-day', nothing with 'annual'; output 'slope' (Sen, per year), 'tau', 'z',
 	'p_value', 'intercept' or 'n' (years with data); alpha (e.g. 0.05) keeps only the significant pixels. Returns
 	the URL of its Earth Engine tiles (XYZ, valid for some hours) and a preview. quick: only the tiles, at once
-	(without the preview, and with a fixed colour ramp instead of that of the map). Required: region, start and end,
-	and variable and sensor or collection and band."""
+	(without the preview, and with a fixed colour ramp instead of that of the map). percentiles (default [1, 99]) or
+	vmin and vmax: the colour ramp (tau and p_value: fixed). Required: region, start and end, and variable and sensor
+	or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	thumb = None if quick else _out(_stem('trend', _data(variable, sensor, source), step, part, output), 'png')
+	thumb = None if quick or not preview else _out(_stem('trend', _data(variable, sensor, source), step, part, output),
+	                                               'png')
 	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
 	                         quality=quality, alpha=alpha, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
-	                         where=where, **source)
+	                         where=where, percentiles=percentiles, **source)
 	return [_text(res)] + _preview(res)
 
 
@@ -1046,9 +1065,11 @@ def download_trend(region: dict, variable: Optional[str] = None, sensor: Optiona
                    image: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
                    band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                    band_offset: Optional[float] = None, unit: Optional[str] = None,
-                   where: Optional[list] = None) -> str:
+                   where: Optional[list] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
+                   percentiles: Optional[List[float]] = None) -> str:
 	"""Download the trend of a part of the year on each pixel (see trend_map) to a GeoTIFF on this computer with
 	the bands slope, tau, z, p_value, intercept and n. For small regions (Earth Engine computes it in tiles).
+	percentiles or vmin, vmax: its colours.
 	Required: region, start and end, and variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
@@ -1057,7 +1078,8 @@ def download_trend(region: dict, variable: Optional[str] = None, sensor: Optiona
 	stem = _stem('trend', _data(variable, sensor, source), step, part, start, end)
 	return _text(services.download_trend(region, variable, sensor, start, end, step, part, metric, season=season,
 	                                     quality=quality, alpha=alpha, resolution=resolution, crs=crs,
-	                                     path=_out(stem, 'tif'), where=where, **source))
+	                                     path=_out(stem, 'tif'), where=where, vmin=vmin, vmax=vmax,
+	                                     percentiles=percentiles, **source))
 
 
 @tool
@@ -1098,11 +1120,14 @@ def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 season: Optional[List[str]] = None, quality: Optional[dict] = None, collection: Optional[str] = None,
                 image: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
                 band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
-                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None):
+                band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
+                vmin: Optional[float] = None, vmax: Optional[float] = None,
+                percentiles: Optional[List[float]] = None):
 	"""Map of the difference between the variable aggregated over another period (other_start to other_end) and
 	over the reference period (start to end), e.g. the median NDVI of 2023 minus that of 2018-2021. Returns the URL
-	of its Earth Engine tiles (XYZ, valid for some hours) and a preview. Required: region, start, end, other_start
-	and other_end, and variable and sensor or collection and band."""
+	of its Earth Engine tiles (XYZ, valid for some hours) and a preview; percentiles (default [1, 99]) or vmin and
+	vmax: its colour ramp. Required: region, start, end, other_start and other_end, and variable and sensor or
+	collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'comparisons of periods', start=start, end=end, other_start=other_start,
@@ -1110,7 +1135,8 @@ def compare_map(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	_ready()
 	thumb = _out(_stem('comparison', _data(variable, sensor, source), metric), 'png')
 	res = services.compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
-	                           season=season, quality=quality, thumbnail=thumb, where=where, **source)
+	                           season=season, quality=quality, thumbnail=thumb, where=where, vmin=vmin, vmax=vmax,
+	                           percentiles=percentiles, **source)
 	return [_text(res)] + _preview(res)
 
 
@@ -1122,9 +1148,11 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
                         image: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
                         band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                         band_offset: Optional[float] = None, unit: Optional[str] = None,
-                        where: Optional[list] = None) -> str:
+                        where: Optional[list] = None, percentiles: Optional[List[float]] = None,
+                        vmin: Optional[float] = None, vmax: Optional[float] = None) -> str:
 	"""Download the comparison of two periods (see compare_map) to a GeoTIFF on this computer with the bands
-	difference (other - reference), reference and other. For small regions. Required: region, start, end,
+	difference (other - reference), reference and other; percentiles or vmin, vmax: its colours. For small regions.
+	Required: region, start, end,
 	other_start and other_end, and variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
@@ -1134,7 +1162,8 @@ def download_comparison(region: dict, variable: Optional[str] = None, sensor: Op
 	stem = _stem('comparison', _data(variable, sensor, source), metric, start, end, other_start, other_end)
 	return _text(services.download_comparison(
 		region, variable, sensor, start, end, other_start, other_end, metric, temporal, season=season,
-		quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'), where=where, **source))
+		quality=quality, resolution=resolution, crs=crs, path=_out(stem, 'tif'), where=where, percentiles=percentiles,
+		vmin=vmin, vmax=vmax, **source))
 
 
 @tool

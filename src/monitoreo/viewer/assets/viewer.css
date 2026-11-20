@@ -237,6 +237,7 @@ details.call p { margin: 8px 0 0; color: var(--ink-2); }
 .legend-ramp { flex: 1 1 260px; max-width: 460px; }
 .legend-bar { height: 12px; border-radius: 3px; border: 1px solid var(--border); }
 .legend-ticks { display: flex; justify-content: space-between; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-top: 3px; }
+.legend-how { color: var(--ink-2); font-size: .85em; margin-top: 3px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
 .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); flex: none; }
 

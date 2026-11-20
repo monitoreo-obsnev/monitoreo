@@ -7,10 +7,14 @@ comes from the ext/ of the plugin, made by build_plugin.py, or from PYTHONPATH).
 GeoTIFFs made with GDAL, and tiles that are never read): it checks the list Layer of the group Map (greyed out without
 true colour, for the fixed layers and with Compare with), the map and its true colour (Both) on the same grid, the
 window of a time series with the list Layer and its layers (the true colour under the index, with the same days in the
-Temporal Controller and the stretch of the first true colour of the series), the tiles when the GeoTIFF cannot be
-downloaded and the warning when only the true colour fails. qgis/test_plugin.py does it with Earth Engine.
+Temporal Controller and, with Same colours in every map of a series, the stretch of the first true colour of the
+series; without it, each map its own), the Colour range of the group Map (its percentiles and minimum sent to the
+service of the map, not to its true colour, and the minimum and maximum in the colours of the layer and its abstract;
+restretch: the slope of a trend symmetric around 0), the tiles when the GeoTIFF cannot be downloaded and the warning
+when only the true colour fails. qgis/test_plugin.py does it with Earth Engine.
 """
 
+import inspect
 import os
 import sys
 import tempfile
@@ -140,6 +144,8 @@ def eecu_usage(*args, **kw):
 services.init = lambda *args, **kw: 'project'
 services.check_pixels = lambda *args, **kw: {'pixels': 1}  # it fits (issue #86), without Earth Engine
 services.eecu_usage = eecu_usage
+for fake in (download_image, download_rgb, rgb_map):  # with the signature of the service (the panel reads it)
+	fake.__signature__ = inspect.signature(getattr(services, fake.__name__))
 services.download_image = download_image
 services.download_rgb = download_rgb
 services.rgb_map = rgb_map
@@ -228,6 +234,49 @@ assert top.renderer().type() == 'singlebandpseudocolor' and under.name().endswit
 assert stretch(under) == (0.02, 0.25) and (under.width(), under.height()) == (top.width(), top.height())
 assert 'True colour (red, green, blue): reflectance from 0.02 to 0.25' in under.serverProperties().abstract()
 print('map and true colour:', [layer.name() for layer in new])
+
+# the Colour range of the group Map: by default nothing sent (the percentiles 1 and 99 of the services); its
+# percentiles and minimum to the map, not to its true colour (Both: its own, 2 and 98), the minimum in the layer
+assert (dock.map_colours.low.value(), dock.map_colours.high.value()) == (1, 99) and not dock.map_same.isChecked()
+assert not {'percentiles', 'vmin', 'vmax'} & set(index_opts)
+dock.map_colours.low.setValue(2)
+dock.map_colours.high.setValue(98)
+dock.map_colours.vmin.setText('0.2')
+assert dock.call_of('map')[1]['percentiles'] == [2, 98] and dock.call_of('map')[1]['vmin'] == 0.2
+calls.clear()
+before = set(QgsProject.instance().mapLayers())
+dock.run_map()
+wait()
+assert [c[0] for c in calls] == ['download_image', 'download_rgb'], calls
+assert calls[0][1]['percentiles'] == [2, 98] and calls[0][1]['vmin'] == 0.2 and 'vmax' not in calls[0][1]
+assert not {'percentiles', 'vmin', 'vmax'} & set(calls[1][1]), calls[1][1]
+top = [n.layer() for n in QgsProject.instance().layerTreeRoot().findLayers() if n.layer().id() not in before][0]
+assert (top.renderer().classificationMin(), top.renderer().classificationMax()) == (0.2, 0.9)
+assert 'Colour ramp: colours from 0.2 to 0.9 (minimum given by the user' in top.serverProperties().abstract(), \
+	top.serverProperties().abstract()
+dock.map_colours.vmin.setText('x')
+assert dock.call_of('map') is None and 'Colour range: the minimum must be a number' in messages[-1], messages[-1]
+dock.map_colours.vmin.setText('0.5')
+dock.map_colours.vmax.setText('0.4')
+assert dock.call_of('map') is None and 'must be lower than the maximum' in messages[-1], messages[-1]
+dock.map_colours.put({})  # the defaults again
+assert (dock.map_colours.low.value(), dock.map_colours.high.value(), dock.map_colours.vmin.text()) == (1, 99, '')
+for layer_id in set(QgsProject.instance().mapLayers()) - before:
+	QgsProject.instance().removeMapLayer(layer_id)
+print('colour range of the map:', calls[0][1]['percentiles'], calls[0][1]['vmin'])
+
+# restretch: the slope of a trend between its percentiles, symmetric around 0, and the minimum and maximum given
+from monitoreo_qgis.dock import restretch  # noqa: E402
+path = os.path.join(TMP, 'slope.tif')
+tif(path, ['slope'], 10.0, -0.1)  # from -0.1 to 0.099
+r = restretch({'file': path, 'min': -1.0, 'max': 1.0}, (0, 100), None, 'the slope', True)
+assert abs(r['min'] + 0.1) < 1e-6 and abs(r['max'] - 0.1) < 1e-6, r
+assert r['stretch']['text'] == 'stretched between the percentiles 0 and 100 of the slope', r['stretch']
+r = restretch({'file': path, 'min': -1.0, 'max': 1.0}, (1, 99), (-0.5, None))
+assert r['min'] == -0.5 and r['max'] == 1.0 and r['stretch']['method'] == 'mixed', r
+assert restretch({'file': path, 'min': -1.0, 'max': 1.0}, (1, 99))['stretch']['percentiles'] == [1, 99]
+assert restretch({'file': path, 'min': None, 'max': None}, (5, 95)) == {'file': path, 'min': None, 'max': None}
+print('restretch:', r['stretch']['text'])
 dock.where[0]['on'].setChecked(False)
 kind.setCurrentIndex(kind.findData('index'))
 
@@ -262,6 +311,17 @@ def add(index, value):
 	return [n.layer() for n in QgsProject.instance().layerTreeRoot().findGroup(res['label']).findLayers()]
 
 
+# without Same colours in every map of a series (by default), each map with its own colours
+calls.clear()
+own = add(5, 'rgb')[0]
+assert stretch(own) == (0.01, 0.25) and 'rgb_stretch' not in res and not res.get('colors'), res.get('rgb_stretch')
+first_index = add(5, 'index')[0]
+second_index = add(4, 'index')[0]
+assert first_index.renderer().classificationMin() != second_index.renderer().classificationMin()
+for layer in (own, first_index, second_index):
+	QgsProject.instance().removeMapLayer(layer.id())
+dock.map_same.setChecked(True)
+res.pop('zoomed', None)
 calls.clear()
 june = add(6, 'rgb')[0]  # the first true colour of the series: its stretch is kept
 assert [c[0] for c in calls] == ['download_rgb'] and calls[0][1]['where'] == where and calls[0][1]['resolution'] is None
@@ -312,6 +372,18 @@ layer = QgsRasterLayer(path, 'three')
 rgb(layer, 0.02, 0.28)
 assert stretch(layer) == (0.02, 0.28)
 print('rgb():', layer.renderer().type(), [layer.bandName(i) for i in (1, 2, 3)])
+# the true colour takes its own percentiles (2 and 98) unless the user chose some, also 1 and 99; two decimals
+colours = monitoreo_qgis.dock.ColourRange()
+assert 'percentiles' not in colours.args(services.download_rgb)
+assert 'percentiles' not in colours.args(services.map_layer)
+colours.low.setValue(2.5)
+assert colours.percentiles() == (2.5, 99) and colours.args(services.download_rgb)['percentiles'] == [2.5, 99]
+colours.low.setValue(1)
+assert colours.args(services.download_rgb)['percentiles'] == [1, 99] and 'percentiles' not in colours.args(
+	services.download_image)
+colours.put({})
+assert not colours.chosen and 'percentiles' not in colours.args(services.download_rgb)
+print('colour range of the true colour: OK')
 # what each variable is (the sections of the wiki of the result: res['manual']), in the abstract of its layers and in
 # the box of the references of its windows
 from monitoreo import wiki  # noqa: E402

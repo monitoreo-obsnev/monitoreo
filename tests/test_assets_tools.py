@@ -122,12 +122,12 @@ def test_the_command_line_computes_an_image_by_its_id(computed, capsys, tmp_path
 	assert (call['variable'], call['start'], call['end'], call['path']) == (None, None, None, tif)
 	assert 'collection' not in call
 	assert capsys.readouterr().out == (f'{tif}: WORLDCLIM/V1/BIO bio01 | 60 x 40 pixels of 1000 m | fixed image | '
-	                                   'p5-p95 5 to 15.25 degC\n')  # no images, nor "None images"
+	                                   'p1-p99 5 to 15.25 degC\n')  # no images, nor "None images"
 	cli.main(['image', '--image', 'COPERNICUS/DEM/GLO30', '--band', 'DEM', '--terrain', 'slope', '--region',
 	          json.dumps(REGION), '--out', tif])
 	call = _calls(computed)[-1]
 	assert (call['image'], call['band'], call['terrain']) == ('COPERNICUS/DEM/GLO30', 'DEM', 'slope')
-	assert capsys.readouterr().out.endswith('p5-p95 5 to 15.25\n')  # no unit given
+	assert capsys.readouterr().out.endswith('p1-p99 5 to 15.25\n')  # no unit given
 	cli.main(['image', '--collection', TERRACLIMATE, '--band', 'pr', '--metric', 'sum', '--temporal', 'annual',
 	          '--out', tif] + ARGS)
 	call = _calls(computed)[-1]
@@ -619,7 +619,8 @@ def test_the_model_learns_the_data_by_its_id(mcp):
 		params, given = set(inspect.signature(getattr(mcp, name)).parameters), \
 			set(inspect.signature(getattr(services, service)).parameters)
 		assert params - given <= {'collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit',
-		                          'terrain', 'where', 'figure'}, name  # figure: map_layer also calls services.map_figure
+		                          'terrain', 'where', 'figure', 'preview'}, name  # figure: map_layer also calls
+		# services.map_figure; preview: whether it writes the PNG preview (thumbnail)
 	assert 'ee.ImageCollection' in mcp.describe_asset.__doc__ and 'references and credits' in mcp.describe_asset.__doc__
 	# the slope and the aspect are in degrees, whatever the unit of the band (that describe_asset gives: m for a DEM)
 	assert 'in degrees (its unit is then degree: give no unit, or "degree", not that of the band)' in \

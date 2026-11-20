@@ -241,6 +241,13 @@ CASES = [
 	               'band_scale': 0.1, 'unit': 'degC'}),
 ]
 
+# the colour range of the maps (maps.vis_params): the percentiles, the ends and the same colours of the frames
+CASES += [(name, dict(next(p for n, p in CASES if n == name), **extra)) for name, extra in (
+	('map_layer', {'percentiles': [2, 98], 'vmin': 0, 'vmax': 0.8}),
+	('rgb_map', {'percentiles': [1, 99]}),  # the true colour: 2 and 98 are its default
+	('compare_map', {'vmin': -0.3}),
+	('trend_map', {'percentiles': [2.5, 97.5]}),
+	('timelapse', {'percentiles': [5, 95], 'same_colours': True}))]
 
 def test_the_app_writes_the_parameters_of_the_services():
 	"""Apply sets the panel from the parameters of each analysis of the app (every one applied, without computing:
@@ -414,8 +421,9 @@ def test_what_cannot_be_applied_is_listed_with_the_reason():
 	assert first['variable'] == first['sensor'] == py['variable'] == py['sensor']  # not in the catalog
 	assert 'Sentinel-3 is not in the catalog of MonitorEO' in first['variable']
 	assert py['colour'].startswith('not a parameter of map_layer in MonitorEO')
-	for name in ('vmin', 'palette', 'colour', 'stat'):
+	for name in ('palette', 'colour', 'stat'):
 		assert first[name] == 'not a parameter of map_layer in the Earth Engine app', name
+	assert 'vmin' not in first  # the colour range: the app takes it (its box Min)
 	assert first['metric'].startswith('not an option of the app: mean, median, min, max, p5')
 	assert first['temporal'] == 'not an option of the app: period, annual, monthly, 16-day'
 	assert first['start'] == 'Not a valid date: "2021-02-31x". Use YYYY-MM-DD (and MM-DD for the season).'

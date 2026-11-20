@@ -85,7 +85,7 @@ def test_the_command_line_writes_both_on_the_same_grid(downloads, capsys, tmp_pa
 	       ('max', 'annual', 'median', ABOVE)
 	lines = capsys.readouterr().out.splitlines()
 	assert lines[0] == (f'{tif}: NDVI Landsat | 2021-06-01 / 2021-06-30 (max) | 60 x 40 pixels of 20 m | 6 images | '
-	                    'p5-p95 0.1234 to 0.8 [unitless]')
+	                    'p1-p99 0.1234 to 0.8 [unitless]')
 	assert lines[1].startswith(f'{rgb}: NDVI Landsat | 2021-06-01 / 2021-06-30 (max), true colour | 60 x 40 pixels of '
 	                           '20 m | 6 images | bands red, green, blue | reflectance 0.01234 to 0.3104 (p2-p98)')
 	assert len(lines) == 2

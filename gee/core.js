@@ -2529,16 +2529,43 @@ var MonitorEO = (function () {
 		return steps;
 	}
 
-	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
-	// METRIC of its images coloured with VIS
-	function animationFrames(s, regions, steps, metric, vis) {
+	// The images of the frames of S over REGIONS (the METRIC of the images of each of STEPS, cut to REGIONS)
+	function frameImages(s, regions, steps, metric) {
 		var col = collection(s, regions.geometry());
+		return steps.map(function (b) { return reduceSpan(col, metric, b[0], b[1]).clipToCollection(regions); });
+	}
+
+	// maps.frame_ranges: ee.List of the percentiles PCTS of each frame of S over REGIONS ({value_lo, value_hi}, null
+	// for a frame without values) on pixels of SCALE, to evaluate once: each frame stretched between those of its own
+	// values (services.timelapse by default)
+	function frameRanges(s, regions, steps, metric, scale, pcts) {
+		var geom = regions.geometry();
+		return ee.List(frameImages(s, regions, steps, metric).map(function (img) {
+			return percentiles(img, geom, scale, pcts);
+		}));
+	}
+
+	// The colour ramp of each frame (services.timelapse) from the evaluated RANGES of frameRanges: between the
+	// percentiles of each frame, or VMIN and VMAX for the ends given; a frame without values (or all of them, if Earth
+	// Engine could not compute them: RANGES not a list) has the range of the catalog of ENTRY
+	function frameVis(ranges, entry, palette, vmin, vmax, n) {
+		var out = [];
+		for (var i = 0; i < n; i++) {
+			out.push(visParams(Array.isArray(ranges) ? ranges[i] : null, entry, palette, vmin, vmax));
+		}
+		return out;
+	}
+
+	// ee.ImageCollection of the frames (animation.frames) of the variable S over REGIONS, a frame per STEPS, each the
+	// METRIC of its images coloured with VIS (one for every frame, or a list with one per frame)
+	function animationFrames(s, regions, steps, metric, vis) {
 		var outside = ee.Image.constant(0).visualize({palette: [FRAME_COLOURS.outside]});
 		var inside = ee.Image.constant(0).clipToCollection(regions).visualize({palette: [FRAME_COLOURS.noData]});
 		var outline = ee.Image().byte().paint(regions, 1, 2).visualize({palette: [FRAME_COLOURS.outline]});
-		return ee.ImageCollection.fromImages(steps.map(function (b) {
-			var value = reduceSpan(col, metric, b[0], b[1]).clipToCollection(regions);
-			return outside.blend(inside).blend(value.visualize(vis)).blend(outline)
+		var images = frameImages(s, regions, steps, metric);
+		return ee.ImageCollection.fromImages(steps.map(function (b, i) {
+			var v = Array.isArray(vis) ? vis[i] : vis;
+			return outside.blend(inside).blend(images[i].visualize(v)).blend(outline)
 				.set('system:time_start', date(b[0]).getTime());
 		}));
 	}
@@ -2844,7 +2871,7 @@ var MonitorEO = (function () {
 		});
 	}
 
-	// animation.range_image: the map of S over REGIONS whose percentiles 5 and 95 colour every frame, that of the whole
+	// animation.range_image: the map of S over REGIONS whose percentiles colour every frame (Same colours), that of the whole
 	// period or, for a METRIC of TOTALS (sum, count), which grows with the images, the median of the frames of STEPS
 	// (that of the whole period would be that of all the steps, as many times bigger as they are)
 	function animationRange(s, regions, steps, metric) {
@@ -3826,21 +3853,95 @@ var MonitorEO = (function () {
 		return (colours || (entry || {}).pm || DEFAULT_PALETTE).map(function (c) { return String(c).replace(/^#/, ''); });
 	}
 
-	// The percentiles 5 and 95 of a single band image over REGION, to evaluate: then visParams
-	function percentiles(img, region, scale) {
-		return ee.Image(img).rename('value').reduceRegion({reducer: ee.Reducer.percentile([5, 95]), geometry: region,
-			scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	// maps.STRETCH: the percentiles of the values of a map between which its colour ramp is stretched (default)
+	var STRETCH = [1, 99];
+
+	function given(x) {
+		return x !== null && x !== undefined && x !== '';
 	}
 
-	// maps.vis_params from the evaluated percentiles
-	function visParams(stats, entry, palette) {
-		var lo = stats ? stats.value_p5 : null, hi = stats ? stats.value_p95 : null;
+	// maps.check_percentiles: the two percentiles [lo, hi] of PCTS (a list of two numbers, or a text such as '1,99' or
+	// '2 98') between which a colour ramp is stretched, 0 <= lo < hi <= 100; DEFAULT (STRETCH if none) without them
+	function checkPercentiles(pcts, fallback) {
+		if (!given(pcts) || (Array.isArray(pcts) && !pcts.length)) return (fallback || STRETCH).slice();
+		var parts = typeof pcts === 'string' ? pcts.trim().split(/[\s,;]+/).filter(function (x) { return x; }) : pcts;
+		var nums = Array.isArray(parts) && parts.length === 2 && parts.every(given) ? parts.map(Number) : [];
+		if (nums.length !== 2 || !nums.every(isFinite)) {
+			throw new Error('percentiles must be two numbers between 0 and 100, e.g. [1, 99], not ' +
+				JSON.stringify(pcts));
+		}
+		if (!(nums[0] >= 0 && nums[0] < nums[1] && nums[1] <= 100)) {
+			throw new Error('percentiles must be two numbers 0 <= low < high <= 100, e.g. [1, 99], not [' +
+				nums[0] + ', ' + nums[1] + ']');
+		}
+		return nums;
+	}
+
+	// The minimum and maximum of a colour ramp given by the user ([vmin, vmax], null for an end not given): numbers
+	// (a decimal comma too), the minimum lower than the maximum
+	function checkRange(vmin, vmax) {
+		function number(x, name) {
+			if (!given(x) || String(x).trim() === '') return null;
+			var v = Number(String(x).trim().replace(',', '.'));
+			if (!isFinite(v)) throw new Error('the ' + name + ' of the colour range must be a number, not ' + JSON.stringify(x));
+			return v;
+		}
+		var lo = number(vmin, 'minimum'), hi = number(vmax, 'maximum');
+		if (lo !== null && hi !== null && hi <= lo) {
+			throw new Error('the minimum of the colour range (' + lo + ') must be lower than its maximum (' + hi + ')');
+		}
+		return [lo, hi];
+	}
+
+	// The reducer of the percentiles LO and HI of PCTS, named lo and hi (value_lo, value_hi: those of Earth Engine for
+	// a percentile with decimals are not obvious), as maps._reducer
+	function stretchReducer(pcts) {
+		return ee.Reducer.percentile(pcts, ['lo', 'hi']);
+	}
+
+	// The percentiles PCTS (default STRETCH, 1 and 99) of a single band image over REGION ({value_lo, value_hi}), to
+	// evaluate: then visParams
+	function percentiles(img, region, scale, pcts) {
+		return ee.Image(img).rename('value').reduceRegion({reducer: stretchReducer(checkPercentiles(pcts)),
+			geometry: region, scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	}
+
+	// maps.vis_params from the evaluated percentiles STATS ({value_lo, value_hi}) or VMIN and VMAX (either of them, the
+	// other end from its percentile); the range of the catalog (ENTRY: minp, maxp; 0 to 1 without them) when Earth
+	// Engine could not compute them
+	function visParams(stats, entry, palette, vmin, vmax) {
+		var lo = stats ? stats.value_lo : null, hi = stats ? stats.value_hi : null;
 		if (lo === null || lo === undefined || hi === null || hi === undefined) {
 			lo = entry && typeof entry.minp === 'number' ? entry.minp : 0;
 			hi = entry && typeof entry.maxp === 'number' ? entry.maxp : 1;
 		}
+		if (given(vmin)) lo = Number(vmin);
+		if (given(vmax)) hi = Number(vmax);
+		var ends = ordered(lo, hi, given(vmin), given(vmax));
+		return {min: ends[0], max: ends[1], palette: ramp(entry, palette)};
+	}
+
+	// maps.ordered: [LO, HI] of a colour ramp, the maximum above the minimum: an error when only one end was given by
+	// the user (VMIN_GIVEN, VMAX_GIVEN) and it crosses the other one (the ramp would be painted the other way round);
+	// HI a little above LO when they are equal
+	function ordered(lo, hi, vminGiven, vmaxGiven, what) {
+		if (hi <= lo && Boolean(vminGiven) !== Boolean(vmaxGiven)) {
+			throw new Error('the ' + (vminGiven ? 'minimum' : 'maximum') + ' of the colours given, ' +
+				(vminGiven ? lo : hi) + ', is beyond the other end of the colours of ' + (what || 'the map') + ' (' +
+				(vminGiven ? hi : lo) + '): give both the minimum and the maximum, or other percentiles');
+		}
 		if (hi === lo) hi = lo + 1e-6;
-		return {min: lo, max: hi, palette: ramp(entry, palette)};
+		return [lo, hi];
+	}
+
+	// maps.stretch_of: how a colour ramp was stretched (for its legend): {method: 'percentiles', 'given', 'mixed' (the
+	// end GIVEN, 'min' or 'max', by the user, the other from its percentile) or 'catalog' (the percentiles could not be
+	// computed), percentiles: PCTS (when they were used)}
+	function stretchOf(pcts, vminGiven, vmaxGiven, catalog) {
+		if (vminGiven && vmaxGiven) return {method: 'given'};
+		if (catalog) return {method: 'catalog'};
+		if (vminGiven || vmaxGiven) return {method: 'mixed', percentiles: pcts.slice(), given: vminGiven ? 'min' : 'max'};
+		return {method: 'percentiles', percentiles: pcts.slice()};
 	}
 
 	// services.spread: whether the values of a map with METRIC (and INTERANNUAL between the years, unless TEMPORAL is
@@ -3873,20 +3974,20 @@ var MonitorEO = (function () {
 	var RGB_STRETCH = [2, 98];
 	var RGB_RANGE = [0.0, 0.3];
 
-	// The percentiles 2 and 98 of the bands red, green and blue of a true colour image over REGION (maps.rgb_vis), to
-	// evaluate: then rgbVis
-	function rgbPercentiles(img, region, scale) {
-		return ee.Image(img).select(RGB_BANDS).reduceRegion({reducer: ee.Reducer.percentile(RGB_STRETCH), geometry: region,
-			scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
+	// The percentiles PCTS (default RGB_STRETCH, 2 and 98) of the bands red, green and blue of a true colour image over
+	// REGION ({red_lo, red_hi, green_lo...}; maps.rgb_vis), to evaluate: then rgbVis
+	function rgbPercentiles(img, region, scale, pcts) {
+		return ee.Image(img).select(RGB_BANDS).reduceRegion({reducer: stretchReducer(checkPercentiles(pcts, RGB_STRETCH)),
+			geometry: region, scale: scale, bestEffort: true, maxPixels: 1e6, tileScale: 4});
 	}
 
 	// maps.rgb_vis from the evaluated percentiles STATS (or VMIN and VMAX): the three bands stretched together between
-	// the lowest percentile 2 and the highest percentile 98 of the bands (one range for the three, so that the colours
-	// keep their balance); RGB_RANGE without them. {bands, min, max}
+	// the lowest percentile low and the highest percentile high of the bands (one range for the three, so that the
+	// colours keep their balance); RGB_RANGE without them. {bands, min, max}
 	function rgbVis(stats, vmin, vmax) {
 		if (vmin === null || vmin === undefined || vmax === null || vmax === undefined) {
-			var lows = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[0]] : null; });
-			var highs = RGB_BANDS.map(function (b) { return stats ? stats[b + '_p' + RGB_STRETCH[1]] : null; });
+			var lows = RGB_BANDS.map(function (b) { return stats ? stats[b + '_lo'] : null; });
+			var highs = RGB_BANDS.map(function (b) { return stats ? stats[b + '_hi'] : null; });
 			var lo = RGB_RANGE[0], hi = RGB_RANGE[1];
 			if (!lows.concat(highs).some(function (v) { return v === null || v === undefined; })) {
 				lo = Math.min.apply(null, lows);
@@ -4082,7 +4183,10 @@ var MonitorEO = (function () {
 		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
 		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
 		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter,
-		ramp: ramp, percentiles: percentiles, visParams: visParams, spread: spread, rampEntry: rampEntry,
+		ramp: ramp, STRETCH: STRETCH, checkPercentiles: checkPercentiles, checkRange: checkRange,
+		stretchReducer: stretchReducer, stretchOf: stretchOf, frameImages: frameImages, frameRanges: frameRanges,
+		ordered: ordered, frameVis: frameVis, percentiles: percentiles, visParams: visParams, spread: spread,
+		rampEntry: rampEntry,
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,

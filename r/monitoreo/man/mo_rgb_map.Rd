@@ -19,7 +19,8 @@ mo_rgb_map(
   vmax = NULL,
   thumbnail = NULL,
   collection = NULL,
-  where = NULL
+  where = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -63,8 +64,8 @@ Engine may have added images since), gives an R warning, as those days may have 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
-\item{vmin, vmax}{range of the reflectance of the three bands together (default: the lowest percentile 2 and the
-highest percentile 98 of the bands over the region).}
+\item{vmin, vmax}{range of the reflectance of the three bands together (default: the lowest low percentile and the
+highest high percentile of the bands over the region, see \code{percentiles}).}
 
 \item{thumbnail}{optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).}
@@ -90,10 +91,13 @@ covers), e.g. without the water bodies and the built-up areas of CORINE Land Cov
 categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
 classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
 Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
+
+\item{percentiles}{two numbers, the percentiles of the reflectance of the bands over the region between which the
+three are stretched together (default \code{NULL}: \code{c(2, 98)}, those of the true colour).}
 }
 \value{
-A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,
-  unit, bounds, thumbnail, references, credits), without palette.
+A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, stretch:
+  how, with its text, name, unit, bounds, thumbnail, references, credits), without palette.
 }
 \description{
 The red, green and blue surface reflectance of the same images and pixels as the map of the variable

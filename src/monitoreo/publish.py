@@ -521,13 +521,13 @@ def _hex(colours):
 	return ['#' + str(c).lstrip('#').lower() for c in colours]
 
 
-def _stats(a):
+def _stats(a, percentiles=maps.STRETCH):
 	import numpy as np
 	v = a[np.isfinite(a)]
 	if not v.size:
 		return None
-	p2, p98 = np.percentile(v, [2, 98])
-	return {'min': float(v.min()), 'max': float(v.max()), 'p2': float(p2), 'p98': float(p98), 'mean': float(v.mean()),
+	lo, hi = np.percentile(v, percentiles)  # the range of the colours of a band, as the maps of MonitorEO
+	return {'min': float(v.min()), 'max': float(v.max()), 'p_low': float(lo), 'p_high': float(hi), 'mean': float(v.mean()),
 	        'count': int(v.size)}
 
 
@@ -566,11 +566,13 @@ def _bands(tool, args, result, arrays, palette, unit):
 	               args.get('sensor') or ('Sentinel-2' if tool == 'burn_severity' else None))
 	ramp = maps.ramp(entry)
 	diverging = palette or result.get('palette') or trends.DIVERGING
-	stats = {name: _stats(a) for name, a in arrays.items()}
+	chosen = result.get('stretch') if isinstance(result.get('stretch'), dict) else {}
+	pct = tuple(chosen.get('percentiles') or maps.STRETCH)  # those the user chose for the map, or 1 and 99
+	stats = {name: _stats(a, pct) for name, a in arrays.items()}
 	ref = period_text(args['start'], args['end']) if args.get('start') and args.get('end') else ''
 	oth = period_text(args['other_start'], args['other_end']) if args.get('other_start') and args.get('other_end') else ''
 	pair = [s for n, s in stats.items() if n in ('reference', 'other', 'nbr_before', 'nbr_after') and s]
-	pair_range = (min(s['p2'] for s in pair), max(s['p98'] for s in pair)) if pair else (None, None)
+	pair_range = (min(s['p_low'] for s in pair), max(s['p_high'] for s in pair)) if pair else (None, None)
 	out = []
 	for name, st in stats.items():
 		label, u = band_text(name, list(arrays))
@@ -580,7 +582,7 @@ def _bands(tool, args, result, arrays, palette, unit):
 			label = {'reference': f'Reference period ({ref})', 'other': f'Other period ({oth})',
 			         'difference': f'Difference ({oth} − {ref})'}[name]
 		u = u.replace('{u}/year', unit_text(unit, per_year=True)).replace('{u}', unit_text(unit))
-		lo, hi = (st['p2'], st['p98']) if st else (None, None)
+		lo, hi = (st['p_low'], st['p_high']) if st else (None, None)
 		main = name in MAIN_BANDS or len(arrays) == 1
 		if name == 'severity':
 			legend = _severity_legend(fire.index_of(list(arrays)))
@@ -594,17 +596,33 @@ def _bands(tool, args, result, arrays, palette, unit):
 		elif name == 'n':
 			legend = _continuous(st['min'] if st else 0, st['max'] if st else 10, trends.YEARS)
 		elif name in DIVERGING_BANDS:
-			if main and result.get('min') is not None and result.get('max') is not None:
+			# the range of the result as it is (the service made it symmetric, unless the user gave its ends), or that
+			# of the band, symmetric around 0
+			ranged = main and result.get('min') is not None and result.get('max') is not None
+			if ranged:
 				lo, hi = result['min'], result['max']
 			legend = _continuous(-1.0, 1.0, diverging) if name == 'tau' else \
 				_continuous(lo, hi, list(reversed(trends.DIVERGING)) if name in REVERSED_BANDS and not palette else diverging,
-				            True)
+				            not ranged)
 		elif name in ('reference', 'other', 'nbr_before', 'nbr_after'):
 			legend = _continuous(*pair_range, ramp)
 		elif main and result.get('min') is not None and result.get('max') is not None:
 			legend = _continuous(result['min'], result['max'], palette or result.get('palette') or ramp)
 		else:
 			legend = _continuous(lo, hi, palette if main and palette else ramp)
+		if legend.get('type') == 'continuous' and name not in ('tau', 'p_value', 'n'):  # how its range was computed
+			pct_text = f'the percentiles {pct[0]:g} and {pct[1]:g} of the values of the band'
+			if main and result.get('min') is not None and result.get('max') is not None:  # that of the result
+				how = chosen.get('text')
+			elif name in ('reference', 'other', 'nbr_before', 'nbr_after'):  # one range for the two periods
+				how = (f'stretched between the lowest percentile {pct[0]:g} and the highest percentile {pct[1]:g} of '
+				       'the two periods')
+			elif name in DIVERGING_BANDS:
+				how = f'symmetric around 0, up to the largest in absolute value of {pct_text}'
+			else:
+				how = f'stretched between {pct_text}'
+			if how:
+				legend['how'] = how
 		out.append({'name': name, 'label': label, 'unit': u, 'legend': legend, 'stats': st})
 	return out
 

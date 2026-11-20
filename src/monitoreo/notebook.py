@@ -69,22 +69,24 @@ def _credits(m, cited, position='bottomleft'):
 
 def add_map(m, region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
             interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, name=None,
-            colorbar=True, outline=True, credits=True, center=True, **source):
+            colorbar=True, outline=True, credits=True, center=True, percentiles=None, **source):
 	"""Add to the map of geemap M the map of a variable over REGION as services.map_layer computes it (the same
 	arguments: METRIC, TEMPORAL, INTERANNUAL, SEASON, QUALITY, where, the data of Earth Engine by their ID...), coloured
-	with its ramp (VMIN to VMAX; by default the percentiles 5 and 95 of the map), named NAME (default: that of the map),
+	with its ramp (VMIN to VMAX; by default the PERCENTILES of the map, [1, 99]: maps.STRETCH), named NAME (default: that of the map),
 	with its colour bar and unit (COLORBAR), the outline of the region (OUTLINE) and the credits of the data (CREDITS),
 	centred on the region (CENTER). A categorical layer (ECOREGION, BIOME) has the colour of each class and, instead
 	of the colour bar, the legend of its classes in the region (classes, as map_layer).
-	Returns {'name', 'min', 'max', 'palette', 'unit', 'references', 'credits'}."""
+	Returns {'name', 'min', 'max', 'palette', 'stretch', 'unit', 'references', 'credits'}."""
+	maps.check_percentiles(percentiles)
 	spec, regions, whole, res = services._build(region, variable, sensor, start, end, metric, temporal, interannual,
 	                                            season, quality, False, None, source)
 	img = whole.clipToCollection(regions)
-	legend = None
+	legend = stretch = None
 	if variables.is_categorical(spec):  # class codes: the colour of each class, and their legend
 		vis, legend = services._class_map(spec, regions)
 	else:
-		vis = maps.vis_params(img, regions.geometry(), services.ramp_entry(spec), res, vmin, vmax, palette)
+		vis, stretch = maps.vis_params(img, regions.geometry(), services.ramp_entry(spec), res, vmin, vmax, palette,
+		                               percentiles=percentiles, describe=True)
 	name = name or services._named(spec, metric)
 	unit = unit_text(services._unit(spec))
 	m.add_layer(img, vis, name)
@@ -103,17 +105,18 @@ def add_map(m, region, variable=None, sensor=None, start=None, end=None, metric=
 		m.center_object(regions)
 	if legend is not None:
 		return dict(min=None, max=None, palette=None, classes=legend, name=name, unit=services._unit(spec), **cited)
-	return dict(vis, name=name, unit=services._unit(spec), **cited)
+	return dict(vis, stretch=stretch, name=name, unit=services._unit(spec), **cited)
 
 
 def compare(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
             metric='median', temporal='period', interannual='mean', season=None, quality=None, vmin=None, vmax=None,
-            palette=None, credits=True, **source):
+            palette=None, credits=True, percentiles=None, **source):
 	"""A split map of geemap (as compare_map, but the two periods side by side): the map of the reference period (START
 	to END) on the left and that of the other one (OTHER_START to OTHER_END) on the right, with the same colours (by
-	default from the percentiles 5 and 95 of both or, if Earth Engine cannot compute them or there are no pixels, the
+	default from the PERCENTILES, [1, 99], of both or, if Earth Engine cannot compute them or there are no pixels, the
 	range of the catalog), their colour bar and unit, the outline of the region and the credits of the data.
 	Returns (the map of geemap, {'min', 'max', 'palette', 'unit', 'references', 'credits'})."""
+	lo_p, hi_p = maps.check_percentiles(percentiles)
 	geemap = _geemap()
 	spec = services.make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                          season=season, quality=quality, **source)
@@ -124,12 +127,12 @@ def compare(region, variable=None, sensor=None, start=None, end=None, other_star
 	both = img.select('reference').addBands(img.select('other'))
 	if vmin is None or vmax is None:
 		try:  # as maps.vis_params: big regions and long periods run out of memory
-			st = both.reduceRegion(ee.Reducer.percentile([5, 95]), geom, native, bestEffort=True, maxPixels=int(1e6),
-			                       tileScale=4).getInfo() or {}
+			st = both.reduceRegion(ee.Reducer.percentile([lo_p, hi_p], ['lo', 'hi']), geom, native, bestEffort=True,
+			                       maxPixels=int(1e6), tileScale=4).getInfo() or {}
 		except ee.EEException:
 			st = {}
-		lows = [v for k, v in st.items() if k.endswith('_p5') and v is not None]
-		highs = [v for k, v in st.items() if k.endswith('_p95') and v is not None]
+		lows = [v for k, v in st.items() if k.endswith('_lo') and v is not None]
+		highs = [v for k, v in st.items() if k.endswith('_hi') and v is not None]
 		if vmin is None and lows:
 			vmin = min(lows)
 		if vmax is None and highs:
@@ -156,11 +159,15 @@ def compare(region, variable=None, sensor=None, start=None, end=None, other_star
 
 def time_slider(m, region, variable=None, sensor=None, start=None, end=None, step='annual', metric='median',
                 season=None, quality=None, vmin=None, vmax=None, palette=None, name=None, colorbar=True, credits=True,
-                **source):
+                percentiles=None, same_colours=False, **source):
 	"""Add to the map of geemap M the maps of each STEP ('annual', 'monthly' or '16-day') of the period of a variable
-	over REGION with a time slider (as the frames of timelapse: the METRIC of the images of each step, with the colours
-	of the map of the whole period), its colour bar and the credits of the data.
-	Returns {'name', 'labels' (the date of each map), 'min', 'max', 'palette', 'unit', 'references', 'credits'}."""
+	over REGION with a time slider (as the frames of timelapse: the METRIC of the images of each step, each with its
+	colour ramp between the PERCENTILES of its own values, [1, 99] by default, written in its label; or, with
+	SAME_COLOURS or VMIN and VMAX, all with the colours of the map of the whole period and its colour bar) and the
+	credits of the data.
+	Returns {'name', 'labels' (the date of each map), 'ranges' ([min, max] of each map), 'min', 'max', 'palette',
+	'stretch', 'unit', 'references', 'credits'}."""
+	pct = maps.check_percentiles(percentiles)
 	if step not in animation.STEPS[:3]:
 		raise ValueError(f"unknown step {step}: use {', '.join(animation.STEPS[:3])}")
 	spec = services.make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
@@ -170,21 +177,38 @@ def time_slider(m, region, variable=None, sensor=None, start=None, end=None, ste
 	regions = services.areas.region(region)
 	geom = regions.geometry()
 	res = variables.native_scale(spec)
-	whole = variables.image(spec, geom, res).clipToCollection(regions)
-	vis = maps.vis_params(whole, geom, services.ramp_entry(spec), res, vmin, vmax, palette)
 	col = variables.collection(spec, geom, res)
-	imgs = [services.composite.reduce_span(col, metric, a, b).clipToCollection(regions)
-	        .set('system:time_start', ee.Date(a).millis()) for a, b in steps]
+	values = [services.composite.reduce_span(col, metric, a, b).clipToCollection(regions) for a, b in steps]
 	labels = [animation.label(step, a, b) for a, b in steps]
 	name = name or services._named(spec, metric)
 	unit = unit_text(services._unit(spec))
-	m.add_time_slider(ee.ImageCollection.fromImages(imgs), vis, layer_name=name, labels=labels, time_interval=1)
+	entry = services.ramp_entry(spec)
+	if same_colours or (vmin is not None and vmax is not None):  # the colours of the map of the whole period
+		# as services.timelapse: the sum and the count, which grow with the images, from the median of the steps
+		whole = animation.range_image(col, steps, metric, variables.image(spec, geom, res)).clipToCollection(regions)
+		vis, stretch = maps.vis_params(whole, geom, entry, res, vmin, vmax, palette, percentiles=pct, describe=True)
+		visses, shown = [vis] * len(steps), vis
+	else:  # each map between the percentiles of its own values, in its label
+		default = maps.vis_params(None, None, entry, res, palette=palette, compute=False)
+		ranges = maps.frame_ranges(values, geom, res, pct)
+		visses = [dict(default, min=float(vmin if vmin is not None else lo if lo is not None else default['min']),
+		               max=float(vmax if vmax is not None else hi if hi is not None else default['max']))
+		          for lo, hi in ranges]
+		for v in visses:
+			v['min'], v['max'] = maps.ordered(v['min'], v['max'], (vmin is not None, vmax is not None), 'a map')
+		stretch = maps.frame_stretch(ranges, pct, vmin is not None, vmax is not None, 'map')
+		labels = [f"{lab} ({v['min']:.4g} to {v['max']:.4g}{' ' + unit if unit else ''})" for lab, v in zip(labels, visses)]
+		vis, shown = dict(default, min=min(v['min'] for v in visses), max=max(v['max'] for v in visses)), None
+	imgs = [img.visualize(**v).set('system:time_start', ee.Date(a).millis())
+	        for img, v, (a, _) in zip(values, visses, steps)]
+	m.add_time_slider(ee.ImageCollection.fromImages(imgs), {}, layer_name=name, labels=labels, time_interval=1)
 	_outline(m, regions)
-	if colorbar:
-		m.add_colorbar(vis_params=vis, label=f'{name} ({unit})' if unit else name)
+	if colorbar and shown:
+		m.add_colorbar(vis_params=shown, label=f'{name} ({unit})' if unit else name)
 	cited = _cited('timelapse', dict(source, region=region, variable=variable, sensor=sensor, start=start, end=end,
 	                                 step=step, metric=metric, season=season, quality=quality))
 	if credits:
 		_credits(m, cited)
 	m.center_object(regions)
-	return dict(vis, name=name, labels=labels, unit=services._unit(spec), **cited)
+	return dict(vis, name=name, labels=labels, ranges=[[v['min'], v['max']] for v in visses], stretch=stretch,
+	            unit=services._unit(spec), **cited)

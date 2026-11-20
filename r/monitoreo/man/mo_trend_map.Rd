@@ -25,7 +25,10 @@ mo_trend_map(
   band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  vmin = NULL,
+  vmax = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -121,9 +124,18 @@ reaches the CSV, the README and the GeoTIFF. With several bands, that of every b
 sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
+
+\item{vmin, vmax}{the ends of the colour ramp of any output; either of them, the other end that of its default ramp:
+symmetric around 0 for \code{"slope"} and \code{"z"}, from \code{percentiles} for \code{"n"} and
+\code{"intercept"}, and fixed for \code{"tau"} (-1 to 1) and \code{"p_value"} (0 to 0.1).}
+
+\item{percentiles}{two numbers (default \code{NULL}: \code{c(1, 99)}): the slope and z are painted symmetric
+around 0, up to the largest of these percentiles of their values over the region in absolute value; n and the
+intercept between them.}
 }
 \value{
-A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+  bounds, thumbnail, references, credits).
 }
 \description{
 The trend (see \code{mo_trend_table()}) computed on each pixel, as Earth Engine tiles (see \code{mo_leaflet()}).

@@ -217,6 +217,7 @@ th:first-child, td:first-child, td.text { text-align: left; }
 .legend .bar { height: 12px; width: 220px; border: 1px solid var(--line); }
 .legend.classes { flex-wrap: wrap; gap: 4px 14px; }
 .legend .class { display: inline-flex; align-items: center; gap: 5px; }
+.legend .how { opacity: .75; }
 .legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none;
                   -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8em; word-break: break-all;
@@ -410,6 +411,28 @@ def _profile_facts(args, result):
 	return facts
 
 
+# the results whose map has a colour ramp (or a stretch of its true colour): the range of their colours and how it was
+# computed (stretch, see maps.stretch_of) in their facts, README and legend
+COLOURED = ('map_layer', 'map_figure', 'trend_map', 'compare_map', 'download_image', 'download_comparison',
+            'download_trend', 'timelapse', 'rgb_map', 'download_rgb')
+
+
+def colours_text(tool, result):
+	"""The range of the colours of the map of RESULT and how it was computed, e.g. «0.12 to 0.63: stretched between
+	the percentiles 1 and 99 of the values of the map over the region»."""
+	from .maps import stretch_text
+	unit = '' if tool in ('rgb_map', 'download_rgb') else unit_text(result.get('unit'))
+	what = 'red, green and blue reflectance from ' if tool in ('rgb_map', 'download_rgb') else ''
+	st = result.get('stretch') if isinstance(result.get('stretch'), dict) else None
+	per_frame = tool == 'timelapse' and st and st.get('per_frame')
+	text = (f"{what}{_num(result['min'])} to {_num(result['max'])}" + (f' {unit}' if unit else '')
+	        + (' over all the frames' if per_frame else ''))
+	how = (st.get('text') or stretch_text(st)) if st else ''
+	if not how and tool == 'timelapse':  # a result of before the stretch of each frame
+		how = 'the same in every frame'
+	return f'{text}: {how}' if how else text
+
+
 def item_facts(tool, args, result=None, names=None):
 	"""How a result was computed: [(label, text)] in English."""
 	result = result if isinstance(result, dict) else {}
@@ -525,10 +548,8 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Bands', ', '.join(map(str, result['bands']))))
 	if result.get('images'):
 		facts.append(('Images', _num(result['images'])))
-	if tool == 'download_image' and result.get('min') is not None:
-		unit = unit_text(result.get('unit'))
-		facts.append(('Values (percentiles 5 and 95)', f"{_num(result['min'])} to {_num(result['max'])}"
-		                                               + (f' {unit}' if unit else '')))
+	if tool in COLOURED and result.get('min') is not None and result.get('max') is not None:
+		facts.append(('Colours', colours_text(tool, result)))
 	categorical = bool(entry and entry.get('categorical'))  # class codes (describe_variable says so)
 	if categorical and tool in ('map_layer', 'download_image', 'map_figure') and _map_classes(result):
 		shown = [c['label'] for c in result['classes']]
@@ -568,13 +589,6 @@ def item_facts(tool, args, result=None, names=None):
 		empty = sum(1 for f in result.get('frames') or [] if not f.get('images'))
 		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 1)} per second"
 		                        + (f'; {_num(empty)} without images (grey)' if empty else '')))
-	if tool == 'timelapse' and result.get('min') is not None:
-		unit = unit_text(result.get('unit'))
-		facts.append(('Colours', f"from {_num(result['min'])} to {_num(result['max'])}" + (f' {unit}' if unit else '')
-		                         + ', the same in every frame'))
-	if tool in ('rgb_map', 'download_rgb') and result.get('min') is not None:
-		facts.append(('Colours', f"red, green and blue reflectance stretched from {_num(result['min'])} to "
-		                         f"{_num(result['max'])}"))
 	if tool in METHODS:
 		index = fire_variable(args) if tool == 'burn_severity' else None  # RBR and RdNBR: their own method
 		zones = args.get('zones') if tool == 'region_stats' and isinstance(args.get('zones'), dict) else None
@@ -900,7 +914,7 @@ def _item(item, n, names, annex, refs=()):
 			if style:
 				out.append(_class_legend(style['classes']) if style.get('classes') else _legend({**result, **style}))
 			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
-				out.append(_legend(map_style('rgb_map', args, item['under'])))
+				out.append(_legend({**item['under'], **map_style('rgb_map', args, item['under'])}))
 			out.append('</figure>')
 	table = item_table(tool, result, args) if item.get('table', True) else None
 	if table:
@@ -1084,7 +1098,7 @@ def class_label(c):
 
 def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, classes=None):
 	"""A PNG (data: URL) of the band BAND (default: the first) of a GeoTIFF with the colours PALETTE from VMIN to VMAX
-	(default: its percentiles 5 and 95) or, with CLASSES ([{'value', 'color' ('#rrggbb')}]), with the colour of each
+	(default: its percentiles 1 and 99, maps.STRETCH) or, with CLASSES ([{'value', 'color' ('#rrggbb')}]), with the colour of each
 	class; with three bands BAND ([red, green, blue], e.g. [1, 2, 3]: the true colour of download_rgb), their colours,
 	the three stretched together from VMIN to VMAX (default: the lowest of their percentiles 2 and the highest of their
 	percentiles 98, as maps.RGB_STRETCH), transparent where one has no data; at most WIDTH pixels wide; None without
@@ -1095,7 +1109,7 @@ def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, cla
 		from matplotlib import colors
 		from matplotlib import pyplot as plt
 		from osgeo import gdal
-		from .maps import RGB_STRETCH
+		from .maps import RGB_STRETCH, STRETCH
 		gdal.UseExceptions()
 		ds = gdal.Open(path)
 		step = max(1, int(math.ceil(ds.RasterXSize / width)))
@@ -1129,7 +1143,7 @@ def tif_preview(path, palette=None, vmin=None, vmax=None, width=900, band=1, cla
 			rgba = _colours(a.astype('float64').filled(np.nan), {'type': 'categories', 'classes': classes})
 			plt.imsave(buf, rgba, format='png')
 			return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
-		lo, hi = (vmin, vmax) if vmin is not None and vmax is not None else np.percentile(a.compressed(), [5, 95])
+		lo, hi = (vmin, vmax) if vmin is not None and vmax is not None else np.percentile(a.compressed(), STRETCH)
 		cmap = colors.LinearSegmentedColormap.from_list('p', ['#' + c.lstrip('#') for c in palette or
 		                                                      ['440154', '21918c', 'fde725']])
 		cmap.set_bad(alpha=0)
@@ -1153,12 +1167,18 @@ def _legend(result):
 	"""The legend of a map: a bar from min to max with its palette or, without a palette (the true colour of the
 	images, see map_style), its text."""
 	if not result.get('palette'):
-		return f'<figcaption class="legend">{_e(result["text"])}</figcaption>' if result.get('text') else ''
+		return f'<figcaption class="legend">{_e(result["text"])}{_how(result)}</figcaption>' if result.get('text') else ''
 	colours = ', '.join(f'#{c.lstrip("#")}' for c in result['palette'])
 	unit = unit_text(result.get('unit'))
 	return (f'<figcaption class="legend"><span>{_num(result.get("min"))}</span>'
 	        f'<span class="bar" style="background: linear-gradient(to right, {colours})"></span>'
-	        f'<span>{_num(result.get("max"))}{" " + _e(unit) if unit else ""}</span></figcaption>')
+	        f'<span>{_num(result.get("max"))}{" " + _e(unit) if unit else ""}</span>{_how(result)}</figcaption>')
+
+
+def _how(result):
+	"""How the colours of the legend of RESULT were stretched (see maps.stretch_of), after its bar."""
+	st = result.get('stretch') if isinstance(result.get('stretch'), dict) else None
+	return f'<span class="how">({_e(st["text"])})</span>' if st and st.get('text') else ''
 
 
 def _class_legend(classes):

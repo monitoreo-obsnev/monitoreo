@@ -106,7 +106,13 @@ Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", cla
 \item{crs}{\code{"auto"} (UTM zone of the region; EPSG:6933, equal area, for a region wider than 40 degrees of
 longitude) or a code such as \code{"EPSG:25830"}.}
 
-\item{vmin, vmax}{range of the colour ramp (default: percentiles 5 and 95 of the map).}
+\item{vmin, vmax}{range of the colour ramp (default: from \code{percentiles}); with only one of them, the other end
+from its percentile.}
+
+\item{percentiles}{two numbers, the percentiles of the values of the map over the region between which its colour
+ramp is stretched (default \code{NULL}: \code{c(1, 99)}), each map with its own; e.g. \code{c(5, 95)} for more
+contrast, \code{c(0, 100)} for the whole range. The result says how in \code{stretch} (its \code{text} goes to
+the legends and the README). The categorical layers (ECOREGION, BIOME) keep the colour of each class.}
 
 \item{thumbnail}{optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).}

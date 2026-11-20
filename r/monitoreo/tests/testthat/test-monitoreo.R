@@ -511,6 +511,52 @@ test_that("the animation of a variable: its arguments reach the services, its fr
                             path = "ndvi.gif"), "sensor")
 })
 
+test_that("the colour range of the maps: percentiles, vmin, vmax and same_colours reach the services", {
+  calls <- list()
+  answer <- function(tool) function(...) {
+    calls[[tool]] <<- list(...)
+    list(min = 0.1, max = 0.9, stretch = list(method = "percentiles", percentiles = list(5, 95),
+                                               text = "stretched between the percentiles 5 and 95"),
+         references = list(), credits = list())
+  }
+  tools <- c("map_layer", "map_figure", "rgb_map", "trend_map", "compare_map", "download_image", "download_rgb",
+             "download_comparison", "timelapse")
+  local_mocked_bindings(services = function() stats::setNames(lapply(tools, answer), tools), .package = "monitoreo")
+  region <- mo_bbox(-3.45, 37.02, -3.30, 37.12)
+  p <- c(5, 95)
+  x <- mo_map_layer(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", percentiles = p)
+  expect_equal(x$stretch$text, "stretched between the percentiles 5 and 95")
+  mo_map_figure(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "ndvi.pdf", percentiles = p)
+  mo_rgb_map(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", percentiles = p)
+  mo_trend_map(region, "NDVI", "Modis", "2001-01-01", "2020-12-31", percentiles = p, vmin = -0.01, vmax = 0.01)
+  mo_compare_map(region, "NDVI", "Sentinel-2", "2018-01-01", "2021-12-31", "2023-01-01", "2023-12-31",
+                 percentiles = p, vmax = 0.2)
+  mo_download_image(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "ndvi.tif", percentiles = p,
+                    vmin = 0, vmax = 0.8)
+  mo_download_rgb(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", "rgb.tif", percentiles = p)
+  mo_download_comparison(region, "NDVI", "Sentinel-2", "2018-01-01", "2021-12-31", "2023-01-01", "2023-12-31",
+                         "difference.tif", percentiles = p)
+  mo_timelapse(region, "NDVI", "Sentinel-2", "2020-01-01", "2021-12-31", "ndvi.gif", percentiles = p,
+               same_colours = TRUE)
+  expect_setequal(names(calls), tools)
+  for (tool in tools) expect_equal(calls[[tool]]$percentiles, list(5, 95), info = tool)  # a list: a Python list
+  expect_equal(c(calls$download_image$vmin, calls$download_image$vmax), c(0, 0.8))
+  expect_equal(c(calls$trend_map$vmin, calls$trend_map$vmax), c(-0.01, 0.01))
+  expect_equal(calls$compare_map$vmax, 0.2)
+  expect_true(calls$timelapse$same_colours)
+  # by default, none: the percentiles 1 and 99 of the package, each frame of an animation with its own
+  mo_map_layer(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31")
+  mo_timelapse(region, "NDVI", "Sentinel-2", "2020-01-01", "2021-12-31", "ndvi.gif")
+  expect_null(calls$map_layer$percentiles)
+  expect_null(calls$timelapse$percentiles)
+  expect_false(calls$timelapse$same_colours)
+  # two numbers 0 <= low < high <= 100, before Earth Engine
+  for (bad in list(99, c(99, 1), c(-1, 50), c(1, 101), c("a", "b"), c(1, 2, 3))) {
+    expect_error(mo_map_layer(region, "NDVI", "Sentinel-2", "2023-06-01", "2023-08-31", percentiles = bad),
+                 "percentiles must be two numbers")
+  }
+})
+
 test_that("the area of each class: its arguments reach the services, a data.frame comes back", {
   sent <- NULL
   answer <- list(mode = "landcover", title = "Area of each class of CORINE Land Cover 2018", unit = "", scale = 100,

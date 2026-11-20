@@ -58,12 +58,14 @@ ZONE_COLUMNS = [('region', 'Region'), ('zone_label', 'Zone'), ('p25', 'Percentil
 TRANSECT_COLUMNS = [('distance_m', 'Distance (m)'), ('value', 'Value'), ('elevation', 'Elevation (m)'),
                     ('lon', 'Longitude'), ('lat', 'Latitude')]
 FRAME_COLUMNS = [('frame', 'Frame'), ('label', 'Date'), ('date', 'First day'), ('images', 'Images')]
+# with the colour range of each frame (services.timelapse: each frame its own, by default), if the animation has them
+FRAME_RANGE_COLUMNS = [('min', 'Colours from'), ('max', 'Colours to')]
 # the layers of a map: that of the variable, its true colour (services.download_rgb) or both (the true colour under it)
 MAP_KINDS = [('Index', 'index'), ('True colour (RGB)', 'rgb'), ('Both', 'both')]
 KINDS_TIP = ('Index: the map of the variable. True colour (RGB): the red, green and blue surface reflectance of the '
              'same images (sensor, dates, pixel filters and metric) and of the same pixels as the index, the three '
-             'bands stretched together between their percentiles 2 and 98. Both: the true colour, and the index on top '
-             'of it')
+             'bands stretched together between their percentiles 2 and 98 (or those of the Colour range of the group Map, '
+             'if changed). Both: the true colour, and the index on top of it')
 
 
 def unit_label(res, per_year=False):
@@ -183,16 +185,18 @@ def map_row(res, add_map):
 		kind.setObjectName('map_kind')
 		for label, value in MAP_KINDS:
 			kind.addItem(label, value)
-		kind.setToolTip(KINDS_TIP + ', with the same days in the Temporal Controller. The true colour maps of this '
-		                'result are stretched as its first one, so that its dates can be compared')
+		kind.setToolTip(KINDS_TIP + ', with the same days in the Temporal Controller. With Same colours in every map '
+		                'of a series or trends (group Map), the true colour maps of this result are stretched as its '
+		                'first one, so that its dates can be compared')
 		row.addWidget(kind)
 	b = QPushButton('Add to the map')
 	b.setToolTip(("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel"
 	              if trends else 'Temporary GeoTIFF with the values of each pixel'
 	                             + (' (or, with Layer, its true colour)' if kind else '')
 	                             + ', with its dates in the Temporal Controller of QGIS') + ' (queryable with the Identify '
-	             'Features tool), in the group of this result and with the colors of its first map, so that they can '
-	             'be compared')
+	             'Features tool), in the group of this result, each map with its own colours (the Colour range of the group '
+	             + ('Trends' if trends else 'Map') + ': by default its percentiles 1 and 99) or, with Same colours in every '
+	             'map of a series or trends (group Map), those of its first map, so that they can be compared')
 	b.clicked.connect(lambda: add_map(res, res['maps'][choice.currentIndex()],
 	                                  bool(significant and significant.isChecked()),
 	                                  kind.currentData() if kind else 'index'))
@@ -502,8 +506,10 @@ class AnimationDialog(QDialog):
 		self.resize(760, 900)
 		lay = QVBoxLayout(self)
 		empty = sum(1 for f in res.get('frames') or [] if not f.get('images'))
+		stretch = res.get('stretch') if isinstance(res.get('stretch'), dict) else {}
 		info = QLabel(f"{res['name']} · {res['n_frames']} frames, {res['fps']:g} per second · colours from "
 		              f"{res['min']:.4g} to {res['max']:.4g} {unit_label(res)}".rstrip()
+		              + (f" ({stretch['text']})" if stretch.get('text') else '')
 		              + (f' · {empty} frames without images (grey)' if empty else ''))
 		info.setWordWrap(True)
 		lay.addWidget(info)
@@ -518,7 +524,8 @@ class AnimationDialog(QDialog):
 		lay.addWidget(self.picture, 3)
 		self.movie.start()
 		rows = [dict(f, frame=i) for i, f in enumerate(res.get('frames') or [], 1)]
-		lay.addWidget(table_of(rows, FRAME_COLUMNS), 1)
+		ranged = any(f.get('min') is not None for f in rows)  # the colour range of each frame (not in older results)
+		lay.addWidget(table_of(rows, FRAME_COLUMNS + (FRAME_RANGE_COLUMNS if ranged else [])), 1)
 		refs = references_box(res)
 		if refs:
 			lay.addWidget(refs)

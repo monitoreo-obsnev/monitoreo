@@ -56,6 +56,8 @@ MO.map = (() => {
 			items.push(el('div', {class: 'legend-ramp'},
 				el('div', {class: 'legend-bar', style: `background:linear-gradient(to right,${L.palette.join(',')})`}),
 				el('div', {class: 'legend-ticks'}, ticks.map((v, i) => el('span', {}, band.name === 'p_value' && i === 0 ? '0' : label(v, i))))));
+			// how the range of the colours was computed (percentiles 1 and 99 of the values, or given by the user)
+			if (L.how) items.push(el('div', {class: 'legend-how'}, `Colours: ${L.how}`));
 		}
 		if (dim && result.significance) {
 			items.push(el('span', {class: 'legend-item'}, el('span', {class: 'swatch', style: `background:${NOT_SIGNIFICANT}`}),

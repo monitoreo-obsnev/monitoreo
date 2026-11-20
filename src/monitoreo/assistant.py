@@ -115,6 +115,8 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table',
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 # arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
+RANGE = ('percentiles', 'vmin', 'vmax')  # the range of the colours of a map that the model or the user gave
+
 # the arguments of the data of Earth Engine outside the catalog (instead of variable and sensor, see describe_asset),
 # which the calls that copy one (the map of the period of a result, the maps of its steps, its pixels) carry
 SOURCE = ('collection', 'image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 'terrain')
@@ -353,6 +355,9 @@ region_stats with zones (e.g. the NDVI of each elevation band of 500 m) and tran
 the elevation). A figure of a map for a report or a paper (grid, scale bar, north arrow): map_layer with figure \
 true. Animation of the change, a frame per year (or month) with its date: timelapse \
 (step "annual" or "monthly", at most 120 frames; it takes some minutes). Fire: burn_severity.
+- Colours of the maps: each map, each date of the maps of a result and each frame of an animation is stretched \
+between the percentiles 1 and 99 of its own values. Other percentiles: percentiles (e.g. [2, 98]); one ramp for every \
+frame: timelapse with same_colours true; an exact minimum and maximum: the box «Colours» over the map of the page.
 - True colour (red, green, blue) of the images of a map, so that the user can interpret the map of an index with the \
 colours of its images (burned areas, bare soil, snow, water, clouds): rgb_map, with the same arguments as map_layer, \
 and download_rgb, with those of download_image, for its GeoTIFF; only variables of Sentinel-2, Landsat and the cloud \
@@ -1924,14 +1929,16 @@ class Assistant:
 		"""The map of the variable over the period of a result over regions, for the map of the page: the area, and
 		the value and series of each pixel; the maps of each of its steps are made when the page asks for them
 		(step_map). That of region_stats is the map of its statistics; that of the others, the median of the last year
-		of the period. With the colours of the catalog: Earth Engine takes minutes to draw the median of years of
-		images over a big area, or to compute its colours. The event for the page, or None if Earth Engine cannot
-		make it (the result is there anyway)."""
+		of the period. Its colours are stretched between the percentiles 1 and 99 of its values over the region (or
+		the range the user chose, see set_range): if Earth Engine cannot compute them (big areas, long periods), the
+		range of the catalog. The event for the page, or None if Earth Engine cannot make it (the result is there
+		anyway)."""
 		a = item['args']
 		args = {k: a[k] for k in ('region', 'variable', 'sensor', 'start', 'end', 'season', 'quality') + SOURCE
 		        if a.get(k) is not None}
 		if a.get('where'):  # the pixels of the result, whatever the period of the map
 			args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
+		args.update({k: a[k] for k in RANGE if a.get(k) is not None})  # the range the model gave, if any
 		tool = 'map_layer'
 		if item['tool'] == 'trend_table':  # the trend of the values of each year on each pixel
 			tool = 'trend_map'
@@ -1942,8 +1949,8 @@ class Assistant:
 			end = dt.date.fromisoformat(args['end'][:10])
 			year_before = end.replace(year=end.year - 1, day=min(end.day, 28) if end.month == 2 else end.day)
 			args.update(start=max(args['start'], (year_before + dt.timedelta(days=1)).isoformat()), metric='median')
-		try:
-			error, texts, _ = await self.call(tool, {**args, 'quick': True})  # tiles only, in seconds
+		try:  # its colours between the percentiles 1 and 99 of its values (maps.STRETCH), without the PNG preview
+			error, texts, _ = await self.call(tool, self.map_call(tool, args, item))
 			result = json.loads(texts[0]) if not error and texts else {}
 		except Exception as e:
 			error, result = str(e), {}
@@ -1963,11 +1970,12 @@ class Assistant:
 		        'steps_label': 'Part of the year' if m['tool'] == 'trend_map' else 'Date'}
 
 	async def step_map(self, rid, key, significant=False, rgb=False):
-		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time
-		with the colours of the map of the result, so that they can be compared; of a trend with SIGNIFICANT, only its
-		pixels with Mann-Kendall p < ALPHA; with RGB, the true colour of its images (rgb_map with the same arguments:
-		the same images, dates and pixels; key with RGB), with the colours of the first true colour of the result. What
-		the page shows of it, with the key that names it."""
+		"""The map of the step KEY of the result RID (see map_steps; '': the map of the result), made the first time,
+		with its colours stretched between the percentiles 1 and 99 of its own values (each step its own range, as the
+		developer asked), or with the range the user chose for the maps of the result (set_range); of a trend with
+		SIGNIFICANT, only its pixels with Mann-Kendall p < ALPHA; with RGB, the true colour of its images (rgb_map with
+		the same arguments: the same images, dates and pixels; key with RGB), stretched between the percentiles 2 and
+		98 of its own reflectance. What the page shows of it, with the key that names it."""
 		item, main = self.map_of(rid)
 		maps = item.setdefault('maps', {})
 		significant = significant and main['tool'] == 'trend_map'
@@ -1977,7 +1985,7 @@ class Assistant:
 		name = key + (SIGNIFICANT if significant else '') + (RGB if rgb else '')
 		if not name:
 			return {'key': '', **self.map_card(main)}
-		# the true colours of a result one at a time: the first one computes the range that the others take
+		# the true colours of a result one at a time (each with the stretch of its own reflectance)
 		lock = self.rgb_locks.setdefault(rid, asyncio.Lock()) if rgb else contextlib.nullcontext()
 		async with lock:
 			if name not in maps:
@@ -1995,21 +2003,63 @@ class Assistant:
 					args.update(start=step['start'], end=step['end'], metric=a.get('metric') or 'median')
 					if a.get('where'):
 						args['where'] = pin_where(a['where'], a.get('start'), a.get('end'))
+					if not rgb or main['tool'] == 'rgb_map':  # the percentiles (or ends) the model gave to the result
+						args.update({k: a[k] for k in RANGE if a.get(k) is not None})
 				if significant:
 					args['alpha'] = ALPHA
-				r = main['result']
-				quick = True
-				if rgb:  # the same images in true colour, with the colours of the first one, which computes its range
-					tool, r = 'rgb_map', next((m['result'] for k, m in maps.items() if k.endswith(RGB)), {})
-					quick = bool(r)  # its percentiles 2 and 98 (maps.rgb_vis): once per result
-				call = {**args, 'vmin': r.get('min'), 'vmax': r.get('max'), 'quick': quick}
-				if rgb:
-					call['preview'] = False  # its colours: the page has the tiles
-				error, texts, _ = await self.call(tool, call)
+				if rgb:  # the same images in true colour, stretched between the percentiles of their own reflectance
+					tool = 'rgb_map'
+				error, texts, _ = await self.call(tool, self.map_call(tool, args, None if rgb else item))
 				if error:
 					raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
 				maps[name] = {'tool': tool, 'args': args, 'result': json.loads(texts[0]), 'title': self.titled(tool, args)}
 		return {'key': name, **self.map_card(maps[name])}
+
+	def map_call(self, tool, args, item=None):
+		"""The arguments of a call of TOOL (map_layer, trend_map, rgb_map, compare_map) for a map of the page: ARGS with
+		its colours computed from the map (quick false) and without its PNG preview (the page has the tiles), and the
+		range that the user chose for the maps of the result ITEM, if any (see set_range)."""
+		call = dict(args)
+		if tool in ('map_layer', 'trend_map', 'rgb_map'):
+			call.update(quick=False, preview=False)
+		chosen = (item or {}).get('range')
+		if chosen:  # the range chosen in the page replaces that of the model
+			call = {k: v for k, v in call.items() if k not in RANGE}
+			call.update({k: chosen[k] for k in RANGE if chosen.get(k) is not None})
+		return call
+
+	async def set_range(self, rid, key='', percentiles=None, vmin=None, vmax=None):
+		"""The colours of the maps of the result RID stretched between the PERCENTILES of their values (default 1 and
+		99, maps.STRETCH), or from VMIN to VMAX (either of them, the other end from its percentile): its map, and that
+		of its step KEY, made again with them, and its other steps when the page asks for them (step_map); kept only
+		if Earth Engine makes them. The maps of classes keep the colour of each class, and the tau and p-value of a
+		trend their fixed ramps. What the page shows: the map of KEY, and the map of the result (main)."""
+		from . import maps as mapping
+		item, main = self.map_of(rid)
+		key = key.replace(SIGNIFICANT, '').replace(RGB, '')
+		if key and not any(s['key'] == key for s in item.get('steps') or []):
+			raise ValueError('that map does not exist')
+		fixed = main['tool'] == 'trend_map' and main['args'].get('output') in ('tau', 'p_value')
+		if main['tool'] not in ('map_layer', 'trend_map', 'compare_map') or report._map_classes(main['result']) or fixed:
+			raise ValueError('only the maps with a colour ramp have a range of colours: the maps of classes keep the '
+			                 'colour of each class, the tau and p-value of a trend their fixed ramps, and the true colour '
+			                 'its own stretch')
+		lo, hi = mapping.check_percentiles(percentiles if percentiles not in (None, [None, None]) else None)
+		number = lambda v: None if v in (None, '') else float(v)  # noqa: E731
+		vmin, vmax = number(vmin), number(vmax)
+		if vmin is not None and vmax is not None and vmax <= vmin:
+			raise ValueError('the maximum of the colours must be greater than their minimum')
+		chosen = {'percentiles': [lo, hi], 'vmin': vmin, 'vmax': vmax}
+		error, texts, _ = await self.call(main['tool'], self.map_call(main['tool'], main['args'], {'range': chosen}))
+		if error:  # the range stays that of before
+			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
+		item['range'] = chosen
+		item['map'] = {**main, 'result': json.loads(texts[0])}
+		item['maps'] = {k: m for k, m in (item.get('maps') or {}).items() if k.endswith(RGB)}  # made again when asked
+		shown = {'key': '', **self.map_card(item['map'])}
+		if key:
+			shown = {**await self.step_map(rid, key), 'main': shown}
+		return shown
 
 	async def ask_manual(self, args):
 		"""Answer a call of the tool manual with the sections of the wiki that answer its question; the user sees
@@ -2060,6 +2110,7 @@ class Assistant:
 			elif style:
 				card['legend'] = {k: style.get(k) for k in ('min', 'max', 'palette')}
 				card['legend']['unit'] = report.unit_text(result.get('unit'))
+				card['legend']['stretch'] = stretch_text(result)
 			if isinstance(item.get('under'), dict):  # a view of the map over the true colour of its images
 				card['under'] = {'text': report.map_style('rgb_map', args, item['under'])['text']}
 			if tool == 'timelapse' and isinstance(result.get('gif'), str):  # the animation itself, not its last frame
@@ -2072,7 +2123,7 @@ class Assistant:
 					                      'path': result[k]})
 			if result.get('url') and result.get('bounds') and not item.get('view'):  # tiles: the interactive map
 				shown = self.map_card(item)
-				card.update(map=shown['map'], heading=shown['heading'], rgb=shown['rgb'])
+				card.update(map=shown['map'], heading=shown['heading'], rgb=shown['rgb'], range=shown['range'])
 				card.update(self.steps_card(item))
 		return card
 
@@ -2111,14 +2162,18 @@ class Assistant:
 		       'map': {'url': result['url'], 'bounds': result['bounds'],
 		               'pixel': m['tool'] in ('map_layer', 'trend_map'),  # with the value of the pixel
 		               'trend': m['tool'] == 'trend_map'},  # with «Significant pixels only»
-		       'rgb': true_colour(m)}
+		       'rgb': true_colour(m),
+		       # the box «Colours»: maps with a colour ramp, but not the fixed ones of the tau and p-value of a trend
+		       'range': bool(result.get('palette')) and not report._map_classes(result) and not (
+			       m['tool'] == 'trend_map' and m['args'].get('output') in ('tau', 'p_value')) and m['tool'] != 'rgb_map'}
 		if not dated(m['args']):  # a fixed layer (elevation, slope): the value of a pixel, without its time series
 			out['map']['series'] = False
 		if report._map_classes(result):  # a categorical layer: the colour of each class in the region
 			out['legend'] = {'classes': [{'label': report.class_label(c), 'color': c['color']} for c in result['classes']]}
 		elif result.get('palette'):
 			out['legend'] = {**{k: result.get(k) for k in ('min', 'max', 'palette')},
-			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit')))}
+			                 'unit': report.unit_text(result.get('unit'), per_year='/ year' in str(result.get('unit'))),
+			                 'stretch': stretch_text(result)}
 		elif m['tool'] == 'rgb_map':  # the true colour of the images: the range of its reflectance, without colours
 			out['legend'] = {'text': report.map_style(m['tool'], m['args'], result)['text']}
 		return out
@@ -2216,7 +2271,9 @@ class Assistant:
 				overlay, opacity, under = [colour['result']['url'], overlay], [1.0, opacity], colour['result']
 		image = await asyncio.to_thread(report.map_view, [float(v) for v in view['bounds']], int(view['zoom']),
 		                                overlay, view.get('base') or 'osm', opacity, view.get('marker'))
-		new = {'id': len(self.results) + 1, 'tool': m['tool'], 'args': m['args'], 'image': image,
+		chosen = {k: v for k, v in ((self.map_of(rid)[0].get('range') or {}).items()) if v is not None}
+		args = {**m['args'], **chosen} if chosen and m['tool'] != 'rgb_map' else m['args']  # its colours reproducible
+		new = {'id': len(self.results) + 1, 'tool': m['tool'], 'args': args, 'image': image,
 		       'result': {k: v for k, v in m['result'].items() if k != 'thumbnail'},
 		       'title': f"{m['title']} (map view{' over the true colour of its images' if under else ''})",
 		       'view': {'bounds': view['bounds'], 'base': view.get('base') or 'osm'}}
@@ -2233,6 +2290,8 @@ class Assistant:
 		args, result = m['args'], m['result']
 		if m['tool'] in ('map_layer', 'trend_map', 'rgb_map'):  # only the tiles, with the same colours
 			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max'), 'quick': True}
+		elif m['tool'] == 'compare_map':  # the same colours (also those chosen in the page)
+			args = {**args, 'vmin': result.get('min'), 'vmax': result.get('max')}
 		error, texts, _ = await self.call(m['tool'], args)
 		if error:
 			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))
@@ -2756,6 +2815,13 @@ def _title(name, args):
 		return name
 
 
+def stretch_text(result):
+	"""How the colours of the map RESULT were stretched (its stretch, see maps.stretch_of), for its legend; None
+	without it."""
+	st = result.get('stretch') if isinstance(result, dict) else None
+	return st.get('text') or None if isinstance(st, dict) else None
+
+
 def _facts(name, args, result, names):
 	try:
 		return report.item_facts(name, args, result, names)
@@ -2846,6 +2912,11 @@ def make_app(assistant, token, port):
 	async def refresh_map(request):
 		body = await request.json()
 		return JSONResponse({'url': await assistant.refresh_map(int(body['id']), body.get('key') or None)})
+
+	async def map_range(request):
+		body = await request.json()
+		return JSONResponse(await assistant.set_range(int(body['id']), str(body.get('key') or ''),
+		                                              body.get('percentiles'), body.get('vmin'), body.get('vmax')))
 
 	async def step_map(request):
 		body = await request.json()
@@ -3048,6 +3119,7 @@ def make_app(assistant, token, port):
 		Route('/api/pixel/keep', guarded(keep_pixel), methods=['POST']),
 		Route('/api/map/refresh', guarded(refresh_map), methods=['POST']),
 		Route('/api/map/step', guarded(step_map), methods=['POST']),
+		Route('/api/map/range', guarded(map_range), methods=['POST']),
 		Route('/api/map/snapshot', guarded(snapshot), methods=['POST']),
 		Route('/api/state', guarded(state)),
 		Route('/api/signin', guarded(signin), methods=['POST']),

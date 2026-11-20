@@ -269,8 +269,8 @@ def python(c):
 		return img.reduceRegion(ee.Reducer.mean(), geom, native, bestEffort=True).getInfo()
 	if c['kind'] == 'rgb_percentiles':
 		img = variables.image(spec, geom, native, rgb=True).clipToCollection(regions)
-		return img.reduceRegion(ee.Reducer.percentile(list(maps.RGB_STRETCH)), geom, native, bestEffort=True,
-		                        maxPixels=int(1e6), tileScale=4).getInfo()  # as maps.rgb_vis
+		return img.reduceRegion(ee.Reducer.percentile(list(maps.RGB_STRETCH), ['lo', 'hi']), geom, native,
+		                        bestEffort=True, maxPixels=int(1e6), tileScale=4).getInfo()  # as maps.rgb_vis
 	if c.get('difference'):
 		img = services._comparison(region, None, None, start, end, c['difference'][0], c['difference'][1],
 		                           args['metric'], s.get('temporal', 'period'), s.get('interannual', 'mean'),
@@ -278,8 +278,8 @@ def python(c):
 		                           {'ref': s['ref'], 'where': s.get('where')})[2].select('difference')
 	else:
 		img = variables.image(spec, geom, native).clipToCollection(regions)
-	return img.rename('value').reduceRegion(ee.Reducer.percentile([5, 95]), geom, native, bestEffort=True,
-	                                        maxPixels=int(1e6)).getInfo()
+	return img.rename('value').reduceRegion(ee.Reducer.percentile(list(maps.STRETCH), ['lo', 'hi']), geom, native,
+	                                        bestEffort=True, maxPixels=int(1e6), tileScale=4).getInfo()  # as maps
 
 
 def same(py, js, where='result'):

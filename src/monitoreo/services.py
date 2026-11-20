@@ -1402,15 +1402,19 @@ def _build(region, var_name, sensor, start, end, metric, temporal, interannual, 
 @_cited
 def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, clip=True,
-              thumbnail=None, quick=False, **source):
+              thumbnail=None, quick=False, percentiles=None, **source):
 	"""Map of a variable over REGION aggregated in time (e.g. the median NDVI of 2018-2021): URL of its Earth
 	Engine tiles (XYZ, valid for some hours; their values cannot be queried: download_image for that) and colour
 	ramp (from the map, or from the catalog if QUICK: computing it over big regions and long periods takes long).
 	Writes a PNG preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail
 	None and the reason in thumbnail_error). A categorical layer (ECOREGION, BIOME) has the colour of each class and,
 	instead of a colour ramp (min, max and palette None), the legend of its classes in the region, classes: [{'value',
-	'label', 'color'}].
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
+	'label', 'color'}]. The colour ramp: PERCENTILES (two numbers, default [1, 99]: maps.STRETCH) of the values of the
+	map over the region, or VMIN and VMAX (either of them, the other end from its percentile); stretch says how (see
+	maps.stretch_of).
+	Returns {'url', 'min', 'max', 'palette', 'stretch', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]),
+	'thumbnail'}."""
+	maps.check_percentiles(percentiles)  # before Earth Engine
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	img = whole.clipToCollection(regions) if clip else whole
@@ -1422,9 +1426,10 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 	entry = ramp_entry(spec)
 	# the data of Earth Engine outside the catalog have no range in it, nor the standard deviation and the coefficient
 	# of variation in that of the variable: always from the map
-	vis = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette,
-	                      compute=not quick or entry is None or spread(spec))
-	out = dict(vis, url=maps.tile_url(img, vis), name=_named(spec, metric), unit=_unit(spec),
+	vis, stretch = maps.vis_params(img, regions.geometry(), entry, res, vmin, vmax, palette,
+	                               compute=not quick or entry is None or spread(spec), percentiles=percentiles,
+	                               describe=True)
+	out = dict(vis, url=maps.tile_url(img, vis), stretch=stretch, name=_named(spec, metric), unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, res, thumbnail, clip)
 
@@ -1432,15 +1437,17 @@ def map_layer(region, variable=None, sensor=None, start=None, end=None, metric='
 @_cited
 def map_figure(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, path=None,
-               title=None, dpi=300, width=7.0, dimensions=1600, **source):
+               title=None, dpi=300, width=7.0, dimensions=1600, percentiles=None, **source):
 	"""Figure of the map of a variable over REGION (as map_layer) for a report or a paper, as the maps of cartoee of
 	geemap: PATH (.png, by default, .pdf or .svg) with the map (DIMENSIONS pixels of Earth Engine, with the outline of
 	the region) on its longitudes and latitudes, a scale bar, a north arrow, the colour ramp (VMIN to VMAX, by default
 	those of the map) with its unit, the TITLE (default: that of the map) and the credits of the data and the citation
 	of MonitorEO; WIDTH inches at DPI (see monitoreo.figures). It needs matplotlib. A categorical layer (ECOREGION,
-	BIOME) has the legend of its classes in the region instead of the colour ramp (classes, as map_layer).
-	Returns {'file', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale', 'dpi'}."""
+	BIOME) has the legend of its classes in the region instead of the colour ramp (classes, as map_layer). The colour
+	ramp: PERCENTILES (default [1, 99]) of the values of the map, or VMIN and VMAX, as map_layer.
+	Returns {'file', 'min', 'max', 'palette', 'stretch', 'name', 'unit', 'bounds', 'scale', 'dpi'}."""
 	figures.check(path, dpi)
+	maps.check_percentiles(percentiles)
 	try:
 		import matplotlib  # noqa: F401
 	except ImportError:
@@ -1448,11 +1455,12 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	geom = regions.geometry()
-	legend = None
+	legend = stretch = None
 	if variables.is_categorical(spec):  # the colour of each class, and their legend instead of the colour ramp
 		vis, legend = _class_map(spec, regions)
 	else:
-		vis = maps.vis_params(whole.clipToCollection(regions), geom, ramp_entry(spec), res, vmin, vmax, palette)
+		vis, stretch = maps.vis_params(whole.clipToCollection(regions), geom, ramp_entry(spec), res, vmin, vmax, palette,
+		                               percentiles=percentiles, describe=True)
 	bounds = figures.padded(_bounds(regions))
 	img = maps.coarse(whole, res, bounds, dimensions).clipToCollection(regions)  # see maps.coarse
 	png = maps.thumbnail(maps.with_outline(img, vis, regions), ee.Geometry.Rectangle(bounds, 'EPSG:4326', False), None,
@@ -1470,7 +1478,7 @@ def map_figure(region, variable=None, sensor=None, start=None, end=None, metric=
 	if legend is not None:
 		return dict(file=path, min=None, max=None, palette=None, classes=legend, name=name, unit=_unit(spec),
 		            bounds=bounds, scale=res, dpi=int(dpi))
-	return dict(vis, file=path, name=name, unit=_unit(spec), bounds=bounds, scale=res, dpi=int(dpi))
+	return dict(vis, file=path, stretch=stretch, name=name, unit=_unit(spec), bounds=bounds, scale=res, dpi=int(dpi))
 
 
 def has_rgb(variable=None, sensor=None, collection=None, ref=None):
@@ -1491,22 +1499,25 @@ def _rgb_name(spec, metric):
 @_cited
 def rgb_map(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
             interannual='mean', season=None, quality=None, vmin=None, vmax=None, clip=True, thumbnail=None, quick=False,
-            **source):
+            percentiles=None, **source):
 	"""True colour map of the images of a variable over REGION: the red, green and blue surface reflectance of the
 	same images and pixels as its map (map_layer with the same arguments: sensor, period, season, pixel filters,
 	where), aggregated in time with the same METRIC: median, mean and pN band by band; max and min, the colour of the
 	image where the variable is highest or lowest on each pixel (sum, std, count and mode give no colours). URL of its
 	Earth Engine tiles (XYZ, valid for some hours), with the three bands stretched together between VMIN and VMAX
-	(reflectance; by default the lowest percentile 2 and the highest percentile 98 of the bands over the region, or 0
-	to 0.3 if QUICK). Only the variables whose images have red, green and blue bands (see has_rgb). Writes a PNG
+	(reflectance; by default the lowest percentile 2 and the highest percentile 98 of the bands over the region, or of
+	the PERCENTILES given, or 0 to 0.3 if QUICK; stretch says how). Only the variables whose images have red, green and blue bands (see has_rgb). Writes a PNG
 	preview to THUMBNAIL if given (if Earth Engine cannot make it, the map comes without it: thumbnail None and the
 	reason in thumbnail_error).
-	Returns {'url', 'bands', 'min', 'max', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]), 'thumbnail'}."""
+	Returns {'url', 'bands', 'min', 'max', 'stretch', 'name', 'unit', 'bounds' (of the region, [w, s, e, n]),
+	'thumbnail'}."""
+	maps.check_percentiles(percentiles, maps.RGB_STRETCH)
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source, rgb=True)
 	img = whole.clipToCollection(regions) if clip else whole
-	vis = maps.rgb_vis(img, regions.geometry(), res, vmin, vmax, compute=not quick)
-	out = dict(vis, url=maps.tile_url(img, vis), name=_rgb_name(spec, metric), unit=catalog.RGB_UNIT,
+	vis, stretch = maps.rgb_vis(img, regions.geometry(), res, vmin, vmax, compute=not quick, percentiles=percentiles,
+	                            describe=True)
+	out = dict(vis, url=maps.tile_url(img, vis), stretch=stretch, name=_rgb_name(spec, metric), unit=catalog.RGB_UNIT,
 	           bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, res, thumbnail, clip)
 
@@ -1561,15 +1572,16 @@ def ramp_entry(spec):
 
 def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
               interannual='mean', season=None, quality=None, vmin=None, vmax=None, palette=None, dimensions=768,
-              path=None, **source):
-	"""PNG (bytes) of the map of a variable over REGION, with the outline of the region."""
+              path=None, percentiles=None, **source):
+	"""PNG (bytes) of the map of a variable over REGION, with the outline of the region (its colour ramp, as
+	map_layer: PERCENTILES of its values, default [1, 99], or VMIN and VMAX)."""
 	spec, regions, whole, res = _build(region, variable, sensor, start, end, metric, temporal, interannual, season,
 	                                   quality, False, None, source)
 	if variables.is_categorical(spec):  # the colour of each class
 		vis = _class_map(spec, regions)[0]
 	else:
 		vis = maps.vis_params(whole.clipToCollection(regions), regions.geometry(), ramp_entry(spec), res, vmin, vmax,
-		                      palette)
+		                      palette, percentiles=percentiles)
 	img = maps.coarse(whole, res, _bounds(regions), dimensions).clipToCollection(regions)  # see maps.coarse
 	return maps.thumbnail(maps.with_outline(img, vis, regions), regions.geometry().bounds(), None, dimensions, path)
 
@@ -1577,21 +1589,26 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 @_cited
 def timelapse(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='median', season=None,
               quality=None, vmin=None, vmax=None, palette=None, dimensions=animation.DIMENSIONS, fps=animation.FPS,
-              path=None, progress=None, **source):
+              path=None, progress=None, percentiles=None, same_colours=False, **source):
 	"""Animation of a variable over REGION (a timelapse, GIF or MP4 video): a frame per STEP ('annual', 'monthly',
 	'16-day' or 'daily') of the period (and SEASON), each the METRIC of the images of the step on each pixel, coloured
-	with one colour ramp for every frame (VMIN to VMAX; by default from the percentiles 5 and 95 of the map of the whole
-	period, as map_layer, or, for the sum and the count, which grow with the images, of the median of the frames: see
-	animation.range_image) and with its date, the title, the ramp with its unit and the credits of the data (also
+	with a colour ramp stretched between the PERCENTILES (default [1, 99]: maps.STRETCH) of its own values over the
+	region (each frame its own range, written on it: frames[i] min and max), or from VMIN to VMAX (both: the same for
+	every frame); with SAME_COLOURS, one ramp for every frame, from the percentiles of the map of the whole period (as
+	map_layer) or, for the sum and the count, which grow with the images, of the median of the frames (see
+	animation.range_image). Each frame has its date, the title, the ramp with its unit and the credits of the data (also
 	those of the region) written on it; the pixels of the region without data in a step are light grey. At most
 	animation.MAX_FRAMES frames of DIMENSIONS pixels (width or height of the map), FPS frames per second. PATH ends in
 	.gif (default) or .mp4 (with ffmpeg). Earth Engine computes the colours of each frame on the same grid of web
 	Mercator, several at a time (PROGRESS(done, total) after each), and they are joined in a GIF with their texts (see
 	monitoreo.animation). Not for the fixed layers (elevation, slope, an image), which have no dates.
-	Returns {'file' (the GIF or the MP4), 'gif', 'note' (why there is no MP4: without ffmpeg, the GIF only), 'frames': [{'date', 'end', 'label', 'images'}], 'n_frames', 'step',
-	'fps', 'dimensions', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'scale' (m: the pixels on which the frames
-	are computed, those of the frames or, if bigger, those of the data; see animation.pixel_size)}."""
+	Returns {'file' (the GIF or the MP4), 'gif', 'note' (why there is no MP4: without ffmpeg, the GIF only), 'frames':
+	[{'date', 'end', 'label', 'images', 'min', 'max'}], 'n_frames', 'step', 'fps', 'dimensions', 'min', 'max' (the
+	lowest and the highest of the ranges of the frames), 'palette', 'stretch' (how, see maps.stretch_of), 'name',
+	'unit', 'bounds', 'scale' (m: the pixels on which the frames are computed, those of the frames or, if bigger, those
+	of the data; see animation.pixel_size)}."""
 	animation.check(step, dimensions=dimensions, fps=fps, path=path)
+	pct = maps.check_percentiles(percentiles)
 	animation.can_draw()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'animations')
@@ -1607,9 +1624,27 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	res = variables.native_scale(spec)
 	bounds = _bounds(regions)
 	col = variables.collection(spec, geom, res)
-	whole = animation.range_image(col, steps, metric, variables.image(spec, geom, res)).clipToCollection(regions)
-	vis = maps.vis_params(whole, geom, ramp_entry(spec), res, vmin, vmax, palette)
-	frames = animation.frames(col, regions, steps, metric, vis, res, bounds, dimensions)
+	entry = ramp_entry(spec)
+	if same_colours or (vmin is not None and vmax is not None):  # one colour ramp for every frame
+		whole = animation.range_image(col, steps, metric, variables.image(spec, geom, res)).clipToCollection(regions)
+		vis, stretch = maps.vis_params(whole, geom, entry, res, vmin, vmax, palette, percentiles=pct, describe=True)
+		if stretch['method'] in ('percentiles', 'mixed'):
+			stretch = dict(stretch, text=stretch['text'].replace('of the values of the map over the region', (
+				'of the median of the frames' if str(metric).strip().lower() in animation.TOTALS else
+				'of the map of the whole period')) + ': the same colours for every frame')
+		visses = [vis] * len(steps)
+	else:  # each frame between the percentiles of its own values (one request for all of them)
+		ranges = maps.frame_ranges([composite.reduce_span(col, metric, a, b).clipToCollection(regions)
+		                            for a, b in steps], geom, res, pct)
+		default = maps.vis_params(None, None, entry, res, palette=palette, compute=False)  # a frame without values
+		visses = [dict(default, min=float(vmin if vmin is not None else lo if lo is not None else default['min']),
+		               max=float(vmax if vmax is not None else hi if hi is not None else default['max']))
+		          for lo, hi in ranges]
+		for v in visses:
+			v['min'], v['max'] = maps.ordered(v['min'], v['max'], (vmin is not None, vmax is not None), 'a frame')
+		stretch = maps.frame_stretch(ranges, pct, vmin is not None, vmax is not None)
+		vis = dict(default, min=min(v['min'] for v in visses), max=max(v['max'] for v in visses))
+	frames = animation.frames(col, regions, steps, metric, visses, res, bounds, dimensions)
 	pictures = animation.fetch_frames(frames, animation.frame_grid(bounds, dimensions), progress=progress)
 	unmasked = variables.collection(dict(spec, resample='nearest', where=None, exclude_landcover=None), geom, 1e9)
 	counts = ee.List([unmasked.filterDate(a, b).size() for a, b in steps]).getInfo()
@@ -1624,18 +1659,18 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	credits = '; '.join(data + ['MonitorEO', 'Google Earth Engine'] + list(cited.get('credits') or []))
 	video = os.path.splitext(path)[1].lower() == '.mp4'
 	gif = animation.write(pictures, os.path.splitext(path)[0] + '.gif' if video else path, labels,
-	                      f"{name} · {STEP_NAMES.get(step, step)}", vis['min'], vis['max'], vis['palette'],
-	                      unit_text(unit), credits, fps)
+	                      f"{name} · {STEP_NAMES.get(step, step)}", [v['min'] for v in visses],
+	                      [v['max'] for v in visses], vis['palette'], unit_text(unit), credits, fps)
 	note = None
 	if video:  # without ffmpeg (or if it fails) the animation is its GIF, and the note says why there is no MP4
 		try:
 			animation.to_mp4(gif, path)
 		except ValueError as e:
 			path, note = gif, f'no MP4 video: {e}'
-	return dict(vis, file=path, gif=gif, note=note, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
+	return dict(vis, stretch=stretch, file=path, gif=gif, note=note, step=step, fps=float(fps), dimensions=int(dimensions), name=name, unit=unit,
 	            bounds=bounds, scale=animation.pixel_size(bounds, dimensions, res), n_frames=len(steps),
-	            frames=[{'date': a, 'end': b, 'label': animation.label(step, a, b), 'images': n}
-	                    for (a, b), n in zip(steps, counts)])
+	            frames=[{'date': a, 'end': b, 'label': animation.label(step, a, b), 'images': n, 'min': v['min'],
+	                     'max': v['max']} for (a, b), n, v in zip(steps, counts, visses)])
 
 
 STEP_NAMES = {'annual': 'a frame per year', 'monthly': 'a frame per month', '16-day': 'a frame per 16 days',
@@ -2125,7 +2160,8 @@ def _file_stem(variable, sensor, metric, start, end, source):
 @_cited
 def download_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                    interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
-                   max_pixels=None, tile=512, workers=8, progress=None, **source):
+                   max_pixels=None, tile=512, workers=8, progress=None, vmin=None, vmax=None, percentiles=None,
+                   **source):
 	"""Download the map of a variable over REGION to the GeoTIFF PATH (float32, NoData -9999) on a grid of RESOLUTION
 	metres (default: that of the data; in a large area, 1 to 10 km, see areas.default_scale) in CRS ('auto' = WGS 84 /
 	UTM of the centre of the region, or EPSG:6933 for a region wider than 40 degrees of longitude), directly: Earth Engine computes it in tiles of TILE pixels, WORKERS at
@@ -2134,8 +2170,11 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	A categorical layer (ECOREGION, BIOME) has class codes: on pixels more than twice as big as those of the data, the
 	majority class (see monitoreo.categorical), and classes (the legend of the classes in the file, [{'value', 'label',
 	'color'}]) instead of min, max and palette (None).
+	The colours to show it (min, max: those of its preview, its README and the style of QGIS), as the maps of
+	MonitorEO: the PERCENTILES (default [1, 99]) of the values of the file, or VMIN and VMAX; stretch says how.
 	Returns {'file', 'grid', 'resolution', 'native_resolution' (that of the data), 'images', 'name', 'unit', 'min',
-	'max' (percentiles 5 and 95 of the values, as the maps of MonitorEO), 'palette'}."""
+	'max', 'palette', 'stretch'}."""
+	pct = maps.check_percentiles(percentiles)
 	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                 season=season, quality=quality, **source)
 	regions = areas.region(region)
@@ -2153,20 +2192,23 @@ def download_image(region, variable=None, sensor=None, start=None, end=None, met
 	if variables.is_categorical(spec):  # class codes: the legend of the classes in the file
 		return dict(out, min=None, max=None, palette=None,
 		            classes=categorical.legend(variables.entry_of(spec), _values(path)))
-	vmin, vmax = _percentiles(path)
-	return dict(out, min=vmin, max=vmax, palette=maps.ramp(variable_entry(spec)))
+	colours, stretch = _file_colours(path, pct, vmin, vmax)
+	return dict(out, **colours, palette=maps.ramp(variable_entry(spec)), stretch=stretch)
 
 
 @_cited
 def download_rgb(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
                  interannual='mean', season=None, quality=None, resolution=None, crs='auto', path=None, clip=True,
-                 max_pixels=None, tile=512, workers=8, progress=None, **source):
+                 max_pixels=None, tile=512, workers=8, progress=None, percentiles=None, vmin=None, vmax=None,
+                 **source):
 	"""Download the true colour of the images of a variable over REGION (see rgb_map: the red, green and blue surface
 	reflectance of the same images and pixels as its map, with the same metric) to the GeoTIFF PATH: three bands, red,
 	green and blue (float32 reflectance, NoData -9999), on the same grid as download_image with the same arguments
 	(RESOLUTION, CRS, MAX_PIXELS: see download_image).
 	Returns {'file', 'grid', 'resolution', 'native_resolution', 'images', 'name', 'unit', 'bands', 'min', 'max' (the
-	lowest percentile 2 and the highest percentile 98 of the three bands: the range to show them together)}."""
+	lowest percentile 2 and the highest percentile 98 of the three bands, or of the PERCENTILES given, or VMIN and VMAX
+	(reflectance): the range to show them together), 'stretch'}."""
+	lo_p, hi_p = maps.check_percentiles(percentiles, maps.RGB_STRETCH)
 	spec = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                 season=season, quality=quality, **source)
 	variables.check_rgb(spec)  # before Earth Engine
@@ -2180,13 +2222,15 @@ def download_rgb(region, variable=None, sensor=None, start=None, end=None, metri
 	desc = variables.describe(spec, rgb=True)
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=sensors.RGB_BANDS,
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
-	lo_p, hi_p = maps.RGB_STRETCH
-	stretch = [_percentiles(path, lo_p, hi_p, b) for b in (1, 2, 3)]
+	stretch = [_percentiles(path, lo_p, hi_p, b) for b in (1, 2, 3)] if vmin is None or vmax is None else []
 	lows, highs = [lo for lo, _ in stretch if lo is not None], [hi for _, hi in stretch if hi is not None]
+	lows, highs = ([float(vmin)] if vmin is not None else lows), ([float(vmax)] if vmax is not None else highs)
 	return {'file': path, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
 	        'images': variables.n_images(spec, regions.geometry()), 'name': _rgb_name(spec, metric),
 	        'unit': catalog.RGB_UNIT, 'bands': list(sensors.RGB_BANDS), 'min': min(lows) if lows else None,
-	        'max': max(highs) if highs else None}
+	        'max': max(highs) if highs else None,
+	        'stretch': maps.stretch_of('the red, green and blue reflectance of the file (one range for the three bands)',
+	                                   (lo_p, hi_p), vmin is not None, vmax is not None)}
 
 
 def _default_grid(regions, resolution, crs, native):
@@ -2282,7 +2326,7 @@ def _values(path, band=1):
 	return [int(v) for v in np.unique(np.round(a))]
 
 
-def _percentiles(path, lo=5, hi=95, band=1):
+def _percentiles(path, lo=maps.STRETCH[0], hi=maps.STRETCH[1], band=1):
 	"""Percentiles LO and HI of the valid values of a band of a GeoTIFF (None, None if it has none)."""
 	import numpy as np
 	from osgeo import gdal
@@ -2295,6 +2339,21 @@ def _percentiles(path, lo=5, hi=95, band=1):
 	if not a.size:
 		return None, None
 	return float(np.percentile(a, lo)), float(np.percentile(a, hi))
+
+
+def _file_colours(path, pct, vmin=None, vmax=None, symmetric=False, over='the values of the file', band=1):
+	"""The colours of the band BAND of the GeoTIFF PATH, as those of the maps of MonitorEO: ({'min', 'max'}, stretch):
+	between its percentiles PCT (see maps.check_percentiles), or from VMIN to VMAX (either of them, the other end from
+	its percentile); with SYMMETRIC (a trend, a difference), around 0 up to the largest of the ends in absolute
+	value. Without valid values, min and max None (or the end given), unless SYMMETRIC: ±1e-6, as trends.vis."""
+	given = (vmin is not None, vmax is not None)
+	lo, hi = _percentiles(path, *pct, band=band) if not all(given) else (None, None)
+	if symmetric and not all(given):
+		m = max(abs(lo or 0), abs(hi or 0)) or 1e-6
+		lo, hi = -m, m
+	lo, hi = (float(vmin) if given[0] else lo), (float(vmax) if given[1] else hi)
+	lo, hi = maps.ordered(lo, hi, given, over)
+	return {'min': lo, 'max': hi}, maps.stretch_of(over, pct, *given, symmetric=symmetric)
 
 
 @_cited
@@ -2402,15 +2461,18 @@ def _trend(region, variable, sensor, start, end, step, part, metric, season, qua
 @_cited
 def trend_map(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, output='slope',
               metric='mean', season=None, quality=None, alpha=None, vmin=None, vmax=None, palette=None,
-              thumbnail=None, quick=False, **source):
+              thumbnail=None, quick=False, percentiles=None, **source):
 	"""Map of the trend of a part of the year (PART: month 1-12 with STEP 'monthly', 1-23 with '16-day', none with
 	'annual') of a variable over REGION, computed on each pixel: OUTPUT is 'slope' (Sen, per year), 'tau', 'z',
 	'p_value', 'intercept' or 'n' (years with data); ALPHA (e.g. 0.05) leaves only the pixels with p_value < ALPHA.
 	Earth Engine tiles (the values cannot be queried: download_trend for that). QUICK: with a fixed colour ramp
 	(slope: ±2 % of the range of the variable in the catalog per year) instead of that of the map, which takes
-	minutes over big regions and long periods.
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the reason in
-	thumbnail_error, if Earth Engine cannot make the PNG preview)."""
+	minutes over big regions and long periods. The colour ramp of the slope and z: symmetric around 0, up to the
+	largest in absolute value of the PERCENTILES (default [1, 99]) of the map over the region; of n and the intercept,
+	between those percentiles; tau (-1 to 1) and p_value (0 to 0.1) have fixed ramps. VMIN and VMAX give its ends.
+	Returns {'url', 'min', 'max', 'palette', 'stretch', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the
+	reason in thumbnail_error, if Earth Engine cannot make the PNG preview)."""
+	pct = maps.check_percentiles(percentiles)
 	if output not in trends.OUTPUTS:
 		raise ValueError(f"unknown output {output}: use {', '.join(trends.OUTPUTS)}")
 	spec, regions, img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric, season,
@@ -2418,6 +2480,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	whole = img.select(output)  # the preview is clipped on its own pixels (see _preview)
 	band = whole.clipToCollection(regions)
 	vis = trends.vis(output)
+	stretch = {'method': 'fixed', 'text': f'fixed range of the {output}'} if vis else None
 	quick = quick and variable_entry(spec) is not None  # the data outside the catalog have no range in it
 	if quick and (vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None))):
 		entry = ramp_entry(spec) or {}  # the range of the yearly values (0 to 100 % for the coefficient of variation)
@@ -2426,14 +2489,32 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 		years = int(str(end)[:4]) - int(str(start)[:4]) + 1
 		lo, hi = {'slope': (-0.02 * span, 0.02 * span), 'n': (0, years)}.get(output, (None, None))
 		vis = trends.vis(output, lo, hi) or maps.vis_params(band.rename('value'), None, entry, native, compute=False)
+		stretch = {'method': 'catalog', 'text': 'range from that of the variable in the catalog of MonitorEO (quick map: '
+		                                        'the percentiles of the map were not computed)'}
 	elif vis is None or (output in ('slope', 'z', 'n') and (vmin is None or vmax is None)):
-		auto = maps.vis_params(band.rename('value'), regions.geometry(), ramp_entry(spec), native)
+		auto, stretch = maps.vis_params(band.rename('value'), regions.geometry(), ramp_entry(spec), native,
+		                                percentiles=pct, describe=True)
 		vis = trends.vis(output, auto['min'], auto['max']) or auto
-	vis = dict(vis, **({'min': vmin} if vmin is not None else {}), **({'max': vmax} if vmax is not None else {}))
+		if output in ('slope', 'z') and stretch.get('method') == 'percentiles':
+			stretch = maps.stretch_of(None, pct, False, False, symmetric=True)
+	given = (vmin is not None, vmax is not None)
+	if any(given):  # the ends given, the other (if any) that of the ramp of the map
+		vis = dict(vis, **({'min': float(vmin)} if given[0] else {}), **({'max': float(vmax)} if given[1] else {}))
+		vis['min'], vis['max'] = maps.ordered(vis['min'], vis['max'], given, f'the {output}')
+		if all(given):
+			stretch = maps.stretch_of(None, pct, True, True)
+		elif stretch and stretch.get('method') in ('percentiles', 'catalog'):
+			stretch = maps.stretch_of(None, pct, *given, catalog=stretch['method'] == 'catalog',
+			                          symmetric=bool(stretch.get('symmetric')))
+		else:  # a fixed ramp (tau, p_value) or that of a quick map
+			stretch = {'method': 'mixed', 'given': 'min' if given[0] else 'max',
+			           'text': f"{'minimum' if given[0] else 'maximum'} given by the user, the other end that of the "
+			                   f"{(stretch or {}).get('text') or 'ramp of the map'}"}
 	if palette:
 		vis['palette'] = maps.ramp(None, palette)
 	unit = _unit(spec)
-	out = dict(vis, url=maps.tile_url(band, vis), name=f'{name}: {output}', bounds=_bounds(regions), thumbnail=None,
+	out = dict(vis, url=maps.tile_url(band, vis), stretch=stretch, name=f'{name}: {output}', bounds=_bounds(regions),
+	           thumbnail=None,
 	           unit=(f'{unit} / year' if unit else '') if output == 'slope' else unit if output == 'intercept' else '')
 	return _preview(out, whole, vis, regions, native, thumbnail)
 
@@ -2441,13 +2522,15 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 @_cited
 def download_trend(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, metric='mean',
                    season=None, quality=None, alpha=None, resolution=None, crs='auto', path=None, max_pixels=None,
-                   tile=512, workers=8, progress=None, **source):
+                   tile=512, workers=8, progress=None, vmin=None, vmax=None, percentiles=None, **source):
 	"""Download the trend of a part of the year of a variable over REGION (see trend_map) to the GeoTIFF PATH, with a
 	band per output: slope, tau, z, p_value, intercept, n (NoData -9999 where there are fewer than 2 years or, with
 	ALPHA, p_value >= ALPHA), on a grid of RESOLUTION metres (default: that of the data, or 1 to 10 km in a large area;
 	2, 3, ... times bigger if the grid has more than MAX_PIXELS).
 	Returns {'file', 'bands', 'grid', 'resolution', 'native_resolution', 'name', 'unit' (of the slope), 'min', 'max'
-	(symmetric range of the slope), 'palette'}."""
+	(the colours of the slope: symmetric around 0, up to the largest in absolute value of its PERCENTILES, default
+	[1, 99], or VMIN and VMAX), 'palette', 'stretch'}."""
+	pct = maps.check_percentiles(percentiles)
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec0, 'trends')
@@ -2459,9 +2542,9 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=list(trends.OUTPUTS),
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 	             variables.describe(spec), trend=step, part=trends.part_key(step, part), alpha=alpha), default=str)})
-	lo, hi = _percentiles(path)
-	vis = trends.vis('slope', lo, hi)
-	return dict(vis, file=path, bands=list(trends.OUTPUTS), grid=grid.describe(), resolution=res,
+	colours, stretch = _file_colours(path, pct, vmin, vmax, symmetric=True, over='the slope in the file')
+	vis = dict(trends.vis('slope'), **colours)
+	return dict(vis, stretch=stretch, file=path, bands=list(trends.OUTPUTS), grid=grid.describe(), resolution=res,
 	            native_resolution=native, name=name, unit=f'{_unit(spec)} / year' if _unit(spec) else '')
 
 
@@ -2549,24 +2632,41 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 @_cited
 def compare_map(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                 metric='median', temporal='period', interannual='mean', season=None, quality=None, vmin=None,
-                vmax=None, palette=None, thumbnail=None, **source):
+                vmax=None, palette=None, thumbnail=None, percentiles=None, **source):
 	"""Map of the difference between the variable aggregated in time over another period (OTHER_START to OTHER_END)
 	and over the reference period (START to END), over REGION (e.g. the median NDVI of 2023 minus that of
-	2018-2021). Earth Engine tiles (the values cannot be queried: download_comparison for that).
-	Returns {'url', 'min', 'max', 'palette', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the reason in
-	thumbnail_error, if Earth Engine cannot make the PNG preview)."""
+	2018-2021). Earth Engine tiles (the values cannot be queried: download_comparison for that). The colour ramp is
+	symmetric around 0, up to the largest in absolute value of the PERCENTILES (default [1, 99]) of the difference
+	over the region, or from VMIN to VMAX.
+	Returns {'url', 'min', 'max', 'palette', 'stretch', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the
+	reason in thumbnail_error, if Earth Engine cannot make the PNG preview)."""
+	pct = maps.check_percentiles(percentiles)
 	spec, regions, img, native, name = _comparison(region, variable, sensor, start, end, other_start, other_end, metric,
 	                                               temporal, interannual, season, quality, None, source, clip=False)
 	whole = img.select('difference')  # the preview is clipped on its own pixels (see _preview)
 	diff = whole.clipToCollection(regions)
 	if vmin is None or vmax is None:
-		auto = maps.vis_params(diff.rename('value'), regions.geometry(), None, native)
+		auto, computed = maps.vis_params(diff.rename('value'), regions.geometry(), None, native, percentiles=pct,
+		                                 describe=True)
 		vis = trends.vis('difference', auto['min'], auto['max'])
+		given = (vmin is not None, vmax is not None)
+		if computed['method'] == 'catalog':  # no range in the catalog for a difference: -1 to 1
+			fixed = ('-1 to 1 (the percentiles of the difference were not computed: Earth Engine could not compute '
+			         'them)')
+			stretch = {'method': 'catalog', 'text': f'from {fixed}'} if not any(given) else {
+				'method': 'mixed', 'given': 'min' if given[0] else 'max', 'catalog': True,
+				'text': f"{'minimum' if given[0] else 'maximum'} given by the user, the other end that of {fixed}"}
+		else:
+			stretch = maps.stretch_of('the difference over the region', pct, *given, symmetric=True)
+		if any(given):  # the end given, the other that of the symmetric range
+			vis = dict(vis, **({'min': float(vmin)} if given[0] else {}), **({'max': float(vmax)} if given[1] else {}))
+			vis['min'], vis['max'] = maps.ordered(vis['min'], vis['max'], given, 'the difference')
 	else:
 		vis = {'min': vmin, 'max': vmax, 'palette': trends.DIVERGING}
+		stretch = maps.stretch_of(None, pct, True, True)
 	if palette:
 		vis['palette'] = maps.ramp(None, palette)
-	out = dict(vis, url=maps.tile_url(diff, vis), name=f'{name}: difference', unit=_unit(spec),
+	out = dict(vis, url=maps.tile_url(diff, vis), stretch=stretch, name=f'{name}: difference', unit=_unit(spec),
 	           bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, native, thumbnail)
 
@@ -2575,12 +2675,14 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 def download_comparison(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                         metric='median', temporal='period', interannual='mean', season=None, quality=None,
                         resolution=None, crs='auto', path=None, max_pixels=None, tile=512, workers=8, progress=None,
-                        **source):
+                        percentiles=None, vmin=None, vmax=None, **source):
 	"""Download the comparison of two periods (see compare_map) to the GeoTIFF PATH, with the bands 'difference'
 	(other - reference), 'reference' and 'other' (NoData -9999), on a grid of RESOLUTION metres (default: that of the
 	data; 2, 3, ... times bigger if the grid has more than MAX_PIXELS).
 	Returns {'file', 'bands', 'grid', 'resolution', 'native_resolution', 'name', 'unit', 'min', 'max' (symmetric
-	range of the difference), 'palette'}."""
+	range of the difference: up to the largest in absolute value of its PERCENTILES, default [1, 99]; or VMIN and
+	VMAX), 'palette', 'stretch'}."""
+	pct = maps.check_percentiles(percentiles)
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                  season=season, quality=quality, **source)
@@ -2594,9 +2696,9 @@ def download_comparison(region, variable=None, sensor=None, start=None, end=None
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 	             variables.describe(spec), reference=[start, end], other=[other_start, other_end]), default=str)})
-	lo, hi = _percentiles(path)
-	vis = trends.vis('difference', lo, hi)
-	return dict(vis, file=path, bands=bands, grid=grid.describe(), resolution=res, native_resolution=native, name=name,
+	colours, stretch = _file_colours(path, pct, vmin, vmax, symmetric=True, over='the difference in the file')
+	vis = dict(trends.vis('difference'), **colours)
+	return dict(vis, stretch=stretch, file=path, bands=bands, grid=grid.describe(), resolution=res, native_resolution=native, name=name,
 	            unit=_unit(spec))
 
 

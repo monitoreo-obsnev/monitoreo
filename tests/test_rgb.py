@@ -151,7 +151,7 @@ def test_its_geotiff_documents_itself(tmp_path):
 	text = ' '.join(open(out['readme'], encoding='utf-8').read().split())
 	assert 'True colour of the images of NDVI (Sentinel-2), 1 Jun 2021 - 30 Jun 2021 (GeoTIFF)' in text
 	assert '1 red: Surface reflectance, red (true colour) (1)' in text and '3 blue: Surface reflectance, blue' in text
-	assert 'Colours: red, green and blue reflectance stretched from 0.01 to 0.31' in text
+	assert 'Colours: red, green and blue reflectance from 0.01 to 0.31' in text
 	assert 'on the same pixels as the variable' in text and 'Temporal metric: median' in text
 	assert 'mo.download_rgb(' in text and 'Tucker' not in text
 
