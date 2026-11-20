@@ -316,19 +316,21 @@ dock.zone_breaks.setText('1000, 2000')
 roundtrip('zones', lambda: dock.zone_breaks.setText('1500'))
 pick(dock.anim_step, 'monthly')
 dock.anim_fps.setValue(4)
-dock.anim_same.setChecked(True)
+assert dock.anim_same.isChecked()  # the same colours in every frame by default
+dock.anim_same.setChecked(False)  # each frame its own: written in the parameters (true, the default, is not)
 dock.anim_colours.low.setValue(2.5)
 
 
 def change_animation():
 	dock.anim_fps.setValue(1)
-	dock.anim_same.setChecked(False)
+	dock.anim_same.setChecked(True)
 	dock.anim_colours.put({})
 
 
 call = roundtrip('animation', change_animation)
-assert call[1]['same_colours'] is True and call[1]['percentiles'] == [2.5, 99]
-dock.anim_same.setChecked(False)
+assert call[1]['same_colours'] is False and call[1]['percentiles'] == [2.5, 99]
+assert not dock.anim_same.isChecked()  # pasted back
+dock.anim_same.setChecked(True)
 dock.anim_colours.put({})
 dock.resolution.setValue(100)
 call = roundtrip('export_map', lambda: dock.resolution.setValue(0))

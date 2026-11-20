@@ -1342,11 +1342,11 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' Animation of a variable over a region (a timelapse)
 #'
 #' A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
-#' temporal metric of the images of the step on each pixel, coloured by default with its own colour range (from its
-#' \code{percentiles}, 1 and 99, over the region: each frame its own, written on it) or, with \code{same_colours} or
-#' both \code{vmin} and \code{vmax}, with one colour ramp for every frame (from \code{vmin} to \code{vmax}, or from
-#' the \code{percentiles} of the map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which
-#' grow with the images, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+#' temporal metric of the images of the step on each pixel, coloured by default with one colour ramp for every frame,
+#' so that they can be compared (from \code{vmin} to \code{vmax}, or from the \code{percentiles}, 1 and 99, of the
+#' map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which grow with the images, of the
+#' median of the frames) or, with \code{same_colours = FALSE}, each frame with its own colour range (from its
+#' \code{percentiles} over the region, written on it) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
 #' lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
 #' colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
 #' not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the
@@ -1359,11 +1359,12 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
 #' @param fps frames per second (1: each frame for a second).
 #' @param dimensions width or height of the map in pixels (64 to 1200).
-#' @param percentiles two numbers, the percentiles of the values of each frame over the region between which its
-#'   colour ramp is stretched (default \code{NULL}: \code{c(1, 99)}); with \code{same_colours}, those of the map of
-#'   the whole period, for every frame.
-#' @param same_colours \code{TRUE}: one colour ramp for every frame, so that they can be compared; \code{FALSE}
-#'   (default): each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if given).
+#' @param percentiles two numbers, the percentiles of the values of the map of the whole period over the region
+#'   between which the colour ramp of every frame is stretched (default \code{NULL}: \code{c(1, 99)}); with
+#'   \code{same_colours = FALSE}, those of each frame.
+#' @param same_colours \code{TRUE} (default): one colour ramp for every frame, so that they can be compared;
+#'   \code{FALSE}: each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if
+#'   given).
 #' @return A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label,
 #'   images and min and max (its colour range) of each frame; n_frames, step, fps, min, max (the lowest and highest of
 #'   the ranges of the frames), palette, stretch: how the colour ramps were stretched, with its text, name, unit,
@@ -1391,13 +1392,13 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", metric = "median",
                          season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 1, dimensions = 600L,
                          collection = NULL, where = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
-                         band_offset = NULL, unit = NULL, percentiles = NULL, same_colours = FALSE) {
+                         band_offset = NULL, unit = NULL, percentiles = NULL, same_colours = TRUE) {
   check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
                               dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
                               collection = collection, where = where, band = band, band_reducer = band_reducer,
                               band_scale = band_scale, band_offset = band_offset, unit = unit,
-                              percentiles = percentiles_arg(percentiles), same_colours = isTRUE(same_colours))
+                              percentiles = percentiles_arg(percentiles), same_colours = !isFALSE(same_colours))
   answer(res)
 }
 

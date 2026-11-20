@@ -232,7 +232,8 @@ print('map and true colour:', [layer.name() for layer in new])
 
 # the Colour range of the group Map: by default nothing sent (the percentiles 1 and 99 of the services); its
 # percentiles and minimum to the map, not to its true colour (Both: its own, 2 and 98), the minimum in the layer
-assert (dock.map_colours.low.value(), dock.map_colours.high.value()) == (1, 99) and not dock.map_same.isChecked()
+assert (dock.map_colours.low.value(), dock.map_colours.high.value()) == (1, 99) and dock.map_same.isChecked()
+dock.map_same.setChecked(False)  # (checked by default: the same colours in every map) each map its own
 assert not {'percentiles', 'vmin', 'vmax'} & set(index_opts)
 dock.map_colours.low.setValue(2)
 dock.map_colours.high.setValue(98)

@@ -159,12 +159,12 @@ def compare(region, variable=None, sensor=None, start=None, end=None, other_star
 
 def time_slider(m, region, variable=None, sensor=None, start=None, end=None, step='annual', metric='median',
                 season=None, quality=None, vmin=None, vmax=None, palette=None, name=None, colorbar=True, credits=True,
-                percentiles=None, same_colours=False, **source):
+                percentiles=None, same_colours=True, **source):
 	"""Add to the map of geemap M the maps of each STEP ('annual', 'monthly' or '16-day') of the period of a variable
-	over REGION with a time slider (as the frames of timelapse: the METRIC of the images of each step, each with its
-	colour ramp between the PERCENTILES of its own values, [1, 99] by default, written in its label; or, with
-	SAME_COLOURS or VMIN and VMAX, all with the colours of the map of the whole period and its colour bar) and the
-	credits of the data.
+	over REGION with a time slider (as the frames of timelapse: the METRIC of the images of each step, all with the
+	colours of the map of the whole period, between the PERCENTILES of its values, [1, 99] by default, or from VMIN to
+	VMAX, and its colour bar; with SAME_COLOURS false, each with its colour ramp between the PERCENTILES of its own
+	values, written in its label) and the credits of the data.
 	Returns {'name', 'labels' (the date of each map), 'ranges' ([min, max] of each map), 'min', 'max', 'palette',
 	'stretch', 'unit', 'references', 'credits'}."""
 	pct = maps.check_percentiles(percentiles)

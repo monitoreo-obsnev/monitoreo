@@ -21717,9 +21717,9 @@ var MonitorEO = (function () {
 		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median', doy: false,
 		// the colour range of every map (Colour range, with the options of Map): its percentiles (maps.STRETCH by
-		// default) and the minimum and maximum given ('': from its percentile); the animation, each frame its own range
-		// unless sameColours
-		pctLo: String(mo.STRETCH[0]), pctHi: String(mo.STRETCH[1]), rangeMin: '', rangeMax: '', sameColours: false,
+		// default) and the minimum and maximum given ('': from its percentile); the animation, one range for every frame
+		// (that of the map of the period) unless sameColours is false: each frame its own range
+		pctLo: String(mo.STRETCH[0]), pctHi: String(mo.STRETCH[1]), rangeMin: '', rangeMax: '', sameColours: true,
 		pctSet: false,  // whether the user changed the percentiles (else the true colour takes its own, 2 and 98)  // doy: the series with a line per year
 		// or, by day of the year, its seasonal profile: the metric between the years ('years': a line per year) and the
 		// variable of the right axis ('none', or its ref)
@@ -24742,7 +24742,7 @@ var MonitorEO = (function () {
 		if (analysis === 'timelapse') {
 			p.step = state.animStep;
 			p.metric = state.animMetric;
-			if (state.sameColours) p.same_colours = true;
+			if (!state.sameColours) p.same_colours = false;  // (true: the default of timelapse)
 		}
 		if (ANALYSES[analysis].takes.indexOf('percentiles') >= 0) rangeParameters(p, analysis);
 		return {parameters: ordered(p), notes: notes};
@@ -25235,7 +25235,7 @@ var MonitorEO = (function () {
 				if (typeof o[name] !== 'number' || !isFinite(o[name])) return skip(name, name + ' is a number');
 				state[name === 'vmin' ? 'rangeMin' : 'rangeMax'] = String(o[name]);
 			});
-			if (analysis === 'timelapse') state.sameColours = Boolean(o.same_colours);
+			if (analysis === 'timelapse') state.sameColours = o.same_colours !== false;
 		}
 		if (ANALYSES[analysis].takes.indexOf('percentiles') >= 0) colours();
 		if (analysis === 'map_layer' || analysis === 'compare_map') state.mapLayer = 'index';

@@ -247,7 +247,7 @@ CASES += [(name, dict(next(p for n, p in CASES if n == name), **extra)) for name
 	('rgb_map', {'percentiles': [1, 99]}),  # the true colour: 2 and 98 are its default
 	('compare_map', {'vmin': -0.3}),
 	('trend_map', {'percentiles': [2.5, 97.5]}),
-	('timelapse', {'percentiles': [5, 95], 'same_colours': True}))]
+	('timelapse', {'percentiles': [5, 95], 'same_colours': False}))]  # (true: the default, not written)
 
 def test_the_app_writes_the_parameters_of_the_services():
 	"""Apply sets the panel from the parameters of each analysis of the app (every one applied, without computing:

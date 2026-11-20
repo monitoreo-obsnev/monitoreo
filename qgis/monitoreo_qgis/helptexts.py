@@ -524,8 +524,8 @@ HELP = {
 	'anim_same':
 		'<p>Checked, every frame has the same colours, so that they can be compared: from the percentiles of the '
 		'<b>Colour range</b> (by default 1 and 99) of the map of the whole period (for the sum and the count, which '
-		'grow with the images, of the median of the frames), or from its <b>min</b> to its <b>max</b>. Unchecked (by '
-		'default), each frame is stretched between its own percentiles, which shows the patterns of each date better '
+		'grow with the images, of the median of the frames), or from its <b>min</b> to its <b>max</b>. It is checked '
+		'by default. Unchecked, each frame is stretched between its own percentiles, which shows the patterns of each date better '
 		'but not the changes between them. With both <b>min</b> and <b>max</b> written, always the same colours.</p>'
 		+ manual('QGIS-plugin#12-animation-timelapse'),
 	'map_metric':
@@ -569,10 +569,10 @@ HELP = {
 		'maps of a time series (<b>Add to the map</b> of its window).</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'map_same':
 		'<p>The maps that <b>Add to the map</b> of the window of a time series or of a trend table adds, one per step '
-		'or part of the year: unchecked (by default), each map with its own colours (its own percentiles of the '
-		'<b>Colour range</b>: of the group Map for a series, of the group Trends for trends), which shows the patterns '
-		'of each date better; checked, all of them with the colours of the first map added (and its true colour, the '
-		'stretch of the first true colour), so that they can be compared.</p>' + manual('QGIS-plugin#4-add-the-map'),
+		'or part of the year: checked (by default), all of them with the colours of the first map added (and its true '
+		'colour, the stretch of the first true colour), so that they can be compared, as the frames of an animation; '
+		'unchecked, each map with its own colours (its own percentiles of the <b>Colour range</b>: of the group Map for '
+		'a series, of the group Trends for trends), which shows the patterns of each date better.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '

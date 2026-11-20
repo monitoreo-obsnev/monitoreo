@@ -246,7 +246,8 @@ def test_the_true_colour_of_each_date():
 	asyncio.run(a.step_map(1, '', rgb=True))
 	assert len(a.calls) == 1  # made once
 	assert a.results[0]['maps']['|rgb']['title'].startswith('True colour of the images of NDVI (Sentinel-2), 2018-2021')
-	# a year: its map of the variable and its true colour, each stretched between the percentiles of its own values
+	# a year: its map of the variable, with the range of the map of the result, and its true colour, stretched
+	# between the percentiles of its own reflectance
 	year = '2019-01-01/2019-12-31'
 	index = asyncio.run(a.step_map(1, year))
 	colour = asyncio.run(a.step_map(1, year, rgb=True))
@@ -254,7 +255,7 @@ def test_the_true_colour_of_each_date():
 	step = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Sentinel-2', 'start': '2019-01-01', 'end': '2019-12-31',
 	        'metric': 'median', 'quick': True}
 	own = {**{k: v for k, v in step.items() if k != 'quick'}, 'quick': False, 'preview': False}
-	assert a.calls[1] == ('map_layer', own)
+	assert a.calls[1] == ('map_layer', {**own, 'vmin': 0.1, 'vmax': 0.8})
 	assert a.calls[2] == ('rgb_map', own)
 	assert colour['heading'].startswith('True colour of the images of Normalized Difference Vegetation Index (NDVI, '
 	                                    'Sentinel-2), 2019')

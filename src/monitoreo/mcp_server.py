@@ -119,9 +119,9 @@ the variables with rgb in list_variables (Sentinel-2, Landsat and the cloud freq
 median, mean, min, max and pN. A map whose preview Earth Engine cannot make in some minutes comes without it
 (thumbnail_error says why): its tiles are the map, so do not ask for it again. The colour ramp of every map (map_layer, trend_map,
 compare_map, timelapse, download_image) is stretched between the percentiles 1 and 99 of its own values over the region
-(each frame of an animation, its own), and its answer says the range and how it was computed (stretch): when the user
-asks for other limits, give percentiles (e.g. [2, 98]) or vmin and vmax; timelapse with same_colours true keeps one
-ramp for every frame. Maps of classes (land cover, ecoregions, burn severity) keep the colour of each class. GeoTIFFs on this computer: download_image (one map of a small
+(the frames of an animation, those of the map of the whole period: the same for every frame), and its answer says the
+range and how it was computed (stretch): when the user asks for other limits, give percentiles (e.g. [2, 98]) or vmin
+and vmax; timelapse with same_colours false gives each frame its own range. Maps of classes (land cover, ecoregions, burn severity) keep the colour of each class. GeoTIFFs on this computer: download_image (one map of a small
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
@@ -684,11 +684,10 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
               fps: float = 1, dimensions: int = 600, video: bool = False, collection: Optional[str] = None,
               band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-              where: Optional[list] = None, percentiles: Optional[List[float]] = None, same_colours: bool = False):
+              where: Optional[list] = None, percentiles: Optional[List[float]] = None, same_colours: bool = True):
 	"""Animation of a variable over a region (a timelapse): a frame per step ('annual', 'monthly', '16-day' or 'daily')
-	of the period (and season), each the METRIC of the images of the step on each pixel, each frame with its colours
-	between the percentiles (default [1, 99]) of its values (frames: min, max); same_colours: one ramp for all, from
-	the map of the period. Written on each frame, its date, the
+	of the period (and season), each the METRIC of the images of the step on each pixel, all with the colours of the
+	map of the period (percentiles, default [1, 99]); same_colours false: each frame its own (frames: min, max). Written on each frame, its date, the
 	title, the colour ramp with its unit and the credits of the data and of the region; the pixels without data in a
 	step are light grey. At most 120 frames: annual or monthly steps for long periods. Writes a GIF (and, with
 	video, an MP4 too; it needs ffmpeg: without it, note says so and the GIF is the file) and returns its last frame

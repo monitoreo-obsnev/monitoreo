@@ -1004,7 +1004,7 @@ def panel_fields(analysis, params):
 		field('anim_fps', p.get('fps', defaults.get('fps')), 'fps' in p, 'fps')
 		colours('anim_colours')
 		used.add('same_colours')
-		field('anim_same', bool(p.get('same_colours')), 'same_colours' in p, 'same_colours')
+		field('anim_same', p.get('same_colours') is not False, 'same_colours' in p, 'same_colours')
 	elif burn:  # the index and the sensor in any case, as services.burn_severity takes them
 		if p.get('index') is not None:
 			p['index'] = {i.lower(): i for i in services.BURN_INDICES}.get(str(p['index']).lower(), p['index'])
@@ -1565,6 +1565,7 @@ class MonitorEODock(QDockWidget):
 		self.map_colours = ColourRange()
 		f.addRow('Colour range', info(self.map_colours, HELP['map_colours']))
 		self.map_same = QCheckBox('Same colours in every map of a series or trends (those of its first map)')
+		self.map_same.setChecked(True)  # so that its dates can be compared, as the frames of an animation
 		f.addRow('', info(self.map_same, HELP['map_same']))
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
@@ -1671,6 +1672,7 @@ class MonitorEODock(QDockWidget):
 		self.anim_colours = ColourRange()
 		f.addRow('Colour range', info(self.anim_colours, HELP['anim_colours']))
 		self.anim_same = QCheckBox('Same colours in every frame')
+		self.anim_same.setChecked(True)  # so that the frames can be compared (services.timelapse)
 		f.addRow('', info(self.anim_same, HELP['anim_same']))
 		b = QPushButton('Make the animation')
 		b.setToolTip('A GIF with a frame per step of the period, each with its date, in a window (it takes some '
@@ -3794,7 +3796,7 @@ class MonitorEODock(QDockWidget):
 		return 'timelapse', dict(region=region, **var, step=self.anim_step.currentData(),
 		                         metric=self.anim_metric.currentData(), fps=self.anim_fps.value(),
 		                         **self.anim_colours.args(services.timelapse),
-		                         **({'same_colours': True} if self.anim_same.isChecked() else {}))
+		                         **({} if self.anim_same.isChecked() else {'same_colours': False}))
 
 	def run_timelapse(self):
 		"""Animation of the variable over the region (services.timelapse, see animation_call): a GIF with a frame per
@@ -4035,8 +4037,8 @@ class MonitorEODock(QDockWidget):
 	def add_result_map(self, res, entry, significant=False, kind='index'):
 		"""Add the map ENTRY (one of res['maps']: its whole period or one of its steps) of the series or trends RES,
 		as a GeoTIFF in the group of the result, with its own colours (the Colour range of the group Map, or of the
-		group Trends for trends: by default its percentiles 1 and 99) or, with Same colours in every map of a series or
-		trends, those of the first map of the result, so that its maps can be compared; the dates of a series, with
+		group Trends for trends: its percentiles 1 and 99 by default) or, with Same colours in every map of a series or
+		trends (checked by default), those of the first map of the result, so that its maps can be compared; the dates of a series, with
 		their days in the Temporal Controller of QGIS. Trends with SIGNIFICANT: only the pixels with p < ALPHA. A series
 		with KIND 'rgb' or 'both': the true colour of the same images and pixels (services.download_rgb, with the same
 		arguments and on the same grid), stretched as the first true colour of the result with Same colours, alone or

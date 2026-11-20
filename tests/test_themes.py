@@ -1172,6 +1172,6 @@ def test_the_panel_of_the_app_computes_the_data_of_earth_engine():
 	# its animation too, a frame per year of the mean (the select of the animation, greyed out, cannot change it)
 	assert out['scfAnimation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
 	assert scf['animation']['texts'][0] == 'SCF Landsat · Map view · Mean · 2015-01-01/2025-12-31'
-	assert scf['animation']['texts'][1].startswith('11 frames, each with the colours of its own values (its range in '
-	                                               'brackets): 2015 (0 – 50), 2016 (1 – 51), 2017 (2 – 52)')
-	assert scf['animation']['texts'][2] == 'Colours: p1–p99 of each frame over the region (each one its own range).'
+	assert scf['animation']['texts'][1].startswith('11 frames, with the same colours (from 0 to 100): 2015, 2016, 2017')
+	# (the fake Earth Engine gives no percentiles of the map of the period: the range of the catalog, 0 to 100 %)
+	assert scf['animation']['texts'][2] == 'Colours: range of the catalog (Earth Engine could not compute the percentiles).'

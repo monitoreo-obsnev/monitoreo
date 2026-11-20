@@ -129,14 +129,14 @@ def test_the_method_of_the_coefficient_of_variation_is_cited(geemap):
 
 def test_a_time_slider(geemap):
 	m = notebook.Map()
-	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31')
+	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31', same_colours=False)
 	slider = next(c for c in m.calls if c[0] == 'add_time_slider')
-	# each map between the percentiles 1 and 99 of its own values, in its label (the second has none: the catalog)
+	# with same_colours false, each map between the percentiles 1 and 99 of its own values, in its label (the second has none: the catalog)
 	assert slider[1][0] == ('collection', 5) and slider[2]['labels'][:2] == ['2019 (0.2 to 0.6)', '2020 (0.1 to 0.8)']
 	assert out['labels'] == slider[2]['labels'] and out['ranges'][0] == [0.2, 0.6]
 	assert out['stretch']['percentiles'] == [1, 99] and 'add_colorbar' not in [c[0] for c in m.calls]
-	m = notebook.Map()  # the same colours for every map: the colour bar of the map of the whole period
-	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31', same_colours=True)
+	m = notebook.Map()  # by default, the same colours for every map: the colour bar of the map of the whole period
+	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31')
 	assert out['labels'] == ['2019', '2020', '2021', '2022', '2023'] and out['ranges'] == [[0.1, 0.8]] * 5
 	assert 'add_colorbar' in [c[0] for c in m.calls]
 	with pytest.raises(ValueError, match='unknown step'):

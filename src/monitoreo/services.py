@@ -1286,14 +1286,14 @@ def thumbnail(region, variable=None, sensor=None, start=None, end=None, metric='
 @_cited
 def timelapse(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='median', season=None,
               quality=None, vmin=None, vmax=None, palette=None, dimensions=animation.DIMENSIONS, fps=animation.FPS,
-              path=None, progress=None, percentiles=None, same_colours=False, **source):
+              path=None, progress=None, percentiles=None, same_colours=True, **source):
 	"""Animation of a variable over REGION (a timelapse, GIF or MP4 video): a frame per STEP ('annual', 'monthly',
 	'16-day' or 'daily') of the period (and SEASON), each the METRIC of the images of the step on each pixel, coloured
-	with a colour ramp stretched between the PERCENTILES (default [1, 99]: maps.STRETCH) of its own values over the
-	region (each frame its own range, written on it: frames[i] min and max), or from VMIN to VMAX (both: the same for
-	every frame); with SAME_COLOURS, one ramp for every frame, from the percentiles of the map of the whole period (as
-	map_layer) or, for the sum and the count, which grow with the images, of the median of the frames (see
-	animation.range_image). Each frame has its date, the title, the ramp with its unit and the credits of the data (also
+	with one colour ramp for every frame (SAME_COLOURS, the default, so that the frames can be compared), stretched
+	between the PERCENTILES (default [1, 99]: maps.STRETCH) of the map of the whole period (as map_layer) or, for the
+	sum and the count, which grow with the images, of the median of the frames (see animation.range_image), or from
+	VMIN to VMAX; with SAME_COLOURS false, each frame between the percentiles of its own values over the region (each
+	frame its own range, written on it: frames[i] min and max). Each frame has its date, the title, the ramp with its unit and the credits of the data (also
 	those of the region) written on it; the pixels of the region without data in a step are light grey. At most
 	animation.MAX_FRAMES frames of DIMENSIONS pixels (width or height of the map), FPS frames per second. PATH ends in
 	.gif (default) or .mp4 (with ffmpeg). Earth Engine computes the colours of each frame on the same grid of web
