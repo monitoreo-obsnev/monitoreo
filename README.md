@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.62](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.62) · 2026-11-20 · package 0.3.72
 
 - **Assistant, QGIS plugin, Command line, MCP server, R package**: After signing in with your Google account, a list of your Google Cloud projects registered in Earth Engine to choose the one to compute with (`monitoreo projects`, `own_projects`, `mo_projects()`); another one can still be written.
 - **All tools**: The bar of EECUs spent this month, its tier of the project and its warning of less than 10 percent left are gone, as their count was not that of Earth Engine (`monitoreo eecu`, `eecu_usage` and `mo_eecu()` too); the warning when Earth Engine puts the project in restricted mode stays.
