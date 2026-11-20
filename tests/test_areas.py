@@ -295,7 +295,6 @@ def calls(monkeypatch):
 		        'mode': 'landcover' if landcover else 'breaks', 'scale': 30.0, 'unit': 'm', 'title': 'Areas',
 		        'csv': csv, 'chart': None, 'classes': []}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'area_by_class', fake)
 	return out
 
@@ -349,7 +348,6 @@ def test_the_report_of_an_area_by_class_of_the_mcp_server_has_its_classes(kind, 
 	                    (services.make_spec(variable, sensor, start, end, metric), regions, 'value', 30))
 	monkeypatch.setattr(services, '_trend', lambda region, variable, sensor, start, end, step, part, metric, *args, **kw:
 	                    (services.make_spec(variable, sensor, start, end, metric), regions, 'trend', 0, 250.0, 'NDVI'))
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
 	expected = services.area_by_class(REGION, **call)['classes']

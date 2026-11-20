@@ -213,7 +213,6 @@ def test_mcp_answers_keep_readme(monkeypatch, tmp_path):
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	res = {'title': 't', 'unit': '', 'scale': 250, 'csv': None, 'chart': None, 'rows': [], 'n_steps': 0,
 	       'regions': [], 'profile': [], 'yearly': [], 'readme': '/x/y.README.txt', 'references': [], 'credits': []}
 	for name in ('time_series', 'trend_table', 'compare_series'):

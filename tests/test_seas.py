@@ -316,7 +316,7 @@ def test_the_command_line_without_earth_engine(capsys, monkeypatch):
 	def refused(*args, **kw):
 		raise AssertionError('Earth Engine used')
 	monkeypatch.setattr(services, 'init', refused)
-	monkeypatch.setattr(services, 'eecu_warning', refused)
+	monkeypatch.setattr(services, 'quota_warning', refused)
 	cli.main(['seas', 'alborán'])
 	out = capsys.readouterr().out
 	assert 'MRGID' in out and '3324' in out and 'Alboran Sea' in out and '-5.354 35.071 -1.188 36.842' in out

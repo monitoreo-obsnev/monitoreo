@@ -464,7 +464,7 @@ def test_the_plugin_logs_its_tasks_and_their_errors(plugin, tmp_path, monkeypatc
 	monkeypatch.setattr(dock.services, 'init', lambda *args, **kw: None)
 	sent = []
 	me = types.SimpleNamespace(iface=types.SimpleNamespace(messageBar=lambda: bar), tasks=[], save_settings=lambda: None,
-	                           project=types.SimpleNamespace(text=lambda: ''), check_eecu=lambda: None,
+	                           project=types.SimpleNamespace(text=lambda: ''),
 	                           send_logs=sent.append)
 	me.message = lambda *args, **kw: dock.MonitorEODock.message(me, *args, **kw)
 

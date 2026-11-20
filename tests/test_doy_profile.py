@@ -250,7 +250,6 @@ def ee(monkeypatch):
 
 	monkeypatch.setattr(services.areas, 'region', lambda region: 'regions')
 	monkeypatch.setattr(services.timeseries, 'series', series)
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	return calls
 
 

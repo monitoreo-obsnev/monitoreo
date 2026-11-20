@@ -239,7 +239,6 @@ def test_mcp_answers_keep_references(monkeypatch, tmp_path):
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	cited = references.cite('trend_table', {'variable': 'NDVI', 'sensor': 'Modis'})
 	res = dict(cited, title='t', unit='', scale=250, csv=None, chart=None, rows=[], n_steps=0, regions=[], profile=[],
 	           yearly=[])

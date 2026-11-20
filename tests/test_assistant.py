@@ -1538,7 +1538,7 @@ def test_data_of_earth_engine_by_its_id(monkeypatch):
 	described = json.loads(answers_of['describe_asset'])  # all of it, the bands last
 	assert list(described)[-1] == 'bands' and described['arguments'] == TERRACLIMATE and described == ASSET
 	# the map: its title and facts name the ID and the band, and it cites the dataset
-	assert [e['type'] for e in events if e['type'] not in ('status', 'eecu')] == ['running', 'result', 'assistant']
+	assert [e['type'] for e in events if e['type'] != 'status'] == ['running', 'result', 'assistant']
 	assert a.calls[2] == ('map_layer', mapped)
 	result = next(e for e in events if e['type'] == 'result')
 	assert result['title'] == ('Map of IDAHO_EPSCOR/TERRACLIMATE pr, 2015-2020 · Rectangle of longitude -3.5 to -3 and '
@@ -1791,37 +1791,61 @@ def test_map_view(monkeypatch):
 		report.map_view([-10, 35, 5, 44], 14, 'https://ee/{z}/{x}/{y}')
 
 
-def test_eecu_bar_and_warning(monkeypatch):
-	# after each result, the page gets the EECUs spent this month for its bar and, once, the warning of few left (with
-	# the shared account: switch to your own); the answers of the tools reach the page without eecu_warning
-	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
-	usage = {'account': 'shared', 'name': 'research EECUs', 'project': 'shared-project', 'month': '2026-11-01',
-	         'used_percent': 95.0, 'left_percent': 5.0, 'low': True, 'warning': 'Less than 10% are left.'}
+def _post(app, path, body):
+	"""The answer of the route PATH of the API of the page (APP, of make_app with the token «token») to BODY."""
+	from starlette.requests import Request
+	route = next(r for r in app.routes if r.path == path)
+	data = json.dumps(body).encode()
 
-	class Eecu(FakeAssistant):
-		async def call(self, name, args):
-			if name == 'eecu_usage':
-				self.eecu_args = args
-				return None, [json.dumps(usage)], []
-			return await super().call(name, args)
+	async def receive():
+		return {'type': 'http.request', 'body': data, 'more_body': False}
+
+	scope = {'type': 'http', 'method': 'POST', 'path': path, 'query_string': b'',
+	         'headers': [(b'host', b'127.0.0.1:8765'), (b'x-token', b'token')]}
+	response = asyncio.run(route.endpoint(Request(scope, receive)))
+	return response.status_code, json.loads(response.body)
+
+
+def test_no_eecus_on_the_page(monkeypatch):
+	"""The page does not show the EECUs spent (their count was not that of Earth Engine): no bar, no tier of the
+	project, no route nor event of them, and the results bring none."""
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
+	assert 'eecu' not in page.lower() and 'id="tier"' not in page
+	big = assistant.instructions(big=True)
+	assert 'eecu_tier' not in assistant.DEFAULTS and 'does not show the EECUs spent' in big and 'bar of research' not in big
+	app = assistant.make_app(assistant.Assistant({**assistant.DEFAULTS, 'project': ''}), 'token', 8765)
+	assert '/api/eecu' not in [r.path for r in app.routes] and '/api/projects' in [r.path for r in app.routes]
 
 	async def run():
-		a = Eecu({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
+		a = FakeAssistant({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
 		a.session, a.tools = object(), assistant.model_tools(TOOLS)
 		args = {**ARGS, 'region': {'bbox': [-3.5, 37, -3, 37.2]}}
-		first = [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
-		second = await a.eecu_events()
-		return a, first, second
+		return [e async for e in a.run_tool({'name': 'time_series', 'arguments': args})]
 
-	a, first, second = asyncio.run(run())
-	types = [e['type'] for e in first]
-	assert types.index('result') + 1 == types.index('eecu') == types.index('eecu_warning') - 1
-	assert first[types.index('eecu')]['usage'] == usage and a.eecu == usage
-	assert a.eecu_args == {'lang': 'en', 'refresh': False}
-	warning = first[types.index('eecu_warning')]['text']
-	assert warning.startswith('Less than 10% are left.') and 'Use my Google account' in warning
-	assert [e['type'] for e in second] == ['eecu']  # the warning, once
-	assert assistant._without_eecu_warning(json.dumps({'a': 1, 'eecu_warning': 'x'})) == '{\n "a": 1\n}'
+	assert not [e for e in asyncio.run(run()) if 'eecu' in e['type']]
+
+
+def test_the_projects_of_the_account(monkeypatch):
+	"""Once signed in, the page asks for the projects of the account registered in Earth Engine (services.own_projects,
+	with the project of the settings as a candidate), kept until the account changes; without a sign-in, an error."""
+	from monitoreo import services
+	asked = []
+	found = {'account': 'someone@example.org', 'register': services.REGISTER_URL,
+	         'projects': [{'project': 'ee-someone', 'name': None, 'registration': 'noncommercial'}]}
+	monkeypatch.setattr(services, 'own_projects', lambda known=(): asked.append(list(known)) or found)
+	a = assistant.Assistant({**assistant.DEFAULTS, 'project': 'my-project'})
+	app = assistant.make_app(a, 'token', 8765)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
+	status, answer = _post(app, '/api/projects', {})
+	assert status == 400 and 'sign in' in answer['error'] and not asked
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+	assert _post(app, '/api/projects', {}) == (200, found) and asked == [['my-project']]
+	assert _post(app, '/api/projects', {}) == (200, found) and len(asked) == 1  # kept
+	assert _post(app, '/api/projects', {'refresh': True}) == (200, found) and len(asked) == 2
+	assert a.projects == found
+	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
+	assert "api('/api/projects'" in page and 'id="projectChoice"' in page and 'Another project…' in page
 
 
 def test_restricted_mode_of_earth_engine(monkeypatch):
@@ -1833,8 +1857,6 @@ def test_restricted_mode_of_earth_engine(monkeypatch):
 
 	class Restricted(FakeAssistant):
 		async def call(self, name, args):
-			if name == 'eecu_usage':
-				return 'RuntimeError: no EECUs in this test', [], []
 			error, texts, images = await super().call(name, args)
 			return error, [json.dumps({**json.loads(texts[0]), 'quota_warning': quota})] + texts[1:], images
 
@@ -1871,8 +1893,6 @@ def test_a_computation_that_fails_in_restricted_mode(monkeypatch, project):
 
 	class Restricted(FakeAssistant):
 		async def call(self, name, args):
-			if name == 'eecu_usage':
-				return 'RuntimeError: no EECUs in this test', [], []
 			if name == 'time_series' and failing.pop(0):  # the error of the MCP server
 				error = f'EEException: Too many concurrent aggregations. {quota}'
 				return error, [error], []
@@ -2489,7 +2509,7 @@ def test_a_server_that_stopped_on_its_own_starts_again():
 		a.restart_server = restart
 		assert await a.call('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2'}) == (None, ['{"rows": []}'], [])
 		with pytest.raises(RuntimeError, match='had stopped, and has started again'):
-			await a.call('eecu_usage', {'lang': 'en'})
+			await a.call('describe_variable', {'variable': 'NDVI'})
 		assert restarts == [True]
 		with pytest.raises(ValueError, match='another error'):  # the other errors are not a closed connection
 			await a.call('map_layer', {})
@@ -2503,8 +2523,8 @@ def test_a_server_that_stopped_on_its_own_starts_again():
 	stopped = [e for e in entries if 'stopped' in e.get('error', '')]
 	assert len(stopped) == 1  # not the other error
 	error = stopped[0]['error']
-	assert stopped[0]['call'] == {'name': 'eecu_usage', 'arguments': {'lang': 'en'}}
-	assert 'before or during the call of the tool eecu_usage' in error
+	assert stopped[0]['call'] == {'name': 'describe_variable', 'arguments': {'variable': 'NDVI'}}
+	assert 'before or during the call of the tool describe_variable' in error
 	assert stopped[0]['answered']['name'] == 'time_series' and 'last call that it answered: time_series' in error
 	assert stopped[0]['answered']['arguments'] == {'variable': 'NDVI', 'sensor': 'Sentinel-2'}
 	assert 'assistant-output.log' in error and 'Fatal Python error' in error and 'Windows fatal exception' in error
@@ -2634,37 +2654,6 @@ def test_stop_cuts_the_request_to_ollama(monkeypatch):
 		assert asyncio.run(run()), 'Ollama did not see the request cut'
 	finally:
 		server.shutdown()
-
-
-def test_restricted_mode_when_the_assistant_opens(monkeypatch):
-	# the EECUs asked when the assistant opens (eecu_events, before any computation) carry quota_warning when Earth
-	# Engine has put the project in restricted mode (services.probe_quota): the page shows it once, with the shared
-	# account with how to use your own project, and a computation afterwards does not show it again
-	monkeypatch.setattr(assistant, 'signed_in', lambda: False)
-	quota = 'The shared account of MonitorEO has spent the noncommercial compute quota of its Earth Engine project.'
-	usage = {'account': 'shared', 'name': 'research EECUs', 'project': 'shared-project', 'month': '2026-11-01',
-	         'used_percent': 57.1, 'left_percent': 42.9, 'low': False, 'warning': None, 'quota_warning': quota}
-
-	class Opened(FakeAssistant):
-		async def call(self, name, args):
-			if name == 'eecu_usage':
-				return None, [json.dumps(usage)], []
-			return await super().call(name, args)
-
-	async def run():
-		a = Opened({**assistant.DEFAULTS, 'project': '', 'ollama': 'http://127.0.0.1:1'})
-		a.session, a.tools = object(), assistant.model_tools(TOOLS)
-		return await a.eecu_events(), await a.eecu_events()
-
-	first, second = asyncio.run(run())
-	assert [e['type'] for e in first] == ['eecu', 'quota_warning']
-	assert first[1]['text'].startswith(quota) and 'Use my Google account' in first[1]['text']
-	assert [e['type'] for e in second] == ['eecu']  # once in the conversation
-
-	# the broker said it (services.eecu_usage: the warning is the text of restricted mode): only once, as the warning
-	usage.update(warning=quota, quota_warning=quota, left_percent=0, low=True, month='2026-12-01')
-	first, second = asyncio.run(run())
-	assert [e['type'] for e in first] == ['eecu', 'eecu_warning'] and [e['type'] for e in second] == ['eecu']
 
 
 def test_the_user_chooses_the_range_of_the_colours():

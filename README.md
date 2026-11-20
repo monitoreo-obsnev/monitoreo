@@ -96,6 +96,8 @@ Earth Engine app, which gives it its version and date.
 
 ### Unreleased
 
+- **Assistant, QGIS plugin, Command line, MCP server, R package**: After signing in with your Google account, a list of your Google Cloud projects registered in Earth Engine to choose the one to compute with (`monitoreo projects`, `own_projects`, `mo_projects()`); another one can still be written.
+- **All tools**: The bar of EECUs spent this month, its tier of the project and its warning of less than 10 percent left are gone, as their count was not that of Earth Engine (`monitoreo eecu`, `eecu_usage` and `mo_eecu()` too); the warning when Earth Engine puts the project in restricted mode stays.
 - **Assistant**: The page in English or in Spanish, chosen at its top and remembered; the conversation, the results and the reports keep their own language.
 
 ### [v0.3.61](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.61) · 2026-11-20 · package 0.3.71

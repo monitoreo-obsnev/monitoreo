@@ -489,7 +489,7 @@ def test_the_mcp_server():
 	rows = json.loads(mcp_server.list_classes('ECOREGION', text='Sierra Nevada'))
 	assert rows == [{'code': 366, 'name': 'Sierra Nevada forests', 'colour': '499964', 'group': 5,
 	                 'group_name': 'Temperate Conifer Forests'}]
-	assert 'list_classes' in mcp_server.NO_EECU_WARNING and 'list_classes' in assistant.ADVICE
+	assert 'list_classes' in mcp_server.NO_QUOTA_WARNING and 'list_classes' in assistant.ADVICE
 	assert '"classes": [12]' in mcp_server.WHERE_DOC and 'ECOREGION and BIOME' in mcp_server.INSTRUCTIONS
 	assert 'by_group' in __import__('inspect').getsource(mcp_server.area_by_class)
 

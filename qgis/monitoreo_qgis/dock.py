@@ -4,10 +4,10 @@ burn severity of a fire. Instead of a variable of the catalog, in the themes Ear
 Community Catalog: any image or collection of images of Earth Engine given by its ID (read with
 services.describe_asset), or a dataset of the GEE Community Catalog chosen by its themes (community_themes,
 community_datasets). The work runs in QGIS tasks (QgsTask), so QGIS keeps responding; every computation is a
-function of monitoreo.services, the same as in the MCP server and the R package. A bar shows the EECUs of Earth Engine
-spent this month (the research EECUs of this user with the shared account, or the monthly quota of the user's project)
-and the message bar warns when less than 10 % are left, and when Earth Engine has put the project in restricted mode
-(quota_text: it has spent its noncommercial compute quota, so computations are slow and may fail).
+function of monitoreo.services, the same as in the MCP server and the R package. The button Projects… lists the Google
+Cloud projects of the user's account registered in Earth Engine (services.own_projects), to choose one, and the
+message bar warns when Earth Engine has put the project in restricted mode (quota_text: it has spent its
+noncommercial compute quota, so computations are slow and may fail).
 The parameters of each analysis (monitoreo.parameters: the JSON of the function of monitoreo.services and its
 arguments, the same in every tool) are copied or saved by the button Parameters beside its button, from the arguments
 that its button computes with; Apply parameters pastes or opens them and fills the fields of the panel, without
@@ -28,7 +28,7 @@ from qgis.gui import QgsCheckableComboBox, QgsCollapsibleGroupBox, QgsFieldCombo
 from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer, QUrl
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox,
-                                 QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
+                                 QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                  QPushButton, QScrollArea, QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis,
                                  QWidget)
 
@@ -1217,11 +1217,9 @@ class MonitorEODock(QDockWidget):
 		self.exports = []        # export tasks of Earth Engine being followed
 		self.timer = QTimer(self)
 		self.timer.timeout.connect(self.poll_exports)
-		self.eecu_warned = set()  # services.eecu_warning_key of the warnings of the EECUs shown
 		self.group_boxes = {}  # the group of each analysis of the panel (see PANEL)
 		self.applied = []  # what applying some parameters did besides setting fields (a layer added)
 		self.build()
-		QTimer.singleShot(0, self.check_eecu)
 
 	# Interface --------------------------------------------------------------------------------------------------
 
@@ -1254,27 +1252,11 @@ class MonitorEODock(QDockWidget):
 		             'your project and export to Google Drive')
 		b.clicked.connect(self.authenticate)
 		row.addWidget(b)
-		f.addRow('Project', info(row, HELP['project']))
-		row = QHBoxLayout()
-		self.eecu_bar = QProgressBar()
-		self.eecu_bar.setRange(0, 100)
-		self.eecu_bar.setValue(0)
-		self.eecu_bar.setFormat('not checked yet')
-		self.eecu_bar.setToolTip('EECUs (compute units of Earth Engine) spent this month')
-		row.addWidget(self.eecu_bar, 1)
-		tier = s.value(SETTINGS + 'eecu_tier', 'Community')
-		self.eecu_tier = combo([(k, k) for k in services.EECU_TIERS],
-		                       tier if tier in services.EECU_TIERS else 'Community')
-		self.eecu_tier.setToolTip('Earth Engine tier of your project, with its monthly quota: Community 150 EECU-hours, '
-		                          'Contributor 1,000, Partner 100,000 (not used with the shared account)')
-		self.eecu_tier.currentIndexChanged.connect(lambda i: self.check_eecu())
-		row.addWidget(self.eecu_tier)
-		b = QPushButton('Check')
-		b.setToolTip('Ask again for the EECUs spent this month')
-		b.clicked.connect(lambda: self.check_eecu(refresh=True, asked=True))
+		self.projects_button = b = QPushButton('Projects…')
+		b.setToolTip('Your Google Cloud projects registered in Earth Engine, to choose one (after Authenticate…)')
+		b.clicked.connect(lambda: self.list_projects())
 		row.addWidget(b)
-		self.eecu_label = QLabel('EECUs of the month')
-		f.addRow(self.eecu_label, info(row, HELP['eecu']))
+		f.addRow('Project', info(row, HELP['project']))
 		main.addWidget(box)
 
 		box = QGroupBox('Region')
@@ -2575,7 +2557,6 @@ class MonitorEODock(QDockWidget):
 	def save_settings(self):
 		s = QgsSettings()
 		s.setValue(SETTINGS + 'project', self.project.text().strip())
-		s.setValue(SETTINGS + 'eecu_tier', self.eecu_tier.currentData())
 		s.setValue(SETTINGS + 'start', self.start.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'end', self.end.date().toString('yyyy-MM-dd'))
 		s.setValue(SETTINGS + 'other_start', self.other_start.date().toString('yyyy-MM-dd'))
@@ -3193,7 +3174,6 @@ class MonitorEODock(QDockWidget):
 			quota = quota_text(once=True)
 			if quota:  # Earth Engine has put the project in restricted mode: once each time
 				self.message(quota, 'Warning', 60)
-			self.check_eecu()  # what this task spent (the answers are kept some minutes: no new query each time)
 
 		task = QgsTask.fromFunction(description, run, on_finished=finished)
 		self.tasks.append(task)
@@ -3208,55 +3188,38 @@ class MonitorEODock(QDockWidget):
 		                                     f'(project {r[0]})' if r[1] else
 		                                     f'Connected to Earth Engine with your account (project {r[0]})', 'Success'))
 
-	def check_eecu(self, refresh=False, asked=False):
-		"""Show in its bar the EECUs of Earth Engine spent this month, in a task of QGIS; warn when less than 10 % are
-		left (once a month, or ASKED by the button Check, which also asks again: REFRESH)."""
-		project = self.project.text().strip() or None
-		tier = self.eecu_tier.currentData()
-
-		def run(task):
-			if project:  # the research EECUs of the shared account are asked without connecting (also when spent)
-				services.init(project, warn=False)
-			else:  # connected if it can, so that Earth Engine says whether its project is in restricted mode
-				try:
-					services.init(shared=True, warn=False)
-				except Exception:  # e.g. the research EECUs spent: the usage says so without connecting
-					return services.eecu_usage(tier, refresh=refresh, lang='en', shared=True)
-			return services.eecu_usage(tier, refresh=refresh, lang='en', shared=not project)
+	def list_projects(self, signed_in=False):
+		"""The Google Cloud projects of the account of Authenticate… registered in Earth Engine
+		(services.own_projects), in a menu under the button Projects…: the one chosen goes to the field Project.
+		SIGNED_IN: right after signing in (then nothing is said when none is found)."""
+		known = [self.project.text().strip()] if self.project.text().strip() else []
 
 		def finished(exception, result=None):
 			self.tasks = [t for t in self.tasks if t is not task]
 			if exception is not None:
-				self.eecu_bar.setValue(0)
-				self.eecu_bar.setFormat('cannot be checked')
-				self.eecu_bar.setToolTip(str(exception))
-				if asked:
-					self.message(f'EECUs of the month: {exception}', 'Warning', 15)
+				self.message(f'Your projects: {exception}', 'Warning', 15)
 				return
-			self.show_eecu(result, asked)
+			found = result['projects']
+			if not found:
+				if not signed_in:
+					self.message('No project of your Google account registered in Earth Engine was found (Google does '
+					             'not let MonitorEO list them all): write yours in Project, or register one at '
+					             + result['register'], 'Warning', 30)
+				return
+			menu = QMenu(self.projects_button)
+			for p in found:
+				label = p['project'] + (f" ({p['name']})" if p['name'] and p['name'] != p['project'] else '')
+				action = menu.addAction(label + (' · commercial' if p['registration'] == 'commercial' else ''))
+				action.triggered.connect(lambda checked=False, project=p['project']: self.project.setText(project))
+			menu.addSeparator()
+			action = menu.addAction('Shared account of MonitorEO (empty project)')
+			action.triggered.connect(lambda checked=False: self.project.setText(''))
+			menu.exec(self.projects_button.mapToGlobal(self.projects_button.rect().bottomLeft()))
 
-		task = QgsTask.fromFunction('Check the EECUs of Earth Engine of the month', run, on_finished=finished)
+		task = QgsTask.fromFunction('Your projects of Earth Engine', lambda t: services.own_projects(known),
+		                            on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
-
-	def show_eecu(self, u, asked=False):
-		used = 100 - u.get('left_percent', 100 - u['used_percent'])  # what can no longer be used (also by the project)
-		self.eecu_bar.setValue(int(min(100, round(used))))
-		self.eecu_bar.setFormat(f'{used:.1f}% used')
-		self.eecu_label.setText('research EECUs' if u['account'] == 'shared' else 'EECUs of the month')
-		self.eecu_bar.setToolTip(u['text'])
-		color = '#c0392b' if u['low'] or u.get('quota_warning') else '#d68910' if used >= 75 else '#2e7d32'
-		self.eecu_bar.setStyleSheet(f'QProgressBar {{ text-align: center; }} '
-		                            f'QProgressBar::chunk {{ background-color: {color}; }}')
-		key = services.eecu_warning_key(u)  # once each kind of warning and day
-		if u['warning'] and (asked or key not in self.eecu_warned):
-			self.eecu_warned.add(key)
-			self.message(u['warning'] + (OWN_PROJECT if u['account'] == 'shared' else ''), 'Warning', 60)
-		elif asked:
-			self.message(u['text'], 'Info', 10)
-		quota = quota_text(once=True) if u.get('quota_warning') and u['quota_warning'] != u['warning'] else None
-		if quota:  # Earth Engine has put the project in restricted mode (services.probe_quota): once each time
-			self.message(quota, 'Warning', 60)
 
 	def authenticate(self):
 		def work():
@@ -3264,10 +3227,15 @@ class MonitorEODock(QDockWidget):
 			ee.Authenticate(auth_mode='localhost', force=True)
 			return True
 
-		task = QgsTask.fromFunction('Authenticate with Earth Engine', lambda t: work(),
-		                            on_finished=lambda e, r=None: self.message(
-			                            'Authenticated with Earth Engine' if e is None else f'Authentication: {e}',
-			                            'Success' if e is None else 'Critical', 10))
+		def finished(exception, result=None):
+			self.tasks = [t for t in self.tasks if t is not task]
+			if exception is not None:
+				self.message(f'Authentication: {exception}', 'Critical', 10)
+				return
+			self.message('Authenticated with Earth Engine: choose your project', 'Success', 10)
+			self.list_projects(signed_in=True)
+
+		task = QgsTask.fromFunction('Authenticate with Earth Engine', lambda t: work(), on_finished=finished)
 		self.tasks.append(task)
 		QgsApplication.taskManager().addTask(task)
 		self.message('Sign in with your Google account in the browser', 'Info', 10)

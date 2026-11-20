@@ -334,7 +334,7 @@ check_data <- function(variable, sensor, collection = NULL, image = NULL, band =
   invisible(TRUE)
 }
 
-# The services of Python (monitoreo.services), after the R warnings of eecu_check. When the function that called it
+# The services of Python (monitoreo.services), after the R warning of quota_check. When the function that called it
 # ends, also with an error, the R warning of quota_check if Earth Engine has put the project in restricted mode
 # meanwhile: a computation that fails then (too many requests) says why, after its error.
 services <- function() {
@@ -349,19 +349,9 @@ services <- function() {
     tryCatch(reticulate::import("warnings")$filterwarnings(
       "ignore", category = reticulate::import("monitoreo.coverage")$DataDatesWarning), error = function(e) NULL)
   }
-  eecu_check(.mo$services)
+  quota_check(.mo$services)
   do.call(on.exit, list(quote(quota_check(.mo$services)), add = TRUE), envir = parent.frame())
   .mo$services
-}
-
-# An R warning, once each kind of warning (little left, nothing left, restricted mode), project and day, when less than
-# 10 % of the EECUs of Earth Engine of the month are left (with the shared account, its research EECUs: then switch to
-# your own account), and that of quota_check. Nothing before mo_init().
-eecu_check <- function(s) {
-  w <- tryCatch(s$eecu_warning(once = TRUE), error = function(e) NULL)
-  if (!is.null(w)) warning(w, if (isTRUE(s$shared())) " In R: mo_init(\"<your project>\")." else "", call. = FALSE)
-  quota_check(s)
-  invisible(w)
 }
 
 # An R warning, once each time it begins, when Earth Engine has put the project in restricted mode (it has spent its
@@ -395,11 +385,11 @@ mo_install <- function(source = "monitoreo[plot] @ https://github.com/monitoreo-
 #' \code{earthengine authenticate} (or \code{rgee::ee_Initialize()}) and the quota of that project; with
 #' \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
 #' Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
-#' (who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
-#' month are left (see \code{mo_eecu()}; with your own project, of its monthly quota as Earth Engine counts it), and
-#' when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota: computations
-#' are slow and may fail with too many requests; with the shared account, use your own project to compute without
-#' waiting), also after the error of a computation that fails then. Each warning is given once each kind and day.
+#' (who spends them cannot compute with it until the next month). It warns when Earth Engine has put the project in
+#' restricted mode (it has spent its noncommercial compute quota: computations are slow and may fail with too many
+#' requests; with the shared account, use your own project to compute without waiting), also after the error of a
+#' computation that fails then, once each time it begins. \code{mo_projects()} lists your projects registered in
+#' Earth Engine.
 #' @param project Google Cloud project (default: the variable \code{EE_PROJECT}; \code{""}: the shared account of
 #'   MonitorEO).
 #' @param python optional path of the Python with monitoreo (see \code{reticulate::use_python()}).
@@ -418,42 +408,34 @@ mo_init <- function(project = Sys.getenv("EE_PROJECT"), python = NULL) {
   own <- !is.null(project) && nzchar(project)
   s <- services()
   p <- s$init(if (own) project else NULL, shared = !own, warn = FALSE)
-  eecu_check(s)
+  quota_check(s)
   invisible(p)
 }
 
-#' EECUs of Earth Engine spent this month
+#' Your Google Cloud projects registered in Earth Engine
 #'
-#' EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of each
-#' month. With the shared account of MonitorEO they are your research EECUs (25 EECU-hours a month, only for research):
-#' when they are spent it does not compute for you until the next month, so switch to your own account
-#' (\code{mo_init("<your project>")}). With your own project (the Cloud Monitoring API must be enabled in it), the
-#' monthly quota of that project as Earth Engine counts it in the quota counters of Cloud Monitoring, against the limit
-#' that Earth Engine gives: Earth Engine also counts the computations running or failed and settles them later (its
-#' count may go down during the month), so the EECUs used are the larger of what it counts and what the computations
-#' completed have spent, and the text gives both. With the shared account the text also gives the percent of the
-#' monthly quota of its project that Earth Engine counts.
-#' @param limit only when the quota counters of your project cannot be read (otherwise Earth Engine gives the limit):
-#'   its monthly quota in EECU-hours or tier (\code{"Community"}, 150; \code{"Contributor"}, 1000; \code{"Partner"},
-#'   100000; default: the variable \code{MONITOREO_EECU_LIMIT} or \code{"Community"}).
-#' @param refresh ask again (the answers are kept 5 minutes).
-#' @param lang language of the texts: \code{"en"} or \code{"es"}.
-#' @return A list (account, name, project, used_hours, limit_hours, left_hours, tier, used_percent, left_percent,
-#'   month, resets, low, warning, text, spent_hours: what the computations completed have spent, source:
-#'   \code{"quota"} when the quota counters of Earth Engine were read or \code{"completed"}, quota_reached: Earth
-#'   Engine has counted the whole quota, quota_warning, bar), invisibly; prints a bar and the text, and warns when less
-#'   than 10 \% are left.
+#' The Google Cloud projects of the Google account of \code{earthengine authenticate} (or
+#' \code{rgee::ee_Initialize()}) that are registered in Earth Engine, to give one to \code{mo_init()}. Google does not
+#' let MonitorEO list all your projects, so it gives those it finds (that of \code{EE_PROJECT} or of
+#' \code{earthengine set_project}, those of the Google Cloud CLI, the ee-<user> that the registration of Earth Engine
+#' creates, those of BigQuery), each one checked in Earth Engine without computing: if yours is not there, give it
+#' anyway. It needs no \code{mo_init()}.
+#' @param project one more project to check (optional).
+#' @return A data.frame (project, name, registration: \code{"noncommercial"} or \code{"commercial"}), with the
+#'   attributes account (the e-mail of the account) and register (where to register a project).
 #' @examples
 #' \dontrun{
-#' mo_init()
-#' mo_eecu()
+#' p <- mo_projects()
+#' mo_init(p$project[1])
 #' }
 #' @export
-mo_eecu <- function(limit = NULL, refresh = TRUE, lang = "en") {
-  u <- services()$eecu_usage(limit, refresh, lang)
-  cat(u$name, " ", u$bar, "\n", u$text, "\n", sep = "")
-  if (!is.null(u$warning)) warning(u$warning, call. = FALSE)
-  invisible(u)
+mo_projects <- function(project = NULL) {
+  found <- services()$own_projects(if (is.null(project) || !nzchar(project)) list() else list(project))
+  df <- rows_df(found$projects)
+  if (!nrow(df)) df <- data.frame(project = character(), name = character(), registration = character())
+  attr(df, "account") <- found$account
+  attr(df, "register") <- found$register
+  df
 }
 
 # A list of Python dictionaries (rows) as a data.frame, with dates as Date and None as NA.

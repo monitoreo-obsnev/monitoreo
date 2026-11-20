@@ -74,6 +74,8 @@ input, select, textarea {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
 }
 input#project, input#modelName { flex: 1 1 220px; min-width: 0; }
+select#projectChoice { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+input#project[hidden], select#projectChoice[hidden], button[hidden] { display: none; }
 button {
   background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
 }
@@ -84,18 +86,7 @@ button:disabled { opacity: .55; cursor: default; }
 .ok { color: var(--accent); font-weight: 600; }
 .warn { color: var(--err); font-size: .9em; }
 .where { font-size: .85em; color: var(--muted); margin: 8px 2px 4px; }
-.eecu { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: .85em; color: var(--muted);
-        margin: 0 2px 6px; }
-.row[hidden], .eecu[hidden] { display: none; }
-.eecu b { color: var(--ink); font-weight: 600; }
-.eecu .meter { width: 180px; max-width: 40vw; height: 10px; border-radius: 999px; background: var(--soft);
-               border: 1px solid var(--line); overflow: hidden; }
-.eecu .meter div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
-.eecu .meter.mid div { background: #c77c12; }
-.eecu .meter.low div { background: var(--err); }
-.eecu.low b, .eecu.low #eecuText { color: var(--err); }
-.eecu button { padding: 1px 8px; font-size: .95em; }
-@media (prefers-reduced-motion: reduce) { .eecu .meter div { transition: none; } }
+.row[hidden] { display: none; }
 main { overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
 .intro { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 .intro p { margin: 0 0 8px; }
@@ -199,19 +190,12 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
         <button id="signout" type="button" hidden title="Signs out the Google account of Earth Engine on this computer; the assistant goes back to the shared account of MonitorEO">Log out</button>
       </div>
       <div class="row">
-        <label class="label" for="project">Your project (optional)</label>
+        <label class="label" for="projectChoice">Your project (optional)</label>
+        <select id="projectChoice" hidden title="The Google Cloud projects of your Google account registered in Earth Engine"></select>
         <input id="project" placeholder="empty: the shared account of MonitorEO · or your Google Cloud project registered in Earth Engine">
         <button id="saveProject" type="button">Save</button>
+        <button id="findProjects" type="button" hidden title="Looks again for the projects of your Google account registered in Earth Engine">Look again</button>
         <span id="projectMsg" class="muted"></span>
-      </div>
-      <div class="row" id="tierRow" hidden>
-        <label class="label" for="tier">Tier of your project</label>
-        <select id="tier">
-          <option value="Community">Community: 150 EECU-h a month</option>
-          <option value="Contributor">Contributor: 1,000 EECU-h a month</option>
-          <option value="Partner">Partner: 100,000 EECU-h a month</option>
-        </select>
-        <span class="muted">the monthly quota of compute of Earth Engine of your project, for the bar of EECUs: used only when Earth Engine's quota counters cannot be read</span>
       </div>
       <div class="row">
         <label class="label" for="provider">Language model</label>
@@ -231,13 +215,6 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
     </div>
   </details>
   <p id="where" class="where"></p>
-  <div id="eecu" class="eecu" hidden>
-    <b id="eecuName">EECU</b>
-    <div id="eecuMeter" class="meter" role="progressbar" aria-labelledby="eecuName" aria-valuemin="0"
-         aria-valuemax="100"><div id="eecuFill"></div></div>
-    <span id="eecuText"></span>
-    <button id="eecuCheck" type="button" title="Checks again the EECUs (compute units of Earth Engine) spent this month">Check</button>
-  </div>
   <div id="layers" class="layers" hidden></div>
   <div id="documents" class="layers" hidden></div>
 </header>
@@ -399,16 +376,20 @@ const ES = {
   'empty: the shared account of MonitorEO · or your Google Cloud project registered in Earth Engine':
     'vacío: la cuenta compartida de MonitorEO · o tu proyecto de Google Cloud registrado en Earth Engine',
   'Save': 'Guardar',
-  'Tier of your project': 'Nivel de tu proyecto',
-  'Community: 150 EECU-h a month': 'Community: 150 EECU-h al mes',
-  'Contributor: 1,000 EECU-h a month': 'Contributor: 1000 EECU-h al mes',
-  'Partner: 100,000 EECU-h a month': 'Partner: 100 000 EECU-h al mes',
-  "the monthly quota of compute of Earth Engine of your project, for the bar of EECUs: used only when Earth Engine's quota counters cannot be read":
-    'la cuota mensual de cálculo de Earth Engine de tu proyecto, para la barra de EECU: solo se usa cuando no se pueden leer los contadores de cuota de Earth Engine',
-  'EECUs of this month': 'EECU de este mes',
-  'Checks again the EECUs (compute units of Earth Engine) spent this month':
-    'Vuelve a consultar los EECU (unidades de cálculo de Earth Engine) gastados este mes',
-  'Check': 'Consultar',
+  'the shared account of MonitorEO: no need to sign in (to use yours, choose your project)':
+    'la cuenta compartida de MonitorEO: no hace falta iniciar sesión (para usar la tuya, elige tu proyecto)',
+  'The shared account of MonitorEO (no project)': 'La cuenta compartida de MonitorEO (sin proyecto)',
+  'Another project… (write it)': 'Otro proyecto… (escríbelo)',
+  'your Google Cloud project registered in Earth Engine': 'tu proyecto de Google Cloud registrado en Earth Engine',
+  'The Google Cloud projects of your Google account registered in Earth Engine':
+    'Los proyectos de Google Cloud de tu cuenta de Google registrados en Earth Engine',
+  'Looks again for the projects of your Google account registered in Earth Engine':
+    'Vuelve a buscar los proyectos de tu cuenta de Google registrados en Earth Engine',
+  'Look again': 'Buscar de nuevo',
+  'looking for the projects of your Google account…': 'buscando los proyectos de tu cuenta de Google…',
+  'No project of your account registered in Earth Engine was found (Google does not let MonitorEO list them all): write yours, or':
+    'No se ha encontrado ningún proyecto de tu cuenta registrado en Earth Engine (Google no deja a MonitorEO listarlos todos): escribe el tuyo, o',
+  'register one': 'registra uno',
   'Language model': 'Modelo de lenguaje',
   'The model of MonitorEO, in the cloud: nothing to install': 'El modelo de MonitorEO, en la nube: no hay que instalar nada',
   'A model on this computer (Ollama): answers worse': 'Un modelo en este ordenador (Ollama): responde peor',
@@ -561,6 +542,7 @@ const PREFIXES = {
   'What it is (manual): ': 'Qué es (manual): ', 'For ': 'Para ',
   'Ollama is needed: install it from ': 'Hace falta Ollama: instálalo desde ',
   'Ollama does not answer at ': 'Ollama no responde en ', 'Study area ': 'Zona de estudio ',
+  'Your projects could not be listed: ': 'No se han podido listar tus proyectos: ',
 };
 const PATTERNS = [
   [/^MonitorEO (\S+) · released (\S+)$/, 'MonitorEO $1 · publicado el $2'],
@@ -592,6 +574,9 @@ const PATTERNS = [
   [/^There is a new version of MonitorEO \((.+)\); you have (.+)$/, (m, a, b) => `Hay una versión nueva de MonitorEO (${a}); tienes la ${b === 'an older one' ? 'anterior' : b}`],
   [/^The model (\S+) has to be downloaded(?:: about (.+) GB)?\. Only the first time: afterwards it works without downloading anything\. Press Download\.$/,
    (m, n, gb) => `Hay que descargar el modelo ${n}${gb ? `: unos ${gb} GB` : ''}. Solo la primera vez: después funciona sin descargar nada. Pulsa Descargar.`],
+  [/^(\d+) (project|projects) of (.+) registered in Earth Engine(; if yours is not in the list, choose «Another project…»)?$/,
+   (m, n, p, who, more) => `${n} ${p === 'project' ? 'proyecto' : 'proyectos'} de ${who === 'your account' ? 'tu cuenta' : who} ` +
+     `registrado${p === 'project' ? '' : 's'} en Earth Engine${more ? '; si el tuyo no está en la lista, elige «Otro proyecto…»' : ''}`],
   [/^✓ (\S+) is downloaded on this computer already: nothing to download\.$/, '✓ $1 ya está descargado en este ordenador: no hay nada que descargar.'],
 ];
 const SKIP = 'script, style, code, .msg, [translate="no"]';  // what is never translated
@@ -706,13 +691,14 @@ async function refresh() {
   $('version').textContent = 'MonitorEO ' + state.version + (state.released ? ' · released ' + state.released : '');
   const own = !!state.project, accountOk = !own || state.signed_in;
   $('account').textContent = !own ? 'the shared account of MonitorEO: no need to sign in' +
-      (state.signed_in ? ' (to use yours, write your project)' : '') :
+      (state.signed_in ? ' (to use yours, choose your project)' : '') :
     state.signed_in ? 'your Google account (signed in on this computer)' :
     'to compute with your project, sign in with your Google account';
   $('account').className = accountOk ? 'ok' : 'muted';
   $('signin').textContent = state.signed_in ? 'Change account' : 'Use my Google account';
   $('signout').hidden = !state.signed_in;
   if (document.activeElement !== $('project')) $('project').value = state.project || '';
+  renderProjects();
   const select = $('model'), names = state.models || [], rec = state.recommended || [];
   if (document.activeElement !== select) {  // not while the user chooses
     const label = (name, m) => [name + (m && m.note === 'recommended' ? ' (recommended)' : ''),
@@ -792,47 +778,98 @@ async function refresh() {
   if (up) $('update').title = `There is a new version of MonitorEO (${up.latest}); you have ${up.current || 'an older one'}`;
   renderLayers(state.layers || []);
   renderDocuments(state.documents || [], state.documents_used, state.documents_max);
-  $('tierRow').hidden = !own;
-  if (document.activeElement !== $('tier')) $('tier').value = state.eecu_tier || 'Community';
-  renderEecu(state.eecu);
-  if (!state.eecu && accountOk && state.server && !refresh.eecu) { refresh.eecu = true; checkEecu(false); }
+  if (state.signed_in && !state.projects && !findProjects.busy && !findProjects.failed) findProjects(false);
+  if (!state.signed_in) findProjects.failed = false;
 }
 
-// --- EECU: the compute of Earth Engine spent this month ---------------------------------------------------------
-function renderEecu(u) {  // the bar of the research EECUs (shared account) or of the EECU of the user's project
-  const box = $('eecu');
-  box.hidden = !u;
-  if (!u) return;
-  const meter = $('eecuMeter');
-  if (u.error) {
-    box.classList.remove('low');
-    $('eecuName').textContent = 'EECUs of this month';
-    $('eecuFill').style.width = '0';
-    meter.removeAttribute('aria-valuenow');
-    $('eecuText').textContent = 'they cannot be checked: ' + u.error;
+// --- the projects of the Google account of the user --------------------------------------------------------------
+const SHARED = '', OTHER = '\u0000other';  // the values of the list of projects: the shared account, another one
+
+function renderProjects() {  // the list of the projects of the account signed in (state.projects), or the field
+  const list = $('projectChoice'), found = state.signed_in && state.projects ? state.projects.projects : null;
+  list.hidden = !found;
+  $('findProjects').hidden = !state.signed_in;
+  if (!found) {
+    $('project').placeholder = 'empty: the shared account of MonitorEO · or your Google Cloud project registered in Earth Engine';
+    $('project').hidden = false; $('saveProject').hidden = false;
     return;
   }
-  const used = Math.min(100, Math.max(0, 100 - u.left_percent));  // what can no longer be used (also by the project)
-  box.classList.toggle('low', u.low);
-  meter.className = 'meter' + (u.low ? ' low' : used >= 75 ? ' mid' : '');
-  $('eecuFill').style.width = used + '%';
-  meter.setAttribute('aria-valuenow', String(used));
-  $('eecuName').textContent = u.name + ' of this month';
-  const shared = u.account === 'shared';
-  $('eecuText').textContent = `${fmt(u.used_percent)}% spent (${fmt(u.used_hours)} of ${shared ? 'your ' : ''}` +
-    `${fmt(u.limit_hours)} EECU-h` + (u.tier ? ', tier ' + u.tier : '') + `); ${fmt(u.left_percent)}% left` +
-    (shared && u.left_hours < u.limit_hours - u.used_hours - 0.005 ? ' (the shared account has little left)' : '');
-  box.title = u.text;
+  const current = state.project || '', known = found.some(p => p.project === current);
+  if (document.activeElement !== list) {
+    list.replaceChildren(
+      el('option', {value: SHARED, text: 'The shared account of MonitorEO (no project)'}),
+      ...found.map(p => el('option', {value: p.project, text: p.project +
+        (p.name && p.name !== p.project ? ' · ' + p.name : '') + (p.registration === 'commercial' ? ' · commercial' : '')})),
+      el('option', {value: OTHER, text: 'Another project… (write it)'}));
+    if (!list.dataset.other) list.value = !current ? SHARED : known ? current : OTHER;
+  }
+  const other = list.value === OTHER;
+  $('project').placeholder = 'your Google Cloud project registered in Earth Engine';
+  $('project').hidden = !other;
+  $('saveProject').hidden = !other;
+  if (!$('projectMsg').dataset.busy) {
+    const msg = $('projectMsg');
+    msg.className = 'muted';
+    if (!found.length) {
+      msg.replaceChildren('No project of your account registered in Earth Engine was found (Google does not let ' +
+        'MonitorEO list them all): write yours, or ', el('a', {href: state.projects.register, target: '_blank',
+        rel: 'noopener', text: 'register one'}), '.');
+    } else {
+      msg.textContent = found.length + (found.length === 1 ? ' project' : ' projects') + ' of ' +
+        (state.projects.account || 'your account') + ' registered in Earth Engine' +
+        (other ? '' : '; if yours is not in the list, choose «Another project…»');
+    }
+  }
 }
 
-async function checkEecu(again) {
-  $('eecuCheck').disabled = true;
-  try { renderEecu((await api('/api/eecu', {refresh: again})).usage); }
-  catch (e) { renderEecu({error: e.message}); }
-  $('eecuCheck').disabled = false;
+async function findProjects(again) {  // asks the assistant for them (it asks Earth Engine, without computing)
+  findProjects.busy = true;
+  const msg = $('projectMsg');
+  msg.dataset.busy = '1';
+  msg.className = 'muted';
+  msg.textContent = 'looking for the projects of your Google account…';
+  $('findProjects').disabled = true;
+  try {
+    state.projects = await api('/api/projects', {refresh: again});
+    findProjects.failed = false;
+    delete msg.dataset.busy;
+  } catch (e) {
+    findProjects.failed = true;
+    delete msg.dataset.busy;
+    msg.textContent = 'Your projects could not be listed: ' + e.message;
+  }
+  findProjects.busy = false;
+  $('findProjects').disabled = false;
+  renderProjects();
 }
 
-$('eecuCheck').onclick = () => checkEecu(true);
+async function saveProject(project) {
+  const msg = $('projectMsg');
+  msg.dataset.busy = '1';
+  msg.textContent = 'checking…';
+  try {
+    const r = await api('/api/settings', {project});
+    msg.textContent = r.message || 'saved';
+  } catch (e) { msg.textContent = e.message; }
+  setTimeout(() => { delete msg.dataset.busy; }, 6000);  // then the line of the projects again
+  refresh();
+}
+
+$('projectChoice').onchange = () => {
+  const list = $('projectChoice');
+  if (list.value === OTHER) {
+    list.dataset.other = '1';
+    renderProjects();
+    $('project').value = '';
+    $('project').focus();
+    return;
+  }
+  delete list.dataset.other;
+  list.blur();
+  saveProject(list.value);
+};
+$('findProjects').onclick = () => findProjects(true);
+
 $('feedbackButton').onclick = () => {
   const box = $('feedback');
   box.hidden = !box.hidden;
@@ -852,11 +889,6 @@ $('logsSend').onclick = async () => {
     $('logsSend').disabled = false;
   }
 };
-$('tier').onchange = async () => {
-  try { await api('/api/settings', {eecu_tier: $('tier').value}); } catch (e) { notice(e.message, true); }
-  refresh();
-};
-
 // --- layers -------------------------------------------------------------------------------------------------------
 function renderLayers(layers) {
   const box = $('layers');
@@ -969,7 +1001,10 @@ $('signin').onclick = async () => {
   $('account').textContent = 'complete the sign-in in the tab of the browser that has opened…';
   try { await api('/api/signin', {}); } catch (e) { notice('Sign-in: ' + e.message, true); }
   $('signin').disabled = false;
-  refresh();
+  state.projects = null;  // those of the account that has signed in
+  findProjects.failed = false;
+  await refresh();
+  if (state.signed_in && !findProjects.busy) findProjects(true);
 };
 
 $('signout').onclick = async () => {
@@ -987,14 +1022,7 @@ $('signout').onclick = async () => {
   refresh();
 };
 
-$('saveProject').onclick = async () => {
-  $('projectMsg').textContent = 'checking…';
-  try {
-    const r = await api('/api/settings', {project: $('project').value});
-    $('projectMsg').textContent = r.message || 'saved';
-  } catch (e) { $('projectMsg').textContent = e.message; }
-  refresh();
-};
+$('saveProject').onclick = () => saveProject($('project').value);
 
 const PULL = {'pulling manifest': 'Preparing the download', 'verifying sha256 digest': 'Checking the download',
               'writing manifest': 'Installing', 'success': 'Downloaded'};
@@ -1720,8 +1748,6 @@ function show(e) {
   else if (e.type === 'seas') $('chat').append(seasCard(e));
   else if (e.type === 'notice') notice(e.text);
   else if (e.type === 'layers') renderLayers(e.layers);  // a study area made by a result: the perimeter of a fire
-  else if (e.type === 'eecu') renderEecu(e.usage);
-  else if (e.type === 'eecu_warning') notice('⚠ ' + e.text, true);
   else if (e.type === 'quota_warning') notice('⚠ ' + e.text, true);  // Earth Engine in restricted mode: it is slow
   else if (e.type === 'data_warning') notice('⚠ ' + e.text, true);  // days of the period without images of its data
   else if (e.type === 'other_tool') $('chat').append(el('div', {class: 'notice'}, 'For ' + e.what + ', MonitorEO has ',

@@ -110,7 +110,7 @@ def test_the_tools(monkeypatch, tmp_path, capsys):
 	# an ID that find_datasets gives is valid: said where the instructions say which ones are
 	assert 'describe_asset, find_datasets, community_datasets' in ' '.join(mcp_server.INSTRUCTIONS.split())
 	assert 'the user gives it, find_datasets finds those of the Earth Engine data catalog' in assistant.instructions()
-	assert 'find_datasets' in assistant.ADVICE and 'find_datasets' in mcp_server.NO_EECU_WARNING
+	assert 'find_datasets' in assistant.ADVICE and 'find_datasets' in mcp_server.NO_QUOTA_WARNING
 	text = assistant.data_text('find_datasets', json.dumps(rows))
 	assert text.startswith('2 datasets of the Earth Engine data catalog') and '- MODIS/061/MOD10A1 (image collection' in text
 	assert assistant.data_text('find_datasets', '[]').startswith('No dataset of the Earth Engine data catalog')

@@ -179,7 +179,7 @@ def test_every_tool_explains_it():
 	assert '"landcover": "CORINE"' in mcp_server.INSTRUCTIONS
 	assert '"landcover": "CORINE"' in mcp_server.map_layer.__doc__  # every tool with where (tests/test_where.py)
 	assert json.loads(mcp_server.landcover_maps('en'))['maps'][0]['key'] == 'WorldCover'
-	assert 'landcover_maps' in assistant.ADVICE and 'landcover_maps' in mcp_server.NO_EECU_WARNING
+	assert 'landcover_maps' in assistant.ADVICE and 'landcover_maps' in mcp_server.NO_QUOTA_WARNING
 	assert 'landcover' in assistant.PROMPT and 'landcover_maps' in assistant.LABELS
 	assert 'landcover' in cli.WHERE_HELP
 	assert 'landcover' in inspect.getsource(services.make_spec)

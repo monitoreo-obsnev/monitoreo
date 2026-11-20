@@ -87,7 +87,6 @@ def calls(monkeypatch):
 		return {'rows': _rows() if doy else [], 'csv': csv, 'chart': None, 'scale': 500.0, 'unit': '', 'ylabel': '',
 		        'title': 'NDSI', 'n_steps': 6, 'regions': ['park']}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'time_series', fake)
 	return out
 

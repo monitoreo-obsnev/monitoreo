@@ -147,7 +147,6 @@ def test_the_command_line_takes_the_percentiles(monkeypatch, tmp_path, capsys):
 		                                                                                         True)}
 
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'timelapse', timelapse)
 	monkeypatch.setattr(services, 'download_image', download_image)
 	region = json.dumps({'bbox': [-3.45, 37.02, -3.3, 37.12]})

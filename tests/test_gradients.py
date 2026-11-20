@@ -335,7 +335,6 @@ def calls(monkeypatch):
 		        'length_m': 1000.0, 'spacing': 1000.0, 'scale': 1000.0, 'unit': '[°C]', 'title': 'LST along a line',
 		        'csv': csv, 'chart': None}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'region_stats', stats)
 	monkeypatch.setattr(services, 'transect', transect)
 	return out
