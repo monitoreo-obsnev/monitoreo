@@ -2039,7 +2039,7 @@ class Assistant:
 		table = report.item_table(tool, result, args)
 		card = {'id': item['id'], 'title': item['title'], 'image': item['image'],
 		        'facts': _facts(tool, args, result, self.all_names()) + report.view_facts(item), 'table': None,
-		        'files': [], 'legend': None, 'references': [], 'credits': []}
+		        'files': [], 'legend': None, 'references': [], 'credits': [], 'manual': self.manual_links(item)}
 		try:  # what to cite with it (its references never stop the page)
 			cited = report.item_references(tool, args, result)
 			card['references'] = [{'citation': r['citation'], 'url': r.get('url')} for r in cited['references']]
@@ -2075,6 +2075,22 @@ class Assistant:
 				card.update(map=shown['map'], heading=shown['heading'], rgb=shown['rgb'])
 				card.update(self.steps_card(item))
 		return card
+
+	def manual_links(self, item):
+		"""The sections of the manual (the wiki) that explain the variables of the result ITEM (its manual, or those of
+		its arguments: see monitoreo.wiki.variable_links), in the language of the user (that of their last question):
+		[{'variable', 'title', 'url'}]."""
+		from . import wiki
+		result = item.get('result')
+		links = (result.get('manual') if isinstance(result, dict) else None) or wiki.variable_links(item.get('args'))
+		try:
+			said = self.said() or ['']
+		except AttributeError:  # without a conversation yet
+			said = ['']
+		spanish = manual.language(said[-1]) == 'es'
+		return [{'variable': link['variable'], 'title': link['title'],
+		         'url': link.get('url_es') if spanish and link.get('url_es') else link['url']}
+		        for link in links if isinstance(link, dict) and link.get('url')]
 
 	def heading(self, m):
 		"""The title over the map M on the page: that of the map (its own period, season and region) with the full name

@@ -1093,3 +1093,16 @@ test_that("data of Earth Engine by its ID with Earth Engine", {
   expect_error(mo_time_series(region, collection = "WORLDCLIM/V1/BIO", band = "bio01", start = "2021-01-01",
                               end = "2021-06-30"), "give it as image=")
 })
+
+test_that("the sections of the manual of the variables of a result", {
+  wiki <- reticulate::import("monitoreo.wiki", convert = TRUE)
+  res <- list(manual = wiki$variable_links(list(variable = "NDVI", other_variable = "NDSI")))
+  out <- capture.output(urls <- mo_manual(res))
+  expect_equal(names(urls), c("NDVI", "NDSI"))
+  expect_match(urls[["NDVI"]], "wiki/Concepts#ndvi-normalized-difference-vegetation-index$")
+  expect_match(out[1], "^NDVI: Normalized Difference Vegetation Index: https://")
+  capture.output(es <- mo_manual(res, "es"))
+  expect_match(es[["NDVI"]], "wiki/Conceptos#ndvi-")
+  df <- structure(data.frame(x = 1), manual = res$manual)  # a data.frame with its attribute (cited)
+  capture.output(expect_equal(mo_manual(df), urls))
+})

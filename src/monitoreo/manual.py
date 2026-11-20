@@ -255,3 +255,4 @@ def _anchor(title):
 	"""The anchor of a heading in GitHub: 'Paquete de Python (también…)' -> 'paquete-de-python-también…', 'How to
 	cite' -> 'how-to-cite'."""
 	return re.sub(r'[^\w\- ]', '', title.strip().lower()).replace(' ', '-')
+

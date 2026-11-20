@@ -96,6 +96,10 @@
 			tools.append(...[r.chart !== 'table' && toggle, link(r.csv, 'Download the CSV'), r.png && link(r.png, 'Chart (PNG)')].filter(Boolean));
 		}
 		section.append(tools);
+		if (r.manual?.length) {  // what each variable is: its section of the manual (the wiki)
+			section.append(el('p', {class: 'result-refs'}, 'What it is (manual): ', r.manual.map((m, i) =>
+				[i ? ' · ' : '', el('a', {href: m.url, target: '_blank', rel: 'noopener'}, m.title)])));
+		}
 		if (r.references?.length && report.references?.length) {
 			section.append(el('p', {class: 'result-refs'}, 'References: ', r.references.map((n, i) =>
 				[i ? ', ' : '', el('a', {href: `#ref-${n}`}, `[${n}]`)])));

@@ -94,6 +94,33 @@ mo_references <- function(x = NULL) {
   invisible(refs)
 }
 
+#' The sections of the manual that explain the variables of a result
+#'
+#' Every result of MonitorEO about variables carries the links to the sections of its manual (the wiki of the
+#' repository) that explain each of its variables: what it measures, how it is computed and its references. They are
+#' those of the variable, of \code{other_variable}, of the zones and of the conditions of \code{where}; the data of
+#' Earth Engine by their ID link to their own section.
+#' @param x a result of MonitorEO: a data.frame (\code{mo_time_series()}, ...) or a list (\code{mo_map_layer()},
+#'   \code{mo_download_image()}, ...).
+#' @param lang \code{"en"} (English, the default) or \code{"es"} (Spanish).
+#' @return The links, named after their variables, invisibly; it prints them, one per line, with their titles.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' ts <- mo_time_series(mo_wdpa(389011), "NDVI", "Modis", "2020-01-01", "2020-12-31")
+#' mo_manual(ts)
+#' mo_manual(ts, "es")
+#' }
+#' @export
+mo_manual <- function(x, lang = c("en", "es")) {
+  lang <- match.arg(lang)
+  links <- if (!is.null(attr(x, "manual"))) attr(x, "manual") else if (is.list(x)) x$manual else NULL
+  urls <- vapply(links, function(l) if (lang == "es") l$url_es else l$url, "")
+  names(urls) <- vapply(links, function(l) l$variable, "")
+  for (i in seq_along(links)) cat(links[[i]]$title, ": ", urls[[i]], "\n", sep = "")
+  invisible(urls)
+}
+
 # The references and credits of the answer RES of Python as attributes of the data.frame DF (see mo_references()),
 # and the README of its files (readme), and the JSON of its parameters (parameters).
 cited <- function(df, res) {
@@ -101,6 +128,7 @@ cited <- function(df, res) {
   attr(df, "credits") <- as.character(unlist(res$credits))
   attr(df, "readme") <- if (is.null(res$readme)) NULL else unlist(res$readme)
   attr(df, "parameters") <- res$parameters  # the JSON of its parameters (mo_run_parameters() repeats it)
+  attr(df, "manual") <- res$manual  # the sections of the wiki that explain its variables (mo_manual())
   # the data of its values, e.g. "COPERNICUS/S2_SR_HARMONIZED (Harmonized Sentinel-2 MSI, Level-2A (SR))" (mo_plot()
   # writes it under the chart), and the warnings of its period
   attr(df, "data_source") <- if (is.null(res$data_source)) NULL else as.character(res$data_source)

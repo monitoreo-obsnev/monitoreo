@@ -784,7 +784,15 @@ def main(argv=None):
 def _documented(res):
 	"""The README and the parameters (monitoreo.parameters) written with the files of a result RES, for its line."""
 	return ''.join(f' | {label} {res[k]}' for k, label in (('readme', 'README'), ('parameters', 'parameters'))
-	               if res.get(k))
+	               if res.get(k)) + _manual(res)
+
+
+def _manual(res):
+	"""The sections of the manual (the wiki) that explain the variables of the result RES (its manual), each in a line
+	of its own after the line of the result."""
+	links = res.get('manual') if isinstance(res, dict) else None
+	return ''.join(f"\n  What {link['variable']} is: {link['url']}" for link in links or [] if isinstance(link, dict)
+	               and link.get('url'))
 
 
 def _parameters(args, parser, quiet=False):
@@ -974,7 +982,8 @@ def _compute(args, services):
 		return
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
-	      + files)
+	      + files
+	      + _manual(res))
 
 
 def _axis(lim):
@@ -997,7 +1006,8 @@ def _profile(res, services, files):
 	else:
 		what = (f" | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')
 		        + f" | y axis {_axis(res.get('ylim'))}")
-	print(f"\n{res['title']}{what}{files}")
+	print(f"\n{res['title']}{what}{files}"
+	      + _manual(res))
 
 
 def _image(args, services):
@@ -1052,7 +1062,8 @@ def _stats(args, services):
 		shown.insert(shown.index('mode') + 1 if 'mode' in shown else len(shown), 'mode_label')
 	_table(_fmt(res['rows']), ['region'] + (['zone_label'] if args.zones else []) + shown + ['n_pixels'])
 	cv = ' | cv in %' if any(str(s).lower() == 'cv' for s in res.get('stats') or stats or []) else ''
-	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv)
+	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '') + cv
+	      + _manual(res))
 
 
 def _areas(args, services):
@@ -1074,7 +1085,8 @@ def _areas(args, services):
 			print(f"{region}: changed {ha:.1f} ha, unchanged {res['unchanged_ha'][region]:.1f} ha (by class of the map)")
 		print(f"\n{res['title']} | pixels of {res['scale']:g} m | the broad land covers; every pair of classes in the CSV"
 		      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | Sankey {res['chart']}" if res.get('chart')
-		                                                              else ''))
+		                                                              else '')
+		      + _manual(res))
 		return
 	cols = ['region', 'class', 'label'] + (['landcover'] if res['mode'] == 'landcover' else []) + \
 		(['group_label'] if res.get('by_group') is not None else []) + ['ha', 'percent']  # the biome of an ecoregion
@@ -1114,7 +1126,8 @@ def _transect(args, services):
 	_table(_fmt(res['rows']), ['distance_m', 'value', 'elevation', 'lon', 'lat'])
 	print(f"\n{res['title']} | segments of {res['spacing']:.4g} m | elevation in m"
 	      + (f" | unit {res['unit']}" if res['unit'] else '') + (f" | CSV {res['csv']}" if res.get('csv') else '')
-	      + (f" | chart {res['chart']}" if res.get('chart') else ''))
+	      + (f" | chart {res['chart']}" if res.get('chart') else '')
+	      + _manual(res))
 
 
 def _fmt(rows, digits=4):
@@ -1142,7 +1155,8 @@ def _trend_or_compare(args, services):
 		                              'n_other'])
 		extra = ''
 	print(f"\n{res['title']} | scale {res['scale']:g} m{extra}"
-	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else ''))
+	      + (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
+	      + _manual(res))
 
 
 def _burn(args, services):
@@ -1186,7 +1200,8 @@ def _burn(args, services):
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
 	      + (f" | perimeter {res['perimeter']}" if res.get('perimeter') else '')
-	      + _documented(res))
+	      + _documented(res)
+	      + _manual(res))
 
 
 def _publish(args):

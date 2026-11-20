@@ -13,7 +13,7 @@ import threading
 
 import pytest
 
-from monitoreo import publish, services
+from monitoreo import publish, services, wiki
 
 gdal = pytest.importorskip('osgeo.gdal')
 gdal.UseExceptions()
@@ -136,6 +136,10 @@ def test_report(outputs):
 
 	m, series, trend = r['results']
 	assert (m['kind'], series['chart'], trend['chart']) == ('map', 'series', 'trends')
+	# what the variable is: its section of the wiki, under each result (monitoreo.wiki)
+	assert all(x['manual'] == [{'variable': 'EVI', 'title': 'EVI: Enhanced Vegetation Index',
+	                            'url': wiki.variable_section('EVI')['url'],
+	                            'url_es': wiki.variable_section('EVI')['url_es']}] for x in (m, series, trend))
 	assert m['cog'] == 'maps/trend_EVI_Modis_annual_None_2001-01-01_2024-12-31.tif'  # without the time of the file
 	assert 'LAYOUT=COG' in gdal.Info(str(folder / m['cog']))
 	assert m['crs'] == 'EPSG:32630' and m['proj4'].startswith('+proj=utm +zone=30') and m['size'] == [20, 15]

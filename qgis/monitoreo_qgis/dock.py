@@ -234,6 +234,7 @@ def dated(layer, first, last):
 
 
 CREDITS_HEADING = 'Credits of the data:'  # in the abstract of a layer, before its credits (see figure_layout)
+MANUAL_HEADING = 'What it is (manual of MonitorEO):'  # the sections of the wiki of its variables (res['manual'])
 REFERENCES_HEADING = 'References (cite them with this layer):'  # before its references (and its credits, earlier)
 
 
@@ -244,7 +245,9 @@ def references_text(res):
 	refs = [r['text'] for r in res.get('references') or []]
 	credits = ([f"Data: {res['data_source']}"] if res.get('data_source') else []) + \
 		[c for c in res.get('credits') or [] if c]
-	return (((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
+	links = [f"{m['title']}: {m['url']}" for m in res.get('manual') or [] if isinstance(m, dict) and m.get('url')]
+	return (((f'\n\n{MANUAL_HEADING}\n' + '\n'.join(links)) if links else '') +  # what each variable is
+	        ((f'\n\n{REFERENCES_HEADING}\n' + '\n'.join(refs)) if refs else '') +
 	        ((f'\n\n{CREDITS_HEADING}\n' + '\n'.join(credits)) if credits else ''))
 
 

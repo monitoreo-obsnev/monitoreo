@@ -913,11 +913,23 @@ def _item(item, n, names, annex, refs=()):
 	files = [result.get(k) for k in ('csv', 'file') if isinstance(result, dict) and result.get(k)]
 	if files:
 		out.append('<p class="note">Files: ' + ' · '.join(_e(f) for f in files) + '</p>')
+	links = manual_links(args, result)
+	if links:  # what each variable is: its section of the manual (the wiki)
+		out.append('<p class="note">What it is (manual of MonitorEO): ' + ' · '.join(
+			f'<a href="{_e(link["url"])}">{_e(link["title"])}</a>' for link in links) + '</p>')
 	call = python_call(tool, args)
 	if call:
 		out.append(f'<h3>To reproduce it in Python</h3><code>import monitoreo.services as mo<br>{_e(call)}</code>')
 	out.append('</section>')
 	return ''.join(out)
+
+
+def manual_links(args, result=None):
+	"""The sections of the manual (the wiki) that explain the variables of a result: its manual or, for a result
+	without it, those of its arguments ARGS (see monitoreo.wiki.variable_links)."""
+	from . import wiki
+	links = result.get('manual') if isinstance(result, dict) else None
+	return [link for link in links or wiki.variable_links(args) if isinstance(link, dict) and link.get('url')]
 
 
 # the base maps of the interactive map of the assistant, to draw its views (map_view): tiles {z}/{x}/{y}, or WMS

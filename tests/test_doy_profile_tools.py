@@ -11,7 +11,7 @@ import re
 
 import pytest
 
-from monitoreo import report, services, timeseries
+from monitoreo import report, services, timeseries, wiki
 
 REGION = {'bbox': [-3.62, 36.86, -3.50, 36.93]}
 PERIOD = ['--start', '2021-01-01', '--end', '2023-12-31']
@@ -68,7 +68,10 @@ def test_the_command_line_draws_two_indices_on_two_axes(connected, capsys, tmp_p
 	assert out[1].split() == ['park', 'NDSI', 'Sentinel-2', '1', '1', 'Jan', '0.5', '3']  # the median of 3 Januaries
 	assert out[13].split()[:6] == ['park', 'NDVI', 'Sentinel-2', '1', '1', 'Jan']  # then the other variable
 	assert len([line for line in out if line.startswith('park')]) == 2 * 12
-	last = out[-1]
+	# then the sections of the manual of both variables (see monitoreo.wiki.variable_links)
+	assert out[-2:] == ['  What NDSI is: ' + wiki.variable_section('NDSI')['url'],
+	                    '  What NDVI is: ' + wiki.variable_section('NDVI')['url']]
+	last = out[-3]
 	assert last.startswith('NDSI Sentinel-2 and NDVI Sentinel-2 | 2021-01-01 / 2023-12-31 | monthly mean, spatial '
 	                       'mean | median of the years by day of the year')
 	assert ' | scale NDSI Sentinel-2 10 m, NDVI Sentinel-2 10 m | units NDSI Sentinel-2 [unitless], NDVI Sentinel-2 ' \
@@ -86,9 +89,10 @@ def test_the_command_line_with_one_index_and_a_metric_between_the_years(connecte
 	out = capsys.readouterr().out.splitlines()
 	assert out[0].split() == [c for c in timeseries.PROFILE_COLUMNS if c != 'variable']  # one variable
 	assert out[2].split()[:4] == ['park', '1', '17', 'Jan']  # the second 16-day period, on 17 January
-	assert out[-1].endswith('| p25 of the years by day of the year | scale 10 m | unit [unitless] | y axis -0.5 to 0.8')
+	assert out[-1] == '  What NDSI is: ' + wiki.variable_section('NDSI')['url']  # the manual of the variable
+	assert out[-2].endswith('| p25 of the years by day of the year | scale 10 m | unit [unitless] | y axis -0.5 to 0.8')
 	cli.main(SERIES + ['--doy', '--interannual', 'cv'])  # without --ylim: the y axis from the data
-	last = capsys.readouterr().out.splitlines()[-1]
+	last = capsys.readouterr().out.splitlines()[-2]  # then the line of the manual of the variable
 	assert last.endswith('| cv of the years by day of the year | scale 10 m | unit [%] | y axis from the data')
 
 

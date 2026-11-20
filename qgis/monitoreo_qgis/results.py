@@ -300,8 +300,11 @@ def notes_label(res):
 def references_box(res):
 	"""A box with the references and credits of the result RES (with the links of their DOIs) and the parameters of
 	its analysis, or None if it has neither."""
-	from .helptexts import cite_html
-	text = cite_html(res.get('references'), res.get('credits') or (), 'References (cite them with this result)')
+	from .helptexts import cite_html, esc
+	links = [m for m in res.get('manual') or [] if isinstance(m, dict) and m.get('url')]  # what each variable is
+	text = ('<p><b>What it is (manual of MonitorEO):</b> ' + ' · '.join(
+		f'<a href="{esc(m["url"])}">{esc(m["title"])}</a>' for m in links) + '</p>' if links else '') + \
+		cite_html(res.get('references'), res.get('credits') or (), 'References (cite them with this result)')
 	p = result_parameters(res)
 	if p:
 		text += parameters_html(p)

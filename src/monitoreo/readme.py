@@ -441,8 +441,18 @@ def text(tool, args, result, computed=None):
 	out += [_wrap(f'- {r}', '  ', '    ') for r in references.texts({'references': cited['references']})]
 	if cited.get('credits'):
 		out.append(_wrap('Credits of the data: ' + '; '.join(cited['credits']) + '.'))
-	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')]
+	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')] + manual_lines(args, result)
 	return '\n'.join(out) + '\n'
+
+
+def manual_lines(args, result=None):
+	"""The lines of a README with the sections of the manual (the wiki) that explain the variables of the result (its
+	manual, or those of ARGS: see monitoreo.wiki.variable_links), in English and in Spanish."""
+	from . import wiki
+	links = (result or {}).get('manual') if isinstance(result, dict) else None
+	links = links or wiki.variable_links(args)
+	return [_wrap(f"What {link['variable']} is: {link['title']}, {link['url']} (en español: {link['url_es']})", '', '  ')
+	        for link in links]
 
 
 def _class_zones(args):
@@ -555,7 +565,7 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 		out += [_wrap(f'- {r}', '  ', '    ') for r in references.texts({'references': result['references']})]
 		if result.get('credits'):
 			out.append(_wrap('Credits of the data: ' + '; '.join(result['credits']) + '.'))
-	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')]
+	out += ['', _wrap(f'Manual of MonitorEO: {about.MANUAL}/English', '', '')] + manual_lines({}, result)
 	path = os.path.join(folder, 'README.txt')
 	with open(path, 'w', encoding='utf-8') as fh:
 		fh.write('\n'.join(out) + '\n')

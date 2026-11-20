@@ -1031,9 +1031,13 @@ def build(spec, rid, base, folders, log, folder):
 	published = str(spec.get('published') or dt.date.today().isoformat())[:10]
 	refs, credits, numbers = references.of_items(items, dt.date.fromisoformat(published))
 	results = []
+	from .report import manual_links
 	for it, nums in zip(items, numbers):
+		links = manual_links(it.get('args'), it.get('result'))  # what each variable is: its section of the wiki
 		for r in _results(it, files, len(results)):
 			r['references'] = nums  # numbers (from 1) of its references in those of the report
+			if links:
+				r['manual'] = [{k: link.get(k) for k in ('variable', 'title', 'url', 'url_es')} for link in links]
 			results.append(r)
 	_link_trends(results, folder)
 	for d in _list(spec.get('downloads')):

@@ -312,6 +312,16 @@ layer = QgsRasterLayer(path, 'three')
 rgb(layer, 0.02, 0.28)
 assert stretch(layer) == (0.02, 0.28)
 print('rgb():', layer.renderer().type(), [layer.bandName(i) for i in (1, 2, 3)])
+# what each variable is (the sections of the wiki of the result: res['manual']), in the abstract of its layers and in
+# the box of the references of its windows
+from monitoreo import wiki  # noqa: E402
+from monitoreo_qgis import results as result_windows  # noqa: E402
+links = {'manual': wiki.variable_links({'variable': 'NDVI'})}
+assert monitoreo_qgis.dock.references_text(links).startswith(
+	'\n\nWhat it is (manual of MonitorEO):\nNDVI: Normalized Difference Vegetation Index: https://github.com/')
+box = result_windows.references_box(dict(links, references=[{'citation': 'A (2020).', 'url': None, 'text': 'A'}]))
+assert 'What it is (manual of MonitorEO)' in box.toHtml() and wiki.variable_section('NDVI')['url'] in box.toHtml()
+print('manual links: OK')
 plugin.unload()
 QgsProject.instance().removeAllMapLayers()
 print('OK')
