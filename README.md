@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.61](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.61) · 2026-11-20 · package 0.3.71
 
 - **All tools**: Next to the results of a variable there is a link to the section of the manual (the wiki) that explains it, what it measures and how it is computed: one for each variable of the result (also those of the right axis, of the zones and of the conditions of where), and for the data of Earth Engine by their ID their own section. It is in the card of each result of the assistant (in the language of the question), in its reports and in the results viewer, in the windows and layers of the QGIS plugin, under the results of the Earth Engine app, in the README of every file, after the results of the command line, in the answers of the MCP server (`manual`, with the links in English and Spanish) and in R (`mo_manual()`).
 

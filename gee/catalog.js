@@ -23,8 +23,8 @@ var CATALOG = {
     "issue": "En GitHub: público, con una cuenta de GitHub; puedes pegar pantallazos y seguir la respuesta"
    },
    "links": {
-    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.70",
-    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.70"
+    "form": "https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?usp=pp_url&entry.1706228456=Earth+Engine+app+%2F+App+de+Earth+Engine&entry.1533130685=0.3.71",
+    "issue": "https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=Earth+Engine+app&version=0.3.71"
    }
   },
   "logos": [
@@ -36,7 +36,7 @@ var CATALOG = {
   "name": "MonitorEO-OBSNEV",
   "released": "2026-11-20",
   "repository": "https://github.com/monitoreo-obsnev/monitoreo",
-  "version": "0.3.70"
+  "version": "0.3.71"
  },
  "classes": {
   "biomes": {
