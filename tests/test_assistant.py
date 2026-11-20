@@ -2758,3 +2758,36 @@ def test_the_range_of_the_colours_of_the_dates_and_its_errors(monkeypatch):
 	assert a.card(a.results[-1])['range'] is False
 	with pytest.raises(ValueError, match='tau and p-value'):
 		asyncio.run(a.set_range(9, '', [2, 98]))
+
+
+def test_the_page_in_spanish():
+	"""The page has a choice of language (English or Spanish) at its top, kept in the settings (ui_lang); its texts
+	are translated by their English text (never the messages of the user nor the answers of the model), and the
+	clicked texts that ask for a computation follow the language of the page when the user has not written yet."""
+	page = open(os.path.join(os.path.dirname(assistant.__file__), 'ui', 'assistant.html'), encoding='utf-8').read()
+	assert 'id="uiLang"' in page and '<option value="es">Español</option>' in page
+	assert "api('/api/settings', {ui_lang: uiLang})" in page and "'.msg'" not in page and '.msg, [translate="no"]' in page
+	assert "'Settings': 'Ajustes'" in page and "'Send': 'Enviar'" in page
+	assert page.count("(userLang || uiLang) === 'es'") == 3
+	assert assistant.UI_LANGUAGES == ('en', 'es')
+	a = assistant.Assistant({**assistant.DEFAULTS, 'project': ''})
+	app = assistant.make_app(a, 'token', 8765)
+	settings = next(r for r in app.routes if r.path == '/api/settings')
+	import tempfile
+	from starlette.requests import Request
+	with tempfile.TemporaryDirectory() as folder:
+		old = assistant.SETTINGS
+		assistant.SETTINGS = os.path.join(folder, 'assistant.json')
+		try:
+			for lang, kept in (('es', 'es'), ('fr', 'es'), ('en', 'en')):
+				data = json.dumps({'ui_lang': lang}).encode()
+
+				async def receive(data=data):
+					return {'type': 'http.request', 'body': data, 'more_body': False}
+
+				scope = {'type': 'http', 'method': 'POST', 'path': '/api/settings', 'query_string': b'',
+				         'headers': [(b'host', b'127.0.0.1:8765'), (b'x-token', b'token')]}
+				assert asyncio.run(settings.endpoint(Request(scope, receive))).status_code == 200
+				assert a.settings['ui_lang'] == kept  # only English or Spanish
+		finally:
+			assistant.SETTINGS = old

@@ -22,7 +22,8 @@ Engine gives, or the quota of its tier only when they cannot be read) and warns,
 (services.eecu_warning_key), when less than 10 % are left, and when Earth Engine has put the project in restricted mode
 (it has spent its noncommercial compute quota: computations are slow and may fail; see services.quota_warning), which
 the model gets too, to tell why. The settings (project, tier of the project, used only when the quota counters cannot
-be read, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
+be read, the model of MonitorEO or Ollama, address of Ollama, model, ui_lang: the language of the texts of the page,
+English or Spanish, chosen at its top) are kept in ~/MonitorEO/assistant.json;
 cloud_model, if there, asks the broker for one of its models (to compare them).
 
 While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
@@ -81,6 +82,7 @@ PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'monitoreo', 'ollama': 'auto',
             'model': 'qwen3:8b', 'context': 16384, 'think': False,
             'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
+UI_LANGUAGES = ('en', 'es')  # of the texts of the page (ui_lang of the settings; none: that of the browser)
 PROVIDERS = ('monitoreo', 'ollama')  # the model of MonitorEO (its broker), or a model of Ollama (on this computer)
 CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
@@ -2954,7 +2956,7 @@ def make_app(assistant, token, port):
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
 		                     'update': assistant.update_info, 'busy': assistant.running(),
 		                     'window': assistant.in_window, 'eecu': assistant.eecu,
-		                     'eecu_tier': s.get('eecu_tier') or 'Community',
+		                     'eecu_tier': s.get('eecu_tier') or 'Community', 'ui_lang': s.get('ui_lang'),
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()],
 		                     'documents': [{'name': k, 'original': v['original'], 'text': document_text(v)}
 		                                   for k, v in assistant.documents.items()],
@@ -2982,6 +2984,8 @@ def make_app(assistant, token, port):
 				assistant.settings[k] = str(body[k]).strip()
 		if body.get('provider') in PROVIDERS:
 			assistant.settings['provider'] = body['provider']
+		if body.get('ui_lang') in UI_LANGUAGES:  # the language of the page (its own texts)
+			assistant.settings['ui_lang'] = body['ui_lang']
 		save_settings(assistant.settings)
 		if 'project' in body:
 			answer['message'] = await assistant.connect(str(body['project']))

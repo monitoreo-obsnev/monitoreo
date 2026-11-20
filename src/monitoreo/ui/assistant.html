@@ -176,6 +176,9 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
     <img src="/logo.png" alt="MonitorEO-OBSNEV">
     <div><b>MonitorEO Assistant</b> <span id="version" class="muted"></span></div>
     <div class="top">
+      <select id="uiLang" aria-label="Language of the page · Idioma de la página" translate="no">
+        <option value="en">English</option><option value="es">Español</option>
+      </select>
       <button id="feedbackButton" type="button" aria-expanded="false" aria-controls="feedback" hidden>Suggest a change or report an error</button>
       <button id="update" type="button" class="primary" hidden>Update MonitorEO</button>
       <button id="quit" type="button" title="Closes the assistant and the engine of the models">Close the assistant</button>
@@ -368,6 +371,306 @@ async function api(path, body) {
   return data;
 }
 
+// --- the language of the page: English or Spanish ----------------------------------------------------------------
+// Only the texts of the page itself are translated (ES, by their English text; PREFIXES, the beginning of a text that
+// goes on with a name or an error; PATTERNS, texts with a value inside), also those that come later (a MutationObserver):
+// never the messages of the user nor the answers of the model (translate="no"), nor the values of the results. The
+// language is kept in the settings of the assistant (ui_lang) and in this browser (to show it at once).
+const ES = {
+  'MonitorEO Assistant': 'Asistente de MonitorEO',
+  'Suggest a change or report an error': 'Sugerir un cambio o informar de un error',
+  'Update MonitorEO': 'Actualizar MonitorEO',
+  'Closes the assistant and the engine of the models': 'Cierra el asistente y el motor de los modelos',
+  'Close the assistant': 'Cerrar el asistente',
+  'Settings': 'Ajustes', '· all ready': '· todo listo', '· to be completed': '· por completar',
+  'Earth Engine account': 'Cuenta de Earth Engine',
+  'Use my Google account': 'Usar mi cuenta de Google', 'Change account': 'Cambiar de cuenta',
+  'Signs out the Google account of Earth Engine on this computer; the assistant goes back to the shared account of MonitorEO':
+    'Cierra la sesión de la cuenta de Google de Earth Engine en este ordenador; el asistente vuelve a la cuenta compartida de MonitorEO',
+  'Log out': 'Cerrar sesión',
+  'the shared account of MonitorEO: no need to sign in': 'la cuenta compartida de MonitorEO: no hace falta iniciar sesión',
+  'the shared account of MonitorEO: no need to sign in (to use yours, write your project)':
+    'la cuenta compartida de MonitorEO: no hace falta iniciar sesión (para usar la tuya, escribe tu proyecto)',
+  'your Google account (signed in on this computer)': 'tu cuenta de Google (con la sesión iniciada en este ordenador)',
+  'to compute with your project, sign in with your Google account': 'para calcular con tu proyecto, inicia sesión con tu cuenta de Google',
+  'complete the sign-in in the tab of the browser that has opened…': 'completa el inicio de sesión en la pestaña del navegador que se ha abierto…',
+  'logging out…': 'cerrando la sesión…', 'checking…': 'comprobando…', 'saved': 'guardado',
+  'Your project (optional)': 'Tu proyecto (opcional)',
+  'empty: the shared account of MonitorEO · or your Google Cloud project registered in Earth Engine':
+    'vacío: la cuenta compartida de MonitorEO · o tu proyecto de Google Cloud registrado en Earth Engine',
+  'Save': 'Guardar',
+  'Tier of your project': 'Nivel de tu proyecto',
+  'Community: 150 EECU-h a month': 'Community: 150 EECU-h al mes',
+  'Contributor: 1,000 EECU-h a month': 'Contributor: 1000 EECU-h al mes',
+  'Partner: 100,000 EECU-h a month': 'Partner: 100 000 EECU-h al mes',
+  "the monthly quota of compute of Earth Engine of your project, for the bar of EECUs: used only when Earth Engine's quota counters cannot be read":
+    'la cuota mensual de cálculo de Earth Engine de tu proyecto, para la barra de EECU: solo se usa cuando no se pueden leer los contadores de cuota de Earth Engine',
+  'EECUs of this month': 'EECU de este mes',
+  'Checks again the EECUs (compute units of Earth Engine) spent this month':
+    'Vuelve a consultar los EECU (unidades de cálculo de Earth Engine) gastados este mes',
+  'Check': 'Consultar',
+  'Language model': 'Modelo de lenguaje',
+  'The model of MonitorEO, in the cloud: nothing to install': 'El modelo de MonitorEO, en la nube: no hay que instalar nada',
+  'A model on this computer (Ollama): answers worse': 'Un modelo en este ordenador (Ollama): responde peor',
+  'Model on this computer': 'Modelo en este ordenador',
+  'or another one: e.g. qwen3:4b, gpt-oss:20b': 'u otro: p. ej. qwen3:4b, gpt-oss:20b',
+  'Download': 'Descargar', 'Install': 'Instalar', 'Other models downloaded': 'Otros modelos descargados',
+  'Installing the engine of the models…': 'Instalando el motor de los modelos…',
+  'Preparing the download': 'Preparando la descarga', 'Checking the download': 'Comprobando la descarga',
+  'Installing': 'Instalando', 'Downloaded': 'Descargado', 'Engine installed.': 'Motor instalado.',
+  '✓ ready: the conversation goes to the company of the model (Google or Anthropic), which does not use it to train its models':
+    '✓ listo: la conversación va a la empresa del modelo (Google o Anthropic), que no la usa para entrenar sus modelos',
+  '⚠ the conversation stays on this computer, but the models of a computer answer worse than that of MonitorEO: they make more mistakes (the variable, the place, the dates), so check what they compute in How it is computed':
+    '⚠ la conversación se queda en este ordenador, pero los modelos de un ordenador responden peor que el de MonitorEO: se equivocan más (la variable, el lugar, las fechas), así que revisa lo que calculan en Cómo se calcula',
+  'The computations are done in Google Earth Engine with your Google account and the project':
+    'Los cálculos se hacen en Google Earth Engine con tu cuenta de Google y el proyecto',
+  'The computations are done in Google Earth Engine with the': 'Los cálculos se hacen en Google Earth Engine con la',
+  'shared account of MonitorEO': 'cuenta compartida de MonitorEO',
+  ': to export to Google Drive, use your account and your project.': ': para exportar a Google Drive, usa tu cuenta y tu proyecto.',
+  'The language model (': 'El modelo de lenguaje (', 'that of MonitorEO': 'el de MonitorEO',
+  ', in the cloud': ', en la nube', ', on this computer': ', en este ordenador',
+  ') only gets the text of the conversation and of your documents: it does not see the results nor interpret them.':
+    ') solo recibe el texto de la conversación y de tus documentos: no ve los resultados ni los interpreta.',
+  'Conversation': 'Conversación', 'Results (': 'Resultados (', 'Results': 'Resultados',
+  'Ask which variable or sensor suits you, or ask for a computation over a protected area or a zone. The results appear here and you can gather them in a report to print or save as PDF. To compute over your own polygons, upload your study area (GeoPackage, GeoJSON, KML or shapefile in a .zip) with the button or by dragging it here. To explain your question, upload documents: a report to replicate, a table of your plots, notes (PDF, Word, Excel, CSV, text; 10 MB in all). You can write in English or in Spanish.':
+    'Pregunta qué variable o sensor te conviene, o pide un cálculo sobre un espacio protegido o una zona. Los resultados aparecen aquí y puedes reunirlos en un informe para imprimirlo o guardarlo en PDF. Para calcular sobre tus propios polígonos, sube tu zona de estudio (GeoPackage, GeoJSON, KML o shapefile en un .zip) con el botón o arrastrándola aquí. Para explicar tu pregunta, sube documentos: un informe que replicar, una tabla de tus parcelas, notas (PDF, Word, Excel, CSV, texto; 10 MB en total). Puedes escribir en español o en inglés.',
+  'The assistant does not interpret the results.': 'El asistente no interpreta los resultados.',
+  'Which sensor suits me to follow the vegetation of a small farm since 2015?':
+    '¿Qué sensor me conviene para seguir la vegetación de una finca pequeña desde 2015?',
+  'Monthly evolution of the NDVI in the Sierra Nevada National Park since 2018':
+    'Evolución mensual del NDVI en el Parque Nacional de Sierra Nevada desde 2018',
+  'Compare the summers of 2023 to 2025 with those of 2018 to 2022 in Doñana with the NDVI':
+    'Compara los veranos de 2023 a 2025 con los de 2018 a 2022 en Doñana con el NDVI',
+  'How do I compute the burn severity of a fire?': '¿Cómo calculo la severidad de un incendio?',
+  'Write your request (Enter to send, Shift+Enter for another line)':
+    'Escribe tu petición (Intro para enviar, Mayús+Intro para otra línea)',
+  'Request': 'Petición', 'Send': 'Enviar', 'Stop': 'Parar', 'Stopping…': 'Parando…', 'Sending…': 'Enviando…',
+  'Stop the answer and the computation in progress, to ask for something else':
+    'Para la respuesta y el cálculo en curso, para pedir otra cosa',
+  'Upload study area': 'Subir zona de estudio',
+  'Reports, tables or notes that help to explain your question (PDF, Word, OpenDocument, Excel, CSV, TSV, text; 10 MB in all): the language model reads their text':
+    'Informes, tablas o notas que ayudan a explicar tu pregunta (PDF, Word, OpenDocument, Excel, CSV, TSV, texto; 10 MB en total): el modelo de lenguaje lee su texto',
+  'Upload documents': 'Subir documentos', 'Create report (': 'Crear informe (', 'New request': 'Nueva petición',
+  'Map': 'Mapa', 'Date': 'Fecha', 'Date of the map': 'Fecha del mapa',
+  'The map of each year, month or period of the result (prepared in Google Earth Engine when you choose it)':
+    'El mapa de cada año, mes o periodo del resultado (se prepara en Google Earth Engine al elegirlo)',
+  'Move it to see the map of each date (each one is prepared in Google Earth Engine the first time)':
+    'Muévelo para ver el mapa de cada fecha (cada uno se prepara en Google Earth Engine la primera vez)',
+  'Shows the map of each date, one after another': 'Muestra el mapa de cada fecha, uno tras otro',
+  '▶ Play': '▶ Reproducir', '❚❚ Stop': '❚❚ Parar', 'Whole period': 'Todo el periodo',
+  'Shows only the pixels whose trend is significant (Mann-Kendall test, p < 0.05)':
+    'Muestra solo los píxeles cuya tendencia es significativa (prueba de Mann-Kendall, p < 0,05)',
+  'Significant pixels only (p < 0.05)': 'Solo píxeles significativos (p < 0,05)',
+  'Index: the map of the variable. True colour (RGB): the red, green and blue reflectance of the same images, dates and pixels, to see what the index shows (prepared in Google Earth Engine when you choose it). Both: the index over its true colour (Opacity changes the index). Only in the maps of variables of Sentinel-2, Landsat or the cloud frequency of MODIS: not in fixed layers, the climate, other MODIS products, trends or comparisons.':
+    'Índice: el mapa de la variable. Color verdadero (RGB): la reflectancia roja, verde y azul de las mismas imágenes, fechas y píxeles, para ver lo que muestra el índice (se prepara en Google Earth Engine al elegirlo). Ambos: el índice sobre su color verdadero (Opacidad cambia el índice). Solo en los mapas de variables de Sentinel-2, Landsat o la frecuencia de nubes de MODIS: no en capas fijas, el clima, otros productos de MODIS, tendencias ni comparaciones.',
+  'Layer': 'Capa', 'Index': 'Índice', 'True colour (RGB)': 'Color verdadero (RGB)', 'Both': 'Ambos',
+  'Base map': 'Mapa base', 'Mapa (OpenStreetMap)': 'Mapa (OpenStreetMap)',
+  'Sentinel-2 cloudless (EOX, whole world)': 'Sentinel-2 sin nubes (EOX, todo el mundo)',
+  'PNOA orthophoto (Spain only)': 'Ortofoto del PNOA (solo España)', 'Opacity': 'Opacidad',
+  'The colours of each map (and of each of its dates) are stretched between the percentiles 1 and 99 of its own values over the region. Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.':
+    'Los colores de cada mapa (y de cada una de sus fechas) se estiran entre los percentiles 1 y 99 de sus propios valores en la región. Indica otros percentiles, o el valor del primer y del último color (vacío: el del percentil), y pulsa Aplicar: los mapas de este resultado se vuelven a hacer con ellos en Google Earth Engine. Los mapas de clases conservan el color de cada clase.',
+  'Colours: percentiles': 'Colores: percentiles', 'Colours': 'Colores',
+  'Low percentile of the colours': 'Percentil inferior de los colores',
+  'High percentile of the colours': 'Percentil superior de los colores',
+  'or min': 'o mín.', 'auto': 'auto', 'Value of the first colour': 'Valor del primer color', 'max': 'máx.',
+  'Value of the last colour': 'Valor del último color', 'Apply': 'Aplicar',
+  'With the query on, click on the map to see the value of a pixel and its time series':
+    'Con la consulta activada, pulsa en el mapa para ver el valor de un píxel y su serie temporal',
+  'Query pixel': 'Consultar píxel', 'Querying pixels (press to stop)': 'Consultando píxeles (pulsa para parar)',
+  'Keeps what the map shows (base map, extent and marked pixel) as a result':
+    'Guarda lo que muestra el mapa (mapa base, extensión y píxel marcado) como un resultado',
+  'Add this view to the report': 'Añadir esta vista al informe',
+  'Another map of the results (or of the dates of this one) on the left of a line that you move over the map shown, to compare them':
+    'Otro mapa de los resultados (o de las fechas de este) a la izquierda de una línea que mueves sobre el mapa mostrado, para compararlos',
+  'Compare with': 'Comparar con', 'Position of the line between the two maps': 'Posición de la línea entre los dos mapas',
+  'The results and their maps appear here.': 'Los resultados y sus mapas aparecen aquí.',
+  'Title of the report': 'Título del informe',
+  'It has the results marked «In the report» (and their table of values, those with «Table in the report» marked). It is saved in the folder MonitorEO/informes and opened in the browser, where it can be printed or saved as PDF.':
+    'Tiene los resultados marcados «En el informe» (y su tabla de valores, los que tienen marcada «Tabla en el informe»). Se guarda en la carpeta MonitorEO/informes y se abre en el navegador, donde se puede imprimir o guardar en PDF.',
+  'Cancel': 'Cancelar', 'Create': 'Crear', 'Logs': 'Registros',
+  'Study areas:': 'Zonas de estudio:', 'Documents:': 'Documentos:',
+  'CSV table': 'Tabla CSV', 'TSV table': 'Tabla TSV', 'Excel workbook': 'Libro de Excel',
+  'OpenDocument spreadsheet': 'Hoja de cálculo OpenDocument',
+  'How it is computed': 'Cómo se calcula', 'How to cite it': 'Cómo citarlo', 'See on the map': 'Ver en el mapa',
+  'In the report': 'En el informe', 'Table in the report': 'Tabla en el informe',
+  'Variable': 'Variable', 'Sensor': 'Sensor', 'Region': 'Región', 'Step': 'Paso', 'Data': 'Datos',
+  'Data source': 'Fuente de los datos', 'Part of the year': 'Parte del año', 'Pixels of the region': 'Píxeles de la región',
+  'Warnings': 'Avisos', 'Earth Engine': 'Earth Engine',
+  'Press one to compute with it.': 'Pulsa uno para calcular con él.',
+  'Press one to compute over it (IHO sea areas, Marine Regions).': 'Pulsa uno para calcular sobre él (áreas marinas de la IHO, Marine Regions).',
+  ' · matches your request': ' · coincide con tu petición',
+  'The highlighted one matches your request and is the one used; press another one to compute with it (also while computing: it is done afterwards).':
+    'El resaltado coincide con tu petición y es el que se usa; pulsa otro para calcular con él (también mientras calcula: se hace después).',
+  'the value of the variable at a pixel': 'el valor de la variable en un píxel', 'the value of a pixel': 'el valor de un píxel',
+  'the time series of a pixel': 'la serie temporal de un píxel', ' and its time series': ' y su serie temporal',
+  'Computing the pixel in Google Earth Engine…': 'Calculando el píxel en Google Earth Engine…',
+  'A fixed layer, without dates: it has no time series.': 'Una capa fija, sin fechas: no tiene serie temporal.',
+  'Keep the series as a result': 'Guardar la serie como resultado', 'Kept in the results': 'Guardada en los resultados',
+  'No series: there are no valid images.': 'Sin serie: no hay imágenes válidas.',
+  'Preparing the map in Google Earth Engine…': 'Preparando el mapa en Google Earth Engine…',
+  'Preparing the true colour of the images in Google Earth Engine…': 'Preparando el color verdadero de las imágenes en Google Earth Engine…',
+  'Preparing the map with those colours in Google Earth Engine…': 'Preparando el mapa con esos colores en Google Earth Engine…',
+  'Preparing the map of the period in Google Earth Engine…': 'Preparando el mapa del periodo en Google Earth Engine…',
+  'Preparing the view…': 'Preparando la vista…', ' (Play has stopped)': ' (la reproducción se ha parado)',
+  ', significant pixels only': ', solo píxeles significativos', 'the map on the left': 'el mapa de la izquierda', 'this map': 'este mapa',
+  'its manual': 'su manual', 'From the manual: ': 'Del manual: ', ' (with its map)': ' (con su mapa)',
+  'Wait until what is running ends, or stop it with the button Stop.': 'Espera a que termine lo que está en marcha, o páralo con el botón Parar.',
+  'Your message goes as soon as the documents are read.': 'Tu mensaje se envía en cuanto se lean los documentos.',
+  'There are no results marked for the report.': 'No hay resultados marcados para el informe.',
+  'Open it again': 'Abrirlo de nuevo', 'Wait until the request ends to update.': 'Espera a que termine la petición para actualizar.',
+  'Updating MonitorEO…': 'Actualizando MonitorEO…', 'Restarting the assistant…': 'Reiniciando el asistente…',
+  'The assistant has not started again: open it again from the Desktop.': 'El asistente no se ha vuelto a iniciar: ábrelo de nuevo desde el Escritorio.',
+  'The assistant is closed': 'El asistente está cerrado',
+  'Logged out of your Google account: the assistant computes with the shared account of MonitorEO.':
+    'Sesión cerrada en tu cuenta de Google: el asistente calcula con la cuenta compartida de MonitorEO.',
+  'There are no logs to send.': 'No hay registros que enviar.', 'Reading the logs…': 'Leyendo los registros…',
+  'The model of MonitorEO': 'El modelo de MonitorEO', 'None.': 'Ninguno.',
+  'Looking in the manual of MonitorEO…': 'Buscando en el manual de MonitorEO…',
+  'Looking at the variables of the catalog…': 'Mirando las variables del catálogo…',
+  'Looking at the themes of the GEE Community Catalog…': 'Mirando los temas del GEE Community Catalog…',
+  'Looking at the datasets of the GEE Community Catalog…': 'Mirando los conjuntos de datos del GEE Community Catalog…',
+  'Looking at the land cover maps of the land cover masks…': 'Mirando los mapas de cubierta del suelo de las máscaras de cubierta…',
+  'Reading the parameters of an analysis…': 'Leyendo los parámetros de un análisis…',
+  'Checking the export…': 'Comprobando la exportación…', 'Starting the export to Google Drive…': 'Empezando la exportación a Google Drive…',
+  // the questions of confirm()
+  'A request is running: stop it and clear the conversation and its results from this page (their files stay in the folder MonitorEO)?':
+    'Hay una petición en marcha: ¿pararla y borrar de esta página la conversación y sus resultados (sus archivos se quedan en la carpeta MonitorEO)?',
+  'The conversation and its results are cleared from this page (their files stay in the folder MonitorEO). Go on?':
+    'Se borran de esta página la conversación y sus resultados (sus archivos se quedan en la carpeta MonitorEO). ¿Seguir?',
+  'Log out of your Google account in Earth Engine on this computer? The other tools of MonitorEO of this computer (QGIS, Python, R, the command line) and earthengine are signed out too, and the assistant computes again with the shared account of MonitorEO. To use your project again, sign in again.':
+    '¿Cerrar la sesión de tu cuenta de Google en Earth Engine en este ordenador? También se cierra en las demás herramientas de MonitorEO de este ordenador (QGIS, Python, R, la línea de órdenes) y en earthengine, y el asistente vuelve a calcular con la cuenta compartida de MonitorEO. Para usar de nuevo tu proyecto, vuelve a iniciar sesión.',
+  'There is a new version of MonitorEO. Update now? The assistant restarts (it takes a minute) and the conversation of this page is lost; the results and the reports stay in the folder MonitorEO.':
+    'Hay una versión nueva de MonitorEO. ¿Actualizar ahora? El asistente se reinicia (tarda un minuto) y se pierde la conversación de esta página; los resultados y los informes se quedan en la carpeta MonitorEO.',
+};
+// the beginning of a text followed by a name, a value or an error
+const PREFIXES = {
+  'This page is of an earlier session of the assistant: ': 'Esta página es de una sesión anterior del asistente: ',
+  'No connection with the assistant: ': 'No hay conexión con el asistente: ',
+  'Sign-in: ': 'Inicio de sesión: ', 'Log out: ': 'Cierre de sesión: ',
+  'The true colour could not be prepared: ': 'No se ha podido preparar el color verdadero: ',
+  'Those colours could not be applied: ': 'No se han podido aplicar esos colores: ',
+  'That map could not be prepared: ': 'No se ha podido preparar ese mapa: ',
+  'The map has expired and could not be renewed: ': 'El mapa ha caducado y no se ha podido renovar: ',
+  'The pixel could not be computed: ': 'No se ha podido calcular el píxel: ',
+  'The view could not be kept: ': 'No se ha podido guardar la vista: ',
+  'It could not be stopped: ': 'No se ha podido parar: ', 'It could not be closed: ': 'No se ha podido cerrar: ',
+  'It could not be updated': 'No se ha podido actualizar', 'The logs could not be read: ': 'No se han podido leer los registros: ',
+  'Reading the document ': 'Leyendo el documento ', 'Reading the study area ': 'Leyendo la zona de estudio ',
+  'Remove the study area ': 'Quitar la zona de estudio ', 'Remove the document ': 'Quitar el documento ',
+  'Report saved in ': 'Informe guardado en ', 'Report: ': 'Informe: ', 'Date: ': 'Fecha: ',
+  'What it is (manual): ': 'Qué es (manual): ', 'For ': 'Para ',
+  'Ollama is needed: install it from ': 'Hace falta Ollama: instálalo desde ',
+  'Ollama does not answer at ': 'Ollama no responde en ', 'Study area ': 'Zona de estudio ',
+};
+const PATTERNS = [
+  [/^MonitorEO (\S+) · released (\S+)$/, 'MonitorEO $1 · publicado el $2'],
+  [/^The model \((.+)\) is thinking…$/, 'El modelo ($1) está pensando…'],
+  [/^Computing in Google Earth Engine: (.+)$/, 'Calculando en Google Earth Engine: $1'],
+  [/^Looking at the description of (.+)…$/, 'Mirando la descripción de $1…'],
+  [/^Looking at the classes of (.+)…$/, 'Mirando las clases de $1…'],
+  [/^Reading the description of (.+) in Earth Engine…$/, 'Leyendo la descripción de $1 en Earth Engine…'],
+  [/^Searching for protected areas named «(.+)»…$/, 'Buscando espacios protegidos llamados «$1»…'],
+  [/^Searching for administrative units named «(.+)»…$/, 'Buscando unidades administrativas llamadas «$1»…'],
+  [/^Searching for oceans and seas named «(.+)»…$/, 'Buscando océanos y mares llamados «$1»…'],
+  [/^Searching the Earth Engine data catalog for «(.+)»…$/, 'Buscando «$1» en el catálogo de datos de Earth Engine…'],
+  [/^Reading the document «(.+)»…$/, 'Leyendo el documento «$1»…'],
+  [/^Protected areas named «(.+)»$/, 'Espacios protegidos llamados «$1»'],
+  [/^Administrative units named «(.+)»$/, 'Unidades administrativas llamadas «$1»'],
+  [/^Oceans and seas named «(.+)»$/, 'Océanos y mares llamados «$1»'],
+  [/^When what is running ends, it will be computed with (.+)\.$/, 'Cuando termine lo que está en marcha, se calculará con $1.'],
+  [/^When what is running ends, it will be computed over (.+)\.$/, 'Cuando termine lo que está en marcha, se calculará sobre $1.'],
+  [/^See the (.+) rows$/, 'Ver las $1 filas'], [/^See only the first (\d+)$/, 'Ver solo las $1 primeras'],
+  [/^… and (.+) rows more in the report and in the CSV\.$/, '… y $1 filas más en el informe y en el CSV.'],
+  [/^Click on the map to see (.+) \(computed in Google Earth Engine\)\.$/, (m, w) => `Pulsa en el mapa para ver ${tr(w)} (se calcula en Google Earth Engine).`],
+  [/^Press «Query pixel» to see (.+)\.$/, (m, w) => `Pulsa «Consultar píxel» para ver ${tr(w)}.`],
+  [/^Preparing the map of (.+) in Google Earth Engine…$/, 'Preparando el mapa de $1 en Google Earth Engine…'],
+  [/^ · its (\d+) sea areas as one$/, ' · sus $1 áreas marinas como una'],
+  [/^ · no value on (.+) \(pixel without data\)$/, (m, w) => ` · sin valor en ${tr(w)} (píxel sin datos)`],
+  [/^Remove the study area «(.+)»\? Its copy in the folder MonitorEO\/capas is deleted\.$/, '¿Quitar la zona de estudio «$1»? Se borra su copia en la carpeta MonitorEO/capas.'],
+  [/^Remove the document «(.+)»\? Its copy in the folder MonitorEO\/documentos is deleted, and the model is told not to use it\.$/,
+   '¿Quitar el documento «$1»? Se borra su copia en la carpeta MonitorEO/documentos, y se le dice al modelo que no lo use.'],
+  [/^There is a new version of MonitorEO \((.+)\); you have (.+)$/, (m, a, b) => `Hay una versión nueva de MonitorEO (${a}); tienes la ${b === 'an older one' ? 'anterior' : b}`],
+  [/^The model (\S+) has to be downloaded(?:: about (.+) GB)?\. Only the first time: afterwards it works without downloading anything\. Press Download\.$/,
+   (m, n, gb) => `Hay que descargar el modelo ${n}${gb ? `: unos ${gb} GB` : ''}. Solo la primera vez: después funciona sin descargar nada. Pulsa Descargar.`],
+  [/^✓ (\S+) is downloaded on this computer already: nothing to download\.$/, '✓ $1 ya está descargado en este ordenador: no hay nada que descargar.'],
+];
+const SKIP = 'script, style, code, .msg, [translate="no"]';  // what is never translated
+const SKIP_TEXT = 'textarea, ' + SKIP;  // nor what the user writes (but the placeholder of its box is)
+let uiLang = 'en';
+const english = new WeakMap();  // a text node or an element: its English text or attributes
+
+function tr(text) {  // TEXT in the language of the page (the same if it has no translation)
+  if (uiLang !== 'es' || typeof text !== 'string') return text;
+  const lead = text.match(/^\s*/)[0], tail = text.match(/\s*$/)[0], key = text.replace(/\s+/g, ' ').trim();
+  if (!key) return text;
+  let out = ES[key];
+  if (out === undefined) {
+    const prefix = Object.keys(PREFIXES).find(p => key.startsWith(p.trim()) && key.length > p.trim().length);
+    if (prefix) out = PREFIXES[prefix].trim() + key.slice(prefix.trim().length);
+  }
+  if (out === undefined) {
+    const whole = text.replace(/\s+/g, ' ');  // (some begin with a space: « · its 3 sea areas as one»)
+    for (const [re, to] of PATTERNS) {
+      const source = re.test(key) ? key : re.test(whole) ? whole : null;
+      if (source !== null) { out = source.replace(re, to); break; }
+    }
+  }
+  return out === undefined ? text : lead + out.trim() + tail;
+}
+
+const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+
+function translateNode(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest(SKIP_TEXT)) return;
+    const known = english.get(node);
+    const now = node.nodeValue;
+    if (!known || (now !== known.en && now !== known.shown)) english.set(node, {en: now, shown: now});  // a new text
+    const en = english.get(node).en, shown = uiLang === 'es' ? tr(en) : en;
+    english.get(node).shown = shown;
+    if (node.nodeValue !== shown) node.nodeValue = shown;
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    if (node.closest(SKIP)) return;
+    const saved = english.get(node) || {};
+    for (const a of ATTRS) {
+      if (!node.hasAttribute(a)) continue;
+      const now = node.getAttribute(a), known = saved[a];
+      if (!known || (now !== known.en && now !== known.shown)) saved[a] = {en: now, shown: now};
+      const shown = uiLang === 'es' ? tr(saved[a].en) : saved[a].en;
+      saved[a].shown = shown;
+      if (now !== shown) node.setAttribute(a, shown);
+    }
+    english.set(node, saved);
+    for (const child of node.childNodes) translateNode(child);
+  }
+}
+
+new MutationObserver(records => {
+  for (const r of records) {
+    if (r.type === 'childList') r.addedNodes.forEach(translateNode);
+    else translateNode(r.target);
+  }
+}).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true,
+                           attributeFilter: ATTRS});
+
+function setLanguage(lang, save) {  // the language of the page: 'en' or 'es'
+  uiLang = lang === 'es' ? 'es' : 'en';
+  document.documentElement.lang = uiLang;
+  $('uiLang').value = uiLang;
+  try { localStorage.setItem('monitoreo-ui-lang', uiLang); } catch (e) { /* without storage: the settings keep it */ }
+  translateNode(document.body);
+  document.title = uiLang === 'es' ? 'Asistente de MonitorEO' : 'MonitorEO Assistant';
+  if (save) api('/api/settings', {ui_lang: uiLang}).catch(e => notice(e.message, true));
+}
+
+const nativeConfirm = window.confirm.bind(window);
+window.confirm = text => nativeConfirm(tr(text));  // its questions in the language of the page
+$('uiLang').onchange = () => setLanguage($('uiLang').value, true);
+setLanguage((() => {
+  try { return localStorage.getItem('monitoreo-ui-lang'); } catch (e) { return null; }
+})() || (/^es\b/i.test(navigator.language || '') ? 'es' : 'en'), false);
+
 async function stream(path, body, onEvent, method = 'POST') {
   const r = await fetch(path, {method, headers: {'X-Token': token, 'Content-Type': 'application/json'},
                                body: method === 'GET' ? undefined : JSON.stringify(body)});
@@ -399,6 +702,7 @@ async function refresh() {
     return;
   }
   refresh.failed = false;
+  if (state.ui_lang && state.ui_lang !== uiLang) setLanguage(state.ui_lang, false);  // that of the settings
   $('version').textContent = 'MonitorEO ' + state.version + (state.released ? ' · released ' + state.released : '');
   const own = !!state.project, accountOk = !own || state.signed_in;
   $('account').textContent = !own ? 'the shared account of MonitorEO: no need to sign in' +
@@ -911,7 +1215,7 @@ function unitsCard(e) {  // the administrative units found (FAO GAUL 2025; level
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');
-      const text = (userLang === 'es' ? `Calcula lo que he pedido con la unidad administrativa ${name}` :
+      const text = ((userLang || uiLang) === 'es' ? `Calcula lo que he pedido con la unidad administrativa ${name}` :
                     `Compute what I asked for with the administrative unit ${name}`) + `, admin${level} ${code}`;
       if (!busy) return send(text);
       pending = text;
@@ -932,7 +1236,7 @@ function seasCard(e) {  // the oceans and seas found (the sea areas of the IHO, 
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');
-      const text = (userLang === 'es' ? `Calcula lo que he pedido en ${s.NAME}` :
+      const text = ((userLang || uiLang) === 'es' ? `Calcula lo que he pedido en ${s.NAME}` :
                     `Compute what I asked for over ${s.NAME}`) + `, sea ${s.MRGID}`;
       if (!busy) return send(text);
       pending = text;
@@ -955,7 +1259,7 @@ function areasCard(e) {
     b.onclick = () => {  // also while something is computed: then it is sent when that ends
       list.querySelectorAll('button.chosen').forEach(c => c.classList.remove('chosen'));
       b.classList.add('chosen');
-      const text = (userLang === 'es' ? `Calcula lo que he pedido con el espacio ${name}` :  // in the language of the
+      const text = ((userLang || uiLang) === 'es' ? `Calcula lo que he pedido con el espacio ${name}` :  // in the language of the
                     `Compute what I asked for with the protected area ${name}`) + `, WDPA ${a.SITE_ID}`;  // user, as the answer
       if (!busy) return send(text);
       pending = text;
