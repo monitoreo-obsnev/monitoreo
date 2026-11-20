@@ -123,9 +123,11 @@ function box() {
 function report() {
 	var labels = texts(controls), at = labels.indexOf(input.hint);
 	var shown = all(controls), i = shown.indexOf(box());
-	return shown.slice(i + 1).filter(function (w) { return w.kind === 'Label' && w.opts.value; })
-		.map(function (w) { return w.opts.value; })
-		.filter(function (v, k, a) { return a.indexOf('About MonitorEO') < 0 || k < a.indexOf('About MonitorEO'); });
+	var rest = shown.slice(i + 1), end = rest.findIndex(function (w) {  // the title of the section About
+		return w.kind === 'Button' && /About MonitorEO$/.test(w.opts.label);
+	});
+	return (end < 0 ? rest : rest.slice(0, end)).filter(function (w) { return w.kind === 'Label' && w.opts.value; })
+		.map(function (w) { return w.opts.value; });
 }
 function show(analysis) {
 	if (analysis) find(controls, 'Select', function (w) {

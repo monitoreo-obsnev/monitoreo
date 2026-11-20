@@ -277,7 +277,7 @@ console.log(JSON.stringify(out));
 @pytest.mark.skipif(not shutil.which('node'), reason='no Node')
 def test_the_panel_of_the_app():
 	"""The land cover mask of the app (gee/ui.js) in Node, as a user drives it (the ui and ee of tests/test_themes.py,
-	which compute nothing): before the theme, unfolded when checked, the years of each map, the classes of the map in
+	which compute nothing): in Pixel filters (after the theme), unfolded when checked, the years of each map, the classes of the map in
 	each land cover, the title of the map with the land covers left out, and the error without land covers."""
 	from test_themes import PANEL, _build
 	script = PANEL[:PANEL.index('var out = {};')] + STEPS
@@ -286,7 +286,7 @@ def test_the_panel_of_the_app():
 	                     timeout=120)
 	assert run.returncode == 0, run.stderr
 	out = json.loads(run.stdout)
-	assert out['order'].index('Land cover mask') < out['order'].index('Theme')
+	assert out['order'].index('Theme') < out['order'].index('Land cover mask')  # in the section Pixel filters
 	assert out['before'] == {'on': False, 'maps': 1}  # folded: only the map of Area by class, further down
 	assert out['worldcover'] == {'map': 'WorldCover', 'year': 2021, 'years': [2021, 2020]}
 	assert out['corine']['year'] == 2018 and out['corine']['years'] == [2018, 2012, 2006, 2000, 1990]

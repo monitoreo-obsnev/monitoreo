@@ -21125,6 +21125,7 @@ var MonitorEO = (function () {
 			drawHelp: 'Dibuja un pol\u00edgono en el mapa: un clic por v\u00e9rtice y doble clic para cerrarlo.',
 			drawAgain: 'Dibujar otro', regionIs: 'Regi\u00f3n: ', noRegion: 'Elige primero una regi\u00f3n.',
 			mapView: 'Vista del mapa', polygon: 'Pol\u00edgono dibujado', loadingRegion: 'Cargando la regi\u00f3n\u2026',
+			sectionVariable: 'Variable y periodo', sectionPixels: 'Filtros de p\u00edxeles',
 			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
@@ -21419,6 +21420,7 @@ var MonitorEO = (function () {
 			drawHelp: 'Draw a polygon on the map: a click per vertex and a double click to close it.',
 			drawAgain: 'Draw another', regionIs: 'Region: ', noRegion: 'Choose a region first.',
 			mapView: 'Map view', polygon: 'Drawn polygon', loadingRegion: 'Loading the region\u2026',
+			sectionVariable: 'Variable and period', sectionPixels: 'Pixel filters',
 			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
@@ -21700,6 +21702,8 @@ var MonitorEO = (function () {
 		seaText: '', seaItems: null, seaNames: {}, seaId: null,  // the oceans and seas (mode sea)
 		region: null, regionName: null, info: null,
 		regionAdmin: null,  // the level of the administrative unit that is the region, or 'sea' (its credits), or null
+		// the groups of the panel unfolded (section): the region and the variable at first, the others folded
+		open: {region: true, variable: true},
 		feedbackOpen: false, help: {}, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
 		compareOn: false, other: ['2020-01-01', '2020-12-31'],
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
@@ -21791,13 +21795,32 @@ var MonitorEO = (function () {
 	ui.root.add(results);
 	var regionLayer = null;
 
-	var H = {fontWeight: 'bold', fontSize: '14px', margin: '14px 0 4px 8px'};
+	var H = {fontWeight: 'bold', fontSize: '13px', margin: '10px 0 4px 8px'};  // a header inside a section
 	var SMALL = {fontSize: '12px', color: '#555'};
 	// the warnings of the period of a result (days without images of its data: mo.checkPeriod), over it
 	var WARNING = {fontSize: '12px', color: '#b35900', whiteSpace: 'pre-wrap'};
 
 	function header(text) {
 		return ui.Label(text, H);
+	}
+
+	// A group of the panel folded under its title, so that only the groups the user opens show their options: a button
+	// \u25b8 TITLE (with SUMMARY, what is chosen in it, while it is folded) that unfolds it (\u25be TITLE) or folds it again, and
+	// the panel of its WIDGETS, built even when folded (only hidden: the parameters applied and the tests find them).
+	// Whether it is open (state.open[KEY]) is kept when the panel is drawn again
+	var SECTION = {fontWeight: 'bold', fontSize: '14px', margin: '10px 0 2px 0', padding: '0', color: '#1a1a1a'};
+	function section(key, title, widgets, summary) {
+		function label() {
+			return (state.open[key] ? '\u25be ' : '\u25b8 ') + title + (!state.open[key] && summary ? ' \u00b7 ' + summary : '');
+		}
+		var content = ui.Panel(widgets, ui.Panel.Layout.flow('vertical'), {shown: Boolean(state.open[key]),
+			margin: '0 0 6px 6px'});
+		var head = ui.Button({label: label(), style: SECTION, onClick: function () {
+			state.open[key] = !state.open[key];
+			content.style().set('shown', state.open[key]);
+			head.setLabel(label());
+		}});
+		return [head, content];
 	}
 
 	// The title of a group of the panel with a button ? beside it that shows or hides, under it, its help (the text
@@ -22158,7 +22181,7 @@ var MonitorEO = (function () {
 	}
 
 	function regionWidgets() {
-		var w = [header(t('region'))];
+		var w = [];
 		var modes = ['wdpa', 'admin', 'ecoregion', 'biome', 'island', 'sea', 'view', 'draw'].map(function (m) {
 			return {value: m, label: t('mode_' + m)};
 		});
@@ -22604,9 +22627,14 @@ var MonitorEO = (function () {
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
 		}
 		var datedWhere = state.whereOn && !mo.byRef(whereRef()).static;  // its period is that of the panel
-		w = w.concat(e.static && !datedWhere ? disable(dates) : dates);
-		w.push(header(t('filters')));
-		// fixed filters (the SCF): all of them greyed out, those always on checked
+		return w.concat(e.static && !datedWhere ? disable(dates) : dates);
+	}
+
+	// The filters of the pixels of the variable (Remove pixels with): fixed ones (the SCF) all of them greyed out, those
+	// always on checked, and a warning for each one that removes what the variable measures
+	function filterWidgets() {
+		var e = entry();
+		var w = [header(t('filters'))];
 		var fixed = mo.fixedFilters(e);
 		var available = mo.filters(e, {clouds: true, water: true, snow: true, aerosols: true});
 		mo.FILTERS.forEach(function (f) {
@@ -22626,8 +22654,13 @@ var MonitorEO = (function () {
 		mo.conflicts(e, state.quality).forEach(function (f) {
 			w.push(ui.Label(fmt(t('conflict'), t(f)), {fontSize: '12px', color: '#b06000'}));
 		});
-		w = w.concat(helpHeader(t('whereHeader'), 'where',
-			['Conceptos#filtrar-el-\u00e1rea-de-estudio', 'Concepts#filtering-the-study-area']));
+		return w;
+	}
+
+	// Only the pixels where: a condition on a variable, between two values or, of a categorical layer, some classes
+	function whereWidgets() {
+		var w = helpHeader(t('whereHeader'), 'where',
+			['Conceptos#filtrar-el-\u00e1rea-de-estudio', 'Concepts#filtering-the-study-area']);
 		w.push(check(t('whereOn'), state.whereOn, function (v) {
 			state.whereOn = v;
 			render();
@@ -22723,7 +22756,7 @@ var MonitorEO = (function () {
 		return {landcover: state.landcoverMap, year: landcoverYear(), exclude: state.landcoverExclude.slice()};
 	}
 
-	// The land cover mask, before the variable: unfolds when checked, with the map, its year and the broad land covers
+	// The land cover mask, in Pixel filters: unfolds when checked, with the map, its year and the broad land covers
 	// to leave out of every result (a condition of where, see landcoverArgs)
 	function landcoverWidgets() {
 		var w = [header(t('landcoverHeader')), check(t('landcoverOn'), state.landcoverOn, function (v) {
@@ -23191,7 +23224,7 @@ var MonitorEO = (function () {
 	}
 
 	function mapWidgets() {
-		var w = [header(t('map'))];
+		var w = [];
 		var metrics = METRICS.map(function (m) { return {value: m, label: metricName(m)}; });
 		w.push(row(ui.Label(t('metric')), metricSelect(state.mapMetric, function (v) {
 			state.mapMetric = v;
@@ -23353,7 +23386,7 @@ var MonitorEO = (function () {
 	}
 
 	function areaWidgets() {
-		var w = [header(t('areas'))];
+		var w = [];
 		var kinds = ['landcover', 'breaks', 'trend', 'classes'].map(function (k) { return {value: k, label: t('k_' + k)}; });
 		w.push(row(ui.Label(t('areaKind')), select(kinds, state.areaKind, function (v) {
 			state.areaKind = v;
@@ -23516,7 +23549,7 @@ var MonitorEO = (function () {
 	}
 
 	function gradientWidgets() {
-		var w = [header(t('gradients'))];
+		var w = [];
 		var statics = mo.variables().filter(function (v) { return v.static; }).map(function (v) {
 			return {value: v.ref, label: v.index + ' \u00b7 ' + v.sensor};
 		});
@@ -23629,7 +23662,7 @@ var MonitorEO = (function () {
 	}
 
 	function animationWidgets() {
-		var w = [header(t('animation'))];
+		var w = [];
 		var steps = mo.ANIMATION_STEPS.map(function (x) { return {value: x, label: t('a_' + x)}; });
 		w.push(row(ui.Label(t('animStep')), select(steps, state.animStep, function (v) { state.animStep = v; })));
 		w.push(row(ui.Label(t('animMetric')), metricSelect(state.animMetric, function (v) { state.animMetric = v; })));
@@ -24014,7 +24047,7 @@ var MonitorEO = (function () {
 	}
 
 	function seriesWidgets() {
-		var w = [header(t('series'))];
+		var w = [];
 		var steps = mo.STEPS.map(function (x) { return {value: x, label: t('s_' + x)}; });
 		w.push(row(ui.Label(t('step')), select(steps, state.step, function (v) { state.step = v; })));
 		w.push(row(ui.Label(t('stepMetric')), metricSelect(state.stepMetric, function (v) { state.stepMetric = v; })));
@@ -24185,7 +24218,7 @@ var MonitorEO = (function () {
 	}
 
 	function trendWidgets() {
-		var w = [header(t('trends'))];
+		var w = [];
 		var steps = mo.TREND_STEPS.map(function (x) { return {value: x, label: t('p_' + x)}; });
 		w.push(row(ui.Label(t('parts')), select(steps, state.trendStep, function (v) {
 			state.trendStep = v;
@@ -24452,7 +24485,7 @@ var MonitorEO = (function () {
 	// The burn severity: first the index, as its sensors depend on it (mo.BURN_SENSORS: MODIS Terra and Aqua only for
 	// the RdNBR), then the sensor and the periods before and after the fire
 	function fireWidgets() {
-		var w = [header(t('fire'))];
+		var w = [];
 		var rdnbr = state.fireIndex === 'RdNBR';
 		var modis = mo.RDNBR_MODIS.indexOf(state.fireSensor) >= 0;
 		w.push(row(ui.Label(t('index')), select(mo.BURN_INDICES.map(function (i) {
@@ -25392,6 +25425,7 @@ var MonitorEO = (function () {
 			o[name] = v;
 		});
 		report.applied = {given: given, analysis: analysis};
+		state.open[a.group] = true;  // the section of its button unfolds
 		if (p.monitoreo && p.monitoreo !== mo.CATALOG.about.version) {
 			report.notes.push(fmt(t('paramsVersion'), p.monitoreo, mo.CATALOG.about.version));
 		}
@@ -25438,7 +25472,7 @@ var MonitorEO = (function () {
 	// computed, or another), Show (its parameters in the box, to copy them: the Code Editor has no clipboard nor
 	// files) and Apply (those pasted in the box), with what they said
 	function parametersWidgets() {
-		var w = [header(t('params'))];
+		var w = [];
 		w.push(ui.Label(t('paramsHelp'), SMALL, mo.CATALOG.about.manual + (state.lang === 'en' ?
 			'/Earth-Engine-app#parameters-of-the-analysis' : '/App-de-Earth-Engine#par\u00e1metros-del-an\u00e1lisis')));
 		analysisSelect = select(Object.keys(ANALYSES).map(function (name) {
@@ -25459,7 +25493,7 @@ var MonitorEO = (function () {
 
 	function aboutWidgets() {
 		var a = mo.CATALOG.about;
-		var w = [header(t('about'))];
+		var w = [];
 		w.push(ui.Label(a.description[state.lang], SMALL));
 		w.push(ui.Label(a.acknowledgements[state.lang], SMALL));
 		w.push(ui.Label(t('cite') + ': ' + a.citation, SMALL, 'https://doi.org/' + a.doi));
@@ -25495,12 +25529,36 @@ var MonitorEO = (function () {
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].issue, {fontSize: '12px', margin: '2px 8px'}, fb.links.issue));
 			controls.add(ui.Label('\u2192 ' + fb[state.lang].form, {fontSize: '12px', margin: '2px 8px'}, fb.links.form));
 		}
-		[regionWidgets(), landcoverWidgets(), variableWidgets(), mapWidgets(), areaWidgets(), gradientWidgets(),
-			animationWidgets(),
-			seriesWidgets(), trendWidgets(),
-			themeHas('burn_severity') ? fireWidgets() : [], parametersWidgets(), aboutWidgets()].forEach(function (ws) {
+		var pixels = filterWidgets().concat(landcoverWidgets(), whereWidgets());
+		var groups = [
+			section('region', t('region'), regionWidgets(), state.regionName),
+			section('variable', t('sectionVariable'), variableWidgets(), variableSummary()),
+			section('pixels', t('sectionPixels'), pixels, pixelSummary()),
+			section('map', t('map'), mapWidgets()),
+			section('areas', t('areas'), areaWidgets()),
+			section('gradients', t('gradients'), gradientWidgets()),
+			section('animation', t('animation'), animationWidgets()),
+			section('series', t('series'), seriesWidgets()),
+			section('trends', t('trends'), trendWidgets())];
+		if (themeHas('burn_severity')) groups.push(section('fire', t('fire'), fireWidgets()));
+		groups.push(section('params', t('params'), parametersWidgets()), section('about', t('about'), aboutWidgets()));
+		groups.forEach(function (ws) {
 			ws.forEach(function (w) { controls.add(w); });
 		});
+	}
+
+	// What is chosen in the variable and in the pixel filters, shown on the title of their section while it is folded
+	function variableSummary() {
+		var e = entry();
+		return e.problem ? '' : [e.index || e.col, e.sensor].filter(function (x) { return x; }).join(' \u00b7 ');
+	}
+
+	function pixelSummary() {
+		try {
+			return whereText() || '';
+		} catch (err) {
+			return '';
+		}
 	}
 
 	render();
