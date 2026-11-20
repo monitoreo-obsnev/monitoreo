@@ -44,7 +44,6 @@ def series(monkeypatch):
 
 	monkeypatch.setattr(services.areas, 'region', lambda region: 'regions')
 	monkeypatch.setattr(services.timeseries, 'series', fake)
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 
 
 def _publish(tmp_path, items, rid='profile'):

@@ -162,7 +162,6 @@ def calls(monkeypatch):
 			f.write(b'\x89PNG\r\n\x1a\n')
 		return {'file': path, 'min': 0.2, 'max': 0.7, 'unit': '', 'name': 'NDVI Modis', 'dpi': dpi}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'map_figure', fake)
 	return out
 

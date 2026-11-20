@@ -15,14 +15,12 @@ the shared account of MonitorEO or, when the user gives their Google Cloud proje
 signs in from the browser, as with `earthengine authenticate`) and that project, which can also export to Google
 Drive; the model gets only the text of the conversation, and that of the documents the user uploads to explain their
 questions (reports, tables, notes: monitoreo.documents reads them on this computer; 10 MB in all, in
-~/MonitorEO/documentos), never their files nor the results. The page shows the EECUs of Earth Engine spent this month
-(with the shared account, the research EECUs of this user, only for research; with the user's own, the monthly quota
-of their project as Earth Engine counts it in the quota counters of Cloud Monitoring, against the limit that Earth
-Engine gives, or the quota of its tier only when they cannot be read) and warns, once each kind of warning and day
-(services.eecu_warning_key), when less than 10 % are left, and when Earth Engine has put the project in restricted mode
-(it has spent its noncommercial compute quota: computations are slow and may fail; see services.quota_warning), which
-the model gets too, to tell why. The settings (project, tier of the project, used only when the quota counters cannot
-be read, the model of MonitorEO or Ollama, address of Ollama, model) are kept in ~/MonitorEO/assistant.json;
+~/MonitorEO/documentos), never their files nor the results. Once the user has signed in, the page lists the Google
+Cloud projects of their account registered in Earth Engine (services.own_projects), to choose one. It warns when Earth
+Engine has put the project in restricted mode (it has spent its noncommercial compute quota: computations are slow and
+may fail; see services.quota_warning), which the model gets too, to tell why; it does not show the EECUs spent (its
+count was not that of Earth Engine). The settings (project, the model of MonitorEO or Ollama, address of Ollama,
+model) are kept in ~/MonitorEO/assistant.json;
 cloud_model, if there, asks the broker for one of its models (to compare them).
 
 While an answer runs, the button Send of the page is Stop (Assistant.stop): the answer ends at once and, if a tool was
@@ -79,8 +77,7 @@ DOCUMENTS_HEAD = 'Documents of the user'  # the start of the message with their 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'monitoreo', 'ollama': 'auto',
-            'model': 'qwen3:8b', 'context': 16384, 'think': False,
-            'eecu_tier': os.environ.get('MONITOREO_EECU_LIMIT') or 'Community'}
+            'model': 'qwen3:8b', 'context': 16384, 'think': False}
 PROVIDERS = ('monitoreo', 'ollama')  # the model of MonitorEO (its broker), or a model of Ollama (on this computer)
 CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
@@ -103,7 +100,7 @@ MAX_ROWS_SHOWN = 1000  # of the tables of the page, which shows the first 6 (and
 CONNECTION_CLOSED = -32000  # the code of the error of a closed connection of the MCP SDK (mcp.types, 1.x and 2.x)
 PASSED_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'SSL_CERT_FILE',
               'REQUESTS_CA_BUNDLE', 'PYTHONPATH', 'GOOGLE_APPLICATION_CREDENTIALS', 'MONITOREO_BROKER')
-SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and write your Google Cloud project in Settings.'
+SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and choose your Google Cloud project in Settings.'
 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'find_seas', 'describe_asset', 'community_themes',
@@ -461,12 +458,10 @@ The page of the assistant (to explain how to use it):
 Conversation and Results). The user types in the box at the bottom of the conversation (Enter sends) or clicks an \
 example; below the box are the buttons Upload study area, Upload documents, Create report (N) and New request.
 - Settings: the Earth Engine account (the shared account of MonitorEO; or «Use my Google account» and their Google \
-Cloud project, needed to export to Google Drive) and the language model (the model of MonitorEO in the cloud, or a \
-model on the computer with Ollama).
-- The bar of research EECUs: what the user has spent this month of the compute of Earth Engine (with the shared \
-account, 25 EECU-hours a month, only for research; with their own project, its monthly quota as Earth Engine counts \
-it, which also counts the computations running or failed and may go down when it settles them; the tier of the \
-settings is used only when Earth Engine's quota counters cannot be read); Check asks again.
+Cloud project, needed to export to Google Drive: after signing in, a list shows the projects of their account \
+registered in Earth Engine that MonitorEO finds, and «Another project…» lets them write one) and the language model \
+(the model of MonitorEO in the cloud, or a model on the computer with Ollama). The page does not show the EECUs spent: \
+do not estimate them.
 - Protected areas: the search shows the designations with that name; when several fit, the assistant asks which one \
 and waits, and clicking one in the list computes with it (clicking another later repeats the computation with that \
 one).
@@ -1350,8 +1345,7 @@ class Assistant:
 		self.cloud_model = None  # the model of MonitorEO that answered last
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
-		self.eecu = None  # the last answer of eecu_usage (the EECUs of Earth Engine spent this month), or {'error'}
-		self.eecu_warned = set()  # services.eecu_warning_key of the warnings of the EECUs shown
+		self.projects = None  # the last answer of services.own_projects (see the route /api/projects)
 		self.quit = None  # stops the web server (see run)
 		self.restart = False  # whether run starts it again (after an update)
 		self.update_info = None  # see check_update
@@ -1599,7 +1593,7 @@ class Assistant:
 		finally:
 			self.calling -= mine
 		content = res.get('content') or []
-		texts = [_without_eecu_warning(c['text']) for c in content if c.get('type') == 'text']
+		texts = [c['text'] for c in content if c.get('type') == 'text']
 		images = [f"data:{c.get('mimeType') or 'image/png'};base64,{c['data']}" for c in content
 		          if c.get('type') == 'image']
 		error = (texts[0] if texts else 'error') if res.get('isError') else None
@@ -1646,45 +1640,12 @@ class Assistant:
 		server."""
 		self.settings['project'] = project.strip()
 		save_settings(self.settings)
-		self.eecu = None
 		if self.settings['project'] and not signed_in():
 			return 'Project saved: sign in with your Google account to use it'
 		error, texts, _ = await self.call('connect', {'project': self.settings['project']})
 		if error:
 			raise RuntimeError(re.sub(r'^\w+Error: ', '', error))
 		return texts[0] if texts else ''
-
-	async def eecu_events(self, refresh=False):
-		"""The events of the EECUs of Earth Engine spent this month: one for the bar of the page and, the first time
-		that less than 10 % are left in a month, the warning (with the shared account: switch to your own)."""
-		if self.not_ready() or not self.session:
-			return []
-		args = {'lang': 'en', 'refresh': refresh}
-		if self.settings.get('project'):
-			args['limit'] = str(self.settings.get('eecu_tier') or 'Community')
-		try:
-			error, texts, _ = await self.call('eecu_usage', args)
-			usage = None if error else json.loads(texts[0])
-		except Exception as e:  # the MCP server stopped
-			error = f'{type(e).__name__}: {e}'
-		if error:
-			self.eecu = {'error': re.sub(r'^[A-Za-z]+Error: ', '', error)}
-			return [{'type': 'eecu', 'usage': self.eecu}]
-		self.eecu = usage
-		events = [{'type': 'eecu', 'usage': usage}]
-		key = services.eecu_warning_key(usage)  # once each kind of warning and day
-		if usage.get('warning') and key not in self.eecu_warned:
-			self.eecu_warned.add(key)
-			events.append({'type': 'eecu_warning', 'text': usage['warning'] +
-			               (SWITCH_ACCOUNT if usage['account'] == 'shared' else '')})
-		# Earth Engine has put the project in restricted mode (services.probe_quota, when the assistant opens and after
-		# each computation): once in the conversation, as that of the answers of the tools (run_tool)
-		quota = usage.get('quota_warning')
-		if quota and quota not in self.quota_warned and quota != usage.get('warning'):  # the broker said it (warning)
-			self.quota_warned.add(quota)
-			events.append({'type': 'quota_warning', 'text': quota + (SWITCH_ACCOUNT if usage['account'] == 'shared'
-			                                                          else '')})
-		return events
 
 	def not_ready(self):
 		"""Why the tools cannot compute yet, or None."""
@@ -1917,8 +1878,6 @@ class Assistant:
 		self._tool_message(name, receipt(item['id'], item['title']) + (
 			f" The perimeter of its burned area is the study area «{area}»: region {{\"layer\": \"{area}\"}} for the "
 			'analyses inside it.' if area else '') + warnings_text(warned))
-		for event in await self.eecu_events():
-			yield event
 		if tool in PERIOD_MAP:
 			yield {'type': 'status', 'text': 'Preparing the map of the period in Google Earth Engine…'}
 			event = await self.period_map(item)
@@ -2953,8 +2912,7 @@ def make_app(assistant, token, port):
 		                     'model_gb': MODEL_GB.get(s['model']),
 		                     'results': len(assistant.results), 'server': assistant.session is not None,
 		                     'update': assistant.update_info, 'busy': assistant.running(),
-		                     'window': assistant.in_window, 'eecu': assistant.eecu,
-		                     'eecu_tier': s.get('eecu_tier') or 'Community',
+		                     'window': assistant.in_window, 'projects': assistant.projects,
 		                     'layers': [{'name': k, 'text': layer_text(v)} for k, v in assistant.layers.items()],
 		                     'documents': [{'name': k, 'original': v['original'], 'text': document_text(v)}
 		                                   for k, v in assistant.documents.items()],
@@ -2964,20 +2922,20 @@ def make_app(assistant, token, port):
 	async def signin(request):
 		import ee
 		await asyncio.to_thread(lambda: ee.Authenticate(auth_mode='localhost', force=True))
+		assistant.projects = None  # those of the account that has signed in (see projects)
 		return JSONResponse({'signed_in': signed_in()})
 
 	async def signout(request):
 		"""Log out of the Google account (sign_out) and compute again with the shared account of MonitorEO."""
 		was = await asyncio.to_thread(sign_out)
+		assistant.projects = None
 		message = await assistant.connect('')
-		for event in await assistant.eecu_events():
-			assistant.emit(event)
 		return JSONResponse({'signed_in': signed_in(), 'was_signed_in': was, 'message': message})
 
 	async def settings(request):
 		body = await request.json()
 		answer = {}
-		for k in ('model', 'ollama', 'eecu_tier'):
+		for k in ('model', 'ollama'):
 			if body.get(k):
 				assistant.settings[k] = str(body[k]).strip()
 		if body.get('provider') in PROVIDERS:
@@ -2985,17 +2943,19 @@ def make_app(assistant, token, port):
 		save_settings(assistant.settings)
 		if 'project' in body:
 			answer['message'] = await assistant.connect(str(body['project']))
-		if 'project' in body or 'eecu_tier' in body:
-			for event in await assistant.eecu_events():
-				assistant.emit(event)
 		return JSONResponse(answer)
 
-	async def eecu(request):
+	async def projects(request):
+		"""The Google Cloud projects of the account signed in that are registered in Earth Engine
+		(services.own_projects), kept until the account changes (REFRESH asks again)."""
 		body = await request.json()
-		events = await assistant.eecu_events(refresh=bool(body.get('refresh')))
-		for event in events:
-			assistant.emit(event)
-		return JSONResponse({'usage': assistant.eecu})
+		if not signed_in():
+			assistant.projects = None
+			raise ValueError('sign in with your Google account first')
+		if body.get('refresh') or assistant.projects is None:
+			known = [assistant.settings['project']] if assistant.settings.get('project') else []
+			assistant.projects = await asyncio.to_thread(services.own_projects, known)
+		return JSONResponse(assistant.projects)
 
 	async def chat(request):
 		text = str((await request.json()).get('text') or '').strip()
@@ -3125,7 +3085,7 @@ def make_app(assistant, token, port):
 		Route('/api/signin', guarded(signin), methods=['POST']),
 		Route('/api/signout', guarded(signout), methods=['POST']),
 		Route('/api/settings', guarded(settings), methods=['POST']),
-		Route('/api/eecu', guarded(eecu), methods=['POST']),
+		Route('/api/projects', guarded(projects), methods=['POST']),
 		Route('/api/chat', guarded(chat), methods=['POST']),
 		Route('/api/events', guarded(events)),
 		Route('/api/reset', guarded(reset), methods=['POST']),
@@ -3156,20 +3116,6 @@ def pull_model(base, model):
 				yield json.loads(line)
 	except (urllib.error.URLError, OSError, ValueError) as e:
 		raise RuntimeError(f'{model} could not be downloaded: {e}') from e
-
-
-def _without_eecu_warning(text):
-	"""The answer of a tool of the MCP server without its eecu_warning (the page shows it, see eecu_events)."""
-	if '"eecu_warning"' not in text:
-		return text
-	try:
-		res = json.loads(text)
-	except ValueError:
-		return text
-	if isinstance(res, dict):
-		res.pop('eecu_warning', None)
-		return json.dumps(res, ensure_ascii=False, indent=1, default=str)
-	return text
 
 
 def _without_quota_warning(texts):

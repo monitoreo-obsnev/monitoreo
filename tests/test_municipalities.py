@@ -105,11 +105,11 @@ def test_the_region_is_named_in_the_readmes_reports_and_titles():
 
 def test_the_command_line_without_earth_engine(capsys, monkeypatch):
 	"""monitoreo units TEXT --level 3 answers from the index of the package: it connected to Earth Engine first, and
-	failed without credentials, network or EECUs."""
+	failed without credentials, network or research EECUs."""
 	def refused(*args, **kw):
 		raise AssertionError('Earth Engine used')
 	monkeypatch.setattr(services, 'init', refused)
-	monkeypatch.setattr(services, 'eecu_warning', refused)
+	monkeypatch.setattr(services, 'quota_warning', refused)
 	cli.main(['units', 'monachil', '--level', '3'])
 	out = capsys.readouterr().out
 	assert '18134' in out and 'Monachil (Granada)' in out

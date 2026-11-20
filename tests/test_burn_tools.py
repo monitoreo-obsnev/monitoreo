@@ -61,7 +61,6 @@ def burn(monkeypatch):
 		            bands=['dnbr', 'severity', 'nbr_before', 'nbr_after'])
 
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'burn_severity', fake)
 	return calls
 
@@ -233,7 +232,6 @@ def mcp(monkeypatch, tmp_path):
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	return mcp_server
 
 

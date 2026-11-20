@@ -101,7 +101,6 @@ def test_the_command_line_checks_and_runs_them(tmp_path, monkeypatch, capsys):
 	assert json.loads(out) == {'analysis': 'time_series', 'parameters': ARGS} and 'not applied: colour' in err
 	got = {}
 	monkeypatch.setattr(services, 'init', lambda *a, **kw: 'project')
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **kw: None)
 	monkeypatch.setattr(services, 'time_series', _fake('time_series', {'rows': [1, 2]}, got))
 	cli.main(['run', saved, '--out', str(tmp_path / 'again')])
 	out, err = capsys.readouterr()
@@ -170,7 +169,6 @@ def test_the_command_line_exits_well_and_runs_an_mp4(tmp_path, monkeypatch, caps
 	capsys.readouterr()
 	got = {}
 	monkeypatch.setattr(services, 'init', lambda *a, **kw: 'project')
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **kw: None)
 	monkeypatch.setattr(services, 'timelapse', _fake('timelapse', {'gif': 'x'}, got))
 	saved = parameters.save('timelapse', {k: v for k, v in ARGS.items() if k not in ('stat',)}, str(tmp_path / 't.json'))
 	cli.main(['run', saved, '--out', str(tmp_path / 'fire.mp4')])

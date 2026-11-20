@@ -81,12 +81,7 @@ class Iface:
 		pass
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 services.init = lambda *args, **kw: 'project'
-services.eecu_usage = eecu_usage
 
 # the warnings of the answers of a task: of one answer, of several, of the maps of maps_work ({'index', 'rgb'})
 assert docks.result_warnings({'warnings': [WARNING], 'data_source': S2}) == [WARNING]

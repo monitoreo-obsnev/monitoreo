@@ -137,13 +137,8 @@ def rgb_map(region, vmin=None, vmax=None, **opts):
 	        'unit': '[unitless]', 'bounds': [-3.6, 37.0, -3.5, 37.1], 'thumbnail': None}
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 services.init = lambda *args, **kw: 'project'
 services.check_pixels = lambda *args, **kw: {'pixels': 1}  # it fits (issue #86), without Earth Engine
-services.eecu_usage = eecu_usage
 for fake in (download_image, download_rgb, rgb_map):  # with the signature of the service (the panel reads it)
 	fake.__signature__ = inspect.signature(getattr(services, fake.__name__))
 services.download_image = download_image

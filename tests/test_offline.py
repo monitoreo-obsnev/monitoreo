@@ -682,7 +682,6 @@ def test_shared_account(monkeypatch, tmp_path):
 		monkeypatch.delenv(v, raising=False)
 	monkeypatch.setattr(services, '_project', None)
 	monkeypatch.setattr(services, '_shared', False)
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)  # see test_eecu
 	monkeypatch.setattr(services, 'USER_FILE', str(tmp_path / 'user_id'))
 	monkeypatch.setattr(services, '_user', None)
 	asked = []
@@ -729,52 +728,6 @@ class Response:
 		return self.body
 
 
-def test_eecu_month_and_limit():
-	# the quotas of Earth Engine restart on the first day of each month at midnight Pacific Time (PDT or PST)
-	utc = dt.timezone.utc
-	assert services.eecu_month(dt.datetime(2026, 11, 1, 7, 30, tzinfo=utc)) == \
-		(dt.datetime(2026, 11, 1, 7, tzinfo=utc), dt.date(2026, 12, 1))
-	assert services.eecu_month(dt.datetime(2026, 11, 1, 6, 59, tzinfo=utc))[0] == dt.datetime(2026, 10, 1, 7, tzinfo=utc)
-	assert services.eecu_month(dt.datetime(2026, 12, 31, 23, tzinfo=utc)) == \
-		(dt.datetime(2026, 12, 1, 8, tzinfo=utc), dt.date(2027, 1, 1))
-	assert services.eecu_limit() == 150 and services.eecu_limit('contributor') == 1000
-	assert services.eecu_limit('Partner') == 100000 and services.eecu_limit(250) == 250
-	# the project of MonitorEO is Contributor, whatever the setting says (its default, Community, too)
-	assert services.eecu_limit(None, 'ee-ugr-default-project') == 1000
-	assert services.eecu_limit('Community', 'ee-ugr-default-project') == 1000
-	assert services.eecu_limit(None, 'my-project') == 150
-	with pytest.raises(ValueError, match='tier'):
-		services.eecu_limit('Gold')
-
-
-def test_eecu_hours_of_cloud_monitoring():
-	# the EECU-seconds completed (metric of Cloud Monitoring), day by day and page by page, in hours
-	asked = []
-
-	class Session:
-		def get(self, url, params, timeout):
-			asked.append(dict(params))
-			if 'pageToken' not in params:
-				return Response(200, {'timeSeries': [{'points': [{'value': {'doubleValue': 3600}},
-				                                                 {'value': {'int64Value': '1800'}}]}],
-				                      'nextPageToken': 'next'})
-			return Response(200, {'timeSeries': [{'points': [{'value': {'doubleValue': 1800}}]}]})
-
-	start = dt.datetime(2026, 11, 1, 7, tzinfo=dt.timezone.utc)
-	assert services.eecu_hours(Session(), 'p', start, start + dt.timedelta(days=4)) == 2
-	assert asked[0]['filter'] == 'metric.type = "earthengine.googleapis.com/project/cpu/usage_time"'
-	assert asked[0]['interval.startTime'] == '2026-11-01T07:00:00Z' and asked[1]['pageToken'] == 'next'
-
-	class Disabled:
-		def get(self, url, params, timeout):
-			return Response(403, {'error': {'message': 'Cloud Monitoring API has not been used', 'details': [
-				{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'SERVICE_DISABLED'}]}})
-
-	with pytest.raises(services._MonitoringError) as e:
-		services.eecu_hours(Disabled(), 'p', start)
-	assert e.value.reason == 'disabled'
-
-
 def test_user_id(monkeypatch, tmp_path):
 	# the anonymous ID of an installation: made at random once, kept in a file, valid as a workload tag of Earth Engine
 	monkeypatch.setattr(services, 'USER_FILE', str(tmp_path / 'monitoreo' / 'user_id'))
@@ -783,90 +736,6 @@ def test_user_id(monkeypatch, tmp_path):
 	assert re.fullmatch(r'mo-[0-9a-f]{16}', user) and services.ee.data._get_state().workload_tag.validate(user) == user
 	monkeypatch.setattr(services, '_user', None)
 	assert services.user_id() == user and (tmp_path / 'monitoreo' / 'user_id').read_text().strip() == user
-
-
-def test_eecu(monkeypatch, tmp_path):
-	# with the shared account, the research EECUs of this user (from the broker, without connecting to Earth Engine);
-	# with the user's own, those of their project (Cloud Monitoring); a warning when less than 10 % are left
-	import warnings
-	for v in ('EE_PROJECT', 'GOOGLE_CLOUD_PROJECT'):
-		monkeypatch.delenv(v, raising=False)
-	monkeypatch.setattr(services, 'USER_FILE', str(tmp_path / 'user_id'))
-	monkeypatch.setattr(services, '_user', None)
-	monkeypatch.setattr(services, '_eecu', {})
-	monkeypatch.setattr(services, '_eecu_warned', set())
-	monkeypatch.setattr(services, '_project', None)
-	monkeypatch.setattr(services, '_shared', False)
-	monkeypatch.setattr(services, 'init', lambda *a, **kw: pytest.fail('it does not connect'))
-	used = {'hours': 2.0}
-	asked = []
-
-	def broker(path, **params):
-		asked.append((path, params))
-		return {'project': 'shared-project', 'user': params['user'], 'used_hours': used['hours'], 'limit_hours': 10}
-	monkeypatch.setattr(services, '_broker', broker)
-	u = services.eecu_usage(lang='es')
-	assert asked == [('/usage', {'user': services.user_id()})] and u['account'] == 'shared'
-	assert u['name'] == 'research EECUs' and u['project'] == 'shared-project' and u['tier'] is None
-	assert u['used_percent'] == 20 and u['left_percent'] == 80 and not u['low'] and u['warning'] is None
-	assert u['bar'] == '[######------------------------] 20%'
-	assert u['text'].startswith('research EECUs: 20,0 % gastado (2,00 de tus 10 EECU-h de este mes con la cuenta')
-	assert services.eecu_warning() is None  # not connected
-
-	monkeypatch.setattr(services, '_project', 'shared-project')
-	monkeypatch.setattr(services, '_shared', True)
-	used['hours'] = 9.3
-	assert services.eecu_usage()['used_percent'] == 20 and len(asked) == 1  # kept EECU_TTL seconds
-	u = services.eecu_usage(refresh=True)
-	assert len(asked) == 2 and u['low'] and u['left_percent'] == 7
-	assert u['warning'].startswith('Less than 10% of your research EECUs') and 'own Earth Engine account' in u['warning']
-	with warnings.catch_warnings(record=True) as caught:
-		warnings.simplefilter('always')
-		assert services.eecu_warning(lang='es', once=True, python_warning=True).startswith(
-			'Te quedan menos del 10 % de tus research EECUs')
-		assert services.eecu_warning(once=True) is None  # once a month and project
-		assert services.eecu_warning() is not None
-	assert [w.category for w in caught] == [services.EECUWarning]
-	used['hours'] = 10.2
-	assert services.eecu_usage(refresh=True, lang='es')['warning'].startswith(
-		'Has gastado tus research EECUs de este mes (10,2 de 10 EECU-h): la cuenta compartida de MonitorEO no calcula')
-
-	# the broker says what is left: at most what the project has left for all the users of the shared account
-	monkeypatch.setattr(services, '_broker', lambda path, **params: {
-		'project': 'shared-project', 'used_hours': 2.0, 'limit_hours': 25, 'left_hours': 1.5, 'project_left_hours': 1.5})
-	u = services.eecu_usage(refresh=True)
-	assert u['used_percent'] == 8 and u['left_percent'] == 6 and u['left_hours'] == 1.5 and u['low']
-	assert u['bar'] == '[############################--] 8%'
-	assert 'only 2 EECU-hours left for all its users' in u['text'] and 'you have 1.50 left' in u['text']
-	monkeypatch.setattr(services, '_broker', lambda path, **params: {
-		'project': 'shared-project', 'used_hours': 2.0, 'limit_hours': 25, 'left_hours': 0, 'project_left_hours': 0})
-	u = services.eecu_usage(refresh=True, lang='es')
-	assert u['warning'].startswith('La cuenta compartida de MonitorEO ha gastado los EECU de este mes para sus usuarios')
-
-	def fails(path, **params):
-		raise RuntimeError('503')
-	monkeypatch.setattr(services, '_broker', fails)
-	with pytest.raises(RuntimeError, match='your research EECUs of the shared account'):
-		services.eecu_usage(refresh=True)
-	monkeypatch.setattr(services, '_eecu', {})
-	assert services.eecu_warning() is None  # never fails
-
-	# the user's own project, against the quota of its tier
-	monkeypatch.setattr(services, '_project', 'mine')
-	monkeypatch.setattr(services, '_shared', False)
-	monkeypatch.setattr(services, '_own_eecu_hours', lambda project, start: 950.0)
-	monkeypatch.setattr(services, '_own_quota', lambda project: (None, None, None))  # without its quota counters
-	u = services.eecu_usage('Contributor', lang='en')
-	assert u['account'] == 'own' and u['tier'] == 'Contributor' and u['used_percent'] == 95 and u['low']
-	assert 'monthly EECU quota of the project mine' in u['warning'] and 'research' not in u['warning']
-	assert services.eecu_usage(lang='en')['used_percent'] == 633.3  # Community: 150 EECU-hours
-
-	def disabled(project, start):
-		raise services._MonitoringError(Response(403, {'error': {'message': 'no', 'details': [
-			{'reason': 'SERVICE_DISABLED'}]}}))
-	monkeypatch.setattr(services, '_own_eecu_hours', disabled)
-	with pytest.raises(RuntimeError, match='monitoring.googleapis.com\\?project=mine'):
-		services.eecu_usage(refresh=True)
 
 
 def test_broker_limits_each_user(monkeypatch, tmp_path):
@@ -987,12 +856,9 @@ def test_broker_limits_each_user(monkeypatch, tmp_path):
 		for v in ('GOOGLE_CLOUD_PROJECT',):
 			monkeypatch.delenv(v, raising=False)
 		monkeypatch.delenv('EE_PROJECT')
-		monkeypatch.setattr(services, '_eecu', {})
 		monkeypatch.setattr(services, '_project', None)
 		monkeypatch.setattr(services, '_shared', False)
 		monkeypatch.setattr(services, '_user', bob)
-		u = services.eecu_usage(lang='es')
-		assert u['used_percent'] == 105 and u['left_percent'] == 0 and u['warning'].startswith('Has gastado')
 		with pytest.raises(RuntimeError, match='spent your research EECUs.*Meanwhile, use your own account'):
 			services.init()
 		assert services.project() is None
@@ -1273,30 +1139,106 @@ def test_broker_without_credit(monkeypatch):
 	assert broker.chat(body, '1.1.1.1', user)['model'] == 'gemini-3.8-flash'  # without the key of Claude
 
 
-def test_eecu_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
+def test_quota_warning_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
+	"""After the commands that compute, the command line warns of the restricted mode of Earth Engine, and the MCP
+	server puts it in the answers of its tools; nothing tells the EECUs spent (their count was not that of Earth
+	Engine): no command eecu, no tool eecu_usage."""
 	from monitoreo import cli
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	low = {'account': 'shared', 'name': 'research EECUs', 'project': 'p', 'used_percent': 95.0, 'left_percent': 5.0,
-	       'bar': '[#############################-] 95%', 'text': 'research EECUs: 95% used', 'warning': 'Few left',
-	       'low': True}
-	monkeypatch.setattr(services, 'eecu_usage', lambda limit=None, refresh=False, lang='en': low)
-	cli.main(['eecu'])
-	out = capsys.readouterr()
-	assert out.out == 'research EECUs [#############################-] 95%\nresearch EECUs: 95% used\n'
-	assert 'WARNING: Few left' in out.err
-
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: 'Few left')
+	monkeypatch.setattr(services, 'quota_warning', lambda once=False: 'Restricted mode')
 	monkeypatch.setattr(services, 'find_protected_areas', lambda text, limit: [])
 	cli.main(['parks', 'Sierra'])
-	assert 'WARNING: Few left' in capsys.readouterr().err  # after the commands that compute
+	assert 'WARNING: Restricted mode' in capsys.readouterr().err  # after the commands that compute
+	with pytest.raises(SystemExit):
+		cli.main(['eecu'])
+	assert not hasattr(services, 'eecu_usage') and not hasattr(services, 'eecu_warning')
+	assert 'EECU_TIERS' not in dir(services) and 'monitoreo eecu' not in cli.__doc__
 
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
-	assert json.loads(mcp_server._eecu_warning('{"a": 1}')) == {'a': 1, 'eecu_warning': 'Few left'}
-	out = mcp_server._eecu_warning(['{"a": 1}', 'image'])
-	assert json.loads(out[0])['eecu_warning'] == 'Few left' and out[1] == 'image'
-	assert mcp_server._eecu_warning('[1, 2]') == '[1, 2]'  # only in objects
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
-	assert mcp_server._eecu_warning('{"a": 1}') == '{"a": 1}'
+	assert not hasattr(mcp_server, 'eecu_usage')
+	assert json.loads(mcp_server._quota_warning('{"a": 1}')) == {'a': 1, 'quota_warning': 'Restricted mode'}
+	out = mcp_server._quota_warning(['{"a": 1}', 'image'])
+	assert json.loads(out[0])['quota_warning'] == 'Restricted mode' and out[1] == 'image'
+	assert mcp_server._quota_warning('[1, 2]') == '[1, 2]'  # only in objects
+	monkeypatch.setattr(services, 'quota_warning', lambda once=False: None)
+	assert mcp_server._quota_warning('{"a": 1}') == '{"a": 1}'
+
+
+class _Google:
+	"""A session of Google (AuthorizedSession) with the answers of the APIs that own_projects asks: ANSWERS
+	{(url prefix, x-goog-user-project): (status, JSON)}; it keeps what it was asked."""
+
+	def __init__(self, answers):
+		self.answers, self.asked = answers, []
+
+	def get(self, url, params=None, timeout=None, headers=None):
+		project = (headers or {}).get('x-goog-user-project')
+		self.asked.append((url, project))
+		for (prefix, quota), (status, body) in self.answers.items():
+			if url.startswith(prefix) and quota == project:
+				return types.SimpleNamespace(status_code=status, json=lambda body=body: body)
+		return types.SimpleNamespace(status_code=403, json=lambda: {'error': {'message': 'not enabled'}})
+
+
+def test_own_projects(monkeypatch, tmp_path):
+	"""own_projects: the candidates (the one known, EE_PROJECT, earthengine set_project, the Google Cloud CLI,
+	ee-<user> of the e-mail, BigQuery and, through a project that has it, Resource Manager), only those registered in
+	Earth Engine (the configuration of each one, asked with its quota), in that order; without a sign-in, an error."""
+	import google.auth.transport.requests
+	credentials = tmp_path / 'credentials'
+	monkeypatch.setattr(services.ee.oauth, 'get_credentials_path', lambda: str(credentials))
+	monkeypatch.setattr(services.ee.data, 'get_persistent_credentials', lambda: object())
+	for v in ('EE_PROJECT', 'GOOGLE_CLOUD_PROJECT'):
+		monkeypatch.delenv(v, raising=False)
+	gcloud = tmp_path / 'gcloud'
+	(gcloud / 'configurations').mkdir(parents=True)
+	(gcloud / 'active_config').write_text('work')
+	(gcloud / 'configurations' / 'config_work').write_text('[core]\nproject = cli-project\naccount = x@y.z\n')
+	monkeypatch.setenv('CLOUDSDK_CONFIG', str(gcloud))
+	with pytest.raises(RuntimeError, match='sign in'):
+		services.own_projects()
+	credentials.write_text(json.dumps({'refresh_token': 'r', 'project': 'set-project'}))
+	ee_ = 'https://earthengine.googleapis.com/v1/projects/'
+	registered = {'cli-project': 'REGISTERED_NOT_COMMERCIALLY', 'ee-anaperez': 'REGISTERED_NOT_COMMERCIALLY',
+	              'bq-project': 'REGISTERED_COMMERCIALLY', 'all-project': 'REGISTERED_NOT_COMMERCIALLY',
+	              'old-project': 'NOT_REGISTERED'}
+	answers = {(ee_ + p + '/config', p): (200, {'registrationState': state}) for p, state in registered.items()}
+	answers[('https://www.googleapis.com/drive/v3/about', None)] = (200, {'user': {'emailAddress': 'Ana.Perez@x.org'}})
+	answers[('https://bigquery.googleapis.com/bigquery/v2/projects', None)] = \
+		(200, {'projects': [{'id': 'bq-project', 'friendlyName': 'Analysis'}, {'id': 'old-project'}]})
+	answers[('https://cloudresourcemanager.googleapis.com/v1/projects', 'ee-anaperez')] = \
+		(200, {'projects': [{'projectId': 'all-project', 'name': 'All'}, {'projectId': 'cli-project'}]})
+	session = _Google(answers)
+	monkeypatch.setattr(google.auth.transport.requests, 'AuthorizedSession', lambda c: session)
+	found = services.own_projects(['used-before', 'Not A Project!'])
+	assert found['account'] == 'Ana.Perez@x.org' and found['register'] == services.REGISTER_URL
+	assert [(p['project'], p['name'], p['registration']) for p in found['projects']] == [
+		('cli-project', None, 'noncommercial'), ('ee-anaperez', None, 'noncommercial'),
+		('bq-project', 'Analysis', 'commercial'), ('all-project', 'All', 'noncommercial')]
+	configs = [q for url, q in session.asked if url.startswith(ee_)]
+	assert sorted(configs) == sorted(['used-before', 'set-project', 'cli-project', 'ee-anaperez', 'bq-project',
+	                                  'old-project', 'all-project'])  # each one once, with its own quota
+	# nothing found (no network): an empty list, not an error
+	monkeypatch.setattr(google.auth.transport.requests, 'AuthorizedSession', lambda c: _Google({}))
+	assert services.own_projects()['projects'] == []
+	assert services._project_id('ee-a') is None and services._project_id('ee-ana') == 'ee-ana'
+	assert services._project_id('example.com:my-project')
+
+
+def test_projects_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
+	from monitoreo import cli
+	found = {'account': 'ana@x.org', 'register': services.REGISTER_URL,
+	         'projects': [{'project': 'ee-ana-p', 'name': None, 'registration': 'noncommercial'}]}
+	asked = []
+	monkeypatch.setattr(services, 'own_projects', lambda known=(): asked.append(list(known)) or found)
+	monkeypatch.setattr(services, 'init', lambda *a, **k: pytest.fail('connected'))
+	cli.main(['--project', 'mine-123', 'projects'])
+	out = capsys.readouterr().out
+	assert 'ee-ana-p' in out and 'noncommercial' in out and '1 projects registered in Earth Engine of ana@x.org' in out
+	assert asked == [['mine-123']] and 'monitoreo [--project P] projects' in cli.__doc__
+	mcp_server = pytest.importorskip('monitoreo.mcp_server')
+	assert json.loads(mcp_server.own_projects()) == found and asked[-1] == []
+	assert 'own_projects' in mcp_server.NO_QUOTA_WARNING
 
 
 def test_assistant_api_unforeseen_error():

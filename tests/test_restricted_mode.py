@@ -120,14 +120,11 @@ def test_watched_again_over_another_hook(clock, monkeypatch):
 def test_the_mcp_server_tells_it(clock, monkeypatch):
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	monkeypatch.setattr(services, 'describe_asset', lambda asset: {'id': asset})
 	assert json.loads(mcp_server.describe_asset('X')) == {'id': 'X'}
 	_answer_of_earth_engine()
 	assert json.loads(mcp_server.describe_asset('X')) == {'id': 'X', 'quota_warning': services.quota_warning()}
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: 'Few left')
-	assert json.loads(mcp_server._eecu_warning('{"a": 1}')) == {'a': 1, 'eecu_warning': 'Few left',
-	                                                             'quota_warning': services.quota_warning()}
+	assert json.loads(mcp_server._quota_warning('{"a": 1}')) == {'a': 1, 'quota_warning': services.quota_warning()}
 	assert 'quota_warning' not in mcp_server.list_variables(text='NDVI')  # the tools without Earth Engine
 
 	def fails(asset):
@@ -148,7 +145,6 @@ def test_the_mcp_server_tells_it(clock, monkeypatch):
 def test_the_command_line_tells_it(clock, monkeypatch, capsys):
 	from monitoreo import cli
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'find_protected_areas', lambda text, limit: _answer_of_earth_engine() or [])
 	cli.main(['parks', 'Sierra'])
 	err = capsys.readouterr().err
@@ -188,61 +184,11 @@ def test_the_qgis_plugin_tells_it(clock, monkeypatch):
 		assert dock.quota_text() == services.quota_warning()  # the user's own project (the error of a task)
 		assert dock.quota_text(once=True) is None  # given already
 		import monitoreo_qgis.helptexts as helptexts
-		assert 'restricted mode' in helptexts.HELP['eecu']
+		assert 'restricted mode' in helptexts.HELP['project'] and 'eecu' not in helptexts.HELP
 	finally:
 		for m in [m for m in sys.modules if m.startswith('monitoreo_qgis')]:
 			sys.modules.pop(m)
 		sys.modules.update(before)
-
-
-def test_earth_engine_is_asked_with_the_eecus(clock, monkeypatch):
-	"""eecu_usage (when the assistant opens, after each task of QGIS, before each function of R) asks Earth Engine for a
-	number (probe_quota), at most once every QUOTA_PROBE seconds, when the account asked is that connected: its answer
-	says whether the project is in restricted mode, which the broker of the shared account does not see (it said 42.9 %
-	left of the research EECUs of a user while the project was restricted, 2026-11-19)."""
-	asked = []
-
-	class Number:
-		def __init__(self, n):
-			self.n = n
-
-		def getInfo(self):
-			asked.append(self.n)
-			_answer_of_earth_engine()
-			return self.n
-
-	monkeypatch.setattr(services.ee, 'Number', Number)
-	monkeypatch.setattr(services, '_quota_probed', {})
-	monkeypatch.setattr(services, '_eecu', {})
-	monkeypatch.setattr(services, 'user_id', lambda: 'u')
-	monkeypatch.setattr(services, '_broker', lambda path, **kw: {'used_hours': 14.28, 'limit_hours': 25.0,
-	                                                            'left_hours': 10.72, 'project': 'ee-ugr-default-project'})
-	usage = services.eecu_usage(shared=True)
-	assert asked == [1] and usage['warning'] is None and usage['left_percent'] == 42.9
-	assert usage['quota_warning'].startswith('The shared account of MonitorEO has spent')
-	services.eecu_usage(shared=True, refresh=True)
-	assert asked == [1]  # not again before QUOTA_PROBE seconds
-	clock.t += services.QUOTA_PROBE
-	services.eecu_usage(shared=True, refresh=True)
-	assert asked == [1, 1]
-	monkeypatch.setattr(services, '_project', None)  # not connected: nothing asked to Earth Engine
-	clock.t += services.QUOTA_PROBE
-	assert services.eecu_usage(shared=True, refresh=True)['quota_warning'] is None and asked == [1, 1]
-
-
-def test_the_mcp_server_connects_to_tell_it_with_the_eecus(clock, monkeypatch):
-	mcp_server = pytest.importorskip('monitoreo.mcp_server')
-	connected = []
-	monkeypatch.setattr(mcp_server, '_ready', lambda: connected.append(True))
-	monkeypatch.setattr(services, 'eecu_usage', lambda *a: {'used_percent': 1, 'quota_warning': 'restricted'})
-	assert json.loads(mcp_server.eecu_usage())['quota_warning'] == 'restricted' and connected == [True]
-	monkeypatch.setattr(services, 'eecu_usage', lambda *a: {'used_percent': 1, 'quota_warning': None})
-	assert 'quota_warning' not in json.loads(mcp_server.eecu_usage())
-
-	def spent():
-		raise RuntimeError('no token: the research EECUs of this month are spent')
-	monkeypatch.setattr(mcp_server, '_ready', spent)  # the usage is told without connecting
-	assert json.loads(mcp_server.eecu_usage())['used_percent'] == 1
 
 
 def test_the_broker_asks_earth_engine(monkeypatch):
@@ -294,139 +240,3 @@ def test_the_broker_asks_earth_engine(monkeypatch):
 		assert broker.restricted() is True and len(asked) == 5  # kept QUOTA_TTL seconds
 	finally:
 		server.shutdown()
-
-
-def test_the_broker_tells_it_without_connecting(clock, monkeypatch):
-	"""The broker says that the project of the shared account is in restricted mode (restricted, with nothing left):
-	eecu_usage warns of it without connecting to Earth Engine (when the assistant and QGIS open), with the text of
-	the shared account and a full bar."""
-	monkeypatch.setattr(services, '_project', None)
-	monkeypatch.setattr(services, '_eecu', {})
-	monkeypatch.setattr(services, 'user_id', lambda: 'u')
-	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
-		'used_hours': 14.28, 'limit_hours': 25.0, 'left_hours': 0, 'project_left_hours': 0, 'restricted': True,
-		'project': 'ee-ugr-default-project'})
-	usage = services.eecu_usage(shared=True)
-	assert usage['left_percent'] == 0 and usage['low'] and usage['bar'].startswith('[' + '#' * 30 + ']')
-	assert usage['warning'].startswith('The shared account of MonitorEO has spent the noncommercial compute quota')
-	assert usage['quota_warning'] == usage['warning']  # the assistant shows it once (test_assistant)
-	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
-		'used_hours': 14.28, 'limit_hours': 25.0, 'left_hours': 10.72, 'project_left_hours': 500, 'restricted': False,
-		'project': 'ee-ugr-default-project'})
-	usage = services.eecu_usage(shared=True, refresh=True)
-	assert usage['warning'] is None and usage['quota_warning'] is None and usage['left_percent'] == 42.9
-
-
-class _Monitoring:
-	"""A fake session of Cloud Monitoring with the quota counters of Earth Engine (consumer_quota)."""
-
-	def __init__(self, counters, status=200):
-		self.counters, self.status, self.asked = counters, status, []
-
-	def get(self, url, params=None, timeout=None):
-		self.asked.append(params)
-		metric = next((m for m in self.counters if f'"{m}"' in params['filter']), None)
-		points = [{'interval': {'endTime': t}, 'value': {'int64Value': str(v)}} for t, v in self.counters.get(metric, [])]
-		body = {'timeSeries': [{'points': points}]} if points else {}
-		if self.status != 200:
-			body = {'error': {'message': 'denied'}}
-		return types.SimpleNamespace(status_code=self.status, json=lambda: body)
-
-
-def test_the_quota_counters_of_earth_engine():
-	"""quota_seconds reads what Earth Engine counts for the monthly quota (the newest point, never a sum) and its limit;
-	None without them or without a monthly limit."""
-	session = _Monitoring({services.QUOTA_LIMIT: [('2026-11-19T00:00:00Z', 3600000)],
-	                       services.QUOTA_USAGE: [('2026-11-19T22:17:00Z', 1586337), ('2026-11-19T22:32:00Z', 1606869),
-	                                              ('2026-11-19T21:32:00Z', 3151042)]})
-	import datetime as dt
-	assert services.quota_seconds(session, 'p', now=dt.datetime(2026, 11, 19, 23, tzinfo=dt.timezone.utc)) == \
-		(1606869, 3600000, '2026-11-19T22:32:00Z')
-	assert all('consumer_quota' in a['filter'] and services.QUOTA_METRIC in a['filter'] for a in session.asked)
-	assert services.quota_seconds(_Monitoring({}), 'p') == (None, None, None)  # (now)
-	assert services.quota_seconds(_Monitoring({services.QUOTA_LIMIT: [('t', 2 ** 63 - 1)]}), 'p') == (None, None, None)
-	with pytest.raises(services._MonitoringError):
-		services.quota_seconds(_Monitoring({}, status=403), 'p')
-	# only this month (the counter of the last month is not this one) and only the limit of the project
-	now = dt.datetime(2026, 11, 1, 9, 0, tzinfo=dt.timezone.utc)
-	session = _Monitoring({services.QUOTA_LIMIT: [('2026-11-01T08:30:00Z', 3600000)],
-	                       services.QUOTA_USAGE: [('2026-11-01T06:45:00Z', 3559042)]})
-	assert services.quota_seconds(session, 'p', now=now) == (None, 3600000, None)
-	assert all(a['interval.startTime'] == '2026-11-01T07:00:00Z' for a in session.asked)  # midnight, Pacific time
-	assert services.newest_quota([
-		{'metric': {'type': services.QUOTA_LIMIT, 'labels': {'limit_name': 'EarthEngineComputeTimePerMonthPerUser'}},
-		 'points': [{'interval': {'endTime': 't2'}, 'value': {'int64Value': '100'}}]},
-		{'metric': {'type': services.QUOTA_LIMIT, 'labels': {'limit_name': 'EarthEngineComputeTimePerMonthPerProject'}},
-		 'points': [{'interval': {'endTime': 't1'}, 'value': {'int64Value': '3600000'}}]},
-		{'metric': {'type': services.QUOTA_USAGE},
-		 'points': [{'interval': {'endTime': 't1'}, 'value': {'int64Value': '7'}}]}]) == (7, 3600000, 't1')
-
-
-def test_the_bar_of_the_users_project_is_what_earth_engine_counts(clock, monkeypatch):
-	"""With the user's own project, the bar is what Earth Engine counts for its quota (at least what the computations
-	completed spent), against its limit (not that of the tier given); when it has counted it all, the warning of
-	restricted mode. On 2026-11-17 the counter of ee-ugr-default-project reached the limit while the computations
-	completed were 45 % of it, and the tools did not warn."""
-	monkeypatch.setattr(services, '_project', 'ee-ugr-default-project')
-	monkeypatch.setattr(services, '_shared', False)
-	monkeypatch.setattr(services, '_eecu', {})
-	monkeypatch.setattr(services, '_quota_probed', {})
-	monkeypatch.setattr(services, 'probe_quota', lambda: None)
-	monkeypatch.setattr(services, '_own_eecu_hours', lambda project, start: 450.0)
-	counted = {'s': 2004659}
-	monkeypatch.setattr(services, '_own_quota', lambda project: (counted['s'], 3600000, '2026-11-17T17:48:00Z'))
-	u = services.eecu_usage('Community', refresh=True)  # the limit of Earth Engine, not that of the Community tier
-	assert u['limit_hours'] == 1000 and u['tier'] == 'Contributor' and u['source'] == 'quota'
-	assert u['used_hours'] == 556.85 and u['spent_hours'] == 450 and u['used_percent'] == 55.7 and not u['warning']
-	assert 'Earth Engine counts 556.8 EECU-hours for the quota (at 17:48 UTC' in u['text']
-	assert 'completed have spent 450.0: the bar shows the larger' in u['text']
-	counted['s'] = 3400000
-	u = services.eecu_usage(refresh=True)
-	assert u['low'] and u['warning'].startswith('Less than 10% of the monthly EECU quota of the project')
-	counted['s'] = 3595140  # 99.9 %: Earth Engine restricted the project at that count (2026-11-17 19:48 UTC)
-	u = services.eecu_usage(refresh=True)
-	assert u['quota_reached'] and u['left_percent'] == 0
-	assert u['warning'].startswith('Your Earth Engine project ee-ugr-default-project has exceeded its noncommercial')
-	assert u['quota_warning'] == u['warning']
-	assert services.eecu_warning(once=True) == u['warning'] and services.eecu_warning(once=True) is None
-	# the counter went down (Earth Engine settled it) below what the computations completed spent: those
-	counted['s'] = 1000000
-	u = services.eecu_usage(refresh=True)
-	assert u['used_hours'] == 450 and not u['quota_reached'] and not u['warning']
-	# without the counters (a project without them, or no permission): the computations completed, against the tier
-	# (that of this project, which MonitorEO knows, else the one given)
-	monkeypatch.setattr(services, '_own_quota', lambda project: (None, None, None))
-	u = services.eecu_usage('Community', refresh=True)
-	assert u['source'] == 'completed' and u['limit_hours'] == 1000 and u['used_hours'] == 450
-	monkeypatch.setattr(services, '_project', 'mine')
-	u = services.eecu_usage('Community', refresh=True)
-	assert u['source'] == 'completed' and u['limit_hours'] == 150 and u['used_hours'] == 450
-
-
-def test_the_bar_of_the_shared_account_says_what_earth_engine_counts(clock, monkeypatch):
-	monkeypatch.setattr(services, '_project', None)
-	monkeypatch.setattr(services, '_eecu', {})
-	monkeypatch.setattr(services, 'user_id', lambda: 'u')
-	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
-		'used_hours': 2.0, 'limit_hours': 25.0, 'left_hours': 23.0, 'project_left_hours': 300, 'restricted': False,
-		'quota_reached': False, 'project_quota_percent': 60.2, 'project': 'ee-ugr-default-project'})
-	u = services.eecu_usage(shared=True, lang='es')
-	assert u['source'] == 'quota' and 'lleva el 60,2 % de su cuota mensual' in u['text'] and not u['warning']
-	# near the quota of Earth Engine: a warning (the bar is still that of the user's research EECUs)
-	monkeypatch.setattr(services, '_broker', lambda path, **kw: {
-		'used_hours': 2.0, 'limit_hours': 25.0, 'left_hours': 23.0, 'project_left_hours': 300, 'restricted': False,
-		'quota_reached': False, 'project_quota_percent': 93.4, 'project': 'ee-ugr-default-project'})
-	u = services.eecu_usage(shared=True, refresh=True)
-	assert u['low'] and u['quota_low'] and u['left_percent'] == 92
-	assert u['warning'].startswith('The project of the shared account of MonitorEO is at 93.4% of its monthly EECU')
-	assert services.eecu_warning_key(u)[2] == 'project'
-
-
-def test_each_kind_of_warning_once_a_day():
-	"""A warning of little left does not hide that of the quota reached (as on 2026-11-17)."""
-	low = {'project': 'p', 'account': 'own', 'warning': 'Less than 10%', 'quota_warning': None, 'left_percent': 5}
-	reached = dict(low, warning='Your project has exceeded', quota_warning='Your project has exceeded',
-	               quota_reached=True, left_percent=0)
-	other = dict(low, quota_warning='restricted (seen by earthengine-api)')  # little left, while restricted
-	keys = [services.eecu_warning_key(u)[:3] for u in (low, reached, other, dict(low, left_percent=0))]
-	assert keys == [('p', 'own', 'low'), ('p', 'own', 'reached'), ('p', 'own', 'low'), ('p', 'own', 'out')]

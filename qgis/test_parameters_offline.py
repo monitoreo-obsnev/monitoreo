@@ -88,10 +88,6 @@ from monitoreo import parameters, services  # noqa: E402
 computed = []  # the services that compute, called
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 def faked(name):
 	"""The service NAME, which fails the test if it is called (with its signature, which monitoreo.parameters reads)."""
 	def call(*args, **kw):
@@ -102,7 +98,6 @@ def faked(name):
 
 
 services.init = lambda *args, **kw: 'project'
-services.eecu_usage = eecu_usage
 for name in parameters.ANALYSES + ('describe_asset', 'find_protected_areas', 'find_admin_units'):
 	setattr(services, name, faked(name))
 # the settings of the panel, restored at the end (its tasks store those of the fields: other tests read them)
