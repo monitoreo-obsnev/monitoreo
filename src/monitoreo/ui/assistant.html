@@ -134,6 +134,8 @@ ol.refs li { margin: 2px 0; overflow-wrap: anywhere; }
 #maplegend { flex-wrap: wrap; }  /* the index and, under it, its true colour («Both») */
 .legend .class { display: inline-flex; align-items: center; gap: 5px; }
 .legend .swatch { width: 14px; height: 14px; border: 1px solid var(--line); flex: none; }
+.legend .how { flex-basis: 100%; font-size: .9em; }
+.range input[type=number] { width: 4.5em; }
 .files a { margin-right: 12px; font-size: .9em; color: var(--accent); }
 .layers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .85em; margin: 0 2px 6px; }
 .layers[hidden] { display: none; }  /* without study areas or documents, not even their label */
@@ -297,6 +299,12 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
         <option value="pnoa">PNOA orthophoto (Spain only)</option>
       </select></label>
       <label>Opacity <input id="opacity" type="range" min="0" max="1" step="0.1" value="0.85"></label>
+      <span id="rangelabel" class="range" hidden title="The colours of each map (and of each of its dates) are stretched between the percentiles 1 and 99 of its own values over the region. Give other percentiles, or the value of the first and of the last colour (empty: from the percentile), and press Apply: the maps of this result are made again with them in Google Earth Engine. The maps of classes keep the colour of each class.">Colours: percentiles
+        <input id="plo" type="number" min="0" max="100" step="0.5" value="1" aria-label="Low percentile of the colours"> –
+        <input id="phi" type="number" min="0" max="100" step="0.5" value="99" aria-label="High percentile of the colours">
+        or min <input id="cmin" type="number" step="any" placeholder="auto" aria-label="Value of the first colour">
+        max <input id="cmax" type="number" step="any" placeholder="auto" aria-label="Value of the last colour">
+        <button id="applyrange" type="button">Apply</button></span>
       <button id="query" type="button" aria-pressed="false" title="With the query on, click on the map to see the value of a pixel and its time series">Query pixel</button>
       <button id="snapshot" type="button" title="Keeps what the map shows (base map, extent and marked pixel) as a result">Add this view to the report</button>
     </div>
@@ -857,7 +865,8 @@ function legendItems(lg) {
   if (!lg.palette) return lg.text ? [el('span', {text: lg.text})] : [];
   const colours = lg.palette.map(c => '#' + c.replace('#', '')).join(', ');
   return [el('span', {text: fmt(lg.min)}), el('span', {class: 'bar', style: `background: linear-gradient(to right, ${colours})`}),
-          el('span', {text: fmt(lg.max) + (lg.unit ? ' ' + lg.unit : '')})];
+          el('span', {text: fmt(lg.max) + (lg.unit ? ' ' + lg.unit : '')}),
+          ...(lg.stretch ? [el('span', {class: 'muted how', text: 'Colours ' + lg.stretch})] : [])];  // how: p1-p99...
 }
 
 function resultCard(e) {
@@ -1092,6 +1101,14 @@ function display(id, key, m, fit) {  // the map M (that of the result ID or of i
   lg.classList.toggle('classes', Boolean(top.legend && top.legend.classes));
   if (top.legend) lg.append(...legendItems(top.legend));
   if (under && rgb.legend) lg.append(el('span', {class: 'muted', text: '·'}), ...legendItems(rgb.legend));
+  // the range of the colours: the maps with a colour ramp (not those of classes, the fixed ramps of the tau and
+  // p-value of a trend, nor the true colour alone), with the range chosen for the maps of the result, or the default
+  $('rangelabel').hidden = !(top === m && m.range);
+  const chosen = maps[id].chosen || {};
+  $('plo').value = chosen.percentiles ? chosen.percentiles[0] : 1;
+  $('phi').value = chosen.percentiles ? chosen.percentiles[1] : 99;
+  $('cmin').value = chosen.vmin ?? '';
+  $('cmax').value = chosen.vmax ?? '';
   mapHint();
   swipeOptions();
   if (mode !== 'index' && !rgb) colour(id, key);  // the map of the variable until its true colour is ready
@@ -1114,6 +1131,29 @@ async function colour(id, key) {  // the true colour of the images of the map of
   if (current && current.id === id && current.key === key && layerMode() !== 'index') display(id, key, current, false);
 }
 $('layer').onchange = () => { if (current) display(current.id, current.key, current, false); };
+
+$('applyrange').onclick = async () => {  // the colours of the maps of the result shown, between other percentiles
+  if (!current) return;                 // or from a minimum to a maximum (made again in Google Earth Engine)
+  const id = current.id, e = maps[id], key = $('mapstep').value, number = v => v === '' ? null : Number(v);
+  const low = number($('plo').value), high = number($('phi').value);  // empty: the default, 1 and 99
+  const body = {id, key, percentiles: low === null || high === null ? null : [low, high],
+                vmin: number($('cmin').value), vmax: number($('cmax').value)};
+  $('maphint').replaceChildren(el('span', {class: 'spinner'}), 'Preparing the map with those colours in Google Earth Engine…');
+  $('applyrange').disabled = true;
+  try {
+    const shown = await api('/api/map/range', body);
+    const main = key ? shown.main : shown;  // the map of the result is made again too
+    e.cache = {};  // the maps of the other dates: made again with the new colours when they are chosen
+    if (key) e.cache[key] = shown;
+    Object.assign(e, {map: main.map, legend: main.legend, title: main.title, heading: main.heading});
+    e.chosen = {percentiles: body.percentiles, vmin: body.vmin, vmax: body.vmax};
+    if (current.id === id) {
+      $('significant').checked = false;
+      display(id, key, key ? shown : e, false);
+    }
+  } catch (err) { notice('Those colours could not be applied: ' + err.message, true); mapHint(); }
+  finally { $('applyrange').disabled = false; }
+};
 
 let querying = false;  // whether a click on the map queries its pixel
 function mapHint() {  // on the true colour of a map, the pixel of the variable of the map, as in «Index»

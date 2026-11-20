@@ -11,6 +11,16 @@ from monitoreo import about, references, sensors, services  # noqa: E402
 from monitoreo import variable as variables  # noqa: E402
 
 MANUAL = f'{about.MANUAL}/QGIS-plugin'  # the English page of the plugin in the wiki
+# the Colour range of the maps of a group (dock.ColourRange): how their colour ramp is stretched, as in every tool
+COLOUR_RANGE = ('<p>Between which values the colour ramp is spread: by default from the <b>percentile 1</b> to the '
+                '<b>percentile 99</b> of the values of the map over the region (the first colour for the lowest 1 %, '
+                'the last one for the highest 1 %), each map with its own. Change the two percentiles (e.g. 5 and 95 for '
+                'more contrast, 0 and 100 for the whole range), or write a <b>min</b> and a <b>max</b> (in the unit of '
+                'the map) to give the range yourself; with only one of them, the other end comes from its '
+                'percentile.</p>'
+                '<p>The legend of the layer and its metadata (Layer Properties → Information) say the range and how it '
+                'was stretched. The categorical layers (land cover, ECOREGION, BIOME) keep the colour of each class, and '
+                'the burn severity its classes and its fixed range of the RBR.</p>')
 FILTER_NAMES = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 MEASURED = {'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 
@@ -456,6 +466,11 @@ HELP = {
 		'Kendall\'s τ, Z, p-value, intercept (the value of the line in the first year) and number of years with data. '
 		'Query them with <b>Identify Features</b>.</p>'
 		+ manual('QGIS-plugin#6-trends'),
+	'trend_colours':
+		COLOUR_RANGE.replace('the colour ramp is spread', 'the colours of Sen\'s slope are spread') +
+		'<p>The slope is painted symmetric around 0 (no change, the colour in the middle), up to the largest of its two '
+		'percentiles in absolute value. The same range for the maps of the trend table (<b>Add to the map</b> of its '
+		'window).</p>' + manual('QGIS-plugin#6-trends'),
 	'trend_alpha':
 		'<p>Checked, the trend map only shows the pixels with a significant trend (p-value &lt; 0.05); the others are '
 		'left with no data. Unchecked, it shows all of them.</p>'
@@ -505,8 +520,9 @@ HELP = {
 	'anim_step':
 		'<p>The <b>animation</b> (a timelapse) has a frame per year, month, 16 days or day with images of the period '
 		'(within the <b>Season</b>, if there is one), with its date written on it, the title, the colour ramp with its '
-		'unit and the credits of the data. Every frame has the same colours (from the percentiles 5 and 95 of the map '
-		'of the whole period), so that they can be compared; the pixels without data in a step are light grey.</p>'
+		'unit and the credits of the data. By default each frame has its own colours (from its percentiles 1 and 99: '
+		'see <b>Colour range</b>), written on it; with <b>Same colours in every frame</b>, one colour ramp for all of '
+		'them, so that they can be compared. The pixels without data in a step are light grey.</p>'
 		'<p>At most 120 frames: for long periods, a frame per year. Earth Engine makes each frame, so it takes some '
 		'minutes. The window plays the GIF, with the date and the number of images of each frame, and saves it with '
 		'its README.</p>' + manual('QGIS-plugin#12-animation-timelapse'),
@@ -516,6 +532,16 @@ HELP = {
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'anim_fps':
 		'<p>Frames per second of the GIF: 1 (by default) shows each year for a second, 0.5 for two seconds.</p>'
+		+ manual('QGIS-plugin#12-animation-timelapse'),
+	'anim_colours':
+		COLOUR_RANGE.replace('each map with its own', 'each frame with its own (the window shows the range of each '
+		                     'frame)') + manual('QGIS-plugin#12-animation-timelapse'),
+	'anim_same':
+		'<p>Checked, every frame has the same colours, so that they can be compared: from the percentiles of the '
+		'<b>Colour range</b> (by default 1 and 99) of the map of the whole period (for the sum and the count, which '
+		'grow with the images, of the median of the frames), or from its <b>min</b> to its <b>max</b>. Unchecked (by '
+		'default), each frame is stretched between its own percentiles, which shows the patterns of each date better '
+		'but not the changes between them. With both <b>min</b> and <b>max</b> written, always the same colours.</p>'
 		+ manual('QGIS-plugin#12-animation-timelapse'),
 	'map_metric':
 		'<p>How the images of the period (or of each year or month, according to the <b>Temporal aggregation</b>) are '
@@ -542,14 +568,26 @@ HELP = {
 		'<li><b>True colour (RGB)</b>: the red, green and blue surface reflectance of the same images (sensor, period, '
 		'season and pixel filters) and of the same pixels as the index (also those of <b>Only the pixels where</b>), '
 		'with the same <b>Metric</b>, <b>Temporal aggregation</b> and <b>Metric between years</b>: a GeoTIFF with the '
-		'bands red, green and blue, the three stretched together between their percentiles 2 and 98, so that the '
-		'colours keep their balance. With <b>Minimum</b> and <b>Maximum</b>, the colours of the image where the '
+		'bands red, green and blue, the three stretched together between their percentiles 2 and 98 (or those of the '
+		'<b>Colour range</b>, if changed), so that the colours keep their balance. With <b>Minimum</b> and <b>Maximum</b>, the colours of the image where the '
 		'variable is lowest or highest on each pixel.</li>'
 		'<li><b>Both</b>: the true colour and, on top of it, the index, on the same pixels.</li></ul>'
 		'<p>Only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have a true colour: not the '
 		'fixed layers, the climate, the other products of MODIS (their NDVI and EVI have no green band), the data of '
 		'Earth Engine given by their ID nor the difference of <b>Compare with</b>.</p>'
 		+ manual('QGIS-plugin#4-add-the-map'),
+	'map_colours':
+		COLOUR_RANGE + '<p>With <b>Compare with</b>, the difference is painted symmetric around 0, up to the largest of '
+		'its two percentiles in absolute value. With <b>Layer</b> True colour (RGB) alone, the percentiles (if changed: '
+		'otherwise 2 and 98) and the min and max are those of the reflectance of the three bands; with <b>Both</b>, the '
+		'colour range is that of the index, and the true colour keeps its percentiles 2 and 98. The same range for the '
+		'maps of a time series (<b>Add to the map</b> of its window).</p>' + manual('QGIS-plugin#4-add-the-map'),
+	'map_same':
+		'<p>The maps that <b>Add to the map</b> of the window of a time series or of a trend table adds, one per step '
+		'or part of the year: unchecked (by default), each map with its own colours (its own percentiles of the '
+		'<b>Colour range</b>: of the group Map for a series, of the group Trends for trends), which shows the patterns '
+		'of each date better; checked, all of them with the colours of the first map added (and its true colour, the '
+		'stretch of the first true colour), so that they can be compared.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
 		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '

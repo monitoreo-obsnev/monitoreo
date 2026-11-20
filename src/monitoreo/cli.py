@@ -165,6 +165,8 @@ def _where(args):
 BURN_COLLECTIONS = ('MODIS/061/MOD09GA', 'MODIS/061/MYD09GA')
 
 
+PERCENTILES_HELP = ('the two percentiles of the values of the map over the region between which its colour ramp is '
+                    'stretched (default: 1 99)')
 SENSOR_HELP = 'the sensor of VARIABLE, e.g. Sentinel-2 (monitoreo list gives those of each variable)'
 # the metrics of the images and the statistics of the region, for any variable (composite.METRICS)
 METRIC_HELP = ('how the images are summarized on each pixel: mean, median, min, max, std (standard deviation), cv '
@@ -430,6 +432,12 @@ def main(argv=None):
 	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data; 1 to 10 km over '
 	                                                'more than 100,000 km²)')
 	p.add_argument('--out', help='GeoTIFF file of the variable')
+	p.add_argument('--vmin', type=float, help='value of the first colour of its preview, README and QGIS style '
+	                                         '(default: the low percentile of the values of the file); with --rgb and '
+	                                         'without --out, the reflectance of the true colour')
+	p.add_argument('--vmax', type=float, help='value of the last colour (default: the high percentile)')
+	p.add_argument('--percentiles', nargs=2, type=float, metavar=('LOW', 'HIGH'),
+	               help=PERCENTILES_HELP + '; with --rgb and without --out, those of the true colour (default 2 98)')
 	p.add_argument('--rgb', metavar='FILE', help='GeoTIFF file of the true colour of the same images and pixels: bands '
 	                                             'red, green and blue (surface reflectance), with the same metric; '
 	                                             'with --out too, on its grid. Only the variables of Sentinel-2 and '
@@ -545,8 +553,10 @@ def main(argv=None):
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
 	p.add_argument('--interannual', default='mean', help=INTERANNUAL_HELP)
-	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map)')
-	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
+	p.add_argument('--vmin', type=float, help='value of the first colour (default: the low percentile of the map)')
+	p.add_argument('--vmax', type=float, help='value of the last colour (default: the high percentile of the map)')
+	p.add_argument('--percentiles', nargs=2, type=float, metavar=('LOW', 'HIGH'),
+	               help=PERCENTILES_HELP)
 	p.add_argument('--title', help='title of the figure (default: that of the map)')
 	p.add_argument('--dpi', type=int, default=300, help='resolution of a PNG (default: 300)')
 	p.add_argument('--out', required=True, help='the figure: PNG (.png), PDF (.pdf) or SVG (.svg)')
@@ -562,9 +572,14 @@ def main(argv=None):
 	p.add_argument('--step', default='annual', choices=('annual', 'monthly', '16-day', 'daily'),
 	               help='a frame per year (default), month, 16 days or day with images (at most 120 frames)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
-	p.add_argument('--vmin', type=float, help='value of the first colour (default: percentile 5 of the map of the '
-	                                         'period; with --metric sum or count, of the median of the frames)')
-	p.add_argument('--vmax', type=float, help='value of the last colour (default: percentile 95)')
+	p.add_argument('--vmin', type=float, help='value of the first colour of every frame (default: the low percentile '
+	                                         'of the values of each frame)')
+	p.add_argument('--vmax', type=float, help='value of the last colour of every frame (default: the high percentile)')
+	p.add_argument('--percentiles', nargs=2, type=float, metavar=('LOW', 'HIGH'),
+	               help=PERCENTILES_HELP)
+	p.add_argument('--same-colours', action='store_true',
+	               help='one colour ramp for every frame, from the percentiles of the map of the whole period (with '
+	                    '--metric sum or count, of the median of the frames), instead of each frame its own')
 	p.add_argument('--fps', type=float, default=1, help='frames per second (default: 1)')
 	p.add_argument('--dimensions', type=int, default=600, help='width or height of the map in pixels (default: 600)')
 	p.add_argument('--out', required=True, help='GIF (.gif) or video (.mp4, needs ffmpeg) of the animation')
@@ -946,11 +961,11 @@ def _compute(args, services):
 			res = services.map_figure(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
 			                          temporal=args.temporal, interannual=args.interannual, vmin=args.vmin,
 			                          vmax=args.vmax, path=args.out, title=args.title, dpi=args.dpi, where=_where(args),
-			                          **args.source)
+			                          percentiles=args.percentiles, **args.source)
 		except ValueError as e:
 			sys.exit(_error(e, args))
 		colours = f"{len(res['classes'])} classes" if res.get('classes') is not None else \
-			f"colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()  # a categorical layer: its classes
+			f"colours {res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip() + _stretch(res)  # categorical: classes
 		print(f"{res['file']}: {res['name']} | {colours}" + _documented(res))
 		return
 	progress = lambda d, t: print(f'  {d}/{t} steps', file=sys.stderr)  # noqa: E731
@@ -975,6 +990,28 @@ def _compute(args, services):
 	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
 	      + files)
+
+
+def _range_label(res, default='p1-p99'):
+	"""The range of the colours of RES in a few words: pLOW-pHIGH (its percentiles), 'given' (vmin and vmax) or
+	DEFAULT (a result without stretch)."""
+	st = res.get('stretch') if isinstance(res.get('stretch'), dict) else {}
+	if st.get('method') == 'given':
+		return 'colours given'
+	if st.get('method') == 'mixed':  # one end given, the other from a percentile (or the catalog)
+		lo, hi = st.get('percentiles') or (None, None)
+		other = 'catalog' if lo is None else f'p{hi:g}' if st.get('given') == 'min' else f'p{lo:g}'
+		return f'vmin given-{other}' if st.get('given') == 'min' else f'{other}-vmax given'
+	if st.get('percentiles'):
+		lo, hi = st['percentiles']
+		return f'p{lo:g}-p{hi:g}'
+	return default
+
+
+def _stretch(res):
+	"""How the colours of RES were stretched, after ' | ' ('' without it)."""
+	st = res.get('stretch')
+	return f" ({st['text']})" if isinstance(st, dict) and st.get('text') else ''
 
 
 def _axis(lim):
@@ -1014,7 +1051,9 @@ def _image(args, services):
 		if args.out:
 			if args.rgb:  # its refusals (variable, metric) before Earth Engine computes the map
 				variables.check_rgb(services.make_spec(**same))
-			res = services.download_image(region, resolution=resolution, path=args.out, progress=tiles, **same)
+			res = services.download_image(region, resolution=resolution, path=args.out, progress=tiles, vmin=args.vmin,
+			                              vmax=args.vmax, percentiles=args.percentiles,
+			                              **same)
 			images = 'fixed image' if res.get('images') is None else f"{res['images']} images"  # no dates: none
 			if res.get('classes') is not None:  # a categorical layer: the classes in the file
 				print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
@@ -1023,14 +1062,17 @@ def _image(args, services):
 				      if res['classes'] else f"{res['file']}: no valid pixel")
 			else:
 				print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
-				      f"{res['resolution']:g} m | {images} | p5-p95 {res['min']:.4g} to {res['max']:.4g} "
+				      f"{res['resolution']:g} m | {images} | {_range_label(res)} {res['min']:.4g} to {res['max']:.4g} "
 				      f"{res['unit']}".rstrip() if res['min'] is not None else f"{res['file']}: no valid pixel")
 			resolution = res['resolution']
 		if args.rgb:
-			res = services.download_rgb(region, resolution=resolution, path=args.rgb, progress=tiles, **same)
+			alone = not args.out  # the range given is that of the true colour only without the map of the variable
+			res = services.download_rgb(region, resolution=resolution, path=args.rgb, progress=tiles,
+			                            percentiles=args.percentiles if alone else None,
+			                            vmin=args.vmin if alone else None, vmax=args.vmax if alone else None, **same)
 			print(f"{res['file']}: {res['name']} | {res['grid']['width']} x {res['grid']['height']} pixels of "
 			      f"{res['resolution']:g} m | {res['images']} images | bands {', '.join(res['bands'])} | reflectance "
-			      f"{res['min']:.4g} to {res['max']:.4g} (p2-p98)" if res['min'] is not None
+			      f"{res['min']:.4g} to {res['max']:.4g} ({_range_label(res, 'p2-p98')})" if res['min'] is not None
 			      else f"{res['file']}: no valid pixel")
 	except ValueError as e:
 		sys.exit(_error(e, args))
@@ -1091,13 +1133,15 @@ def _timelapse(args, services):
 		res = services.timelapse(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                         metric=args.metric, vmin=args.vmin, vmax=args.vmax, fps=args.fps,
 		                         dimensions=args.dimensions, path=args.out, where=_where(args),
+		                         percentiles=args.percentiles, same_colours=args.same_colours,
 		                         progress=lambda d, t: print(f'  {d}/{t} frames', file=sys.stderr), **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
-	_table([{'frame': i, 'label': f['label'], 'images': f['images']} for i, f in enumerate(res['frames'], 1)],
-	       ['frame', 'label', 'images'])
+	_table([{'frame': i, 'label': f['label'], 'images': f['images'],
+	         'colours': f"{f['min']:.4g} to {f['max']:.4g}" if f.get('min') is not None else ''}
+	        for i, f in enumerate(res['frames'], 1)], ['frame', 'label', 'images', 'colours'])
 	print(f"\n{res['file']}: {res['name']} | {res['n_frames']} frames, {res['fps']:g} per second | colours "
-	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip()
+	      f"{res['min']:.4g} to {res['max']:.4g} {res['unit']}".rstrip() + _stretch(res)
 	      + _documented(res))
 	if res.get('note'):
 		print(res['note'], file=sys.stderr)

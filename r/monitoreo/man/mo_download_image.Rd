@@ -27,7 +27,10 @@ mo_download_image(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  terrain = NULL
+  terrain = NULL,
+  vmin = NULL,
+  vmax = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -129,10 +132,19 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 \item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation; one band)
 instead of its values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"};
 not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+
+\item{vmin, vmax}{range of the colour ramp (default: from \code{percentiles}); with only one of them, the other end
+from its percentile.}
+
+\item{percentiles}{two numbers, the percentiles of the values of the map over the region between which its colour
+ramp is stretched (default \code{NULL}: \code{c(1, 99)}), each map with its own; e.g. \code{c(5, 95)} for more
+contrast, \code{c(0, 100)} for the whole range. The result says how in \code{stretch} (its \code{text} goes to
+the legends and the README). The categorical layers (ECOREGION, BIOME) keep the colour of each class.}
 }
 \value{
-A list (file, grid, resolution, native_resolution, images, name, unit, min, max, palette, references,
-  credits).
+A list (file, grid, resolution, native_resolution, images, name, unit, min, max (the colour ramp, from
+  \code{percentiles} of the values of the file or from \code{vmin} and \code{vmax}), palette, stretch: how, with its
+  text, references, credits).
 }
 \description{
 Computed by Earth Engine in tiles (float32, NoData -9999): for small regions (big ones: \code{mo_export_image()}).

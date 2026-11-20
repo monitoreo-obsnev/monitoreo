@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from monitoreo import assistant, report
+from monitoreo import assistant, maps, report
 from monitoreo.steps import MAX_MAP_STEPS, UNITS, map_steps
 
 TOOLS = [
@@ -125,8 +125,9 @@ def test_the_model_does_not_get_the_results(monkeypatch):
 	assert shown['legend']['palette'] == MAP['palette'] and shown['title'] == result['title']  # the list of maps
 	assert result['title'].endswith(' · Sierra Nevada (Parque Nacional)')  # the region, in the titles
 	assert a.mapped == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
-	                                  'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': True})
-	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped[1].items() if k != 'quick'}
+	                                  'start': ARGS['start'], 'end': ARGS['end'], 'metric': 'median', 'quick': False,
+	                                  'preview': False})  # its colours from its percentiles 1 and 99, without PNG
+	assert a.map_of(1)[1]['args'] == {k: v for k, v in a.mapped[1].items() if k not in ('quick', 'preview')}
 
 
 def test_trend_map_of_an_area(monkeypatch):
@@ -548,9 +549,12 @@ def test_downloads_and_exports(monkeypatch):
 	tif = {'file': '/tmp/NDVI.tif', 'grid': {'crs': 'EPSG:32630', 'resolution': 20, 'width': 1200, 'height': 800},
 	       'resolution': 20, 'native_resolution': 10, 'images': 12, 'name': 'NDVI', 'unit': '[unitless]',
 	       'min': 0.12, 'max': 0.63, 'palette': ['ffffff', '00aa00']}
-	facts = dict(report.item_facts('download_image', ARGS, tif))
+	facts = dict(report.item_facts('download_image', ARGS, dict(tif, stretch=maps.stretch_of(
+		'the values of the file', (1, 99), False, False))))
+	assert facts['Colours'] == '0.12 to 0.63: stretched between the percentiles 1 and 99 of the values of the file'
+	facts = dict(report.item_facts('download_image', ARGS, tif))  # a result of before the stretch: its range
 	assert facts['GeoTIFF'] == '1,200 × 800 pixels of 20 m (the data, of 10 m), in EPSG:32630'
-	assert facts['Values (percentiles 5 and 95)'] == '0.12 to 0.63' and facts['Images'] == '12'
+	assert facts['Colours'] == '0.12 to 0.63' and facts['Images'] == '12'
 	assert report.item_title('download_image', ARGS) == 'Map of NDVI (Sentinel-2), 2021 (GeoTIFF)'
 	assert assistant.task_text('task_status', json.dumps({'state': 'RUNNING', 'progress': 0.42})) == \
 	       'Export to Google Drive: running (42%).'
@@ -1339,8 +1343,8 @@ def test_map_and_pixel():
 	assert shown['title'] == report.item_title('map_layer', {**ARGS, 'start': '2019-03-01', 'end': '2019-03-31'}) + \
 	       ' · WDPA 389011'
 	assert calls[0] == ('map_layer', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
-	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'vmin': None,
-	                                  'vmax': None, 'quick': True})
+	                                  'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'mean', 'quick': False,
+	                                  'preview': False})  # each step stretched between its own percentiles
 	assert calls[1][0] == 'region_stats' and calls[1][1]['start'] == '2019-03-01' and calls[2][0] == 'time_series'
 	# the value of the map at the pixel: with its metric between the years, and only the mean
 	assert (calls[1][1]['interannual'], calls[1][1]['stats']) == ('mean', ['mean'])
@@ -1369,11 +1373,12 @@ def test_map_and_pixel():
 		'point': [-3.55, 36.95]}
 	assert calls[0] == ('trend_map', {'region': ARGS['region'], 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	                                  'start': '2018-01-01', 'end': '2024-12-31', 'step': 'annual',
-	                                  'metric': 'median', 'quick': True})
+	                                  'metric': 'median', 'quick': False, 'preview': False})
 	assert shown['steps_label'] == 'Part of the year' and shown['steps'][6]['label'] == map_steps('trend_table', {
 		'start': '2018-01-01', 'end': '2024-12-31', 'step': 'monthly'})[6]['label']
-	assert calls[1][0] == 'trend_map' and calls[1][1]['step'] == 'monthly' and calls[1][1]['part'] == 7
-	assert calls[2][0] == 'trend_map' and calls[2][1]['quick'] and calls[2][1]['part'] == 7
+	assert calls[1][0] == 'trend_map' and calls[1][1]['step'] == 'monthly' and calls[1][1]['part'] == 7 \
+	       and calls[1][1]['quick'] is False  # each part of the year, its own range
+	assert calls[2][0] == 'trend_map' and calls[2][1]['quick'] and calls[2][1]['part'] == 7  # refresh: same colours
 
 	# «Significant pixels only»: the same maps with only the pixels of p < 0.05, and their pixels
 	async def significant():
@@ -1388,7 +1393,7 @@ def test_map_and_pixel():
 	main, month, px, plain = asyncio.run(significant())
 	assert main['key'] == '|p<0.05' and month['key'] == 'part:7|p<0.05' and plain['key'] == ''
 	assert calls[0][0] == 'trend_map' and calls[0][1]['alpha'] == 0.05 and calls[0][1]['step'] == 'annual'
-	assert calls[1][1]['alpha'] == 0.05 and calls[1][1]['part'] == 7 and calls[1][1]['quick']
+	assert calls[1][1]['alpha'] == 0.05 and calls[1][1]['part'] == 7 and calls[1][1]['quick'] is False
 	assert main['title'].endswith(', significant pixels only (p < 0.05) · WDPA 389011') and main['map']['trend']
 	assert px['value'] == 0.007
 	facts = dict(report.item_facts('trend_map', {**ARGS, 'step': 'annual', 'alpha': 0.05}))
@@ -1436,7 +1441,7 @@ def test_fixed_layers():
 	                                     'region': {'point': [-3.3, 37.05]}, 'stats': ['mean']})
 	assert shown['main'] == 'Fixed layer, without dates' and shown['map']['series'] is False
 	assert calls[1] == ('map_layer', {'region': {'wdpa_id': 389011}, 'variable': 'SLOPE', 'sensor': 'Copernicus',
-	                                  'quick': True})
+	                                  'quick': False, 'preview': False})
 
 
 # The data of Earth Engine outside the catalog: the tools that find and describe them, and the compute tools with
@@ -1574,12 +1579,12 @@ def test_series_and_fixed_image_of_earth_engine(tmp_path):
 	a, shown, step = asyncio.run(series())
 	same = {'region': region, **TERRACLIMATE}
 	assert a.calls[0] == ('map_layer', {**same, 'start': '2020-01-01', 'end': '2020-12-31', 'metric': 'median',
-	                                    'quick': True})
+	                                    'quick': False, 'preview': False})
 	assert shown['title'].startswith('Monthly time series of IDAHO_EPSCOR/TERRACLIMATE pr')
 	assert shown['heading'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE pr, 2020')
 	assert len(shown['steps']) == 36 and shown['main'] == 'Last year of the period (2020)'
 	assert a.calls[1] == ('map_layer', {**same, 'start': '2019-03-01', 'end': '2019-03-31', 'metric': 'sum',
-	                                    'vmin': 0, 'vmax': 1, 'quick': True})
+	                                    'quick': False, 'preview': False})
 	assert step['title'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE pr, ')
 
 	async def fixed():
@@ -1664,7 +1669,7 @@ def test_several_bands_of_earth_engine():
 	                                       'sum); unit mm')
 	same = {k: args[k] for k in ('region', 'collection', 'band', 'band_reducer', 'band_scale', 'unit')}
 	assert a.calls[0] == ('map_layer', {**same, 'start': '2020-01-01', 'end': '2020-12-31', 'metric': 'median',
-	                                    'quick': True})
+	                                    'quick': False, 'preview': False})
 	assert a.calls[1][1]['band'] == ['aet', 'def'] and a.calls[1][1]['band_reducer'] == 'sum'
 	assert shown['heading'].startswith('Map of IDAHO_EPSCOR/TERRACLIMATE sum of aet, def, 2020')
 
@@ -1699,13 +1704,14 @@ def test_tools_of_the_mcp_server():
 	of context for the instructions, the tools and the conversation: their size before those data (39,337 characters)
 	is the limit, with some room; and the tool list_classes (the codes of the classes of the categorical layers, which
 	the model needs to find an ecoregion by its name), some 400 more, and find_seas (the MRGIDs of the oceans and seas),
-	some 400 more."""
+	some 400 more; and the percentiles of the colour ramps of the maps (and vmin and vmax of compare_map and
+	download_image), some 1,000 more."""
 	from monitoreo import mcp_server as mcp
 	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
 	names = [t['function']['name'] for t in tools]
 	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
 	text = json.dumps(tools)
-	assert len(text) < 43000, len(text)
+	assert len(text) < 44000, len(text)
 	assert '"title"' not in text and '{"type": "null"}' not in text and '"default": null' not in text
 	source = ' '.join(mcp.SOURCE_DOC.split())
 	assert source[:60] not in text  # said once in the instructions
@@ -2659,3 +2665,96 @@ def test_restricted_mode_when_the_assistant_opens(monkeypatch):
 	usage.update(warning=quota, quota_warning=quota, left_percent=0, low=True, month='2026-12-01')
 	first, second = asyncio.run(run())
 	assert [e['type'] for e in first] == ['eecu', 'eecu_warning'] and [e['type'] for e in second] == ['eecu']
+
+
+def test_the_user_chooses_the_range_of_the_colours():
+	"""The box «Colours» of the map of the page (set_range): the map of the result made again with the percentiles or the
+	minimum and maximum the user gives, and the maps of its dates with them too (each step, by default, between its own
+	percentiles 1 and 99); the maps of classes keep the colour of each class, and wrong ranges are refused."""
+	calls = []
+
+	class Maps(FakeAssistant):
+		async def call(self, name, args):
+			calls.append((name, args))
+			return None, [json.dumps({'url': f'https://ee/{len(calls)}/{{z}}/{{x}}/{{y}}', 'unit': '[unitless]',
+			                          'bounds': [-3.6, 36.9, -3.5, 37.0], 'min': args.get('vmin', 0.2),
+			                          'max': args.get('vmax', 0.7), 'palette': ['ffffff', '00aa00'],
+			                          'stretch': {'text': 'stretched'}})], []
+
+	args = {**ARGS, 'start': '2024-01-01', 'end': '2024-12-31', 'temporal': 'monthly'}
+
+	async def run():
+		a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+		a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Map',
+		                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0],
+		                             'min': 0.1, 'max': 0.6, 'palette': ['ffffff', '00aa00'], 'unit': '[unitless]'}})
+		a.card(a.results[0])
+		key = a.results[0]['steps'][0]['key']
+		before = await a.step_map(1, key)
+		main = await a.set_range(1, '', [2, 98])
+		step = await a.step_map(1, key)
+		fixed = await a.set_range(1, key, None, 0, '0.5')
+		return a, key, before, main, step, fixed
+
+	a, key, before, main, step, fixed = asyncio.run(run())
+	assert 'vmin' not in calls[0][1] and calls[0][1]['quick'] is False  # a step: its own percentiles
+	assert calls[1] == ('map_layer', {**args, 'quick': False, 'preview': False, 'percentiles': [2, 98]})
+	assert main['legend']['min'] == 0.2 and main['map']['url'] == 'https://ee/2/{z}/{x}/{y}'
+	assert calls[2][1]['percentiles'] == [2, 98] and step['map']['url'] == 'https://ee/3/{z}/{x}/{y}'
+	assert (calls[3][1]['vmin'], calls[3][1]['vmax']) == (0.0, 0.5) and fixed['key'] == key
+	assert (fixed['legend']['min'], fixed['legend']['max']) == (0.0, 0.5)
+	assert a.results[0]['range'] == {'percentiles': [1, 99], 'vmin': 0.0, 'vmax': 0.5}
+	for wrong, match in (([99, 1], 'percentiles'), ([1, 99, 0.5], 'percentiles')):
+		with pytest.raises(ValueError, match=match):
+			asyncio.run(a.set_range(1, '', wrong))
+	with pytest.raises(ValueError, match='greater'):
+		asyncio.run(a.set_range(1, '', None, 1, 0))
+	a.results.append({'id': 2, 'tool': 'map_layer', 'args': ARGS, 'image': None, 'title': 'Classes',
+	                  'result': {'url': 'u', 'bounds': [0, 0, 1, 1], 'classes': [{'value': 1, 'label': 'A',
+	                                                                               'color': '#000000'}]}})
+	with pytest.raises(ValueError, match='classes'):
+		asyncio.run(a.set_range(2, '', [2, 98]))
+
+
+def test_the_range_of_the_colours_of_the_dates_and_its_errors(monkeypatch):
+	"""The page gets the map of the result made again with the date it asked for; a range that Earth Engine cannot
+	make is not kept; the percentiles that the model gave reach the maps of each date; and the fixed ramps of the tau
+	and p-value of a trend have no range to choose."""
+	calls, failing = [], []
+
+	class Maps(FakeAssistant):
+		async def call(self, name, args):
+			calls.append((name, args))
+			if failing:
+				return 'EEException: User memory limit exceeded.', [], []
+			return None, [json.dumps({'url': f'https://ee/{len(calls)}/{{z}}/{{x}}/{{y}}', 'unit': '[unitless]',
+			                          'bounds': [-3.6, 36.9, -3.5, 37.0], 'min': 0.2, 'max': 0.7,
+			                          'palette': ['ffffff', '00aa00']})], []
+
+	args = {**ARGS, 'start': '2024-01-01', 'end': '2024-12-31', 'temporal': 'monthly', 'percentiles': [5, 95]}
+	a = Maps({**assistant.DEFAULTS, 'project': 'p'})
+	a.results.append({'id': 1, 'tool': 'map_layer', 'args': args, 'image': None, 'title': 'Map',
+	                  'result': {'url': 'https://ee/old/{z}/{x}/{y}', 'bounds': [-3.6, 36.9, -3.5, 37.0], 'min': 0.1,
+	                             'max': 0.6, 'palette': ['ffffff', '00aa00'], 'unit': '[unitless]'}})
+	card = a.card(a.results[0])
+	assert card['range'] is True
+	key = a.results[0]['steps'][0]['key']
+	asyncio.run(a.step_map(1, key))
+	assert calls[-1][1]['percentiles'] == [5, 95]  # those of the model, for each date too
+	shown = asyncio.run(a.set_range(1, key + '|p<0.05', [2, 98]))  # the key of a variant: its date
+	assert shown['key'] == key and shown['main']['map']['url'].startswith('https://ee/')
+	assert calls[-1][1]['percentiles'] == [2, 98] and 'vmin' not in calls[-1][1]
+	failing.append(True)
+	with pytest.raises(RuntimeError, match='memory'):
+		asyncio.run(a.set_range(1, '', [10, 90]))
+	assert a.results[0]['range']['percentiles'] == [2, 98]  # that of before
+	failing.clear()
+	monkeypatch.setattr(report, 'map_view', lambda *args, **kw: 'data:image/png;base64,')
+	asyncio.run(a.snapshot(1, {'bounds': [-3.6, 36.9, -3.5, 37.0], 'zoom': 12}))
+	assert a.results[-1]['args']['percentiles'] == [2, 98]  # the colours of the view can be made again
+	trend = {**ARGS, 'start': '2018-01-01', 'end': '2024-12-31', 'output': 'tau'}
+	a.results.append({'id': 9, 'tool': 'trend_map', 'args': trend, 'image': None, 'title': 'Tau',
+	                  'result': {'url': 'u', 'bounds': [0, 0, 1, 1], 'min': -1, 'max': 1, 'palette': ['000000']}})
+	assert a.card(a.results[-1])['range'] is False
+	with pytest.raises(ValueError, match='tau and p-value'):
+		asyncio.run(a.set_range(9, '', [2, 98]))

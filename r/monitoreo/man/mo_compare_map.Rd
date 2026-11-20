@@ -24,7 +24,10 @@ mo_compare_map(
   band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  vmin = NULL,
+  vmax = NULL,
+  percentiles = NULL
 )
 }
 \arguments{
@@ -115,14 +118,23 @@ reaches the CSV, the README and the GeoTIFF. With several bands, that of every b
 sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
+
+\item{vmin, vmax}{range of the colours of the difference; either of them, the other end that of its symmetric ramp
+(default: both from \code{percentiles}).}
+
+\item{percentiles}{two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference, symmetric
+around 0 up to the largest of these percentiles of its values over the region in absolute value.}
 }
 \value{
-A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+  bounds, thumbnail, references, credits).
 }
 \description{
 The variable aggregated over another period minus over the reference period, as Earth Engine tiles (see
 \code{mo_leaflet()}). Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by
-its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
+its ID: \code{collection} and \code{band} (see \code{mo_asset()}). The difference is painted symmetric around 0,
+up to the largest of its \code{percentiles} (1 and 99 by default) in absolute value, or from \code{vmin} to
+\code{vmax}.
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,

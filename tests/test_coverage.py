@@ -468,7 +468,7 @@ setPeriod('2016-1-01', '2021-12-31');
 button('Add to the map').opts.onClick();
 out.failed = last().texts;
 MonitorEO.percentiles = percentiles;
-held[0]({value_p5: 0, value_p95: 1});
+held[0]({value_lo: 0, value_hi: 1});
 out.held = last().texts;
 process.stdout.write(JSON.stringify(out));
 """

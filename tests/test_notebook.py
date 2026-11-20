@@ -33,7 +33,7 @@ def geemap(monkeypatch):
 	monkeypatch.setitem(sys.modules, 'geemap', fake)
 
 	class Ee:  # an Earth Engine object that answers everything with itself
-		stats = {'reference_p5': 0.2, 'reference_p95': 0.6, 'other_p5': 0.1, 'other_p95': 0.7}  # or an error
+		stats = {'reference_lo': 0.2, 'reference_hi': 0.6, 'other_lo': 0.1, 'other_hi': 0.7}  # or an error
 
 		def __getattr__(self, name):
 			return lambda *a, **k: self
@@ -52,7 +52,14 @@ def geemap(monkeypatch):
 	monkeypatch.setattr(variables, 'image', lambda *a, **k: ee)
 	monkeypatch.setattr(variables, 'collection', lambda *a, **k: ee)
 	monkeypatch.setattr(services.composite, '_reduce', lambda *a, **k: ee)
-	monkeypatch.setattr(maps, 'vis_params', lambda *a, **k: {'min': 0.1, 'max': 0.8, 'palette': ['ff0000', '00ff00']})
+	def vis_params(*a, **k):
+		vis = {'min': 0.1, 'max': 0.8, 'palette': ['ff0000', '00ff00']}
+		return (vis, maps.stretch_of(None, maps.check_percentiles(k.get('percentiles')), False, False)) \
+			if k.get('describe') else vis
+	monkeypatch.setattr(maps, 'vis_params', vis_params)
+	# the percentiles of each step of a time slider: those of the second, none (no values)
+	monkeypatch.setattr(maps, 'frame_ranges', lambda images, *a, **k: [(0.2, 0.6) if i != 1 else (None, None)
+	                                                                     for i in range(len(images))])
 	monkeypatch.setattr(notebook.ee, 'Image', lambda *a: ee)
 	monkeypatch.setattr(notebook.ee.Reducer, 'percentile', staticmethod(lambda *a: ee))
 	monkeypatch.setattr(notebook.ee, 'Date', lambda *a: ee)
@@ -91,9 +98,9 @@ def test_the_colours_of_a_split_map_without_pixels_or_memory(geemap, monkeypatch
 	monkeypatch.setattr(maps, 'vis_params', VIS_PARAMS)
 	args = (REGION, 'NDVI', 'Modis', '2005-06-01', '2005-08-31', '2023-06-01', '2023-08-31')
 	_, out = notebook.compare(*args)
-	assert (out['min'], out['max']) == (0.1, 0.7)  # the lowest percentile 5 and the highest 95 of both periods
+	assert (out['min'], out['max']) == (0.1, 0.7)  # the lowest low percentile and the highest high one of both periods
 	# no pixels in both periods (all masked): the range of the catalog, as map_layer and compare_map
-	geemap.ee.stats = {'reference_p5': None, 'reference_p95': None, 'other_p5': None, 'other_p95': None}
+	geemap.ee.stats = {'reference_lo': None, 'reference_hi': None, 'other_lo': None, 'other_hi': None}
 	_, out = notebook.compare(*args)
 	assert (out['min'], out['max']) == (-0.2, 1.0)
 	_, out = notebook.compare(*args, vmin=0)  # what is given is kept
@@ -124,8 +131,14 @@ def test_a_time_slider(geemap):
 	m = notebook.Map()
 	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31')
 	slider = next(c for c in m.calls if c[0] == 'add_time_slider')
-	assert slider[1][0] == ('collection', 5) and slider[2]['labels'] == ['2019', '2020', '2021', '2022', '2023']
-	assert out['labels'] == slider[2]['labels']
+	# each map between the percentiles 1 and 99 of its own values, in its label (the second has none: the catalog)
+	assert slider[1][0] == ('collection', 5) and slider[2]['labels'][:2] == ['2019 (0.2 to 0.6)', '2020 (0.1 to 0.8)']
+	assert out['labels'] == slider[2]['labels'] and out['ranges'][0] == [0.2, 0.6]
+	assert out['stretch']['percentiles'] == [1, 99] and 'add_colorbar' not in [c[0] for c in m.calls]
+	m = notebook.Map()  # the same colours for every map: the colour bar of the map of the whole period
+	out = notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31', same_colours=True)
+	assert out['labels'] == ['2019', '2020', '2021', '2022', '2023'] and out['ranges'] == [[0.1, 0.8]] * 5
+	assert 'add_colorbar' in [c[0] for c in m.calls]
 	with pytest.raises(ValueError, match='unknown step'):
 		notebook.time_slider(m, REGION, 'NDVI', 'Modis', '2019-01-01', '2023-12-31', step='daily')
 

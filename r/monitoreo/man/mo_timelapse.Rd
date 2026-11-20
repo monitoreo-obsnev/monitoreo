@@ -25,7 +25,9 @@ mo_timelapse(
   band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  percentiles = NULL,
+  same_colours = FALSE
 )
 }
 \arguments{
@@ -68,7 +70,8 @@ Engine may have added images since), gives an R warning, as those days may have 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
-\item{vmin, vmax}{range of the colour ramp (default: percentiles 5 and 95 of the map).}
+\item{vmin, vmax}{range of the colour ramp (default: from \code{percentiles}); with only one of them, the other end
+from its percentile.}
 
 \item{fps}{frames per second (1: each frame for a second).}
 
@@ -114,18 +117,28 @@ reaches the CSV, the README and the GeoTIFF. With several bands, that of every b
 sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
+
+\item{percentiles}{two numbers, the percentiles of the values of each frame over the region between which its
+colour ramp is stretched (default \code{NULL}: \code{c(1, 99)}); with \code{same_colours}, those of the map of
+the whole period, for every frame.}
+
+\item{same_colours}{\code{TRUE}: one colour ramp for every frame, so that they can be compared; \code{FALSE}
+(default): each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if given).}
 }
 \value{
-A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
-  palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
+A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label,
+  images and min and max (its colour range) of each frame; n_frames, step, fps, min, max (the lowest and highest of
+  the ranges of the frames), palette, stretch: how the colour ramps were stretched, with its text, name, unit,
+  bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
   or, if bigger, that of the data; readme, references, credits).
 }
 \description{
 A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
-temporal metric of the images of the step on each pixel, coloured with one colour ramp for every frame (from
-\code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period or, for the
-metrics \code{"sum"} and \code{"count"}, which grow with the images, of the median of the frames) and, written on
-it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+temporal metric of the images of the step on each pixel, coloured by default with its own colour range (from its
+\code{percentiles}, 1 and 99, over the region: each frame its own, written on it) or, with \code{same_colours} or
+both \code{vmin} and \code{vmax}, with one colour ramp for every frame (from \code{vmin} to \code{vmax}, or from
+the \code{percentiles} of the map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which
+grow with the images, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
 lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
 colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
 not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the

@@ -35,8 +35,8 @@ from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, 
 from . import deps
 
 deps.setup_path()
-from monitoreo import (areas, assets, catalog, categorical, classes, fire, landcover, municipalities,  # noqa: E402
-                       parameters, seas, sensors, services, steps, trends)
+from monitoreo import (areas, assets, catalog, categorical, classes, fire, landcover, maps,  # noqa: E402
+                       municipalities, parameters, seas, sensors, services, steps, trends)
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
@@ -158,8 +158,9 @@ DATA = ('variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reduce
 # those of COMBOS are the list of the panel of the same name
 FIELDS = ('variable', 'region', 'line', 'where', 'period', 'compare', 'season', 'quality', 'step', 'ts_metric', 'stat',
           'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_alpha',
-          'map_metric', 'temporal', 'interannual', 'map_kind', 'resolution', 'zones', 'stats', 'area_kind',
-          'area_map', 'area_breaks', 'anim_step', 'anim_metric', 'anim_fps', 'fire_index', 'fire_sensor',
+          'trend_colours', 'map_metric', 'temporal', 'interannual', 'map_kind', 'map_colours', 'resolution', 'zones',
+          'stats', 'area_kind', 'area_map', 'area_breaks', 'anim_step', 'anim_metric', 'anim_fps', 'anim_colours',
+          'anim_same', 'fire_index', 'fire_sensor',
           'fire_before', 'fire_after', 'fire_perimeter')
 COMBOS = ('step', 'ts_metric', 'stat', 'doy_interannual', 'trend_step', 'trend_part', 'trend_metric', 'map_metric',
           'temporal', 'interannual', 'area_kind', 'anim_step', 'anim_metric', 'fire_index', 'fire_sensor')
@@ -211,9 +212,11 @@ def rgb(layer, lo, hi, bands=(1, 2, 3)):
 	layer.setRenderer(renderer)
 
 
-def rgb_caption(lo, hi):
-	"""The legend of a true colour shown from LO to HI (reflectance), as in the other tools."""
-	return f'True colour (red, green, blue): reflectance from {lo:.4g} to {hi:.4g}'
+def rgb_caption(lo, hi, stretch=None):
+	"""The legend of a true colour shown from LO to HI (reflectance), as in the other tools, and how it was stretched
+	(the text of STRETCH, see monitoreo.maps.stretch_of, if given)."""
+	text = stretch.get('text') if isinstance(stretch, dict) else None
+	return f'True colour (red, green, blue): reflectance from {lo:.4g} to {hi:.4g}' + (f' ({text})' if text else '')
 
 
 def paletted(layer, band, classes):
@@ -316,7 +319,7 @@ def true_colour(region, opts, path, resolution=None, stretch=None):
 	try:
 		return services.download_rgb(region, path=path, resolution=resolution, **opts)
 	except Exception as e:
-		out = services.rgb_map(region, **opts, **({'vmin': stretch[0], 'vmax': stretch[1]} if stretch else {}))
+		out = services.rgb_map(region, **dict(opts, **({'vmin': stretch[0], 'vmax': stretch[1]} if stretch else {})))
 		out['error'] = str(e)
 		return out
 
@@ -336,24 +339,69 @@ def result_warnings(result):
 	return found
 
 
-def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None):
+def restretch(res, percentiles=None, given=None, over='the values of the file', symmetric=False):
+	"""The GeoTIFF of the map RES (an answer of monitoreo.services with its file) with the colour ramp that the panel
+	asks for, when its service could not make it: between the PERCENTILES (lo, hi) of the values of its first band, if
+	its stretch has others (symmetric around 0 with SYMMETRIC, as the slope of a trend), and from the minimum and
+	maximum of GIVEN ((vmin, vmax), None where not given). Updates its min, max and stretch (see maps.stretch_of).
+	Without a file, values or with classes (a categorical layer), RES as it is. Returns RES."""
+	if not isinstance(res, dict) or not res.get('file') or res.get('classes') is not None or res.get('min') is None:
+		return res
+	pct, (vmin, vmax) = tuple(percentiles or maps.STRETCH), given or (None, None)
+	had = res.get('stretch') if isinstance(res.get('stretch'), dict) else {}
+	if percentiles is None or (vmin is not None and vmax is not None) or tuple(had.get('percentiles') or ()) == pct:
+		pass  # stretched so by its service, or from the minimum and maximum given
+	elif not had and pct == tuple(maps.STRETCH):  # stretched so by its service (by default), without saying it
+		res['stretch'] = maps.stretch_of(over, pct, False, False)
+	else:
+		lo, hi = services._percentiles(res['file'], *pct)
+		if lo is not None:
+			if symmetric:
+				m = max(abs(lo), abs(hi)) or 1e-6
+				lo, hi = -m, m
+			res['min'], res['max'] = lo, hi
+			res['stretch'] = maps.stretch_of(over, pct, False, False)
+	if vmin is not None or vmax is not None:
+		res['min'], res['max'] = given_colours(given, res['min'], res['max'])
+		res['stretch'] = maps.stretch_of(over, pct, vmin is not None, vmax is not None)
+	return res
+
+
+def maps_work(kind, region, opts, folder, download, tiles, colors=None, stretch=None, percentiles=None):
 	"""The layers of a map with the arguments OPTS, in a task: with KIND 'index' or 'both', the map of the variable
-	(DOWNLOAD: the GeoTIFF map.tif of FOLDER or, if it cannot be downloaded, TILES, with the colours COLORS (min, max)
-	if given); with KIND 'rgb' or 'both', the true colour of the same images and pixels (rgb.tif, on the grid of the
-	map; see true_colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
+	(DOWNLOAD: the GeoTIFF map.tif, or trend.tif, of FOLDER or, if it cannot be downloaded, TILES), stretched between
+	the PERCENTILES (lo, hi; by default maps.STRETCH) of its values, and from the minimum and maximum of COLORS
+	((vmin, vmax), None where not given) if given (see restretch); with KIND 'rgb' or 'both', the true colour of the
+	same images and pixels (rgb.tif, on the grid of the map; see true_colour: with 'both', with its own stretch, that
+	of the true colour). Returns {'index', 'rgb'} (those asked for) and, if only the true colour of 'both' failed,
 	'rgb_error' instead of 'rgb' (the map is added all the same). First, whether the map fits on the pixels of the
 	data (services.check_pixels: if not, TooManyPixels, before computing anything)."""
 	services.check_pixels(region, MAP_PIXELS, rgb=kind != 'index', **opts)  # with a true colour: sensors that have it
 	out = {}
 	if kind != 'rgb':
+		trend = download is services.download_trend
+		ends = {k: v for k, v in zip(('vmin', 'vmax'), colors or ()) if v is not None}
+		taken = {k: v for k, v in ends.items() if takes(download, k)}  # the services compute them with the stretch
 		try:
-			out['index'] = download(region, path=os.path.join(folder, 'map.tif'), **opts)
+			out['index'] = download(region, path=os.path.join(folder, 'trend.tif' if trend else 'map.tif'),
+			                        **dict(opts, **taken))
 		except Exception as e:
-			out['index'] = tiles(region, **opts, **({'vmin': colors[0], 'vmax': colors[1]} if colors else {}))
+			extra = {k: v for k, v in zip(('vmin', 'vmax'), colors or ()) if v is not None}
+			if percentiles and tuple(percentiles) != tuple(maps.STRETCH) and takes(tiles, 'percentiles'):
+				extra['percentiles'] = list(percentiles)
+			out['index'] = tiles(region, **dict(opts, **extra))
 			out['index']['error'] = str(e)
+		else:  # the percentiles, here if its service does not take them (download_trend); the minimum and maximum too
+			said = out['index'].get('stretch') if ends and taken == ends else None  # its service took the ends
+			restretch(out['index'], None if takes(download, 'percentiles') else percentiles, colors,
+			          'the slope of the file (symmetric around 0)' if trend else 'the values of the file', trend)
+			if isinstance(said, dict):  # how its service said it stretched them (with the percentiles it used)
+				out['index']['stretch'] = said
 	if kind != 'index':
+		# with Both, the true colour has its own stretch (maps.RGB_STRETCH): the colour range is that of the map
+		rgb_opts = {k: v for k, v in opts.items() if kind == 'rgb' or k not in ('percentiles', 'vmin', 'vmax')}
 		try:
-			out['rgb'] = true_colour(region, opts, os.path.join(folder, 'rgb.tif'),
+			out['rgb'] = true_colour(region, rgb_opts, os.path.join(folder, 'rgb.tif'),
 			                         (out.get('index') or {}).get('resolution'), stretch)
 		except Exception as e:
 			if kind == 'rgb':
@@ -784,6 +832,13 @@ def panel_fields(analysis, params):
 	def field(name, value, given=True, param=None):
 		fields[name] = {'value': value, 'given': given, 'name': param or name}
 
+	def colours(name):
+		"""The Colour range NAME from the parameters percentiles, vmin and vmax (those of the service: the defaults
+		without them)."""
+		keys = [k for k in ('percentiles', 'vmin', 'vmax') if k in defaults]
+		used.update(keys)
+		field(name, {k: p.get(k) for k in keys}, any(k in p for k in keys), keys[0] if keys else name)
+
 	def take(name, param=None, choices=None, default=_MISSING):
 		"""The field NAME from the parameter PARAM (default: NAME) or its default, if CHOICES ([(label, value)]) has
 		it."""
@@ -897,12 +952,14 @@ def panel_fields(analysis, params):
 			                       '(Significant pixels only) or every pixel'))
 		else:
 			field('trend_alpha', p.get('alpha') == ALPHA, 'alpha' in p, 'alpha')
+		colours('trend_colours')
 	elif key in ('map', 'export_map', 'zones', 'transect'):
 		take('map_metric', 'metric', METRICS)
 		take('temporal', choices=TEMPORAL)
 		take('interannual', choices=METRICS)
 		if key == 'map':
 			field('map_kind', 'rgb' if analysis in ('rgb_map', 'download_rgb') else 'index', False, 'analysis')
+			colours('map_colours')
 		if analysis == 'map_figure':
 			reports.append(missing('analysis', analysis, 'the panel adds the map as a layer (Add the layer to the map), '
 			                       'and Figure (print layout)… makes its figure in QGIS'))
@@ -942,6 +999,9 @@ def panel_fields(analysis, params):
 		take('anim_metric', 'metric', METRICS)
 		used.add('fps')
 		field('anim_fps', p.get('fps', defaults.get('fps')), 'fps' in p, 'fps')
+		colours('anim_colours')
+		used.add('same_colours')
+		field('anim_same', bool(p.get('same_colours')), 'same_colours' in p, 'same_colours')
 	elif burn:  # the index and the sensor in any case, as services.burn_severity takes them
 		if p.get('index') is not None:
 			p['index'] = {i.lower(): i for i in services.BURN_INDICES}.get(str(p['index']).lower(), p['index'])
@@ -1028,6 +1088,107 @@ def plugin_version():
 	meta = configparser.ConfigParser()
 	meta.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metadata.txt'), encoding='utf-8')
 	return meta.get('general', 'version', fallback='?')
+
+
+def takes(service, name):
+	"""Whether the function SERVICE of monitoreo.services has the argument NAME."""
+	return name in inspect.signature(service).parameters
+
+
+def given_colours(given, lo, hi):
+	"""The ends of a colour ramp: those of GIVEN ((vmin, vmax), or None) that are not None, otherwise LO and HI (those
+	of the map)."""
+	vmin, vmax = given or (None, None)
+	return (lo if vmin is None else vmin), (hi if vmax is None else vmax)
+
+
+def stretch_note(res):
+	"""How the colour ramp of the map RES was stretched, in words (its stretch: see monitoreo.maps.stretch_of), with
+	the range: e.g. «colours from 0.12 to 0.85: stretched between the percentiles 1 and 99 of ...»; '' without a
+	range."""
+	lo, hi = res.get('min'), res.get('max')
+	if lo is None or hi is None:
+		return ''
+	text = (res.get('stretch') or {}).get('text') if isinstance(res.get('stretch'), dict) else None
+	return f'colours from {lo:.4g} to {hi:.4g}' + (f' ({text})' if text else '')
+
+
+class ColourRange(QWidget):
+	"""Colour range of the maps of a group of the panel: the percentiles (low and high, by default maps.STRETCH, 1 and
+	99) of the values of each map between which its colour ramp is stretched, and an optional minimum and maximum
+	(either of them: the other end from its percentile)."""
+
+	def __init__(self):
+		super().__init__()
+		row = QHBoxLayout(self)
+		row.setContentsMargins(0, 0, 0, 0)
+		self.low, self.high = QDoubleSpinBox(), QDoubleSpinBox()
+		for box, value, tip in ((self.low, maps.STRETCH[0], 'Low percentile of the values of the map (the first '
+		                         'colour of the ramp)'),
+		                        (self.high, maps.STRETCH[1], 'High percentile of the values of the map (the last '
+		                         'colour of the ramp)')):
+			box.setRange(0, 100)
+			box.setDecimals(2)  # e.g. 2.5 and 97.5
+			box.setPrefix('p')
+			box.setValue(value)
+			box.setToolTip(tip)
+		self.vmin, self.vmax = QLineEdit(), QLineEdit()
+		self.vmin.setPlaceholderText('min')
+		self.vmax.setPlaceholderText('max')
+		self.vmin.setToolTip('Minimum of the colour ramp (optional: empty, from the low percentile)')
+		self.vmax.setToolTip('Maximum of the colour ramp (optional: empty, from the high percentile)')
+		for w in (self.low, self.high, self.vmin, self.vmax):
+			row.addWidget(w, 1)
+		# whether the user chose the percentiles (also 1 and 99): else the true colour takes its own (RGB_STRETCH)
+		self.chosen = False
+		for box in (self.low, self.high):
+			box.valueChanged.connect(lambda _value: setattr(self, 'chosen', True))
+
+	def percentiles(self):
+		"""The two percentiles chosen (lo, hi), checked (maps.check_percentiles: ValueError if not lo < hi)."""
+		try:
+			return maps.check_percentiles([self.low.value(), self.high.value()])
+		except ValueError as e:
+			raise ValueError(f'Colour range: {e}') from None
+
+	def given(self):
+		"""The minimum and the maximum written (None where empty); ValueError if not numbers, or if min >= max."""
+		out = []
+		for edit, name in ((self.vmin, 'minimum'), (self.vmax, 'maximum')):
+			text = edit.text().strip().replace(',', '.')
+			try:
+				out.append(float(text) if text else None)
+			except ValueError:
+				raise ValueError(f'Colour range: the {name} must be a number, not {edit.text()!r}') from None
+		if None not in out and out[0] >= out[1]:
+			raise ValueError(f'Colour range: the minimum ({out[0]:g}) must be lower than the maximum ({out[1]:g})')
+		return tuple(out)
+
+	def args(self, service=None):
+		"""The arguments of the colour range for the function SERVICE of monitoreo.services (only those it has, all
+		without it): percentiles (if not the default ones of SERVICE: maps.STRETCH, or maps.RGB_STRETCH for the true
+		colour, which takes 1 and 99 too when the user chose them), vmin and vmax (if given)."""
+		pct, (vmin, vmax) = self.percentiles(), self.given()
+		rgb = service is not None and service in (services.rgb_map, services.download_rgb)
+		chosen = getattr(self, 'chosen', False)
+		out = {}
+		if (chosen if rgb else tuple(pct) != tuple(maps.STRETCH)):  # the true colour: its own unless chosen
+			out['percentiles'] = list(pct)
+		if vmin is not None:
+			out['vmin'] = vmin
+		if vmax is not None:
+			out['vmax'] = vmax
+		return {k: v for k, v in out.items() if service is None or takes(service, k)}
+
+	def put(self, value):
+		"""Set the fields from VALUE ({'percentiles', 'vmin', 'vmax'}, as the parameters of a map; the defaults
+		without them)."""
+		lo, hi = maps.check_percentiles(value.get('percentiles'))
+		self.low.setValue(lo)
+		self.high.setValue(hi)
+		self.chosen = value.get('percentiles') is not None
+		self.vmin.setText(number(value.get('vmin')))
+		self.vmax.setText(number(value.get('vmax')))
 
 
 def info(field, text):
@@ -1396,6 +1557,8 @@ class MonitorEODock(QDockWidget):
 		f.addRow(self.with_parameters(b, 'trend_table'))
 		f.addRow('Part of the year of the map', info(self.trend_part, HELP['trend_part']))
 		f.addRow('', info(self.trend_alpha, HELP['trend_alpha']))
+		self.trend_colours = ColourRange()
+		f.addRow('Colour range', info(self.trend_colours, HELP['trend_colours']))
 		b = QPushButton('Trend map')
 		b.setToolTip("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel "
 		             '(queryable with the Identify Features tool)')
@@ -1414,6 +1577,10 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
 		self.map_kind = combo(MAP_KINDS, 'index')  # the map of the variable, its true colour or both
 		f.addRow('Layer', info(self.map_kind, HELP['map_kind']))
+		self.map_colours = ColourRange()
+		f.addRow('Colour range', info(self.map_colours, HELP['map_colours']))
+		self.map_same = QCheckBox('Same colours in every map of a series or trends (those of its first map)')
+		f.addRow('', info(self.map_same, HELP['map_same']))
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
 		             'Identify Features tool) or, with Layer, its true colour, always at the resolution of the data, up '
@@ -1516,6 +1683,10 @@ class MonitorEODock(QDockWidget):
 		f.addRow('A frame per', info(self.anim_step, HELP['anim_step']))
 		f.addRow('Metric of each frame', info(self.anim_metric, HELP['anim_metric']))
 		f.addRow('Speed', info(self.anim_fps, HELP['anim_fps']))
+		self.anim_colours = ColourRange()
+		f.addRow('Colour range', info(self.anim_colours, HELP['anim_colours']))
+		self.anim_same = QCheckBox('Same colours in every frame')
+		f.addRow('', info(self.anim_same, HELP['anim_same']))
 		b = QPushButton('Make the animation')
 		b.setToolTip('A GIF with a frame per step of the period, each with its date, in a window (it takes some '
 		             'minutes: Earth Engine makes each frame)')
@@ -2354,6 +2525,22 @@ class MonitorEODock(QDockWidget):
 
 	def put_area_breaks(self, value, given, name):
 		self.area_breaks.setText(value)
+		return []
+
+	def put_trend_colours(self, value, given, name):
+		self.trend_colours.put(value)
+		return []
+
+	def put_map_colours(self, value, given, name):
+		self.map_colours.put(value)
+		return []
+
+	def put_anim_colours(self, value, given, name):
+		self.anim_colours.put(value)
+		return []
+
+	def put_anim_same(self, value, given, name):
+		self.anim_same.setChecked(bool(value))
 		return []
 
 	def put_anim_fps(self, value, given, name):
@@ -3385,33 +3572,33 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Trends of {data_name(var)}", work, done)
 
 	def trend_map_call(self):
-		"""The trend map ('download_trend', its arguments; its tiles, trend_map, if it cannot be downloaded); ValueError
-		if the fields are not valid."""
+		"""The trend map ('download_trend', its arguments; its tiles, trend_map, if it cannot be downloaded), with those
+		of the Colour range that it takes (the others: see run_trend_map); ValueError if the fields are not valid."""
 		region, var, step = self.region(), self.variable_args(), self.trend_step.currentData()
 		return 'download_trend', dict(region=region, **var, step=step,
 		                              part=self.trend_part.currentData() if step != 'annual' else None,  # as areas_call
 		                              metric=self.trend_metric.currentData(),
-		                              alpha=ALPHA if self.trend_alpha.isChecked() else None)
+		                              alpha=ALPHA if self.trend_alpha.isChecked() else None,
+		                              **self.trend_colours.args(services.download_trend))
 
 	def run_trend_map(self):
 		call = self.call_of('trend_map')
 		if not call:
 			return
 		args = call[1]
-		path = os.path.join(tempfile.mkdtemp(prefix='monitoreo_'), 'trend.tif')
+		region = args['region']
+		opts = {k: v for k, v in args.items() if k != 'region'}
+		folder = tempfile.mkdtemp(prefix='monitoreo_')
+		# the Colour range: the slope stretched symmetric around 0 up to the largest of its percentiles (by default 1
+		# and 99), or from the minimum and maximum given (those that the service does not take, here: see maps_work)
+		pct, given = self.trend_colours.percentiles(), self.trend_colours.given()
 
 		def work():
-			# on the pixels of the data, or a warning
-			services.check_pixels(args['region'], MAP_PIXELS, **{k: v for k, v in args.items() if k != 'region'})
-			try:
-				return services.download_trend(path=path, **args)
-			except Exception as e:
-				res = services.trend_map(**args)
-				res['error'] = str(e)
-				return res
+			# on the pixels of the data, or a warning; if the GeoTIFF cannot be downloaded, the tiles of trend_map
+			return maps_work('index', region, opts, folder, services.download_trend, services.trend_map, given, None,
+			                 pct)
 
-		self.run_task(f"Trend map of {data_name(args)}", work,
-		              lambda res: self.add_tile_layer(res) if 'url' in res else self.add_map_layer(res))
+		self.run_task(f"Trend map of {data_name(args)}", work, self.add_maps)
 
 	def fill_area_years(self):
 		"""The years of the land cover map of Area by class, its last one chosen (for Dynamic World, the last whole
@@ -3629,11 +3816,14 @@ class MonitorEODock(QDockWidget):
 		self.run_task(f"Profile of {data_name(args)}", work, done)
 
 	def animation_call(self):
-		"""The animation of the variable over the region ('timelapse', its arguments); ValueError if the fields are not
-		valid."""
+		"""The animation of the variable over the region ('timelapse', its arguments: with the Colour range, each frame
+		stretched between its own percentiles, by default 1 and 99, or from the minimum and maximum given, and with Same
+		colours in every frame, one colour range for all of them); ValueError if the fields are not valid."""
 		region, var = self.region(), self.variable_args()
 		return 'timelapse', dict(region=region, **var, step=self.anim_step.currentData(),
-		                         metric=self.anim_metric.currentData(), fps=self.anim_fps.value())
+		                         metric=self.anim_metric.currentData(), fps=self.anim_fps.value(),
+		                         **self.anim_colours.args(services.timelapse),
+		                         **({'same_colours': True} if self.anim_same.isChecked() else {}))
 
 	def run_timelapse(self):
 		"""Animation of the variable over the region (services.timelapse, see animation_call): a GIF with a frame per
@@ -3697,6 +3887,8 @@ class MonitorEODock(QDockWidget):
 			opts.update(other_start=other[0], other_end=other[1])
 		analysis = 'download_comparison' if other else 'download_rgb' if self.map_kind_chosen() == 'rgb' else \
 			'download_image'
+		if not (self.variable.currentData() or {}).get('categorical'):  # a categorical layer: the colours of its classes
+			opts.update(self.map_colours.args(getattr(services, analysis)))  # those that its service takes
 		return analysis, dict(region=region, **opts)
 
 	def run_map(self):
@@ -3712,20 +3904,26 @@ class MonitorEODock(QDockWidget):
 		                   (services.download_image, services.map_layer))
 		kind = self.map_kind_chosen()
 		title = {'index': 'Map', 'rgb': 'True colour', 'both': 'Map and true colour'}[kind]
+		# the colour range of the group Map (those of its parts that the service does not take, here); with True colour
+		# alone, its minimum and maximum are those of the reflectance
+		pct, given = self.map_colours.percentiles(), self.map_colours.given()
+		stretch = given if kind == 'rgb' and None not in given else None
 
 		def work():
 			"""The map as a GeoTIFF with the values (with OTHER, the difference between the periods, and both) and/or
 			its true colour; if they cannot be downloaded, Earth Engine tiles (colours only)."""
-			return maps_work(kind, region, opts, folder, download, tiles)
+			return maps_work(kind, region, opts, folder, download, tiles, given, stretch, pct)
 
-		self.run_task(f"{title} of {data_name(opts)}", work, self.add_maps)
+		self.run_task(f"{title} of {data_name(opts)}", work,
+		              lambda r: self.add_maps(r, kept={'rgb_stretch': stretch} if stretch else None))
 
 	def add_maps(self, r, name=None, rgb_name=None, group=None, zoom=True, period=None, kept=None):
 		"""Add the layers of R (see maps_work): first its true colour, then the map of the variable on top of it, both
 		with PERIOD in the Temporal Controller, and zoom to the first one (with ZOOM). NAME and RGB_NAME: their names
-		(by default, those of the results). KEPT (the result of a series): the colours of its first map ('colors') and
-		the stretch of its first true colour ('rgb_stretch'), kept there for its next maps, so that they can be
-		compared."""
+		(by default, those of the results). KEPT (the result of a series with Same colours in every map of a series):
+		the colours of its first map ('colors') and the stretch of its first true colour ('rgb_stretch'), kept there
+		for its next maps, so that they can be compared; without it, each map with its own colour range (that of the
+		group Map: by default its percentiles 1 and 99)."""
 		kept = {} if kept is None else kept
 		if r.get('rgb_error'):  # only the true colour failed: the map is added all the same
 			self.message(f"True colour of {name or r['index']['name']}: {r['rgb_error']} (only the map was added)",
@@ -3743,15 +3941,20 @@ class MonitorEODock(QDockWidget):
 		if i is not None:
 			if 'colors' not in kept and i.get('min') is not None:
 				kept['colors'] = (i['min'], i['max'])
+			elif i.get('min') is not None and i.get('classes') is None:  # those of the first map, to compare them
+				i['min'], i['max'] = kept['colors']
+				i['stretch'] = {'method': 'first', 'text': 'the colour range of the first map of the series, so that '
+				                'its maps can be compared'}
 			if 'url' in i:
 				self.add_tile_layer(i, name, group, zoom=zoom, period=period)
 			else:
 				self.add_map_layer(i, name, group, kept.get('colors'), zoom=zoom, period=period)
 
 	def add_map_layer(self, res, name=None, group=None, colors=None, zoom=True, period=None):
-		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (percentiles 5 and 95, or COLORS: (min, max))
-		and zoom to it; with GROUP, in that group of the layer tree, and with PERIOD (first and last day), with those
-		days in the Temporal Controller."""
+		"""Add the GeoTIFF of a map with the colour ramp of MonitorEO (from its min to its max: by default its
+		percentiles 1 and 99, maps.STRETCH; or COLORS: (min, max)) and zoom to it; with GROUP, in that group of the
+		layer tree, and with PERIOD (first and last day), with those days in the Temporal Controller. Its abstract and
+		the message say the colour range and how it was stretched (stretch_note)."""
 		name = name or res['name']
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
@@ -3764,36 +3967,39 @@ class MonitorEODock(QDockWidget):
 		elif res['min'] is None:
 			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
 		else:
-			pseudocolor(layer, *(colors or (res['min'], res['max'])), res['palette'])
+			pseudocolor(layer, *given_colours(colors, res['min'], res['max']), res['palette'])
 		bands = ', '.join(res.get('bands') or [])
+		note = stretch_note(res) if res.get('classes') is None else ''
 		# (the data of Earth Engine outside the catalog may have no unit: none was given)
 		layer.setAbstract(f"MonitorEO: {res['name']} {unit_text(res)}, pixels of {res['resolution']:g} m"
 		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
-		                  + (f", bands {bands}" if bands else '') + f". Temporary GeoTIFF: {res['file']}"
-		                  + references_text(res))
+		                  + (f", bands {bands}" if bands else '') + (f". Colour ramp: {note}" if note else '')
+		                  + f". Temporary GeoTIFF: {res['file']}" + references_text(res))
 		if period:
 			dated(layer, *period)
 		add_layer(layer, group)
 		if zoom:
 			self.zoom_to(layer.extent(), layer.crs())
-		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m. Query the values with the Identify "
-		             'Features tool', 'Success', 10)
+		self.message(f"Layer added: {name}, pixels of {res['resolution']:g} m" + (f", {note}" if note else '')
+		             + '. Query the values with the Identify Features tool', 'Success', 10)
 
 	def add_rgb_layer(self, res, name=None, group=None, stretch=None, zoom=True, period=None):
 		"""Add the GeoTIFF of a true colour (services.download_rgb: the bands red, green and blue, reflectance) with the
-		three bands stretched together between its percentiles 2 and 98 (or STRETCH: (min, max), that of the first true
-		colour of a series, so that its dates can be compared) and zoom to it; with GROUP and PERIOD, as
-		add_map_layer."""
+		three bands stretched together between its percentiles 2 and 98 (maps.RGB_STRETCH, or those of the colour range
+		of the group Map) or STRETCH ((min, max), None where not given: that of the first true colour of a series, so
+		that its dates can be compared, or the minimum and maximum of the colour range) and zoom to it; with GROUP and
+		PERIOD, as add_map_layer."""
 		name = name or res['name']
 		layer = QgsRasterLayer(res['file'], name)
 		if not layer.isValid():
 			raise RuntimeError(f"QGIS could not open {res['file']}")
-		lo, hi = stretch or (res['min'], res['max'])
+		lo, hi = given_colours(stretch, res['min'], res['max'])
 		if res['min'] is None:
 			self.message(f"{name}: no values in the region (no images, or all filtered out)", 'Warning', 10)
 		if lo is not None and hi is not None:
 			rgb(layer, lo, hi)
-		caption = rgb_caption(lo, hi) if lo is not None and hi is not None else 'True colour (red, green, blue)'
+		caption = rgb_caption(lo, hi, None if stretch else res.get('stretch')) if lo is not None and hi is not None \
+			else 'True colour (red, green, blue)'
 		layer.setAbstract(f"MonitorEO: {res['name']} {res['unit']}, pixels of {res['resolution']:g} m"
 		                  + (f", {res['images']:,} images" if res.get('images') is not None else '')
 		                  + f", bands {', '.join(res.get('bands') or ['red', 'green', 'blue'])}. {caption}. "
@@ -3834,11 +4040,12 @@ class MonitorEODock(QDockWidget):
 			colours = f"{len(res['classes'])} classes: " + '; '.join(f"{c['label']} {c['color']}" for c in res['classes'])
 			shown = f"{len(res['classes'])} classes"
 		elif res.get('palette'):
-			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}: "
-			           f"{', '.join('#' + c for c in res['palette'])}")
+			text = res['stretch'].get('text') if isinstance(res.get('stretch'), dict) else None
+			colours = (f"Color ramp from {res['min']:.4g} to {res['max']:.4g}" + (f" ({text})" if text else '')
+			           + f": {', '.join('#' + c for c in res['palette'])}")
 			shown = f"from {res['min']:.4g} to {res['max']:.4g} {unit}"
 		else:  # a true colour
-			colours = shown = rgb_caption(res['min'], res['max'])
+			colours = shown = rgb_caption(res['min'], res['max'], res.get('stretch'))
 		layer.setAbstract(f"MonitorEO: {res['name']} {unit}".rstrip() + f". {colours}. Earth Engine tiles, valid for a "
 		                  'few hours.' + references_text(res))
 		if period:
@@ -3856,12 +4063,13 @@ class MonitorEODock(QDockWidget):
 
 	def add_result_map(self, res, entry, significant=False, kind='index'):
 		"""Add the map ENTRY (one of res['maps']: its whole period or one of its steps) of the series or trends RES,
-		as a GeoTIFF in the group of the result, with the colours of the first map of the result, so that its maps can
-		be compared; the dates of a series, with their days in the Temporal Controller of QGIS. Trends with
-		SIGNIFICANT: only the pixels with p < ALPHA. A series with KIND 'rgb' or 'both': the true colour of the same
-		images and pixels (services.download_rgb, with the same arguments and on the same grid), stretched as the first
-		true colour of the result, alone or under the map, with the same days. If a GeoTIFF cannot be downloaded,
-		Earth Engine tiles."""
+		as a GeoTIFF in the group of the result, with its own colours (the Colour range of the group Map, or of the
+		group Trends for trends: by default its percentiles 1 and 99) or, with Same colours in every map of a series or
+		trends, those of the first map of the result, so that its maps can be compared; the dates of a series, with
+		their days in the Temporal Controller of QGIS. Trends with SIGNIFICANT: only the pixels with p < ALPHA. A series
+		with KIND 'rgb' or 'both': the true colour of the same images and pixels (services.download_rgb, with the same
+		arguments and on the same grid), stretched as the first true colour of the result with Same colours, alone or
+		under the map, with the same days. If a GeoTIFF cannot be downloaded, Earth Engine tiles."""
 		a = res['args']
 		region = a['region']
 		# the same pixels as the series: its filters, season and conditions (those with dates, over its whole period);
@@ -3876,19 +4084,32 @@ class MonitorEODock(QDockWidget):
 		else:
 			opts = dict(var, start=entry['start'], end=entry['end'], metric=a['metric'])
 			download, tiles = services.download_image, services.map_layer
-		# (min, max) of the first map and of the first true colour of the result
-		colors, stretch = res.get('colors'), res.get('rgb_stretch')
+		try:
+			colours = self.trend_colours if res['kind'] == 'trends' else self.map_colours
+			pct, given = colours.percentiles(), colours.given()
+		except ValueError as e:
+			self.message(str(e), 'Warning')
+			return
+		same = self.map_same.isChecked()
+		if tuple(pct) != tuple(maps.STRETCH):  # the services of series and trends take them
+			opts['percentiles'] = list(pct)
+		if kind == 'rgb' and not same and given != (None, None):  # the true colour alone: its reflectance
+			opts.update({k: v for k, v in zip(('vmin', 'vmax'), given) if v is not None})
+		# with Same colours, (min, max) of the first map and of the first true colour of the result
+		colors = (res.get('colors') if same else None) or (given if given != (None, None) else None)
+		stretch = res.get('rgb_stretch') if same else None
 		label = f"{res['title'].split(' | ')[0]} · {entry['label']}"
 		name = label + (' (p < 0.05)' if significant else '')
 		period = (entry['start'], entry['end']) if res['kind'] == 'series' and entry['key'] else None
 		title = {'index': f'Map of {name}', 'rgb': f'True colour of {label}', 'both': f'Map and true colour of {label}'}
 
 		def work():
-			return maps_work(kind, region, opts, folder, download, tiles, colors, stretch)
+			return maps_work(kind, region, opts, folder, download, tiles, colors, stretch, pct)
 
 		def done(r):
-			first = 'colors' not in res and 'rgb_stretch' not in res  # zoom to the first map of the result
-			self.add_maps(r, name, f'{label} · true colour', self.result_group(res), first, period, res)
+			first = not res.get('zoomed')  # zoom to the first map of the result
+			res['zoomed'] = True
+			self.add_maps(r, name, f'{label} · true colour', self.result_group(res), first, period, res if same else None)
 
 		self.run_task(title[kind], work, done)
 

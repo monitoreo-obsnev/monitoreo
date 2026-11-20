@@ -25,7 +25,10 @@ mo_image(
   band_scale = NULL,
   band_offset = NULL,
   unit = NULL,
-  terrain = NULL
+  terrain = NULL,
+  percentiles = NULL,
+  vmin = NULL,
+  vmax = NULL
 )
 }
 \arguments{
@@ -123,19 +126,28 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 \item{terrain}{with \code{image}, \code{"slope"} or \code{"aspect"} of \code{band} (an elevation; one band)
 instead of its values, in degrees: its unit is then \code{"degree"} (give no \code{unit}, or \code{"degree"};
 not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).}
+
+\item{percentiles}{two numbers, the percentiles of the values of the map over the region between which its colour
+ramp is stretched (default \code{NULL}: \code{c(1, 99)}; with \code{rgb = TRUE}, \code{c(2, 98)} of the three
+bands together).}
+
+\item{vmin, vmax}{range of the colour ramp (with \code{rgb = TRUE}, of the reflectance); either of them, the other
+end from \code{percentiles} (default: both from them).}
 }
 \value{
-A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
-  (the range of reflectance of the three bands), without palette.
+A list (image, region, vis, stretch: how the colour ramp was stretched, with its text (\code{NULL} for a
+  categorical layer), name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max (the range of
+  reflectance of the three bands), without palette.
 }
 \description{
 The variable aggregated in time (band \code{"value"}), with its colour ramp, or with \code{rgb = TRUE} the true
 colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
 and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
-between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
-\code{rgee::Map$addLayer(x$image, x$vis, x$name)}. Instead of a variable of the catalog, any data of Earth Engine by
-its ID: \code{collection} or \code{image}, with \code{band} (see \code{mo_asset()}), whose colour ramp goes from
-the percentile 5 to the percentile 95 of the band over the region.
+between the lowest percentile 2 and the highest percentile 98 of the bands over the region (or those of
+\code{percentiles}): e.g. \code{rgee::Map$addLayer(x$image, x$vis, x$name)}. The colour ramp of the variable goes
+from its percentile 1 to its percentile 99 over the region (or those of \code{percentiles}). Instead of a variable
+of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
+\code{mo_asset()}), with the same colour ramp from its percentiles.
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable

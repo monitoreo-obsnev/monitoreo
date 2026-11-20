@@ -81,22 +81,24 @@ def label(step, first, after):
 
 def frames(col, regions, steps, metric, vis, res=None, bounds=None, dimensions=DIMENSIONS):
 	"""The frames (ee.Image, RGB, visualized) of the collection COL of images of a variable ('value') over REGIONS:
-	for each (first day, day after the last) of STEPS, the METRIC of its images coloured with VIS, on a light grey
+	for each (first day, day after the last) of STEPS, the METRIC of its images coloured with VIS (or with its own of
+	a list VIS, one per step: the range of each frame), on a light grey
 	region (no data) over white, with the outline of the regions. RES (metres of the data) and BOUNDS ([w, s, e, n])
 	compute the data coarser than the pixels of the frames on their own grid (see maps.coarse)."""
 	outside = ee.Image.constant(0).visualize(palette=[OUTSIDE])
 	inside = ee.Image.constant(0).clipToCollection(regions).visualize(palette=[NO_DATA])
 	outline = ee.Image().byte().paint(regions, 1, 2).visualize(palette=[OUTLINE])
 	out = []
-	for a, b in steps:
+	visses = vis if isinstance(vis, (list, tuple)) else [vis] * len(steps)
+	for (a, b), v in zip(steps, visses):
 		value = composite.reduce_span(col, metric, a, b)
 		value = maps.coarse(value, res, bounds, dimensions).clipToCollection(regions)
-		out.append(outside.blend(inside).blend(value.visualize(**vis)).blend(outline))
+		out.append(outside.blend(inside).blend(value.visualize(**v)).blend(outline))
 	return out
 
 
 def range_image(col, steps, metric, whole):
-	"""The map whose percentiles 5 and 95 colour every frame: WHOLE, that of the whole period or, for a METRIC of TOTALS
+	"""The map whose percentiles colour every frame when they have the same colours (see services.timelapse): WHOLE, that of the whole period or, for a METRIC of TOTALS
 	(sum, count), which grows with the images, the median of the frames of STEPS (the METRIC of the images of COL of
 	each step): that of the whole period would be that of all the steps, as many times bigger as they are."""
 	if str(metric).strip().lower() not in TOTALS:
@@ -179,10 +181,15 @@ def layout(width, lines=1):
 
 def annotate(frame, i, labels, title, vmin, vmax, palette, unit='', credits=''):
 	"""The frame I (uint8 array, rows x columns x 3) with a band above with its date (LABELS, one per frame) and TITLE,
-	a progress bar, and a band below with the colour ramp of PALETTE from VMIN to VMAX with its UNIT and the CREDITS of
+	a progress bar, and a band below with the colour ramp of PALETTE from VMIN to VMAX (or from its own of the lists
+	VMIN and VMAX, one per frame) with its UNIT and the CREDITS of
 	the data, all of them, in as many lines as they need (see _wrap): drawn with Pillow or, without it, with Qt (QGIS).
 	A map narrower than MIN_WIDTH pixels is centred on a frame of MIN_WIDTH, white around it. ValueError without
 	both."""
+	if isinstance(vmin, (list, tuple)):
+		vmin = vmin[i]
+	if isinstance(vmax, (list, tuple)):
+		vmax = vmax[i]
 	texts = (labels[i] if i < len(labels) else '', title, _number(vmin), _number(vmax), unit or '', credits or '',
 	         (i + 1) / (len(labels) or 1))
 	try:

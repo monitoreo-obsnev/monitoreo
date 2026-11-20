@@ -752,7 +752,7 @@ out.whereControls = texts(controls);
 button('Add to the map').opts.onClick();
 out.noCodes = last();
 textbox(function (w) { return w.opts.placeholder === 'codes, e.g. 12, 4'; }).opts.onChange('12');
-answer = {value_p5: 0.1, value_p95: 0.8};
+answer = {value_lo: 0.1, value_hi: 0.8};
 button('Add to the map').opts.onClick();
 out.where = {layer: layers[layers.length - 1], results: last()};
 textbox(function (w) { return w.opts.placeholder === 'codes, e.g. 12, 4'; }).opts.onChange('12, 50');

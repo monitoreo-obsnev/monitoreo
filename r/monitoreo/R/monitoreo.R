@@ -123,6 +123,18 @@ answer <- function(res) {
   data_warnings(res)
   res
 }
+
+# The PERCENTILES of a colour ramp (two numbers, low and high, e.g. c(1, 99)) as Python takes them (a list); NULL as it
+# is (the default of the package, 1 and 99). A clear error before Earth Engine if they are not two numbers
+# 0 <= low < high <= 100, as monitoreo.maps.check_percentiles.
+percentiles_arg <- function(percentiles) {
+  if (is.null(percentiles)) return(NULL)
+  p <- suppressWarnings(as.numeric(unlist(percentiles)))
+  if (length(p) != 2 || anyNA(p) || p[1] < 0 || p[2] > 100 || p[1] >= p[2]) {
+    stop("percentiles must be two numbers 0 <= low < high <= 100, e.g. c(1, 99)", call. = FALSE)
+  }
+  as.list(p)
+}
 #' Arguments shared by the functions of MonitorEO
 #'
 #' @param region a region: \code{mo_wdpa()}, \code{mo_ecoregion()}, \code{mo_biome()}, \code{mo_country()},
@@ -205,7 +217,12 @@ answer <- function(res) {
 #' @param resolution pixel size in metres (default: that of the data).
 #' @param crs \code{"auto"} (UTM zone of the region; EPSG:6933, equal area, for a region wider than 40 degrees of
 #'   longitude) or a code such as \code{"EPSG:25830"}.
-#' @param vmin,vmax range of the colour ramp (default: percentiles 5 and 95 of the map).
+#' @param vmin,vmax range of the colour ramp (default: from \code{percentiles}); with only one of them, the other end
+#'   from its percentile.
+#' @param percentiles two numbers, the percentiles of the values of the map over the region between which its colour
+#'   ramp is stretched (default \code{NULL}: \code{c(1, 99)}), each map with its own; e.g. \code{c(5, 95)} for more
+#'   contrast, \code{c(0, 100)} for the whole range. The result says how in \code{stretch} (its \code{text} goes to
+#'   the legends and the README). The categorical layers (ECOREGION, BIOME) keep the colour of each class.
 #' @param thumbnail optional path of a PNG preview. If Earth Engine cannot make it in 5 minutes, the map comes without
 #'   it: thumbnail \code{NULL} and the reason in thumbnail_error (the map tiles are the map).
 #' @param csv optional path of a CSV file with the table.
@@ -1274,7 +1291,8 @@ plot_profile <- function(ts, title, ylabel, starts, gg, src = NULL) {
 #' of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
 #' \code{mo_asset()}).
 #' @inheritParams mo_params
-#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @return A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+#'   bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1299,23 +1317,26 @@ plot_profile <- function(ts, title, ylabel, starts, gg, src = NULL) {
 mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                          temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
                          vmax = NULL, thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL,
+                         percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
   res <- services()$map_layer(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                               vmin, vmax, thumbnail = thumbnail, collection = collection, where = where, image = image,
                               band = band, band_reducer = band_reducer, band_scale = band_scale,
-                              band_offset = band_offset, unit = unit, terrain = terrain)
+                              band_offset = band_offset, unit = unit, terrain = terrain,
+                              percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
 #' Animation of a variable over a region (a timelapse)
 #'
 #' A frame per time step of the period (and season): a year, a month, 16 days or a day with images, each the
-#' temporal metric of the images of the step on each pixel, coloured with one colour ramp for every frame (from
-#' \code{vmin} to \code{vmax}; by default from the percentiles 5 and 95 of the map of the whole period or, for the
-#' metrics \code{"sum"} and \code{"count"}, which grow with the images, of the median of the frames) and, written on
-#' it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
+#' temporal metric of the images of the step on each pixel, coloured by default with its own colour range (from its
+#' \code{percentiles}, 1 and 99, over the region: each frame its own, written on it) or, with \code{same_colours} or
+#' both \code{vmin} and \code{vmax}, with one colour ramp for every frame (from \code{vmin} to \code{vmax}, or from
+#' the \code{percentiles} of the map of the whole period or, for the metrics \code{"sum"} and \code{"count"}, which
+#' grow with the images, of the median of the frames) and, written on it, its date, the title, the colour ramp with its unit and the credits of the data and of the region, in as many
 #' lines as they need; the pixels of the region without data in a step are light grey. Earth Engine computes the
 #' colours of each frame on the same grid of web Mercator (\code{ee.data.computePixels}, several frames at a time),
 #' not as thumbnails, and Python writes the texts on them and joins them in a GIF with Pillow, which it needs (only the
@@ -1328,8 +1349,15 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 #' @param step \code{"annual"} (a frame per year), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
 #' @param fps frames per second (1: each frame for a second).
 #' @param dimensions width or height of the map in pixels (64 to 1200).
-#' @return A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label and images of each frame; n_frames, step, fps, min, max,
-#'   palette, name, unit, bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
+#' @param percentiles two numbers, the percentiles of the values of each frame over the region between which its
+#'   colour ramp is stretched (default \code{NULL}: \code{c(1, 99)}); with \code{same_colours}, those of the map of
+#'   the whole period, for every frame.
+#' @param same_colours \code{TRUE}: one colour ramp for every frame, so that they can be compared; \code{FALSE}
+#'   (default): each frame with its own (from its \code{percentiles}, or from \code{vmin} or \code{vmax} if given).
+#' @return A list (file, gif, note (why there is no MP4: without ffmpeg, only the GIF), frames: date, end, label,
+#'   images and min and max (its colour range) of each frame; n_frames, step, fps, min, max (the lowest and highest of
+#'   the ranges of the frames), palette, stretch: how the colour ramps were stretched, with its text, name, unit,
+#'   bounds, scale: the pixel size, in m, on which the frames are computed, that of the frames
 #'   or, if bigger, that of the data; readme, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
@@ -1353,12 +1381,13 @@ mo_map_layer <- function(region, variable = NULL, sensor = NULL, start = NULL, e
 mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", metric = "median",
                          season = NULL, quality = NULL, vmin = NULL, vmax = NULL, fps = 1, dimensions = 600L,
                          collection = NULL, where = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
-                         band_offset = NULL, unit = NULL) {
+                         band_offset = NULL, unit = NULL, percentiles = NULL, same_colours = FALSE) {
   check_data(variable, sensor, collection, NULL, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$timelapse(region, variable, sensor, start, end, step, metric, season, quality, vmin, vmax,
                               dimensions = as.integer(dimensions), fps = fps, path = path.expand(path),
                               collection = collection, where = where, band = band, band_reducer = band_reducer,
-                              band_scale = band_scale, band_offset = band_offset, unit = unit)
+                              band_scale = band_scale, band_offset = band_offset, unit = unit,
+                              percentiles = percentiles_arg(percentiles), same_colours = isTRUE(same_colours))
   answer(res)
 }
 
@@ -1371,7 +1400,8 @@ mo_timelapse <- function(region, variable = NULL, sensor = NULL, start, end, pat
 #' @param path the figure: \code{.png}, \code{.pdf} or \code{.svg}.
 #' @param title its title (default: that of the map).
 #' @param dpi resolution of a PNG (72 to 600).
-#' @return A list (file, min, max, palette, name, unit, bounds, scale, dpi, readme, references, credits).
+#' @return A list (file, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+#'   bounds, scale, dpi, readme, references, credits).
 #' @references Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of
 #'   Open Source Software, 5(51), 2305. \doi{10.21105/joss.02305}
 #' @examples
@@ -1384,14 +1414,14 @@ mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, 
                           temporal = "period", interannual = "mean", season = NULL, quality = NULL, vmin = NULL,
                           vmax = NULL, title = NULL, dpi = 300L, collection = NULL, where = NULL, image = NULL,
                           band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                          terrain = NULL) {
+                          terrain = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
   res <- services()$map_figure(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                                vmin, vmax, path = path.expand(path), title = title, dpi = as.integer(dpi),
                                collection = collection, where = where, image = image, band = band,
                                band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
-                               unit = unit, terrain = terrain)
+                               unit = unit, terrain = terrain, percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -1412,10 +1442,12 @@ mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, 
 #'   \code{"min"}, \code{"max"} or \code{"pN"} (percentile N).
 #' @param interannual metric between the years when \code{temporal} is not \code{"period"}, one that gives colours:
 #'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
-#' @param vmin,vmax range of the reflectance of the three bands together (default: the lowest percentile 2 and the
-#'   highest percentile 98 of the bands over the region).
-#' @return A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, name,
-#'   unit, bounds, thumbnail, references, credits), without palette.
+#' @param vmin,vmax range of the reflectance of the three bands together (default: the lowest low percentile and the
+#'   highest high percentile of the bands over the region, see \code{percentiles}).
+#' @param percentiles two numbers, the percentiles of the reflectance of the bands over the region between which the
+#'   three are stretched together (default \code{NULL}: \code{c(2, 98)}, those of the true colour).
+#' @return A list (url, bands: red, green and blue, min and max: the range of reflectance of the three bands, stretch:
+#'   how, with its text, name, unit, bounds, thumbnail, references, credits), without palette.
 #' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
 #'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
 #'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except when the variable
@@ -1438,11 +1470,11 @@ mo_map_figure <- function(region, variable = NULL, sensor = NULL, start = NULL, 
 #' @export
 mo_rgb_map <- function(region, variable, sensor, start = NULL, end = NULL, metric = "median", temporal = "period",
                        interannual = "mean", season = NULL, quality = NULL, vmin = NULL, vmax = NULL,
-                       thumbnail = NULL, collection = NULL, where = NULL) {
+                       thumbnail = NULL, collection = NULL, where = NULL, percentiles = NULL) {
   res <- services()$rgb_map(region = region, variable = variable, sensor = sensor, start = start, end = end,
                             metric = metric, temporal = temporal, interannual = interannual, season = season,
                             quality = quality, vmin = vmin, vmax = vmax, thumbnail = thumbnail, collection = collection,
-                            where = where)
+                            where = where, percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -1492,16 +1524,23 @@ rgb_caption <- function(l) {
 #' The variable aggregated in time (band \code{"value"}), with its colour ramp, or with \code{rgb = TRUE} the true
 #' colour of its images (bands \code{"red"}, \code{"green"} and \code{"blue"}: surface reflectance of the same images
 #' and pixels, aggregated with the same metric; see \code{mo_rgb_map()}), with the three bands stretched together
-#' between the lowest percentile 2 and the highest percentile 98 of the bands over the region: e.g.
-#' \code{rgee::Map$addLayer(x$image, x$vis, x$name)}. Instead of a variable of the catalog, any data of Earth Engine by
-#' its ID: \code{collection} or \code{image}, with \code{band} (see \code{mo_asset()}), whose colour ramp goes from
-#' the percentile 5 to the percentile 95 of the band over the region.
+#' between the lowest percentile 2 and the highest percentile 98 of the bands over the region (or those of
+#' \code{percentiles}): e.g. \code{rgee::Map$addLayer(x$image, x$vis, x$name)}. The colour ramp of the variable goes
+#' from its percentile 1 to its percentile 99 over the region (or those of \code{percentiles}). Instead of a variable
+#' of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
+#' \code{mo_asset()}), with the same colour ramp from its percentiles.
 #' @inheritParams mo_params
+#' @param percentiles two numbers, the percentiles of the values of the map over the region between which its colour
+#'   ramp is stretched (default \code{NULL}: \code{c(1, 99)}; with \code{rgb = TRUE}, \code{c(2, 98)} of the three
+#'   bands together).
+#' @param vmin,vmax range of the colour ramp (with \code{rgb = TRUE}, of the reflectance); either of them, the other
+#'   end from \code{percentiles} (default: both from them).
 #' @param clip clip the image to the region.
 #' @param rgb the true colour of the images instead of the variable (only the variables with \code{rgb} in
 #'   \code{mo_variables()}, not the data given as \code{collection} or \code{image}).
-#' @return A list (image, region, vis, name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max
-#'   (the range of reflectance of the three bands), without palette.
+#' @return A list (image, region, vis, stretch: how the colour ramp was stretched, with its text (\code{NULL} for a
+#'   categorical layer), name, references, credits); with \code{rgb = TRUE}, vis has bands, min and max (the range of
+#'   reflectance of the three bands), without palette.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable
 #'   (with \code{rgb = TRUE}, as \code{mo_rgb_map()}: not those of the formula, except with the metric max or min and
 #'   for the snow cover frequency and the cloud frequency),
@@ -1526,9 +1565,11 @@ rgb_caption <- function(l) {
 mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, metric = "median",
                      temporal = "period", interannual = "mean", season = NULL, quality = NULL, clip = TRUE,
                      collection = NULL, where = NULL, rgb = FALSE, image = NULL, band = NULL, band_reducer = NULL,
-                     band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL) {
+                     band_scale = NULL, band_offset = NULL, unit = NULL, terrain = NULL, percentiles = NULL,
+                     vmin = NULL, vmax = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
+  percentiles <- percentiles_arg(percentiles)
   s <- services()
   maps <- reticulate::import("monitoreo.maps", convert = TRUE)
   variables <- reticulate::import("monitoreo.variable", convert = TRUE)
@@ -1549,16 +1590,24 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
   res <- variables$native_scale(spec)
   out <- do.call(s$composite_image, c(list(region, variable, sensor, start, end, metric, temporal, interannual, season,
                                            quality, clip, rgb = isTRUE(rgb)), data))
-  vis <- if (isTRUE(rgb)) {
-    maps$rgb_vis(out[[1]], out[[2]]$geometry(), res)  # percentiles 2 and 98 of the three bands together
-  } else if (isTRUE(variables$is_categorical(spec))) {
+  stretch <- NULL
+  if (isTRUE(variables$is_categorical(spec)) && !isTRUE(rgb)) {
     # a categorical layer (ECOREGION, BIOME): the colour of each class of those in the region, as services.map_layer
     categorical <- reticulate::import("monitoreo.categorical", convert = TRUE)
     entry <- s$variable_entry(spec)
-    categorical$vis(entry, categorical$present(entry, out[[2]]$geometry()))
+    vis <- categorical$vis(entry, categorical$present(entry, out[[2]]$geometry()))
   } else {
-    # percentiles 5 and 95 (with the palette of the catalog; the data of Earth Engine by its ID have no entry in it)
-    maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res)
+    # the true colour: percentiles 2 and 98 of the three bands together; the variable: percentiles 1 and 99 (with the
+    # palette of the catalog; the data of Earth Engine by its ID have no entry in it); or those given, or vmin and vmax
+    made <- if (isTRUE(rgb)) {
+      maps$rgb_vis(out[[1]], out[[2]]$geometry(), res, vmin = vmin, vmax = vmax, percentiles = percentiles,
+                   describe = TRUE)
+    } else {
+      maps$vis_params(out[[1]], out[[2]]$geometry(), s$variable_entry(spec), res, vmin = vmin, vmax = vmax,
+                      percentiles = percentiles, describe = TRUE)
+    }
+    vis <- made[[1]]
+    stretch <- made[[2]]
   }
   cite <- reticulate::import("monitoreo.references", convert = TRUE)$cite(
     if (isTRUE(rgb)) "rgb_map" else "composite_image",
@@ -1570,8 +1619,9 @@ mo_image <- function(region, variable = NULL, sensor = NULL, start = NULL, end =
   what <- if (kind == "catalog") c(variable, sensor) else variables$data_name(spec)
   dated <- !is.null(start) && !isTRUE(variables$is_static(spec))
   name <- paste(c(what, if (dated) c(metric, start, end)), collapse = " ")
-  list(image = out[[1]], region = out[[2]], vis = vis, name = if (isTRUE(rgb)) paste0(name, ", true colour") else name,
-       references = cite$references, credits = cite$credits)
+  list(image = out[[1]], region = out[[2]], vis = vis, stretch = stretch,
+       name = if (isTRUE(rgb)) paste0(name, ", true colour") else name, references = cite$references,
+       credits = cite$credits)
 }
 
 #' Statistics of the map of a variable over each feature of a region
@@ -1853,8 +1903,9 @@ mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start,
 #' @inheritParams mo_params
 #' @param path path of the GeoTIFF.
 #' @param clip clip the map to the region.
-#' @return A list (file, grid, resolution, native_resolution, images, name, unit, min, max, palette, references,
-#'   credits).
+#' @return A list (file, grid, resolution, native_resolution, images, name, unit, min, max (the colour ramp, from
+#'   \code{percentiles} of the values of the file or from \code{vmin} and \code{vmax}), palette, stretch: how, with its
+#'   text, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -1878,13 +1929,14 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
                               temporal = "period", interannual = "mean", season = NULL, quality = NULL,
                               resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL,
                               image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
-                              unit = NULL, terrain = NULL) {
+                              unit = NULL, terrain = NULL, vmin = NULL, vmax = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, terrain,
              band_reducer = band_reducer)
   res <- services()$download_image(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                                    resolution, crs, path.expand(path), clip, collection = collection, where = where,
                                    image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
-                                   band_offset = band_offset, unit = unit, terrain = terrain)
+                                   band_offset = band_offset, unit = unit, terrain = terrain, vmin = vmin, vmax = vmax,
+                                   percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -1902,9 +1954,12 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
 #'   \code{"mean"}, \code{"median"}, \code{"min"}, \code{"max"} or \code{"pN"}.
 #' @param path path of the GeoTIFF.
 #' @param clip clip the map to the region.
+#' @param percentiles two numbers, the percentiles of the reflectance of the three bands of the file between which they
+#'   are shown together (default \code{NULL}: \code{c(2, 98)}, those of the true colour).
+#' @param vmin,vmax range of the reflectance of the three bands together (default: from \code{percentiles}).
 #' @return A list (file, grid, resolution, native_resolution, images, name, unit, bands: red, green and blue, min and
-#'   max: the lowest percentile 2 and the highest percentile 98 of the three bands, the range to show them together,
-#'   references, credits, readme), without palette.
+#'   max: the lowest low percentile and the highest high percentile of the three bands (by default 2 and 98), the
+#'   range to show them together, stretch: how, with its text, references, credits, readme), without palette.
 #' @section References: The result carries its references (with DOI): those of its Earth Engine datasets (cited as
 #'   their pages of the Earth Engine catalog suggest), of the pixel filters, of the region, of Google Earth Engine and
 #'   of MonitorEO (not those of the formula of the variable, whose values it does not show, except when the variable
@@ -1929,11 +1984,13 @@ mo_download_image <- function(region, variable = NULL, sensor = NULL, start = NU
 #' @export
 mo_download_rgb <- function(region, variable, sensor, start = NULL, end = NULL, path, metric = "median",
                             temporal = "period", interannual = "mean", season = NULL, quality = NULL,
-                            resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL) {
+                            resolution = NULL, crs = "auto", clip = TRUE, collection = NULL, where = NULL,
+                            percentiles = NULL, vmin = NULL, vmax = NULL) {
   res <- services()$download_rgb(region = region, variable = variable, sensor = sensor, start = start, end = end,
                                  metric = metric, temporal = temporal, interannual = interannual, season = season,
                                  quality = quality, resolution = resolution, crs = crs, path = path.expand(path),
-                                 clip = clip, collection = collection, where = where)
+                                 clip = clip, collection = collection, where = where,
+                                 percentiles = percentiles_arg(percentiles), vmin = vmin, vmax = vmax)
   answer(res)
 }
 
@@ -2051,7 +2108,14 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
 #' @param output \code{"slope"} (Sen, per year), \code{"tau"}, \code{"z"}, \code{"p_value"},
 #'   \code{"intercept"} or \code{"n"} (years with data).
 #' @param alpha optional significance level: only the pixels with a significant trend.
-#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @param vmin,vmax the ends of the colour ramp of any output; either of them, the other end that of its default ramp:
+#'   symmetric around 0 for \code{"slope"} and \code{"z"}, from \code{percentiles} for \code{"n"} and
+#'   \code{"intercept"}, and fixed for \code{"tau"} (-1 to 1) and \code{"p_value"} (0 to 0.1).
+#' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the slope and z are painted symmetric
+#'   around 0, up to the largest of these percentiles of their values over the region in absolute value; n and the
+#'   intercept between them.
+#' @return A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+#'   bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -2080,13 +2144,15 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
 mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", part = NULL,
                          output = "slope", metric = "mean", season = NULL, quality = NULL, alpha = NULL,
                          thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+                         band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL,
+                         vmax = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   res <- services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
                               quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection,
                               where = where, image = image, band = band, band_reducer = band_reducer,
-                              band_scale = band_scale, band_offset = band_offset, unit = unit)
+                              band_scale = band_scale, band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
+                              percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -2099,8 +2165,11 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
 #' @inheritParams mo_params
 #' @inheritParams mo_trend_map
 #' @param path path of the GeoTIFF.
-#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
-#'   credits).
+#' @param vmin,vmax range of the colours of the slope (default: symmetric around 0, from \code{percentiles}).
+#' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the colours of the slope, symmetric around
+#'   0 up to the largest of these percentiles of its values in the file in absolute value.
+#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, stretch: how the
+#'   colours of the slope were computed, with its text, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -2127,13 +2196,15 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
 mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", part = NULL,
                               metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
                               crs = "auto", collection = NULL, where = NULL, image = NULL, band = NULL,
-                              band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+                              band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL,
+                              vmax = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   res <- services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
                                    resolution, crs, path.expand(path), collection = collection, where = where,
                                    image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
-                                   band_offset = band_offset, unit = unit)
+                                   band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
+                                   percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -2186,9 +2257,16 @@ mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end
 #'
 #' The variable aggregated over another period minus over the reference period, as Earth Engine tiles (see
 #' \code{mo_leaflet()}). Instead of a variable of the catalog, any collection of images of Earth Engine with dates, by
-#' its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
+#' its ID: \code{collection} and \code{band} (see \code{mo_asset()}). The difference is painted symmetric around 0,
+#' up to the largest of its \code{percentiles} (1 and 99 by default) in absolute value, or from \code{vmin} to
+#' \code{vmax}.
 #' @inheritParams mo_params
-#' @return A list (url, min, max, palette, name, unit, bounds, thumbnail, references, credits).
+#' @param vmin,vmax range of the colours of the difference; either of them, the other end that of its symmetric ramp
+#'   (default: both from \code{percentiles}).
+#' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference, symmetric
+#'   around 0 up to the largest of these percentiles of its values over the region in absolute value.
+#' @return A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,
+#'   bounds, thumbnail, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -2206,12 +2284,14 @@ mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end
 mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
                            metric = "median", temporal = "period", season = NULL, quality = NULL, thumbnail = NULL,
                            collection = NULL, where = NULL, image = NULL, band = NULL, band_reducer = NULL,
-                           band_scale = NULL, band_offset = NULL, unit = NULL) {
+                           band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL, vmax = NULL,
+                           percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$compare_map(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                 season = season, quality = quality, thumbnail = thumbnail, collection = collection,
                                 where = where, image = image, band = band, band_reducer = band_reducer,
-                                band_scale = band_scale, band_offset = band_offset, unit = unit)
+                                band_scale = band_scale, band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
+                                percentiles = percentiles_arg(percentiles))
   answer(res)
 }
 
@@ -2222,8 +2302,11 @@ mo_compare_map <- function(region, variable = NULL, sensor = NULL, start, end, o
 #' ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param path path of the GeoTIFF.
-#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, references,
-#'   credits).
+#' @param percentiles two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference,
+#'   symmetric around 0 up to the largest of these percentiles of its values in the file in absolute value.
+#' @param vmin,vmax range of the colours of the difference (default: from \code{percentiles}).
+#' @return A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, stretch: how the
+#'   colour ramp was stretched, with its text, references, credits).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -2243,13 +2326,14 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
                                    metric = "median", temporal = "period", season = NULL, quality = NULL,
                                    resolution = NULL, crs = "auto", collection = NULL, where = NULL, image = NULL,
                                    band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
-                                   unit = NULL) {
+                                   unit = NULL, percentiles = NULL, vmin = NULL, vmax = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$download_comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal,
                                         season = season, quality = quality, resolution = resolution, crs = crs,
                                         path = path.expand(path), collection = collection, where = where, image = image,
                                         band = band, band_reducer = band_reducer, band_scale = band_scale,
-                                        band_offset = band_offset, unit = unit)
+                                        band_offset = band_offset, unit = unit,
+                                        percentiles = percentiles_arg(percentiles), vmin = vmin, vmax = vmax)
   answer(res)
 }
 

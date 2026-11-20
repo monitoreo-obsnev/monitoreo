@@ -447,7 +447,7 @@ out.period = gradients();
 selectWith('period').opts.onChange('annual');
 after('Metric between years').opts.onChange('cv');
 out.cv = gradients();
-answer = {value_p5: 0, value_p95: 50};
+answer = {value_lo: 0, value_hi: 50};
 button('Add to the map').opts.onClick();
 out.legend = legendTitle();
 process.stdout.write(JSON.stringify(out));

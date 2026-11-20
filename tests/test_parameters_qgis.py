@@ -182,6 +182,19 @@ class _Spin:
 	def value(self):
 		return self.number
 
+	def setValue(self, value):
+		self.number = value
+
+
+class _Colours:
+	"""The Colour range of a group of the panel (dock.ColourRange) on fakes of its fields: its percentiles (by default
+	1 and 99), minimum and maximum, with the methods of the plugin."""
+
+	def __init__(self, dock):
+		self.low, self.high, self.vmin, self.vmax = _Spin(1.0), _Spin(99.0), _Text(''), _Text('')
+		for name in ('percentiles', 'given', 'args', 'put'):
+			setattr(self, name, getattr(dock.ColourRange, name).__get__(self))
+
 
 def _row(variable, sensor):
 	return next(v for v in services.list_variables(lang='en') if v['variable'] == variable and v['sensor'] == sensor)
@@ -210,6 +223,8 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.trend_metric, p.trend_alpha = _Combo(d.METRICS, 'mean'), _Check(True)
 	p.map_metric, p.temporal = _Combo(d.METRICS, 'median'), _Combo(d.TEMPORAL, 'period')
 	p.interannual, p.map_kind = _Combo(d.METRICS, 'mean'), _Combo(d.MAP_KINDS, 'index')
+	p.trend_colours, p.map_colours, p.anim_colours = _Colours(d), _Colours(d), _Colours(d)
+	p.map_same, p.anim_same = _Check(False), _Check(False)
 	p.area_kind, p.area_breaks = _Combo(d.AREA_KINDS, 'landcover'), _Text('0.2, 0.4')
 	p.area_map, p.area_change = _Combo([('CORINE Land Cover · 100 m · Europe', 'CORINE')]), _Check(False)
 	p.area_year, p.area_other_year = _Combo([('2018', 2018), ('2012', 2012)]), _Combo([('2018', 2018)])
