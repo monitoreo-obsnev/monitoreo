@@ -77,10 +77,9 @@
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
                                                      update its viewer (after updating monitoreo) and its catalogue
     monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
-    monitoreo eecu [--limit H|TIER] [--lang es]      EECUs of Earth Engine spent this month: your research EECUs with
-                                                     the shared account of MonitorEO, or the monthly quota of your
-                                                     project as Earth Engine counts it (--limit: only when its quota
-                                                     counters cannot be read)
+    monitoreo [--project P] projects                 the Google Cloud projects of your Google account (of
+                                                     `earthengine authenticate`) registered in Earth Engine, for
+                                                     --project (P: one more to check)
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
@@ -98,9 +97,9 @@ continents: give it within a region, or MODIS or the climate at an annual step).
 km²: a country, a biome, most seas) are computed by default on pixels of 1 to 10 km. The Earth Engine
 project is --project, the variable EE_PROJECT or (download) project: of the recipe, with the Google account of
 `earthengine authenticate`; without one, it computes with the shared account of MonitorEO, where each user has research
-EECUs for each month, only for research. The commands that compute warn when less than 10 % of the EECUs of the month
-are left, when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
-computations are slow and may fail with too many requests; with the shared account, use your own project), and when
+EECUs for each month, only for research. The commands that compute warn when Earth Engine has put the project in
+restricted mode (it has spent its noncommercial compute quota: computations are slow and may fail with too many
+requests; with the shared account, use your own project), and when
 the period begins before the first image of the data or ends (or even begins) after the last one of
 data that ended in the copy of the Earth Engine data catalog, which Earth Engine may have extended since (a period that
 ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is an error that says their
@@ -649,15 +648,10 @@ def main(argv=None):
 	p = sub.add_parser('serve', help='the viewer of results on this computer (with range requests, as the web servers)')
 	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
 	p.add_argument('--port', type=int, default=8000)
-	p = sub.add_parser('eecu', help='EECUs of Earth Engine spent this month: your research EECUs with the shared account '
-	                                'of MonitorEO, or the monthly quota of your project as Earth Engine counts it (the '
-	                                'quota counters of Cloud Monitoring, which also count the computations running or '
-	                                'failed and may go down when Earth Engine settles them), next to what the '
-	                                'computations completed have spent')
-	p.add_argument('--limit', help='only when the quota counters of your project cannot be read (Earth Engine gives its '
-	                               'limit otherwise): its monthly quota in EECU-hours or tier (Community, Contributor, '
-	                               'Partner; default: MONITOREO_EECU_LIMIT or Community, 150 EECU-hours)')
-	p.add_argument('--lang', default='en', choices=('en', 'es'))
+	p = sub.add_parser('projects', help='the Google Cloud projects of your Google account (that of `earthengine '
+	                                    'authenticate`) registered in Earth Engine, to give one with --project; Google '
+	                                    'does not let MonitorEO list all your projects: those it finds, each one checked '
+	                                    'in Earth Engine without computing; --project: one more to check')
 	params = p = sub.add_parser('parameters', help='what of a JSON file of parameters of an analysis can be applied '
 	                                              '(those that MonitorEO writes next to the files of each result, '
 	                                              '<file>.parameters.json, and the other tools save), without computing')
@@ -726,7 +720,7 @@ def main(argv=None):
 		try:
 			return _run(args, checked, services)
 		finally:
-			_eecu_notice(services)
+			_quota_notice(services)
 	if args.cmd == 'serve':
 		from . import publish
 		publish.serve(args.site, args.port)
@@ -779,21 +773,19 @@ def main(argv=None):
 	if args.cmd == 'mcp':
 		_mcp(args)
 		return
+	if args.cmd == 'projects':  # asks Earth Engine the configuration of each project, without connecting
+		return _projects(args, services)
 	_data_warnings()
 	if args.cmd == 'download':
 		try:
 			return _download(args, services)
 		finally:
-			_eecu_notice(services)
-	if args.cmd == 'eecu':  # the research EECUs of the shared account, without connecting (also when they are spent)
-		if args.project:
-			services.init(args.project, warn=False)
-		return _eecu(args, services)
+			_quota_notice(services)
 	services.init(args.project, warn=False)
 	try:
 		_compute(args, services)
 	finally:
-		_eecu_notice(services)
+		_quota_notice(services)
 
 
 def _documented(res):
@@ -857,14 +849,18 @@ def _run(args, checked, services):
 		print(f"WARNING: computed without: {parameters.text(checked['not_applied'])}", file=sys.stderr)
 
 
-def _eecu(args, services):
+def _projects(args, services):
+	"""The Google Cloud projects of the account of `earthengine authenticate` registered in Earth Engine."""
 	try:
-		u = services.eecu_usage(args.limit, refresh=True, lang=args.lang)
-	except (ValueError, RuntimeError) as e:
+		found = services.own_projects([args.project] if args.project else [])
+	except RuntimeError as e:
 		sys.exit(f'ERROR: {e}')
-	print(f"{u['name']} {u['bar']}\n{u['text']}")
-	if u['warning']:
-		print(f"\nWARNING: {u['warning']}", file=sys.stderr)
+	_table([{k: p[k] or '' for k in ('project', 'name', 'registration')} for p in found['projects']],
+	       ['project', 'name', 'registration'])
+	print(f"\n{len(found['projects'])} projects registered in Earth Engine"
+	      f"{' of ' + found['account'] if found['account'] else ''} | use one with --project PROJECT (or the variable "
+	      f"EE_PROJECT). Google does not let MonitorEO list all your projects: if yours is not here, give it anyway. "
+	      f"To register one: {found['register']}")
 
 
 def _data_warnings():
@@ -884,13 +880,9 @@ def _data_warnings():
 	warnings.showwarning = show
 
 
-def _eecu_notice(services):
-	"""After a command that computes (also when it fails), warn when less than 10 % of the EECUs of the month are left,
-	and when Earth Engine has put the project in restricted mode (see services.quota_warning: with the shared account,
-	how to compute with your own project)."""
-	warning = services.eecu_warning()
-	if warning:
-		print(f'\nWARNING: {warning}', file=sys.stderr)
+def _quota_notice(services):
+	"""After a command that computes (also when it fails), warn when Earth Engine has put the project in restricted mode
+	(see services.quota_warning: with the shared account, how to compute with your own project)."""
 	quota = services.quota_warning()
 	if quota:
 		own = ' In the command line: --project YOUR_PROJECT.' if services.shared() else ''

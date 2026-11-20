@@ -307,7 +307,6 @@ def stats_calls(monkeypatch):
 		return {'rows': [row], 'stats': stats, 'scale': 250.0, 'unit': '[%]' if 'cv' in (metric, interannual) else
 		        '[unitless]', 'title': f'{variable} {sensor} ({metric})'}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'region_stats', fake)
 	return calls
 

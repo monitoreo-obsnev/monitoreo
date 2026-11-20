@@ -45,7 +45,6 @@ def ee(monkeypatch):
 	monkeypatch.setattr(services.areas, 'region', lambda region: 'regions')
 	monkeypatch.setattr(services.timeseries, 'series', series)
 	monkeypatch.setattr(services, 'init', init)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	return calls
 
 
@@ -106,7 +105,6 @@ def test_the_command_line_passes_the_options(monkeypatch):
 		return {'rows': [], 'profile': [], 'variables': NAMES, 'units': {}, 'scales': {}, 'csv': None, 'chart': None,
 		        'scale': 10.0, 'unit': '', 'title': 't', 'ylim': None, 'other_ylim': None}
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'time_series', fake)
 	cli.main(SERIES + ['--doy', '--interannual', 'mean', '--other-variable', 'NDVI', '--other-sensor', 'Landsat',
 	                   '--ylim', '-1', '1', '--other-ylim', '-0.2,0.9'])

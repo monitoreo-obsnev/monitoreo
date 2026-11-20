@@ -43,7 +43,6 @@ def downloads(monkeypatch):
 		return download
 
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: calls.append('init') or 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'download_image', fake('download_image'))
 	monkeypatch.setattr(services, 'download_rgb', fake('download_rgb'))
 	return calls
@@ -127,7 +126,6 @@ def test_the_command_line_gives_the_errors_of_the_services(monkeypatch):
 	Engine) end the command with their message."""
 	from monitoreo import cli
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	with pytest.raises(SystemExit, match=r'^ERROR: ELEVATION \(Copernicus\) is a fixed layer'):
 		cli.main(['image', 'ELEVATION', '--sensor', 'Copernicus', '--region', json.dumps(REGION), '--rgb', 'x.tif'])
 	with pytest.raises(SystemExit, match=r'^ERROR: LST \(Modis\) has no true colour'):
@@ -149,7 +147,6 @@ def mcp(monkeypatch, tmp_path):
 	mcp_server = pytest.importorskip('monitoreo.mcp_server')
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	monkeypatch.setattr(mcp_server, '_ready', lambda: None)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	return mcp_server
 
 

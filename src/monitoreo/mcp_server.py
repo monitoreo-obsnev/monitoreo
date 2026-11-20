@@ -7,11 +7,9 @@ monitoreo.update), so the server always runs that version; --no-update skips it.
 
 With a project (the variable EE_PROJECT or the tool connect) it computes with the Earth Engine credentials of
 `earthengine authenticate` and that project; without one, with the shared account of MonitorEO (no exports to
-Google Drive): each user has its research EECUs for each month, only for research. The tool eecu_usage tells the EECUs
-of Earth Engine spent this month (with the shared account, the research EECUs of this user; with the user's own, the
-monthly quota of their project as Earth Engine counts it in the quota counters of Cloud Monitoring, see
-services.quota_seconds), and the answers of the tools carry eecu_warning when less than 10 % are left, and
-quota_warning when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
+Google Drive): each user has its research EECUs for each month, only for research. The tool own_projects lists the
+Google Cloud projects of the user's account registered in Earth Engine, to connect with one. The answers of the tools
+carry quota_warning when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota:
 computations are slow and may fail with too many requests; see services.quota_warning), which their errors say too.
 Files (CSV tables, PNG charts and maps) are written to the folder MONITOREO_OUTPUT (default:
 ~/MonitorEO), and the call of each tool that writes files to its log calls.jsonl, where publish_report finds the call
@@ -196,19 +194,16 @@ Without a project of the user (EE_PROJECT or connect) the tools compute with the
 cannot export to Google Drive: the exports need the user's own Earth Engine account and project. With the shared
 account each user has research EECUs for each month (compute of Earth Engine, 25 EECU-hours), only for research; who
 has spent them cannot compute with it until the next month, and nor can anyone when the users of the shared account
-have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. eecu_usage
-tells the percent of them spent (with the user's own account, of the monthly EECU quota of their project as Earth
-Engine counts it, which also counts the computations running or failed and settles them later, so it may go down;
-quota_reached: Earth Engine has counted it all and the project is in restricted mode; with the shared account, the
-percent of the monthly quota of its project that Earth Engine counts). When an answer has eecu_warning (less than 10 %
-of the EECUs of the month are left), tell the user; with the shared account, tell them to switch to their own Earth
-Engine account and Google Cloud project (connect). When an answer has quota_warning, or an error ends with its text
+have spent the monthly quota of its project (1,000 EECU-hours) but the reserve of the app of Earth Engine. MonitorEO
+does not tell the EECUs spent (its count was not that of Earth Engine): do not estimate them. To use their own Google
+Cloud project, own_projects lists those of the user's account registered in Earth Engine (after `earthengine
+authenticate`), and connect connects with the one they choose. When an answer has quota_warning, or an error ends with its text
 (Earth Engine has put the project in restricted mode: it has spent its noncommercial compute quota, so computations
 are slow and may fail with too many requests), tell the user why it is slow or failed; with the shared account, that
 to compute without waiting they can use their own Google Cloud project registered in Earth Engine (connect).
 
 The texts of the tools are in English. Answer in the language of the user's question (in Spanish when they ask in
-Spanish), and pass lang "es" to the tools that take it (about, eecu_usage, list_variables, community_themes, list_classes) when
+Spanish), and pass lang "es" to the tools that take it (about, list_variables, community_themes, list_classes) when
 the user writes in Spanish. The manual is the wiki of MonitorEO, with every page in English and in Spanish: """ + \
 	about_.MANUAL + \
 	"""/English (English) and """ + about_.MANUAL + """ (Spanish). Its page Publications (""" + about_.MANUAL + \
@@ -269,25 +264,24 @@ def tool(fn):
 			raise
 		except Exception as e:
 			error = f'{type(e).__name__}: {e}'
-			quota = None if fn.__name__ in NO_EECU_WARNING or isinstance(e, (ValueError, KeyError, TypeError)) else \
+			quota = None if fn.__name__ in NO_QUOTA_WARNING or isinstance(e, (ValueError, KeyError, TypeError)) else \
 				services.quota_warning()  # why it failed, perhaps: Earth Engine in restricted mode
 			raise ToolError(f"{error}{'' if error.endswith('.') else '.'} {quota}" if quota else error) from e
 		_log(fn.__name__, sig, args, kwargs, out)
-		return out if fn.__name__ in NO_EECU_WARNING else _eecu_warning(out)
+		return out if fn.__name__ in NO_QUOTA_WARNING else _quota_warning(out)
 	return server.tool()(wrapped)
 
 
-NO_EECU_WARNING = ('about', 'connect', 'list_variables', 'describe_variable', 'publish_report', 'eecu_usage',
+NO_QUOTA_WARNING = ('about', 'connect', 'own_projects', 'list_variables', 'describe_variable', 'publish_report',
                    'save_parameters', 'apply_parameters',
                    'community_themes', 'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes')
 
 
-def _eecu_warning(out):
-	"""The answer OUT of a tool with the warning of services.eecu_warning (eecu_warning in its JSON object) when less
-	than 10 % of the EECUs of the month are left, and that of services.quota_warning (quota_warning) when Earth Engine
-	has put the project in restricted mode."""
-	warned = {k: w for k, w in (('eecu_warning', services.eecu_warning()), ('quota_warning', services.quota_warning()))
-	          if w}
+def _quota_warning(out):
+	"""The answer OUT of a tool with the warning of services.quota_warning (quota_warning in its JSON object) when
+	Earth Engine has put the project in restricted mode."""
+	quota = services.quota_warning()
+	warned = {'quota_warning': quota} if quota else {}
 	text = out[0] if isinstance(out, list) and out else out
 	if not warned or not isinstance(text, str):
 		return out
@@ -470,33 +464,19 @@ def connect(project: str = '') -> str:
 	p = services.init(project or None, shared=not project, warn=False)
 	text = f'Connected to Earth Engine with the shared account of MonitorEO (project {p}): the research EECUs of each ' \
 	       'user are only for research' if services.shared() else f'Connected to Earth Engine with the project {p}'
-	warning = ' '.join(w for w in (services.eecu_warning(), services.quota_warning()) if w)
+	warning = services.quota_warning()
 	return f'{text}. {warning}' if warning else text
 
 
 @tool
-def eecu_usage(limit: Optional[str] = None, refresh: bool = False, lang: str = 'en') -> str:
-	"""EECUs (compute units of Earth Engine) spent this month, against their limit, which restarts on the first day of
-	each month: used and left percent, EECU-hours, a bar of text and a warning when less than 10 % are left. With the
-	shared account of MonitorEO they are the research EECUs of this user (25 EECU-hours a month, only for research,
-	and at most what the project has left for all the users of the shared account; when they are spent, the shared
-	account does not compute for them until the next month and they must switch to their own account: connect). With
-	the user's own project, the monthly quota of that project as Earth Engine counts it in the quota counters of Cloud
-	Monitoring (the Cloud Monitoring API must be enabled in it): used_hours is the larger of what Earth Engine counts
-	(also the computations running or failed, which it settles later, so it may go down) and what the computations
-	completed have spent (spent_hours), against the limit of the quota that Earth Engine gives; source: quota (the
-	quota counters were read) or completed (only the computations completed). limit: only when the quota counters
-	cannot be read, the EECU-hours a month of the project or its tier (Community 150, Contributor 1000, Partner 100000;
-	default MONITOREO_EECU_LIMIT or Community). With the shared account the text also gives the percent of the monthly
-	quota of its project that Earth Engine counts. refresh: ask again (answers are kept 5 minutes). lang: en or es.
-	quota_reached: Earth Engine has counted the whole monthly quota (nothing is left). quota_warning: Earth Engine has
-	put the project in restricted mode (its noncommercial compute quota spent: computations are slow and may fail)."""
-	try:  # connected, so that Earth Engine says whether the project is in restricted mode (services.probe_quota)
-		_ready()
-	except Exception:  # e.g. the research EECUs spent (no token of the broker): the usage says so without connecting
-		pass
-	usage = services.eecu_usage(limit, refresh, lang)
-	return _text(usage if usage.get('quota_warning') else {k: v for k, v in usage.items() if k != 'quota_warning'})
+def own_projects(project: str = '') -> str:
+	"""The Google Cloud projects of the Google account of `earthengine authenticate` that are registered in Earth
+	Engine, to connect with one of them (connect): account, projects [{project, name, registration (noncommercial or
+	commercial)}] and register (where to register another one). Google does not let MonitorEO list all the projects of
+	the account, so it gives those it finds (the one of EE_PROJECT or of `earthengine set_project`, those of the Google
+	Cloud CLI, the ee-<user> that the registration of Earth Engine creates, those of BigQuery), each one checked in Earth
+	Engine without computing; the user can give another one. project: one more to check (e.g. the one used before)."""
+	return _text(services.own_projects([project] if project.strip() else []))
 
 
 @tool

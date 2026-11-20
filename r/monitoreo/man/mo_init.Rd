@@ -20,11 +20,11 @@ With a Google Cloud project registered in Earth Engine, it computes with the cre
 \code{earthengine authenticate} (or \code{rgee::ee_Initialize()}) and the quota of that project; with
 \code{""} (or no \code{EE_PROJECT}), with the shared account of MonitorEO, which needs no account of Earth
 Engine but cannot export to Google Drive, and where each user has research EECUs for each month, only for research
-(who spends them cannot compute with it until the next month). It warns when less than 10 \% of the EECUs of the
-month are left (see \code{mo_eecu()}; with your own project, of its monthly quota as Earth Engine counts it), and
-when Earth Engine has put the project in restricted mode (it has spent its noncommercial compute quota: computations
-are slow and may fail with too many requests; with the shared account, use your own project to compute without
-waiting), also after the error of a computation that fails then. Each warning is given once each kind and day.
+(who spends them cannot compute with it until the next month). It warns when Earth Engine has put the project in
+restricted mode (it has spent its noncommercial compute quota: computations are slow and may fail with too many
+requests; with the shared account, use your own project to compute without waiting), also after the error of a
+computation that fails then, once each time it begins. \code{mo_projects()} lists your projects registered in
+Earth Engine.
 }
 \examples{
 \dontrun{

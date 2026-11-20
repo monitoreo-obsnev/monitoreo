@@ -342,7 +342,6 @@ def calls(monkeypatch):
 		                metric=metric, vmin=vmin, vmax=vmax, dimensions=dimensions, fps=fps, path=path))
 		return dict(ANSWER, file=path, gif=path)
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'timelapse', fake)
 	return out
 

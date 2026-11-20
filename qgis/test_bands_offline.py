@@ -75,12 +75,7 @@ from monitoreo import services  # noqa: E402
 from monitoreo_qgis.dock import data_name  # noqa: E402
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 services.init = lambda *args, **kw: 'project'
-services.eecu_usage = eecu_usage
 for key in ('band_reducer', 'asset_bands', 'asset_band', 'asset'):  # the defaults
 	QgsSettings().remove('MonitorEO/' + key)
 

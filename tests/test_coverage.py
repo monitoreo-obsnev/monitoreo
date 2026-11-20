@@ -231,7 +231,6 @@ def ee(monkeypatch):
 
 	monkeypatch.setattr(services.areas, 'region', lambda region: 'regions')
 	monkeypatch.setattr(services.timeseries, 'series', series)
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services.charts, 'time_series_png', lambda rows, path, **kw: drawn.append(kw))
 	return drawn
 

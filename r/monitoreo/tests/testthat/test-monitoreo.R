@@ -975,7 +975,6 @@ test_that("Earth Engine in restricted mode: a computation that fails says why wi
   restricted <- FALSE
   given <- FALSE
   fake <- list(
-    eecu_warning = function(...) NULL,
     shared = function() TRUE,
     quota_warning = function(once = FALSE) {
       if (!restricted || (once && given)) return(NULL)

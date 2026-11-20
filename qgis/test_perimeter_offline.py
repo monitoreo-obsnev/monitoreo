@@ -114,13 +114,8 @@ def burn_severity(region, sensor, start, end, other_start, other_end, perimeter=
 	return out
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 services.init = lambda *args, **kw: 'project'
 services.check_pixels = lambda *args, **kw: {'pixels': 1}  # it fits (issue #86), without Earth Engine
-services.eecu_usage = eecu_usage
 services.burn_severity = burn_severity
 
 iface = Iface()

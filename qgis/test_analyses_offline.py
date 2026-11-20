@@ -146,12 +146,7 @@ def timelapse(region, path=None, **opts):
 	        'credits': ['Contains modified Copernicus Sentinel data 2021-2023']}
 
 
-def eecu_usage(*args, **kw):
-	raise RuntimeError('offline')
-
-
 services.init = lambda *args, **kw: 'project'
-services.eecu_usage = eecu_usage
 services.timelapse = timelapse
 
 

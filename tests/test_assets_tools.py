@@ -47,7 +47,6 @@ def computed(monkeypatch):
 		return run
 
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: calls.append('init') or 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	for name in ('time_series', 'trend_table', 'compare_series', 'download_image'):
 		monkeypatch.setattr(services, name, fake(name))
 	return calls
@@ -201,7 +200,6 @@ def test_the_command_line_gives_the_errors_of_the_services(monkeypatch):
 	message, not with a traceback."""
 	from monitoreo import cli
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	with pytest.raises(SystemExit, match=r'^ERROR: the unit of IDAHO_EPSCOR/TERRACLIMATE is written in UDUNITS'):
 		cli.main(['series', '--collection', TERRACLIMATE, '--band', 'pr', '--unit', 'mm!'] + ARGS)
 	with pytest.raises(SystemExit, match=r'^ERROR: the unit of IDAHO_EPSCOR/TERRACLIMATE is written in UDUNITS'):
@@ -249,7 +247,6 @@ def test_the_command_line_describes_an_asset(monkeypatch, capsys):
 	from monitoreo import cli
 	calls = []
 	monkeypatch.setattr(services, 'init', lambda project=None, shared=False, warn=True: calls.append(project) or 'p')
-	monkeypatch.setattr(services, 'eecu_warning', lambda **kw: None)
 	monkeypatch.setattr(services, 'describe_asset', lambda asset: calls.append(asset) or DESCRIBED)
 	cli.main(['--project', 'my-project', 'asset', TERRACLIMATE])
 	assert calls == ['my-project', TERRACLIMATE]
@@ -350,7 +347,6 @@ def mcp(monkeypatch, tmp_path):
 	monkeypatch.setattr(mcp_server, 'OUTPUT', str(tmp_path))
 	mcp_server.READY = []
 	monkeypatch.setattr(mcp_server, '_ready', lambda: mcp_server.READY.append(True))
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: None)
 	return mcp_server
 
 
@@ -563,10 +559,10 @@ def test_the_mcp_server_gives_the_errors_of_the_services(mcp, tmp_path):
 def test_the_mcp_server_describes_assets_and_the_community_catalog(mcp, monkeypatch):
 	asked = []
 	monkeypatch.setattr(services, 'describe_asset', lambda asset: asked.append(asset) or DESCRIBED)
-	monkeypatch.setattr(services, 'eecu_warning', lambda *a, **k: 'Few left')
+	monkeypatch.setattr(services, 'quota_warning', lambda *a, **k: 'Restricted mode')
 	answer = json.loads(mcp.describe_asset(TERRACLIMATE))
 	assert asked == [TERRACLIMATE] and mcp.READY  # it reads the metadata in Earth Engine
-	assert answer == dict(DESCRIBED, eecu_warning='Few left')
+	assert answer == dict(DESCRIBED, quota_warning='Restricted mode')
 	mcp.READY.clear()
 	assert json.loads(mcp.community_themes()) == services.community_themes()  # no Earth Engine, nor its warning
 	assert json.loads(mcp.community_themes('es'))[0]['name'] == services.community_themes('es')[0]['name']
@@ -583,8 +579,8 @@ def test_the_mcp_server_describes_assets_and_the_community_catalog(mcp, monkeypa
 		mcp.community_datasets(theme='mountains')
 	for name in ('describe_asset', 'community_themes', 'community_datasets'):
 		assert callable(getattr(services, name)) and callable(getattr(mcp, name)), name
-	assert {'community_themes', 'community_datasets'} <= set(mcp.NO_EECU_WARNING)
-	assert 'describe_asset' not in mcp.NO_EECU_WARNING
+	assert {'community_themes', 'community_datasets'} <= set(mcp.NO_QUOTA_WARNING)
+	assert 'describe_asset' not in mcp.NO_QUOTA_WARNING
 
 
 def test_the_model_learns_the_data_by_its_id(mcp):
