@@ -76,7 +76,8 @@ _shared = False
 
 def _cited(fn):
 	"""FN with the references of what it computed (monitoreo.references.cite) in its answer, 'references' and
-	'credits', and its files documented (monitoreo.readme): the metadata of its GeoTIFF (the call, the version, when
+	'credits', the sections of the wiki that explain its variables ('manual', see monitoreo.wiki.variable_links), and
+	its files documented (monitoreo.readme): the metadata of its GeoTIFF (the call, the version, when
 	and the references) and a README next to them, whose path is in the answer ('readme'), with the parameters of the
 	call as JSON (monitoreo.parameters), whose path is in the answer too ('parameters'). Its answer also has, when
 	there are any, the warnings of its periods ('warnings': the days without images of its data, see
@@ -103,6 +104,12 @@ def _cited(fn):
 			if sea and sea not in (out.get('warnings') or []):
 				out['warnings'] = list(out.get('warnings') or []) + [sea]
 			out.update(references.cite(fn.__name__, a))
+			# the sections of the manual (the wiki) that explain its variables, to give next to the results
+			from . import wiki
+			links = wiki.variable_links(dict(a, index=a.get('index') or 'dNBR') if fn.__name__ == 'burn_severity'
+			                              else a)
+			if links and not out.get('manual'):
+				out['manual'] = links
 			try:  # a file that cannot be documented is still the result
 				from . import readme
 				path = readme.document(fn.__name__, given, out)

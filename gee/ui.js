@@ -209,7 +209,7 @@
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'Código', cite: 'Cómo citar',
 			computing: 'Calculando…', progress: 'Calculando… %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El botón ⤢ de la gráfica la abre en otra pestaña, desde donde se descarga como imagen.',
-			scaleNote: 'Calculado con píxeles de %s m.', dataSource: 'Datos:', date: 'Fecha', value: 'Valor', reference: 'Referencia',
+			scaleNote: 'Calculado con píxeles de %s m.', dataSource: 'Datos:', manualOf: 'Qué es (manual):', date: 'Fecha', value: 'Valor', reference: 'Referencia',
 			yearAxis: 'Año', senLine: 'recta de Sen', part: 'Parte del año', significantShort: 'signif.',
 			yes: 'sí', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La región es demasiado grande para esta app (%s km²; máximo %s km²).',
@@ -503,7 +503,7 @@
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing…', progress: 'Computing… %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The ⤢ button of the chart opens it in another tab, where it can be downloaded as an image.',
-			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', date: 'Date', value: 'Value', reference: 'Reference',
+			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', manualOf: 'What it is (manual):', date: 'Date', value: 'Value', reference: 'Reference',
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km²; at most %s km²).',
@@ -790,9 +790,36 @@
 		var notes = runNotes;
 		if (!bare && notes.warnings.length) results.add(ui.Label('⚠ ' + notes.warnings.join('\n⚠ '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
+		if (!bare) manualLinks().forEach(function (w) { results.add(w); });  // what each variable is, in the wiki
 		var source = bare ? null : mo.sourceText(notes);
 		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
+	}
+
+	// The sections of the manual (the wiki) that explain the variables of the analysis computed (services: the
+	// manual of each result, wiki.variable_links): that of the burn index, none for a land cover map, else that of the
+	// variable (the data of Earth Engine by their ID: theirs), of the right axis of a profile and of the zones
+	function manualLinks() {
+		var names = [];
+		if (state.analysis === 'burn_severity') {
+			names.push(state.fireIndex || 'dNBR');
+		} else if (!(state.analysis === 'area_by_class' && state.areaKind === 'landcover')) {
+			var e = entry();
+			names.push(e.custom ? null : e.index);
+			if (state.analysis === 'time_series' && state.doyOther && state.doyOther !== 'none' && isProfile()) {
+				names.push(mo.byRef(state.doyOther).index);
+			}
+			if (state.analysis === 'region_stats') names.push(zoneEntry().index);
+		}
+		var seen = {}, links = [];
+		names.forEach(function (n) {
+			var s = mo.wikiSection(n, state.lang);
+			if (s && !seen[s.url]) {
+				seen[s.url] = true;
+				links.push(ui.Label(t('manualOf') + ' ' + s.title, SMALL, s.url));
+			}
+		});
+		return links;
 	}
 
 	function message(text, error) {

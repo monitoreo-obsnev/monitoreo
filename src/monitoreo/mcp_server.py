@@ -57,6 +57,9 @@ its Earth Engine datasets (as their pages of the Earth Engine catalog suggest), 
 Google Earth Engine and of MonitorEO; and the credit lines that the terms of use of the data ask for (Copernicus
 Sentinel, USGS Landsat, Copernicus DEM, MERIT Hydro, FAO GAUL, RESOLVE). When the results go into a report, a paper or a
 map, end it with those references (all of them, as they are) and credits, and cite them in the text where each one is used.
+Every result about variables has manual: the sections of the manual of MonitorEO (its wiki) that explain each variable,
+with their links in English (url) and Spanish (url_es); give the link of each variable next to its results, so that the
+user can read what it is and how it is computed.
 
 The results say which data their values come from, data_source (the Earth Engine collections and their product level,
 e.g. COPERNICUS/S2_SR_HARMONIZED, Harmonized Sentinel-2 MSI, Level-2A (SR): surface reflectance), and their charts in
@@ -643,7 +646,7 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme', 'parameters',
-	                                    'references', 'credits')}
+	                                    'references', 'credits', 'manual')}
 	_notes(summary, res)
 	if doy:
 		summary['ylim'] = res.get('ylim')
@@ -721,7 +724,8 @@ def timelapse(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	                         fps=fps, dimensions=dimensions, path=path, where=where, percentiles=percentiles,
 	                         same_colours=same_colours, **source)
 	summary = {k: res.get(k) for k in ('name', 'unit', 'step', 'n_frames', 'fps', 'min', 'max', 'palette', 'stretch',
-	                                    'file', 'gif', 'note', 'readme', 'parameters', 'references', 'credits')}
+	                                    'file', 'gif', 'note', 'readme', 'parameters', 'references', 'credits',
+	                                    'manual')}
 	_notes(summary, res)
 	summary['frames'] = res.get('frames') or []
 	return [_text(summary)] + _last_frame(res.get('gif'))
@@ -802,7 +806,7 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
 	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
 	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
-	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'parameters', 'references', 'credits')
+	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'parameters', 'references', 'credits', 'manual')
 	           if res.get(k) is not None}
 	_notes(summary, res)
 	if len(summary.get('rows') or []) > MAX_ROWS_SHOWN:
@@ -1017,7 +1021,7 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']
-	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits')})
+	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits', 'manual')})
 	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
@@ -1102,7 +1106,7 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
 	                              chart=_out(stem, 'png'), where=where, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
-	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits')})
+	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits', 'manual')})
 	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):

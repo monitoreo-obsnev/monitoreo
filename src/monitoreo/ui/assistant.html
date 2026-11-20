@@ -802,6 +802,12 @@ function facts(list, open) {
   return el('details', open ? {open: ''} : {}, el('summary', {class: 'muted', text: 'How it is computed'}), dl);
 }
 
+function manualLinks(links) {  // the sections of the manual (the wiki) that explain the variables of a result
+  return el('p', {class: 'manual muted'}, 'What it is (manual): ',
+            ...links.flatMap((l, i) => [i ? ' · ' : '', el('a', {href: l.url, target: '_blank', rel: 'noopener',
+                                                                  text: l.title, title: l.url})]));
+}
+
 function citations(refs, credits) {  // the references of a result, with their DOIs, and the credits of its data
   const list = el('ol', {class: 'refs'});
   for (const r of refs || []) {
@@ -883,6 +889,7 @@ function resultCard(e) {
   if (e.table) card.append(table(e.table));
   if (e.map) card.append(mapButton(e.id));
   card.append(facts(e.facts, false));
+  if (e.manual && e.manual.length) card.append(manualLinks(e.manual));  // what each variable is, in the wiki
   if (e.references && e.references.length) card.append(citations(e.references, e.credits));
   const links = e.files.filter(f => f.url);
   if (links.length) {

@@ -20937,7 +20937,60 @@ var MonitorEO = (function () {
 		}).join('; ');
 	}
 
+	// wiki.HEADINGS: the section of the wiki (Conceptos, Concepts) that explains each variable, its heading in Spanish
+	// and in English (DATA: the data of Earth Engine by their ID; dNBR: the burn severity); WIKI_SAME: the variables
+	// explained in the section of another one
+	var WIKI_HEADINGS = {
+		'NDVI': ['NDVI: \u00edndice de vegetaci\u00f3n de diferencia normalizada', 'NDVI: Normalized Difference Vegetation Index'],
+		'EVI': ['EVI: \u00edndice de vegetaci\u00f3n mejorado', 'EVI: Enhanced Vegetation Index'],
+		'LAI': ['LAI: \u00edndice de \u00e1rea foliar', 'LAI: Leaf Area Index'],
+		'Chl-a': ['Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'],
+		'NDCI': ['NDCI: \u00edndice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'],
+		'NDWI': ['NDWI: \u00edndice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'],
+		'LSWI': ['LSWI: \u00edndice de agua superficial terrestre', 'LSWI: Land Surface Water Index'],
+		'NDSI': ['NDSI: \u00edndice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'],
+		'SCF': ['SCF: frecuencia de nieve', 'SCF: snow cover frequency'],
+		'SCD': ['SCD: d\u00edas de nieve', 'SCD: snow cover days'],
+		'ET': ['ET y LE: evapotranspiraci\u00f3n y calor latente', 'ET and LE: evapotranspiration and latent heat'],
+		'LST': ['LST: temperatura de la superficie', 'LST: Land Surface Temperature'],
+		'ALBEDO': ['ALBEDO', 'ALBEDO'],
+		'ARSL': ['ARSL: profundidad \u00f3ptica de aerosoles', 'ARSL: Aerosol Optical Depth'],
+		'NBR': ['NBR y RBR: incendios', 'NBR and RBR: fires'],
+		'RdNBR': ['RdNBR: dNBR relativo (incendios)', 'RdNBR: relative dNBR (fires)'],
+		'ELEVATION': ['ELEVATION y SLOPE: elevaci\u00f3n y pendiente', 'ELEVATION and SLOPE: elevation and slope'],
+		'TWI': ['TWI: \u00edndice topogr\u00e1fico de humedad', 'TWI: topographic wetness index'],
+		'CF': ['CF: frecuencia de nubes', 'CF: cloud frequency'],
+		'CLIMATE': ['Clima: precipitaci\u00f3n, temperatura y balance de agua', 'Climate: precipitation, temperature and water balance'],
+		'BIO': ['BIO01 a BIO19: variables bioclim\u00e1ticas de WorldClim', 'BIO01 to BIO19: bioclimatic variables of WorldClim'],
+		'ECOREGION': ['ECOREGION y BIOME: ecorregiones y biomas', 'ECOREGION and BIOME: ecoregions and biomes'],
+		'DATA': ['Datos de Earth Engine por su ID', 'Earth Engine data by its ID'],
+		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
+	};
+	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'PRECIP': 'CLIMATE',
+		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
+		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',
+		'BIO07': 'BIO', 'BIO08': 'BIO', 'BIO09': 'BIO', 'BIO10': 'BIO', 'BIO11': 'BIO', 'BIO12': 'BIO', 'BIO13': 'BIO',
+		'BIO14': 'BIO', 'BIO15': 'BIO', 'BIO16': 'BIO', 'BIO17': 'BIO', 'BIO18': 'BIO', 'BIO19': 'BIO'};
+
+	// wiki.anchor: the anchor of a heading in GitHub ('NDVI: Normalized ...' -> 'ndvi-normalized-...')
+	function wikiAnchor(title) {
+		// the punctuation of the headings (GitHub drops every character that is not a letter, a digit, - or _)
+		return String(title).trim().toLowerCase().replace(/[!-,.\/:-@[-^`{-~]/g, '').replace(/ /g, '-');
+	}
+
+	// wiki.variable_section: the section of the wiki of VARIABLE (null: the data of Earth Engine by their ID) in LANG
+	// ('es' or 'en'): {variable, title, url}, or null
+	function wikiSection(variable, lang) {
+		var key = !variable ? 'DATA' : WIKI_SAME[variable] || variable;
+		var h = WIKI_HEADINGS[key];
+		if (!h) return null;
+		var es = lang === 'es';
+		return {variable: variable || 'Earth Engine data by its ID', title: h[es ? 0 : 1],
+			url: CATALOG.about.manual + '/' + (es ? 'Conceptos' : 'Concepts') + '#' + wikiAnchor(h[es ? 0 : 1])};
+	}
+
 	return {
+		WIKI_HEADINGS: WIKI_HEADINGS, WIKI_SAME: WIKI_SAME, wikiAnchor: wikiAnchor, wikiSection: wikiSection,
 		CATALOG: CATALOG, variables: variables, byRef: byRef, nameKey: nameKey, findEntry: findEntry, number: number,
 		unitOf: unitOf, themes: themes, otherThemes: otherThemes,
 		PARAMETER_ANALYSES: PARAMETER_ANALYSES, PARAMETER_OUTPUTS: PARAMETER_OUTPUTS, PARAMETER_META: PARAMETER_META,
@@ -21231,7 +21284,7 @@ var MonitorEO = (function () {
 			about: 'Acerca de MonitorEO', manual: 'Manual', repository: 'C\u00f3digo', cite: 'C\u00f3mo citar',
 			computing: 'Calculando\u2026', progress: 'Calculando\u2026 %s de %s pasos', close: 'Cerrar', csv: 'Descargar CSV',
 			chartHelp: 'El bot\u00f3n \u2922 de la gr\u00e1fica la abre en otra pesta\u00f1a, desde donde se descarga como imagen.',
-			scaleNote: 'Calculado con p\u00edxeles de %s m.', dataSource: 'Datos:', date: 'Fecha', value: 'Valor', reference: 'Referencia',
+			scaleNote: 'Calculado con p\u00edxeles de %s m.', dataSource: 'Datos:', manualOf: 'Qu\u00e9 es (manual):', date: 'Fecha', value: 'Valor', reference: 'Referencia',
 			yearAxis: 'A\u00f1o', senLine: 'recta de Sen', part: 'Parte del a\u00f1o', significantShort: 'signif.',
 			yes: 's\u00ed', no: 'no', klass: 'Clase', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'La regi\u00f3n es demasiado grande para esta app (%s km\u00b2; m\u00e1ximo %s km\u00b2).',
@@ -21525,7 +21578,7 @@ var MonitorEO = (function () {
 			about: 'About MonitorEO', manual: 'Manual', repository: 'Code', cite: 'How to cite',
 			computing: 'Computing\u2026', progress: 'Computing\u2026 %s of %s steps', close: 'Close', csv: 'Download CSV',
 			chartHelp: 'The \u2922 button of the chart opens it in another tab, where it can be downloaded as an image.',
-			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', date: 'Date', value: 'Value', reference: 'Reference',
+			scaleNote: 'Computed on pixels of %s m.', dataSource: 'Data:', manualOf: 'What it is (manual):', date: 'Date', value: 'Value', reference: 'Reference',
 			yearAxis: 'Year', senLine: 'Sen line', part: 'Part of the year', significantShort: 'signif.',
 			yes: 'yes', no: 'no', klass: 'Class', hectares: 'ha', dnbr: 'dNBR',
 			tooBig: 'The region is too big for this app (%s km\u00b2; at most %s km\u00b2).',
@@ -21812,9 +21865,36 @@ var MonitorEO = (function () {
 		var notes = runNotes;
 		if (!bare && notes.warnings.length) results.add(ui.Label('\u26a0 ' + notes.warnings.join('\n\u26a0 '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
+		if (!bare) manualLinks().forEach(function (w) { results.add(w); });  // what each variable is, in the wiki
 		var source = bare ? null : mo.sourceText(notes);
 		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
 		results.style().set('shown', true);
+	}
+
+	// The sections of the manual (the wiki) that explain the variables of the analysis computed (services: the
+	// manual of each result, wiki.variable_links): that of the burn index, none for a land cover map, else that of the
+	// variable (the data of Earth Engine by their ID: theirs), of the right axis of a profile and of the zones
+	function manualLinks() {
+		var names = [];
+		if (state.analysis === 'burn_severity') {
+			names.push(state.fireIndex || 'dNBR');
+		} else if (!(state.analysis === 'area_by_class' && state.areaKind === 'landcover')) {
+			var e = entry();
+			names.push(e.custom ? null : e.index);
+			if (state.analysis === 'time_series' && state.doyOther && state.doyOther !== 'none' && isProfile()) {
+				names.push(mo.byRef(state.doyOther).index);
+			}
+			if (state.analysis === 'region_stats') names.push(zoneEntry().index);
+		}
+		var seen = {}, links = [];
+		names.forEach(function (n) {
+			var s = mo.wikiSection(n, state.lang);
+			if (s && !seen[s.url]) {
+				seen[s.url] = true;
+				links.push(ui.Label(t('manualOf') + ' ' + s.title, SMALL, s.url));
+			}
+		});
+		return links;
 	}
 
 	function message(text, error) {

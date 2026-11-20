@@ -490,7 +490,8 @@ def test_the_panel_of_the_app_keeps_the_notes_of_each_computation():
 	assert out['noData'] == [
 		f'⚠ The images of {ndwi} end on 2023-02-17 (in the copy of the Earth Engine data catalog of '
 		f'{coverage.checked()}): the period asked for, 2024-01-01 to 2024-12-31, begins after them, so it may have no '
-		'data, unless Earth Engine has added images since.', 'No data in that period.', f'Data: {ndwi}']
+		'data, unless Earth Engine has added images since.', 'No data in that period.',
+		'What it is (manual): NDWI: Normalized Difference Water Index', f'Data: {ndwi}']  # what NDWI is: the wiki
 	dem = coverage.of_entry(catalog.find('ELEVATION', 'Copernicus'))['text']
 	assert out['zones'][-1] == out['profile'][-1] == f'Data: {S2}; {dem}'  # as services.region_stats and transect
 	assert out['failed'] == ['Not a valid date: "2016-1-01". Use YYYY-MM-DD (and MM-DD for the season).']

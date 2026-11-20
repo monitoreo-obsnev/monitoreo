@@ -4058,7 +4058,60 @@ var MonitorEO = (function () {
 		}).join('; ');
 	}
 
+	// wiki.HEADINGS: the section of the wiki (Conceptos, Concepts) that explains each variable, its heading in Spanish
+	// and in English (DATA: the data of Earth Engine by their ID; dNBR: the burn severity); WIKI_SAME: the variables
+	// explained in the section of another one
+	var WIKI_HEADINGS = {
+		'NDVI': ['NDVI: índice de vegetación de diferencia normalizada', 'NDVI: Normalized Difference Vegetation Index'],
+		'EVI': ['EVI: índice de vegetación mejorado', 'EVI: Enhanced Vegetation Index'],
+		'LAI': ['LAI: índice de área foliar', 'LAI: Leaf Area Index'],
+		'Chl-a': ['Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'],
+		'NDCI': ['NDCI: índice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'],
+		'NDWI': ['NDWI: índice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'],
+		'LSWI': ['LSWI: índice de agua superficial terrestre', 'LSWI: Land Surface Water Index'],
+		'NDSI': ['NDSI: índice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'],
+		'SCF': ['SCF: frecuencia de nieve', 'SCF: snow cover frequency'],
+		'SCD': ['SCD: días de nieve', 'SCD: snow cover days'],
+		'ET': ['ET y LE: evapotranspiración y calor latente', 'ET and LE: evapotranspiration and latent heat'],
+		'LST': ['LST: temperatura de la superficie', 'LST: Land Surface Temperature'],
+		'ALBEDO': ['ALBEDO', 'ALBEDO'],
+		'ARSL': ['ARSL: profundidad óptica de aerosoles', 'ARSL: Aerosol Optical Depth'],
+		'NBR': ['NBR y RBR: incendios', 'NBR and RBR: fires'],
+		'RdNBR': ['RdNBR: dNBR relativo (incendios)', 'RdNBR: relative dNBR (fires)'],
+		'ELEVATION': ['ELEVATION y SLOPE: elevación y pendiente', 'ELEVATION and SLOPE: elevation and slope'],
+		'TWI': ['TWI: índice topográfico de humedad', 'TWI: topographic wetness index'],
+		'CF': ['CF: frecuencia de nubes', 'CF: cloud frequency'],
+		'CLIMATE': ['Clima: precipitación, temperatura y balance de agua', 'Climate: precipitation, temperature and water balance'],
+		'BIO': ['BIO01 a BIO19: variables bioclimáticas de WorldClim', 'BIO01 to BIO19: bioclimatic variables of WorldClim'],
+		'ECOREGION': ['ECOREGION y BIOME: ecorregiones y biomas', 'ECOREGION and BIOME: ecoregions and biomes'],
+		'DATA': ['Datos de Earth Engine por su ID', 'Earth Engine data by its ID'],
+		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
+	};
+	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'PRECIP': 'CLIMATE',
+		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
+		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',
+		'BIO07': 'BIO', 'BIO08': 'BIO', 'BIO09': 'BIO', 'BIO10': 'BIO', 'BIO11': 'BIO', 'BIO12': 'BIO', 'BIO13': 'BIO',
+		'BIO14': 'BIO', 'BIO15': 'BIO', 'BIO16': 'BIO', 'BIO17': 'BIO', 'BIO18': 'BIO', 'BIO19': 'BIO'};
+
+	// wiki.anchor: the anchor of a heading in GitHub ('NDVI: Normalized ...' -> 'ndvi-normalized-...')
+	function wikiAnchor(title) {
+		// the punctuation of the headings (GitHub drops every character that is not a letter, a digit, - or _)
+		return String(title).trim().toLowerCase().replace(/[!-,.\/:-@[-^`{-~]/g, '').replace(/ /g, '-');
+	}
+
+	// wiki.variable_section: the section of the wiki of VARIABLE (null: the data of Earth Engine by their ID) in LANG
+	// ('es' or 'en'): {variable, title, url}, or null
+	function wikiSection(variable, lang) {
+		var key = !variable ? 'DATA' : WIKI_SAME[variable] || variable;
+		var h = WIKI_HEADINGS[key];
+		if (!h) return null;
+		var es = lang === 'es';
+		return {variable: variable || 'Earth Engine data by its ID', title: h[es ? 0 : 1],
+			url: CATALOG.about.manual + '/' + (es ? 'Conceptos' : 'Concepts') + '#' + wikiAnchor(h[es ? 0 : 1])};
+	}
+
 	return {
+		WIKI_HEADINGS: WIKI_HEADINGS, WIKI_SAME: WIKI_SAME, wikiAnchor: wikiAnchor, wikiSection: wikiSection,
 		CATALOG: CATALOG, variables: variables, byRef: byRef, nameKey: nameKey, findEntry: findEntry, number: number,
 		unitOf: unitOf, themes: themes, otherThemes: otherThemes,
 		PARAMETER_ANALYSES: PARAMETER_ANALYSES, PARAMETER_OUTPUTS: PARAMETER_OUTPUTS, PARAMETER_META: PARAMETER_META,

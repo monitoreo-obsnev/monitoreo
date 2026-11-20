@@ -45,11 +45,15 @@ def Map(**kwargs):
 
 
 def _cited(tool, args):
-	"""{'references', 'credits'} of a map of TOOL with ARGS (see monitoreo.references.cite) and that of geemap (Wu, 2020),
-	with which the maps are drawn."""
+	"""{'references', 'credits', 'manual'} of a map of TOOL with ARGS (see monitoreo.references.cite) and that of geemap
+	(Wu, 2020), with which the maps are drawn; manual: the sections of the wiki of its variables (monitoreo.wiki)."""
+	from . import wiki
 	cited = references.cite(tool, {k: v for k, v in args.items() if v is not None})
 	if not any(r['id'] == GEEMAP for r in cited['references']):
 		cited['references'] = sorted(cited['references'] + [references.get(GEEMAP)], key=references._sort_key)
+	links = wiki.variable_links(args)
+	if links:
+		cited['manual'] = links
 	return cited
 
 
