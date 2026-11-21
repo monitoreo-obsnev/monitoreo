@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.67](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.67) · 2026-11-21 · package 0.3.77
 
 - **All tools** (fix): The albedo of Sentinel-2 is the narrow-to-broadband conversion of Bonafoni & Sekertekin (2020), with B2, B3, B4, B8, B11 and B12, and it is cited; its weights before had no reference and gave almost all the weight to the visible and red-edge bands, so vegetation got too little albedo. Its pixel is 20 m, that of its bands B11 and B12, no longer 10 m. Its values change: do not compare them with those of earlier versions.
 - **All tools** (fix): The variables of Sentinel-2 that read its bands of 20 m (LSWI, NDSI, NDCI, Chl-a, NBR and the burn severity with the dNBR and the RdNBR) have the pixel of 20 m of those bands by default, no longer 10 m: maps, downloads and statistics no longer repeat each pixel of B5, B11 or B12 four times. A pixel of 10 m can still be asked for, and is then interpolated (bilinear).
