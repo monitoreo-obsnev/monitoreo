@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.65](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.65) · 2026-11-21 · package 0.3.75
 
 - **All tools**: The seasonal trends can be corrected for the autocorrelation of the yearly values, which makes the Mann-Kendall test find significant trends too often: a test to choose (Mann-Kendall; Hamed-Rao, its variance corrected as Hamed & Rao 1998; or TFPW, trend-free pre-whitening as Yue et al. 2002), in the trend table, the trend map, its GeoTIFF and the areas by trend class, with n/n* or the lag-1 autocorrelation removed in the table and the paper of each test in the references (`test` in Python, R and the MCP server, `--test` in the command line, the list «Test» in the QGIS plugin and the Earth Engine app).
 
