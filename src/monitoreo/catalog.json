@@ -546,6 +546,10 @@
    "citation": "Schaaf, C. B., Gao, F., Strahler, A. H., Lucht, W., Li, X., Tsang, T., Strugnell, N. C., Zhang, X., Jin, Y., Muller, J.-P., Lewis, P., Barnsley, M., Hobson, P., Disney, M., Roberts, G., Dunderdale, M., Doll, C., d'Entremont, R. P., Hu, B., et al. (2002). First operational BRDF, albedo nadir reflectance products from MODIS. Remote Sensing of Environment, 83(1–2), 135–148.",
    "doi": "10.1016/S0034-4257(02)00091-3"
   },
+  "bonafoni2020": {
+   "citation": "Bonafoni, S., & Sekertekin, A. (2020). Albedo retrieval from Sentinel-2 by new narrow-to-broadband conversion coefficients. IEEE Geoscience and Remote Sensing Letters, 17(9), 1618–1622.",
+   "doi": "10.1109/LGRS.2020.2967085"
+  },
   "liang2001": {
    "citation": "Liang, S. (2001). Narrowband to broadband conversions of land surface albedo I: Algorithms. Remote Sensing of Environment, 76(2), 213–238.",
    "doi": "10.1016/S0034-4257(00)00205-4"
@@ -1567,7 +1571,7 @@
    "de": "now",
    "vname": "Albedo",
    "ft": "((0.356 * blue) + (0.130 * red) + (0.373 * nir) + (0.085 * swir1) + (0.072 * swir2) - 0.0018)/ 1.016",
-   "f": "((0.356*SR_B2) + (0.130*SR_B4) + (0.373*SR_B5) + (0.085*SR_B6) + (0.072*SR_B7) - 0.018)/ 1.016",
+   "f": "((0.356*SR_B2) + (0.130*SR_B4) + (0.373*SR_B5) + (0.085*SR_B6) + (0.072*SR_B7) - 0.0018)/ 1.016",
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
@@ -1723,7 +1727,7 @@
    "ref": 13,
    "type": "Balance de Radiación",
    "index": "ALBEDO",
-   "m": 10,
+   "m": 20,
    "sensor": "Sentinel-2",
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "tr": "5-days",
@@ -1731,12 +1735,12 @@
    "ds": "3/28/17",
    "de": "now",
    "vname": "Albedo",
-   "ft": "((0.1836 * B2) + (0.1759 * B3) + (0.1456 * B4) + (0.1347 * B5) + (0.1233 * B6) + (0.1134 * B7) + (0.1001 * B8) +  (0.0231* B11) + (0.0003 * B12))",
-   "f": "((0.1836 * B2) + (0.1759 * B3) + (0.1456 * B4) + (0.1347 * B5) + (0.1233 * B6) + (0.1134 * B7) + (0.1001 * B8) +  (0.0231* B11) + (0.0003 * B12))",
+   "ft": "(0.2266 * B2) + (0.1236 * B3) + (0.1573 * B4) + (0.3417 * B8) + (0.1170 * B11) + (0.0338 * B12)",
+   "f": "(0.2266 * B2) + (0.1236 * B3) + (0.1573 * B4) + (0.3417 * B8) + (0.1170 * B11) + (0.0338 * B12)",
    "fe": 0,
    "QA": "#",
    "unit": "[unitless]",
-   "references": [],
+   "references": ["bonafoni2020"],
    "clouds": 0,
    "clouds_bandQA": "SCL",
    "water": 0,
@@ -1796,8 +1800,7 @@
    "type_de": "Radiation balance",
    "large_areas": false,
    "notes": {
-    "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\"",
-    "references": "source of the coefficients of the Sentinel-2 albedo to be cited (no article found with them)"
+    "QA": "AQUI DEBERÍA PONER \"CLOUDY_PIXEL_PERCENTAGE\""
    }
   },
   {

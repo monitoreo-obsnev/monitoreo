@@ -56,6 +56,28 @@ def test_chla_sentinel2_is_the_model_of_the_article():
 	assert chla(**lake) == pytest.approx(1.5266, abs=1e-3)  # its fitted value
 
 
+def test_albedo_sentinel2_is_the_conversion_of_the_article():
+	"""The albedo of Sentinel-2 is the narrow-to-broadband conversion of Bonafoni & Sekertekin (2020): 0.2266 B2 +
+	0.1236 B3 + 0.1573 B4 + 0.3417 B8 + 0.1170 B11 + 0.0338 B12 of the surface reflectance, without intercept (each
+	weight is the share of the solar irradiance at the surface in the interval of its band, so they add up to 1). Its
+	pixel is that of its coarsest bands, B11 and B12: 20 m. It replaces weights without a reference that were the solar
+	irradiance at the centre of each band (B2 to B8, B11 and B12), which gave almost 90 % of the weight to the visible
+	and red-edge bands."""
+	e = catalog.find('ALBEDO', 'Sentinel-2')
+	assert e['ref'] == 13 and e['col'] == 'COPERNICUS/S2_SR_HARMONIZED' and (e['scale'], e['offset']) == (0.0001, 0)
+	assert e['m'] == 20 and e['references'] == ['bonafoni2020'] and 'references' not in e.get('notes', {})
+	assert e['f'] == e['ft'] and set(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', e['ft'])) == {'B2', 'B3', 'B4', 'B8', 'B11',
+	                                                                                    'B12'}
+	albedo = lambda **b: eval(e['ft'], {'__builtins__': {}}, b)  # the expression of Earth Engine, in Python
+	weights = {'B2': 0.2266, 'B3': 0.1236, 'B4': 0.1573, 'B8': 0.3417, 'B11': 0.1170, 'B12': 0.0338}
+	for band, w in weights.items():
+		assert albedo(**{b: float(b == band) for b in weights}) == pytest.approx(w)
+	assert albedo(**dict.fromkeys(weights, 0.3)) == pytest.approx(0.3)  # a grey surface: its reflectance
+	# the Landsat albedo of Liang (2001), normalized by 1.016, as the formula computed (ft) and as it is written (f)
+	landsat = catalog.find('ALBEDO', 'Landsat')
+	assert '- 0.0018)' in landsat['ft'] and '- 0.0018)' in landsat['f']
+
+
 def test_app_has_the_catalog():
 	"""The catalog of the Earth Engine app (gee/catalog.js, written by gee/build.py) is that of the package: run
 	gee/build.py after changing catalog.json or catalog.py."""
