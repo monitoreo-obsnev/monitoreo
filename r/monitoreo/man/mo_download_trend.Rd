@@ -17,6 +17,7 @@ mo_download_trend(
   season = NULL,
   quality = NULL,
   alpha = NULL,
+  test = "mk",
   resolution = NULL,
   crs = "auto",
   collection = NULL,
@@ -76,6 +77,11 @@ Engine may have added images since), gives an R warning, as those days may have 
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
 
 \item{alpha}{optional significance level: only the pixels with a significant trend.}
+
+\item{test}{the trend test: \code{"mk"} (Mann-Kendall), \code{"hamed-rao"} (its variance corrected for the
+autocorrelation of the yearly values, Hamed & Rao 1998) or \code{"tfpw"} (trend-free pre-whitening, Yue et al.
+2002). Yearly values that depend on those of the years before make the Mann-Kendall test find significant trends
+too often.}
 
 \item{resolution}{pixel size in metres (default: that of the data).}
 
@@ -165,6 +171,12 @@ Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1--2), 
 
 Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
+
+Hamed, K. H., & Rao, A. R. (1998). A modified Mann-Kendall trend test for autocorrelated data. Journal of
+  Hydrology, 204(1--4), 182--196. \doi{10.1016/S0022-1694(97)00125-X}
+
+Yue, S., Pilon, P., Phinney, B., & Cavadias, G. (2002). The influence of autocorrelation on the ability to detect
+  trend in hydrological series. Hydrological Processes, 16(9), 1807--1829. \doi{10.1002/hyp.1095}
 
 Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.

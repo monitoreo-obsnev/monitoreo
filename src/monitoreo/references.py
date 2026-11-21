@@ -353,6 +353,12 @@ def _uses_cv(tool, args, recipe=None):
 	return of(args) or where(args)
 
 
+def _test_methods(test):
+	"""The references of the trends with the trend test TEST ('mk', 'hamed-rao' or 'tfpw'; see monitoreo.trends)."""
+	test = str(test or 'mk').lower()
+	return _methods('trends') + (_methods(f'trends_{test}') if test != 'mk' else [])
+
+
 def cite(tool, args=None, date=None, datasets=()):
 	"""What to cite with the result of the call of TOOL (a function of monitoreo.services or a tool of the MCP server)
 	with ARGS: {'references': [{'id', 'citation', 'doi', 'url', 'text'}], 'credits': [lines]}, the references in the
@@ -400,11 +406,11 @@ def cite(tool, args=None, date=None, datasets=()):
 	elif args.get('variable') or args.get('index') or args.get('collection') or args.get('image'):
 		ids, credits = of_spec(args, period, formula=tool not in RGB or _picks(args))
 	if tool in TRENDS:
-		ids += _methods('trends')
+		ids += _test_methods(args.get('test'))
 	if tool == 'timelapse':
 		ids += _methods('timelapse')
 	if tool == 'area_by_class':
-		ids += _methods('area_by_class') + (_methods('trends') if args.get('trend') else [])
+		ids += _methods('area_by_class') + (_test_methods(args.get('test')) if args.get('trend') else [])
 	if tool == 'map_figure':
 		ids += _methods('map_figure')
 	if tool == 'time_series' and args.get('doy'):  # a line per year, or the profile, over the days of the year

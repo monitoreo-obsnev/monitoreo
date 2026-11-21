@@ -25,7 +25,8 @@
                                                      region: mean, median, min, max, std, cv (coefficient of
                                                      variation, %) and percentiles; also the fixed layers; of a
                                                      categorical layer (ECOREGION, BIOME), the majority class (mode)
-    monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day] [--csv F]
+    monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day]
+                    [--test mk|hamed-rao|tfpw] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
@@ -177,6 +178,9 @@ INTERANNUAL_HELP = ('with --temporal annual, monthly or 16-day: how the years ar
 # the options of the data of Earth Engine given by its ID, instead of VARIABLE and --sensor (see monitoreo asset)
 SOURCE_OPTIONS = {'image': '--image', 'band': '--band', 'band_reducer': '--band-reducer', 'band_scale': '--band-scale',
                   'band_offset': '--band-offset', 'unit': '--unit', 'terrain': '--terrain'}
+TREND_TESTS = ('mk', 'hamed-rao', 'tfpw')  # monitoreo.trends.TESTS (without importing Earth Engine for the help)
+TEST_HELP = ('the trend test: mk (Mann-Kendall, the default), hamed-rao (its variance corrected for the autocorrelation '
+             'of the yearly values, Hamed & Rao 1998) or tfpw (trend-free pre-whitening, Yue et al. 2002)')
 
 
 def _source_options(p, image=False):
@@ -504,6 +508,8 @@ def main(argv=None):
 		p.add_argument('--step', default='annual' if name == 'trend' else 'monthly', choices=('monthly', '16-day', 'annual'))
 		p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
 		p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
+		if name == 'trend':
+			p.add_argument('--test', default='mk', choices=TREND_TESTS, help=TEST_HELP)
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
@@ -536,6 +542,7 @@ def main(argv=None):
 	p.add_argument('--step', default='annual', choices=('monthly', '16-day', 'annual'), help='with --trend')
 	p.add_argument('--part', type=int, help='with --trend and --step monthly or 16-day: the month (1-12) or 16 days')
 	p.add_argument('--alpha', type=float, default=0.05, help='with --trend: significant if p < alpha (default 0.05)')
+	p.add_argument('--test', default='mk', choices=TREND_TESTS, help='with --trend: ' + TEST_HELP)
 	p.add_argument('--scale', type=float, help='pixel size in metres (default: that of the data, bigger in big regions: '
 	                                           '1 to 10 km over more than 100,000 km²)')
 	p.add_argument('--csv')
@@ -1109,7 +1116,7 @@ def _areas(args, services):
 		res = services.area_by_class(json.loads(args.region), start=args.start, end=args.end, metric=args.metric,
 		                             temporal=args.temporal, interannual=args.interannual, landcover=args.landcover,
 		                             year=args.year, breaks=args.breaks, trend=args.trend, step=args.step,
-		                             part=args.part, alpha=args.alpha, scale=args.scale, csv=args.csv, chart=args.png,
+		                             part=args.part, alpha=args.alpha, test=args.test, scale=args.scale, csv=args.csv, chart=args.png,
 		                             where=_where(args), other_year=args.other_year, **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
@@ -1179,7 +1186,7 @@ def _trend_or_compare(args, services):
 		same = dict(args.source, start=args.start, end=args.end, step=args.step, metric=args.metric, stat=args.stat,
 		            scale=args.scale, csv=args.csv, chart=args.png, progress=progress, where=_where(args))
 		if args.cmd == 'trend':
-			res = services.trend_table(region, **same)
+			res = services.trend_table(region, test=args.test, **same)
 		else:
 			res = services.compare_series(region, other_start=args.other_start, other_end=args.other_end, **same)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS

@@ -204,6 +204,13 @@ test_that("data of Earth Engine by its ID: the arguments reach the services by n
   }
   expect_true("image" %in% names(calls$time_series) && is.null(calls$time_series[["image"]]))
   expect_false("terrain" %in% names(calls$trend_table))  # only where an image can be computed
+  # the trend test, by name ("mk" by default), also where the call is by position (download_trend)
+  for (tool in c("trend_table", "trend_map", "download_trend")) expect_equal(calls[[tool]]$test, "mk", info = tool)
+  mo_download_trend(region, "NDVI", "Modis", "2001-01-01", "2020-12-31", "t.tif", test = "tfpw", alpha = 0.05)
+  expect_equal(calls$download_trend[c("test", "path", "crs")], list(test = "tfpw", path = "t.tif", crs = "auto"))
+  expect_equal(calls$download_trend[[11]], 0.05)  # alpha, by position
+  mo_trend_table(region, "NDVI", "Modis", "2001-01-01", "2020-12-31", test = "hamed-rao")
+  expect_equal(calls$trend_table$test, "hamed-rao")
   # the calls of the variables of the catalog, by position, as before
   mo_time_series(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", "annual")
   expect_equal(unname(calls$time_series[1:6]), list(region, "NDVI", "Modis", "2020-01-01", "2020-12-31", "annual"))

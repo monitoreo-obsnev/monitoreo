@@ -1755,7 +1755,7 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' each class of the map with its broad land cover; the map of a variable (as \code{mo_map_layer()}, also the fixed
 #' layers) cut at \code{breaks}, e.g. \code{c(1500, 2000, 2500)} for the elevation; or, with \code{trend = TRUE},
 #' the trend of a variable on each pixel (as \code{mo_trend_map()}) in significant decrease, no significant trend and
-#' significant increase (Mann-Kendall p-value below \code{alpha}); or, for a categorical layer (\code{"ECOREGION"} or
+#' significant increase (p-value of the trend test \code{test} below \code{alpha}); or, for a categorical layer (\code{"ECOREGION"} or
 #' \code{"BIOME"}, sensor \code{"RESOLVE"}) without \code{breaks} nor \code{trend}, its own classes with area in the
 #' region, with their colours (the ecoregions with their biome: group and group_label, and the attribute by_group, the
 #' hectares of each biome). The area of each pixel is its true area; the percent is of the area with a class (the pixels
@@ -1772,6 +1772,8 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' @param trend \code{TRUE}: the classes of the trend of the variable on each pixel.
 #' @param step,part,alpha with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or
 #'   \code{"16-day"}), the part (month 1-12 or 16 days 1-23) and the p-value below which a trend is significant.
+#' @param test with \code{trend}: the trend test, \code{"mk"}, \code{"hamed-rao"} or \code{"tfpw"} (see
+#'   \code{mo_trend_table()}).
 #' @param metric the temporal metric (default: the median; with \code{trend}, that of each year, the mean).
 #' @return A data.frame (region, class, label and, for a land cover map, map, year and landcover; for breaks,
 #'   value_from and value_to; ha, percent) with the attributes title, mode, unit, scale, by_landcover (the hectares of
@@ -1804,7 +1806,7 @@ mo_transect <- function(line, variable = NULL, sensor = NULL, start = NULL, end 
 #' @export
 mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NULL, end = NULL, landcover = NULL,
                              year = NULL, breaks = NULL, trend = FALSE, metric = NULL, temporal = "period",
-                             interannual = "mean", step = "annual", part = NULL, alpha = 0.05, season = NULL,
+                             interannual = "mean", step = "annual", part = NULL, alpha = 0.05, test = "mk", season = NULL,
                              quality = NULL, scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL,
                              image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL,
                              unit = NULL, terrain = NULL, other_year = NULL) {
@@ -1813,7 +1815,7 @@ mo_area_by_class <- function(region, variable = NULL, sensor = NULL, start = NUL
   res <- services()$area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
                                   landcover, if (is.null(year)) NULL else as.integer(year),
                                   if (is.null(breaks)) NULL else as.list(as.numeric(breaks)), isTRUE(trend), step,
-                                  if (is.null(part)) NULL else as.integer(part), alpha, scale = scale,
+                                  if (is.null(part)) NULL else as.integer(part), alpha, test = test, scale = scale,
                                   csv = if (is.null(csv)) NULL else path.expand(csv),
                                   chart = if (is.null(chart)) NULL else path.expand(chart), collection = collection,
                                   where = where, image = image, band = band, band_reducer = band_reducer,
@@ -2061,9 +2063,13 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' dates, by its ID: \code{collection} and \code{band} (see \code{mo_asset()}).
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
-#' @param alpha significance level of the Mann-Kendall test.
+#' @param alpha significance level of the trend test.
+#' @param test the trend test: \code{"mk"} (Mann-Kendall), \code{"hamed-rao"} (its variance corrected for the
+#'   autocorrelation of the yearly values, Hamed & Rao 1998) or \code{"tfpw"} (trend-free pre-whitening, Yue et al.
+#'   2002). Yearly values that depend on those of the years before make the Mann-Kendall test find significant trends
+#'   too often.
 #' @return A data.frame (region, key, label, n, tau, z, p_value, significant, slope (per year), intercept, first_year,
-#'   last_year) with the attributes yearly (the yearly values), chart and the attributes title, unit, ylabel (title of
+#'   last_year, n_ratio (n/n* of hamed-rao), r1 (the lag-1 autocorrelation removed by tfpw)) with the attributes yearly (the yearly values), chart and the attributes title, unit, ylabel (title of
 #'   the y axis of the chart), scale, csv, references and credits (see \code{mo_references()}).
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
@@ -2079,6 +2085,12 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
 #'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
 #'
+#' Hamed, K. H., & Rao, A. R. (1998). A modified Mann-Kendall trend test for autocorrelated data. Journal of
+#'   Hydrology, 204(1--4), 182--196. \doi{10.1016/S0022-1694(97)00125-X}
+#'
+#' Yue, S., Pilon, P., Phinney, B., & Cavadias, G. (2002). The influence of autocorrelation on the ability to detect
+#'   trend in hydrological series. Hydrological Processes, 16(9), 1807--1829. \doi{10.1002/hyp.1095}
+#'
 #' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
 #'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -2092,12 +2104,12 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' }
 #' @export
 mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", metric = "mean",
-                           stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, csv = NULL,
-                           chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                           stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, test = "mk",
+                           csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
                            band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
-                                quality = quality, scale = scale, alpha = alpha, csv = csv, chart = chart,
+                                quality = quality, scale = scale, alpha = alpha, test = test, csv = csv, chart = chart,
                                 collection = collection, where = where, image = image, band = band,
                                 band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
                                 unit = unit)
@@ -2141,6 +2153,12 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
 #' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
 #'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
 #'
+#' Hamed, K. H., & Rao, A. R. (1998). A modified Mann-Kendall trend test for autocorrelated data. Journal of
+#'   Hydrology, 204(1--4), 182--196. \doi{10.1016/S0022-1694(97)00125-X}
+#'
+#' Yue, S., Pilon, P., Phinney, B., & Cavadias, G. (2002). The influence of autocorrelation on the ability to detect
+#'   trend in hydrological series. Hydrological Processes, 16(9), 1807--1829. \doi{10.1002/hyp.1095}
+#'
 #' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
 #'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -2154,13 +2172,14 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
 #' @export
 mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", part = NULL,
                          output = "slope", metric = "mean", season = NULL, quality = NULL, alpha = NULL,
-                         thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
+                         test = "mk", thumbnail = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
                          band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL,
                          vmax = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   res <- services()$trend_map(region, variable, sensor, start, end, step, part, output, metric, season = season,
-                              quality = quality, alpha = alpha, thumbnail = thumbnail, collection = collection,
+                              quality = quality, alpha = alpha, test = test, thumbnail = thumbnail,
+                              collection = collection,
                               where = where, image = image, band = band, band_reducer = band_reducer,
                               band_scale = band_scale, band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
                               percentiles = percentiles_arg(percentiles))
@@ -2195,6 +2214,12 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
 #' Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American
 #'   Statistical Association, 63(324), 1379--1389. \doi{10.1080/01621459.1968.10480934}
 #'
+#' Hamed, K. H., & Rao, A. R. (1998). A modified Mann-Kendall trend test for autocorrelated data. Journal of
+#'   Hydrology, 204(1--4), 182--196. \doi{10.1016/S0022-1694(97)00125-X}
+#'
+#' Yue, S., Pilon, P., Phinney, B., & Cavadias, G. (2002). The influence of autocorrelation on the ability to detect
+#'   trend in hydrological series. Hydrological Processes, 16(9), 1807--1829. \doi{10.1002/hyp.1095}
+#'
 #' Gorelick, N., Hancher, M., Dixon, M., Ilyushchenko, S., Thau, D., & Moore, R. (2017). Google Earth Engine:
 #'   Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment, 202, 18--27.
 #'   \doi{10.1016/j.rse.2017.06.031}
@@ -2205,14 +2230,15 @@ mo_trend_map <- function(region, variable = NULL, sensor = NULL, start, end, ste
 #' }
 #' @export
 mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end, path, step = "annual", part = NULL,
-                              metric = "mean", season = NULL, quality = NULL, alpha = NULL, resolution = NULL,
-                              crs = "auto", collection = NULL, where = NULL, image = NULL, band = NULL,
+                              metric = "mean", season = NULL, quality = NULL, alpha = NULL, test = "mk",
+                              resolution = NULL, crs = "auto", collection = NULL, where = NULL, image = NULL, band = NULL,
                               band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL, vmin = NULL,
                               vmax = NULL, percentiles = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(part)) part <- as.integer(part)
   res <- services()$download_trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha,
-                                   resolution, crs, path.expand(path), collection = collection, where = where,
+                                   test = test, resolution = resolution, crs = crs, path = path.expand(path),
+                                   collection = collection, where = where,
                                    image = image, band = band, band_reducer = band_reducer, band_scale = band_scale,
                                    band_offset = band_offset, unit = unit, vmin = vmin, vmax = vmax,
                                    percentiles = percentiles_arg(percentiles))

@@ -104,7 +104,7 @@ def classify_breaks(value, breaks):
 
 def classify_trend(trend, alpha=0.05):
 	"""The class of TREND (an image of monitoreo.trends.trend_image: bands slope and p_value) on each pixel: -1
-	significant decrease, 0 no significant trend, 1 significant increase (Mann-Kendall p-value below ALPHA), masked
+	significant decrease, 0 no significant trend, 1 significant increase (p-value of its trend test below ALPHA), masked
 	where the trend is (fewer than 2 years)."""
 	trend = ee.Image(trend)
 	significant = trend.select('p_value').lt(alpha)

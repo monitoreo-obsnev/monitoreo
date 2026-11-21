@@ -203,7 +203,7 @@ CASES = [
 	                 'end': '2020-12-31', 'step': 'monthly', 'metric': 'mean', 'stat': 'mean', 'quality': QUALITY}),
 	('area_by_class', {'region': {'admin1': 1653}, 'variable': 'NDVI', 'sensor': 'Modis', 'start': '2010-01-01',
 	                   'end': '2020-12-31', 'trend': True, 'step': 'monthly', 'part': 7, 'metric': 'max',
-	                   'quality': QUALITY}),
+	                   'test': 'tfpw', 'quality': QUALITY}),
 	('area_by_class', {'region': {'bbox': [-6.0, 36.0, -2.0, 38.0]}, 'variable': 'BIOME', 'sensor': 'RESOLVE',
 	                   'where': [{'variable': 'ECOREGION', 'sensor': 'RESOLVE', 'exclude': [785]}]}),
 	('region_stats', {'region': {'biome_at': [-3.3, 37.1], 'within': {'bbox': [-3.62, 36.86, -3.5, 36.93]}},
@@ -229,10 +229,11 @@ CASES = [
 	                    'quality': QUALITY}),
 	('trend_table', {'region': {'bbox': [-3.62, 36.86, -3.5, 36.93]}, 'variable': 'LST', 'sensor': 'Modis',
 	                 'collection': 'MODIS/061/MOD11A1', 'ref': 30, 'start': '2010-01-01', 'end': '2020-12-31',
-	                 'step': 'monthly', 'metric': 'mean', 'stat': 'mean', 'quality': QUALITY}),
+	                 'step': 'monthly', 'metric': 'mean', 'stat': 'mean', 'test': 'hamed-rao', 'quality': QUALITY}),
 	('trend_map', {'region': {'bbox': [-3.62, 36.86, -3.5, 36.93]}, 'variable': 'NDVI', 'sensor': 'Sentinel-2',
 	               'start': '2017-01-01', 'end': '2024-12-31', 'step': '16-day', 'part': 5, 'output': 'p_value',
-	               'metric': 'mean', 'alpha': 0.05, 'season': ['03-01', '09-30'], 'quality': S2_QUALITY}),
+	               'metric': 'mean', 'alpha': 0.05, 'test': 'tfpw', 'season': ['03-01', '09-30'],
+	               'quality': S2_QUALITY}),
 	('burn_severity', {'region': {'geojson': {'type': 'FeatureCollection', 'features': [
 		{'type': 'Feature', 'properties': {'name': 'west'}, 'geometry': {'type': 'Polygon', 'coordinates': [
 			[[-5.23, 36.47], [-5.1, 36.47], [-5.1, 36.57], [-5.23, 36.47]]]}}]}},

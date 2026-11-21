@@ -906,6 +906,7 @@ def _results(item, files, n):
 		if chart == 'trends':
 			entry['slope_unit'] = unit_text(unit, per_year=True)
 			entry['alpha'] = float(args.get('alpha') or 0.05)
+			entry['test'] = str(args.get('test') or 'mk').lower()  # the trend test (see monitoreo.trends)
 		if chart == 'comparison':
 			entry['names'] = [period_text(args.get('start'), args.get('end')),
 			                  period_text(args.get('other_start'), args.get('other_end'))] \

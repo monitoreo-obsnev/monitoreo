@@ -204,8 +204,9 @@ def test_download_image(tmp_path):
 	assert small['resolution'] % 10 == 0 and small['resolution'] > 10 and g['width'] * g['height'] <= 10000
 
 
-def test_trend_on_a_pixel_as_in_python():
-	"""The trend of a pixel (Earth Engine) is that of its yearly values computed in Python."""
+@pytest.mark.parametrize('test', ['mk', 'hamed-rao', 'tfpw'])
+def test_trend_on_a_pixel_as_in_python(test):
+	"""The trend of a pixel (Earth Engine) is that of its yearly values computed in Python, with each trend test."""
 	from monitoreo import trends
 	spec = services.make_spec('NDVI', 'Modis', '2014-01-01', '2021-12-31', metric='mean')
 	pt = ee.Geometry.Point(-3.55, 36.9)
@@ -214,9 +215,10 @@ def test_trend_on_a_pixel_as_in_python():
 	head = vals[0]
 	years = [r[head.index('t')] for r in vals[1:]]
 	values = [r[head.index('value')] for r in vals[1:]]
-	img = trends.trend_image(spec, pt, 250, 'monthly', 7)
+	img = trends.trend_image(spec, pt, 250, 'monthly', 7, test=test)
 	got = img.reduceRegion(ee.Reducer.first(), pt, 250).getInfo()
-	n, tau, z, p = trends.mann_kendall(years, values)
+	t = trends.trend_test(years, values, test)
+	n, tau, z, p = t['n'], t['tau'], t['z'], t['p_value']
 	slope, intercept = trends.sen(years, values, 2014)
 	assert got['n'] == n == 8
 	for k, v in (('tau', tau), ('z', z), ('p_value', p), ('slope', slope), ('intercept', intercept)):

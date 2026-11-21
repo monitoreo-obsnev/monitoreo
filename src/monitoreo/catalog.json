@@ -412,6 +412,12 @@
    "kendall1938",
    "sen1968"
   ],
+  "trends_hamed-rao": [
+   "hamed1998"
+  ],
+  "trends_tfpw": [
+   "yue2002"
+  ],
   "burn_severity": [
    "key2006"
   ],
@@ -635,6 +641,14 @@
   "sen1968": {
    "citation": "Sen, P. K. (1968). Estimates of the regression coefficient based on Kendall's tau. Journal of the American Statistical Association, 63(324), 1379–1389.",
    "doi": "10.1080/01621459.1968.10480934"
+  },
+  "hamed1998": {
+   "citation": "Hamed, K. H., & Rao, A. R. (1998). A modified Mann-Kendall trend test for autocorrelated data. Journal of Hydrology, 204(1–4), 182–196.",
+   "doi": "10.1016/S0022-1694(97)00125-X"
+  },
+  "yue2002": {
+   "citation": "Yue, S., Pilon, P., Phinney, B., & Cavadias, G. (2002). The influence of autocorrelation on the ability to detect trend in hydrological series. Hydrological Processes, 16(9), 1807–1829.",
+   "doi": "10.1002/hyp.1095"
   },
   "pearson1896": {
    "citation": "Pearson, K. (1896). Mathematical contributions to the theory of evolution.—III. Regression, heredity, and panmixia. Philosophical Transactions of the Royal Society of London. Series A, 187, 253–318.",

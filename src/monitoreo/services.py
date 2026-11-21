@@ -12,8 +12,8 @@ Besides time series, maps and statistics, the variables are downloaded as GeoTIF
 export_image to Google Drive), the true colour of the same images (rgb_map and download_rgb: the red, green and blue
 reflectance of the images of a variable of Sentinel-2 or Landsat, or of the cloud frequency of MODIS, with the same
 dates, pixel filters and metric; see has_rgb) or a recipe of several variables on aligned grids over a study area and its ecoregions
-(download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall and Sen: trend_table, trend_map,
-download_trend) and the comparison of a reference period with another (compare_series, compare_map,
+(download_variables, see monitoreo.recipe). The seasonal trends (Mann-Kendall, with or without a correction for the
+autocorrelation, and Sen: trend_table, trend_map, download_trend) and the comparison of a reference period with another (compare_series, compare_map,
 download_comparison) are described in monitoreo.trends. The results of an analysis are published
 for anyone in the static web viewer of results with publish_report (see monitoreo.publish).
 
@@ -1645,14 +1645,16 @@ def unit_text_of(unit):
 @_cited
 def area_by_class(region, variable=None, sensor=None, start=None, end=None, metric=None, temporal='period',
                   interannual='mean', season=None, quality=None, landcover=None, year=None, breaks=None, trend=False,
-                  step='annual', part=None, alpha=0.05, scale=None, csv=None, chart=None, other_year=None, **source):
+                  step='annual', part=None, alpha=0.05, test='mk', scale=None, csv=None, chart=None, other_year=None,
+                  **source):
 	"""Hectares and % of each class over each feature of REGION (see monitoreo.classes), of one of:
 	LANDCOVER, a land cover map of YEAR (see landcover_maps; default: its last year), each class of the map with its
 	broad land cover; BREAKS, the map of a variable (as map_layer: METRIC, by default the median, TEMPORAL, INTERANNUAL;
 	also the fixed layers) cut at those values, e.g. [0.2, 0.4, 0.6] (below 0.2, 0.2 to 0.4, 0.4 to 0.6, 0.6 or more);
 	or TREND, the trend of a variable on each pixel (as trend_map: STEP, PART and METRIC of each year, by default the
 	mean), in significant
-	decrease, no significant trend and significant increase (Mann-Kendall p-value below ALPHA); or, for a categorical
+	decrease, no significant trend and significant increase (p-value below ALPHA of the trend test TEST: 'mk',
+	'hamed-rao' or 'tfpw', see trend_table); or, for a categorical
 	layer (ECOREGION, BIOME, sensor RESOLVE) without breaks nor trend, its own classes (mode 'classes'): those with area
 	in some feature, the ecoregions with their biome (group, group_label) and the hectares of each biome
 	('by_group'), with the colours of the classes. The area of each pixel is
@@ -1711,13 +1713,14 @@ def area_by_class(region, variable=None, sensor=None, start=None, end=None, metr
 	else:
 		metric = metric or 'mean'  # the metric of each year of the trends
 		spec, regions, trend_img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric,
-		                                                      season, quality, None, None, source, clip=False)
+		                                                      season, quality, None, None, source, clip=False,
+		                                                      test=test)
 		res = scale or classes.scale_for(native, regions)
 		img = classes.classify_trend(trend_img, alpha)
 		legend = [(c, label, {}) for c, label, _ in classes.TREND]
 		colours = {label: colour for _, label, colour in classes.TREND}
 		extra, unit = {}, _unit(spec)
-		title = f"Area of each class of the trend of {name} (p < {alpha:g})"
+		title = f"Area of each class of the trend of {name} (p < {alpha:g})"  # the name says the test
 	crs = timeseries.region_crs(regions)
 	ha = classes.hectares(img, regions, res, crs)
 	group = None
@@ -2103,33 +2106,38 @@ def _part(step, part):
 
 
 TREND_COLUMNS = ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope', 'intercept',
-                 'first_year', 'last_year']
+                 'first_year', 'last_year', 'n_ratio', 'r1']
 COMPARISON_COLUMNS = ['region', 'key', 'label', 'reference', 'other', 'difference', 'n_reference', 'n_other']
 
 
 @_cited
 def trend_table(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='mean', stat='mean',
-                season=None, quality=None, scale=None, alpha=0.05, csv=None, chart=None, progress=None, **source):
+                season=None, quality=None, scale=None, alpha=0.05, test='mk', csv=None, chart=None, progress=None,
+                **source):
 	"""Seasonal trends of a variable over each feature of REGION (see monitoreo.trends): the spatial STAT of the
 	METRIC of each part of the year of STEP ('monthly': 12 months, '16-day': 23 parts of 16 days, 'annual': the
 	year) in each year, and the trend of each part over the years (Mann-Kendall tau, Z and p-value, Sen's slope per
-	year). Writes the trends to CSV and the chart of the yearly values with their Sen lines to CHART if given.
+	year). TEST: 'mk' (the Mann-Kendall test), 'hamed-rao' (its variance corrected for the autocorrelation of the
+	yearly values, Hamed & Rao 1998) or 'tfpw' (on the yearly values pre-whitened without their trend, Yue et al.
+	2002): see monitoreo.trends. Writes the trends to CSV and the chart of the yearly values with their Sen lines to
+	CHART if given.
 	Returns {'rows': [{region, part, key, label, n, tau, z, p_value, significant (p < ALPHA), slope, intercept,
-	first_year, last_year}], 'yearly': [{region, part, year, value, n_pixels, n_images}], 'csv', 'chart', 'scale',
+	first_year, last_year, n_ratio (hamed-rao), r1 (tfpw)}], 'yearly': [{region, part, year, value, n_pixels, n_images}], 'csv', 'chart', 'scale',
 	'unit', 'title'}."""
+	test = trends.check_test(test)  # before computing
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
 	first = composite.windows(spec['period'], spec['season'])[0][0]
-	rows = trends.trend_rows(yearly, step, first, alpha=alpha)
+	rows = trends.trend_rows(yearly, step, first, alpha=alpha, test=test)
 	unit = _unit(spec, stat)
-	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}'
+	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}{trends.test_note(test)}'
 	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
 	       'ylabel': _ylabel(spec, stat), 'title': title}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
-		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit),
+		        'step': step, 'metric': metric, 'stat': stat, 'test': test, 'unit': catalog.udunits(unit),
 		        'slope_unit': catalog.udunits(unit, per_year=True),
 		        'scale_m': used}
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
@@ -2142,26 +2150,29 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	return out
 
 
-def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source, clip=True):
+def _trend(region, variable, sensor, start, end, step, part, metric, season, quality, alpha, res, source, clip=True,
+           test='mk'):
+	test = trends.check_test(test)
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	part = _part(step, part)
 	native = float(variables.native_scale(spec))
-	img = trends.trend_image(spec, regions.geometry(), res or native, step, part, metric)
+	img = trends.trend_image(spec, regions.geometry(), res or native, step, part, metric, test=test)
 	if alpha:
 		img = img.updateMask(img.select('p_value').lt(alpha))
-	name = f"{_title(spec)} | trend {trends.part_key(step, part)} ({metric})"
+	name = f"{_title(spec)} | trend {trends.part_key(step, part)} ({metric}{trends.test_note(test)})"
 	return spec, regions, img.clipToCollection(regions) if clip else img, part, native, name
 
 
 @_cited
 def trend_map(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, output='slope',
-              metric='mean', season=None, quality=None, alpha=None, vmin=None, vmax=None, palette=None,
+              metric='mean', season=None, quality=None, alpha=None, test='mk', vmin=None, vmax=None, palette=None,
               thumbnail=None, quick=False, percentiles=None, **source):
 	"""Map of the trend of a part of the year (PART: month 1-12 with STEP 'monthly', 1-23 with '16-day', none with
 	'annual') of a variable over REGION, computed on each pixel: OUTPUT is 'slope' (Sen, per year), 'tau', 'z',
-	'p_value', 'intercept' or 'n' (years with data); ALPHA (e.g. 0.05) leaves only the pixels with p_value < ALPHA.
+	'p_value', 'intercept' or 'n' (years with data); ALPHA (e.g. 0.05) leaves only the pixels with p_value < ALPHA;
+	TEST: the trend test, 'mk', 'hamed-rao' or 'tfpw' (see trend_table).
 	Earth Engine tiles (the values cannot be queried: download_trend for that). QUICK: with a fixed colour ramp
 	(slope: ±2 % of the range of the variable in the catalog per year) instead of that of the map, which takes
 	minutes over big regions and long periods. The colour ramp of the slope and z: symmetric around 0, up to the
@@ -2173,7 +2184,7 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 	if output not in trends.OUTPUTS:
 		raise ValueError(f"unknown output {output}: use {', '.join(trends.OUTPUTS)}")
 	spec, regions, img, part, native, name = _trend(region, variable, sensor, start, end, step, part, metric, season,
-	                                                quality, alpha, None, source, clip=False)
+	                                                quality, alpha, None, source, clip=False, test=test)
 	whole = img.select(output)  # the preview is clipped on its own pixels (see _preview)
 	band = whole.clipToCollection(regions)
 	vis = trends.vis(output)
@@ -2218,27 +2229,31 @@ def trend_map(region, variable=None, sensor=None, start=None, end=None, step='an
 
 @_cited
 def download_trend(region, variable=None, sensor=None, start=None, end=None, step='annual', part=None, metric='mean',
-                   season=None, quality=None, alpha=None, resolution=None, crs='auto', path=None, max_pixels=None,
+                   season=None, quality=None, alpha=None, test='mk', resolution=None, crs='auto', path=None,
+                   max_pixels=None,
                    tile=512, workers=8, progress=None, vmin=None, vmax=None, percentiles=None, **source):
 	"""Download the trend of a part of the year of a variable over REGION (see trend_map) to the GeoTIFF PATH, with a
 	band per output: slope, tau, z, p_value, intercept, n (NoData -9999 where there are fewer than 2 years or, with
-	ALPHA, p_value >= ALPHA), on a grid of RESOLUTION metres (default: that of the data, or 1 to 10 km in a large area;
+	ALPHA, p_value >= ALPHA of the trend test TEST: see trend_map), on a grid of RESOLUTION metres (default: that of the data, or 1 to 10 km in a large area;
 	2, 3, ... times bigger if the grid has more than MAX_PIXELS).
 	Returns {'file', 'bands', 'grid', 'resolution', 'native_resolution', 'name', 'unit' (of the slope), 'min', 'max'
 	(the colours of the slope: symmetric around 0, up to the largest in absolute value of its PERCENTILES, default
 	[1, 99], or VMIN and VMAX), 'palette', 'stretch'}."""
 	pct = maps.check_percentiles(percentiles)
+	test = trends.check_test(test)
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec0, 'trends')
 	native = float(variables.native_scale(spec0))
 	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, native)
 	spec, regions, img, part, native, name = _trend(regions_, variable, sensor, start, end, step, part, metric, season,
-	                                                quality, alpha, res, source)
-	path = path or _slug(f"trend_{_file_stem(variable, sensor, metric, start, end, source)}_{trends.part_key(step, part)}") + '.tif'
+	                                                quality, alpha, res, source, test=test)
+	path = path or _slug(f"trend_{_file_stem(variable, sensor, metric, start, end, source)}_{trends.part_key(step, part)}"
+	                     + ('' if test == 'mk' else f'_{test}')) + '.tif'
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=list(trends.OUTPUTS),
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
-	             variables.describe(spec), trend=step, part=trends.part_key(step, part), alpha=alpha), default=str)})
+	             variables.describe(spec), trend=step, part=trends.part_key(step, part), alpha=alpha,
+	             test=test), default=str)})
 	colours, stretch = _file_colours(path, pct, vmin, vmax, symmetric=True, over='the slope in the file')
 	vis = dict(trends.vis('slope'), **colours)
 	return dict(vis, stretch=stretch, file=path, bands=list(trends.OUTPUTS), grid=grid.describe(), resolution=res,
