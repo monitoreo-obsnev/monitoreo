@@ -1,5 +1,5 @@
 # Python environment of MonitorEO: the package monitoreo of GitHub (which `monitoreo mcp` keeps at its last version),
-# with the MCP server, the assistant for managers (and its window), the charts and the tests.
+# with the MCP server, the AI assistant (and its window), the charts and the tests.
 # Create it with Miniforge (only conda-forge, without the terms of use of the defaults channel of Anaconda):
 #   conda env create -f environment.yml
 #   conda activate monitoreo
@@ -16,7 +16,7 @@ dependencies:
   - gdal>=3.6          # reading of vector files and writing of GeoTIFFs (optional for time series)
   - matplotlib-base    # charts of the time series (without Qt, which they do not use: 0.1 GB less on Windows)
   - mcp>=1.10          # MCP server
-  - starlette          # assistant for managers (monitoreo assistant)
+  - starlette          # AI assistant (monitoreo assistant)
   - uvicorn
   - pypdf              # the text of the PDF documents uploaded to the assistant
   - pytest

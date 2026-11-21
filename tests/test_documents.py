@@ -317,11 +317,11 @@ def test_the_manual_explains_the_documents(tmp_path):
 	documents»), and the questions about its own report still find the section of the report."""
 	from monitoreo import manual
 	pages = {
-		'Asistente': '# Asistente para gestores\n\n### Tu área de estudio\n\nSube tu capa con **Upload study area**: '
+		'Asistente': '# Asistente de IA\n\n### Tu área de estudio\n\nSube tu capa con **Upload study area**: '
 		             'GeoPackage, GeoJSON, KML o shapefile.\n\n### Tus documentos: informes y tablas\n\nSube documentos '
 		             'con **Upload documents**: un informe en PDF, Word, una tabla de Excel o CSV, 10 MB en total.\n\n'
 		             '### Informe\n\n**Create report** hace un informe HTML para imprimir o guardar en PDF.\n',
-		'Assistant': '# Assistant for managers\n\n### Your study area\n\nUpload your layer with **Upload study area**.'
+		'Assistant': '# AI assistant\n\n### Your study area\n\nUpload your layer with **Upload study area**.'
 		             '\n\n### Your documents: reports and tables\n\nUpload documents with **Upload documents**: a report '
 		             'as PDF, Word, an Excel or CSV table, 10 MB in all.\n\n### Report\n\n**Create report** makes an HTML '
 		             'report to print or save as PDF.\n'}

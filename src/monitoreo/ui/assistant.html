@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MonitorEO Assistant</title>
+<title>MonitorEO AI Assistant</title>
 <link rel="icon" href="/logo.png">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <script src="/vendor/leaflet/leaflet.js"></script>
@@ -165,7 +165,7 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
 <header>
   <div class="brand">
     <img src="/logo.png" alt="MonitorEO-OBSNEV">
-    <div><b>MonitorEO Assistant</b> <span id="version" class="muted"></span></div>
+    <div><b>MonitorEO AI Assistant</b> <span id="version" class="muted"></span></div>
     <div class="top">
       <select id="uiLang" aria-label="Language of the page · Idioma de la página" translate="no">
         <option value="en">English</option><option value="es">Español</option>
@@ -354,7 +354,7 @@ async function api(path, body) {
 // never the messages of the user nor the answers of the model (translate="no"), nor the values of the results. The
 // language is kept in the settings of the assistant (ui_lang) and in this browser (to show it at once).
 const ES = {
-  'MonitorEO Assistant': 'Asistente de MonitorEO',
+  'MonitorEO AI Assistant': 'Asistente de IA de MonitorEO',
   'Suggest a change or report an error': 'Sugerir un cambio o informar de un error',
   'Update MonitorEO': 'Actualizar MonitorEO',
   'Closes the assistant and the engine of the models': 'Cierra el asistente y el motor de los modelos',
@@ -645,7 +645,7 @@ function setLanguage(lang, save) {  // the language of the page: 'en' or 'es'
   $('uiLang').value = uiLang;
   try { localStorage.setItem('monitoreo-ui-lang', uiLang); } catch (e) { /* without storage: the settings keep it */ }
   translateNode(document.body);
-  document.title = uiLang === 'es' ? 'Asistente de MonitorEO' : 'MonitorEO Assistant';
+  document.title = uiLang === 'es' ? 'Asistente de IA de MonitorEO' : 'MonitorEO AI Assistant';
   if (save) api('/api/settings', {ui_lang: uiLang}).catch(e => notice(e.message, true));
 }
 
@@ -1881,7 +1881,7 @@ $('quit').onclick = async () => {
   document.body.replaceChildren(el('div', {class: 'closed'},
     el('img', {src: '/logo.png', alt: 'MonitorEO-OBSNEV', style: 'height: 40px'}),
     el('h2', {text: 'The assistant is closed'}),
-    el('p', {text: 'You can close this tab now. To open it again: double-click «MonitorEO Assistant» on the ' +
+    el('p', {text: 'You can close this tab now. To open it again: double-click «MonitorEO AI Assistant» on the ' +
                    'Desktop.'})));
   setTimeout(() => window.close(), 1500);  // only if the browser lets the page close itself
 };

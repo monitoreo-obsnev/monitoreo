@@ -1,14 +1,14 @@
 #!/bin/bash
-# Installer of the MonitorEO assistant for macOS (see the page Assistant of the wiki). It is pasted in the Terminal:
+# Installer of the MonitorEO AI assistant for macOS (see the page Assistant of the wiki). It is pasted in the Terminal:
 #
 #   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main/installer/macos/instalar.sh)"
 #
 # (what curl downloads is not quarantined, so macOS does not block it), or opened with a double click from the zip of
-# the release, which has it as "Install the MonitorEO assistant.command" (unsigned: macOS asks for permission).
+# the release, which has it as "Install the MonitorEO AI assistant.command" (unsigned: macOS asks for permission).
 #
 # It installs in ~/MonitorEO/entorno, without administrator rights, the Python environment of MonitorEO (Python,
 # Earth Engine, GDAL and the package monitoreo, from the environment.yml of the repository) with micromamba, which it
-# leaves in ~/MonitorEO/micromamba. It puts on the Desktop the app "MonitorEO Assistant" (with the logo of MonitorEO,
+# leaves in ~/MonitorEO/micromamba. It puts on the Desktop the app "MonitorEO AI Assistant" (with the logo of MonitorEO,
 # installer/icons/monitoreo-assistant.icns), which opens the assistant in its window without the Terminal (its
 # messages go to ~/MonitorEO/assistant-output.log), and opens it. If the environment already exists, it only
 # creates the app and opens it; to install it again, delete ~/MonitorEO/entorno
@@ -25,7 +25,7 @@ main() {
 	ENV="$DIR/entorno"
 	MAMBA_DIR="$DIR/micromamba"
 	MAMBA="$MAMBA_DIR/micromamba"
-	APP="$HOME/Desktop/MonitorEO Assistant.app"
+	APP="$HOME/Desktop/MonitorEO AI Assistant.app"
 
 	fail() {  # fail MESSAGE [LINES OF WHAT TO DO]: by default, the connection, the cause of almost every error
 		echo
@@ -41,7 +41,7 @@ main() {
 	}
 	trap 'fail "the installation stopped at line $LINENO."' ERR
 
-	echo "Installer of the MonitorEO assistant"
+	echo "Installer of the MonitorEO AI assistant"
 	echo "===================================="
 	echo
 	echo "It installs in $ENV, without administrator rights, what the assistant needs: Python, Google Earth Engine,"
@@ -91,6 +91,7 @@ main() {
 
 	rm -f "$HOME/Desktop/Asistente de MonitorEO.command"  # the shortcut of old versions, in the Terminal
 	rm -rf "$HOME/Desktop/Asistente de MonitorEO.app"  # the app of the versions with Spanish texts
+	rm -rf "$HOME/Desktop/MonitorEO Assistant.app"  # the app before it was the AI assistant
 	rm -rf "$APP"
 	mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 	# its icon, the logo of MonitorEO (without it, the generic one of the apps)
@@ -101,8 +102,8 @@ main() {
 	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 	<plist version="1.0">
 	<dict>
-		<key>CFBundleName</key><string>MonitorEO Assistant</string>
-		<key>CFBundleDisplayName</key><string>MonitorEO Assistant</string>
+		<key>CFBundleName</key><string>MonitorEO AI Assistant</string>
+		<key>CFBundleDisplayName</key><string>MonitorEO AI Assistant</string>
 		<key>CFBundleIdentifier</key><string>es.ugr.monitoreo.asistente</string>
 		<key>CFBundleExecutable</key><string>asistente</string>
 		<key>CFBundleIconFile</key><string>monitoreo-assistant</string>
@@ -121,7 +122,7 @@ main() {
 
 	echo
 	echo "Done. The assistant opens now in its window; to close it, close that window."
-	echo "To open it again: double click «MonitorEO Assistant» on the Desktop. You can close the Terminal now."
+	echo "To open it again: double click «MonitorEO AI Assistant» on the Desktop. You can close the Terminal now."
 	open "$APP"
 }
 

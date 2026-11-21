@@ -17,7 +17,7 @@ Cada página tiene su versión en inglés.
 ## Herramientas
 
 Todas calculan con Google Earth Engine y usan **las mismas funciones** (`monitoreo.services`): el mismo cálculo da el
-mismo resultado en todas. Sus textos están en inglés; al asistente para gestores se le puede preguntar en español y
+mismo resultado en todas. Sus textos están en inglés; al asistente de IA se le puede preguntar en español y
 responde en el idioma de la pregunta.
 
 | Herramienta | Para quién | Manual | Código |
@@ -25,7 +25,7 @@ responde en el idioma de la pregunta.
 | [App de Earth Engine](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo) | cualquiera, en el navegador, sin instalar nada ni tener cuenta | [App de Earth Engine](https://github.com/monitoreo-obsnev/monitoreo/wiki/App-de-Earth-Engine) | `gee` |
 | Plugin de QGIS **MonitorEO** | usuarios de QGIS 4.0.3 o posterior | [QGIS](https://github.com/monitoreo-obsnev/monitoreo/wiki/QGIS) | `qgis/monitoreo_qgis` |
 | Servidor MCP | Claude u otros modelos de lenguaje | [MCP](https://github.com/monitoreo-obsnev/monitoreo/wiki/MCP) | `src/monitoreo/mcp_server.py` |
-| Asistente para gestores | gestores, en una ventana propia, con el modelo de MonitorEO en la nube (Claude Sonnet 5.5) o uno abierto en su ordenador (Ollama) y el servidor MCP; mapas con el valor y la serie de cada píxel; informes en PDF sin interpretación | [Asistente](https://github.com/monitoreo-obsnev/monitoreo/wiki/Asistente) | `src/monitoreo/assistant.py`, `monitoreo assistant` |
+| Asistente de IA | cualquiera, sin programar, en una ventana propia, con el modelo de MonitorEO en la nube (Claude Sonnet 5.5) o uno abierto en su ordenador (Ollama) y el servidor MCP; mapas con el valor y la serie de cada píxel; informes en PDF sin interpretación | [Asistente](https://github.com/monitoreo-obsnev/monitoreo/wiki/Asistente) | `src/monitoreo/assistant.py`, `monitoreo assistant` |
 | Paquete de Python `monitoreo` | scripts, cuadernos, línea de comandos | [Python](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python), [Línea de comandos](https://github.com/monitoreo-obsnev/monitoreo/wiki/Línea-de-comandos) | `src/monitoreo` |
 | Paquete de R `monitoreo` | R, con `sf`, `terra` o `rgee` | [R](https://github.com/monitoreo-obsnev/monitoreo/wiki/R) | `r/monitoreo` |
 | Visor de resultados | cualquiera, en el navegador (publican los administradores) | [Visor de resultados](https://github.com/monitoreo-obsnev/monitoreo/wiki/Visor-de-resultados) | `src/monitoreo/viewer`, `monitoreo publish` |
@@ -57,7 +57,7 @@ Every page also has its Spanish version.
 ### Tools
 
 They all compute with Google Earth Engine and use **the same functions** (`monitoreo.services`): the same computation
-gives the same result in all of them. Their texts are in English; the assistant for managers can be asked in Spanish
+gives the same result in all of them. Their texts are in English; the AI assistant can be asked in Spanish
 or in English and answers in the language of the question.
 
 | Tool | For whom | Manual | Code |
@@ -65,7 +65,7 @@ or in English and answers in the language of the question.
 | [Earth Engine app](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo) | anyone, in the browser, with nothing to install and no account | [Earth Engine app](https://github.com/monitoreo-obsnev/monitoreo/wiki/Earth-Engine-app) | `gee` |
 | QGIS plugin **MonitorEO** | users of QGIS 4.0.3 or later | [QGIS plugin](https://github.com/monitoreo-obsnev/monitoreo/wiki/QGIS-plugin) | `qgis/monitoreo_qgis` |
 | MCP server | Claude or other language models | [MCP server](https://github.com/monitoreo-obsnev/monitoreo/wiki/MCP-server) | `src/monitoreo/mcp_server.py` |
-| Assistant for managers | managers, in a window of its own, with the model of MonitorEO in the cloud (Claude Sonnet 5.5) or an open one on their computer (Ollama) and the MCP server; maps with the value and the series of each pixel; PDF reports without interpretation | [Assistant](https://github.com/monitoreo-obsnev/monitoreo/wiki/Assistant) | `src/monitoreo/assistant.py`, `monitoreo assistant` |
+| AI assistant | anyone, without programming, in a window of its own, with the model of MonitorEO in the cloud (Claude Sonnet 5.5) or an open one on their computer (Ollama) and the MCP server; maps with the value and the series of each pixel; PDF reports without interpretation | [Assistant](https://github.com/monitoreo-obsnev/monitoreo/wiki/Assistant) | `src/monitoreo/assistant.py`, `monitoreo assistant` |
 | Python package `monitoreo` | scripts, notebooks, command line | [Python package](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python-package), [Command line](https://github.com/monitoreo-obsnev/monitoreo/wiki/Command-line) | `src/monitoreo` |
 | R package `monitoreo` | R, with `sf`, `terra` or `rgee` | [R package](https://github.com/monitoreo-obsnev/monitoreo/wiki/R-package) | `r/monitoreo` |
 | Results viewer | anyone, in the browser (administrators publish) | [Results viewer](https://github.com/monitoreo-obsnev/monitoreo/wiki/Results-viewer) | `src/monitoreo/viewer`, `monitoreo publish` |
@@ -93,6 +93,10 @@ fixed. **Unreleased** is what is already in `main` but not yet in the QGIS plugi
 get it only with a release: the assistant and the MCP server update themselves from `main` when they start, and the
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
+
+### Unreleased
+
+- **Assistant**: It is the AI assistant (Asistente de IA), no longer the assistant for managers: its window, its title and the shortcut that its installers put on the Desktop are «MonitorEO AI Assistant» (the shortcut with the old name is removed when the installer runs again).
 
 ### [v0.3.65](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.65) · 2026-11-21 · package 0.3.75
 

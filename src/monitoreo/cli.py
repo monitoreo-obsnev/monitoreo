@@ -84,7 +84,7 @@
     monitoreo about [--lang es]                      what MonitorEO-OBSNEV is, who funds it and how to cite it
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
-    monitoreo assistant [--port 8765] [--browser] [--no-update]   chat for managers in a window of its own (or
+    monitoreo assistant [--port 8765] [--browser] [--no-update]   AI assistant in a window of its own (or
                                                      the browser), with a language model of Ollama and the MCP server,
                                                      at the last version of GitHub
 
@@ -675,7 +675,7 @@ def main(argv=None):
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
-	p = sub.add_parser('assistant', help='chat for managers, in a window of its own (language model of Ollama and '
+	p = sub.add_parser('assistant', help='AI assistant, in a window of its own (language model of Ollama and '
 	                                     'MCP server)')
 	p.add_argument('--port', type=int, default=8765)
 	p.add_argument('--browser', action='store_true', help='open it in the browser instead of in a window of its own')
@@ -1340,7 +1340,7 @@ def _update_in_window():
 	if done.is_set():  # the last version, or no connection: nothing to show
 		return out.get('result', 'offline')
 	try:
-		win = webview.create_window('MonitorEO Assistant', html=UPDATING, width=520, height=200, resizable=False)
+		win = webview.create_window('MonitorEO AI Assistant', html=UPDATING, width=520, height=200, resizable=False)
 		webview.start(lambda: (done.wait(), win.destroy()))
 	except Exception as e:
 		print(f'WARNING: cannot show the window of the update ({type(e).__name__}: {e})', file=sys.stderr)
