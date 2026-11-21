@@ -588,9 +588,9 @@ HELP = {
 		'a series, of the group Trends for trends), which shows the patterns of each date better.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
-		'Sentinel-2 (20 m for the variables with its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, NBR, the albedo and the '
-		'burn severity), 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and '
-		'a faster export.</p>'
+		'Sentinel-2 (20 m for the variables that read its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, NBR, the albedo, the '
+		'snow cover frequency and days and the burn severity), 30 m in Landsat and from 250 m to 4.6 km in MODIS. A '
+		'bigger pixel gives a smaller file and a faster export.</p>'
 		'<p>The export to Google Drive keeps the pixels of the data also in a large area (more than 100,000 km²): it is '
 		'the way to its full resolution.</p>'
 		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
