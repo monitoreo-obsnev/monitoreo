@@ -37,6 +37,9 @@ TREND_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('n', 'Yea
                  ('z', 'Z'), ('p_value', 'p-value'), ('significant', 'Significant'),
                  ('slope', "Sen's slope (per year)"), ('intercept', 'Initial value (Sen)'), ('first_year', 'First year'),
                  ('last_year', 'Last year')]
+# the columns of some trend tests (monitoreo.trends.TESTS), shown when they have values, and the names of the tests
+TEST_COLUMNS = [('n_ratio', 'n/n* (Hamed-Rao)'), ('r1', 'r1 (TFPW)')]
+TEST_SHORT = {'mk': 'Mann-Kendall', 'hamed-rao': 'Hamed-Rao', 'tfpw': 'TFPW'}  # monitoreo.trends.TEST_SHORT
 COMPARISON_COLUMNS = [('region', 'Region'), ('label', 'Part of the year'), ('reference', 'Reference period'),
                       ('other', 'Other period'), ('difference', 'Difference'),
                       ('n_reference', 'Years of the reference'), ('n_other', 'Years of the other')]
@@ -426,7 +429,8 @@ class ResultDialog(QDialog):
 			columns = [c for c in (ZONE_COLUMNS if kind == 'zones' else TRANSECT_COLUMNS) if any(c[0] in r for r in rows)]
 		else:
 			rows = res['rows'] if trends else res['profile']
-			columns = TREND_COLUMNS if trends else COMPARISON_COLUMNS
+			columns = TREND_COLUMNS + [c for c in TEST_COLUMNS if any(r.get(c[0]) is not None for r in res['rows'])] \
+				if trends else COMPARISON_COLUMNS
 		self.setWindowTitle(f"MonitorEO: {res['label']}")
 		self.resize(980, 760)
 		lay = QVBoxLayout(self)
@@ -441,7 +445,8 @@ class ResultDialog(QDialog):
 				text += f" · {region}: changed {ha:,.1f} ha, unchanged {res['unchanged_ha'][region]:,.1f} ha"
 		else:
 			text = (f"{res['title']} · {unit_label(res, trends)} · pixels of {res['scale']:g} m"
-			        + (' · significant: p < 0.05 (Mann-Kendall)' if trends else
+			        + (f" · significant: p < 0.05 ({TEST_SHORT.get((res.get('args') or {}).get('test') or 'mk')})"
+			           if trends else
 			           ' · difference = other period - reference'))
 		info = QLabel(text)
 		info.setWordWrap(True)

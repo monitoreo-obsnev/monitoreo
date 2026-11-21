@@ -21,7 +21,8 @@ https://doi.org/10.5281/zenodo.23814894
     variable   Earth Engine image of a variable described by a dictionary (a 'spec')
     timeseries time series of a variable over regions
     recipe     download of a recipe of variables on aligned grids over a study area and its ecoregions
-    trends     seasonal trends (Mann-Kendall, Sen) and comparison of a reference period with another
+    trends     seasonal trends (Mann-Kendall, or corrected for autocorrelation: Hamed-Rao, TFPW; Sen) and comparison
+               of a reference period with another
     maps       colour ramps, map tiles and thumbnails
     charts     charts of the time series
     areas      regions: GeoJSON, vector files, protected areas (WDPA), ecoregions and biomes (RESOLVE Ecoregions 2017),

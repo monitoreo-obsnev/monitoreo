@@ -48,9 +48,11 @@ METHODS = {
 	'region_stats': 'The temporal metric of the images of the period on each pixel and its statistics over the region.',
 	'map_layer': 'The temporal metric of the images of the period on each pixel.',
 	'trend_table': 'For each part of the year, its value in each year (the spatial statistic of the temporal metric) '
-	               "and the trend of those values over the years: Mann-Kendall test (τ, Z and p-value) and Sen's "
-	               'slope (change per year).',
-	'trend_map': "The trend computed on each pixel: Mann-Kendall test and Sen's slope (change per year).",
+	               "and the trend of those values over the years: Mann-Kendall test (τ, Z and p-value; Trend test "
+	               "says if it is corrected for the autocorrelation of the yearly values) and Sen's slope (change per "
+	               'year).',
+	'trend_map': "The trend computed on each pixel: Mann-Kendall test (see Trend test) and Sen's slope (change per "
+	             'year).',
 	'compare_series': 'For each part of the year, the mean of its values in the years of each period and the '
 	                  'difference between both (other period minus reference period).',
 	'compare_map': 'On each pixel, the temporal metric of the other period minus that of the reference period.',
@@ -67,8 +69,8 @@ METHODS = {
 	                'surface reflectance on each pixel (median, mean and percentiles band by band; maximum and minimum, '
 	                'the colours of the image where the variable is highest or lowest), on the same pixels as the '
 	                'variable, in a GeoTIFF with the bands red, green and blue (float32 reflectance, NoData -9999).',
-	'download_trend': "The trend computed on each pixel (Mann-Kendall test and Sen's slope, change per year), in a "
-	                  'GeoTIFF with a band per result (NoData -9999).',
+	'download_trend': "The trend computed on each pixel (Mann-Kendall test, see Trend test, and Sen's slope, change "
+	                  'per year), in a GeoTIFF with a band per result (NoData -9999).',
 	'download_comparison': 'On each pixel, the temporal metric of the other period minus that of the reference '
 	                       'period, in a GeoTIFF with the bands difference, reference and other (NoData -9999).',
 	'download_variables': 'Each variable of the recipe, with its metrics, in a GeoTIFF per variable on aligned grids '
@@ -109,8 +111,8 @@ METHODS = {
 	'area_by_class_breaks': 'The map of the variable (the temporal metric of the images of the period on each pixel) cut '
 	                        'at the breaks (a value equal to a break goes to the class above it), and the true area of '
 	                        'each pixel summed by class over each feature; % of the area with values.',
-	'area_by_class_trend': "The trend on each pixel (Mann-Kendall test and Sen's slope of the yearly values) in three "
-	                       'classes: significant decrease (p-value below alpha, slope below 0), no significant trend, '
+	'area_by_class_trend': "The trend on each pixel (Mann-Kendall test, see Trend test, and Sen's slope of the yearly "
+	                       'values) in three classes: significant decrease (p-value below alpha, slope below 0), no significant trend, '
 	                       'and significant increase; the true area of each pixel summed by class over each feature; % '
 	                       'of the area with a trend (2 years or more with data).',
 	'static': 'A fixed layer, without dates: its value on each pixel (no period, temporal metric or pixel filters).',
@@ -433,6 +435,31 @@ def colours_text(tool, result):
 	return f'{text}: {how}' if how else text
 
 
+def _test_of(args):
+	from .trends import check_test
+	try:
+		return check_test(args.get('test'))
+	except ValueError:
+		return 'mk'
+
+
+def _test_short(args):
+	"""The short name of the trend test of ARGS (Mann-Kendall, Hamed-Rao, TFPW)."""
+	from .trends import TEST_SHORT
+	return TEST_SHORT[_test_of(args)]
+
+
+def _trend_test(args):
+	"""The trend test of ARGS, for people: its name and, with a correction, what it corrects."""
+	from .trends import TEST_NAMES
+	test = _test_of(args)
+	return TEST_NAMES[test] + {
+		'mk': '', 'hamed-rao': ': the variance of S corrected for the autocorrelation of the ranks of the yearly values '
+		                       'without their trend (significant lags)',
+		'tfpw': ': on the yearly values without the lag-1 autocorrelation of their values without trend, with the '
+		        "trend added back (one year less); Sen's slope of the yearly values"}[test]
+
+
 def item_facts(tool, args, result=None, names=None):
 	"""How a result was computed: [(label, text)] in English."""
 	result = result if isinstance(result, dict) else {}
@@ -519,10 +546,15 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Discarded pixels (right axis)', _discarded(other, args.get('quality'))))
 	if result.get('scale'):
 		facts.append(('Pixel size of the computation', f"{_num(result['scale'])} m"))
+	test = _trend_test(args) if tool in ('trend_table', 'trend_map', 'download_trend') or \
+		(tool == 'area_by_class' and args.get('trend')) else None
+	if test:
+		facts.append(('Trend test', test))
 	if tool == 'trend_table':
 		facts.append(('Significant if', f"p < {_num(args.get('alpha') or 0.05)}"))
 	if tool in ('trend_map', 'download_trend') and args.get('alpha'):
-		facts.append(('Pixels', f"only those with a significant trend (Mann-Kendall, p < {_num(args['alpha'])})"))
+		facts.append(('Pixels', f"only those with a significant trend ({_test_short(args)}, "
+		                        f"p < {_num(args['alpha'])})"))
 	if tool == 'burn_severity' and result.get('burned_ha'):
 		burned = result['burned_ha']
 		# the RdNBR: the area of the classes low to high is changed, not burned (unchanged is not unburned)
@@ -583,8 +615,8 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Classes', 'cut at ' + ', '.join(f'{b:g}' for b in check_breaks(args['breaks']))
 		                         + (f' {unit}' if unit else '') + ' (a value equal to a break goes to the class above it)'))
 	if tool == 'area_by_class' and args.get('trend'):
-		facts.append(('Classes', f"significant decrease, no significant trend and significant increase (Mann-Kendall, "
-		                         f"p < {_num(args.get('alpha') or 0.05)})"))
+		facts.append(('Classes', f"significant decrease, no significant trend and significant increase "
+		                         f"({_test_short(args)}, p < {_num(args.get('alpha') or 0.05)})"))
 	if tool == 'timelapse' and result.get('n_frames'):
 		empty = sum(1 for f in result.get('frames') or [] if not f.get('images'))
 		facts.append(('Frames', f"{_num(result['n_frames'])}, {_num(result.get('fps') or 1)} per second"

@@ -20,6 +20,7 @@ mo_area_by_class(
   step = "annual",
   part = NULL,
   alpha = 0.05,
+  test = "mk",
   season = NULL,
   quality = NULL,
   scale = NULL,
@@ -82,6 +83,9 @@ Engine may have added images since), gives an R warning, as those days may have 
 
 \item{step, part, alpha}{with \code{trend}: the parts of the year (\code{"annual"}, \code{"monthly"} or
 \code{"16-day"}), the part (month 1-12 or 16 days 1-23) and the p-value below which a trend is significant.}
+
+\item{test}{with \code{trend}: the trend test, \code{"mk"}, \code{"hamed-rao"} or \code{"tfpw"} (see
+\code{mo_trend_table()}).}
 
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
@@ -159,7 +163,7 @@ The area of each class of one of: a land cover map of a year (\code{landcover}, 
 each class of the map with its broad land cover; the map of a variable (as \code{mo_map_layer()}, also the fixed
 layers) cut at \code{breaks}, e.g. \code{c(1500, 2000, 2500)} for the elevation; or, with \code{trend = TRUE},
 the trend of a variable on each pixel (as \code{mo_trend_map()}) in significant decrease, no significant trend and
-significant increase (Mann-Kendall p-value below \code{alpha}); or, for a categorical layer (\code{"ECOREGION"} or
+significant increase (p-value of the trend test \code{test} below \code{alpha}); or, for a categorical layer (\code{"ECOREGION"} or
 \code{"BIOME"}, sensor \code{"RESOLVE"}) without \code{breaks} nor \code{trend}, its own classes with area in the
 region, with their colours (the ecoregions with their biome: group and group_label, and the attribute by_group, the
 hectares of each biome). The area of each pixel is its true area; the percent is of the area with a class (the pixels

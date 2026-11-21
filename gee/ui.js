@@ -169,6 +169,9 @@
 			trendPart: 'Parte del año del mapa', output: 'Resultado', o_slope: 'Pendiente de Sen (por año)',
 			o_tau: 'τ de Kendall', o_z: 'Z de Mann-Kendall', o_p_value: 'p-valor', o_intercept: 'Valor inicial',
 			o_n: 'Años con datos', significant: 'Solo píxeles con tendencia significativa (p < 0,05)',
+			trendTest: 'Prueba', tt_mk: 'Mann-Kendall', 'tt_hamed-rao': 'Hamed-Rao (autocorrelación)',
+			tt_tfpw: 'TFPW (preblanqueo)', trendTestNote: 'Hamed-Rao y TFPW corrigen la autocorrelación de los valores ' +
+				'anuales, que hace que Mann-Kendall encuentre tendencias significativas de más.',
 			trendMap: 'Mapa de tendencia', seeChart: 'Valores de cada año de',
 			fire: 'Severidad de un incendio (dNBR, RBR o RdNBR)', sensor: 'Sensor', before: 'Antes del incendio',
 			index: 'Índice', idx_dNBR: 'dNBR (clases del USGS)', idx_RBR: 'RBR (continuo, sin clases)',
@@ -464,6 +467,9 @@
 			trendPart: 'Part of the year of the map', output: 'Output', o_slope: 'Sen\'s slope (per year)',
 			o_tau: 'Kendall\'s τ', o_z: 'Mann-Kendall Z', o_p_value: 'p-value', o_intercept: 'Initial value',
 			o_n: 'Years with data', significant: 'Only pixels with a significant trend (p < 0.05)',
+			trendTest: 'Test', tt_mk: 'Mann-Kendall', 'tt_hamed-rao': 'Hamed-Rao (autocorrelation)',
+			tt_tfpw: 'TFPW (pre-whitening)', trendTestNote: 'Hamed-Rao and TFPW correct for the autocorrelation of the ' +
+				'yearly values, which makes Mann-Kendall find significant trends too often.',
 			trendMap: 'Trend map', seeChart: 'Values of each year of',
 			fire: 'Burn severity of a fire (dNBR, RBR or RdNBR)', sensor: 'Sensor', before: 'Before the fire',
 			after: 'After the fire',
@@ -643,7 +649,7 @@
 		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
-		trendStep: 'monthly', trendMetric: 'mean', trendPart: 7, output: 'slope', significant: false,
+		trendStep: 'monthly', trendMetric: 'mean', trendTest: 'mk', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median', doy: false,
 		// the colour range of every map (Colour range, with the options of Map): its percentiles (maps.STRETCH by
 		// default) and the minimum and maximum given ('': from its percentile); the animation, one range for every frame
@@ -2236,10 +2242,11 @@
 			} else {
 				var ts = specOf(null, state.trendMetric);
 				var part = state.trendStep === 'annual' ? 0 : state.trendPart;
-				img = mo.classifyTrend(mo.trendImage(ts, geom, state.trendStep, part, state.trendMetric), 0.05);
+				img = mo.classifyTrend(mo.trendImage(ts, geom, state.trendStep, part, state.trendMetric, null,
+					state.trendTest), 0.05);
 				legend = mo.TREND_CLASSES.map(function (c) { return [c[0], state.lang === 'es' ? c[3] : c[1], {}]; });
 				colours = mo.TREND_CLASSES.map(function (c) { return c[2]; });
-				name = title(e, [t('trendMap'), ts.period.join('/')]);
+				name = title(e, [t('trendMap'), ts.period.join('/')].concat(testName()));
 			}
 		}
 		var scale = mo.areaScale(native, state.info.area);
@@ -3055,18 +3062,19 @@
 		enoughYears(s);
 		var step = state.trendStep;
 		var first = mo.windows(s.period, s.season)[0][0];
-		var name = title(e, [t('trends'), metricName(state.trendMetric).toLowerCase()]);
+		var name = title(e, [t('trends'), metricName(state.trendMetric).toLowerCase()].concat(testName()));
 		var id = start();
+		var test = state.trendTest, extra = {'hamed-rao': ['n/n*', 'n_ratio'], tfpw: ['r1', 'r1']}[test];
 		seasonalSeries(s, step, state.trendMetric, id, function (yearly, scale) {
-			var rows = mo.trendRows(yearly, step, first, state.lang);
+			var rows = mo.trendRows(yearly, step, first, state.lang, null, null, test);
 			var unit = unitText(e, state.trendMetric, null, state.stat);
 			var cols = [t('part'), 'n', 'τ', 'Z', 'p', t('significantShort'), unit ? 'Sen (' + unit + '/' +
-				(state.lang === 'es' ? 'año' : 'year') + ')' : 'Sen'];
+				(state.lang === 'es' ? 'año' : 'year') + ')' : 'Sen'].concat(extra ? [extra[0]] : []);
 			var regions = regionsOf(rows);
 			if (regions.length > 1) cols.unshift(t('region'));
 			var table = [cols].concat(rows.map(function (r) {
 				var c = [r.label, r.n, num(r.tau, 3), num(r.z, 3), num(r.p_value, 3), r.significant ? t('yes') : t('no'),
-					num(r.slope, 3)];
+					num(r.slope, 3)].concat(extra ? [num(r[extra[1]], 3)] : []);
 				if (regions.length > 1) c.unshift(r.region);
 				return c;
 			}));
@@ -3085,7 +3093,7 @@
 			widgets.push(chartPanel);
 			widgets.push(ui.Label(fmt(t('scaleNote'), num(scale)), SMALL));
 			widgets.push(csvWidget(rows, ['region', 'key', 'label', 'n', 'tau', 'z', 'p_value', 'significant', 'slope',
-				'intercept', 'first_year', 'last_year'], name, e));
+				'intercept', 'first_year', 'last_year', 'n_ratio', 'r1'], name, e));
 			show(widgets);
 			showPart(parts[0]);
 		});
@@ -3101,12 +3109,12 @@
 		var part = step === 'annual' ? 0 : state.trendPart;
 		if (step === '16-day' && part > 23) part = 23;
 		var geom = state.region.geometry();
-		var img = mo.trendImage(s, geom, step, part, state.trendMetric);
+		var img = mo.trendImage(s, geom, step, part, state.trendMetric, null, state.trendTest);
 		if (state.significant) img = img.updateMask(img.select('p_value').lt(0.05));
 		img = img.clipToCollection(state.region);
 		var output = state.output;
 		var band = img.select(output);
-		var name = title(e, [mo.partLabel(step, part, state.lang), t('o_' + output)]);
+		var name = title(e, [mo.partLabel(step, part, state.lang), t('o_' + output)].concat(testName()));
 		var value = unitText(e, state.trendMetric);
 		var unit = output === 'slope' ? (value ? value + ' / ' + (state.lang === 'es' ? 'año' : 'year') : '') :
 			output === 'intercept' ? value : '';
@@ -3142,6 +3150,11 @@
 		}));
 	}
 
+	// the trend test in the titles (none for Mann-Kendall)
+	function testName() {
+		return state.trendTest === 'mk' ? [] : [t('tt_' + state.trendTest).replace(/ \(.*\)$/, '')];
+	}
+
 	function trendWidgets() {
 		var w = [];
 		var steps = mo.TREND_STEPS.map(function (x) { return {value: x, label: t('p_' + x)}; });
@@ -3150,6 +3163,9 @@
 			render();
 		})));
 		w.push(row(ui.Label(t('yearMetric')), metricSelect(state.trendMetric, function (v) { state.trendMetric = v; })));
+		var tests = mo.TREND_TESTS.map(function (x) { return {value: x, label: t('tt_' + x)}; });
+		w.push(row(ui.Label(t('trendTest')), select(tests, state.trendTest, function (v) { state.trendTest = v; })));
+		w.push(ui.Label(t('trendTestNote'), SMALL));
 		w.push(button(t('trendTable'), guarded(trendTable)));
 		if (state.trendStep !== 'annual') {
 			var parts = mo.parts(state.trendStep).map(function (p) {
@@ -3463,9 +3479,9 @@
 			takes: ['region', 'other_start', 'other_end'].concat(SOURCE, PIXELS, MAP_OPTIONS, RANGE),
 			defaults: MAP_DEFAULTS},
 		area_by_class: {group: 'areas', button: 'computeAreas',
-			takes: ['region', 'landcover', 'year', 'other_year', 'breaks', 'trend', 'step', 'part', 'alpha'].concat(SOURCE,
-				PIXELS, MAP_OPTIONS),
-			defaults: {temporal: 'period', interannual: 'mean', step: 'annual', alpha: 0.05}},
+			takes: ['region', 'landcover', 'year', 'other_year', 'breaks', 'trend', 'step', 'part', 'alpha', 'test'].concat(
+				SOURCE, PIXELS, MAP_OPTIONS),
+			defaults: {temporal: 'period', interannual: 'mean', step: 'annual', alpha: 0.05, test: 'mk'}},
 		region_stats: {group: 'gradients', button: 'zoneStats', takes: ['region', 'zones'].concat(SOURCE, PIXELS,
 			MAP_OPTIONS), defaults: MAP_DEFAULTS},
 		transect: {group: 'gradients', button: 'drawLine', takes: ['line'].concat(SOURCE, PIXELS, MAP_OPTIONS),
@@ -3480,11 +3496,11 @@
 			takes: ['region', 'other_start', 'other_end', 'step', 'metric', 'stat'].concat(SOURCE, PIXELS),
 			defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
 		trend_table: {group: 'trends', button: 'trendTable',
-			takes: ['region', 'step', 'metric', 'stat', 'alpha'].concat(SOURCE, PIXELS),
-			defaults: {step: 'annual', metric: 'mean', stat: 'mean', alpha: 0.05}},
+			takes: ['region', 'step', 'metric', 'stat', 'alpha', 'test'].concat(SOURCE, PIXELS),
+			defaults: {step: 'annual', metric: 'mean', stat: 'mean', alpha: 0.05, test: 'mk'}},
 		trend_map: {group: 'trends', button: 'trendMap',
-			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha'].concat(SOURCE, PIXELS, RANGE),
-			defaults: {step: 'annual', output: 'slope', metric: 'mean'}},
+			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha', 'test'].concat(SOURCE, PIXELS, RANGE),
+			defaults: {step: 'annual', output: 'slope', metric: 'mean', test: 'mk'}},
 		burn_severity: {group: 'fire', button: 'burn',
 			takes: ['region', 'sensor', 'collection', 'start', 'end', 'other_start', 'other_end', 'index', 'metric',
 				'quality', 'where', 'perimeter', 'burned_min', 'min_ha'],
@@ -3498,7 +3514,7 @@
 	var PARAMETER_ORDER = ['region', 'line', 'variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reducer',
 		'band_scale', 'band_offset', 'unit', 'start', 'end', 'other_start', 'other_end', 'landcover', 'year', 'other_year',
 		'breaks', 'trend', 'zones', 'index', 'step', 'part', 'output', 'metric', 'temporal', 'interannual', 'stat', 'alpha',
-		'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where', 'vmin', 'vmax', 'percentiles',
+		'test', 'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where', 'vmin', 'vmax', 'percentiles',
 		'same_colours'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
@@ -3691,6 +3707,7 @@
 				p.part = state.trendStep === '16-day' && state.trendPart > 23 ? 23 : state.trendPart;
 			}
 			p.metric = state.trendMetric;
+			if (state.trendTest !== 'mk') p.test = state.trendTest;
 		}
 		if (analysis === 'trend_table') p.stat = state.stat;
 		if (analysis === 'trend_map') {
@@ -4234,6 +4251,7 @@
 		if (analysis === 'trend_table' || analysis === 'trend_map') {
 			choose('step', options.step, mo.TREND_STEPS, function (v) { state.trendStep = v; }, skip);
 			metric('metric', function (m) { state.trendMetric = m; });
+			choose('test', options.test, mo.TREND_TESTS, function (v) { state.trendTest = v; }, skip);
 		}
 		if (analysis === 'trend_table') {
 			choose('stat', options.stat, STATS, function (v) { state.stat = v; }, skip);
@@ -4309,6 +4327,7 @@
 				part();
 				options.metric = o.metric !== undefined ? o.metric : 'mean';  // that of each year, as trend_map
 				metric('metric', function (m) { state.trendMetric = m; });
+				choose('test', options.test, mo.TREND_TESTS, function (v) { state.trendTest = v; }, skip);
 				significance();
 			} else {
 				state.areaKind = 'classes';  // those of a categorical layer

@@ -221,6 +221,7 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.doy_other = _Combo([('None', None), ('NDSI (Sentinel-2)', {'variable': 'NDSI', 'sensor': 'Sentinel-2'})])
 	p.trend_step, p.trend_part = _Combo(d.TREND_STEPS, 'annual'), _Combo([('the year', 0)])
 	p.trend_metric, p.trend_alpha = _Combo(d.METRICS, 'mean'), _Check(True)
+	p.trend_test = _Combo(d.TREND_TESTS, 'mk')
 	p.map_metric, p.temporal = _Combo(d.METRICS, 'median'), _Combo(d.TEMPORAL, 'period')
 	p.interannual, p.map_kind = _Combo(d.METRICS, 'mean'), _Combo(d.MAP_KINDS, 'index')
 	p.trend_colours, p.map_colours, p.anim_colours = _Colours(d), _Colours(d), _Colours(d)

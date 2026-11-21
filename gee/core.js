@@ -3236,6 +3236,8 @@ var MonitorEO = (function () {
 	var TREND_STEPS = ['monthly', '16-day', 'annual'];
 	var OUTPUTS = ['slope', 'tau', 'z', 'p_value', 'intercept', 'n'];
 	var MIN_YEARS = 2;
+	var TREND_TESTS = ['mk', 'hamed-rao', 'tfpw'];  // trends.TESTS
+	var Z_LAG = 1.96, TIE = 1e-6;
 	var MONTHS = {
 		es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
 			'noviembre', 'diciembre'],
@@ -3307,34 +3309,138 @@ var MonitorEO = (function () {
 		return out;
 	}
 
-	// trends.yearly_collection
-	function yearlyCollection(s, region, step, part, metric) {
+	// trends.check_test
+	function checkTest(test) {
+		test = test ? String(test).toLowerCase() : 'mk';
+		if (TREND_TESTS.indexOf(test) < 0) throw new Error('unknown trend test ' + test + ': use ' + TREND_TESTS.join(', '));
+		return test;
+	}
+
+	// trends._yearly_images: [[year, image 'value']]
+	function yearlyImages(s, region, step, part, metric) {
 		onlyMetric(entryOf(s), metric || 'mean');
 		var col = collection(s, region);
 		var red = metric || 'mean';
 		checkMetric(red);
-		var imgs = [];
+		var out = [];
 		seasonalBins(s, step).forEach(function (b) {
-			if (b[0] !== part) return;
-			var value = reduceSpan(col, red, b[2], b[3]);
-			imgs.push(ee.Image.constant(b[1]).toFloat().rename('t').updateMask(value.mask()).addBands(value));
+			if (b[0] === part) out.push([b[1], reduceSpan(col, red, b[2], b[3])]);
 		});
-		if (!imgs.length) throw new Error('the period has no ' + partLabel(step, part, 'en'));
-		return ee.ImageCollection.fromImages(imgs);
+		if (!out.length) throw new Error('the period has no ' + partLabel(step, part, 'en'));
+		return out;
+	}
+
+	// trends._with_years
+	function withYears(images) {
+		return ee.ImageCollection.fromImages(images.map(function (y) {
+			return ee.Image.constant(y[0]).toFloat().rename('t').updateMask(y[1].mask()).addBands(y[1]);
+		}));
+	}
+
+	// trends.yearly_collection
+	function yearlyCollection(s, region, step, part, metric) {
+		return withYears(yearlyImages(s, region, step, part, metric));
+	}
+
+	// trends._z_of
+	function zOf(tau, n) {
+		return tau.multiply(n.multiply(n.subtract(1)).multiply(9).divide(n.multiply(2).add(5).multiply(2)).sqrt());
+	}
+
+	// trends._sum
+	function sumImages(images) {
+		return images.length ? ee.ImageCollection.fromImages(images.map(function (i) { return i.unmask(0); })).sum()
+			: ee.Image.constant(0);
+	}
+
+	function yearsOf(series) {
+		return Object.keys(series).map(Number).sort(function (a, b) { return a - b; });
+	}
+
+	// trends._lag_r
+	function lagRImage(series, k, mean, den) {
+		var terms = [];
+		yearsOf(series).forEach(function (t) {
+			if (series[t + k]) terms.push(series[t].subtract(mean).multiply(series[t + k].subtract(mean)));
+		});
+		return sumImages(terms).divide(den).where(den.eq(0), 0);
+	}
+
+	function detrendImages(series, slope, first) {
+		var d = {};
+		yearsOf(series).forEach(function (t) { d[t] = series[t].subtract(slope.multiply(t - first)); });
+		return d;
+	}
+
+	// trends._hamed_rao_image
+	function hamedRaoImage(series, slope, n, first) {
+		var d = detrendImages(series, slope, first), years = yearsOf(d), ranks = {};
+		years.forEach(function (t) {
+			var below = [];
+			years.forEach(function (u) {
+				if (u === t) return;
+				var tied = d[u].subtract(d[t]).abs().lte(d[u].abs().add(d[t].abs()).multiply(TIE));
+				below.push(d[u].lt(d[t]).and(tied.not()).add(tied.multiply(0.5)));
+			});
+			ranks[t] = sumImages(below).add(1).updateMask(d[t].mask());
+		});
+		var mean = n.add(1).divide(2);
+		var den = sumImages(years.map(function (t) { return ranks[t].subtract(mean).pow(2); }));
+		var total = ee.Image.constant(0), bound = ee.Image.constant(Z_LAG).divide(n.sqrt());
+		for (var k = 1; k <= years[years.length - 1] - years[0]; k++) {
+			var r = lagRImage(ranks, k, mean, den);
+			var weight = n.subtract(k).multiply(n.subtract(k + 1)).multiply(n.subtract(k + 2));
+			total = total.add(weight.multiply(r).multiply(r.abs().gt(bound).and(n.gte(k + 3))));
+		}
+		var ratio = total.multiply(2).divide(n.multiply(n.subtract(1)).multiply(n.subtract(2))).add(1);
+		return ratio.where(ratio.lte(0).or(n.lt(3)), 1);
+	}
+
+	// trends._tfpw_images
+	function tfpwImages(series, slope, n, first) {
+		var d = detrendImages(series, slope, first), years = yearsOf(d);
+		var mean = sumImages(years.map(function (t) { return d[t]; })).divide(n);
+		var den = sumImages(years.map(function (t) { return d[t].subtract(mean).pow(2); }));
+		var r1 = lagRImage(d, 1, mean, den), blended = [];
+		years.forEach(function (t) {
+			if (d[t - 1]) blended.push([t, d[t].subtract(d[t - 1].multiply(r1)).add(slope.multiply(t - first)).rename('value')]);
+		});
+		return [blended, r1];
 	}
 
 	// trends.trend_image
-	function trendImage(s, region, step, part, metric, minYears) {
-		var col = yearlyCollection(s, region, step, part, metric);
+	function trendImage(s, region, step, part, metric, minYears, test) {
+		test = checkTest(test);
+		var images = yearlyImages(s, region, step, part, metric);
+		var col = withYears(images);
 		var first = windows(s.period, s.season)[0][0];
-		var n = col.select('value').count().rename('n');
-		var tau = col.select('value').reduce(ee.Reducer.kendallsCorrelation()).select('value_tau').rename('tau');
-		var z = tau.multiply(n.multiply(n.subtract(1)).multiply(9).divide(n.multiply(2).add(5).multiply(2)).sqrt())
-			.rename('z');
-		var p = ee.Image.constant(1).subtract(z.abs().divide(Math.sqrt(2)).erf()).rename('p_value');
+		var n = col.select('value').count().toDouble().rename('n');
 		var sen = col.select(['t', 'value']).reduce(ee.Reducer.sensSlope());
 		var slope = sen.select('slope');
-		var intercept = sen.select('offset').add(slope.multiply(first)).rename('intercept');
+		var series = {}, y0 = images[0][0], tau, z;
+		images.forEach(function (y) { series[y[0]] = y[1].rename('value').toDouble(); });
+		if (test === 'tfpw') {
+			var blended = tfpwImages(series, slope, n, y0)[0], nb;
+			if (blended.length) {
+				var bcol = withYears(blended);
+				nb = bcol.select('value').count().toDouble();
+				tau = bcol.select('value').reduce(ee.Reducer.kendallsCorrelation()).select('value_tau');
+			} else {  // a single year: no blended values
+				nb = ee.Image.constant(0).toDouble();
+				tau = ee.Image.constant(0).toDouble().updateMask(0);
+			}
+			z = zOf(tau, nb).updateMask(nb.gte(2).and(n.gte(3)));
+			tau = tau.updateMask(z.mask());
+		} else {
+			tau = col.select('value').reduce(ee.Reducer.kendallsCorrelation()).select('value_tau');
+			z = zOf(tau, n);
+			if (test === 'hamed-rao') {
+				z = z.divide(hamedRaoImage(series, slope, n, y0).sqrt()).updateMask(n.gte(3));
+				tau = tau.updateMask(n.gte(3));
+			}
+		}
+		var p = ee.Image.constant(1).subtract(z.abs().divide(Math.sqrt(2)).erf());
+		var intercept = sen.select('offset').add(slope.multiply(first));
 		var out = ee.Image.cat([slope, tau, z, p, intercept, n.toFloat()]).rename(OUTPUTS);
 		return out.updateMask(n.gte(minYears || MIN_YEARS));
 	}
@@ -3410,6 +3516,72 @@ var MonitorEO = (function () {
 		return [n, tau, z, erfc(Math.abs(z) / Math.SQRT2)];
 	}
 
+	// trends.lag_r: the autocorrelation of lag K (years) of SERIES ({year: value})
+	function lagR(series, k) {
+		var years = yearsOf(series), m = 0, den = 0, num = 0;
+		years.forEach(function (t) { m += series[t] / years.length; });
+		years.forEach(function (t) {
+			den += Math.pow(series[t] - m, 2);
+			if (series[t + k] !== undefined) num += (series[t] - m) * (series[t + k] - m);
+		});
+		return den ? num / den : 0;
+	}
+
+	// trends._ranks
+	function ranks(values) {
+		return values.map(function (v, i) {
+			var r = 1;
+			values.forEach(function (o, j) {
+				if (j !== i) r += Math.abs(o - v) <= TIE * (Math.abs(o) + Math.abs(v)) ? 0.5 : o < v ? 1 : 0;
+			});
+			return r;
+		});
+	}
+
+	// trends.hamed_rao_ratio
+	function hamedRaoRatio(years, values, slope) {
+		var pts = sortedPoints(years, values), n = pts.length;
+		if (n < 3) return 1;
+		var rk = ranks(pts.map(function (p) { return p[1] - slope * (p[0] - pts[0][0]); })), byYear = {}, total = 0;
+		pts.forEach(function (p, i) { byYear[p[0]] = rk[i]; });
+		for (var k = 1; k <= Math.min(n - 3, pts[n - 1][0] - pts[0][0]); k++) {
+			var r = lagR(byYear, k);
+			if (Math.abs(r) > Z_LAG / Math.sqrt(n)) total += (n - k) * (n - k - 1) * (n - k - 2) * r;
+		}
+		var ratio = 1 + 2 * total / (n * (n - 1) * (n - 2));
+		return ratio > 0 ? ratio : 1;
+	}
+
+	// trends.tfpw_series: [years, blended values, r1]
+	function tfpwSeries(years, values, slope) {
+		var pts = sortedPoints(years, values), d = {}, x0 = pts.length ? pts[0][0] : 0, by = [], bv = [];
+		pts.forEach(function (p) { d[p[0]] = p[1] - slope * (p[0] - x0); });
+		var r1 = pts.length > 1 ? lagR(d, 1) : 0;
+		pts.forEach(function (p) {
+			if (d[p[0] - 1] !== undefined) {
+				by.push(p[0]);
+				bv.push(d[p[0]] - r1 * d[p[0] - 1] + slope * (p[0] - x0));
+			}
+		});
+		return [by, bv, r1];
+	}
+
+	// trends.trend_test: {n, tau, z, p_value, n_ratio, r1}
+	function trendTest(years, values, test) {
+		test = checkTest(test);
+		var mk = mannKendall(years, values);
+		var out = {n: mk[0], tau: mk[1], z: mk[2], p_value: mk[3], n_ratio: null, r1: null};
+		if (test === 'mk' || mk[1] === null) return out;
+		if (mk[0] < 3) return {n: mk[0], tau: null, z: null, p_value: null, n_ratio: null, r1: null};
+		var slope = sen(years, values)[0];
+		if (test === 'hamed-rao') {
+			var ratio = hamedRaoRatio(years, values, slope), z = mk[2] / Math.sqrt(ratio);
+			return {n: mk[0], tau: mk[1], z: z, p_value: erfc(Math.abs(z) / Math.SQRT2), n_ratio: ratio, r1: null};
+		}
+		var b = tfpwSeries(years, values, slope), m = mannKendall(b[0], b[1]);
+		return {n: mk[0], tau: m[1], z: m[2], p_value: m[3], n_ratio: null, r1: b[2]};
+	}
+
 	function median(xs) {
 		xs = xs.slice().sort(function (a, b) { return a - b; });
 		var m = Math.floor(xs.length / 2);
@@ -3449,7 +3621,8 @@ var MonitorEO = (function () {
 	}
 
 	// trends.trend_rows
-	function trendRows(yearly, step, first, lang, minYears, alpha) {
+	function trendRows(yearly, step, first, lang, minYears, alpha, test) {
+		test = checkTest(test);
 		minYears = minYears || MIN_YEARS;
 		alpha = alpha || 0.05;
 		var g = groupBy(yearly, function (r) { return JSON.stringify([r.region, r.part]); });
@@ -3457,16 +3630,17 @@ var MonitorEO = (function () {
 			var rows = g.groups[k];
 			var years = rows.map(function (r) { return r.year; });
 			var values = rows.map(function (r) { return r.value; });
-			var mk = mannKendall(years, values);
+			var tt = trendTest(years, values, test), mk = [tt.n, tt.tau, tt.z, tt.p_value];
 			var ok = mk[0] >= minYears && mk[1] !== null;
-			var sl = ok ? sen(years, values, first) : [null, null];
+			var sl = mk[0] >= Math.max(minYears, 2) ? sen(years, values, first) : [null, null];
 			var valid = years.filter(function (x, i) { return values[i] !== null && values[i] !== undefined; });
 			var r0 = rows[0];
 			return {region: r0.region, part: r0.part, key: partKey(step, r0.part), label: partLabel(step, r0.part, lang),
 				n: mk[0], tau: ok ? mk[1] : null, z: ok ? mk[2] : null, p_value: ok ? mk[3] : null,
 				significant: Boolean(ok && mk[3] < alpha), slope: sl[0], intercept: sl[1],
 				first_year: valid.length ? Math.min.apply(null, valid) : null,
-				last_year: valid.length ? Math.max.apply(null, valid) : null};
+				last_year: valid.length ? Math.max.apply(null, valid) : null,
+				n_ratio: ok ? tt.n_ratio : null, r1: ok ? tt.r1 : null};
 		});
 		return out.sort(compareRegionPart);
 	}
@@ -4171,7 +4345,7 @@ var MonitorEO = (function () {
 		INTERANNUAL: INTERANNUAL, PROFILE_COLUMNS: PROFILE_COLUMNS, PROFILE_META: PROFILE_META, MONTH_ABBR: MONTH_ABBR,
 		MONTH_STARTS: MONTH_STARTS, withDoy: withDoy, checkInterannual: checkInterannual, overYears: overYears,
 		dayLabel: dayLabel, doyProfile: doyProfile, UDUNITS: UDUNITS, udunits: udunits,
-		TREND_STEPS: TREND_STEPS, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
+		TREND_STEPS: TREND_STEPS, TREND_TESTS: TREND_TESTS, checkTest: checkTest, trendTest: trendTest, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
 		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,

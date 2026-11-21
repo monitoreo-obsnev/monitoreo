@@ -275,17 +275,20 @@ dock.admin.setCurrentIndex(dock.admin.count() - 1)
 pick(dock.trend_step, 'monthly')
 pick(dock.trend_part, 7)
 pick(dock.trend_metric, 'max')
+pick(dock.trend_test, 'tfpw')
 dock.trend_alpha.setChecked(False)
 
 
 def change_trend():
 	dock.admin.clear()
 	pick(dock.trend_step, 'annual')
+	pick(dock.trend_test, 'mk')
 	dock.trend_alpha.setChecked(True)
 
 
 call = roundtrip('trend_map', change_trend)
 assert call[1]['region'] == {'admin2': 1234} and call[1]['part'] == 7 and call[1]['alpha'] is None
+assert call[1]['test'] == 'tfpw' and dock.trend_test.currentData() == 'tfpw'
 pick(dock.trend_step, 'annual')  # the whole year: no part, as the area by class (the app takes none)
 assert dock.call_of('trend_map')[1]['part'] is None and 'part' not in parameters.make(*dock.call_of('trend_map'))[
 	'parameters']

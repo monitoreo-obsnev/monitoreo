@@ -64,6 +64,8 @@ DOY_INTERANNUAL = [('A line per year', None), ('Mean', 'mean'), ('Median', 'medi
                    ('Maximum', 'max'), ('Percentile 25', 'p25'), ('Percentile 75', 'p75'),
                    ('Standard deviation', 'std'), ('Coefficient of variation (%)', 'cv')]
 TREND_STEPS = [('Year', 'annual'), ('Months', 'monthly'), ('16 days', '16-day')]
+TREND_TESTS = [('Mann-Kendall', 'mk'), ('Hamed-Rao (autocorrelation)', 'hamed-rao'),
+               ('TFPW (pre-whitening)', 'tfpw')]  # monitoreo.trends.TESTS
 ANIMATION_STEPS = [('Year', 'annual'), ('Month', 'monthly'), ('16 days', '16-day'), ('Day with images', 'daily')]
 AREA_KINDS = [('Land cover map', 'landcover'), ('Classes of the variable (breaks)', 'breaks'),
               ('Trend of the variable', 'trend'), ('Classes of a categorical layer (the variable)', 'classes')]
@@ -108,7 +110,7 @@ FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)'
 FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_start': '2023-09-15',
               'after_end': '2023-11-30'}
 POLL_MS = 30000
-ALPHA = 0.05  # «Significant pixels only»: the pixels with Mann-Kendall p < ALPHA
+ALPHA = 0.05  # «Significant pixels only»: the pixels with p < ALPHA of the trend test
 MAX_VERTICES = 20000
 MAP_PIXELS = 4000000  # maps downloaded as GeoTIFF: at most these pixels (16 MB), always those of the data; a bigger
 # region is not computed (services.check_pixels: a warning with what to change)
@@ -157,12 +159,13 @@ DATA = ('variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reduce
 # the fields of the panel that the parameters set, in this order (the variable first: it greys out some of the others);
 # those of COMBOS are the list of the panel of the same name
 FIELDS = ('variable', 'region', 'line', 'where', 'period', 'compare', 'season', 'quality', 'step', 'ts_metric', 'stat',
-          'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_alpha',
-          'trend_colours', 'map_metric', 'temporal', 'interannual', 'map_kind', 'map_colours', 'resolution', 'zones',
+          'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_test',
+          'trend_alpha', 'trend_colours', 'map_metric', 'temporal', 'interannual', 'map_kind', 'map_colours', 'resolution', 'zones',
           'stats', 'area_kind', 'area_map', 'area_breaks', 'anim_step', 'anim_metric', 'anim_fps', 'anim_colours',
           'anim_same', 'fire_index', 'fire_sensor',
           'fire_before', 'fire_after', 'fire_perimeter')
-COMBOS = ('step', 'ts_metric', 'stat', 'doy_interannual', 'trend_step', 'trend_part', 'trend_metric', 'map_metric',
+COMBOS = ('step', 'ts_metric', 'stat', 'doy_interannual', 'trend_step', 'trend_part', 'trend_metric', 'trend_test',
+          'map_metric',
           'temporal', 'interannual', 'area_kind', 'anim_step', 'anim_metric', 'fire_index', 'fire_sensor')
 REGION_LAYER = 'Region of the parameters'  # the temporary layers of a region or a line of some parameters
 LINE_LAYER = 'Line of the parameters'
@@ -944,11 +947,13 @@ def panel_fields(analysis, params):
 	elif analysis == 'trend_table':
 		take('trend_step', 'step', TREND_STEPS)
 		take('trend_metric', 'metric', METRICS)
+		take('trend_test', 'test', TREND_TESTS)
 		take('stat', choices=STATS)
 	elif analysis in ('trend_map', 'download_trend'):
 		take('trend_step', 'step', TREND_STEPS)
 		take('trend_part', 'part')
 		take('trend_metric', 'metric', METRICS)
+		take('trend_test', 'test', TREND_TESTS)
 		used.add('alpha')
 		if p.get('alpha') not in (None, ALPHA):
 			reports.append(missing('alpha', p['alpha'], f'the panel shows only the pixels with p < {ALPHA:g} '
@@ -995,6 +1000,7 @@ def panel_fields(analysis, params):
 			take('trend_step', 'step', TREND_STEPS)
 			take('trend_part', 'part')
 			take('trend_metric', 'metric', METRICS, 'mean' if p.get('metric') is None else _MISSING)
+			take('trend_test', 'test', TREND_TESTS)
 		else:
 			field('area_kind', 'classes')
 	elif analysis == 'timelapse':
@@ -1526,16 +1532,19 @@ class MonitorEODock(QDockWidget):
 		box = QGroupBox('Trends (Mann-Kendall and Sen)')
 		self.trends_box = box
 		box.setToolTip("Trend of each part of the year over the years of the period: Kendall's τ, Mann-Kendall Z and "
-		               "p-value, and Sen's slope (change per year). Better with 8 years or more")
+		               "p-value (or corrected for autocorrelation: Hamed-Rao, TFPW), and Sen's slope (change per "
+		               "year). Better with 8 years or more")
 		f = QFormLayout(box)
 		self.trend_step = combo(TREND_STEPS, 'annual')
 		self.trend_part = QComboBox()
 		self.trend_step.currentIndexChanged.connect(self.update_trend_parts)
 		self.update_trend_parts()
 		self.trend_metric = combo(METRICS, 'mean')
+		self.trend_test = combo(TREND_TESTS, 'mk')
 		self.trend_alpha = QCheckBox('only pixels with a significant trend (p < 0.05)')
 		f.addRow('Parts of the year', info(self.trend_step, HELP['trend_step']))
 		f.addRow('Metric of each year', info(self.trend_metric, HELP['trend_metric']))
+		f.addRow('Test', info(self.trend_test, HELP['trend_test']))
 		b = QPushButton('Trend table of the region')
 		b.setToolTip('Trend of each part of the year of the statistic of the region (that of the time series)')
 		b.clicked.connect(self.run_trend_table)
@@ -3516,7 +3525,8 @@ class MonitorEODock(QDockWidget):
 		series); ValueError if the fields are not valid."""
 		region, var = self.region(), self.variable_args()
 		return 'trend_table', dict(region=region, **var, step=self.trend_step.currentData(),
-		                           metric=self.trend_metric.currentData(), stat=self.stat.currentData())
+		                           metric=self.trend_metric.currentData(), test=self.trend_test.currentData(),
+		                           stat=self.stat.currentData())
 
 	def run_trend_table(self):
 		call = self.call_of('trend_table')
@@ -3552,6 +3562,7 @@ class MonitorEODock(QDockWidget):
 		                              part=self.trend_part.currentData() if step != 'annual' else None,  # as areas_call
 		                              metric=self.trend_metric.currentData(),
 		                              alpha=ALPHA if self.trend_alpha.isChecked() else None,
+		                              test=self.trend_test.currentData(),
 		                              **self.trend_colours.args(services.download_trend))
 
 	def run_trend_map(self):
@@ -3635,7 +3646,7 @@ class MonitorEODock(QDockWidget):
 				            interannual=self.interannual.currentData())
 		else:
 			opts = dict(var, trend=True, step=self.trend_step.currentData(), metric=self.trend_metric.currentData(),
-			            part=self.trend_part.currentData() if self.trend_step.currentData() != 'annual' else None)
+			            test=self.trend_test.currentData(), part=self.trend_part.currentData() if self.trend_step.currentData() != 'annual' else None)
 		return 'area_by_class', dict(region=region, **opts)
 
 	def run_areas(self):
@@ -4052,7 +4063,7 @@ class MonitorEODock(QDockWidget):
 		if res['kind'] == 'trends':
 			kind = 'index'
 			opts = dict(var, start=a['start'], end=a['end'], step=entry.get('step') or a['step'], part=entry.get('part'),
-			            metric=a['metric'], alpha=ALPHA if significant else None)
+			            metric=a['metric'], alpha=ALPHA if significant else None, test=a.get('test') or 'mk')
 			download, tiles = services.download_trend, services.trend_map
 		else:
 			opts = dict(var, start=entry['start'], end=entry['end'], metric=a['metric'])

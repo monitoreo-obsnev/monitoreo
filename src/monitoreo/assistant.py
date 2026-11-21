@@ -114,6 +114,8 @@ RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table',
 TASKS = ('export_image_to_drive', 'export_time_series_to_drive', 'task_status')  # answers without values: to both
 # arguments the model does not see (it sees collection: the ID of a collection of Earth Engine, see describe_asset)
 HIDDEN = ('scale', 'vmin', 'vmax', 'crs', 'lang', 'limit', 'quick', 'preview')
+# and those it does not see in some tools (the trend test: in trend_table, which the maps of its pixels copy)
+HIDDEN_IN = {'trend_map': ('test',), 'download_trend': ('test',), 'area_by_class': ('test',)}
 RANGE = ('percentiles', 'vmin', 'vmax')  # the range of the colours of a map that the model or the user gave
 
 # the arguments of the data of Earth Engine outside the catalog (instead of variable and sensor, see describe_asset),
@@ -345,7 +347,8 @@ cv (coefficient of variation: 100 × std / mean, in %) and pN (percentile N, e.g
 ["mean", "median", "cv", "p10", "p90"]). Say that the cv is in % and only means something for variables with a true \
 zero and positive values (precipitation, NDVI of vegetation), not with a mean near 0 (a temperature in °C, an index \
 around 0). Trend over the years (Mann-Kendall and Sen's slope, 8 years or more): trend_table, \
-with step "monthly" for that of each month; it gives the table and the chart of the area and the map of the trend on \
+with step "monthly" for that of each month; with test "hamed-rao" or "tfpw" when the user asks for a correction for \
+the autocorrelation (serial correlation) of the yearly values; it gives the table and the chart of the area and the map of the trend on \
 each pixel (of each month, in the page), so trend_map is not needed. Compare a period with a reference one: \
 compare_series and compare_map. Hectares of each class: area_by_class, of a land cover map (landcover, year), of a \
 variable cut at some values (breaks, e.g. elevation bands) or of its trend (trend true); the changes of a land cover \
@@ -555,7 +558,7 @@ def model_tools(tools):
 			continue
 		schema = _compact(t.get('inputSchema') or {'type': 'object', 'properties': {}})
 		props = schema.setdefault('properties', {})
-		for k in HIDDEN:
+		for k in HIDDEN + HIDDEN_IN.get(t['name'], ()):
 			props.pop(k, None)
 		if 'band' in props:  # one band, or several in a text with commas (the services split it): shorter than a list
 			props['band'] = {'type': 'string'}
@@ -1906,6 +1909,8 @@ class Assistant:
 		if item['tool'] == 'trend_table':  # the trend of the values of each year on each pixel
 			tool = 'trend_map'
 			args.update(step='annual', metric=a.get('metric') or 'mean')
+			if a.get('test') not in (None, 'mk'):  # the same trend test on each pixel
+				args['test'] = a['test']
 		elif item['tool'] == 'region_stats':
 			args.update({k: a[k] for k in ('metric', 'temporal', 'interannual') if a.get(k) is not None})
 		else:
@@ -2192,7 +2197,8 @@ class Assistant:
 			ma = m['args']
 			error, texts, _ = await self.call('trend_table', {
 				**base, 'region': point, 'start': ma['start'], 'end': ma['end'], 'step': ma.get('step') or 'annual',
-				'metric': ma.get('metric') or 'mean'})
+				'metric': ma.get('metric') or 'mean',
+				**({'test': ma['test']} if ma.get('test') not in (None, 'mk') else {})})
 			trend = json.loads(texts[0]) if not error and texts else {}
 			row = next((r for r in trend.get('trends') or [] if not ma.get('part') or r.get('part') == ma['part']), {})
 			out.update(value=row.get('slope'), p_value=row.get('p_value'), label="Sen's slope")

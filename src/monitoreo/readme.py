@@ -40,13 +40,19 @@ COLUMNS = {
 	'label': 'name of the part of the year (or of the severity class)',
 	'n': 'years with data',
 	'tau': "Kendall's tau of the yearly values against the years (-1 to 1)",
-	'z': 'Mann-Kendall Z (normal approximation, without correction for ties)',
-	'p_value': 'two-sided p-value of the Mann-Kendall test',
+	'z': 'Z of the trend test (column test; Mann-Kendall: normal approximation, without correction for ties)',
+	'p_value': 'two-sided p-value of the trend test (column test)',
 	'significant': 'p_value below alpha (True or False)',
 	'slope': "Sen's slope: change of the variable per year{uy}",
 	'intercept': 'value of the Sen line in the first year{u}',
 	'first_year': 'first year of the period',
 	'last_year': 'last year of the period',
+	'n_ratio': 'test hamed-rao: n/n*, the factor of the variance of the Mann-Kendall S for the autocorrelation of the '
+	           'ranks of the yearly values without their trend (1: not corrected; empty with the other tests)',
+	'r1': 'test tfpw: lag-1 autocorrelation of the yearly values without their trend, removed before the test (empty '
+	      'with the other tests)',
+	'test': 'trend test: mk (Mann-Kendall), hamed-rao (Mann-Kendall modified by Hamed and Rao, 1998) or tfpw '
+	        '(Mann-Kendall with trend-free pre-whitening, Yue et al., 2002)',
 	'reference': 'mean of the part of the year over the years of the reference period{u}',
 	'other': 'mean of the part of the year over the years of the other period{u}',
 	'difference': 'other - reference{u}',

@@ -125,7 +125,8 @@ and vmax; timelapse with same_colours false gives each frame its own range. Maps
 region) and download_variables (several variables and metrics on aligned grids over a study area and, at a coarser
 pixel size, over its ecoregions: the input variables of a model). Seasonal trends (Mann-Kendall test and Sen's slope
 of each month, 16 days or year over the years): trend_table (over regions), trend_map and download_trend (on each
-pixel). By day of the year: time_series with doy, a line per year (phenology, snow seasons), or the seasonal profile of
+pixel); with test 'hamed-rao' (Hamed & Rao 1998) or 'tfpw' (trend-free pre-whitening, Yue et al. 2002), corrected for
+the autocorrelation of the yearly values, which makes the plain test find significant trends too often. By day of the year: time_series with doy, a line per year (phenology, snow seasons), or the seasonal profile of
 one or two variables on two y axes with interannual (the metric between the years of each month, 16 days or day,
 default median) and other_variable (and other_sensor), e.g. the median NDSI and NDVI of each month of 2018-2024; each
 y axis goes from the minimum to the maximum of its own variable, or as ylim and other_ylim say. Comparison of a
@@ -753,13 +754,18 @@ def rgb_map(region: dict, variable: str, sensor: str, start: str, end: str, metr
 	return [_text(res)] + _preview(res)
 
 
+def _test_stem(test):
+	"""The trend test in the names of the files ('' for the Mann-Kendall test)."""
+	return '' if str(test or 'mk').lower() == 'mk' else str(test).lower()
+
+
 @tool
 def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None,
                   start: Optional[str] = None, end: Optional[str] = None, landcover: Optional[str] = None,
                   year: Optional[int] = None, other_year: Optional[int] = None, breaks: Optional[List[float]] = None,
                   trend: bool = False, metric: Optional[str] = None, temporal: str = 'period',
                   interannual: str = 'mean', step: str = 'annual', part: Optional[int] = None, alpha: float = 0.05,
-                  season: Optional[List[str]] = None, quality: Optional[dict] = None, collection: Optional[str] = None,
+                  test: str = 'mk', season: Optional[List[str]] = None, quality: Optional[dict] = None, collection: Optional[str] = None,
                   image: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
                   band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                   band_offset: Optional[float] = None, unit: Optional[str] = None, terrain: Optional[str] = None,
@@ -770,7 +776,7 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 	the map of a variable (as map_layer, also the fixed layers) cut at those values, e.g. [1500, 2000, 2500] for the
 	ELEVATION; or trend true, the trend of a variable on each pixel (as trend_map: step, part, metric of each year, the
 	mean by default; start and end) in significant decrease, no significant trend and significant increase
-	(Mann-Kendall p < alpha). The % is of the area with a class. Writes a CSV and returns a bar chart."""
+	(p < alpha). The % is of the area with a class. Writes a CSV and returns a bar chart."""
 	_ready()
 	if landcover:
 		source, what = {}, f"landcover_{landcover}_{year or ''}" + (f'_{other_year}' if other_year else '')
@@ -782,7 +788,7 @@ def area_by_class(region: dict, variable: Optional[str] = None, sensor: Optional
 		what = _data(variable, sensor, source)
 	stem = _stem('areas', what, 'trend' if trend else 'breaks' if breaks else '', start, end)
 	res = services.area_by_class(region, variable, sensor, start, end, metric, temporal, interannual, season, quality,
-	                             landcover, year, breaks, trend, step, part, alpha, csv=_out(stem, 'csv'),
+	                             landcover, year, breaks, trend, step, part, alpha, test=test, csv=_out(stem, 'csv'),
 	                             chart=_out(stem, 'png'), where=where, other_year=other_year, **source)
 	summary = {k: res.get(k) for k in ('title', 'mode', 'unit', 'scale', 'by_landcover', 'by_group', 'changed_ha',
 	                                    'unchanged_ha', 'rows', 'csv', 'chart', 'readme', 'parameters', 'references', 'credits', 'manual')
@@ -979,7 +985,7 @@ def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = Fals
 def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
                 step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
-                collection: Optional[str] = None, image: Optional[str] = None,
+                test: str = 'mk', collection: Optional[str] = None, image: Optional[str] = None,
                 band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                 band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
                 where: Optional[list] = None):
@@ -987,15 +993,15 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
 	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
 	Mann-Kendall tau, Z and p-value (significant if p < alpha) and Sen's slope (change per year). Use 8 or more
-	years. Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart. Required:
+	years. test: 'mk', 'hamed-rao' or 'tfpw' (autocorrelation). Writes a CSV and a chart of the yearly values with their Sen lines, and returns the chart. Required:
 	region, start and end, and variable and sensor or collection and band."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	stem = _stem('trend', _data(variable, sensor, source), step, start, end)
+	stem = _stem('trend', _data(variable, sensor, source), step, start, end, _test_stem(test))
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
-	                           quality=quality, scale=scale, alpha=alpha, csv=_out(stem, 'csv'),
+	                           quality=quality, scale=scale, alpha=alpha, test=test, csv=_out(stem, 'csv'),
 	                           chart=_out(stem, 'png'), where=where, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
@@ -1012,7 +1018,7 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
               step: str = 'annual', part: Optional[int] = None, output: str = 'slope', metric: str = 'mean',
               season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
-              collection: Optional[str] = None, image: Optional[str] = None,
+              test: str = 'mk', collection: Optional[str] = None, image: Optional[str] = None,
               band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
               band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
               where: Optional[list] = None, vmin: Optional[float] = None, vmax: Optional[float] = None,
@@ -1028,10 +1034,10 @@ def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	thumb = None if quick or not preview else _out(_stem('trend', _data(variable, sensor, source), step, part, output),
-	                                               'png')
+	thumb = None if quick or not preview else _out(_stem('trend', _data(variable, sensor, source), step, part, output,
+	                                                     _test_stem(test)), 'png')
 	res = services.trend_map(region, variable, sensor, start, end, step, part, output, metric, season=season,
-	                         quality=quality, alpha=alpha, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
+	                         quality=quality, alpha=alpha, test=test, vmin=vmin, vmax=vmax, thumbnail=thumb, quick=quick,
 	                         where=where, percentiles=percentiles, **source)
 	return [_text(res)] + _preview(res)
 
@@ -1040,7 +1046,7 @@ def trend_map(region: dict, variable: Optional[str] = None, sensor: Optional[str
 def download_trend(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
                    step: str = 'annual', part: Optional[int] = None, metric: str = 'mean',
                    season: Optional[List[str]] = None, quality: Optional[dict] = None, alpha: Optional[float] = None,
-                   resolution: Optional[float] = None, crs: str = 'auto', collection: Optional[str] = None,
+                   test: str = 'mk', resolution: Optional[float] = None, crs: str = 'auto', collection: Optional[str] = None,
                    image: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
                    band_reducer: Optional[str] = None, band_scale: Optional[float] = None,
                    band_offset: Optional[float] = None, unit: Optional[str] = None,
@@ -1054,9 +1060,9 @@ def download_trend(region: dict, variable: Optional[str] = None, sensor: Optiona
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'trends', start=start, end=end)
 	_ready()
-	stem = _stem('trend', _data(variable, sensor, source), step, part, start, end)
+	stem = _stem('trend', _data(variable, sensor, source), step, part, start, end, _test_stem(test))
 	return _text(services.download_trend(region, variable, sensor, start, end, step, part, metric, season=season,
-	                                     quality=quality, alpha=alpha, resolution=resolution, crs=crs,
+	                                     quality=quality, alpha=alpha, test=test, resolution=resolution, crs=crs,
 	                                     path=_out(stem, 'tif'), where=where, vmin=vmin, vmax=vmax,
 	                                     percentiles=percentiles, **source))
 

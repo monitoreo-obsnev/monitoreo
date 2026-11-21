@@ -444,6 +444,19 @@ HELP = {
 		'the mean of the images of each July. In the table, that value is computed for the region with the '
 		'<b>Statistic of the region</b> of the group Time series; in the map, on each pixel.</p>'
 		+ manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
+	'trend_test':
+		'<p>The test of the trend of each part of the year: <b>Mann-Kendall</b>, or a version of it corrected for '
+		'the autocorrelation of the yearly values. Values that depend on those of the years before (a slow recovery '
+		'of the vegetation after a fire, several dry years in a row) make the Mann-Kendall test find significant '
+		'trends too often.</p><ul>'
+		'<li><b>Hamed-Rao</b>: the variance of the test multiplied by n/n*, from the significant autocorrelations of '
+		'the ranks of the values without their trend (the table gives n/n*; 1, not corrected).</li>'
+		'<li><b>TFPW</b> (trend-free pre-whitening): the test on the values without their lag-1 autocorrelation (r1 in '
+		'the table), after removing their trend and adding it back; one year less.</li></ul>'
+		'<p>Sen\'s slope is the same with every test. A correction needs 3 years or more with data, and with few '
+		'years the autocorrelation is poorly estimated: better 10 years or more.</p>'
+		+ cite_html(method_references('trends_hamed-rao') + method_references('trends_tfpw'))
+		+ manual('Concepts#seasonal-trends-mann-kendall-and-sen'),
 	'trend_part':
 		'<p>The part of the year that the <b>Trend map</b> paints: a month or a block of 16 days (with <b>Year</b>, '
 		'the whole year).</p>'
@@ -472,7 +485,7 @@ HELP = {
 		'<li><b>Classes of the variable</b>: its map (with the options of the group <b>Map</b>) cut at the '
 		'<b>Breaks</b>, e.g. <code>1500, 2000, 2500</code> for the elevation bands (below 1500, 1500 to 2000, ...).</li>'
 		'<li><b>Trend of the variable</b>: its trend on each pixel (with the options of the group <b>Trends</b>) in '
-		'significant decrease, no significant trend and significant increase (Mann-Kendall, p &lt; 0.05).</li>'
+		'significant decrease, no significant trend and significant increase (p &lt; 0.05 of its <b>Test</b>).</li>'
 		'<li><b>Classes of a categorical layer</b>: with <b>ECOREGION</b> or <b>BIOME · RESOLVE</b> as the variable '
 		'(theme Ecosystems), its own classes with area in the region, with their colours: the ecoregions with their '
 		'biome, or the biomes.</li></ul>'
