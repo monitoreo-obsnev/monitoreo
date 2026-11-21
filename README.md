@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.66](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.66) · 2026-11-21 · package 0.3.76
 
 - **Assistant**: It is the AI assistant (Asistente de IA), no longer the assistant for managers: its window, its title and the shortcut that its installers put on the Desktop are «MonitorEO AI Assistant» (the shortcut with the old name is removed when the installer runs again).
 
