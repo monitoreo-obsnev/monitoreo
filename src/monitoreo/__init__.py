@@ -48,5 +48,5 @@ import os as _os
 # computes, and a value given by the user is kept. Other BLAS (OpenBLAS, Accelerate) do not read it.
 _os.environ.setdefault('MKL_THREADING_LAYER', 'SEQUENTIAL')
 
-__version__ = '0.3.76'
+__version__ = '0.3.77'
 __released__ = '2026-11-21'  # the date of the release of this version: that of its heading in the changelog
