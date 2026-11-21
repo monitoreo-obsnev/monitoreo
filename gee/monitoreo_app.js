@@ -12776,7 +12776,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "LSWI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": null,
    "metric": null,
    "minp": null,
@@ -12975,7 +12975,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NDSI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": 0,
@@ -13256,17 +13256,14 @@ var CATALOG = {
     "B2": "B2",
     "B3": "B3",
     "B4": "B4",
-    "B5": "B5",
-    "B6": "B6",
-    "B7": "B7",
     "B8": "B8"
    },
    "fk": "expr",
-   "ft": "((0.1836 * B2) + (0.1759 * B3) + (0.1456 * B4) + (0.1347 * B5) + (0.1233 * B6) + (0.1134 * B7) + (0.1001 * B8) +  (0.0231* B11) + (0.0003 * B12))",
+   "ft": "(0.2266 * B2) + (0.1236 * B3) + (0.1573 * B4) + (0.3417 * B8) + (0.1170 * B11) + (0.0338 * B12)",
    "image_asset": null,
    "index": "ALBEDO",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": 0,
@@ -13575,7 +13572,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 4,
    "metric": null,
    "minp": 0,
@@ -14205,7 +14202,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NDCI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": 0,
@@ -14356,7 +14353,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NBR",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": -0.5,
@@ -16589,7 +16586,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1.2,
    "metric": null,
    "minp": -0.5,
@@ -24686,7 +24683,7 @@ var MonitorEO = (function () {
 			if (v !== 'RdNBR' && mo.RDNBR_MODIS.indexOf(state.fireSensor) >= 0) state.fireSensor = 'Landsat';
 			render();
 		}, '260px')));
-		var sensors = [{value: 'Sentinel-2', label: 'Sentinel-2 (10 m)'}, {value: 'Landsat', label: 'Landsat (30 m)'}];
+		var sensors = [{value: 'Sentinel-2', label: 'Sentinel-2 (20 m)'}, {value: 'Landsat', label: 'Landsat (30 m)'}];
 		if (rdnbr) {
 			sensors = sensors.concat([{value: mo.RDNBR_MODIS[0], label: 'MODIS Terra (500 m)'},
 				{value: mo.RDNBR_MODIS[1], label: 'MODIS Aqua (500 m)'}]);

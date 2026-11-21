@@ -594,7 +594,7 @@ def main(argv=None):
 	burn = p = sub.add_parser('burn', help='burn severity of a fire: dNBR with the classes of the USGS, the RBR, or the '
 	                                       'RdNBR with the classes of Miller & Thode 2007')
 	p.add_argument('--sensor', default='Sentinel-2', choices=('Sentinel-2', 'Landsat', 'Modis'),
-	               help='Sentinel-2 (10 m, 20 m with --index RBR; since 2017), Landsat (30 m, since 1984) or Modis '
+	               help='Sentinel-2 (20 m, since 2017), Landsat (30 m, since 1984) or Modis '
 	                    '(500 m, since 2000; only with --index RdNBR, whose classes are then approximate: a pixel of '
 	                    '500 m mixes burned and unburned land)')
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-5.23, 36.47, -5.10, 36.57]}\'')

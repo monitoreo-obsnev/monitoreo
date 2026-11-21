@@ -4,7 +4,7 @@
     (*_bandQA): SCL for Sentinel-2 (Cloud Score+ for its clouds), QA_PIXEL and SR_QA_AEROSOL for Landsat and the
     QA bands of each MODIS product;
   - the scale and offset are applied to the bands before the formula (constants of the formulas such as the + 1
-    of EVI or the - 0.018 of the Landsat albedo need reflectances, not raw values);
+    of EVI or the - 0.0018 of the Landsat albedo need reflectances, not raw values);
   - band names of the formulas are matched without case (LST_day_1km is the band LST_Day_1km);
   - flag values of the MODIS products (e.g. 250 = cloud in NDSI_Snow_Cover) are masked;
   - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector);

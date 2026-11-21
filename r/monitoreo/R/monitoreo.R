@@ -2377,14 +2377,14 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' Burn severity of a fire (dNBR, RBR and RdNBR)
 #'
 #' The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
-#' Benson 2006), with Sentinel-2 (10 m) or Landsat (30 m). With \code{index = "RBR"}, the Relativized Burn Ratio,
+#' Benson 2006), with Sentinel-2 (20 m) or Landsat (30 m). With \code{index = "RBR"}, the Relativized Burn Ratio,
 #' dNBR / (NBR before + 1.001) (Parks et al. 2014), with the NBR of B8A and B12 of Sentinel-2 (Silva-Cardoza et al.
 #' 2022), without phenological correction and on the scale of the dNBR: a continuous index, without classes.
 #'
 #' With \code{index = "RdNBR"}, the relative dNBR of Miller and Thode (2007), dNBR / sqrt(|NBR before|), with
 #' |NBR before| at least 0.001 (Howe et al. 2022), and the severity classes of the article (its Table 4): 0
 #' "Unchanged" (RdNBR < 0.069), 1 "Low severity" (0.069 to 0.316), 2 "Moderate severity" (0.316 to 0.641) and 3
-#' "High severity" (>= 0.641). It is computed with Sentinel-2 (B8 and B12, 10 m, as Howe et al. 2022), Landsat (NIR
+#' "High severity" (>= 0.641). It is computed with Sentinel-2 (B8 and B12, 20 m, as Howe et al. 2022), Landsat (NIR
 #' and SWIR2, 30 m: Landsat 5, 7 until 2003, 8 and 9) or MODIS (\code{sensor = "Modis"}: bands 2 and 7 of the daily
 #' surface reflectance, 500 m, as Veraverbeke et al. 2010; of Terra, MOD09GA, since 2000-02-24, or, with
 #' \code{collection = "MODIS/061/MYD09GA"}, of Aqua, since 2002-07-04). It is on the scale of the dNBR of MonitorEO,

@@ -10,8 +10,9 @@ import pytest
 from monitoreo import about, catalog, publish, references, report, sensors, services
 
 DOI = re.compile(r'^10\.\d{4,9}/\S+$')
-# variables whose formula still has no reference (the team has to find its source): the albedo of Sentinel-2
-PENDING = {13}
+# variables whose formula still has no reference (the team has to find its source): none since the albedo of
+# Sentinel-2 has that of Bonafoni & Sekertekin (2020)
+PENDING = set()
 
 
 def test_bibliography():
@@ -77,6 +78,9 @@ def test_cite():
 	                                     'sensor': 'Sentinel-2', 'start': '2018-01-01', 'end': '2021-12-31'})
 	assert {'esa_s2_l2a', 'pasquarella2023', 'mainknorn2017'} <= set(_ids(s2)) and 'mann1945' not in _ids(s2)
 	assert s2['credits'] == ['Contains modified Copernicus Sentinel data 2018-2021']
+	albedo = references.cite('map_layer', {'variable': 'ALBEDO', 'sensor': 'Sentinel-2', 'start': '2022-01-01',
+	                                       'end': '2022-12-31'})
+	assert {'bonafoni2020', 'esa_s2_l2a'} <= set(_ids(albedo)) and 'liang2001' not in _ids(albedo)
 	scl = references.cite('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'quality': {'cloud_score': None},
 	                                      'start': '2018-01-01', 'end': '2018-12-31'})
 	assert 'pasquarella2023' not in _ids(scl) and 'mainknorn2017' in _ids(scl)  # SCL clouds, no Cloud Score+

@@ -91,7 +91,7 @@ ADMIN_COUNTRY_TIP = 'Country (ISO3 code, e.g. ESP): optional'
 ADMIN_SPAIN_TIP = 'Level 3 is the municipalities of Spain: the country is Spain (ESP)'
 ADMIN_HINTS = {1: 'name of the unit (e.g. Granada)', 2: 'name of the unit (e.g. Granada)',
                municipalities.LEVEL: 'name or INE code of the municipality (e.g. Monachil)'}
-FIRE_SENSORS = [('Sentinel-2 (10 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
+FIRE_SENSORS = [('Sentinel-2 (20 m)', 'Sentinel-2'), ('Landsat (30 m)', 'Landsat')]
 # MODIS, only for the burn indices that have it (services.BURN_SENSORS: the RdNBR): the daily surface reflectance of
 # Terra or of Aqua (500 m), given to services.burn_severity as the sensor 'Modis' and the collection of each
 FIRE_MODIS = [('MODIS Terra (500 m)', 'MODIS/061/MOD09GA'), ('MODIS Aqua (500 m)', 'MODIS/061/MYD09GA')]

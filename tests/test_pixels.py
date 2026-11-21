@@ -62,7 +62,7 @@ def test_the_sensors_whose_map_fits_from_the_finest(grid):
 
 def test_only_the_sensors_given(grid):
 	"""The burn severity proposes only the sensors of its index (no MODIS for the dNBR)."""
-	grid['area'] = 5_000_000 * 10.0 ** 2
+	grid['area'] = 5_000_000 * 20.0 ** 2  # Sentinel-2: 5 million pixels at 20 m (B12)
 	with pytest.raises(services.TooManyPixels) as e:
 		services.check_pixels({'bbox': [0, 0, 1, 1]}, MAX, 'RdNBR', 'Sentinel-2', start='2025-06-01', end='2025-07-31',
 		                      two_periods=True,

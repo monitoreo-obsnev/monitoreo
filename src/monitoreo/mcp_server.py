@@ -1159,7 +1159,7 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
                   burned_min: Optional[float] = None, min_ha: Optional[float] = None) -> str:
 	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
 	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
-	Sentinel-2 (10 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
+	Sentinel-2 (20 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
 	of the region (unburned, low, moderate-low, moderate-high and high severity, and enhanced regrowth) and the burned
 	area (dNBR >= 0.1), writes them to a CSV and downloads a GeoTIFF with the bands dnbr, severity (class -2 to 4),
 	nbr_before and nbr_after. Use periods without the fire: e.g. the 3 months before it and the 2-3 months after it
@@ -1174,7 +1174,7 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	sqrt(|NBR before|) with |NBR before| at least 0.001 (Howe et al. 2022), the change relative to the vegetation
 	before the fire, with the classes of the article (unchanged < 0.069, low 0.069 to 0.316, moderate 0.316 to 0.641,
 	high >= 0.641), on the scale of the dNBR, without the factor 1000 of the article (0.641 here is 641 there) and
-	without its offset (the dNBR of an unburned area outside the fire). Sensors: Sentinel-2 (B8 and B12, 10 m),
+	without its offset (the dNBR of an unburned area outside the fire). Sensors: Sentinel-2 (B8 and B12, 20 m),
 	Landsat (30 m) or "Modis" (500 m, only with this index: the daily surface reflectance of Terra, since 2000, or of
 	Aqua, since 2002-07-04, with collection "MODIS/061/MYD09GA"; its classes are approximate, as a pixel of 500 m
 	mixes burned and unburned land, and small fires are missed). Its classes were calibrated with Landsat TM (30 m)
