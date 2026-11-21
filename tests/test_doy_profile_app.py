@@ -373,7 +373,7 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	# NDSI and NDVI of Sentinel-2, the percentile 25 of the years: a chart for each feature, two axes, each from the
 	# values of its own variable (no viewWindow)
 	names = ['NDSI Sentinel-2', 'NDVI Sentinel-2']
-	meta = {n: {'sensor': 'Sentinel-2', 'unit': '1', 'scale_m': 10} for n in names}
+	meta = {n: {'sensor': 'Sentinel-2', 'unit': '1', 'scale_m': m} for n, m in zip(names, (20, 10))}  # B11 of 20 m
 	p25 = out['p25']
 	assert p25['csv'] == _app_profile([first, other], names, None, 'monthly', 'p25', meta)
 	assert list(p25['csv'][0]) == timeseries.PROFILE_COLUMNS + timeseries.PROFILE_META
@@ -395,7 +395,7 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	assert almeria['hAxis']['viewWindow'] == {'min': 1, 'max': 366}
 	assert almeria['hAxis']['ticks'] == [{'v': d, 'f': m} for d, m in zip(charts.MONTH_STARTS, timeseries.MONTH_ABBR)]
 	assert p25['texts'][0].startswith('Each point: percentile 25 of the values of that step of the year')
-	assert p25['texts'][1].startswith('Computed on pixels of 10 m (NDSI Sentinel-2) and of 10 m (NDVI Sentinel-2).')
+	assert p25['texts'][1].startswith('Computed on pixels of 20 m (NDSI Sentinel-2) and of 10 m (NDVI Sentinel-2).')
 	assert p25['file'].startswith('NDSI_Sentinel-2_and_NDVI_Sentinel-2_Map_view_Mean_monthly_mean_percentile_25')
 	# the coefficient of variation between the years: in %
 	cv = out['cv']
@@ -411,14 +411,14 @@ def test_the_app_draws_the_profile_of_two_indices_on_two_axes():
 	assert modis['csv'] == want
 	axes = modis['charts'][0]['vAxes']
 	assert 'viewWindow' not in axes['0'] and 'viewWindow' not in axes['1']
-	assert modis['texts'][1].startswith('Computed on pixels of 10 m (NDSI Sentinel-2) and of 500 m (NDSI Modis).')
+	assert modis['texts'][1].startswith('Computed on pixels of 20 m (NDSI Sentinel-2) and of 500 m (NDSI Modis).')
 	# one variable: one axis, still the profile (the mean of the years)
 	one = out['one']
 	assert one['csv'] == _app_profile([first], ['NDSI Sentinel-2'], None, 'monthly', 'mean', meta)
 	chart = one['charts'][0]
 	assert [c['label'] for c in chart['cols']] == ['Day of the year', 'NDSI Sentinel-2']
 	assert list(chart['vAxes']) == ['0'] and chart['vAxes']['0'] == {'title': '[unitless]'}
-	assert one['texts'][1].startswith('Computed on pixels of 10 m.')
+	assert one['texts'][1].startswith('Computed on pixels of 20 m.')  # the NDSI alone
 	# a line per year again: of one variable, as before
 	assert out['lines']['other'] == 'none' and out['lines']['chart']['type'] == 'LineChart'
 	assert 'vAxes' not in out['lines']['chart'] and out['lines']['chart']['title'].endswith(' · Almeria')

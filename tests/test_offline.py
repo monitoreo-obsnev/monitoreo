@@ -78,6 +78,21 @@ def test_albedo_sentinel2_is_the_conversion_of_the_article():
 	assert '- 0.0018)' in landsat['ft'] and '- 0.0018)' in landsat['f']
 
 
+def test_sentinel2_pixel_is_that_of_its_coarsest_band():
+	"""The pixel (m) of each variable of Sentinel-2 is that of the coarsest band its formula reads: 20 m with B5, B6,
+	B7, B8A, B11 or B12 (LSWI, NDSI, albedo, Chl-a, NDCI, NBR, RBR, RdNBR, SCF, SCD), 10 m with B2, B3, B4 and B8 only
+	(NDVI, EVI, NDWI) and with the cs_cdf of Cloud Score+ (cloud frequency)."""
+	coarse = {'B5', 'B6', 'B7', 'B8A', 'B11', 'B12'}
+	got = {}
+	for e in catalog.variables():
+		if e['sensor'] == 'Sentinel-2':
+			bands = set(re.findall(r'\bB[0-9]+A?\b', e['ft']))
+			assert e['m'] == (20 if bands & coarse else 10), (e['ref'], e['index'], bands)
+			got[e['index']] = e['m']
+	assert got == {'LSWI': 20, 'NDSI': 20, 'NDWI': 10, 'ALBEDO': 20, 'Chl-a': 20, 'EVI': 10, 'NDVI': 10, 'NDCI': 20,
+	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'CF': 10, 'RdNBR': 20}
+
+
 def test_app_has_the_catalog():
 	"""The catalog of the Earth Engine app (gee/catalog.js, written by gee/build.py) is that of the package: run
 	gee/build.py after changing catalog.json or catalog.py."""
@@ -217,7 +232,7 @@ def test_scf_and_snow_cover_days_of_sentinel2_in_the_catalog():
 	notes = catalog.find(None, ref=156)['notes']['ft']
 	assert 'Cloud Score+' in notes and 'hillShadow' in notes and 'Level-1C' in notes
 	ndsi = catalog.find('NDSI', 'Sentinel-2')  # the entry they copy is unchanged
-	assert (ndsi['ref'], ndsi['m'], ndsi['ft'], ndsi['unit']) == (8, 10, 'N(B3, B11)', '[unitless]')
+	assert (ndsi['ref'], ndsi['m'], ndsi['ft'], ndsi['unit']) == (8, 20, 'N(B3, B11)', '[unitless]')
 	# the TOA reflectance of the same scene (Level-1C, its raw values x 0.0001), the clouds of Cloud Score+ always
 	assert sensors.SCF_TOA['COPERNICUS/S2_SR_HARMONIZED'] == ('COPERNICUS/S2_HARMONIZED', ['B3', 'B11'])
 	assert sensors.SCF_TOA_SCALE == {'COPERNICUS/S2_HARMONIZED': 0.0001} and sensors.SCF['cloud_score'] == 0.6

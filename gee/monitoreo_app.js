@@ -12776,7 +12776,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "LSWI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": null,
    "metric": null,
    "minp": null,
@@ -12975,7 +12975,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NDSI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": 0,
@@ -13572,7 +13572,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "Chl-a",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 4,
    "metric": null,
    "minp": 0,
@@ -14202,7 +14202,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NDCI",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": 0,
@@ -14353,7 +14353,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "NBR",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1,
    "metric": null,
    "minp": -0.5,
@@ -16586,7 +16586,7 @@ var CATALOG = {
    "image_asset": null,
    "index": "RdNBR",
    "large_areas": false,
-   "m": 10,
+   "m": 20,
    "maxp": 1.2,
    "metric": null,
    "minp": -0.5,
@@ -24683,7 +24683,7 @@ var MonitorEO = (function () {
 			if (v !== 'RdNBR' && mo.RDNBR_MODIS.indexOf(state.fireSensor) >= 0) state.fireSensor = 'Landsat';
 			render();
 		}, '260px')));
-		var sensors = [{value: 'Sentinel-2', label: 'Sentinel-2 (10 m)'}, {value: 'Landsat', label: 'Landsat (30 m)'}];
+		var sensors = [{value: 'Sentinel-2', label: 'Sentinel-2 (20 m)'}, {value: 'Landsat', label: 'Landsat (30 m)'}];
 		if (rdnbr) {
 			sensors = sensors.concat([{value: mo.RDNBR_MODIS[0], label: 'MODIS Terra (500 m)'},
 				{value: mo.RDNBR_MODIS[1], label: 'MODIS Aqua (500 m)'}]);

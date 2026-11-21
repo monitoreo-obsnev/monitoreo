@@ -163,7 +163,7 @@ HELP = {
 		'SPA) with different boundaries.</p>' + manual('Concepts#regions'),
 	'variable':
 		'<p>Variable and sensor. Each entry tells the variable, the sensor, the pixel size and the Earth Engine '
-		'collection. Sentinel-2 (10 m, surface reflectance: Level-2A) starts on 2017-03-28; Landsat (30 m), in 1984, '
+		'collection. Sentinel-2 (10 or 20 m, surface reflectance: Level-2A) starts on 2017-03-28; Landsat (30 m), in 1984, '
 		'and MODIS (from 250 m to 4.6 km), in 2000: for long series and trends, Landsat or MODIS.</p>',
 	'period':
 		'<p>First and last day, both included. Each sensor has its dates (see the help of <b>Variable</b>). If you '
@@ -588,8 +588,9 @@ HELP = {
 		'a series, of the group Trends for trends), which shows the patterns of each date better.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
-		'Sentinel-2, 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and a '
-		'faster export.</p>'
+		'Sentinel-2 (20 m for the variables with its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, NBR, the albedo and the '
+		'burn severity), 30 m in Landsat and from 250 m to 4.6 km in MODIS. A bigger pixel gives a smaller file and '
+		'a faster export.</p>'
 		'<p>The export to Google Drive keeps the pixels of the data also in a large area (more than 100,000 km²): it is '
 		'the way to its full resolution.</p>'
 		'<p>The layers of <b>Add the layer to the map</b> do not use it: they always have the resolution of the data, '
@@ -607,9 +608,9 @@ HELP = {
 		'series</b>.</p>'
 		+ manual('QGIS-plugin#8-export-to-google-drive'),
 	'fire_sensor':
-		'<p>The images of the burn severity: <b>Sentinel-2</b> (10 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
-		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12, of 20 m; with the dNBR and the '
-		'RdNBR, B8 and B12 (the RdNBR as in Howe et al. 2022).</p>'
+		'<p>The images of the burn severity: <b>Sentinel-2</b> (20 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
+		'for old fires). With the index RBR, Sentinel-2 uses its bands B8A and B12; with the dNBR and the '
+		'RdNBR, B8 and B12 (the RdNBR as in Howe et al. 2022): the pixel is that of B12, 20 m.</p>'
 		'<p>Only with the index <b>RdNBR</b>, also <b>MODIS Terra</b> (since 2000) or <b>MODIS Aqua</b> (since '
 		'2002): bands 2 and 7 of their daily surface reflectance (MOD09GA, MYD09GA), of 500 m (Veraverbeke et al. '
 		'2010), for big fires or when the other images are too cloudy. The classes of the RdNBR come from Landsat (30 '

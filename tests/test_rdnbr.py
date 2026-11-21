@@ -32,7 +32,7 @@ def test_the_rdnbr_in_the_catalog():
 	periods (only burn_severity computes them)."""
 	s2, landsat = catalog.find('RdNBR', 'Sentinel-2'), catalog.find('rdnbr', 'landsat')
 	terra, aqua = catalog.find('RdNBR', 'Modis'), catalog.find('RdNBR', 'Modis', AQUA)
-	assert (s2['ref'], s2['ft'], s2['m'], s2['col']) == (144, 'N(B8,B12)', 10, 'COPERNICUS/S2_SR_HARMONIZED')
+	assert (s2['ref'], s2['ft'], s2['m'], s2['col']) == (144, 'N(B8,B12)', 20, 'COPERNICUS/S2_SR_HARMONIZED')
 	assert (landsat['ref'], landsat['ft'], landsat['m'], landsat['col']) == (145, 'N(nir,swir2)', 30, 'LANDSAT')
 	assert (terra['ref'], terra['col'], terra['m']) == (146, TERRA, 500)  # Terra, the default of MODIS
 	assert (aqua['ref'], aqua['col'], aqua['m']) == (147, AQUA, 500)
