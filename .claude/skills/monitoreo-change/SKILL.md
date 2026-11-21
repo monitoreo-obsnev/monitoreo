@@ -6,7 +6,7 @@ description: The MonitorEO team's methodology for every change to this repositor
 # Changing MonitorEO
 
 MonitorEO is one computation (`monitoreo.services`) offered through many tools: the Python package and its command
-line, the MCP server, the assistant for managers, the QGIS plugin, the R package, the Earth Engine app (a JavaScript
+line, the MCP server, the AI assistant, the QGIS plugin, the R package, the Earth Engine app (a JavaScript
 port in `gee/`) and the results viewer. Several people change it at the same time. The defects that reach users are
 almost never in the line someone meant to change. They come from what nobody remembered to change:
 

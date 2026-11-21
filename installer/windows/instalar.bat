@@ -1,6 +1,6 @@
 @echo off
-rem Installer of the MonitorEO assistant for Windows (see the page Assistant of the wiki): it opens with a double
-rem click from the zip of the release, which has it as "Install the MonitorEO assistant.bat" (unsigned: Windows may
+rem Installer of the MonitorEO AI assistant for Windows (see the page Assistant of the wiki): it opens with a double
+rem click from the zip of the release, which has it as "Install the MonitorEO AI assistant.bat" (unsigned: Windows may
 rem warn), or it is downloaded and opened with a command in the Command Prompt (what curl downloads has no mark of
 rem the Internet, so SmartScreen does not stop it):
 rem
@@ -10,7 +10,7 @@ rem It installs in %USERPROFILE%\MonitorEO\entorno, without administrator rights
 rem (Python, Earth Engine, GDAL and the package monitoreo, from the environment.yml of the repository) with
 rem micromamba, which it leaves in %USERPROFILE%\MonitorEO\micromamba (with the runtime of Visual C++ that it needs,
 rem if Windows does not have it; while it installs, the packages are in %SystemDrive%\MonitorEO-pkgs, a short path).
-rem It puts on the Desktop the shortcut "MonitorEO Assistant" (with the logo of MonitorEO,
+rem It puts on the Desktop the shortcut "MonitorEO AI Assistant" (with the logo of MonitorEO,
 rem installer/icons/monitoreo-assistant.ico), which opens the assistant in its window with pythonw.exe, without a
 rem console (its messages go to %USERPROFILE%\MonitorEO\assistant-output.log), and opens it. If the environment
 rem already exists, it only creates the shortcut and opens the assistant; to install it again, delete the folder
@@ -19,7 +19,7 @@ rem language model: the assistant uses, by default, the model of MonitorEO in th
 rem optional, and the assistant downloads it (monitoreo.engine) if the user chooses one in Settings. No accents: cmd
 rem reads this file with the code page of the console. The parentheses of each echo close in its own line.
 setlocal
-title Installer of the MonitorEO assistant
+title Installer of the MonitorEO AI assistant
 set "REPO=https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main"
 set "DIR=%USERPROFILE%\MonitorEO"
 set "ENV=%DIR%\entorno"
@@ -27,8 +27,8 @@ set "MAMBA_DIR=%DIR%\micromamba"
 set "MAMBA=%MAMBA_DIR%\micromamba.exe"
 set "PYTHONNOUSERSITE=1"
 
-echo Installer of the MonitorEO assistant
-echo ====================================
+echo Installer of the MonitorEO AI assistant
+echo =======================================
 echo.
 echo It installs in %ENV%, without administrator rights, what the assistant needs:
 echo Python, Google Earth Engine, GDAL and MonitorEO (about 0.3 GB to download and 1.7 GB on disk), only the
@@ -71,16 +71,18 @@ if exist "%MAMBA_DIR%\pkgs" rmdir /s /q "%MAMBA_DIR%\pkgs" >nul 2>&1
 if not exist "%ENV%\Scripts\monitoreo.exe" goto :fail
 
 :launcher
-rem the shortcut of old versions opened a console with this .bat; the next ones had Spanish names
+rem the shortcut of old versions opened a console with this .bat; the next ones had Spanish names, and then the name
+rem before it was the AI assistant
 if exist "%DIR%\Asistente de MonitorEO.bat" del "%DIR%\Asistente de MonitorEO.bat"
 powershell -NoProfile -Command "$p = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Asistente de MonitorEO.lnk'; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p }"
+powershell -NoProfile -Command "$p = Join-Path ([Environment]::GetFolderPath('Desktop')) 'MonitorEO Assistant.lnk'; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p }"
 rem its icon, the logo of MonitorEO (without it, that of Python)
 curl -fsL -o "%ENV%\monitoreo-assistant.ico" "%REPO%/installer/icons/monitoreo-assistant.ico" || del "%ENV%\monitoreo-assistant.ico" >nul 2>&1
-powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'MonitorEO Assistant.lnk')); $s.TargetPath = Join-Path $env:ENV 'pythonw.exe'; $s.Arguments = '-s -m monitoreo.cli assistant'; $s.WorkingDirectory = $env:DIR; $ico = Join-Path $env:ENV 'monitoreo-assistant.ico'; if (-not (Test-Path -LiteralPath $ico)) { $ico = Join-Path $env:ENV 'python.exe' }; $s.IconLocation = $ico + ',0'; $s.Save()"
+powershell -NoProfile -Command "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'MonitorEO AI Assistant.lnk')); $s.TargetPath = Join-Path $env:ENV 'pythonw.exe'; $s.Arguments = '-s -m monitoreo.cli assistant'; $s.WorkingDirectory = $env:DIR; $ico = Join-Path $env:ENV 'monitoreo-assistant.ico'; if (-not (Test-Path -LiteralPath $ico)) { $ico = Join-Path $env:ENV 'python.exe' }; $s.IconLocation = $ico + ',0'; $s.Save()"
 
 echo.
 echo Done. The assistant opens now in its window; to close it, close that window.
-echo To open it again: double click "MonitorEO Assistant" on the Desktop. You can close this window now.
+echo To open it again: double click "MonitorEO AI Assistant" on the Desktop. You can close this window now.
 start "" "%ENV%\pythonw.exe" -s -m monitoreo.cli assistant
 exit /b
 

@@ -1,4 +1,4 @@
-"""Assistant of MonitorEO for managers: a chat in the browser, on this computer, with a language model connected to the
+"""AI assistant of MonitorEO: a chat in the browser, on this computer, with a language model connected to the
 MCP server of MonitorEO (monitoreo.mcp_server). The model is, by default, the model of MonitorEO in the cloud, through
 its broker (its route /chat, which chooses Gemini or Claude: nothing to install nor any key; the conversation goes to
 Google or Anthropic, which do not use it to train their models) or, chosen in Settings, a model of open weights served
@@ -3310,7 +3310,7 @@ def _show_window(url, ready=None, busy=None):
 	try:
 		webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER'] = True  # the wiki and other pages, in the browser
 		webview.settings['ALLOW_DOWNLOADS'] = True  # CSV and GeoTIFF
-		win = webview.create_window('MonitorEO Assistant', url, width=1400, height=900, min_size=(720, 520),
+		win = webview.create_window('MonitorEO AI Assistant', url, width=1400, height=900, min_size=(720, 520),
 		                            text_select=True)
 		if busy:  # pywebview asks (confirm_close) after this event, in the thread of the window
 			win.events.closing += lambda: setattr(win, 'confirm_close', bool(busy()))

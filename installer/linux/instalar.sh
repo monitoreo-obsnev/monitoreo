@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installer of the MonitorEO assistant for Ubuntu (the LTS versions 22.04, 24.04 and 26.04, on PCs and on ARM; see
+# Installer of the MonitorEO AI assistant for Ubuntu (the LTS versions 22.04, 24.04 and 26.04, on PCs and on ARM; see
 # the page Assistant of the wiki). It is pasted in the Terminal (Ctrl+Alt+T); Ubuntu has wget, but not always curl:
 #
 #   bash -c "$(wget -qO- https://raw.githubusercontent.com/monitoreo-obsnev/monitoreo/main/installer/linux/instalar.sh)"
@@ -9,7 +9,7 @@
 # leaves in ~/MonitorEO/micromamba. On Linux, the window of the assistant (pywebview) needs Qt WebEngine, which is
 # not in environment.yml (the same for every system): it adds PyQt6-WebEngine of conda-forge. It writes the launcher
 # entorno/bin/monitoreo-assistant, which opens the assistant in its window without the Terminal (its messages go to
-# ~/MonitorEO/assistant-output.log), puts "MonitorEO Assistant" in the applications (Activities) and on the Desktop,
+# ~/MonitorEO/assistant-output.log), puts "MonitorEO AI Assistant" in the applications (Activities) and on the Desktop,
 # and opens it. If the environment already exists, it only adds what is missing,
 # writes the launchers and opens it; to install it again, delete ~/MonitorEO/entorno (the folder keeps its Spanish
 # name, "environment", as on macOS and Windows). Other Linux distributions with glibc 2.28 or later may work too.
@@ -50,7 +50,7 @@ main() {
 		fi
 	}
 
-	echo "Installer of the MonitorEO assistant"
+	echo "Installer of the MonitorEO AI assistant"
 	echo "===================================="
 	echo
 	echo "It installs in $ENV, without administrator rights, what the assistant needs: Python, Google Earth Engine,"
@@ -132,14 +132,14 @@ main() {
 	EOF
 	chmod +x "$LAUNCHER"
 
-	# "MonitorEO Assistant" in the applications and on the Desktop (Exec: the path between quotes, for the spaces)
+	# "MonitorEO AI Assistant" in the applications and on the Desktop (Exec: the path between quotes, for the spaces)
 	mkdir -p "$APPS" "$(dirname "$ICON")"
 	# its icon, the logo of MonitorEO (without it, a generic one)
 	download "$REPO/installer/icons/monitoreo-assistant.png" "$ICON" || rm -f "$ICON"
 	cat > "$APPS/$ENTRY" <<-EOF
 	[Desktop Entry]
 	Type=Application
-	Name=MonitorEO Assistant
+	Name=MonitorEO AI Assistant
 	GenericName=Monitoring of ecosystems with satellites
 	Comment=Maps, charts and reports of Essential Biodiversity Variables with Google Earth Engine
 	Exec="$LAUNCHER"
@@ -162,12 +162,12 @@ main() {
 	echo
 	if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
 		echo "Done. The assistant opens now in its window; to close it, close that window."
-		echo "To open it again: «MonitorEO Assistant» on the Desktop or in the applications (press the Super key and"
+		echo "To open it again: «MonitorEO AI Assistant» on the Desktop or in the applications (press the Super key and"
 		echo "type MonitorEO). You can close the Terminal now."
 		# in a session of its own: closing the Terminal leaves it open
 		setsid -f "$LAUNCHER" >/dev/null 2>&1 < /dev/null || echo "(It did not open: open it from the applications.)"
 	else
-		echo "Done. Open the assistant with «MonitorEO Assistant» on the Desktop or in the applications (press the"
+		echo "Done. Open the assistant with «MonitorEO AI Assistant» on the Desktop or in the applications (press the"
 		echo "Super key and type MonitorEO), or with: $LAUNCHER"
 	fi
 }

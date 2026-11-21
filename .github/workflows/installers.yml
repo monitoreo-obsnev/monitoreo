@@ -1,5 +1,5 @@
-# Installers of the assistant for managers: installer/macos/instalar.sh and installer/windows/instalar.bat, zipped
-# as "Install the MonitorEO assistant.command" (with its execute permission) and ".bat", attached to the GitHub
+# Installers of the AI assistant: installer/macos/instalar.sh and installer/windows/instalar.bat, zipped
+# as "Install the MonitorEO AI assistant.command" (with its execute permission) and ".bat", attached to the GitHub
 # release with fixed names, so that the wiki links them as releases/latest/download/asistente-monitoreo-macos.zip and
 # ...-windows.zip (the wiki also gives the one-line commands that download them with curl, without the block of the
 # files downloaded with the browser):
@@ -54,10 +54,10 @@ jobs:
       - name: Make the zips
         run: |
           mkdir -p dist build/macos build/windows
-          install -m 755 installer/macos/instalar.sh "build/macos/Install the MonitorEO assistant.command"
-          cp installer/windows/instalar.bat "build/windows/Install the MonitorEO assistant.bat"
-          (cd build/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Install the MonitorEO assistant.command")
-          (cd build/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Install the MonitorEO assistant.bat")
+          install -m 755 installer/macos/instalar.sh "build/macos/Install the MonitorEO AI assistant.command"
+          cp installer/windows/instalar.bat "build/windows/Install the MonitorEO AI assistant.bat"
+          (cd build/macos && zip -X ../../dist/asistente-monitoreo-macos.zip "Install the MonitorEO AI assistant.command")
+          (cd build/windows && zip -X ../../dist/asistente-monitoreo-windows.zip "Install the MonitorEO AI assistant.bat")
           unzip -Z dist/asistente-monitoreo-macos.zip | grep -q -- '-rwx'
       - uses: actions/upload-artifact@v4
         if: env.TAG == ''
@@ -129,10 +129,10 @@ jobs:
           rm -f ~/MonitorEO/.assistant
           "$@" &
           pid=$!
-          for i in $(seq 300); do xwininfo -root -tree | grep -q '"MonitorEO Assistant".*1400x900' && break; sleep 1; done
+          for i in $(seq 300); do xwininfo -root -tree | grep -q '"MonitorEO AI Assistant".*1400x900' && break; sleep 1; done
           sleep 30  # the page, its map and its fonts
-          xwininfo -root -tree | grep '"MonitorEO Assistant"' || echo 'No window "MonitorEO Assistant"'
-          xprop -name 'MonitorEO Assistant' WM_CLASS || true
+          xwininfo -root -tree | grep '"MonitorEO AI Assistant"' || echo 'No window "MonitorEO AI Assistant"'
+          xprop -name 'MonitorEO AI Assistant' WM_CLASS || true
           import -window root "$shot"
           colours=$(identify -format %k "$shot")
           echo "Colours of the screenshot: $colours"
