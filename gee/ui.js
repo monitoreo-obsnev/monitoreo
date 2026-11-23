@@ -74,6 +74,7 @@
 			'misma para cada paso y para los dos periodos de una comparación.',
 			badLimit: 'El límite %s no es un número.', noLimit: 'Da un mínimo, un máximo o los dos.',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
+			topographic: 'corrección topográfica SCS+C de Landsat (montaña: laderas al sol y a la sombra, sol bajo)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
 			staticNote: 'Capa fija, sin fechas: solo el mapa y su GeoTIFF. El periodo, las métricas, las series ' +
@@ -372,6 +373,7 @@
 			'same for every step and for both periods of a comparison.',
 			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
+			topographic: 'topographic correction SCS+C of Landsat (mountains: slopes in the sun and in the shade, low sun)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
 			staticNote: 'Fixed layer, without dates: only the map and its GeoTIFF. The period, metrics, time series, ' +
@@ -1582,6 +1584,11 @@
 				state.quality.cloud_score = v ? 0.6 : null;
 			}));
 		}
+		if (!mo.noTopographic(e)) {  // the surface reflectance of Landsat (sensors.TOPOGRAPHIC)
+			w.push(check(t('topographic'), Boolean(state.quality.topographic), function (v) {
+				state.quality.topographic = v;
+			}));
+		}
 		mo.conflicts(e, state.quality).forEach(function (f) {
 			w.push(ui.Label(fmt(t('conflict'), t(f)), {fontSize: '12px', color: '#b06000'}));
 		});
@@ -1760,7 +1767,7 @@
 		}
 		var e = ref ? null : entry();
 		if (e && e.problem) throw new Error(e.problem);
-		var what = e && e.custom ? {entry: e, quality: {}} : {ref: ref || state.ref, quality: state.quality};
+		var what = e && e.custom ? {entry: e, quality: {}} : {ref: ref || state.ref, quality: qualityFor(ref || state.ref)};
 		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
 			metric: metric || 'mean', where: ref ? null : whereArgs()});
 		mo.windows(s.period, s.season);
@@ -2392,7 +2399,7 @@
 		var geom = state.region.geometry();
 		var m = mapImage(geom);
 		var scale = mo.autoScale(e, state.info.area);
-		var zs = mo.spec({ref: z.ref, quality: state.quality});
+		var zs = mo.spec({ref: z.ref, quality: qualityFor(null)});  // the zones: without the topographic correction
 		mo.used(zs);  // the data of the zones, under the result (services._zone_spec)
 		var zone = mo.classifyBreaks(mo.image(zs, geom, scale), cuts);
 		var unit = (z.unit || '').replace(/^\[|\]$/g, '');
@@ -2768,6 +2775,8 @@
 				state.quality[f] || (e && (mo.MEASURES[f] || []).indexOf(e.index) >= 0);
 			q[f] = Boolean(on) && (mo.MEASURES[f] || []).indexOf(oe.index) < 0;
 		});
+		// the topographic correction of the panel, if both variables can have it (services._other_spec)
+		if (state.quality.topographic && e && !mo.noTopographic(e) && !mo.noTopographic(oe)) q.topographic = true;
 		return q;
 	}
 
@@ -3191,9 +3200,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(ref),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(ref),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -3320,9 +3329,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: e.ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+		var before = mo.spec({ref: e.ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(e.ref),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(e.ref),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -3390,9 +3399,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: state.quality,
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(ref),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: state.quality,
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(ref),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -3563,11 +3572,23 @@
 		return p;
 	}
 
-	// The pixel filters of the panel as the services take them (sensors.QUALITY): the Cloud Score+ only for Sentinel-2
-	function qualityParameters(sensor) {
+	// The pixel filters of the panel for the variable of the catalog REF: without the topographic correction when it
+	// cannot have it (sensors.no_topographic: the zones, the RdNBR of MODIS), as the user keeps it for the others
+	function qualityFor(ref) {
+		var e = ref === undefined || ref === null ? null : mo.byRef(ref);  // none: without it
+		if (!state.quality.topographic || (e && !mo.noTopographic(e))) return state.quality;
+		var q = {};
+		for (var k in state.quality) if (k !== 'topographic') q[k] = state.quality[k];
+		return q;
+	}
+
+	// The pixel filters of the panel as the services take them (sensors.QUALITY): the Cloud Score+ only for Sentinel-2;
+	// the topographic correction when it is on and the entry E can have it
+	function qualityParameters(sensor, e) {
 		var q = {};
 		mo.FILTERS.forEach(function (f) { q[f] = Boolean(state.quality[f]); });
 		if (sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
+		if (state.quality.topographic && e && !mo.noTopographic(e)) q.topographic = true;
 		return q;
 	}
 
@@ -3594,6 +3615,7 @@
 			if (!fits.length) notes.push(fmt(t('paramsOtherFilter'), mo.entryName(oe), t(f)));
 		});
 		if (e.sensor === 'Sentinel-2' || oe.sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
+		if (state.quality.topographic && !mo.noTopographic(e)) q.topographic = true;  // the right axis too, if it can
 		return q;
 	}
 
@@ -3642,6 +3664,7 @@
 			p.other_end = state.fireAfter[1];
 			p.index = state.fireIndex;
 			p.quality = qualityParameters(p.sensor);
+			if (state.quality.topographic && p.sensor === 'Landsat') p.quality.topographic = true;  // its NBR
 			var fireWhere = whereParameters(state.fireBefore, false);  // over the period before the fire, as the package
 			if (fireWhere) p.where = fireWhere;
 			return {parameters: ordered(p), notes: notes};
@@ -3666,7 +3689,7 @@
 		// the variable of the right axis of a profile: the pixel filters of both axes
 		var oe = analysis === 'time_series' && isProfile() && state.doyOther !== 'none' ? mo.byRef(state.doyOther) : null;
 		if (oe) p.quality = profileQuality(e, oe, notes);
-		else if (!e.custom && !mo.fixedFilters(e)) p.quality = qualityParameters(e.sensor);
+		else if (!e.custom && !mo.fixedFilters(e)) p.quality = qualityParameters(e.sensor, e);
 		var where = whereParameters(null, e.static);
 		if (where) p.where = where;
 		if (analysis === 'compare_map' || analysis === 'compare_series') {
@@ -4048,6 +4071,8 @@
 					q[k] = String(v).toLowerCase() === 'auto' ? auto : Boolean(v);
 				} else if (k === 'cloud_score' && (v === null || typeof v === 'number')) {
 					q.cloud_score = v;
+				} else if (k === 'topographic' && (v === true || v === false || v === null)) {
+					q.topographic = Boolean(v);
 				} else {
 					skip('quality', k === 'cloud_score' ? fmt(t('badNumber'), k, v) : t('noWidget'), one);
 				}
@@ -4056,6 +4081,7 @@
 		if (fixed) state.chosenQuality = q;
 		else mo.FILTERS.forEach(function (f) { state.quality[f] = q[f]; });
 		state.quality.cloud_score = q.cloud_score;
+		state.quality.topographic = Boolean(q.topographic);
 	}
 
 	// The period, the other period (of a comparison; for a fire, the periods before and after it) and the season of

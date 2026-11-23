@@ -228,6 +228,9 @@ percentiles_arg <- function(percentiles) {
 #' @param season optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).
 #' @param quality pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
 #'   only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
+#'   \code{list(topographic = TRUE)}: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance
+#'   of Landsat, for mountains (slopes facing and away from the sun, dates with a low sun; Sentinel-2 comes already
+#'   corrected); off by default.
 #' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 #'   each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 #'   result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and

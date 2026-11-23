@@ -47,7 +47,10 @@ rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
-only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.}
+only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
+\code{list(topographic = TRUE)}: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance
+of Landsat, for mountains (slopes facing and away from the sun, dates with a low sun; Sentinel-2 comes already
+corrected); off by default.}
 
 \item{resolution}{pixel size in metres (default: that of the data).}
 

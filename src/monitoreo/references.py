@@ -211,6 +211,9 @@ def of_variable(entry, quality=None, period=None, formula=True):
 			ids += _methods('sentinel2_scl')
 	elif entry['sensor'] == 'Landsat' and (on['clouds'] or on['water'] or on['snow']):
 		ids += _methods('landsat_qa')
+	if sensors.topographic(q) and not sensors.no_topographic(entry):  # SCS+C, with the slope and aspect of the SRTM
+		ids += _methods('topographic')
+		cols.append(sensors.TOPOGRAPHIC['dem'])
 	if sensors.is_cf(entry) and entry['sensor'] == 'Sentinel-2':  # the clouds of the cloud frequency: Cloud Score+
 		cols.append(CLOUD_SCORE)
 	if sensors.is_scf(entry) and entry['sensor'] in ('Landsat', 'Sentinel-2'):  # the SCF of Landsat and Sentinel-2 also

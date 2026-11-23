@@ -213,6 +213,17 @@ def _source_options(p, image=False):
 		p.add_argument('--terrain', choices=('slope', 'aspect'),
 		               help='the slope or the aspect of the band of --image (e.g. of a DEM; one band), in degrees (its '
 		                    'unit is then degree: give no --unit, or degree, not that of the band)')
+	_topographic_option(p)
+
+
+TOPOGRAPHIC_HELP = ('correct the surface reflectance of Landsat for the relief before the formula (SCS+C, Soenen et '
+                    'al. 2005): for mountains, to compare slopes facing and away from the sun or dates with a low sun; '
+                    'not for Sentinel-2 (already corrected), flat land, water, snow, LST, SCF, SCD, CF, MODIS or the '
+                    'climate. It costs more in Earth Engine (a regression per image)')
+
+
+def _topographic_option(p):
+	p.add_argument('--topographic-correction', action='store_true', help=TOPOGRAPHIC_HELP)
 
 
 # the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
@@ -267,8 +278,8 @@ def _source(args, parser):
 		if given:
 			parser.error(f"{', '.join(SOURCE_OPTIONS[k] for k in given)}: only for the data of Earth Engine given by "
 			             f'its ID ({ids} instead of VARIABLE and --sensor)')
-		return {k: v for k, v in (('variable', args.variable), ('sensor', args.sensor),
-		                          ('collection', args.collection)) if v}
+		return dict({k: v for k, v in (('variable', args.variable), ('sensor', args.sensor),
+		                               ('collection', args.collection)) if v}, **_topographic(args))
 	if args.sensor:
 		parser.error('--sensor is for the variables of the catalog (with VARIABLE): the data of Earth Engine given by its '
 		             f'ID take {ids}, and --band')
@@ -288,7 +299,15 @@ def _source(args, parser):
 		parser.error(str(e))
 	if 'terrain' in given and not image:
 		parser.error('--terrain is for --image (a fixed layer, e.g. a DEM), not for --collection')
+	if getattr(args, 'topographic_correction', False):
+		parser.error('--topographic-correction is for the surface reflectance of Landsat of the catalog (VARIABLE and '
+		             '--sensor Landsat), not for the data of Earth Engine given by its ID')
 	return dict(given, **({'collection': args.collection} if args.collection else {}))
+
+
+def _topographic(args):
+	"""The quality of the topographic correction, if asked (--topographic-correction)."""
+	return {'quality': {'topographic': True}} if getattr(args, 'topographic_correction', False) else {}
 
 
 def _table(rows, cols):
@@ -615,6 +634,7 @@ def main(argv=None):
 	                    'California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with field '
 	                    'data one year after the fire: give a period after about one year after the fire, in the '
 	                    'season of the period before')
+	_topographic_option(p)
 	p.add_argument('--collection', choices=BURN_COLLECTIONS, metavar='ID',
 	               help='only with --index RdNBR and --sensor Modis: MODIS/061/MOD09GA (Terra, since 2000-02-24; '
 	                    'default) or MODIS/061/MYD09GA (Aqua, since 2002-07-04)')
@@ -687,6 +707,8 @@ def main(argv=None):
 	elif args.cmd == 'areas':
 		if args.variable or args.sensor:
 			areas.error('--landcover has its own classes: give no VARIABLE nor --sensor')
+		if args.topographic_correction:
+			areas.error('--topographic-correction is for the variables of Landsat, not for --landcover')
 		args.source = {}
 	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
 		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '
@@ -1214,7 +1236,8 @@ def _burn(args, services):
 		                             args.other_end, args.metric, resolution=args.resolution, path=args.out,
 		                             csv=args.csv, index=args.index, where=_where(args), collection=args.collection,
 		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr),
-		                             perimeter=args.perimeter, burned_min=args.burned_min, min_ha=args.min_ha)
+		                             perimeter=args.perimeter, burned_min=args.burned_min, min_ha=args.min_ha,
+		                             **_topographic(args))
 	except ValueError as e:
 		sys.exit(f'ERROR: {e}')
 

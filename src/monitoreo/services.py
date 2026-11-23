@@ -528,6 +528,7 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
 	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb;
+	topographic when it can have the topographic correction, see sensors.TOPOGRAPHIC;
 	categorical and n_classes for a layer of class codes, see list_classes), optionally of one SENSOR (compared as
 	catalog.find does: 'merit hydro' and 'MERITHydro' are 'MERIT Hydro'), of one THEME (its key or its name) or with
 	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
@@ -557,6 +558,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 			row['n_classes'] = len(categorical.codes(e))
 		if sensors.rgb_of(e):
 			row['rgb'] = True  # its images have a true colour (rgb_map, download_rgb)
+		if not sensors.no_topographic(e):
+			row['topographic'] = True  # a surface reflectance of Landsat: quality {'topographic': True}
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -907,14 +910,17 @@ def check_ylim(ylim, name='ylim'):
 def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 	"""The spec of the other variable of a profile by day of the year (the right axis): a variable of the catalog with
 	dates, with the period, season, metric, pixel filters and pixels of the region (where, exclude_landcover) of the
-	first one, and its own rules (the SCF and the CF only take the metric mean); ValueError otherwise."""
+	first one (its topographic correction only if it is a surface reflectance of Landsat), and its own
+	rules (the SCF and the CF only take the metric mean); ValueError otherwise."""
 	if '/' in str(variable):
 		raise ValueError(f'other_variable {variable}: the variable of the right axis is a variable of the catalog of '
 		                 'MonitorEO (e.g. NDVI, see list_variables), not data of Earth Engine by its ID')
 	if not sensor:
 		raise ValueError(f'other_variable {variable}: give its sensor (other_sensor), e.g. Sentinel-2')
 	try:
-		catalog.find(variable, sensor)
+		e = catalog.find(variable, sensor)
+		if sensors.topographic(quality) and sensors.no_topographic(e):  # as 'auto': the correction of the first one
+			quality = {k: v for k, v in quality.items() if k != 'topographic'}  # only for the reflectances
 		spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality,
 		                 where=source.get('where'), exclude_landcover=source.get('exclude_landcover'))
 		variables.check_dates(spec, 'time series')

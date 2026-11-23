@@ -86,7 +86,14 @@ steep slopes; most land between 5 and 15, rivers and lakes the highest) is a fix
 also works in where (e.g. only the wet bottoms: {"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}) and in the
 zones of region_stats.
 The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
-with clouds: always with metric "mean" and no pixel filters (pass no quality). Metrics (of the images of each pixel,
+with clouds: always with metric "mean" and no pixel filters (pass no quality).
+Topographic correction: quality {"topographic": true} corrects the surface reflectance of Landsat for the relief
+before the formula (SCS+C, Soenen et al. 2005, with the slope and aspect of the SRTM and the sun of each scene): slopes
+facing the sun look brighter, and those facing away darker, than the same cover on flat ground. Off by default; use it
+in mountains (slopes of more than 5 degrees), above all to compare slopes of different aspect or dates with a low sun
+(winter), not on flat land, for water (NDWI) or snow. Not for Sentinel-2 (its Level-2A, Sen2Cor, is already
+corrected), LST, SCF, SCD, CF, MODIS or the climate (an error says so). It costs more in Earth Engine.
+Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
 stats of region_stats), for any variable: mean, median, min, max, std (standard deviation), cv (coefficient of
 variation: 100 * std / mean, in %; meaningful for variables with a true zero and positive values, not with a mean

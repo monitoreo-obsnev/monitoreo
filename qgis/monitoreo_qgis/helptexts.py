@@ -335,6 +335,15 @@ HELP = {
 		'Google\'s Cloud Score+: a pixel is clear if its score is at least 0.6. Unchecked, with the scene '
 		'classification (SCL) of Sentinel-2: shadows, clouds and cirrus.</p>'
 		+ manual('Concepts#per-pixel-filters'),
+	'topographic':
+		'<p>Only for Landsat. Checked, the reflectance of each image is corrected for the relief before the variable is '
+		'computed (SCS+C, Soenen et al. 2005, with the slope and aspect of the SRTM and the position of the sun of the '
+		'image): in mountains, the slopes facing the sun look brighter, and those facing away darker, than the same '
+		'cover on flat ground. Sentinel-2 does not need it: its images come already corrected for the relief.</p>'
+		'<p>Check it in mountains (slopes of more than 5°) to compare north and south faces, or dates with a low sun '
+		'(winter). Leave it unchecked on flat land (it changes nothing), for water and snow, and when you only follow '
+		'the same place in the same season. It takes longer in Earth Engine.</p>'
+		+ manual('Concepts#topographic-correction'),
 	'step':
 		'<p>How often the series gives a value: <b>Monthly</b>, <b>Annual</b>, <b>16 days</b> (blocks of 16 days from '
 		'January 1 of each year) or <b>Daily</b> (each day with images). Long steps take less time and have fewer gaps '

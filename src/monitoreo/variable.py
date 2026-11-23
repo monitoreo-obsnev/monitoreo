@@ -23,7 +23,9 @@ are for the variables of the catalog.
 The variables of the catalog and of other collections are aggregated in time with metric, temporal and
 interannual over period and season (see composite). Other keys:
   quality            pixel filters (clouds, water, snow, aerosols) and scene filter of the catalog variables
-                     (see sensors.QUALITY; by default all the pixel filters of MonitorEO)
+                     (see sensors.QUALITY; by default all the pixel filters of MonitorEO) and, with topographic: true,
+                     the topographic correction SCS+C of the surface reflectance of Landsat (see
+                     sensors.TOPOGRAPHIC; off by default)
   resample           'auto' (bilinear when the output pixels are smaller than those of the data), 'nearest',
                      'bilinear' or 'bicubic'; a categorical layer (ECOREGION, BIOME: class codes), only 'auto' or
                      'nearest' (rasterized at the output pixel)
@@ -62,6 +64,11 @@ WHERE_KEYS = {'variable', 'sensor', 'collection', 'ref', 'metric', 'temporal', '
               'period',
               'min', 'max', 'classes', 'exclude'}  # of a condition of where (classes, exclude: of a categorical layer)
 
+# what the files and the results say of the topographic correction (see sensors.TOPOGRAPHIC)
+TOPOGRAPHIC_TEXT = (f"SCS+C (Soenen et al. 2005) of the surface reflectance, with the slope and aspect of the SRTM "
+                    f"({sensors.TOPOGRAPHIC['dem']}) and the sun of each scene, on slopes of at least "
+                    f"{sensors.TOPOGRAPHIC['min_slope']} degrees lit by the sun; C of each band and scene fitted in the "
+                    f"study area and {sensors.TOPOGRAPHIC['surroundings'] // 1000} km around it")
 TERRAIN = ('slope', 'aspect')  # of the band of an image (ee.Terrain), in degrees whatever the unit of the band
 # how several bands of the data of Earth Engine by their ID are combined on each pixel (band_reducer): their sum or
 # their mean (ee.Reducer.sum and mean over the bands)
@@ -195,11 +202,25 @@ def specs(var, defaults=None, two_periods=False):
 	base = {**DEFAULTS, **{k: v for k, v in (defaults or {}).items() if k in KEYS}, **var}
 	# all the quality options, so that the record of a file changes when a default changes
 	base['quality'] = {**sensors.QUALITY, **((defaults or {}).get('quality') or {}), **(var.get('quality') or {})}
-	unknown = set(base['quality']) - set(sensors.QUALITY)
+	unknown = set(base['quality']) - set(sensors.QUALITY) - set(sensors.OPTIONS)
 	if unknown:
-		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use {', '.join(sensors.QUALITY)}")
+		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use "
+		                 f"{', '.join(list(sensors.QUALITY) + list(sensors.OPTIONS))}")
+	for o in sensors.OPTIONS:  # off: not in the spec, so that the records of the files made before it stay the same
+		v = base['quality'].get(o)
+		if v in (None, False, 0, '') or str(v).strip().lower() in ('false', 'no', 'off', '0'):
+			base['quality'].pop(o, None)
+		elif v is True or str(v).strip().lower() in ('true', 'yes', 'on', '1'):
+			base['quality'][o] = True
+		else:
+			raise ValueError(f'quality {o}: give true or false, not {v!r}')
 	k = kind(base)
 	e = entry_of(base) if k == 'catalog' else {}
+	if sensors.topographic(base['quality']):
+		if k != 'catalog':
+			raise ValueError('the topographic correction (quality topographic) is for the surface reflectance of '
+			                 'Landsat of the catalog, not for the data of Earth Engine given by their ID')
+		sensors.check_topographic(e, base['quality'])
 	if base.get('unit') is not None and not str(base['unit']).strip():
 		base.pop('unit')  # '' or blank: not given, as in services.make_spec and the app (not dimensionless)
 	if k == 'catalog' and base.get('unit') is not None:
@@ -712,6 +733,8 @@ def describe(spec, rgb=False):
 		          'unit': catalog.unit_of(e['unit'], d.get('metric'), d.get('interannual')),
 		          'udunits': catalog.udunits(catalog.unit_of(e['unit'], d.get('metric'), d.get('interannual'))),
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
+		if sensors.topographic(spec['quality']):
+			d['topographic_correction'] = TOPOGRAPHIC_TEXT
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):

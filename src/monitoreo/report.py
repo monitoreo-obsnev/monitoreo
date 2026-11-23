@@ -540,6 +540,9 @@ def item_facts(tool, args, result=None, names=None):
 		                                  'for the variables of its catalog)'))
 	if entry and not static:
 		facts.append(('Discarded pixels', _discarded(entry, args.get('quality'))))
+	if entry and not static and sensors.topographic(args.get('quality') if isinstance(args.get('quality'), dict)
+	                                                else None):
+		facts.append(('Topographic correction', variables.TOPOGRAPHIC_TEXT))
 	other = _entry(args.get('other_variable'), args.get('other_sensor') or args.get('sensor')) \
 		if tool == 'time_series' and is_profile(args) and not static else None
 	if other:  # the same filters chosen, as they apply to the variable of the right axis (also after data by ID)

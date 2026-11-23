@@ -455,6 +455,9 @@
   ],
   "doy": [
    "wu2020"
+  ],
+  "topographic": [
+   "soenen2005"
   ]
  },
  "references": {
@@ -677,6 +680,10 @@
   "foga2017": {
    "citation": "Foga, S., Scaramuzza, P. L., Guo, S., Zhu, Z., Dilley, R. D., Beckmann, T., Schmidt, G. L., Dwyer, J. L., Hughes, M. J., & Laue, B. (2017). Cloud detection algorithm comparison and validation for operational Landsat data products. Remote Sensing of Environment, 194, 379–390.",
    "doi": "10.1016/j.rse.2017.03.026"
+  },
+  "soenen2005": {
+   "citation": "Soenen, S. A., Peddle, D. R., & Coburn, C. A. (2005). SCS+C: A modified sun-canopy-sensor topographic correction in forested terrain. IEEE Transactions on Geoscience and Remote Sensing, 43(9), 2148–2159.",
+   "doi": "10.1109/TGRS.2005.852480"
   },
   "mainknorn2017": {
    "citation": "Main-Knorn, M., Pflug, B., Louis, J., Debaecker, V., Müller-Wilm, U., & Gascon, F. (2017). Sen2Cor for Sentinel-2. In L. Bruzzone, F. Bovolo, & J. A. Benediktsson (Eds.), Image and Signal Processing for Remote Sensing XXIII. SPIE.",
