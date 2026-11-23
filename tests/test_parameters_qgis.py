@@ -215,6 +215,7 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.season_on, p.season_start, p.season_end = _Check(False), _Text('06-01'), _Text('09-30')
 	p.filters = {k: _Check(True) for k in sensors.FILTERS}
 	p.cloud_score, p.set_filters, p.chosen_filters = _Check(True), set(), None
+	p.topographic = _Check(False)  # the topographic correction: off by default
 	p.compare_on, p.other_start, p.other_end = _Check(False), _Date('2024-01-01'), _Date('2024-12-31')
 	p.step, p.ts_metric, p.stat = _Combo(d.STEPS, 'monthly'), _Combo(d.METRICS, 'mean'), _Combo(d.STATS, 'mean')
 	p.doy, p.doy_interannual = _Check(False), _Combo(d.DOY_INTERANNUAL)
@@ -293,7 +294,7 @@ def test_the_time_series_and_its_comparison(plugin, monkeypatch, tmp_path, fake)
 		 'metric': 'mean', 'stat': 'mean'}
 	assert fields['region']['value'] == ('extent', REGION['bbox']) and fields['compare']['value'] is None
 	assert fields['season']['value'] is None and fields['where']['value'] == {'conditions': [], 'landcover': None}
-	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True)
+	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False)
 	assert (fields['step']['value'], fields['ts_metric']['value'], fields['doy_other']['value']) == \
 		('monthly', 'mean', None)
 	assert fields['variable']['value']['collection'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -528,7 +529,7 @@ def test_the_defaults_of_the_parameters_not_given(plugin):
 	                                                                  'sensor': 'Landsat'})
 	assert reports == [] and fields['map_metric'] == {'value': 'median', 'given': False, 'name': 'metric'}
 	assert fields['season']['value'] is None and fields['compare']['value'] is None
-	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True),
+	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False),
 	                                       'own': False}, 'given': False, 'name': 'quality'}
 	_, fields, reports = plugin.dock.panel_fields('download_image', {'variable': 'ELEVATION', 'sensor': 'Copernicus'})
 	assert 'quality' not in fields and 'period' not in fields  # a fixed layer
@@ -626,6 +627,49 @@ def test_cloud_score_also_while_the_variable_greys_it_out(plugin, monkeypatch, t
 	assert panel.quality_args(own=True, auto=True)['cloud_score'] is None
 	panel.put_quality(dict(quality, filters=dict(quality['filters'], cloud_score=True)), True, 'quality')
 	assert panel.quality_args(own=True)['cloud_score'] == sensors.QUALITY['cloud_score']
+
+
+def test_the_topographic_correction(plugin, monkeypatch, tmp_path):
+	"""The check box of the topographic correction: in the parameters only when checked and the variable can have it,
+	taken back from them, and reported when the variable of the panel cannot have it (LST of Landsat)."""
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	assert 'topographic' not in panel.quality_args()
+	panel.topographic.setChecked(True)
+	assert panel.quality_args()['topographic'] is True
+	panel.topographic.enabled = False  # as variable_changed leaves it with the LST: greyed out
+	assert 'topographic' not in panel.quality_args()
+	assert panel.quality_args(own=True)['topographic'] is True  # the NBR of the burn severity
+	_, fields, reports = plugin.dock.panel_fields('map_layer', {'region': REGION, 'variable': 'NDVI',
+	                                                            'sensor': 'Landsat', 'start': '2021-01-01',
+	                                                            'end': '2021-12-31', 'quality': {'topographic': True}})
+	quality = fields['quality']['value']
+	assert quality['filters']['topographic'] is True and not [r for r in reports if 'topographic' in r['name']]
+	panel.topographic.setChecked(False)
+	assert [r['name'] for r in panel.put_quality(quality, True, 'quality')] == ['quality.topographic']
+	panel.topographic.enabled = True
+	assert panel.put_quality(quality, True, 'quality') == [] and panel.topographic.isChecked()
+
+
+def test_the_topographic_correction_of_the_fires_and_the_profiles(plugin, monkeypatch, tmp_path):
+	"""Checked with a variable of Landsat, the box stays checked (greyed out) with another variable: the burn severity
+	gets it only with the fires of Landsat, and a profile on two axes only if the variable of the left axis can have it
+	(services._other_spec gives it to the right axis only if it can)."""
+	d = plugin.dock
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	panel.topographic.setChecked(True)
+	panel.topographic.enabled = False  # the NDVI of Sentinel-2 of the panel: greyed out, and checked
+	assert 'topographic' not in panel.burn_call(str(tmp_path))[1]['quality']  # the fire of Sentinel-2
+	panel.fire_sensor = _Combo(d.FIRE_SENSORS + d.FIRE_MODIS, 'Landsat')
+	assert panel.burn_call(str(tmp_path))[1]['quality']['topographic'] is True
+	panel.doy = _Check(True)
+	panel.doy_other = _Combo([('EVI (Landsat)', {'variable': 'EVI', 'sensor': 'Landsat'})])
+	args = panel.call_of('series')[1]
+	assert args.get('other_variable') == 'EVI' and 'topographic' not in args['quality']
+	panel.variable = _Combo([('NDVI · Landsat', _row('NDVI', 'Landsat'))])
+	panel.topographic.enabled = True
+	call = panel.call_of('series')
+	assert call, panel.messages
+	assert call[1]['quality']['topographic'] is True
 
 
 def test_the_window_of_a_result_shows_and_saves_its_parameters(plugin, tmp_path):

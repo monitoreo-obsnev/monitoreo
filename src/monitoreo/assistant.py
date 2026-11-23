@@ -266,6 +266,11 @@ PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll in
 vegetation index).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI, the Chl-a or the WAVI pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
+- Topographic correction: in mountains, with Landsat, add "topographic": true to quality (e.g. \
+{{"topographic": true}}) when the user compares slopes of different aspect (north and south faces) or winter dates, or \
+asks for it: the slopes facing the sun look brighter and those facing away darker than on flat land. Sentinel-2 comes \
+already corrected (Sen2Cor): never with it. Not for water, snow, LST, SCF, SCD, CF, MODIS or the climate; on flat land \
+it changes nothing. It costs more in Earth Engine.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \
 always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water are \

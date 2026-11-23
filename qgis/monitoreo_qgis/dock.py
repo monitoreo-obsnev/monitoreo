@@ -125,6 +125,9 @@ SOURCE = ('image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 
 REDUCERS = [('One band', ''), ('Sum of the bands', 'sum'), ('Mean of the bands', 'mean')]
 NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own mask: the pixel filters are for the '
               'variables of the catalog')
+NO_TOPOGRAPHIC = ('The topographic correction is for the surface reflectance of Landsat (Sentinel-2 comes already '
+                  'corrected; not for the land surface temperature, the snow or cloud frequency, MODIS, the climate or '
+                  'the fixed layers)')
 READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
              'press Read: its bands, units, licence and how to cite it')
 ZONE_STATS = ['p25', 'p50', 'p75', 'mean']  # the statistics of each band of Gradients (of a categorical layer, mode)
@@ -777,10 +780,13 @@ def quality_fields(quality):
 			                       f"{sensors.QUALITY['cloud_score']:g} (checked) or the SCL of Sentinel-2 (unchecked)"))
 		elif k == 'scene_clouds' and v is None:
 			continue
+		elif k == 'topographic' and v in (True, False, None):
+			q[k] = bool(v)
 		else:
 			reports.append(missing(f'quality.{k}', v, 'the panel has no such pixel filter (clouds, water, snow and '
-			                       'aerosols: true, false or "auto"; cloud_score)'))
-	return dict({f: q[f] for f in sensors.FILTERS}, cloud_score=q['cloud_score'] is not None), reports
+			                       'aerosols: true, false or "auto"; cloud_score; topographic: true or false)'))
+	return dict({f: q[f] for f in sensors.FILTERS}, cloud_score=q['cloud_score'] is not None,
+	            topographic=bool(q.get('topographic'))), reports
 
 
 def where_fields(where, period=None):
@@ -1443,6 +1449,9 @@ class MonitorEODock(QDockWidget):
 		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
+		self.topographic = QCheckBox('Topographic correction (Landsat)')  # off: SCS+C, in its help ⓘ
+		self.topographic.setChecked(False)
+		f.addRow('', info(self.topographic, HELP['topographic']))
 		# where: up to two conditions on variables, the only pixels of the region that pass them all; on a categorical
 		# layer (ECOREGION, BIOME), its classes to keep or to leave out instead of a min and a max
 		self.where = []
@@ -2453,6 +2462,9 @@ class MonitorEODock(QDockWidget):
 				w.setChecked(on)
 		# also greyed out: the burn severity and the right axis of a profile compute other variables with it
 		self.cloud_score.setChecked(q['cloud_score'])
+		self.topographic.setChecked(bool(q.get('topographic')))
+		if given and q.get('topographic') and not own and not self.topographic.isEnabled():
+			out.append(missing('quality.topographic', True, NO_TOPOGRAPHIC))
 		return out
 
 	def put_doy(self, value, given, name):
@@ -2980,6 +2992,8 @@ class MonitorEODock(QDockWidget):
 		if auto:
 			quality = {k: 'auto' if on else False for k, on in quality.items()}
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
+		if self.topographic.isChecked() and (own or self.topographic.isEnabled()):  # SCS+C, only when asked
+			quality['topographic'] = True
 		return quality
 
 	def own_filters(self):
@@ -3348,7 +3362,10 @@ class MonitorEODock(QDockWidget):
 			# each axis with the filters the user chose, not the greyed out ones of the variable of the left axis (all of
 			# them with the SCF, the CF and the data by ID, which ignore them; that of what it measures with the NDSI...),
 			# as 'auto': each variable leaves out the filter of what it measures, e.g. the snow of the NDSI, not the NDVI
-			var = dict(var, quality=self.quality_args(own=True, auto=True))
+			quality = self.quality_args(own=True, auto=True)
+			if not (self.variable.currentData() or {}).get('topographic'):  # greyed out: not for the left axis
+				quality.pop('topographic', None)  # (the right axis gets it only if it can, services._other_spec)
+			var = dict(var, quality=quality)
 		return 'time_series', dict(region=region, **var, step=step, metric=metric, stat=stat, doy=doy, **profile)
 
 	def run_series(self):
@@ -3474,6 +3491,8 @@ class MonitorEODock(QDockWidget):
 		fixed = v.get('fixed_filters')
 		self.cloud_score.setEnabled(fixed is None)
 		self.cloud_score.setToolTip(NO_FILTERS if v.get('custom') else '')
+		self.topographic.setEnabled(bool(v.get('topographic')))  # the surface reflectance of Landsat
+		self.topographic.setToolTip('' if v.get('topographic') else NO_TOPOGRAPHIC)
 		measured = set() if fixed is not None else \
 			{f for f in sensors.FILTERS if v.get('variable') in sensors.MEASURES.get(f, ())}
 		own = self.own_filters()
@@ -4217,6 +4236,8 @@ class MonitorEODock(QDockWidget):
 		where = self.where_args(before)
 		quality = self.quality_args(own=True)  # the NBR, whatever the variable selected
 		(sensor, collection), index = self.fire_source(), self.fire_index.currentData()
+		if sensor != 'Landsat':  # the topographic correction: only for Landsat (Sentinel-2 comes already corrected)
+			quality.pop('topographic', None)
 		stem = os.path.join(folder, burn_stem(index))
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
 		outline = self.perimeter_args(index, stem)  # the polygons of the burned area

@@ -559,6 +559,7 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 		         f"unit {src['unit']}" if src.get('unit') else '',
 		         'pixels without ' + ', '.join(k for k, v in (src.get('pixel_filters') or {}).items() if v)
 		         if any((src.get('pixel_filters') or {}).values()) else '',
+		         f"topographic correction {src['topographic_correction']}" if src.get('topographic_correction') else '',
 		         'only the pixels where ' + _where(src['where']) if src.get('where') else '',
 		         f"{f['images']} images" if f.get('images') is not None else '',
 		         f"downloaded {f['downloaded']}" if f.get('downloaded') else '', f"via {f['via']}" if f.get('via') else '']

@@ -391,6 +391,14 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// sensors.TOPOGRAPHIC: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance of Landsat
+	// (quality.topographic): L (cos S cos Z + C) / (IC + C), with C of the regression of each band on the illumination
+	// IC of each scene (see correctTopography); not for Sentinel-2, whose Level-2A (Sen2Cor) is already corrected
+	var TOPOGRAPHIC = {dem: 'USGS/SRTMGL1_003', min_slope: 5, scale: 90, surroundings: 10000};
+	// sensors.REFLECTANCE: the surface reflectance bands of each sensor that the correction applies to
+	var REFLECTANCE = {'Landsat': ['blue', 'green', 'red', 'nir', 'swir1', 'swir2']};
+	var TOPOGRAPHIC_S2 = 'its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief: use Landsat';
+
 	// sensors.TWI: the topographic wetness index (TWI) of MERIT Hydro, ln(a / tan β): the upstream area of MERIT Hydro
 	// is in km² (area_scale: m² in a km²), and tan β is at least min_tan_slope on the flats (see twiImage)
 	var TWI = {area_scale: 1e6, min_tan_slope: 0.001};
@@ -446,10 +454,81 @@ var MonitorEO = (function () {
 	// bands red, green and blue (surface reflectance), only on the pixels where VALUE has data, so that they are the
 	// same pixels as those of the variable (its pixel filters, its own masks and its formula). Without the RESAMPLE of
 	// Python (pixels finer than those of the data), which sensorCollection does not port either
-	function withRgb(img, value, entry) {
+	// With TOPO (the study area), with the topographic correction fitted in it, as the variable (see correctTopography)
+	function withRgb(img, value, entry, topo) {
 		var rgb = rgbOf(entry);
 		var bands = ee.Image(img).select(rgb[0]).multiply(rgb[1]).add(rgb[2]);
+		if (topo) bands = correctTopography(bands.updateMask(value.mask()), ee.Image(img), topo);
 		return value.addBands(bands.toFloat().rename(RGB_BANDS).updateMask(value.mask()));
+	}
+
+	// sensors.no_topographic: why the topographic correction cannot be applied to the variable of ENTRY, or null
+	function noTopographic(entry) {
+		var name = entry.index + ' (' + entry.sensor + ')';
+		if (entry.sensor === 'Sentinel-2' && !entry.custom) return name + ': ' + TOPOGRAPHIC_S2;
+		if (!REFLECTANCE[entry.sensor] || entry.static || entry.custom) {
+			return name + ' is not a surface reflectance of Landsat';
+		}
+		if (isScf(entry)) return name + ' has its own rules for the snow in the shadow of the relief';
+		if (isCf(entry)) return name + ' counts clouds, not reflectances';
+		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb || {}).map(function (k) { return entry.fb[k]; });
+		var ok = used.length > 0 && used.every(function (b) { return REFLECTANCE[entry.sensor].indexOf(b) >= 0; });
+		return ok ? null : name + ' is not computed from surface reflectances';
+	}
+
+	// sensors.check_topographic
+	function checkTopographic(entry, quality) {
+		if (!(quality && quality.topographic)) return;
+		var why = noTopographic(entry);
+		if (why) {
+			throw new Error('the topographic correction (quality topographic) is for the surface reflectance of ' +
+				'Landsat: ' + why + '. Leave it off');
+		}
+	}
+
+	// sensors._sun: [zenith, azimuth] of the sun of the Landsat scene IMG, in degrees
+	function sun(img) {
+		return [ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION'))), ee.Number(img.get('SUN_AZIMUTH'))];
+	}
+
+	// sensors.correct_topography: the reflectance bands DATA of the Landsat scene IMG with the correction SCS+C, fitted
+	// in REGION (the study area) and its surroundings
+	function correctTopography(data, img, region) {
+		var bands = data.bandNames();
+		var deg = Math.PI / 180;
+		var angles = sun(img);
+		var zenith = angles[0].multiply(deg), azimuth = angles[1].multiply(deg);
+		var dem = ee.Image(TOPOGRAPHIC.dem);
+		var slopeDeg = ee.Terrain.slope(dem);
+		var slope = slopeDeg.multiply(deg);
+		var aspect = ee.Terrain.aspect(dem).multiply(deg);
+		var flat = slope.cos().multiply(zenith.cos());  // cos S cos Z
+		var ic = flat.add(slope.sin().multiply(zenith.sin()).multiply(aspect.multiply(-1).add(azimuth).cos()))
+			.rename('ic');
+		var valid = data.mask().reduce(ee.Reducer.min());
+		var use = slopeDeg.gte(TOPOGRAPHIC.min_slope).and(ic.gte(0)).and(valid);
+		var n = bands.size();
+		var times = bands.map(function (b) { return ee.String(b).cat('_ic'); });
+		var stack = ee.Image.cat([ic, ic.multiply(ic).rename('ic2'), data, data.multiply(ic).rename(times)])
+			.updateMask(use);
+		var area = ee.FeatureCollection(region).geometry().bounds(1000).buffer(TOPOGRAPHIC.surroundings, 1000);
+		var means = stack.reduceRegion({reducer: ee.Reducer.mean(), geometry: area, scale: TOPOGRAPHIC.scale,
+			maxPixels: 1e9, bestEffort: true, tileScale: 4});
+		var mic = ee.Number(means.get('ic'));
+		var variance = ee.Number(means.get('ic2')).subtract(mic.multiply(mic));
+		var coefficients = bands.map(function (b) {  // C of each band, and 1 where its regression has a positive slope
+			var mb = ee.Number(means.get(b));
+			var cov = ee.Number(means.get(ee.String(b).cat('_ic'))).subtract(mic.multiply(mb));
+			var m = ee.Number(ee.Algorithms.If(variance.gt(1e-12), cov.divide(variance), 0));
+			var ok = m.gt(0);
+			return ee.List([ee.Number(ee.Algorithms.If(ok, mb.subtract(m.multiply(mic)).divide(m), 0)), ok]);
+		});
+		var none = ee.List.repeat(ee.List([0, 0]), n);
+		var coef = ee.List(ee.Algorithms.If(ee.Algorithms.IsEqual(means.get('ic'), null), none, coefficients));
+		var c = ee.Image.constant(coef.map(function (x) { return ee.List(x).get(0); })).rename(bands);
+		var ok = ee.Image.constant(coef.map(function (x) { return ee.List(x).get(1); })).rename(bands);
+		var corrected = data.multiply(c.add(flat)).divide(c.add(ic));
+		return data.where(use.and(ok).and(c.add(ic).gt(0)).unmask(0), corrected);
 	}
 
 	// sensors._no_rgb
@@ -683,11 +762,14 @@ var MonitorEO = (function () {
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
+		checkTopographic(entry, quality);
+		var topo = !!quality.topographic;
 		return rawCollection(entry, region, start, end, quality).map(function (img) {
 			img = ee.Image(img);
 			var data = img.select(used).multiply(scale).add(offset);
 			var mask = qualityMask(img, entry, quality);
 			if (mask) data = data.updateMask(mask);
+			if (topo) data = correctTopography(data, img, region);
 			var out;
 			if (entry.fk === 'nd') {
 				out = data.normalizedDifference(entry.fb);
@@ -697,7 +779,7 @@ var MonitorEO = (function () {
 				out = data.expression(entry.ft, names);
 			}
 			out = out.toFloat().rename('value');
-			if (rgb) out = withRgb(img, out, entry);
+			if (rgb) out = withRgb(img, out, entry, topo ? region : null);
 			return out.copyProperties(img, ['system:time_start']);
 		});
 	}
@@ -4366,7 +4448,7 @@ var MonitorEO = (function () {
 		rampEntry: rampEntry,
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
-		rgbOf: rgbOf, withRgb: withRgb, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
+		rgbOf: rgbOf, withRgb: withRgb, noTopographic: noTopographic, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
 		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
 	};
 })();

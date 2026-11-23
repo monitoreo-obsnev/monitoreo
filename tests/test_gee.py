@@ -46,6 +46,14 @@ CASES = {
 	                             'stat': 'mean', 'spec': {'ref': 25, 'period': ['2018-01-01', '2018-12-31'],
 	                                                      'where': [dict(GREEN, sensor='Modis', ref=25)]},
 	                             'other': ['2020-01-01', '2020-12-31']},
+	# the topographic correction SCS+C of the surface reflectance of Landsat (sensors.TOPOGRAPHIC), in the steep slopes
+	# below the Mulhacén: a series and a map
+	'series_landsat_topographic': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean',
+	                               'stat': 'mean', 'spec': {'ref': 24, 'period': ['2021-07-01', '2021-09-30'],
+	                                                        'quality': {'topographic': True}}},
+	'map_landsat_topographic': {'kind': 'percentiles', 'region': LAGUNAS,
+	                            'spec': {'ref': 24, 'period': ['2021-07-01', '2021-09-30'], 'metric': 'median',
+	                                     'quality': {'topographic': True}}},
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
 	# the topographic wetness index of MERIT Hydro (from two bands of its image), and as a condition of a variable
 	'map_twi': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 148}},

@@ -31,6 +31,7 @@ References (monitoreo.references gives them, with those of the data, with each r
       https://doi.org/10.1016/j.rse.2009.01.007 (the TOA reflectance of the snow in the shadow of the SCF)
 """
 
+import math
 import re
 
 import ee
@@ -79,6 +80,10 @@ QUALITY = {
 	'scene_clouds': None,  # Sentinel-2 and Landsat: maximum cloud cover of a scene (%), None = all scenes
 }
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')
+# Options of the processing of the images that are off unless asked, and not kept in the specs when off (so that the
+# records of the files made without them do not change): {option: default}. 'topographic': the topographic
+# correction SCS+C of the surface reflectance (see TOPOGRAPHIC).
+OPTIONS = {'topographic': False}
 MEASURES = {  # variables whose signal a filter removes
 	'water': {'NDWI', 'Chl-a', 'NDCI', 'WAVI'},  # open water, water quality and aquatic vegetation
 	'snow': {'NDSI', 'SCF', 'SCD'},
@@ -167,15 +172,147 @@ def rgb_of(entry):
 	return RGB.get(entry.get('sensor')) or RGB.get(entry.get('col'))
 
 
-def _with_rgb(img, value, entry, resample=None):
+def _with_rgb(img, value, entry, resample=None, topo=None):
 	"""VALUE (the image 'value' of the variable of the image IMG) with the true colour of IMG: the bands red, green and
 	blue (surface reflectance), only on the pixels where VALUE has data, so that they are the same pixels as those of
-	the variable (its pixel filters, its own masks and its formula)."""
+	the variable (its pixel filters, its own masks and its formula); with TOPO, with the topographic correction (see
+	TOPOGRAPHIC) fitted in the study area TOPO, as the variable."""
 	bands, scale, offset = rgb_of(entry)
 	rgb = ee.Image(img).select(bands).multiply(scale).add(offset)
 	if resample:
 		rgb = rgb.resample(resample)
+	if topo is not None:
+		rgb = correct_topography(rgb.updateMask(value.mask()), ee.Image(img), topo)
 	return value.addBands(rgb.toFloat().rename(RGB_BANDS).updateMask(value.mask()))
+
+
+# Topographic correction SCS+C (sun-canopy-sensor + C, Soenen et al. 2005) of the surface reflectance of Landsat
+# (quality {'topographic': True}): the slopes facing the sun look brighter, and those facing away darker, than the
+# same cover on flat ground. In each image, the illumination of each pixel is
+#     IC = cos Z cos S + sin Z sin S cos(A - a)
+# (Z, A: the zenith and azimuth of the sun of the scene, 90 - SUN_ELEVATION and SUN_AZIMUTH; S, a: the slope and the
+# aspect of the SRTM, ee.Terrain), and each reflectance band L is corrected as
+#     L_corrected = L (cos S cos Z + C) / (IC + C),   C = b / m
+# with b and m the intercept and the slope of the linear regression of L on IC over the pixels of the scene in the
+# study area and its surroundings (its bounding box grown by 'surroundings' metres, at 'scale' metres) with a slope of
+# at least 'min_slope' degrees, IC >= 0 and data after the pixel filters: in the mountains of the study area, not over
+# the whole scene, where the differences between the covers of the valleys and the plains hide those of the relief.
+# Only the pixels with that slope and IC >= 0 are corrected (as Soenen et al. 2005); the others, those of a band whose
+# regression has no positive slope (m <= 0: no relation with the illumination) or no pixels, and those outside the
+# SRTM (60° N to 56° S) keep their reflectance. The formula of the variable is then computed with the corrected bands;
+# the true colour of the same images is corrected too. Checked in Sierra Nevada (Mulhacén and Veleta, slopes over
+# 15°), Landsat 8 and 9, July to September 2021: the median NIR of the north and south faces, 0.145 and 0.208, become
+# 0.165 and 0.190 (with the regression of the whole scene, 0.167 and 0.190, but the NDVI of the north faces drops from
+# 0.131 to 0.074, against 0.121 with that of the study area).
+# Not for Sentinel-2: its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief with a DEM, and a
+# second correction would overcorrect it. In the same place, the median NIR of the north and south faces of the
+# Level-1C (TOA) images of winter 2021-22 is 0.068 and 0.262, and that of the Level-2A images of MonitorEO 0.191 and
+# 0.184.
+TOPOGRAPHIC = {
+	'dem': 'USGS/SRTMGL1_003',  # the DEM of the slope and aspect (that of the SCF too)
+	'min_slope': 5,             # degrees: flatter pixels are neither corrected nor used in the regression
+	'scale': 90,                # metres of the pixels of the regression of each scene
+	'surroundings': 10000,      # metres around the bounding box of the study area of the pixels of the regression
+}
+# The surface reflectance bands of each sensor (as named by raw_collection) that the correction applies to: not the
+# surface temperature of Landsat (st) nor its QA bands
+REFLECTANCE = {'Landsat': {'blue', 'green', 'red', 'nir', 'swir1', 'swir2'}}
+TOPOGRAPHIC_S2 = 'its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief: use Landsat'
+
+
+def topographic(quality):
+	"""Whether QUALITY asks for the topographic correction (see TOPOGRAPHIC): true, or a text such as 'true', 'yes',
+	'on' or '1' (as variable.specs reads it); not false, None, 0, 'false', 'no', 'off'."""
+	v = (quality or {}).get('topographic') if isinstance(quality, dict) else None
+	if isinstance(v, str):
+		return v.strip().lower() in ('true', 'yes', 'on', '1')
+	return bool(v)
+
+
+def no_topographic(entry):
+	"""Why the topographic correction cannot be applied to the variable of ENTRY (a text), or None if it can: only to
+	the variables of the surface reflectance of Landsat. Sentinel-2 is already corrected (see TOPOGRAPHIC), the snow
+	cover frequency and days have their own rules in the shadow of the relief (see SCF), the cloud frequency reads no
+	reflectance, the land surface temperature is not a reflectance, and the other sensors and the fixed layers have no
+	reflectance bands of their own scenes."""
+	name = f"{entry.get('index')} ({entry.get('sensor')})"
+	if entry.get('sensor') == 'Sentinel-2':
+		return f'{name}: {TOPOGRAPHIC_S2}'
+	if entry.get('sensor') not in REFLECTANCE or entry.get('static'):
+		return f'{name} is not a surface reflectance of Landsat'
+	if is_scf(entry):
+		return f'{name} has its own rules for the snow in the shadow of the relief'
+	if is_cf(entry):
+		return f'{name} counts clouds, not reflectances'
+	ft = str(entry.get('ft', '')).strip()
+	ft = ft[2:-1] if ft.startswith('N(') and ft.endswith(')') else ft  # the bands of a normalized difference
+	used = {t.lower() for t in re.findall(r'[A-Za-z_][A-Za-z0-9_]*', ft)}  # without Earth Engine (see parse_formula)
+	if not used or not used <= {b.lower() for b in REFLECTANCE[entry['sensor']]}:
+		return f'{name} is not computed from surface reflectances'
+	return None
+
+
+def check_topographic(entry, quality):
+	"""ValueError, before Earth Engine, if QUALITY asks for the topographic correction of a variable that cannot have it
+	(see no_topographic)."""
+	if not topographic(quality):
+		return
+	why = no_topographic(entry)
+	if why:
+		raise ValueError(f'the topographic correction (quality topographic) is for the surface reflectance of Landsat: '
+		                 f'{why}. Leave it off')
+
+
+def _sun(img):
+	"""(zenith, azimuth) of the sun of the Landsat scene IMG, in degrees (ee.Number)."""
+	return ee.Number(90).subtract(ee.Number(img.get('SUN_ELEVATION'))), ee.Number(img.get('SUN_AZIMUTH'))
+
+
+def correct_topography(data, img, region):
+	"""The reflectance bands DATA (reflectance, after scale, offset and pixel filters) of the Landsat scene IMG with
+	the topographic correction SCS+C (see TOPOGRAPHIC), fitted in REGION (the study area) and its surroundings: the same
+	bands, corrected where it applies."""
+	bands = data.bandNames()
+	deg = math.pi / 180
+	zenith, azimuth = _sun(img)
+	zenith, azimuth = zenith.multiply(deg), azimuth.multiply(deg)
+	dem = ee.Image(TOPOGRAPHIC['dem'])
+	slope_deg = ee.Terrain.slope(dem)
+	slope = slope_deg.multiply(deg)
+	aspect = ee.Terrain.aspect(dem).multiply(deg)
+	flat = slope.cos().multiply(zenith.cos())  # cos S cos Z
+	ic = flat.add(slope.sin().multiply(zenith.sin()).multiply(aspect.multiply(-1).add(azimuth).cos())).rename('ic')
+	valid = data.mask().reduce(ee.Reducer.min())
+	use = slope_deg.gte(TOPOGRAPHIC['min_slope']).And(ic.gte(0)).And(valid)
+	n = bands.size()
+	times = bands.map(lambda b: ee.String(b).cat('_ic'))
+	stack = ee.Image.cat([ic, ic.multiply(ic).rename('ic2'), data, data.multiply(ic).rename(times)]).updateMask(use)
+	area = (region.geometry() if isinstance(region, ee.FeatureCollection) else ee.Geometry(region)).bounds(1000) \
+		.buffer(TOPOGRAPHIC['surroundings'], 1000)
+	means = stack.reduceRegion(ee.Reducer.mean(), area, TOPOGRAPHIC['scale'], maxPixels=1e9, bestEffort=True,
+	                           tileScale=4)
+
+	def coefficients():  # C of each band, and 1 where its regression has a positive slope
+		mic = ee.Number(means.get('ic'))
+		variance = ee.Number(means.get('ic2')).subtract(mic.multiply(mic))
+
+		def of(b):
+			mb = ee.Number(means.get(b))
+			cov = ee.Number(means.get(ee.String(b).cat('_ic'))).subtract(mic.multiply(mb))
+			m = ee.Number(ee.Algorithms.If(variance.gt(1e-12), cov.divide(variance), 0))
+			ok = m.gt(0)
+			c = ee.Number(ee.Algorithms.If(ok, mb.subtract(m.multiply(mic)).divide(m), 0))
+			return ee.List([c, ok])
+
+		return bands.map(of)
+
+	none = ee.List.repeat(ee.List([0, 0]), n)
+	coef = ee.List(ee.Algorithms.If(ee.Algorithms.IsEqual(means.get('ic'), None), none, coefficients()))
+	c = ee.Image.constant(coef.map(lambda x: ee.List(x).get(0))).rename(bands)
+	ok = ee.Image.constant(coef.map(lambda x: ee.List(x).get(1))).rename(bands)
+	corrected = data.multiply(c.add(flat)).divide(c.add(ic))
+	where = use.And(ok).And(c.add(ic).gt(0)).unmask(0)
+	return data.where(where, corrected)
 
 
 def _no_rgb(entry):
@@ -476,6 +613,8 @@ def collection(entry, region, start, end, quality=None, resample=None, rgb=False
 	if kind == 'cf':
 		return cf_collection(entry, region, start, end, quality, rgb)
 	used = list(bands) if kind == 'nd' else sorted(set(bands.values()))
+	check_topographic(entry, quality)
+	topo = topographic(quality)
 
 	def compute(img):
 		img = ee.Image(img)
@@ -485,13 +624,15 @@ def collection(entry, region, start, end, quality=None, resample=None, rgb=False
 		mask = quality_mask(img, entry, quality)
 		if mask is not None:
 			data = data.updateMask(mask)
+		if topo:
+			data = correct_topography(data, img, region)
 		if kind == 'nd':
 			out = data.normalizedDifference(bands)
 		else:
 			out = data.expression(entry['ft'], {name: data.select(b) for name, b in bands.items()})
 		out = out.toFloat().rename('value')
 		if rgb:
-			out = _with_rgb(img, out, entry, resample)
+			out = _with_rgb(img, out, entry, resample, region if topo else None)
 		return out.copyProperties(img, ['system:time_start'])
 
 	return raw_collection(entry, region, start, end, quality).map(compute)
