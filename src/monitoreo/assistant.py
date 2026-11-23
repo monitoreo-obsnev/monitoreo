@@ -262,8 +262,9 @@ always within a country or another region, or MODIS or the climate at an annual 
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS" or \
 "WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
-PRECIP...).
-- Filters: the pixels with water and snow are removed; with the NDWI, the NDCI or the Chl-a pass quality \
+PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll index, B8 / B5 - 1), "CLreB7" (the same with B7) and "WAVI" (water adjusted \
+vegetation index).
+- Filters: the pixels with water and snow are removed; with the NDWI, the NDCI, the Chl-a or the WAVI pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \

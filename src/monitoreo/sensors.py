@@ -80,7 +80,7 @@ QUALITY = {
 }
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')
 MEASURES = {  # variables whose signal a filter removes
-	'water': {'NDWI', 'Chl-a', 'NDCI'},  # open water and water quality
+	'water': {'NDWI', 'Chl-a', 'NDCI', 'WAVI'},  # open water, water quality and aquatic vegetation
 	'snow': {'NDSI', 'SCF', 'SCD'},
 	'aerosols': {'ARSL'},
 }

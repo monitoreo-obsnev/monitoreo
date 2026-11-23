@@ -3441,8 +3441,8 @@ class MonitorEODock(QDockWidget):
 		"""The metrics of the images, fixed at the only metric of the variable if it has one, and its pixel filters,
 		greyed out and checked those always on if they are fixed (the snow cover frequency: the mean, the % of the clear
 		observations with snow, without clouds and water), and unchecked and greyed out that of what the variable
-		measures (sensors.MEASURES: snow with the NDSI, water with the NDWI, the Chl-a and the NDCI, aerosols with the
-		ARSL). The filters chosen before come back with another variable.
+		measures (sensors.MEASURES: snow with the NDSI, water with the NDWI, the Chl-a, the NDCI and the WAVI, aerosols
+		with the ARSL). The filters chosen before come back with another variable.
 		The fixed layers without dates (elevation, slope): only maps, so the period, the metrics, the filters, the time
 		series and the trends greyed out. The data of Earth Engine outside the catalog (custom_entry): no pixel filters
 		and, a fixed image, as those layers. The list Layer of the map, with the true colour only if it has one

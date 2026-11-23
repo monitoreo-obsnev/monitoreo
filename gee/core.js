@@ -373,7 +373,7 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS ={'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI'], snow: ['NDSI', 'SCF', 'SCD'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI', 'WAVI'], snow: ['NDSI', 'SCF', 'SCD'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
 	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat and Sentinel-2
 	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
@@ -4239,6 +4239,9 @@ var MonitorEO = (function () {
 		'NDVI': ['NDVI: índice de vegetación de diferencia normalizada', 'NDVI: Normalized Difference Vegetation Index'],
 		'EVI': ['EVI: índice de vegetación mejorado', 'EVI: Enhanced Vegetation Index'],
 		'LAI': ['LAI: índice de área foliar', 'LAI: Leaf Area Index'],
+		'CLre': ['CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'],
+		'CLreB7': ['CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'],
+		'WAVI': ['WAVI: índice de vegetación ajustado al agua', 'WAVI: Water Adjusted Vegetation Index'],
 		'Chl-a': ['Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'],
 		'NDCI': ['NDCI: índice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'],
 		'NDWI': ['NDWI: índice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'],

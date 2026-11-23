@@ -81,6 +81,9 @@ def test_cite():
 	albedo = references.cite('map_layer', {'variable': 'ALBEDO', 'sensor': 'Sentinel-2', 'start': '2022-01-01',
 	                                       'end': '2022-12-31'})
 	assert {'bonafoni2020', 'esa_s2_l2a'} <= set(_ids(albedo)) and 'liang2001' not in _ids(albedo)
+	for index, refs in (('CLre', {'gitelson2003', 'gitelson2005'}), ('CLreB7', {'gitelson2005', 'clevers2013'}), ('WAVI', {'villa2014'})):
+		assert refs | {'esa_s2_l2a'} <= set(_ids(references.cite('map_layer', {'variable': index, 'sensor': 'Sentinel-2',
+		                                                                       'start': '2022-06-01', 'end': '2022-09-30'})))
 	scl = references.cite('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'quality': {'cloud_score': None},
 	                                      'start': '2018-01-01', 'end': '2018-12-31'})
 	assert 'pasquarella2023' not in _ids(scl) and 'mainknorn2017' in _ids(scl)  # SCL clouds, no Cloud Score+
