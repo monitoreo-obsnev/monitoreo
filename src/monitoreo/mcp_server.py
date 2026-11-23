@@ -69,7 +69,7 @@ always tell the user, as those days may have no data (describe_variable gives th
 warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, NDSI, NDCI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
+LSWI, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
 frequency, snow cover days) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow,
 aerosols). The snow cover frequency (SCF, Sentinel-2, Landsat and MODIS) is the % of the clear observations of each
 pixel with snow: always with metric "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the

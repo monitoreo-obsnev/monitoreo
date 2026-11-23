@@ -94,6 +94,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: Three new vegetation variables of Sentinel-2, the red-edge chlorophyll index CLre (B8 / B5 − 1, 20 m; Gitelson et al. 2003, 2005) and its version with B7, CLreB7 (B7 / B5 − 1, 20 m; Clevers & Gitelson 2013), and the water adjusted vegetation index WAVI (1.5 × (B8 − B2) / (B8 + B2 + 0.5), 10 m; Villa et al. 2014), in maps, series, trends, comparisons and downloads.
+
 ### [v0.3.67](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.67) · 2026-11-21 · package 0.3.77
 
 - **All tools** (fix): The albedo of Sentinel-2 is the narrow-to-broadband conversion of Bonafoni & Sekertekin (2020), with B2, B3, B4, B8, B11 and B12, and it is cited; its weights before had no reference and gave almost all the weight to the visible and red-edge bands, so vegetation got too little albedo. Its pixel is 20 m, that of its bands B11 and B12, no longer 10 m. Its values change: do not compare them with those of earlier versions.

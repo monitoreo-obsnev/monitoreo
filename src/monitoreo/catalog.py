@@ -527,7 +527,7 @@ def load():
 # series, trends, comparisons, exports) are in every theme with variables with dates. A new kind of variable or
 # analysis (e.g. species distribution models) gets its theme here, with its variables and analyses, in every menu.
 THEMES = [
-	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI']},
+	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI']},
 	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
 	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD']},
 	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR'], 'analyses': ['burn_severity']},

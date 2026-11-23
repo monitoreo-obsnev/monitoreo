@@ -15,7 +15,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 89  # the 32 of catalog.json, NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 92  # the 35 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
 	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
@@ -80,8 +80,8 @@ def test_albedo_sentinel2_is_the_conversion_of_the_article():
 
 def test_sentinel2_pixel_is_that_of_its_coarsest_band():
 	"""The pixel (m) of each variable of Sentinel-2 is that of the coarsest band its formula reads: 20 m with B5, B6,
-	B7, B8A, B11 or B12 (LSWI, NDSI, albedo, Chl-a, NDCI, NBR, RBR, RdNBR, SCF, SCD), 10 m with B2, B3, B4 and B8 only
-	(NDVI, EVI, NDWI) and with the cs_cdf of Cloud Score+ (cloud frequency)."""
+	B7, B8A, B11 or B12 (LSWI, NDSI, albedo, Chl-a, NDCI, CLre, CLreB7, NBR, RBR, RdNBR, SCF, SCD), 10 m with B2, B3, B4 and B8
+	only (NDVI, EVI, NDWI, WAVI) and with the cs_cdf of Cloud Score+ (cloud frequency)."""
 	coarse = {'B5', 'B6', 'B7', 'B8A', 'B11', 'B12'}
 	got = {}
 	for e in catalog.variables():
@@ -90,7 +90,25 @@ def test_sentinel2_pixel_is_that_of_its_coarsest_band():
 			assert e['m'] == (20 if bands & coarse else 10), (e['ref'], e['index'], bands)
 			got[e['index']] = e['m']
 	assert got == {'LSWI': 20, 'NDSI': 20, 'NDWI': 10, 'ALBEDO': 20, 'Chl-a': 20, 'EVI': 10, 'NDVI': 10, 'NDCI': 20,
-	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'CF': 10, 'RdNBR': 20}
+	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'CF': 10, 'RdNBR': 20, 'CLre': 20, 'CLreB7': 20, 'WAVI': 10}
+
+
+def test_red_edge_chlorophyll_and_water_adjusted_vegetation_index(monkeypatch):
+	"""CLre (B8 / B5 - 1), CLreB7 (B7 / B5 - 1) and WAVI (1.5 (B8 - B2) / (B8 + B2 + 0.5)) of Sentinel-2: expressions of
+	its bands (B8 is B8, not B8A), in the Vegetation theme, without unit, cited, and the water filter does not remove the
+	aquatic vegetation that the WAVI measures."""
+	monkeypatch.setitem(sensors._band_names, 'COPERNICUS/S2_SR_HARMONIZED',
+	                    ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B11', 'B12', 'SCL'])
+	want = {'CLre': ('B8 / B5 - 1', 158, 20, {'B8': 'B8', 'B5': 'B5'}, ['gitelson2003', 'gitelson2005']),
+	        'CLreB7': ('B7 / B5 - 1', 160, 20, {'B7': 'B7', 'B5': 'B5'}, ['gitelson2005', 'clevers2013']),
+	        'WAVI': ('1.5 * (B8 - B2) / (B8 + B2 + 0.5)', 159, 10, {'B8': 'B8', 'B2': 'B2'}, ['villa2014'])}
+	vegetation = next(t for t in catalog.THEMES if t['key'] == 'vegetation')['indices']
+	for index, (ft, ref, m, bands, refs) in want.items():
+		e = catalog.find(index, 'Sentinel-2')
+		assert (e['ft'], e['f'], e['ref'], e['m'], e['unit'], e['scale']) == (ft, ft, ref, m, '[unitless]', 0.0001)
+		assert e['references'] == refs and index in vegetation
+		assert sensors.parse_formula(e) == ('expr', bands)
+	assert 'WAVI' in sensors.MEASURES['water'] and 'CLre' not in sensors.MEASURES['water']
 
 
 def test_app_has_the_catalog():

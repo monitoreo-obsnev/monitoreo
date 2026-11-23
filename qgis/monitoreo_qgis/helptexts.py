@@ -191,7 +191,8 @@ HELP = {
 		'exports.</p>'
 		+ manual('Concepts#period-and-season'),
 	'theme':
-		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI), <b>Water</b> (NDWI, LSWI, '
+		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI, red-edge chlorophyll index CLre '
+		'with B8 or CLreB7 with B7, water adjusted vegetation index WAVI), <b>Water</b> (NDWI, LSWI, '
 		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, and the burn severity of a fire: '
 		'dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
@@ -327,7 +328,7 @@ HELP = {
 		'shadows), water, snow or many aerosols. Each product has its own bands: aerosols can only be removed in '
 		'Landsat 8 and 9 and in the NDVI, EVI and LAI of MODIS.</p>'
 		'<p>The filter of what the variable measures is unchecked and greyed out: <b>snow</b> with the NDSI, '
-		'<b>water</b> with the NDWI, the Chl-a and the NDCI, and <b>aerosols</b> with the ARSL. The filters you had '
+		'<b>water</b> with the NDWI, the Chl-a, the NDCI and the WAVI, and <b>aerosols</b> with the ARSL. The filters you had '
 		'come back with another variable.</p>',
 	'cloud_score':
 		'<p>Only for Sentinel-2, and with the check box <b>clouds</b> checked. Checked, clouds are removed with '
@@ -588,7 +589,7 @@ HELP = {
 		'a series, of the group Trends for trends), which shows the patterns of each date better.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
-		'Sentinel-2 (20 m for the variables that read its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, NBR, the albedo, the '
+		'Sentinel-2 (20 m for the variables that read its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, CLre, CLreB7, NBR, the albedo, the '
 		'snow cover frequency and days and the burn severity), 30 m in Landsat and from 250 m to 4.6 km in MODIS. A '
 		'bigger pixel gives a smaller file and a faster export.</p>'
 		'<p>The export to Google Drive keeps the pixels of the data also in a large area (more than 100,000 km²): it is '

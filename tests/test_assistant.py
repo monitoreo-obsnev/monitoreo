@@ -1008,7 +1008,7 @@ def test_instructions_of_the_big_models():
 	assert big.index('Variables of the catalog') < big.index('How to help the user')
 	assert 'no LaTeX' in big and 'Never tell the user to write options' in big and 'no LaTeX' not in small
 	for text in (small, big):  # both: the filter of what the variable measures, off
-		assert 'with the NDWI, the NDCI or the Chl-a pass quality {"water": "auto"}' in text
+		assert 'with the NDWI, the NDCI, the Chl-a or the WAVI pass quality {"water": "auto"}' in text
 		assert 'with the NDSI quality {"snow": "auto"}' in text
 	a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'monitoreo'})
 	assert 'How to help the user' in a.system_prompt() and a.advice_limit() == assistant.BIG_ADVICE
