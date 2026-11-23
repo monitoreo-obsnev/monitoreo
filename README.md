@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.69](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.69) · 2026-11-23 · package 0.3.79
 
 - **All tools**: The topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance of Landsat, an option off by default (quality `topographic`, `--topographic-correction` in the command line, a check box in the QGIS plugin and the Earth Engine app): in mountains, the slopes facing the sun and those facing away are compared as if they were lit alike, in maps, series, trends, comparisons, burn severity and downloads. Sentinel-2 does not take it: its Level-2A images come already corrected for the relief.
 
