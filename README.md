@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.70](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.70) · 2026-11-24 · package 0.3.80
 
 - **All tools**: The snow by its NDSI, an option of the pixel filters off by default (quality `snow_ndsi`, e.g. 0.4; `--snow-ndsi` in the command line; a check box next to the filters in the QGIS plugin and the Earth Engine app): with the snow filter on, each image of Sentinel-2 and Landsat also loses the pixels whose NDSI (green, SWIR1; Hall et al. 1995) is that number or more, the patches and edges of snow that its quality band misses, which raise the standard deviation or the minimum of a moisture index such as the NDMI in mountains.
 
