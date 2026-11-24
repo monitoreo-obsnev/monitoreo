@@ -385,7 +385,7 @@ def change_burn():
 
 call = roundtrip('burn', change_burn)
 assert (call[1]['index'], call[1]['sensor'], call[1]['collection']) == ('RdNBR', 'Modis', 'MODIS/061/MYD09GA')
-assert call[1]['perimeter'] == 'burn_severity_rdnbr_perimeter.gpkg' and dock.fire_box.isVisibleTo(dock)
+assert call[1]['perimeter'] == 'burn_severity_rdnbr_perimeter.gpkg' and dock.shown(dock.fire_box)
 assert dock.theme_has('burn_severity')
 dock.theme.setCurrentIndex(dock.theme.count() - 1)
 pick(dock.variable, text='NDVI · Landsat')
@@ -412,12 +412,12 @@ assert dock.region_kind.currentData() == 'sea_point'  # the sea at the center of
 reports = dock.apply_parameters({'analysis': 'map_layer', 'parameters': {'region': {'sea': 'alborán sea'},
                                                                          'variable': 'Chl-a', 'sensor': 'Modis'}})
 assert reports == [] and dock.region() == {'sea': 3324} and dock.sea.currentText() == 'Alboran Sea (MRGID 3324)'
-assert dock.sea_row.isVisibleTo(dock) and dock.sea.isVisibleTo(dock) and not dock.admin.isVisibleTo(dock)
+assert dock.shown(dock.sea_row) and dock.shown(dock.sea) and not dock.shown(dock.admin)
 dock.sea_text.setText('MEDITERRANEAN')
 dock.search_seas()
-assert [dock.sea.itemData(i) for i in range(dock.sea.count())] == [4280, 4279]
-assert dock.sea.itemText(1) == 'Mediterranean Sea - Western Basin · 475,507 km² (MRGID 4279)'
-dock.sea.setCurrentIndex(1)
+assert [dock.sea.itemData(i) for i in range(dock.sea.count())] == [1905, 4280, 4279]  # the whole sea, and its basins
+assert dock.sea.itemText(2) == 'Mediterranean Sea - Western Basin · 475,507 km² (MRGID 4279)'
+dock.sea.setCurrentIndex(2)
 assert dock.region() == {'sea': 4279} and 'No sea' not in messages[-1][1]
 dock.sea_text.setText('atlantis')
 dock.search_seas()

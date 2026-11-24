@@ -85,11 +85,11 @@ plugin.initGui()
 plugin.toggle(True)
 dock = plugin.dock
 dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
-assert dock.data_row.isVisibleTo(dock)
+assert dock.shown(dock.data_row)
 
 # one band by default: the field Band, not the list
-assert dock.band_reducer.currentData() == '' and dock.band_field.isVisibleTo(dock)
-assert not dock.bands_field.isVisibleTo(dock)
+assert dock.band_reducer.currentData() == '' and dock.shown(dock.band_field)
+assert not dock.shown(dock.bands_field)
 
 TERRACLIMATE = 'IDAHO_EPSCOR/TERRACLIMATE'
 READ = {'asset': TERRACLIMATE, 'type': 'image_collection', 'use': 'collection', 'title': 'TerraClimate',
@@ -113,7 +113,7 @@ assert args['band'] == 'aet' and 'band_reducer' not in args, args
 
 # the sum of the bands: the list, with the band chosen checked first
 dock.band_reducer.setCurrentIndex(dock.band_reducer.findData('sum'))
-assert dock.bands_field.isVisibleTo(dock) and not dock.band_field.isVisibleTo(dock)
+assert dock.shown(dock.bands_field) and not dock.shown(dock.band_field)
 assert dock.checked_bands() == ['aet']
 try:
 	dock.data_args()
@@ -129,12 +129,12 @@ assert spec['band'] == ['aet', 'def'] and spec['band_reducer'] == 'sum'
 entry = dock.variable.currentData()
 assert entry['name'] == 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def' and entry['bands'] == ['aet', 'def'], entry
 assert data_name(args) == 'IDAHO_EPSCOR/TERRACLIMATE sum of aet, def'
-assert dock.bands_note.text() == '' and not dock.bands_note.isVisibleTo(dock)
+assert dock.bands_note.text() == '' and not dock.shown(dock.bands_note)
 # a band of other pixels and another scale: a note
 dock.asset_bands.setItemCheckState(3, Qt.CheckState.Checked)
 note = dock.bands_note.text()
 assert 'pixels of different sizes' in note and '(4638.3 m)' in note and 'different units' in note, note
-assert dock.bands_note.isVisibleTo(dock)
+assert dock.shown(dock.bands_note)
 dock.asset_bands.setItemCheckState(3, Qt.CheckState.Unchecked)
 assert dock.bands_note.text() == ''
 # the mean of the bands, in the order of the data
@@ -152,7 +152,7 @@ assert s.value('MonitorEO/band_reducer') == 'mean' and s.value('MonitorEO/asset_
 
 # one band again: the field Band, and several written there are refused
 dock.band_reducer.setCurrentIndex(dock.band_reducer.findData(''))
-assert dock.band_field.isVisibleTo(dock) and not dock.bands_field.isVisibleTo(dock)
+assert dock.shown(dock.band_field) and not dock.shown(dock.bands_field)
 assert dock.data_args()['band'] == 'aet'
 dock.asset_band.setEditText('aet,def')
 try:
@@ -167,14 +167,14 @@ dock.asset_edited()
 dock.asset_bands.clear()
 dock.asset_band.setEditText('jan, feb ,mar')
 dock.band_reducer.setCurrentIndex(dock.band_reducer.findData('sum'))
-assert dock.band_field.isVisibleTo(dock) and not dock.bands_field.isVisibleTo(dock)  # nothing read to check
+assert dock.shown(dock.band_field) and not dock.shown(dock.bands_field)  # nothing read to check
 args = dock.data_args()
 assert args['band'] == ['jan', 'feb', 'mar'] and args['band_reducer'] == 'sum', args
 # then Read: the bands written are those checked; one that the ID has not, refused
 dock.asset_read({'asset': 'users/someone/rain', 'type': 'image', 'use': 'image', 'title': 'users/someone/rain',
                  'source': 'Earth Engine asset', 'notes': [], 'references': [], 'credits': [], 'arguments': {},
                  'bands': [{'band': b, 'resolution_m': 1000.0} for b in ('jan', 'feb', 'mar', 'apr')]})
-assert dock.checked_bands() == ['jan', 'feb', 'mar'] and dock.bands_field.isVisibleTo(dock)
+assert dock.checked_bands() == ['jan', 'feb', 'mar'] and dock.shown(dock.bands_field)
 assert dock.data_args() == {'image': 'users/someone/rain', 'band': ['jan', 'feb', 'mar'], 'band_reducer': 'sum'}
 dock.asset_info = dict(dock.asset_info, bands=[{'band': 'jan'}, {'band': 'feb'}])  # as if read with fewer bands
 try:

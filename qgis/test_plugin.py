@@ -98,7 +98,7 @@ print('themes:', names, '| variables of', dock.theme.currentText() + ':', dock.v
 assert dock.theme.currentData() == 'vegetation' and dock.variable.currentText().startswith('NDVI · Sentinel-2')
 # after the themes of the catalog, those of the data of Earth Engine outside it (services.themes), as in the app
 assert names[-3:] == ['Earth Engine data (by its ID)', 'GEE Community Catalog', 'All the variables'], names
-assert not dock.data_row.isVisibleTo(dock) and dock.variable_field.isVisibleTo(dock)
+assert not dock.shown(dock.data_row) and dock.shown(dock.variable_field)
 links = dock.feedback_links
 assert links['issue'].startswith('https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?tool=QGIS+plugin')
 from monitoreo import about  # noqa: E402
@@ -122,7 +122,7 @@ for i in range(dock.variable.count()):
 	dock.variable.setCurrentIndex(i)
 	assert all('More in the manual' in b.help() for b in buttons)
 dock.variable.setCurrentIndex(selected)
-assert not dock.wdpa_field.findChild(InfoButton).isVisibleTo(dock)
+assert not dock.shown(dock.wdpa_field.findChild(InfoButton))
 print('info buttons:', len(buttons))
 
 # protected areas
@@ -141,7 +141,7 @@ kinds = [dock.region_kind.itemData(i) for i in range(dock.region_kind.count())]
 
 # administrative units (FAO GAUL 2025), countries and islands
 dock.region_kind.setCurrentIndex(kinds.index('admin'))
-assert dock.admin_row.isVisibleTo(dock) and not dock.wdpa_row.isVisibleTo(dock)
+assert dock.shown(dock.admin_row) and not dock.shown(dock.wdpa_row)
 dock.admin_text.setText('Granada')
 dock.admin_level.setCurrentIndex(1)  # level 2
 dock.admin_country.setText('esp')
@@ -391,15 +391,15 @@ dock.compare_on.setChecked(False)
 # and the classes of Miller & Thode 2007 (RdNBR, with Sentinel-2 and with MODIS Aqua) over a part of the fire of Sierra
 # Bermeja (September 2021), their layers coloured as in the other tools
 from monitoreo import fire, trends  # noqa: E402
-assert dock.theme.currentData() is None and dock.fire_box.isVisibleTo(dock)  # all the variables: every analysis
+assert dock.theme.currentData() is None and dock.shown(dock.fire_box)  # all the variables: every analysis
 # it computes the NBR with the filters the user chose, also while a variable with fixed filters greys them out
 dock.variable.setCurrentIndex(dock.variable.findText('ELEVATION · Copernicus', Qt.MatchFlag.MatchStartsWith))
 assert not dock.filters['clouds'].isChecked() and not dock.filters['clouds'].isEnabled()
 assert dock.quality_args()['clouds'] is False and dock.quality_args(own=True)['clouds'] is True
 dock.theme.setCurrentIndex(dock.theme.findData('vegetation'))
-assert not dock.fire_box.isVisibleTo(dock)
+assert not dock.shown(dock.fire_box)
 dock.theme.setCurrentIndex(dock.theme.findData('fire'))
-assert dock.fire_box.isVisibleTo(dock) and dock.variable.currentData()['variable'] == 'NBR'
+assert dock.shown(dock.fire_box) and dock.variable.currentData()['variable'] == 'NBR'
 canvas.setExtent(QgsRectangle(-5.20, 36.50, -5.15, 36.54))
 for key, day in (('before_start', '2021-07-15'), ('before_end', '2021-08-31'), ('after_start', '2021-09-20'),
                  ('after_end', '2021-10-31')):
@@ -460,8 +460,8 @@ dock.fire_sensor.setCurrentIndex(dock.fire_sensor.findData('Sentinel-2'))
 from monitoreo import services  # noqa: E402
 from monitoreo_qgis.dock import number  # noqa: E402
 dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
-assert dock.data_row.isVisibleTo(dock) and not dock.community_row.isVisibleTo(dock)
-assert not dock.variable_field.isVisibleTo(dock) and not dock.fire_box.isVisibleTo(dock)
+assert dock.shown(dock.data_row) and not dock.shown(dock.community_row)
+assert not dock.shown(dock.variable_field) and not dock.shown(dock.fire_box)
 entry = dock.variable.currentData()
 assert entry['custom'] and entry['fixed_filters'] == [] and not entry['rgb'] and 'variable' not in entry, entry
 assert all('More in the manual' in b.help() for b in dock.findChildren(InfoButton))  # also before reading
@@ -561,7 +561,7 @@ assert dock.described() is None and 'could not be read' in dock.asset_label.text
 # the GEE Community Catalog: its themes and their datasets from the copy of its index (no Earth Engine); a choice
 # fills the ID and reads it
 dock.theme.setCurrentIndex(dock.theme.findData('community'))
-assert dock.community_row.isVisibleTo(dock) and dock.data_row.isVisibleTo(dock)
+assert dock.shown(dock.community_row) and dock.shown(dock.data_row)
 themes = [dock.community_theme.itemData(i) for i in range(dock.community_theme.count())]
 assert len(themes) == len(services.community_themes()) and 'Elevation and Bathymetry' in themes, themes
 dock.community_theme.setCurrentIndex(themes.index('Elevation and Bathymetry'))
@@ -585,7 +585,7 @@ assert len(new) == 1 and new[0].name().startswith('projects/sat-io/open-datasets
 assert 'Roy' in new[0].serverProperties().abstract()  # the community catalog is cited with its datasets
 print('GEE Community Catalog:', new[0].name(), '| pixels of', new[0].rasterUnitsPerPixelX())
 dock.theme.setCurrentIndex(dock.theme.findData('vegetation'))  # back to the catalog: its variable again
-assert dock.variable_field.isVisibleTo(dock) and not dock.data_row.isVisibleTo(dock)
+assert dock.shown(dock.variable_field) and not dock.shown(dock.data_row)
 assert dock.variable.currentData().get('variable') and dock.filters['clouds'].isEnabled()
 
 print('messages:', iface.messages)
