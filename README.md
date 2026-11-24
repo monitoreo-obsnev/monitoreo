@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.71](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.71) · 2026-11-24 · package 0.3.81
 
 - **All tools** (fix): A recipe of variables (download_variables, eHabitat+) with `snow_ndsi` in its common quality no longer fails on its variables that cannot have it (a fixed image such as the slope, MODIS): they are computed without it, as a default of the recipe; given in one of those variables, it is still refused.
 
