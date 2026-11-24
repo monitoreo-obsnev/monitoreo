@@ -621,10 +621,10 @@ HELP = {
 		'it. The exports have no size limit and go on in Earth Engine even if you close QGIS. The panel follows each '
 		'task and tells you when it ends; with Google Drive for desktop, the GeoTIFF is added to the project as soon as '
 		'it is synced.</p>'
-		'<p>Exporting needs your Google account and your project (above, in <b>Project</b>): the shared account of '
+		'<p>Exporting needs your Google account and your project (in <b>Project</b>, tab Data): the shared account of '
 		'MonitorEO cannot export, because the files go to the Google Drive of the account that computes.</p>'
-		'<p>The map uses the options of the group <b>Map</b>, and the series, those of the group <b>Time '
-		'series</b>.</p>'
+		'<p>The map uses the options of the group <b>Map</b> (tab Maps), and the series, those of the group <b>Time '
+		'series</b> (tab Series).</p>'
 		+ manual('QGIS-plugin#8-export-to-google-drive'),
 	'fire_sensor':
 		'<p>The images of the burn severity: <b>Sentinel-2</b> (20 m, since 2017) or <b>Landsat</b> (30 m, since 1984, '
@@ -635,7 +635,7 @@ HELP = {
 		'2010), for big fires or when the other images are too cloudy. The classes of the RdNBR come from Landsat (30 '
 		'm): a pixel of 500 m mixes burned and unburned land, so its RdNBR is less extreme, the hectares of each class '
 		'are approximate and small fires are missed.</p>'
-		'<p>It uses the pixel filters of the group <b>Variable</b> (<b>Remove pixels with</b>; those you chose, also '
+		'<p>It uses the group <b>Pixel filters</b> (tab Data: <b>Remove pixels with</b>; those you chose, also '
 		'while a variable with fixed filters greys them out) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
 		'<b>Region</b>, always on the pixels of the data: as the maps, up to 4 million pixels (a bigger region gets a '

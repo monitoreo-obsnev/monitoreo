@@ -3,7 +3,7 @@
     PYTHONNOUSERSITE=1 PYTHONPATH=src <python of QGIS> qgis/test_landcover_offline.py
 
 (macOS: /Applications/QGIS-final-4_0_3.app/Contents/MacOS/python, with QGIS_APP for another QGIS). It checks the group
-«Land cover mask» before the group Variable (folded and off by default, unfolded when checked), the years of each map,
+«Land cover mask» in the group Pixel filters (folded and off by default, unfolded when checked), the years of each map,
 the land covers of the checkable list, the condition of where that every computation sends (also with the conditions
 on variables, and with the data of Earth Engine by their ID), the error without land covers and the help of «Leave
 out» with the classes of the map chosen. qgis/test_plugin.py computes with Earth Engine.
@@ -83,9 +83,10 @@ plugin.toggle(True)
 dock = plugin.dock
 box = dock.landcover_box
 
-# before the group Variable, folded and off
+# in the group Pixel filters (folded at first, after the variable, as in the Earth Engine app), folded and off
 titles = [b.title() for b in dock.findChildren(QGroupBox)]
-assert titles.index('Land cover mask') < titles.index('Variable'), titles
+assert titles.index('Variable and period') < titles.index('Pixel filters') < titles.index('Land cover mask'), titles
+assert dock.pixels_box.isAncestorOf(box) and dock.pixels_box.isCollapsed()
 assert not box.isChecked() and box.isCollapsed()
 assert dock.where_args() is None  # off: no condition
 box.setChecked(True)

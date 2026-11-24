@@ -327,7 +327,7 @@ print('region: the biome at the center of the map, within the extent', biome)
 # before, back at levels 1 and 2); found at once, without a task (no Earth Engine), by their name in any case and
 # accents or by their code of the INE; the region {'admin3': code of the INE}, a string
 dock.region_kind.setCurrentIndex(kinds.index('admin'))
-assert dock.admin_row.isVisibleTo(dock) and dock.admin.isVisibleTo(dock)
+assert dock.shown(dock.admin_row) and dock.shown(dock.admin)
 levels = [(dock.admin_level.itemText(i), dock.admin_level.itemData(i)) for i in range(dock.admin_level.count())]
 assert levels == [('Level 1', 1), ('Level 2', 2), ('Level 3 · Municipalities (Spain)', 3)], levels
 dock.admin_country.setText('prt')
@@ -382,7 +382,7 @@ assert kinds == ['landcover', 'breaks', 'trend', 'classes'], kinds  # classes: o
 for kind, map_shown, breaks_shown in (('landcover', True, False), ('breaks', False, True), ('trend', False, False),
                                       ('classes', False, False)):
 	dock.area_kind.setCurrentIndex(dock.area_kind.findData(kind))
-	assert dock.area_map_row.isVisibleTo(dock) == map_shown and dock.area_breaks.isVisibleTo(dock) == breaks_shown, kind
+	assert dock.shown(dock.area_map_row) == map_shown and dock.shown(dock.area_breaks) == breaks_shown, kind
 dock.area_map.setCurrentIndex(dock.area_map.findData('CORINE'))
 assert dock.area_year.currentData() == 2018 and dock.area_year.findData(1990) >= 0
 dock.area_kind.setCurrentIndex(dock.area_kind.findData('landcover'))
@@ -653,7 +653,7 @@ print('right axis of the CF, and the NDSI and the NDVI on two axes: the filters'
 
 # the search of the Earth Engine data catalog, in the theme of the data by its ID (the copy of its index)
 dock.theme.setCurrentIndex(dock.theme.findData('earth_engine'))
-assert dock.search_row.isVisibleTo(dock) and not dock.community_row.isVisibleTo(dock)
+assert dock.shown(dock.search_row) and not dock.shown(dock.community_row)
 dock.catalog_text.setText('snow cover')
 read = []
 dock.read_asset = lambda asset=None: read.append(asset)

@@ -29,8 +29,8 @@ from qgis.PyQt.QtCore import QDate, QDateTime, QEvent, QPoint, Qt, QTime, QTimer
 from qgis.PyQt.QtGui import QColor, QDesktopServices, QPixmap
 from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDockWidget, QDoubleSpinBox,
                                  QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                                 QPushButton, QScrollArea, QInputDialog, QMenu, QToolButton, QVBoxLayout, QWhatsThis,
-                                 QWidget)
+                                 QPushButton, QScrollArea, QInputDialog, QMenu, QTabWidget, QToolButton, QVBoxLayout,
+                                 QWhatsThis, QWidget)
 
 from . import deps
 
@@ -1220,6 +1220,65 @@ class ColourRange(QWidget):
 		self.vmin.setText(number(value.get('vmin')))
 		self.vmax.setText(number(value.get('vmax')))
 
+	def summary(self):
+		"""What is chosen, for the title of its folded group: the minimum and maximum written and the percentiles if
+		not the default ones; empty with the defaults."""
+		parts = [f'{name} {edit.text().strip()}' for edit, name in ((self.vmin, 'min'), (self.vmax, 'max'))
+		         if edit.text().strip()]
+		if (self.low.value(), self.high.value()) != tuple(maps.STRETCH):
+			parts.insert(0, f'p{self.low.value():g}–p{self.high.value():g}')
+		return ', '.join(parts)
+
+
+def sync_folds(widget):
+	"""Show the folded groups (QgsCollapsibleGroupBox) visible in WIDGET as they are: one folded or unfolded while
+	hidden (in a folded group or another tab, e.g. by applying parameters, or the land cover mask checked) only
+	records it, and would look as before when shown."""
+	for box in widget.findChildren(QgsCollapsibleGroupBox):
+		folded = box.maximumHeight() < 16777215  # how QgsCollapsibleGroupBox folds: its height
+		if box.isVisible() and folded != box.isCollapsed():
+			scroll = box.scrollOnExpand()
+			box.setScrollOnExpand(False)
+			collapsed = box.isCollapsed()
+			box.setCollapsed(not collapsed)
+			box.setCollapsed(collapsed)
+			box.setScrollOnExpand(scroll)
+
+
+class Section(QgsCollapsibleGroupBox):
+	"""A group of the panel folded under its title, as the sections of the Earth Engine app (section of
+	gee/monitoreo_app.js): only the groups the user opens show their options, and a folded group shows on its title
+	what is chosen in it (SUMMARY, a function that gives that text; refresh). Its widgets go in CONTENT (with a layout
+	of their own), built even when folded: folding only hides CONTENT, so that what the panel shows or hides in it
+	keeps its own state (see MonitorEODock.shown). OPEN: unfolded at first. Its state is not kept between sessions,
+	as in the app."""
+
+	def __init__(self, title, open=False, summary=None):
+		super().__init__(title)
+		self.base, self.summary = title, summary
+		self.setSaveCollapsedState(False)
+		self.setSaveCheckedState(False)
+		lay = QVBoxLayout(self)
+		lay.setContentsMargins(4, 4, 4, 4)
+		self.content = QWidget()
+		self.content.setProperty('fold', True)  # hidden by folding, not by the panel (MonitorEODock.shown)
+		lay.addWidget(self.content)
+		self.setScrollOnExpand(False)
+		self.setCollapsed(not open)
+		self.collapsedStateChanged.connect(self.refresh)
+		self.collapsedStateChanged.connect(lambda collapsed: collapsed or sync_folds(self.content))
+		self.refresh()
+
+	def refresh(self, collapsed=None):
+		"""The title, with the summary while folded (COLLAPSED: as collapsedStateChanged says, else isCollapsed)."""
+		text = ''
+		if self.summary is not None and (self.isCollapsed() if collapsed is None else collapsed):
+			try:
+				text = self.summary() or ''
+			except Exception:  # a field not built yet, or not valid: the title alone
+				text = ''
+		self.setTitle(self.base + (f' · {text}' if text else ''))
+
 
 def info(field, text):
 	"""FIELD (a widget, or a row of them) with an InfoButton with TEXT at its right, for a row of a QFormLayout."""
@@ -1264,9 +1323,23 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.apply_button())
 		row.addWidget(InfoButton(HELP['parameters']))
 		main.addLayout(row)
+		# what the analyses use (the region, the variable, the period and the pixel filters), above the tabs other
+		# than Data, whose groups set it (refresh_titles)
+		self.context = QLabel()
+		self.context.setWordWrap(True)
+		self.context.setStyleSheet('font-size: 11px; color: #444;')
+		main.addWidget(self.context)
+		# the groups of the panel in tabs, each group folded under its title as the sections of the Earth Engine app
+		# (Section): the data (region, variable, pixel filters), then the analyses
+		self.tabs = QTabWidget()
+		self.tabs.setUsesScrollButtons(True)
+		self.pages, self.tab_widgets = {}, {}  # the layout of each tab, and its widget
+		main.addWidget(self.tabs, 1)
+		data = self.tab('Data')
 
-		box = QGroupBox('Google Earth Engine')
-		f = QFormLayout(box)
+		box = Section('Google Earth Engine', open=True, summary=lambda: self.project.text().strip() or 'shared account')
+		self.project_box = box
+		f = QFormLayout(box.content)
 		self.project = QLineEdit(s.value(SETTINGS + 'project', os.environ.get('EE_PROJECT', '')))
 		self.project.setPlaceholderText('empty: shared account of MonitorEO · or your Google Cloud project')
 		row = QHBoxLayout()
@@ -1284,10 +1357,11 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(lambda: self.list_projects())
 		row.addWidget(b)
 		f.addRow('Project', info(row, HELP['project']))
-		main.addWidget(box)
+		data.addWidget(box)
 
-		box = QGroupBox('Region')
-		f = QFormLayout(box)
+		box = Section('Region', open=True, summary=self.region_summary)
+		self.region_box = box
+		f = QFormLayout(box.content)
 		self.region_kind = combo(REGIONS)
 		self.region_kind.currentIndexChanged.connect(self.region_changed)
 		f.addRow('Region', info(self.region_kind, HELP['region']))
@@ -1382,11 +1456,12 @@ class MonitorEODock(QDockWidget):
 		self.country_field.setLayout(row)
 		f.addRow('Country', self.country_field)
 		self.country_label = f.labelForField(self.country_field)
-		main.addWidget(box)
-		self.landcover_group(s, main)
+		data.addWidget(box)
 
-		box = QGroupBox('Variable')
-		f = QFormLayout(box)
+		box = Section('Variable and period', open=True, summary=self.variable_summary)
+		self.variable_box = box
+		data.addWidget(box)
+		f = QFormLayout(box.content)
 		# first the theme (catalog.THEMES), then the variables of that theme; after them, as in the Earth Engine app,
 		# the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES, with 'data'), which have no
 		# variables: any image or collection by its ID, and the GEE Community Catalog
@@ -1452,6 +1527,13 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(QLabel('of each year'))
 		row.addStretch()
 		f.addRow('Season', info(row, HELP['season']))
+		box = Section('Pixel filters', summary=self.pixel_summary)
+		self.pixels_box = box
+		data.addWidget(box)
+		pixels = QVBoxLayout(box.content)
+		pixels.setContentsMargins(0, 0, 0, 0)
+		f = QFormLayout()
+		pixels.addLayout(f)
 		self.filters = {}
 		self.chosen_filters = None  # the filters checked by the user while the variable chosen sets some (set_filters)
 		self.set_filters = set()  # the filters set and greyed out by the variable: all if fixed, else what it measures
@@ -1471,6 +1553,9 @@ class MonitorEODock(QDockWidget):
 		self.topographic = QCheckBox('Topographic correction (Landsat)')  # off: SCS+C, in its help ⓘ
 		self.topographic.setChecked(False)
 		f.addRow('', info(self.topographic, HELP['topographic']))
+		self.landcover_group(s, pixels)
+		f = QFormLayout()
+		pixels.addLayout(f)
 		# where: up to two conditions on variables, the only pixels of the region that pass them all; on a categorical
 		# layer (ECOREGION, BIOME), its classes to keep or to leave out instead of a min and a max
 		self.where = []
@@ -1504,21 +1589,25 @@ class MonitorEODock(QDockWidget):
 			on.toggled.connect(self.where_changed)
 			var.currentIndexChanged.connect(self.where_changed)
 			pick.clicked.connect(lambda checked=False, c=condition: self.pick_class(c))
-		main.addWidget(box)
 
-		box = QGroupBox('Time series')
+		page = self.tab('Series')
+		box = Section('Time series', open=True)
 		self.series_box = box  # greyed out for the fixed layers without dates (elevation, slope)
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.step = combo(STEPS, 'monthly')
 		self.ts_metric = combo(METRICS, 'mean')
 		self.stat = combo(STATS, 'mean')
 		f.addRow('Step', info(self.step, HELP['step']))
 		f.addRow('Metric of each step', info(self.ts_metric, HELP['ts_metric']))
 		f.addRow('Statistic of the region', info(self.stat, HELP['stat']))
+		chart = Section('Chart', summary=self.chart_summary)
+		self.chart_box = chart
+		f.addRow(chart)
+		series_form, f = f, QFormLayout(chart.content)
 		self.doy = QCheckBox('a line per year, over the days of the year')
 		self.doy.setToolTip('The chart with a line per year (from January to December), to compare the years: the '
 		                    'snow seasons, the greening of each spring... Not with the annual step')
-		f.addRow('Chart', info(self.doy, HELP['doy']))
+		f.addRow('Line per year', info(self.doy, HELP['doy']))
 		# the seasonal profile instead of a line per year: a metric between the years of each step of the year, and a
 		# second variable of the catalog with dates on a right axis (services.time_series: interannual, other_variable)
 		self.doy_interannual = combo(DOY_INTERANNUAL, None)
@@ -1542,6 +1631,7 @@ class MonitorEODock(QDockWidget):
 		self.doy_interannual.currentIndexChanged.connect(self.doy_interannual_changed)
 		self.doy_other.currentIndexChanged.connect(self.doy_other_changed)
 		self.doy_changed()
+		f = series_form
 		b = QPushButton('Compute the time series')
 		b.clicked.connect(self.run_series)
 		f.addRow(self.with_parameters(b, 'series'))
@@ -1555,14 +1645,14 @@ class MonitorEODock(QDockWidget):
 		row.addWidget(self.show_series_button)
 		f.addRow('Series', info(row, HELP['series_list']))
 		self.update_series_list()
-		main.addWidget(box)
+		page.addWidget(box)
 
-		box = QGroupBox('Trends (Mann-Kendall and Sen)')
+		box = Section('Trends (Mann-Kendall and Sen)')
 		self.trends_box = box
 		box.setToolTip("Trend of each part of the year over the years of the period: Kendall's τ, Mann-Kendall Z and "
 		               "p-value (or corrected for autocorrelation: Hamed-Rao, TFPW), and Sen's slope (change per "
 		               "year). Better with 8 years or more")
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.trend_step = combo(TREND_STEPS, 'annual')
 		self.trend_part = QComboBox()
 		self.trend_step.currentIndexChanged.connect(self.update_trend_parts)
@@ -1578,19 +1668,26 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(self.run_trend_table)
 		f.addRow(self.with_parameters(b, 'trend_table'))
 		f.addRow('Part of the year of the map', info(self.trend_part, HELP['trend_part']))
+		options = Section('Options of the map', summary=lambda: ', '.join(
+			x for x in ('significant only' if self.trend_alpha.isChecked() else '', self.trend_colours.summary()) if x))
+		self.trend_options_box = options
+		f.addRow(options)
+		trend_form, f = f, QFormLayout(options.content)
 		f.addRow('', info(self.trend_alpha, HELP['trend_alpha']))
 		self.trend_colours = ColourRange()
 		f.addRow('Colour range', info(self.trend_colours, HELP['trend_colours']))
+		f = trend_form
 		b = QPushButton('Trend map')
 		b.setToolTip("Temporary GeoTIFF with Sen's slope, τ, Z, p-value, intercept and number of years of each pixel "
 		             '(queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_trend_map)
 		f.addRow(self.with_parameters(b, 'trend_map'))
-		main.addWidget(box)
+		page.addWidget(box)
 
-		box = QGroupBox('Map')
+		page = self.tab('Maps')
+		box = Section('Map', open=True)
 		self.group_boxes['map'] = box
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.map_metric = combo(METRICS, 'median')
 		self.temporal = combo(TEMPORAL, 'period')
 		self.interannual = combo(METRICS, 'mean')
@@ -1599,11 +1696,16 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Metric between years', info(self.interannual, HELP['interannual']))
 		self.map_kind = combo(MAP_KINDS, 'index')  # the map of the variable, its true colour or both
 		f.addRow('Layer', info(self.map_kind, HELP['map_kind']))
+		colours = Section('Colours', summary=lambda: self.map_colours.summary())
+		self.map_colours_box = colours
+		f.addRow(colours)
+		map_form, f = f, QFormLayout(colours.content)
 		self.map_colours = ColourRange()
 		f.addRow('Colour range', info(self.map_colours, HELP['map_colours']))
 		self.map_same = QCheckBox('Same colours in every map of a series or trends (those of its first map)')
 		self.map_same.setChecked(True)  # so that its dates can be compared, as the frames of an animation
 		f.addRow('', info(self.map_same, HELP['map_same']))
+		f = map_form
 		b = QPushButton('Add the layer to the map')
 		b.setToolTip('Downloads the map as a temporary GeoTIFF, with the values of the variable (queryable with the '
 		             'Identify Features tool) or, with Layer, its true colour, always at the resolution of the data, up '
@@ -1616,12 +1718,12 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(self.make_layout)
 		row.addWidget(b)
 		f.addRow(row)
-		main.addWidget(box)
+		page.addWidget(box)
 		self.compare_on.toggled.connect(lambda on: self.update_map_kind())
 
-		box = QGroupBox('Area by class')
+		box = Section('Area by class')
 		self.group_boxes['areas'] = box
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.area_kind = combo(AREA_KINDS, s.value(SETTINGS + 'area_kind', 'landcover'))
 		f.addRow('Classes of', info(self.area_kind, HELP['area_kind']))
 		self.area_map = QComboBox()
@@ -1659,11 +1761,11 @@ class MonitorEODock(QDockWidget):
 		b.clicked.connect(self.run_areas)
 		f.addRow(self.with_parameters(b, 'areas'))
 		self.area_kind_changed()
-		main.addWidget(box)
+		page.addWidget(box)
 
-		box = QGroupBox('Gradients (elevation bands and profiles)')
+		box = Section('Gradients (elevation bands and profiles)')
 		self.group_boxes['zones'] = self.group_boxes['transect'] = box
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.zone_variable = QComboBox()  # the fixed layers: the elevation, the slope, the climate of WorldClim, and the
 		for v in self.all_variables:  # categorical layers (ECOREGION, BIOME), whose classes are the zones (no breaks)
 			if v.get('static'):
@@ -1691,11 +1793,11 @@ class MonitorEODock(QDockWidget):
 		             'line of the layer (or its first one), every 1 % of its length (at least a pixel of the data)')
 		b.clicked.connect(self.run_transect)
 		f.addRow(self.with_parameters(b, 'transect'))
-		main.addWidget(box)
+		page.addWidget(box)
 
-		box = QGroupBox('Animation (timelapse)')
+		box = Section('Animation (timelapse)')
 		self.animation_box = box  # greyed out for the fixed layers without dates (elevation, slope)
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.anim_step = combo(ANIMATION_STEPS, s.value(SETTINGS + 'anim_step', 'annual'))
 		self.anim_metric = combo(METRICS, 'median')
 		self.anim_fps = QDoubleSpinBox()
@@ -1706,21 +1808,35 @@ class MonitorEODock(QDockWidget):
 		f.addRow('A frame per', info(self.anim_step, HELP['anim_step']))
 		f.addRow('Metric of each frame', info(self.anim_metric, HELP['anim_metric']))
 		f.addRow('Speed', info(self.anim_fps, HELP['anim_fps']))
+		colours = Section('Colours', summary=lambda: self.anim_colours.summary())
+		self.anim_colours_box = colours
+		f.addRow(colours)
+		anim_form, f = f, QFormLayout(colours.content)
 		self.anim_colours = ColourRange()
 		f.addRow('Colour range', info(self.anim_colours, HELP['anim_colours']))
 		self.anim_same = QCheckBox('Same colours in every frame')
 		self.anim_same.setChecked(True)  # so that the frames can be compared (services.timelapse)
 		f.addRow('', info(self.anim_same, HELP['anim_same']))
+		f = anim_form
 		b = QPushButton('Make the animation')
 		b.setToolTip('A GIF with a frame per step of the period, each with its date, in a window (it takes some '
 		             'minutes: Earth Engine makes each frame)')
 		b.clicked.connect(self.run_timelapse)
 		f.addRow(self.with_parameters(b, 'animation'))
-		main.addWidget(box)
+		page.addWidget(box)
 
-		box = QGroupBox('Export to Google Drive')
+		# the analyses of a theme (catalog.THEMES): only in the themes that have them, and with «All the variables»
+		page = self.tab('Fire')
+		box = Section('Burn severity of a fire (dNBR, RBR or RdNBR)', open=True)
+		self.fire_box = box
+		f = QFormLayout(box.content)
+		self.fire_form(s, f)
+		page.addWidget(box)
+
+		page = self.tab('Export')
+		box = Section('Export to Google Drive', open=True)
 		self.group_boxes['export_map'] = self.group_boxes['export_series'] = box
-		f = QFormLayout(box)
+		f = QFormLayout(box.content)
 		self.resolution = QDoubleSpinBox()
 		self.resolution.setRange(0, 100000)
 		self.resolution.setSpecialValueText('that of the data')
@@ -1741,12 +1857,136 @@ class MonitorEODock(QDockWidget):
 		self.export_status = QLabel('')
 		self.export_status.setWordWrap(True)
 		f.addRow(self.export_status)
-		main.addWidget(box)
+		page.addWidget(box)
 
-		# the analyses of a theme (catalog.THEMES): only in the themes that have them, and with «All the variables»
-		box = QGroupBox('Burn severity of a fire (dNBR, RBR or RdNBR)')
-		self.fire_box = box
-		f = QFormLayout(box)
+		self.theme.currentIndexChanged.connect(lambda i: self.show_analyses())
+		self.show_analyses()
+		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
+		# fixed layers (elevation, slope)
+		self.variable.currentIndexChanged.connect(self.variable_changed)
+		self.where_changed()  # also variable_changed
+		self.tab('About').addWidget(self.about_box())
+		for lay in self.pages.values():
+			lay.addStretch()
+
+		self.group_boxes.update(series=self.series_box, trend_table=self.trends_box, trend_map=self.trends_box,
+		                        animation=self.animation_box, burn=self.fire_box)
+		self.setWidget(body)
+		self.region_changed()
+		self.follow_titles()
+		self.tabs.currentChanged.connect(lambda i: self.refresh_titles())
+		self.tabs.currentChanged.connect(lambda i: sync_folds(self.tabs.widget(i)))
+		self.refresh_titles()
+
+	def tab(self, title):
+		"""A new tab TITLE of the panel, which scrolls: the layout of its groups."""
+		body = QWidget()
+		lay = QVBoxLayout(body)
+		scroll = QScrollArea()
+		scroll.setWidgetResizable(True)
+		scroll.setWidget(body)
+		scroll.setProperty('fold', True)  # hidden by the tabs, not by the panel (shown)
+		self.tabs.addTab(scroll, title)
+		self.pages[title] = lay
+		self.tab_widgets[title] = scroll
+		return lay
+
+	def shown(self, widget):
+		"""Whether the panel shows WIDGET, as isVisibleTo(self) without the folded groups and the tabs not chosen:
+		what the panel hides for the region, the variable or the theme chosen is hidden; what is only folded or in
+		another tab is not."""
+		w = widget
+		while w is not None and w is not self:
+			if w.isHidden() and not w.property('fold'):
+				return False
+			w = w.parentWidget()
+		return w is self
+
+	def follow_titles(self):
+		"""Refresh the titles of the folded groups and the line above the tabs (refresh_titles) when what they
+		summarize changes."""
+		refresh = lambda *args: self.refresh_titles()  # noqa: E731
+		for box in (self.region_kind, self.wdpa, self.admin, self.sea, self.variable, self.step, self.doy_interannual,
+		            self.doy_other):
+			box.currentIndexChanged.connect(refresh)
+		self.layer.layerChanged.connect(refresh)
+		self.name_field.fieldChanged.connect(refresh)
+		for edit in (self.project, self.country, self.season_start, self.season_end, self.asset_id):
+			edit.textChanged.connect(refresh)
+		for d in (self.start, self.end, self.other_start, self.other_end):
+			d.dateChanged.connect(refresh)
+		checks = [self.compare_on, self.season_on, self.cloud_score, self.snow_ndsi, self.topographic, self.doy,
+		          self.trend_alpha, self.landcover_box] + list(self.filters.values()) + [c['on'] for c in self.where]
+		for c in checks:
+			c.toggled.connect(refresh)
+		for c in self.where:
+			c['variable'].currentIndexChanged.connect(refresh)
+		for r in (self.trend_colours, self.map_colours, self.anim_colours):
+			for w in (r.low, r.high):
+				w.valueChanged.connect(refresh)
+			for w in (r.vmin, r.vmax):
+				w.textChanged.connect(refresh)
+
+	def refresh_titles(self):
+		"""The titles of the folded groups, with what is chosen in them, and above the tabs other than Data what the
+		analyses use."""
+		if not hasattr(self, 'tabs'):
+			return
+		for box in self.findChildren(Section):
+			box.refresh()
+		data = self.tabs.currentWidget() is self.tabs.widget(0)
+		parts = [] if data else [self.region_summary(), self.variable_summary(), self.pixel_summary()]
+		text = ' · '.join(p for p in parts if p)
+		self.context.setText(text)
+		self.context.setVisible(bool(text))
+
+	def region_summary(self):
+		"""The region chosen, in a few words (the title of the folded group Region and the line above the tabs)."""
+		kind = self.region_kind.currentData()
+		name = {'layer': lambda: self.layer.currentText(), 'wdpa': lambda: self.wdpa.currentText(),
+		        'admin': lambda: self.admin.currentText(), 'sea': lambda: self.sea.currentText(),
+		        'country': lambda: self.country.text().strip()}.get(kind, lambda: '')()
+		return name or self.region_kind.currentText()
+
+	def variable_summary(self):
+		"""The variable and its period (or the ID of the data of Earth Engine), in a few words."""
+		v = self.variable.currentData() or {}
+		name = self.variable.currentText() if self.variable_field.isVisibleTo(self.variable_box.content) or \
+			not self.asset_id.text().strip() else self.asset_id.text().strip()
+		if v.get('static'):
+			return name
+		period = f"{self.start.date().toString('yyyy-MM-dd')} to {self.end.date().toString('yyyy-MM-dd')}"
+		return ', '.join(x for x in (name, period) if x)
+
+	def pixel_summary(self):
+		"""What the pixel filters leave out besides the default filters: the filters unchecked, the land cover mask
+		and the conditions where."""
+		parts = []
+		off = [k for k, c in self.filters.items() if c.isEnabled() and not c.isChecked()]
+		if off:
+			parts.append('without the filter of ' + ', '.join(off))
+		if self.landcover_box.isChecked():
+			parts.append('land cover mask')
+		for c in self.where:
+			if c['on'].isChecked():
+				parts.append('where ' + c['variable'].currentText().split(' · ')[0])
+		if self.topographic.isEnabled() and self.topographic.isChecked():
+			parts.append('topographic correction')
+		return ', '.join(parts)
+
+	def chart_summary(self):
+		"""The options of the chart of the series that are not the default ones."""
+		parts = []
+		if self.doy.isChecked():
+			parts.append('a line per year')
+		if self.doy_interannual.isEnabled() and self.doy_interannual.currentData():
+			parts.append(self.doy_interannual.currentText())
+		if self.doy_other.isEnabled() and self.doy_other.currentData():
+			parts.append('right axis ' + self.doy_other.currentText())
+		return ', '.join(parts)
+
+	def fire_form(self, s, f):
+		"""The fields of the group «Burn severity of a fire» in its form F (with the settings S)."""
 		# first the index, as its sensors depend on it (MODIS only for the RdNBR)
 		self.fire_index = combo(FIRE_INDICES, 'dNBR')
 		for i, (_, value) in enumerate(FIRE_INDICES):
@@ -1795,24 +2035,7 @@ class MonitorEODock(QDockWidget):
 		             'with its colours (queryable with the Identify Features tool)')
 		b.clicked.connect(self.run_burn)
 		f.addRow(self.with_parameters(b, 'burn'))
-		main.addWidget(box)
-		self.theme.currentIndexChanged.connect(lambda i: self.show_analyses())
-		self.show_analyses()
-		# the options that do not apply to the variable: the other metrics of the SCF, the filters and the dates of the
-		# fixed layers (elevation, slope)
-		self.variable.currentIndexChanged.connect(self.variable_changed)
-		self.where_changed()  # also variable_changed
-		main.addWidget(self.about_box())
-		main.addStretch()
 
-		self.group_boxes.update(series=self.series_box, trend_table=self.trends_box, trend_map=self.trends_box,
-		                        animation=self.animation_box, burn=self.fire_box)
-		scroll = QScrollArea()
-		scroll.setWidgetResizable(True)
-		scroll.setWidget(body)
-		self.scroll = scroll
-		self.setWidget(scroll)
-		self.region_changed()
 
 	def data_block(self, s):
 		"""The options of the data of Earth Engine outside the catalog, shown in their themes instead of the list
@@ -2175,11 +2398,22 @@ class MonitorEODock(QDockWidget):
 		box = self.group_boxes.get(key)
 		if box is None:
 			return
-		self.scroll.ensureWidgetVisible(box, 0, 0)
-		box.setStyleSheet('QGroupBox::title { color: #c0392b; }')
+		for i in range(self.tabs.count()):  # first its tab: a group folded or unfolded while hidden only records it
+			scroll = self.tabs.widget(i)
+			if scroll.isAncestorOf(box):
+				self.tabs.setCurrentIndex(i)
+				box.setCollapsed(False)  # unfolded, as the section of its button in the Earth Engine app
+				sync_folds(scroll)
+				QTimer.singleShot(0, lambda: scroll.ensureWidgetVisible(box, 0, 0))  # once laid out
+		# the colour of its title only (not of the groups in it), added to the style that QGIS gives the folded groups
+		# (the room of their arrow), which comes back after
+		if not box.objectName():
+			box.setObjectName(f'monitoreo_{key}')
+		style = box.styleSheet()
+		box.setStyleSheet(style + f' QGroupBox#{box.objectName()}::title {{ color: #c0392b; }}')
 		timer = QTimer(box)  # deleted with the group
 		timer.setSingleShot(True)
-		timer.timeout.connect(lambda: box.setStyleSheet(''))
+		timer.timeout.connect(lambda: box.setStyleSheet(style))
 		timer.start(4000)
 
 	def choose(self, box, value, name, given=True):
@@ -4194,7 +4428,13 @@ class MonitorEODock(QDockWidget):
 
 	def show_analyses(self):
 		"""The groups of the analyses of a theme, shown only in that theme (and with «All the variables»)."""
-		self.fire_box.setVisible(self.theme_has('burn_severity'))
+		on = self.theme_has('burn_severity')
+		self.fire_box.setVisible(on)
+		i = self.tabs.indexOf(self.tab_widgets['Fire'])
+		if hasattr(self.tabs, 'setTabVisible'):  # Qt 5.15 and later
+			self.tabs.setTabVisible(i, on)
+		else:
+			self.tabs.setTabEnabled(i, on)
 
 	def fill_fire_sensors(self, choose=None):
 		"""The sensors of the burn index chosen (services.BURN_SENSORS): Sentinel-2 and Landsat, and MODIS Terra and
