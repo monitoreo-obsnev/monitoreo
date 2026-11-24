@@ -17429,6 +17429,11 @@ var MonitorEO = (function () {
 
 	var CF_CLOUD_SCORE = 0.6;  // sensors.CF_CLOUD_SCORE
 
+	// sensors.SNOW_NDSI: the bands of the NDSI of quality.snow_ndsi, (green, SWIR1) with their scale and offset to
+	// surface reflectance: with the snow filter on, the pixels whose NDSI is that number or more are also removed
+	var SNOW_NDSI = {'Sentinel-2': ['B3', 'B11', 0.0001, 0.0], 'Landsat': ['green', 'swir1', 2.75e-05, -0.2]};
+	var SNOW_NDSI_DEFAULT = 0.4;  // sensors.SNOW_NDSI_DEFAULT: the threshold of the check boxes of the app and the plugin
+
 	// sensors.TOPOGRAPHIC: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance of Landsat
 	// (quality.topographic): L (cos S cos Z + C) / (IC + C), with C of the regression of each band on the illumination
 	// IC of each scene (see correctTopography); not for Sentinel-2, whose Level-2A (Sen2Cor) is already corrected
@@ -17512,6 +17517,34 @@ var MonitorEO = (function () {
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb || {}).map(function (k) { return entry.fb[k]; });
 		var ok = used.length > 0 && used.every(function (b) { return REFLECTANCE[entry.sensor].indexOf(b) >= 0; });
 		return ok ? null : name + ' is not computed from surface reflectances';
+	}
+
+	// sensors.snow_ndsi: the NDSI threshold of QUALITY (a number greater than 0 and at most 1), or null
+	function snowNdsi(quality) {
+		var v = quality ? quality.snow_ndsi : null;
+		if (v === null || v === undefined || v === false ||
+			(typeof v === 'string' && ['', 'none', 'null', 'false', 'off'].indexOf(v.trim().toLowerCase()) >= 0)) return null;
+		var x = Number(v);
+		if (typeof v === 'boolean' || isNaN(x) || !(x > 0 && x <= 1)) {
+			throw new Error('quality snow_ndsi: the NDSI threshold is greater than 0 and at most 1 (e.g. 0.4), not ' + v);
+		}
+		return x;
+	}
+
+	// sensors.snow_ndsi_of: the threshold that applies to ENTRY (snow filter on, Sentinel-2 or Landsat, not a variable
+	// that measures water, whose open water has a high NDSI too), or null
+	function snowNdsiOf(entry, quality) {
+		var ndsi = snowNdsi(quality);
+		if (ndsi === null || !SNOW_NDSI[entry.sensor] || (MEASURES.water || []).indexOf(entry.index) >= 0) return null;
+		return filters(entry, quality).snow ? ndsi : null;
+	}
+
+	// sensors.check_snow_ndsi
+	function checkSnowNdsi(entry, quality) {
+		if (snowNdsi(quality) !== null && !SNOW_NDSI[entry.sensor]) {
+			throw new Error('quality snow_ndsi (snow by its NDSI) is for Sentinel-2 and Landsat, not for ' + entry.index +
+				' of ' + entry.sensor);
+		}
 	}
 
 	// sensors.check_topographic
@@ -17698,6 +17731,11 @@ var MonitorEO = (function () {
 	function qualityMask(img, entry, quality) {
 		var on = filters(entry, quality);
 		var masks = [];
+		var ndsi = snowNdsiOf(entry, quality);
+		if (ndsi !== null) {  // also the snow that the QA band misses
+			var s = SNOW_NDSI[entry.sensor];
+			masks.push(img.select([s[0], s[1]]).multiply(s[2]).add(s[3]).normalizedDifference([s[0], s[1]]).lt(ndsi));
+		}
 		if (entry.sensor === 'Sentinel-2') {
 			var scl = img.select('SCL');
 			['clouds', 'water', 'snow'].forEach(function (f) {
@@ -17801,6 +17839,7 @@ var MonitorEO = (function () {
 		var used = entry.fk === 'nd' ? entry.fb : Object.keys(entry.fb).map(function (k) { return entry.fb[k]; })
 			.filter(function (b, i, a) { return a.indexOf(b) === i; }).sort();
 		checkTopographic(entry, quality);
+		checkSnowNdsi(entry, quality);
 		var topo = !!quality.topographic;
 		return rawCollection(entry, region, start, end, quality).map(function (img) {
 			img = ee.Image(img);
@@ -21486,7 +21525,8 @@ var MonitorEO = (function () {
 		rampEntry: rampEntry,
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
-		rgbOf: rgbOf, withRgb: withRgb, noTopographic: noTopographic, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
+		rgbOf: rgbOf, withRgb: withRgb, noTopographic: noTopographic, SNOW_NDSI: SNOW_NDSI,
+		SNOW_NDSI_DEFAULT: SNOW_NDSI_DEFAULT, snowNdsi: snowNdsi, snowNdsiOf: snowNdsiOf, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
 		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
 	};
 })();
@@ -21567,6 +21607,7 @@ var MonitorEO = (function () {
 			'misma para cada paso y para los dos periodos de una comparaci\u00f3n.',
 			badLimit: 'El l\u00edmite %s no es un n\u00famero.', noLimit: 'Da un m\u00ednimo, un m\u00e1ximo o los dos.',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificaci\u00f3n SCL)',
+			snowNdsi: 'nieve tambi\u00e9n por su NDSI \u2265 %s (Sentinel-2, Landsat)',
 			topographic: 'correcci\u00f3n topogr\u00e1fica SCS+C de Landsat (monta\u00f1a: laderas al sol y a la sombra, sol bajo)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
@@ -21866,6 +21907,7 @@ var MonitorEO = (function () {
 			'same for every step and for both periods of a comparison.',
 			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
+			snowNdsi: 'snow also by its NDSI \u2265 %s (Sentinel-2, Landsat)',
 			topographic: 'topographic correction SCS+C of Landsat (mountains: slopes in the sun and in the shade, low sun)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
@@ -23077,6 +23119,14 @@ var MonitorEO = (function () {
 				state.quality.cloud_score = v ? 0.6 : null;
 			}));
 		}
+		if (mo.SNOW_NDSI[e.sensor] && !fixed && (mo.MEASURES.water || []).indexOf(e.index) < 0) {  // sensors.snow_ndsi_of
+			var ndsiBox = check(fmt(t('snowNdsi'), state.quality.snow_ndsi || mo.SNOW_NDSI_DEFAULT),
+				Boolean(state.quality.snow_ndsi), function (v) {
+					state.quality.snow_ndsi = v ? (state.quality.snow_ndsi || mo.SNOW_NDSI_DEFAULT) : null;
+				});
+			ndsiBox.setDisabled(!(state.quality.snow && available.snow));
+			w.push(ndsiBox);
+		}
 		if (!mo.noTopographic(e)) {  // the surface reflectance of Landsat (sensors.TOPOGRAPHIC)
 			w.push(check(t('topographic'), Boolean(state.quality.topographic), function (v) {
 				state.quality.topographic = v;
@@ -24270,6 +24320,7 @@ var MonitorEO = (function () {
 		});
 		// the topographic correction of the panel, if both variables can have it (services._other_spec)
 		if (state.quality.topographic && e && !mo.noTopographic(e) && !mo.noTopographic(oe)) q.topographic = true;
+		if (state.quality.snow_ndsi && q.snow && mo.SNOW_NDSI[oe.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -25069,9 +25120,13 @@ var MonitorEO = (function () {
 	// cannot have it (sensors.no_topographic: the zones, the RdNBR of MODIS), as the user keeps it for the others
 	function qualityFor(ref) {
 		var e = ref === undefined || ref === null ? null : mo.byRef(ref);  // none: without it
-		if (!state.quality.topographic || (e && !mo.noTopographic(e))) return state.quality;
+		var topo = state.quality.topographic && !(e && !mo.noTopographic(e));  // to leave out
+		var ndsi = state.quality.snow_ndsi && !(e && mo.SNOW_NDSI[e.sensor]);  // the snow by its NDSI, too
+		if (!topo && !ndsi) return state.quality;
 		var q = {};
-		for (var k in state.quality) if (k !== 'topographic') q[k] = state.quality[k];
+		for (var k in state.quality) {
+			if (!(k === 'topographic' && topo) && !(k === 'snow_ndsi' && ndsi)) q[k] = state.quality[k];
+		}
 		return q;
 	}
 
@@ -25082,6 +25137,7 @@ var MonitorEO = (function () {
 		mo.FILTERS.forEach(function (f) { q[f] = Boolean(state.quality[f]); });
 		if (sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && e && !mo.noTopographic(e)) q.topographic = true;
+		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -25109,6 +25165,7 @@ var MonitorEO = (function () {
 		});
 		if (e.sensor === 'Sentinel-2' || oe.sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && !mo.noTopographic(e)) q.topographic = true;  // the right axis too, if it can
+		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[e.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -25566,6 +25623,8 @@ var MonitorEO = (function () {
 					q.cloud_score = v;
 				} else if (k === 'topographic' && (v === true || v === false || v === null)) {
 					q.topographic = Boolean(v);
+				} else if (k === 'snow_ndsi') {
+					try { q.snow_ndsi = mo.snowNdsi(one); } catch (err) { skip('quality', err.message, one); }
 				} else {
 					skip('quality', k === 'cloud_score' ? fmt(t('badNumber'), k, v) : t('noWidget'), one);
 				}
@@ -25575,6 +25634,7 @@ var MonitorEO = (function () {
 		else mo.FILTERS.forEach(function (f) { state.quality[f] = q[f]; });
 		state.quality.cloud_score = q.cloud_score;
 		state.quality.topographic = Boolean(q.topographic);
+		state.quality.snow_ndsi = q.snow_ndsi || null;
 	}
 
 	// The period, the other period (of a comparison; for a fire, the periods before and after it) and the season of

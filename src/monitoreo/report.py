@@ -1233,8 +1233,13 @@ def _discarded(entry, quality):
 	"""The pixels discarded by the filters of the variable of the catalog ENTRY (see _entry) with QUALITY, as the
 	services apply them (sensors.filters: 'auto' resolved for each variable, the fixed filters of the SCF and the CF
 	whatever the quality, none for a band its sensor has not): their names, or 'none'."""
-	on = sensors.filters(catalog.find(None, ref=entry['ref']), quality if isinstance(quality, dict) else None)
+	e = catalog.find(None, ref=entry['ref'])
+	q = quality if isinstance(quality, dict) else None
+	on = sensors.filters(e, q)
 	names = [FILTERS[k] for k, v in on.items() if v and k in FILTERS]
+	ndsi = sensors.snow_ndsi_of(e, q)
+	if ndsi is not None:  # the snow also by its NDSI
+		names.append(f'snow by its NDSI (green, SWIR1) of {ndsi:g} or more')
 	return ', '.join(names) if names else 'none'
 
 

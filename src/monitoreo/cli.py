@@ -222,8 +222,15 @@ TOPOGRAPHIC_HELP = ('correct the surface reflectance of Landsat for the relief b
                     'climate. It costs more in Earth Engine (a regression per image)')
 
 
+SNOW_NDSI_HELP = ('with the snow filter, also remove the pixels of each image whose NDSI (green, SWIR1; Hall et al. '
+                  '1995) is this number or more, e.g. 0.4: the patches of snow that the QA band misses (Sentinel-2 and '
+                  'Landsat; not for the NDSI, SCF and SCD, which measure snow, and not applied to the NDWI, Chl-a, NDCI and '
+                  'WAVI, as open water has a high NDSI too)')
+
+
 def _topographic_option(p):
 	p.add_argument('--topographic-correction', action='store_true', help=TOPOGRAPHIC_HELP)
+	p.add_argument('--snow-ndsi', type=float, metavar='NDSI', help=SNOW_NDSI_HELP)
 
 
 # the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
@@ -302,12 +309,21 @@ def _source(args, parser):
 	if getattr(args, 'topographic_correction', False):
 		parser.error('--topographic-correction is for the surface reflectance of Landsat of the catalog (VARIABLE and '
 		             '--sensor Landsat), not for the data of Earth Engine given by its ID')
+	if getattr(args, 'snow_ndsi', None) is not None:
+		parser.error('--snow-ndsi is for the variables of Sentinel-2 and Landsat of the catalog, not for the data of '
+		             'Earth Engine given by its ID')
 	return dict(given, **({'collection': args.collection} if args.collection else {}))
 
 
 def _topographic(args):
-	"""The quality of the topographic correction, if asked (--topographic-correction)."""
-	return {'quality': {'topographic': True}} if getattr(args, 'topographic_correction', False) else {}
+	"""The quality of the topographic correction and of the snow by its NDSI, if asked (--topographic-correction,
+	--snow-ndsi)."""
+	q = {}
+	if getattr(args, 'topographic_correction', False):
+		q['topographic'] = True
+	if getattr(args, 'snow_ndsi', None) is not None:
+		q['snow_ndsi'] = args.snow_ndsi
+	return {'quality': q} if q else {}
 
 
 def _table(rows, cols):
@@ -709,6 +725,8 @@ def main(argv=None):
 			areas.error('--landcover has its own classes: give no VARIABLE nor --sensor')
 		if args.topographic_correction:
 			areas.error('--topographic-correction is for the variables of Landsat, not for --landcover')
+		if args.snow_ndsi is not None:
+			areas.error('--snow-ndsi is for the variables of Sentinel-2 and Landsat, not for --landcover')
 		args.source = {}
 	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
 		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '

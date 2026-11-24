@@ -335,6 +335,15 @@ HELP = {
 		'Google\'s Cloud Score+: a pixel is clear if its score is at least 0.6. Unchecked, with the scene '
 		'classification (SCL) of Sentinel-2: shadows, clouds and cirrus.</p>'
 		+ manual('Concepts#per-pixel-filters'),
+	'snow_ndsi':
+		'<p>Only for Sentinel-2 and Landsat, with the filter <b>snow</b> checked. Checked, each image also loses the '
+		'pixels whose NDSI (green and shortwave infrared, Hall et al. 1995) is 0.4 or more: the patches and edges of snow '
+		'that its quality band (SCL, QA_PIXEL) misses. One image of June with some snow left is enough to raise a '
+		'statistic such as the standard deviation or the minimum of an index of moisture (NDMI, LSWI).</p>'
+		'<p>Check it in mountains with snow in the season you compute. It is greyed out for the NDSI and the snow cover, '
+		'which measure snow, and for the NDWI, the chlorophyll and the WAVI, which measure water: open water has a high '
+		'NDSI too.</p>'
+		+ manual('Concepts#per-pixel-filters'),
 	'topographic':
 		'<p>Only for Landsat. Checked, the reflectance of each image is corrected for the relief before the variable is '
 		'computed (SCS+C, Soenen et al. 2005, with the slope and aspect of the SRTM and the position of the sun of the '
