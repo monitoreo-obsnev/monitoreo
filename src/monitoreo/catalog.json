@@ -458,6 +458,9 @@
   ],
   "topographic": [
    "soenen2005"
+  ],
+  "snow_ndsi": [
+   "hall1995"
   ]
  },
  "references": {

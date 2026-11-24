@@ -25,7 +25,9 @@ interannual over period and season (see composite). Other keys:
   quality            pixel filters (clouds, water, snow, aerosols) and scene filter of the catalog variables
                      (see sensors.QUALITY; by default all the pixel filters of MonitorEO) and, with topographic: true,
                      the topographic correction SCS+C of the surface reflectance of Landsat (see
-                     sensors.TOPOGRAPHIC; off by default)
+                     sensors.TOPOGRAPHIC; off by default); with snow_ndsi: a number (e.g. 0.4) and the snow filter
+                     on, Sentinel-2 and Landsat also lose the pixels of each image whose NDSI (green, SWIR1) is that
+                     number or more (see sensors.OPTIONS; off by default)
   resample           'auto' (bilinear when the output pixels are smaller than those of the data), 'nearest',
                      'bilinear' or 'bicubic'; a categorical layer (ECOREGION, BIOME: class codes), only 'auto' or
                      'nearest' (rasterized at the output pixel)
@@ -206,8 +208,15 @@ def specs(var, defaults=None, two_periods=False):
 	if unknown:
 		raise ValueError(f"unknown quality options {', '.join(sorted(unknown))}: use "
 		                 f"{', '.join(list(sensors.QUALITY) + list(sensors.OPTIONS))}")
+	ndsi = sensors.snow_ndsi(base['quality'])  # a number, or None: off
 	for o in sensors.OPTIONS:  # off: not in the spec, so that the records of the files made before it stay the same
 		v = base['quality'].get(o)
+		if o == 'snow_ndsi':
+			if ndsi is None:
+				base['quality'].pop(o, None)
+			else:
+				base['quality'][o] = ndsi
+			continue
 		if v in (None, False, 0, '') or str(v).strip().lower() in ('false', 'no', 'off', '0'):
 			base['quality'].pop(o, None)
 		elif v is True or str(v).strip().lower() in ('true', 'yes', 'on', '1'):
@@ -221,6 +230,11 @@ def specs(var, defaults=None, two_periods=False):
 			raise ValueError('the topographic correction (quality topographic) is for the surface reflectance of '
 			                 'Landsat of the catalog, not for the data of Earth Engine given by their ID')
 		sensors.check_topographic(e, base['quality'])
+	if sensors.snow_ndsi(base['quality']) is not None:
+		if k != 'catalog':
+			raise ValueError('quality snow_ndsi (snow by its NDSI) is for the variables of Sentinel-2 and Landsat of the '
+			                 'catalog, not for the data of Earth Engine given by their ID')
+		sensors.check_snow_ndsi(e, base['quality'])
 	if base.get('unit') is not None and not str(base['unit']).strip():
 		base.pop('unit')  # '' or blank: not given, as in services.make_spec and the app (not dimensionless)
 	if k == 'catalog' and base.get('unit') is not None:
@@ -735,6 +749,8 @@ def describe(spec, rgb=False):
 		          'native_resolution': e['m'], 'pixel_filters': sensors.filters(e, spec['quality'])})
 		if sensors.topographic(spec['quality']):
 			d['topographic_correction'] = TOPOGRAPHIC_TEXT
+		if sensors.snow_ndsi_of(e, spec['quality']) is not None:
+			d['snow_ndsi'] = sensors.snow_ndsi_of(e, spec['quality'])
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):

@@ -77,7 +77,10 @@ Engine may have added images since), gives an R warning, as those days may have 
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
 \code{list(topographic = TRUE)}: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance
 of Landsat, for mountains (slopes facing and away from the sun, dates with a low sun; Sentinel-2 comes already
-corrected); off by default.}
+corrected); off by default. \code{list(snow_ndsi = 0.4)}: with the snow filter on, Sentinel-2 and Landsat also
+lose the pixels of each image whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more, the patches of snow
+that their quality band misses (e.g. for the standard deviation of the NDMI in mountains); off by default, and not
+applied to the variables that measure water (open water has a high NDSI too).}
 
 \item{alpha}{optional significance level: only the pixels with a significant trend.}
 

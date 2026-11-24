@@ -94,6 +94,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: The snow by its NDSI, an option of the pixel filters off by default (quality `snow_ndsi`, e.g. 0.4; `--snow-ndsi` in the command line; a check box next to the filters in the QGIS plugin and the Earth Engine app): with the snow filter on, each image of Sentinel-2 and Landsat also loses the pixels whose NDSI (green, SWIR1; Hall et al. 1995) is that number or more, the patches and edges of snow that its quality band misses, which raise the standard deviation or the minimum of a moisture index such as the NDMI in mountains.
+
 ### [v0.3.69](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.69) · 2026-11-23 · package 0.3.79
 
 - **All tools**: The topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance of Landsat, an option off by default (quality `topographic`, `--topographic-correction` in the command line, a check box in the QGIS plugin and the Earth Engine app): in mountains, the slopes facing the sun and those facing away are compared as if they were lit alike, in maps, series, trends, comparisons, burn severity and downloads. Sentinel-2 does not take it: its Level-2A images come already corrected for the relief.

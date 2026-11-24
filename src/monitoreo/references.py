@@ -211,6 +211,8 @@ def of_variable(entry, quality=None, period=None, formula=True):
 			ids += _methods('sentinel2_scl')
 	elif entry['sensor'] == 'Landsat' and (on['clouds'] or on['water'] or on['snow']):
 		ids += _methods('landsat_qa')
+	if sensors.snow_ndsi_of(entry, q) is not None:  # the snow by its NDSI
+		ids += _methods('snow_ndsi')
 	if sensors.topographic(q) and not sensors.no_topographic(entry):  # SCS+C, with the slope and aspect of the SRTM
 		ids += _methods('topographic')
 		cols.append(sensors.TOPOGRAPHIC['dem'])

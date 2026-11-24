@@ -271,6 +271,10 @@ vegetation index).
 asks for it: the slopes facing the sun look brighter and those facing away darker than on flat land. Sentinel-2 comes \
 already corrected (Sen2Cor): never with it. Not for water, snow, LST, SCF, SCD, CF, MODIS or the climate; on flat land \
 it changes nothing. It costs more in Earth Engine.
+- Snow by its NDSI: in mountains with snow in the season, with Sentinel-2 or Landsat, add "snow_ndsi": 0.4 to quality \
+(e.g. {{"snow_ndsi": 0.4}}) when the user computes a standard deviation, a minimum or a maximum of the NDMI, the LSWI or \
+another index in the snow season, or asks for it: it also removes the patches of snow that the QA band misses. Not for \
+the NDSI, SCF or SCD, nor MODIS; it is not applied to the NDWI, Chl-a, NDCI or WAVI (open water has a high NDSI too).
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \
 always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water are \

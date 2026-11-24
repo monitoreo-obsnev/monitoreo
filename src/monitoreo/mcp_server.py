@@ -93,6 +93,11 @@ facing the sun look brighter, and those facing away darker, than the same cover 
 in mountains (slopes of more than 5 degrees), above all to compare slopes of different aspect or dates with a low sun
 (winter), not on flat land, for water (NDWI) or snow. Not for Sentinel-2 (its Level-2A, Sen2Cor, is already
 corrected), LST, SCF, SCD, CF, MODIS or the climate (an error says so). It costs more in Earth Engine.
+Snow by its NDSI: quality {"snow_ndsi": 0.4}, with the snow filter on, also removes from each image of Sentinel-2 and
+Landsat the pixels whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more: the patches and edges of snow that the QA
+band (SCL, QA_PIXEL) misses, which raise the standard deviation or the minimum of a moisture index (NDMI, LSWI) in
+mountains. Off by default; not for the NDSI, SCF and SCD (snow), MODIS or the data by their ID (an error says so), and
+not applied to the variables that measure water (NDWI, Chl-a, NDCI, WAVI: open water has a high NDSI too).
 Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
 stats of region_stats), for any variable: mean, median, min, max, std (standard deviation), cv (coefficient of

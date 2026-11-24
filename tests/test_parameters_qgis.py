@@ -216,6 +216,7 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.filters = {k: _Check(True) for k in sensors.FILTERS}
 	p.cloud_score, p.set_filters, p.chosen_filters = _Check(True), set(), None
 	p.topographic = _Check(False)  # the topographic correction: off by default
+	p.snow_ndsi = _Check(False)  # the snow by its NDSI: off by default
 	p.compare_on, p.other_start, p.other_end = _Check(False), _Date('2024-01-01'), _Date('2024-12-31')
 	p.step, p.ts_metric, p.stat = _Combo(d.STEPS, 'monthly'), _Combo(d.METRICS, 'mean'), _Combo(d.STATS, 'mean')
 	p.doy, p.doy_interannual = _Check(False), _Combo(d.DOY_INTERANNUAL)
@@ -294,7 +295,7 @@ def test_the_time_series_and_its_comparison(plugin, monkeypatch, tmp_path, fake)
 		 'metric': 'mean', 'stat': 'mean'}
 	assert fields['region']['value'] == ('extent', REGION['bbox']) and fields['compare']['value'] is None
 	assert fields['season']['value'] is None and fields['where']['value'] == {'conditions': [], 'landcover': None}
-	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False)
+	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False)
 	assert (fields['step']['value'], fields['ts_metric']['value'], fields['doy_other']['value']) == \
 		('monthly', 'mean', None)
 	assert fields['variable']['value']['collection'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -529,7 +530,7 @@ def test_the_defaults_of_the_parameters_not_given(plugin):
 	                                                                  'sensor': 'Landsat'})
 	assert reports == [] and fields['map_metric'] == {'value': 'median', 'given': False, 'name': 'metric'}
 	assert fields['season']['value'] is None and fields['compare']['value'] is None
-	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False),
+	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False),
 	                                       'own': False}, 'given': False, 'name': 'quality'}
 	_, fields, reports = plugin.dock.panel_fields('download_image', {'variable': 'ELEVATION', 'sensor': 'Copernicus'})
 	assert 'quality' not in fields and 'period' not in fields  # a fixed layer
@@ -648,6 +649,58 @@ def test_the_topographic_correction(plugin, monkeypatch, tmp_path):
 	assert [r['name'] for r in panel.put_quality(quality, True, 'quality')] == ['quality.topographic']
 	panel.topographic.enabled = True
 	assert panel.put_quality(quality, True, 'quality') == [] and panel.topographic.isChecked()
+
+
+def test_the_snow_by_its_ndsi(plugin, monkeypatch, tmp_path):
+	"""The check box of the snow by its NDSI: in the parameters (0.4) only when checked and the variable can have it
+	(Sentinel-2, Landsat), taken back from them (another threshold, reported), and reported when the variable of the
+	panel cannot have it (MODIS)."""
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	assert 'snow_ndsi' not in panel.quality_args()
+	panel.snow_ndsi.setChecked(True)
+	assert panel.quality_args()['snow_ndsi'] == sensors.SNOW_NDSI_DEFAULT == 0.4
+	panel.snow_ndsi.enabled = False  # as variable_changed leaves it with MODIS: greyed out
+	assert 'snow_ndsi' not in panel.quality_args()
+	assert panel.quality_args(own=True)['snow_ndsi'] == 0.4  # the NBR of the burn severity, of Sentinel-2 or Landsat
+	args = {'region': REGION, 'variable': 'LSWI', 'sensor': 'Sentinel-2', 'start': '2021-06-01', 'end': '2021-09-30'}
+	_, fields, reports = plugin.dock.panel_fields('map_layer', dict(args, quality={'snow_ndsi': 0.4}))
+	quality = fields['quality']['value']
+	assert quality['filters']['snow_ndsi'] is True and not [r for r in reports if 'snow_ndsi' in r['name']]
+	_, _, reports = plugin.dock.panel_fields('map_layer', dict(args, quality={'snow_ndsi': 0.3}))
+	assert [r['name'] for r in reports if 'snow_ndsi' in r['name']] == ['quality.snow_ndsi']
+	panel.snow_ndsi.setChecked(False)
+	assert [r['name'] for r in panel.put_quality(quality, True, 'quality')] == ['quality.snow_ndsi']
+	panel.snow_ndsi.enabled = True
+	assert panel.put_quality(quality, True, 'quality') == [] and panel.snow_ndsi.isChecked()
+	_, fields, reports = plugin.dock.panel_fields('map_layer', dict(args, quality={'snow_ndsi': '0.4'}))
+	assert fields['quality']['value']['filters']['snow_ndsi'] is True and not reports  # as text, as specs takes it
+	_, _, reports = plugin.dock.panel_fields('map_layer', dict(args, quality={'snow_ndsi': 2}))
+	assert [r['name'] for r in reports] == ['quality.snow_ndsi'] and 'at most 1' in reports[0]['reason']
+
+
+def test_the_snow_by_its_ndsi_is_greyed_out(plugin, monkeypatch, tmp_path):
+	"""Enabled for Sentinel-2 and Landsat with the snow filter checked; greyed out with MODIS, with the variables that
+	measure water (their open water has a high NDSI too), with fixed filters or without the snow filter."""
+	class Box(_Check):
+		tip = ''
+
+		def setEnabled(self, on):
+			self.enabled = on
+
+		def setToolTip(self, text):
+			self.tip = text
+
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	panel.snow_ndsi = Box(True)
+	for v, on in ((_row('LSWI', 'Sentinel-2'), True), (_row('NDVI', 'Landsat'), True), (_row('NDVI', 'Modis'), False),
+	              (_row('NDWI', 'Sentinel-2'), False), (_row('WAVI', 'Sentinel-2'), False),
+	              (dict(_row('SCF', 'Sentinel-2'), fixed_filters=['clouds', 'water']), False)):
+		panel.snow_ndsi_enabled(v)
+		assert panel.snow_ndsi.enabled is on, v
+		assert (panel.snow_ndsi.tip == '') is on
+	panel.filters['snow'].setChecked(False)
+	panel.snow_ndsi_enabled(_row('LSWI', 'Sentinel-2'))
+	assert panel.snow_ndsi.enabled is False
 
 
 def test_the_topographic_correction_of_the_fires_and_the_profiles(plugin, monkeypatch, tmp_path):

@@ -74,6 +74,7 @@
 			'misma para cada paso y para los dos periodos de una comparación.',
 			badLimit: 'El límite %s no es un número.', noLimit: 'Da un mínimo, un máximo o los dos.',
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
+			snowNdsi: 'nieve también por su NDSI ≥ %s (Sentinel-2, Landsat)',
 			topographic: 'corrección topográfica SCS+C de Landsat (montaña: laderas al sol y a la sombra, sol bajo)',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
@@ -373,6 +374,7 @@
 			'same for every step and for both periods of a comparison.',
 			badLimit: 'The limit %s is not a number.', noLimit: 'Give a min, a max or both.',
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
+			snowNdsi: 'snow also by its NDSI ≥ %s (Sentinel-2, Landsat)',
 			topographic: 'topographic correction SCS+C of Landsat (mountains: slopes in the sun and in the shade, low sun)',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
@@ -1584,6 +1586,14 @@
 				state.quality.cloud_score = v ? 0.6 : null;
 			}));
 		}
+		if (mo.SNOW_NDSI[e.sensor] && !fixed && (mo.MEASURES.water || []).indexOf(e.index) < 0) {  // sensors.snow_ndsi_of
+			var ndsiBox = check(fmt(t('snowNdsi'), state.quality.snow_ndsi || mo.SNOW_NDSI_DEFAULT),
+				Boolean(state.quality.snow_ndsi), function (v) {
+					state.quality.snow_ndsi = v ? (state.quality.snow_ndsi || mo.SNOW_NDSI_DEFAULT) : null;
+				});
+			ndsiBox.setDisabled(!(state.quality.snow && available.snow));
+			w.push(ndsiBox);
+		}
 		if (!mo.noTopographic(e)) {  // the surface reflectance of Landsat (sensors.TOPOGRAPHIC)
 			w.push(check(t('topographic'), Boolean(state.quality.topographic), function (v) {
 				state.quality.topographic = v;
@@ -2777,6 +2787,7 @@
 		});
 		// the topographic correction of the panel, if both variables can have it (services._other_spec)
 		if (state.quality.topographic && e && !mo.noTopographic(e) && !mo.noTopographic(oe)) q.topographic = true;
+		if (state.quality.snow_ndsi && q.snow && mo.SNOW_NDSI[oe.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -3576,9 +3587,13 @@
 	// cannot have it (sensors.no_topographic: the zones, the RdNBR of MODIS), as the user keeps it for the others
 	function qualityFor(ref) {
 		var e = ref === undefined || ref === null ? null : mo.byRef(ref);  // none: without it
-		if (!state.quality.topographic || (e && !mo.noTopographic(e))) return state.quality;
+		var topo = state.quality.topographic && !(e && !mo.noTopographic(e));  // to leave out
+		var ndsi = state.quality.snow_ndsi && !(e && mo.SNOW_NDSI[e.sensor]);  // the snow by its NDSI, too
+		if (!topo && !ndsi) return state.quality;
 		var q = {};
-		for (var k in state.quality) if (k !== 'topographic') q[k] = state.quality[k];
+		for (var k in state.quality) {
+			if (!(k === 'topographic' && topo) && !(k === 'snow_ndsi' && ndsi)) q[k] = state.quality[k];
+		}
 		return q;
 	}
 
@@ -3589,6 +3604,7 @@
 		mo.FILTERS.forEach(function (f) { q[f] = Boolean(state.quality[f]); });
 		if (sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && e && !mo.noTopographic(e)) q.topographic = true;
+		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -3616,6 +3632,7 @@
 		});
 		if (e.sensor === 'Sentinel-2' || oe.sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && !mo.noTopographic(e)) q.topographic = true;  // the right axis too, if it can
+		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[e.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
 		return q;
 	}
 
@@ -4073,6 +4090,8 @@
 					q.cloud_score = v;
 				} else if (k === 'topographic' && (v === true || v === false || v === null)) {
 					q.topographic = Boolean(v);
+				} else if (k === 'snow_ndsi') {
+					try { q.snow_ndsi = mo.snowNdsi(one); } catch (err) { skip('quality', err.message, one); }
 				} else {
 					skip('quality', k === 'cloud_score' ? fmt(t('badNumber'), k, v) : t('noWidget'), one);
 				}
@@ -4082,6 +4101,7 @@
 		else mo.FILTERS.forEach(function (f) { state.quality[f] = q[f]; });
 		state.quality.cloud_score = q.cloud_score;
 		state.quality.topographic = Boolean(q.topographic);
+		state.quality.snow_ndsi = q.snow_ndsi || null;
 	}
 
 	// The period, the other period (of a comparison; for a fire, the periods before and after it) and the season of

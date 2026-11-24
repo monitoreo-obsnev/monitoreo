@@ -82,8 +82,14 @@ QUALITY = {
 FILTERS = ('clouds', 'water', 'snow', 'aerosols')
 # Options of the processing of the images that are off unless asked, and not kept in the specs when off (so that the
 # records of the files made without them do not change): {option: default}. 'topographic': the topographic
-# correction SCS+C of the surface reflectance (see TOPOGRAPHIC).
-OPTIONS = {'topographic': False}
+# correction SCS+C of the surface reflectance (see TOPOGRAPHIC). 'snow_ndsi': with the snow filter on, Sentinel-2 and
+# Landsat also lose the pixels whose NDSI (green, SWIR1) is that number or more (see snow_ndsi), e.g. 0.4: the snow that
+# their QA band misses (patches of snow, its edges), which raises a statistic such as the standard deviation of the
+# NDMI. Not for the variables that measure water (open water has a high NDSI too: see snow_ndsi_of).
+OPTIONS = {'topographic': False, 'snow_ndsi': None}
+# the bands of the NDSI of snow_ndsi: (green, SWIR1) with their scale and offset to surface reflectance
+SNOW_NDSI = {'Sentinel-2': ('B3', 'B11', 0.0001, 0.0), 'Landsat': ('green', 'swir1', 2.75e-05, -0.2)}
+SNOW_NDSI_DEFAULT = 0.4  # the threshold of the check boxes of the QGIS plugin and the Earth Engine app
 MEASURES = {  # variables whose signal a filter removes
 	'water': {'NDWI', 'Chl-a', 'NDCI', 'WAVI'},  # open water, water quality and aquatic vegetation
 	'snow': {'NDSI', 'SCF', 'SCD'},
@@ -218,6 +224,39 @@ TOPOGRAPHIC = {
 # surface temperature of Landsat (st) nor its QA bands
 REFLECTANCE = {'Landsat': {'blue', 'green', 'red', 'nir', 'swir1', 'swir2'}}
 TOPOGRAPHIC_S2 = 'its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief: use Landsat'
+
+
+def snow_ndsi(quality):
+	"""The NDSI threshold of QUALITY (snow_ndsi, see OPTIONS): a number greater than 0 and at most 1, or None (not
+	asked). ValueError if it is something else."""
+	v = (quality or {}).get('snow_ndsi') if isinstance(quality, dict) else None
+	if v is None or v is False or (isinstance(v, str) and v.strip().lower() in ('', 'none', 'null', 'false', 'off')):
+		return None
+	try:
+		x = float(v)
+	except (TypeError, ValueError):
+		raise ValueError(f'quality snow_ndsi: give the NDSI threshold, a number such as 0.4, not {v!r}') from None
+	if isinstance(v, bool) or not 0 < x <= 1:
+		raise ValueError(f'quality snow_ndsi: the NDSI threshold is greater than 0 and at most 1 (e.g. 0.4), not {v!r}')
+	return x
+
+
+def snow_ndsi_of(entry, quality):
+	"""The NDSI threshold that applies to ENTRY with QUALITY (see snow_ndsi), or None: only with its snow filter on
+	(not the fixed filters of the SCF, nor 'auto' with the NDSI), for Sentinel-2 and Landsat, and not for the variables
+	that measure water (MEASURES['water']: open water has a high NDSI too, so the mask would remove what they measure)."""
+	ndsi = snow_ndsi(quality)
+	if ndsi is None or entry.get('sensor') not in SNOW_NDSI or entry.get('index') in MEASURES['water']:
+		return None
+	return ndsi if filters(entry, quality)['snow'] else None
+
+
+def check_snow_ndsi(entry, quality):
+	"""ValueError if QUALITY asks for snow_ndsi for ENTRY, whose sensor has no green and SWIR1 bands (only Sentinel-2
+	and Landsat have them)."""
+	if snow_ndsi(quality) is not None and entry.get('sensor') not in SNOW_NDSI:
+		raise ValueError(f"quality snow_ndsi (snow by its NDSI) is for Sentinel-2 and Landsat, not for "
+		                 f"{entry.get('index')} of {entry.get('sensor')}")
 
 
 def topographic(quality):
@@ -498,6 +537,11 @@ def quality_mask(img, entry, quality):
 	sensor, col = entry['sensor'], entry['col']
 	on = filters(entry, quality)
 	masks = []
+	ndsi = snow_ndsi_of(entry, quality)
+	if ndsi is not None:  # also the snow that the QA band misses
+		green, swir1, scale, offset = SNOW_NDSI[sensor]
+		refl = img.select([green, swir1]).multiply(scale).add(offset)
+		masks.append(refl.normalizedDifference([green, swir1]).lt(ndsi))
 	if sensor == 'Sentinel-2':
 		scl = img.select('SCL')
 		for f, classes in S2_SCL.items():
@@ -614,6 +658,7 @@ def collection(entry, region, start, end, quality=None, resample=None, rgb=False
 		return cf_collection(entry, region, start, end, quality, rgb)
 	used = list(bands) if kind == 'nd' else sorted(set(bands.values()))
 	check_topographic(entry, quality)
+	check_snow_ndsi(entry, quality)
 	topo = topographic(quality)
 
 	def compute(img):

@@ -125,6 +125,9 @@ SOURCE = ('image', 'band', 'band_reducer', 'band_scale', 'band_offset', 'unit', 
 REDUCERS = [('One band', ''), ('Sum of the bands', 'sum'), ('Mean of the bands', 'mean')]
 NO_FILTERS = ('The data of Earth Engine outside the catalog keep only their own mask: the pixel filters are for the '
               'variables of the catalog')
+NO_SNOW_NDSI = ('The snow by its NDSI is for the variables of Sentinel-2 and Landsat of the catalog, with the filter '
+                'snow checked (not for MODIS, the data of Earth Engine by their ID, the variables with fixed filters '
+                'nor those that measure water: open water has a high NDSI too)')
 NO_TOPOGRAPHIC = ('The topographic correction is for the surface reflectance of Landsat (Sentinel-2 comes already '
                   'corrected; not for the land surface temperature, the snow or cloud frequency, MODIS, the climate or '
                   'the fixed layers)')
@@ -782,11 +785,23 @@ def quality_fields(quality):
 			continue
 		elif k == 'topographic' and v in (True, False, None):
 			q[k] = bool(v)
+		elif k == 'snow_ndsi':
+			try:
+				x = sensors.snow_ndsi({k: v})
+			except ValueError as e:
+				reports.append(missing('quality.snow_ndsi', v, str(e)))
+				continue
+			if x is not None:
+				q[k] = x
+			if x not in (None, sensors.SNOW_NDSI_DEFAULT):
+				reports.append(missing('quality.snow_ndsi', v, f"the panel removes the snow with an NDSI of "
+				                       f"{sensors.SNOW_NDSI_DEFAULT:g} or more (checked) or none (unchecked)"))
 		else:
 			reports.append(missing(f'quality.{k}', v, 'the panel has no such pixel filter (clouds, water, snow and '
-			                       'aerosols: true, false or "auto"; cloud_score; topographic: true or false)'))
+			                       'aerosols: true, false or "auto"; cloud_score; topographic: true or false; '
+			                       f'snow_ndsi: {sensors.SNOW_NDSI_DEFAULT:g} or null)'))
 	return dict({f: q[f] for f in sensors.FILTERS}, cloud_score=q['cloud_score'] is not None,
-	            topographic=bool(q.get('topographic'))), reports
+	            topographic=bool(q.get('topographic')), snow_ndsi=bool(q.get('snow_ndsi'))), reports
 
 
 def where_fields(where, period=None):
@@ -1449,6 +1464,10 @@ class MonitorEODock(QDockWidget):
 		self.cloud_score = QCheckBox('Sentinel-2 clouds with Cloud Score+')  # unchecked, with SCL: in its help ⓘ
 		self.cloud_score.setChecked(True)
 		f.addRow('', info(self.cloud_score, HELP['cloud_score']))
+		self.snow_ndsi = QCheckBox(f'Snow also by its NDSI ≥ {sensors.SNOW_NDSI_DEFAULT:g} (Sentinel-2, Landsat)')
+		self.snow_ndsi.setChecked(False)  # off: the snow that the QA band misses, in its help ⓘ
+		f.addRow('', info(self.snow_ndsi, HELP['snow_ndsi']))
+		self.filters['snow'].toggled.connect(lambda _on: self.snow_ndsi_enabled())  # greyed out without the snow filter
 		self.topographic = QCheckBox('Topographic correction (Landsat)')  # off: SCS+C, in its help ⓘ
 		self.topographic.setChecked(False)
 		f.addRow('', info(self.topographic, HELP['topographic']))
@@ -2463,6 +2482,9 @@ class MonitorEODock(QDockWidget):
 		# also greyed out: the burn severity and the right axis of a profile compute other variables with it
 		self.cloud_score.setChecked(q['cloud_score'])
 		self.topographic.setChecked(bool(q.get('topographic')))
+		self.snow_ndsi.setChecked(bool(q.get('snow_ndsi')))
+		if given and q.get('snow_ndsi') and not own and not self.snow_ndsi.isEnabled():
+			out.append(missing('quality.snow_ndsi', sensors.SNOW_NDSI_DEFAULT, NO_SNOW_NDSI))
 		if given and q.get('topographic') and not own and not self.topographic.isEnabled():
 			out.append(missing('quality.topographic', True, NO_TOPOGRAPHIC))
 		return out
@@ -2994,7 +3016,18 @@ class MonitorEODock(QDockWidget):
 		quality['cloud_score'] = 0.6 if self.cloud_score.isChecked() else None
 		if self.topographic.isChecked() and (own or self.topographic.isEnabled()):  # SCS+C, only when asked
 			quality['topographic'] = True
+		if self.snow_ndsi.isChecked() and (own or self.snow_ndsi.isEnabled()):  # the snow by its NDSI, when asked
+			quality['snow_ndsi'] = sensors.SNOW_NDSI_DEFAULT
 		return quality
+
+	def snow_ndsi_enabled(self, v=None):
+		"""The check box of the snow by its NDSI, enabled for the variables of the catalog of Sentinel-2 and Landsat with
+		the snow filter checked, not for those with fixed filters nor those that measure water (sensors.snow_ndsi_of)."""
+		v = v if v is not None else (self.variable.currentData() or {})
+		on = (v.get('fixed_filters') is None and not v.get('custom') and v.get('sensor') in sensors.SNOW_NDSI
+		      and v.get('variable') not in sensors.MEASURES['water'] and self.filters['snow'].isChecked())
+		self.snow_ndsi.setEnabled(on)
+		self.snow_ndsi.setToolTip('' if on else NO_SNOW_NDSI)
 
 	def own_filters(self):
 		"""The pixel filters chosen by the user: those checked in the panel and, of those that the variable chosen sets
@@ -3365,6 +3398,8 @@ class MonitorEODock(QDockWidget):
 			quality = self.quality_args(own=True, auto=True)
 			if not (self.variable.currentData() or {}).get('topographic'):  # greyed out: not for the left axis
 				quality.pop('topographic', None)  # (the right axis gets it only if it can, services._other_spec)
+			if not self.snow_ndsi.isEnabled():  # the snow by its NDSI, likewise
+				quality.pop('snow_ndsi', None)
 			var = dict(var, quality=quality)
 		return 'time_series', dict(region=region, **var, step=step, metric=metric, stat=stat, doy=doy, **profile)
 
@@ -3491,6 +3526,7 @@ class MonitorEODock(QDockWidget):
 		fixed = v.get('fixed_filters')
 		self.cloud_score.setEnabled(fixed is None)
 		self.cloud_score.setToolTip(NO_FILTERS if v.get('custom') else '')
+		self.snow_ndsi_enabled(v)
 		self.topographic.setEnabled(bool(v.get('topographic')))  # the surface reflectance of Landsat
 		self.topographic.setToolTip('' if v.get('topographic') else NO_TOPOGRAPHIC)
 		measured = set() if fixed is not None else \
@@ -4238,6 +4274,8 @@ class MonitorEODock(QDockWidget):
 		(sensor, collection), index = self.fire_source(), self.fire_index.currentData()
 		if sensor != 'Landsat':  # the topographic correction: only for Landsat (Sentinel-2 comes already corrected)
 			quality.pop('topographic', None)
+		if sensor not in sensors.SNOW_NDSI:  # the snow by its NDSI: not for MODIS
+			quality.pop('snow_ndsi', None)
 		stem = os.path.join(folder, burn_stem(index))
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
 		outline = self.perimeter_args(index, stem)  # the polygons of the burned area

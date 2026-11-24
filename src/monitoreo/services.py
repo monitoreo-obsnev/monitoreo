@@ -910,7 +910,8 @@ def check_ylim(ylim, name='ylim'):
 def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 	"""The spec of the other variable of a profile by day of the year (the right axis): a variable of the catalog with
 	dates, with the period, season, metric, pixel filters and pixels of the region (where, exclude_landcover) of the
-	first one (its topographic correction only if it is a surface reflectance of Landsat), and its own
+	first one (its topographic correction only if it is a surface reflectance of Landsat, its snow by the NDSI only
+	for Sentinel-2 and Landsat), and its own
 	rules (the SCF and the CF only take the metric mean); ValueError otherwise."""
 	if '/' in str(variable):
 		raise ValueError(f'other_variable {variable}: the variable of the right axis is a variable of the catalog of '
@@ -921,6 +922,8 @@ def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 		e = catalog.find(variable, sensor)
 		if sensors.topographic(quality) and sensors.no_topographic(e):  # as 'auto': the correction of the first one
 			quality = {k: v for k, v in quality.items() if k != 'topographic'}  # only for the reflectances
+		if sensors.snow_ndsi(quality) is not None and e['sensor'] not in sensors.SNOW_NDSI:  # only Sentinel-2, Landsat
+			quality = {k: v for k, v in quality.items() if k != 'snow_ndsi'}
 		spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality,
 		                 where=source.get('where'), exclude_landcover=source.get('exclude_landcover'))
 		variables.check_dates(spec, 'time series')
