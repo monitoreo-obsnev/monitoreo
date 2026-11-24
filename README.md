@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.72](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.72) · 2026-11-24 · package 0.3.82
 
 - **QGIS plugin**: A shorter panel, organised as the Earth Engine app: its groups in tabs (Data, Series, Maps, Fire, Export, About), each folded under its title with what is chosen in it, the region, the variable and the first group of each tab unfolded at first; the pixel filters, the land cover mask and «Only the pixels where» in a group of their own, and the optional options (the chart of the series, the colours of the maps and the animation, the options of the trend map) folded too. Above the tabs of the analyses, a line says the region, the variable, its period and the pixel filters they use.
 
