@@ -163,3 +163,19 @@ def test_the_app_takes_it_as_the_package():
 	assert {k: tuple(v) for k, v in app['bands'].items()} == sensors.SNOW_NDSI
 	python_of = [sensors.snow_ndsi_of(catalog.find(None, ref=r), quality) for r in refs]
 	assert app['of'] == python_of and 0.4 in python_of and None in python_of
+
+
+def test_recipe_default():
+	"""Given for the whole recipe (its quality), it is a default: the variables that cannot have it (a fixed image by
+	its ID, MODIS) are computed without it, and keep the spec of before; given in a variable, it is still refused."""
+	from monitoreo import recipe
+	rec = {'period': PERIOD, 'quality': {'snow_ndsi': 0.4}, 'variables': [
+		{'index': 'LSWI', 'sensor': 'Sentinel-2', 'metric': 'std'},
+		{'index': 'NDVI', 'sensor': 'Modis', 'metric': 'mean'},
+		{'name': 'slope', 'image': 'COPERNICUS/DEM/GLO30_2024_1', 'band': 'DEM', 'terrain': 'slope'}]}
+	lswi, modis, slope = recipe.expand(recipe.read(rec))
+	assert lswi['quality']['snow_ndsi'] == 0.4
+	assert 'snow_ndsi' not in modis['quality'] and 'snow_ndsi' not in slope['quality']
+	assert slope == recipe.expand(recipe.read(dict(rec, quality={})))[2]
+	with pytest.raises(ValueError, match='Sentinel-2 and Landsat'):
+		recipe.expand(recipe.read(dict(rec, quality={}, variables=[dict(rec['variables'][1], quality={'snow_ndsi': 0.4})])))

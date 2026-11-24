@@ -230,6 +230,11 @@ def specs(var, defaults=None, two_periods=False):
 			raise ValueError('the topographic correction (quality topographic) is for the surface reflectance of '
 			                 'Landsat of the catalog, not for the data of Earth Engine given by their ID')
 		sensors.check_topographic(e, base['quality'])
+	own_ndsi = 'snow_ndsi' in (var.get('quality') or {})
+	if sensors.snow_ndsi(base['quality']) is not None and not own_ndsi and (
+			k != 'catalog' or e.get('sensor') not in sensors.SNOW_NDSI):
+		# from the options of the whole recipe (DEFAULTS): only for the variables that can have it, as a default
+		base['quality'].pop('snow_ndsi', None)
 	if sensors.snow_ndsi(base['quality']) is not None:
 		if k != 'catalog':
 			raise ValueError('quality snow_ndsi (snow by its NDSI) is for the variables of Sentinel-2 and Landsat of the '
