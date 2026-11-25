@@ -94,7 +94,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.73](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.73) · 2026-11-25 · package 0.3.83
 
 - **Earth Engine app**: On a phone or a narrow window the panel, the map and the results take the whole width, one at a time, with buttons to go from one to another (Map, ☰ Options, Results); on a desktop the options fit into the panel, without horizontal scrollbars.
 - **Earth Engine app**: The first steps (region, variable and period, then an analysis and its button) under the subtitle; searching and loading a region says so under the region instead of opening the results beside the map, and the map frames the region again when the results open or close, unless you moved it.
