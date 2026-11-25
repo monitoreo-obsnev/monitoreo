@@ -17104,6 +17104,24 @@ var MonitorEO = (function () {
 		return new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
 	}
 
+	// Whether TEXT is a day that exists, as YYYY-MM-DD (composite._date: date.fromisoformat refuses 2025-02-30, which
+	// date() would take as 2 March)
+	function isDate(text) {
+		text = String(text);
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+		var d = date(text);
+		return !isNaN(d.getTime()) && iso(d) === text;
+	}
+
+	// Whether TEXT is a day of the year that exists, as MM-DD (29 February too: composite._md takes it as the 28th in
+	// common years)
+	function isMonthDay(text) {
+		text = String(text);
+		if (!/^\d{2}-\d{2}$/.test(text)) return false;
+		var p = text.split('-'), m = Number(p[0]), d = Number(p[1]);
+		return m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth(2000, m);
+	}
+
 	function ymd(y, m, d) {
 		return new Date(Date.UTC(y, m - 1, d));
 	}
@@ -17220,6 +17238,12 @@ var MonitorEO = (function () {
 
 	// composite.windows: [year, first day, day after the last] of each year of PERIOD, or of each season of each year
 	function windows(period, season) {
+		[period[0], period[1]].forEach(function (d) {
+			if (!isDate(d)) throw new Error('not a valid date (YYYY-MM-DD): ' + d);
+		});
+		(season || []).forEach(function (d) {
+			if (!isMonthDay(d)) throw new Error('not a valid day of the season (MM-DD): ' + d);
+		});
 		var start = date(period[0]), end = date(period[1]);
 		if (end < start) throw new Error('period ' + period.join(' / ') + ': the end is before the start');
 		var out = [];
@@ -21458,7 +21482,7 @@ var MonitorEO = (function () {
 		BAND_REDUCERS: BAND_REDUCERS, bandsOf: bandsOf, bandText: bandText, bandWords: bandWords, bandStem: bandStem,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
-		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, windows: windows, bins: bins,
+		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, isDate: isDate, isMonthDay: isMonthDay, windows: windows, bins: bins,
 		reducer: reducer, DAYS: DAYS, isDays: isDays, days: days, spans: spans, reduceSpan: reduceSpan,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
@@ -21575,7 +21599,10 @@ var MonitorEO = (function () {
 				'de sus mares; el mar Mediterr\u00e1neo entero (Mediterranean Sea, MRGID 1905) son todas sus \u00e1reas como una. Son ' +
 				'\u00e1reas grandes: p\u00edxeles de 1 a 10 km, y solo la ' +
 				'clorofila de MODIS (Chl-a) tiene datos en mar abierto.',
-			mode_draw: 'Pol\u00edgono dibujado', search: 'Buscar', searchHint: 'Nombre, p. ej. Sierra Nevada',
+			mode_draw: 'Pol\u00edgono dibujado', search: 'Buscar', searching: 'Buscando\u2026',
+			firstSteps: 'Primeros pasos: 1) Regi\u00f3n: busca un \u00e1rea y el\u00edgela en la lista (u otro tipo de regi\u00f3n). ' +
+				'2) Variable y periodo. 3) Abre Mapa, Serie temporal u otro an\u00e1lisis m\u00e1s abajo y pulsa su bot\u00f3n.',
+			navMap: 'Mapa', navControls: '\u2630 Opciones', navResults: 'Resultados', searchHint: 'Nombre, p. ej. Sierra Nevada',
 			chooseArea: 'Elige el \u00e1rea', none: 'Ninguna \u00e1rea protegida con ese nombre.',
 			clickHelp: 'Pulsa en el mapa sobre la ecorregi\u00f3n.', useView: 'Usar la vista del mapa', mode_biome: 'Bioma',
 			biomeHelp: 'Pulsa en el mapa sobre el bioma: su parte en la vista del mapa (un bioma entero abarca ' +
@@ -21760,7 +21787,8 @@ var MonitorEO = (function () {
 			tooManySteps: 'Son %s pasos (m\u00e1ximo %s): usa un paso m\u00e1s largo o un periodo m\u00e1s corto.',
 			dailyCompare: 'Para comparar periodos o calcular tendencias, el paso no puede ser diario.',
 			fewYears: 'Las tendencias necesitan un periodo de al menos dos a\u00f1os.',
-			badDate: 'Fecha no v\u00e1lida: \u00ab%s\u00bb. Usa AAAA-MM-DD (y MM-DD en la temporada).', error: 'Error: ',
+			badDate: 'Fecha no v\u00e1lida: \u00ab%s\u00bb. Usa AAAA-MM-DD (y MM-DD en la temporada).',
+			endBeforeStart: 'Periodo %s / %s: el final es anterior al inicio.', error: 'Error: ',
 			noData: 'No hay datos en ese periodo.',
 			rangeNote: 'Colores con el rango del cat\u00e1logo: Earth Engine no pudo calcular los percentiles del rango de ' +
 				'colores en la regi\u00f3n.',
@@ -21875,7 +21903,10 @@ var MonitorEO = (function () {
 				'seas; the whole Mediterranean Sea (Mediterranean Sea, MRGID 1905) is all its areas as one. They are large ' +
 				'areas: pixels of 1 to 10 km, and only the ' +
 				'chlorophyll of MODIS (Chl-a) has data over the open sea.',
-			mode_draw: 'Drawn polygon', search: 'Search', searchHint: 'Name, e.g. Sierra Nevada',
+			mode_draw: 'Drawn polygon', search: 'Search', searching: 'Searching\u2026',
+			firstSteps: 'First steps: 1) Region: search an area and choose it in the list (or another kind of region). ' +
+				'2) Variable and period. 3) Open Map, Time series or another analysis below and click its button.',
+			navMap: 'Map', navControls: '\u2630 Options', navResults: 'Results', searchHint: 'Name, e.g. Sierra Nevada',
 			chooseArea: 'Choose the area', none: 'No protected area with that name.',
 			clickHelp: 'Click on the map over the ecoregion.', useView: 'Use the map view', mode_biome: 'Biome',
 			biomeHelp: 'Click on the map over the biome: its part in the map view (a whole biome spans continents).',
@@ -22060,7 +22091,8 @@ var MonitorEO = (function () {
 			tooManySteps: '%s steps (at most %s): use a longer step or a shorter period.',
 			dailyCompare: 'To compare periods or compute trends, the step cannot be daily.',
 			fewYears: 'Trends need a period of at least two years.',
-			badDate: 'Not a valid date: "%s". Use YYYY-MM-DD (and MM-DD for the season).', error: 'Error: ',
+			badDate: 'Not a valid date: "%s". Use YYYY-MM-DD (and MM-DD for the season).',
+			endBeforeStart: 'Period %s / %s: the end is before the start.', error: 'Error: ',
 			noData: 'No data in that period.',
 			rangeNote: 'Colours with the range of the catalog: Earth Engine could not compute the percentiles of the ' +
 				'colour range over the region.',
@@ -22169,6 +22201,7 @@ var MonitorEO = (function () {
 		adminText: '', adminLevel: 1, adminCountry: '', adminItems: null, adminNames: {}, adminCode: null,
 		seaText: '', seaItems: null, seaNames: {}, seaId: null,  // the oceans and seas (mode sea)
 		region: null, regionName: null, info: null,
+		regionNotice: null,  // what the search or loading of a region is doing ({text, error}, see regionNotice)
 		regionAdmin: null,  // the level of the administrative unit that is the region, or 'sea' (its credits), or null
 		// the groups of the panel unfolded (section): the region and the variable at first, the others folded
 		open: {region: true, variable: true},
@@ -22255,13 +22288,106 @@ var MonitorEO = (function () {
 	var controls = ui.Panel({style: {width: '380px', padding: '4px 10px'}});
 	var results = ui.Panel({style: {width: '460px', padding: '4px 10px', shown: false}});
 	var legend = ui.Panel({style: {position: 'bottom-left', padding: '6px 8px', shown: false}});
+	// in a narrow window, the buttons on the map to go back to the panel or to the results (see layout)
+	function navPanel() {
+		return ui.Panel([], ui.Panel.Layout.flow('horizontal'), {position: 'top-center', padding: '0', shown: false});
+	}
+	var mapNav = navPanel();
+	var mapNavs = [mapNav];  // those of the maps shown: the map of the app, or the left map of a swipe
+	var resultsNav = ui.Panel([], ui.Panel.Layout.flow('horizontal'));  // on top of the results
 	map.add(legend);
+	map.add(mapNav);
 	ui.root.clear();
 	ui.root.setLayout(ui.Panel.Layout.flow('horizontal'));
 	ui.root.add(controls);
 	ui.root.add(map);
 	ui.root.add(results);
 	var regionLayer = null;
+
+	// The layout of the window. Wide, the panel of controls (380 px), the map and, once there is an answer, the results
+	// (460 px) side by side. NARROW (a phone: a window under NARROW_WIDTH px, as ui.root.onResize says), one of them
+	// at a time over the whole width (VIEW: 'controls', 'map' or 'results'), with buttons to go from one to another: on
+	// the map (mapNav), on top of the panel (render) and of the results (show). resultsOpen: whether the results are
+	// open (not closed), whether or not a narrow window shows them now; mainMap: the widget between the panels, the map
+	// of the app or the swipe of two periods (swipePeriods)
+	var NARROW_WIDTH = 800;
+	var narrow = false, view = 'controls', resultsOpen = false, mainMap = map;
+	var NAV = {margin: '4px 4px 0 0', fontWeight: 'bold'};
+
+	function layout() {
+		controls.style().set('width', narrow ? '100%' : '380px');
+		results.style().set('width', narrow ? '100%' : '460px');
+		controls.style().set('shown', !narrow || view === 'controls');
+		mainMap.style().set('shown', !narrow || view === 'map');
+		results.style().set('shown', resultsOpen && (!narrow || view === 'results'));
+		mapNavs.forEach(function (nav) {
+			nav.clear();
+			if (narrow) {
+				nav.add(ui.Button({label: t('navControls'), style: NAV, onClick: function () { setView('controls'); }}));
+				if (resultsOpen) {
+					nav.add(ui.Button({label: t('navResults'), style: NAV, onClick: function () { setView('results'); }}));
+				}
+			}
+			nav.style().set('shown', narrow);
+		});
+		resultsNav.clear();
+		if (narrow) navRow('results').forEach(function (w) { resultsNav.add(w); });
+	}
+
+	function setView(v) {
+		view = v === 'results' && !resultsOpen ? 'controls' : v;
+		layout();
+		if (view === 'map') reframe();
+	}
+
+	// The buttons of a narrow window on top of the panel (HERE: 'controls') or of the results: to the map, and to the
+	// other one
+	function navRow(here) {
+		var w = [ui.Button({label: t('navMap'), style: NAV, onClick: function () { setView('map'); }})];
+		if (here === 'results') {
+			w.push(ui.Button({label: t('navControls'), style: NAV, onClick: function () { setView('controls'); }}));
+		} else if (resultsOpen) {
+			w.push(ui.Button({label: t('navResults'), style: NAV, onClick: function () { setView('results'); }}));
+		}
+		return w;
+	}
+
+	// The results opened (an answer, or a message) or closed: a narrow window shows them when they open, and the panel
+	// when they close; the map, narrower or wider, frames the region again (reframe)
+	function openResults(open) {
+		open = Boolean(open);
+		var changed = open !== resultsOpen;
+		resultsOpen = open;
+		if (narrow && open && view === 'controls') view = 'results';
+		if (narrow && !open && view === 'results') view = 'controls';
+		layout();
+		if (changed && !narrow) reframe();
+	}
+
+	// The region framed on the map: its bounds (setRegion), whether the map still shows it as the app framed it (kept:
+	// not if the user moved or zoomed the map since then) and until when a move of the map is the app's own (until, in
+	// ms: centerObject, or the map resized by the results opening, moves it too). When the map changes size (the
+	// results open or close, a narrow window shows it) the region is framed again, once the new layout is drawn
+	var frame = {bounds: null, kept: false, until: 0};
+	var afterLayout = ui.util && ui.util.setTimeout ? function (f) { ui.util.setTimeout(f, 300); } : function (f) { f(); };
+
+	function frameRegion() {
+		if (!frame.bounds || !frame.kept || swiped || (narrow && view !== 'map')) return;
+		frame.until = Date.now() + 3000;
+		map.centerObject(ee.Geometry(frame.bounds));
+	}
+
+	function reframe() {
+		if (!frame.kept) return;
+		frame.until = Date.now() + 3000;
+		afterLayout(frameRegion);
+	}
+
+	function userMoved() {
+		if (Date.now() > frame.until) frame.kept = false;
+	}
+	if (map.onChangeCenter) map.onChangeCenter(userMoved);
+	if (map.onChangeZoom) map.onChangeZoom(userMoved);
 
 	var H = {fontWeight: 'bold', fontSize: '13px', margin: '10px 0 4px 8px'};  // a header inside a section
 	var SMALL = {fontSize: '12px', color: '#555'};
@@ -22337,6 +22463,9 @@ var MonitorEO = (function () {
 		if (!swiped) return;
 		ui.root.widgets().set(1, map);
 		swiped = false;
+		mainMap = map;
+		mapNavs = [mapNav];
+		layout();
 	}
 
 	// Results: a panel to the right of the map, with the answer of the last computation (and the map of the app, if a
@@ -22351,15 +22480,16 @@ var MonitorEO = (function () {
 		results.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '16px', stretch: 'horizontal'}),
 			button(t('close'), function () {
 				oneMap();
-				results.style().set('shown', false);
+				openResults(false);
 			})));
+		results.add(resultsNav);  // the buttons of a narrow window (layout), empty in a wide one
 		var notes = runNotes;
 		if (!bare && notes.warnings.length) results.add(ui.Label('\u26a0 ' + notes.warnings.join('\n\u26a0 '), WARNING));
 		widgets.forEach(function (w) { results.add(w); });
 		if (!bare) manualLinks().forEach(function (w) { results.add(w); });  // what each variable is, in the wiki
 		var source = bare ? null : mo.sourceText(notes);
 		if (source) results.add(ui.Label(t('dataSource') + ' ' + source, SMALL));
-		results.style().set('shown', true);
+		openResults(true);
 	}
 
 	// The sections of the manual (the wiki) that explain the variables of the analysis computed (services: the
@@ -22389,6 +22519,7 @@ var MonitorEO = (function () {
 	}
 
 	function message(text, error) {
+		if (error && narrow) view = 'results';  // an error (of a click on the map too) is seen at once
 		show([ui.Label(text, {color: error ? '#b00020' : '#333', whiteSpace: 'pre-wrap'})], true);
 	}
 
@@ -22472,7 +22603,9 @@ var MonitorEO = (function () {
 		state.regionName = named ? name : t('loadingRegion');
 		state.regionSpec = spec || null;
 		state.regionAdmin = admin || null;
+		state.regionNotice = null;
 		state.info = null;
+		frame.bounds = null;
 		if (regionLayer) map.layers().remove(regionLayer);
 		regionLayer = map.addLayer(ee.FeatureCollection(fc).style({color: 'ffff00', fillColor: '00000000', width: 2}), {},
 			named ? name : '');
@@ -22491,13 +22624,37 @@ var MonitorEO = (function () {
 			render();
 		});
 		fc.geometry().bounds(1000).evaluate(function (b) {
-			if (b && state.region === fc) map.centerObject(ee.Geometry(b));
+			if (!b || state.region !== fc) return;
+			frame.bounds = b;
+			frame.kept = true;
+			frameRegion();
 		});
 		render();
 	}
 
 	function km2(m2) {
 		return m2 / 1e6;
+	}
+
+	// What the search or the loading of a region is doing (TEXT: searching, loading the region, nothing found; null:
+	// nothing), under the options of the region in the panel: the results, which would open beside the map and narrow
+	// it, keep what they show
+	function regionNotice(text, error) {
+		// a narrow window showing the map (a click on it): the panel is hidden, so an error goes to the results
+		if (error && narrow && view === 'map') {
+			state.regionNotice = null;
+			render();
+			return message(text, true);
+		}
+		state.regionNotice = text ? {text: text, error: Boolean(error)} : null;
+		render();
+	}
+
+	// An error of a search or of the loading of a region: the notice goes, the error is shown in the results
+	function regionFailed(error) {
+		state.regionNotice = null;
+		render();
+		fail(error);
 	}
 
 	map.onClick(function (coords) {
@@ -22520,11 +22677,11 @@ var MonitorEO = (function () {
 			fc = state.mode === 'island' ? mo.islandAt(coords.lon, coords.lat) : mo.ecoregionAt(coords.lon, coords.lat);
 			spec[state.mode === 'island' ? 'island_at' : 'ecoregion_at'] = point;
 		}
-		if (biome) message(t('loadingRegion'));
+		if (biome) regionNotice(t('loadingRegion'));
 		fc.aggregate_array('name').evaluate(function (names, error) {
-			if (error) return fail(error);
-			if (!(names && names.length)) return biome ? message(t('noBiome'), true) : null;
-			if (biome) results.style().set('shown', false);
+			if (biome) state.regionNotice = null;
+			if (error) return biome ? regionFailed(error) : fail(error);
+			if (!(names && names.length)) return biome ? regionNotice(t('noBiome'), true) : null;
 			setRegion(fc, biome ? names[0] + ' \u00b7 ' + t('mapView') : names[0], spec);
 		});
 	});
@@ -22556,9 +22713,10 @@ var MonitorEO = (function () {
 
 	function searchWdpa() {
 		state.wdpaItems = null;
-		message(t('computing'));
+		regionNotice(t('searching'));
 		mo.findProtectedAreas(state.wdpaText, 30, state.ramsar).evaluate(function (fc, error) {
-			if (error) return fail(error);
+			state.regionNotice = null;
+			if (error) return regionFailed(error);
 			state.wdpaNames = {};
 			state.wdpaItems = fc.features.map(function (f) {
 				var p = f.properties;
@@ -22567,8 +22725,7 @@ var MonitorEO = (function () {
 				return {value: p.SITE_ID, label: [p.NAME, desig, p.ISO3, (p.REP_AREA < 10 ? num(p.REP_AREA, 2) :
 					bigNum(p.REP_AREA)) + ' km\u00b2'].join(' \u00b7 ') + ' (WDPA ' + p.SITE_ID + ')'};
 			});
-			results.style().set('shown', false);
-			if (!state.wdpaItems.length) message(t('none'));
+			if (!state.wdpaItems.length) return regionNotice(t('none'), true);
 			render();
 		});
 	}
@@ -22580,13 +22737,14 @@ var MonitorEO = (function () {
 	// the level chosen
 	function searchAdmin() {
 		state.adminItems = null;
-		message(t('computing'));
+		regionNotice(t('searching'));
 		var level = state.adminLevel, municipal = Number(level) === 3;
 		var found = municipal ? mo.findMunicipalities(state.adminText, 30) :
 			mo.findAdminUnits(state.adminText, level, state.adminCountry || null, 30);
 		found.evaluate(function (fc, error) {
 			if (state.mode !== 'admin' || Number(state.adminLevel) !== Number(level)) return;
-			if (error) return fail(error);
+			state.regionNotice = null;
+			if (error) return regionFailed(error);
 			state.adminNames = {};
 			state.adminItems = fc.features.map(function (f) {
 				var p = f.properties;
@@ -22598,15 +22756,13 @@ var MonitorEO = (function () {
 				state.adminNames[code] = p.DISP_EN;
 				return {value: code, label: p.DISP_EN + ' (GAUL ' + code + ')'};
 			});
-			results.style().set('shown', false);
-			if (!state.adminItems.length) message(t('noUnit'));
+			if (!state.adminItems.length) return regionNotice(t('noUnit'), true);
 			render();
 		});
 	}
 
 	function chooseAdmin(code) {
 		state.adminCode = code;
-		results.style().set('shown', false);
 		var spec = {};
 		spec['admin' + state.adminLevel] = code;  // level 3: the code of the INE (a string of 5 digits)
 		setRegion(mo.adminRegion(state.adminLevel, code), state.adminNames[code], spec, undefined, Number(state.adminLevel));
@@ -22615,35 +22771,33 @@ var MonitorEO = (function () {
 	// The oceans and seas whose name contains the text (the sea areas of the IHO, Marine Regions), listed as 'name \u00b7
 	// area (MRGID)'; the answer of a search left behind (another mode chosen meanwhile) is left out
 	function searchSeas() {
-		message(t('computing'));
+		regionNotice(t('searching'));
 		mo.findSeas(state.seaText, 30).evaluate(function (fc, error) {
 			if (state.mode !== 'sea') return;
-			if (error) return fail(error);
+			state.regionNotice = null;
+			if (error) return regionFailed(error);
 			state.seaNames = {};
 			state.seaItems = fc.features.map(function (f) {
 				var p = f.properties;
 				state.seaNames[p.mrgid] = p.name;
 				return {value: p.mrgid, label: p.name + ' \u00b7 ' + bigNum(p.area_km2) + ' km\u00b2 (MRGID ' + p.mrgid + ')'};
 			});
-			results.style().set('shown', false);
-			if (!state.seaItems.length) message(t('noSea'));
+			if (!state.seaItems.length) return regionNotice(t('noSea'), true);
 			render();
 		});
 	}
 
 	function chooseSea(mrgid) {
 		state.seaId = mrgid;
-		results.style().set('shown', false);
 		setRegion(mo.seaRegion([mrgid]), state.seaNames[mrgid], {sea: mrgid}, undefined, 'sea');
 	}
 
 	function chooseWdpa(id) {
 		state.wdpaId = id;
 		var label = state.wdpaNames[id];
-		message(t('loadingRegion'));
+		regionNotice(t('loadingRegion'));
 		mo.wdpaGeometries([id]).evaluate(function (info, error) {
-			if (error) return fail(error);
-			results.style().set('shown', false);
+			if (error) return regionFailed(error);
 			setRegion(mo.wdpaRegion(info), label, {wdpa_id: id});
 		});
 	}
@@ -22655,6 +22809,7 @@ var MonitorEO = (function () {
 		});
 		w.push(select(modes, state.mode, function (m) {
 			state.mode = m;
+			state.regionNotice = null;  // that of a search of another kind of region
 			oneMap();  // the tools to draw are those of the map of the app
 			drawing.setShown(m === 'draw');
 			if (m === 'draw') drawing.setShape('polygon');
@@ -22671,7 +22826,7 @@ var MonitorEO = (function () {
 				onChange: function (v) { state.ramsar = v; }}));
 			if (state.wdpaItems && state.wdpaItems.length) {
 				w.push(ui.Select({items: state.wdpaItems, placeholder: t('chooseArea'), value: state.wdpaId,
-					onChange: chooseWdpa, style: {width: '340px'}}));
+					onChange: chooseWdpa, style: {width: '320px'}}));
 			}
 		} else if (state.mode === 'admin') {
 			var municipal = Number(state.adminLevel) === 3;  // the municipalities of Spain: no country to give
@@ -22680,7 +22835,12 @@ var MonitorEO = (function () {
 			var country = ui.Textbox({placeholder: t('countryHint'), value: state.adminCountry,
 				onChange: function (v) { state.adminCountry = v; }, style: {width: '130px'}});
 			w.push(select([1, 2, 3].map(function (n) { return {value: n, label: t('level' + n)}; }), state.adminLevel,
-				function (v) { state.adminLevel = v; state.adminItems = null; render(); }, '250px'));
+				function (v) {
+				state.adminLevel = v;
+				state.adminItems = null;
+				state.regionNotice = null;
+				render();
+			}, '250px'));
 			if (municipal) w.push(ui.Label(t('level3Help'), SMALL));
 			w.push(municipal ? name : row(name, country));
 			w.push(button(t('search'), function () {
@@ -22690,7 +22850,7 @@ var MonitorEO = (function () {
 			}));
 			if (state.adminItems && state.adminItems.length) {
 				w.push(ui.Select({items: state.adminItems, placeholder: t('chooseUnit'), value: state.adminCode,
-					onChange: chooseAdmin, style: {width: '340px'}}));
+					onChange: chooseAdmin, style: {width: '320px'}}));
 			}
 		} else if (state.mode === 'island') {
 			w.push(ui.Label(t('islandHelp'), SMALL));
@@ -22704,7 +22864,7 @@ var MonitorEO = (function () {
 			})));
 			if (state.seaItems && state.seaItems.length) {
 				w.push(ui.Select({items: state.seaItems, placeholder: t('chooseSea'), value: state.seaId,
-					onChange: chooseSea, style: {width: '340px'}}));
+					onChange: chooseSea, style: {width: '320px'}}));
 			}
 		} else if (state.mode === 'ecoregion') {
 			w.push(ui.Label(t('clickHelp'), SMALL));
@@ -22722,6 +22882,10 @@ var MonitorEO = (function () {
 				drawing.layers().reset();
 				drawing.setShape('polygon');
 			}));
+		}
+		if (state.regionNotice) {
+			w.push(ui.Label(state.regionNotice.text, {fontSize: '12px', color: state.regionNotice.error ? '#b00020' :
+				'#555', whiteSpace: 'pre-wrap'}));
 		}
 		if (state.region) {
 			var area = state.info ? ' \u00b7 ' + bigNum(km2(state.info.total)) + ' km\u00b2' : '';
@@ -22832,7 +22996,7 @@ var MonitorEO = (function () {
 			d.communityTheme = v;
 			d.communityId = null;
 			render();
-		}, style: {width: '340px'}}));
+		}, style: {width: '320px'}}));
 		if (d.communityTheme) {
 			w.push(header(t('dataset')));
 			w.push(ui.Select({items: mo.communityDatasets(d.communityTheme).map(function (r) {
@@ -22840,7 +23004,7 @@ var MonitorEO = (function () {
 			}), placeholder: t('chooseDataset'), value: d.communityId, onChange: function (id) {
 				d.communityId = id;
 				readAsset(id);
-			}, style: {width: '340px'}}));
+			}, style: {width: '320px'}}));
 		}
 		var c = mo.CATALOG.community || {};
 		w.push(ui.Label(fmt(t('communityNote'), c.date || ''), SMALL, c.site));
@@ -23061,12 +23225,12 @@ var MonitorEO = (function () {
 			return {value: th.key, label: th[state.lang] || th.en};
 		});
 		var w = [header(t('theme')), select(themes.concat([{value: 'all', label: t('allThemes')}]), state.theme,
-			setTheme, '340px')];
+			setTheme, '320px')];
 		if (isData()) {
 			w = w.concat(dataWidgets());
 		} else {
 			w.push(header(t('variable')));
-			w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '340px'));
+			w.push(select(variableItems(state.theme === 'all' ? null : state.theme), state.ref, setVariable, '320px'));
 			var name = state.lang === 'en' ? e.vname_en : e.vname;
 			w.push(ui.Label([name, e.unit, (state.lang === 'en' ? 'pixel ' : 'p\u00edxel ') + e.m + ' m', e.dr, e.ft]
 				.filter(function (x) { return x; }).join(' \u00b7 '), SMALL));
@@ -23150,7 +23314,7 @@ var MonitorEO = (function () {
 			w.push(select(variableItems(), whereRef(), function (ref) {
 				state.whereRef = ref;
 				render();
-			}, '340px'));
+			}, '320px'));
 			var we = mo.byRef(whereRef());
 			if (mo.isCategorical(we)) {  // its classes to keep or to leave out, by their codes (found by their names)
 				w.push(row(select([{value: 'classes', label: t('whereKeep')}, {value: 'exclude', label: t('whereExclude')}],
@@ -23251,7 +23415,7 @@ var MonitorEO = (function () {
 		w.push(select(maps, state.landcoverMap, function (key) {
 			state.landcoverMap = key;
 			render();
-		}, '340px'));
+		}, '320px'));
 		var m = mo.landcoverMap(state.landcoverMap);
 		var years = mo.landcoverYears(m).slice().reverse().map(function (y) { return {value: y, label: String(y)}; });
 		w.push(row(ui.Label(t('landcoverYear')), select(years, landcoverYear(), function (y) {
@@ -23289,13 +23453,13 @@ var MonitorEO = (function () {
 
 	// Checks and specs ----------------------------------------------------------------------------------------------
 
-	var DATE = /^\d{4}-\d{2}-\d{2}$/;
-	var MONTH_DAY = /^\d{2}-\d{2}$/;
-
+	// The period P checked: days that exist (mo.isDate: not 2025-02-30, as the Python package), the end not before the
+	// start, said in the language of the panel
 	function checkPeriod(p) {
 		p.forEach(function (d) {
-			if (!DATE.test(d) || isNaN(mo.date(d).getTime())) throw new Error(fmt(t('badDate'), d));
+			if (!mo.isDate(d)) throw new Error(fmt(t('badDate'), d));
 		});
+		if (p.length === 2 && p[1] < p[0]) throw new Error(fmt(t('endBeforeStart'), p[0], p[1]));
 	}
 
 	// The spec of the variable over PERIOD (default: the period), or an Error with what is wrong; in the themes of
@@ -23305,7 +23469,7 @@ var MonitorEO = (function () {
 		checkPeriod(period);
 		var season = null;
 		if (state.seasonOn) {
-			state.season.forEach(function (d) { if (!MONTH_DAY.test(d)) throw new Error(fmt(t('badDate'), d)); });
+			state.season.forEach(function (d) { if (!mo.isMonthDay(d)) throw new Error(fmt(t('badDate'), d)); });
 			season = state.season.slice();
 		}
 		var e = ref ? null : entry();
@@ -23690,6 +23854,8 @@ var MonitorEO = (function () {
 			addColourBar(vis, title(e, [metricName(s.metric)]) + (unit ? ' ' + unit : ''), null, key,
 				stretchText(stretch, 'periods'));
 			left.add(key);
+			var leftNav = navPanel();  // in a narrow window, the way back to the panel and the results
+			left.add(leftNav);
 			ui.Map.Linker([left, right]);
 			left.centerObject(geom);
 			var split = ui.SplitPanel({firstPanel: left, secondPanel: right, wipe: true, style: {stretch: 'both'}});
@@ -23697,10 +23863,13 @@ var MonitorEO = (function () {
 				ui.Label(fmt(t('swipeNote'), s.period.join('/'), o.period.join('/')), SMALL),
 				button(t('oneMap'), function () {
 					oneMap();
-					results.style().set('shown', false);
+					openResults(false);
 				})]);
 			ui.root.widgets().set(1, split);  // after show, which puts the map of the app back
 			swiped = true;
+			mainMap = split;
+			mapNavs = [mapNav, leftNav];
+			layout();
 		}));
 	}
 
@@ -24156,9 +24325,12 @@ var MonitorEO = (function () {
 
 	// Time series and comparison of periods -------------------------------------------------------------------------
 
+	// The cell of the day D (YYYY-MM-DD) in a chart, at its noon: the charts of the Code Editor show the day of the
+	// date in UTC, so a date at the local midnight of a browser east of UTC was shown as the day before (Madrid: June
+	// is \u00abMay 31\u00bb); at noon it is the same day in UTC and in the time zone of any browser between UTC-11 and UTC+12
 	function dateCell(d) {
 		var p = d.split('-');
-		return 'Date(' + Number(p[0]) + ', ' + (Number(p[1]) - 1) + ', ' + Number(p[2]) + ')';
+		return 'Date(' + Number(p[0]) + ', ' + (Number(p[1]) - 1) + ', ' + Number(p[2]) + ', 12)';
 	}
 
 	function regionsOf(rows) {
@@ -24565,7 +24737,7 @@ var MonitorEO = (function () {
 			state.doyOther = v;
 			if (v !== 'none' && state.doyBetween === 'years') state.doyBetween = 'median';
 			render();
-		}, '340px')];  // the right axis never with the filter of what it measures (otherQuality): no conflict to note
+		}, '320px')];  // the right axis never with the filter of what it measures (otherQuality): no conflict to note
 		return w;
 	}
 
@@ -25388,8 +25560,9 @@ var MonitorEO = (function () {
 				}
 				state.mode = 'wdpa';
 				state.wdpaItems = null;
-				message(t('loadingRegion'));
+				state.regionNotice = {text: t('loadingRegion'), error: false};  // the panel is drawn after applying
 				mo.wdpaGeometries(ids).evaluate(function (info, error) {
+					state.regionNotice = null;
 					if (error) {
 						refuse(String(error));
 						render();
@@ -25403,7 +25576,6 @@ var MonitorEO = (function () {
 						render();
 						return message(err.message || String(err), true);
 					}
-					results.style().set('shown', false);
 					var names = info.features.map(function (f) { return f.properties.name; });
 					state.wdpaId = ids[0];
 					state.wdpaText = names[0] || state.wdpaText;
@@ -25645,7 +25817,7 @@ var MonitorEO = (function () {
 		[['start', first, 0], ['end', first, 1], ['other_start', second, 0], ['other_end', second, 1]].forEach(function (x) {
 			if (o[x[0]] === undefined) return;
 			var text = String(o[x[0]]).trim();
-			if (!DATE.test(text) || isNaN(mo.date(text).getTime())) return skip(x[0], fmt(t('badDate'), text));
+			if (!mo.isDate(text)) return skip(x[0], fmt(t('badDate'), text));
 			x[1][x[2]] = text;
 		});
 		if (fire) return;
@@ -25654,7 +25826,7 @@ var MonitorEO = (function () {
 		var season = (Array.isArray(o.season) ? o.season : String(o.season).split('/')).map(function (s) {
 			return String(s).trim();
 		});
-		if (season.length !== 2 || !season.every(function (s) { return MONTH_DAY.test(s); })) {
+		if (season.length !== 2 || !season.every(function (s) { return mo.isMonthDay(s); })) {
 			return skip('season', fmt(t('badDate'), JSON.stringify(o.season)));
 		}
 		state.seasonOn = true;
@@ -26003,7 +26175,7 @@ var MonitorEO = (function () {
 		}), state.analysis, function (v) { state.analysis = v; }, '270px');
 		w.push(row(ui.Label(t('paramsAnalysis')), analysisSelect));
 		var box = ui.Textbox({placeholder: t('paramsHint'), value: state.paramsText,
-			onChange: function (v) { state.paramsText = v; }, style: {width: '340px'}});
+			onChange: function (v) { state.paramsText = v; }, style: {width: '320px'}});
 		w.push(box);
 		w.push(row(button(t('paramsShow'), showParameters), button(t('paramsApply'), function () {
 			state.paramsText = box.getValue() || '';
@@ -26033,6 +26205,7 @@ var MonitorEO = (function () {
 
 	function render() {
 		controls.clear();
+		if (narrow) controls.add(ui.Panel(navRow('controls'), ui.Panel.Layout.flow('horizontal')));
 		var fb = mo.CATALOG.about.feedback;
 		controls.add(row(ui.Label('MonitorEO', {fontWeight: 'bold', fontSize: '22px', stretch: 'horizontal'}),
 			button(t('language'), function () {
@@ -26040,6 +26213,8 @@ var MonitorEO = (function () {
 				render();
 			})));
 		controls.add(ui.Label(t('subtitle'), SMALL));
+		// what to do first, as the groups are folded: the region, the variable, then an analysis and its button
+		controls.add(ui.Label(t('firstSteps'), {fontSize: '12px', color: '#1a73e8', whiteSpace: 'pre-wrap'}));
 		// the version of the package that the app was built from, and the date of its release (build.py)
 		controls.add(ui.Label(fmt(t('version'), mo.CATALOG.about.version, mo.CATALOG.about.released),
 			{fontSize: '11px', color: '#777'}));
@@ -26085,4 +26260,18 @@ var MonitorEO = (function () {
 	}
 
 	render();
+
+	// A narrow window (a phone), or wide again: Earth Engine calls this when the app starts and when the window
+	// changes size, with its width in pixels
+	if (ui.root.onResize) {
+		ui.root.onResize(function (device) {
+			var n = Boolean(device && device.width && device.width < NARROW_WIDTH);
+			if (n === narrow) return;
+			narrow = n;
+			view = resultsOpen ? 'results' : 'controls';
+			render();
+			layout();
+			reframe();
+		});
+	}
 })();
