@@ -66,6 +66,24 @@ var MonitorEO = (function () {
 		return new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
 	}
 
+	// Whether TEXT is a day that exists, as YYYY-MM-DD (composite._date: date.fromisoformat refuses 2025-02-30, which
+	// date() would take as 2 March)
+	function isDate(text) {
+		text = String(text);
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+		var d = date(text);
+		return !isNaN(d.getTime()) && iso(d) === text;
+	}
+
+	// Whether TEXT is a day of the year that exists, as MM-DD (29 February too: composite._md takes it as the 28th in
+	// common years)
+	function isMonthDay(text) {
+		text = String(text);
+		if (!/^\d{2}-\d{2}$/.test(text)) return false;
+		var p = text.split('-'), m = Number(p[0]), d = Number(p[1]);
+		return m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth(2000, m);
+	}
+
 	function ymd(y, m, d) {
 		return new Date(Date.UTC(y, m - 1, d));
 	}
@@ -182,6 +200,12 @@ var MonitorEO = (function () {
 
 	// composite.windows: [year, first day, day after the last] of each year of PERIOD, or of each season of each year
 	function windows(period, season) {
+		[period[0], period[1]].forEach(function (d) {
+			if (!isDate(d)) throw new Error('not a valid date (YYYY-MM-DD): ' + d);
+		});
+		(season || []).forEach(function (d) {
+			if (!isMonthDay(d)) throw new Error('not a valid day of the season (MM-DD): ' + d);
+		});
 		var start = date(period[0]), end = date(period[1]);
 		if (end < start) throw new Error('period ' + period.join(' / ') + ': the end is before the start');
 		var out = [];
@@ -4420,7 +4444,7 @@ var MonitorEO = (function () {
 		BAND_REDUCERS: BAND_REDUCERS, bandsOf: bandsOf, bandText: bandText, bandWords: bandWords, bandStem: bandStem,
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
-		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, windows: windows, bins: bins,
+		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, isDate: isDate, isMonthDay: isMonthDay, windows: windows, bins: bins,
 		reducer: reducer, DAYS: DAYS, isDays: isDays, days: days, spans: spans, reduceSpan: reduceSpan,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,

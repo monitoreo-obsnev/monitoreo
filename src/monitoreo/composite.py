@@ -170,8 +170,15 @@ def _date(text):
 
 
 def _md(year, md):
-	"""Date of MM-DD in YEAR (29 February is the 28th in common years)."""
-	month, day = (int(x) for x in str(md).split('-'))
+	"""Date of MM-DD in YEAR (29 February is the 28th in common years); ValueError if MM-DD is not a day of the year
+	(06-31, 13-01: as the dates of the period, which date.fromisoformat checks)."""
+	try:
+		month, day = (int(x) for x in str(md).split('-'))
+		ok = 1 <= month <= 12 and 1 <= day <= calendar.monthrange(2000, month)[1]
+	except ValueError:
+		ok = False
+	if not ok:
+		raise ValueError(f'not a valid day of the season (MM-DD): {md!r}')
 	return dt.date(year, month, min(day, calendar.monthrange(year, month)[1]))
 
 

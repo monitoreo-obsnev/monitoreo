@@ -94,6 +94,14 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Earth Engine app**: On a phone or a narrow window the panel, the map and the results take the whole width, one at a time, with buttons to go from one to another (Map, ☰ Options, Results); on a desktop the options fit into the panel, without horizontal scrollbars.
+- **Earth Engine app**: The first steps (region, variable and period, then an analysis and its button) under the subtitle; searching and loading a region says so under the region instead of opening the results beside the map, and the map frames the region again when the results open or close, unless you moved it.
+- **Earth Engine app** (fix): The dates of the time series chart are no longer one day early (June shown as «May 31») in a browser east of UTC, as in Spain.
+- **Earth Engine app** (fix): A date that does not exist (2025-02-30, 2025-13-45) is refused with «Not a valid date» instead of being computed as another day, and a period that ends before it begins says so in the language of the panel.
+- **All tools** (fix): A season with a day that does not exist (06-31, 13-01) is refused instead of being taken as another day.
+
 ### [v0.3.72](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.72) · 2026-11-24 · package 0.3.82
 
 - **QGIS plugin**: A shorter panel, organised as the Earth Engine app: its groups in tabs (Data, Series, Maps, Fire, Export, About), each folded under its title with what is chosen in it, the region, the variable and the first group of each tab unfolded at first; the pixel filters, the land cover mask and «Only the pixels where» in a group of their own, and the optional options (the chart of the series, the colours of the maps and the animation, the options of the trend map) folded too. Above the tabs of the analyses, a line says the region, the variable, its period and the pixel filters they use.
