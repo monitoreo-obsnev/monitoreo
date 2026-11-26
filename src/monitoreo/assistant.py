@@ -3110,7 +3110,7 @@ def make_app(assistant, token, port):
 	async def glm_help_image(request):
 		"""A picture of that guide (the steps in the page of Z.ai, with the keys blurred)."""
 		name = request.path_params['name']
-		folder = os.path.join(HERE, 'ui', 'glm_help')
+		folder = os.path.join(HERE, 'ui', 'glm-help')
 		if not re.fullmatch(r'[\w-]+\.png', name) or not os.path.isfile(os.path.join(folder, name)):
 			return Response(status_code=404)
 		return FileResponse(os.path.join(folder, name), media_type='image/png')
