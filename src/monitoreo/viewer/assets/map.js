@@ -109,7 +109,9 @@ MO.map = (() => {
 			sources: [{url, nodata: result.nodata}], normalize: false, interpolate: false, projection: result.crs,
 			sourceOptions: {allowFullFile: true}});
 		const layer = new ol.layer.WebGLTile({source, style: style(result, band, dim), opacity: 0.9});
-		const background = new ol.layer.Tile({source: BASEMAPS[0][2]()});
+		// the base map that the report chose for this map (basemap of publish: osm, pnoa or none), or OpenStreetMap
+		const initial = BASEMAPS.find((b) => b[0] === result.basemap) || BASEMAPS[0];
+		const background = new ol.layer.Tile({source: initial[2] ? initial[2]() : null, visible: Boolean(initial[2])});
 		const target = el('div', {class: 'map', role: 'region', 'aria-label': `Map: ${result.title}`});
 		const box = el('div', {class: 'legend'});
 		const popup = el('div', {class: 'popup'});
@@ -164,7 +166,7 @@ MO.map = (() => {
 					const make = BASEMAPS.find((b) => b[0] === e.target.value)[2];
 					background.setVisible(Boolean(make));
 					if (make) background.setSource(make());
-				}}, BASEMAPS.map(([v, label]) => el('option', {value: v}, label)))),
+				}}, BASEMAPS.map(([v, label]) => el('option', {value: v, selected: v === initial[0]}, label)))),
 			el('div', {class: 'field'}, el('label', {for: `${id}-opacity`}, 'Opacity'),
 				el('input', {id: `${id}-opacity`, type: 'range', min: 0, max: 1, step: 0.05, value: 0.9,
 					oninput: (e) => { layer.setOpacity(Number(e.target.value)); compared.setOpacity(Number(e.target.value)); }})));

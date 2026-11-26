@@ -167,6 +167,8 @@ img { max-width: 100%; }
 	border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid transparent; white-space: nowrap;
 }
 .chip.analysis { background: var(--accent-soft); color: var(--ink); }
+.chip.tag { background: transparent; color: var(--accent); border-color: var(--accent); font-weight: 600; text-decoration: none; }
+.tags { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .card-foot { font-size: 13px; color: var(--muted); }
 
 .empty { padding: 40px 0; text-align: center; color: var(--ink-2); }
@@ -225,6 +227,10 @@ details.call p { margin: 8px 0 0; color: var(--ink-2); }
 .map-controls .field { min-width: 150px; }
 .map-controls .field.grow { flex: 1 1 220px; }
 .map-controls .check { display: flex; align-items: center; gap: 8px; font-size: 14px; height: 40px; color: var(--ink-2); }
+.map-controls.years { gap: 2px 12px; align-items: center; }
+.map-controls.years .check { height: 28px; gap: 4px; }
+.map-controls.years .button { margin-left: 4px; }
+.years-label { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-right: 4px; }
 .map-controls input[type="range"] { height: 40px; padding: 0; border: 0; background: none; accent-color: var(--accent); }
 .map {
 	position: relative; height: min(64vh, 560px); min-height: 320px; border-radius: 8px; overflow: hidden;

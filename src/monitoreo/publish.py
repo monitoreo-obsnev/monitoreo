@@ -30,6 +30,9 @@ written, in their language:
     authors: [OBSNEV - University of Granada]
     published: 2026-10-29                # default: today
     collection: Network of National Parks, October 2026
+    tags: [PRESINMED]                    # short labels, e.g. the project: the catalogue filters the reports by them
+    basemap: pnoa                        # base map of its maps: osm (OpenStreetMap, default), pnoa (orthophoto of
+                                         # Spain, also under its image in the catalogue) or none
     results:                             # the outputs of the analysis, in the order of the page
       - answer: data/sn_trend.json        # an answer of the MCP server saved with its call: {call: {tool, args}, text}
         title: Trend of each month        # default: made from the call
@@ -38,6 +41,7 @@ written, in their language:
         args: {region: {wdpa_id: 389011}, variable: EVI, sensor: Modis, start: 2001-01-01, end: 2024-12-31}
         result: {file: trend.tif, min: -0.002, max: 0.002, palette: [...]}
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
+        basemap: osm                      # the base map of this map (default: that of the report)
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -76,6 +80,12 @@ CALLS_LOG = 'calls.jsonl'  # log of the MCP server in its folder of files: a lin
 SITE_TITLE = 'Results of MonitorEO-OBSNEV'
 NODATA = -9999
 THUMBNAIL_WIDTH = 480
+MAP_OPACITY = 0.9  # that of the maps of the viewer (map.js)
+# the PNOA orthophoto of the Instituto Geográfico Nacional of Spain: its WMS (for the images of the catalogue) and the
+# credit it asks for (CC BY 4.0 scne.es)
+PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma'
+PNOA_LAYER = 'OI.OrthoimageCoverage'
+PNOA_CREDIT = 'PNOA orthophoto CC BY 4.0 scne.es (Instituto Geográfico Nacional, Spain)'
 
 # licences of the data and maps of a report, by their SPDX id (text: after a colon); LICENSE is that of a report that
 # does not give one
@@ -691,7 +701,60 @@ def _colours(values, legend):
 NOT_SIGNIFICANT = '#dcdbd6'  # pixels without a significant trend
 
 
+def _orthophoto(ds, width, height, timeout=30):
+	"""The PNOA orthophoto of the Instituto Geográfico Nacional of Spain (its WMS) on the grid of the dataset DS drawn
+	at WIDTH x HEIGHT pixels: an array of height x width x 3 (uint8), or None if it cannot be had (no network, the
+	service down; outside Spain it is white)."""
+	import urllib.parse
+	import urllib.request
+	import numpy as np
+	gdal, osr = _gdal()
+	gt = ds.GetGeoTransform()
+	x0, x1 = gt[0], gt[0] + gt[1] * ds.RasterXSize
+	y1, y0 = gt[3], gt[3] + gt[5] * ds.RasterYSize
+	src = osr.SpatialReference(wkt=ds.GetProjection())
+	web = osr.SpatialReference()
+	web.ImportFromEPSG(3857)
+	for srs in (src, web):
+		srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+	tr = osr.CoordinateTransformation(src, web)
+	pts = [tr.TransformPoint(x0 + (x1 - x0) * i / 4, y0 + (y1 - y0) * j / 4)[:2] for i in range(5) for j in range(5)]
+	w, s = min(p[0] for p in pts), min(p[1] for p in pts)
+	e, n = max(p[0] for p in pts), max(p[1] for p in pts)
+	big_w = min(2 * width, 2048)
+	big_h = max(1, min(2048, round(big_w * (n - s) / (e - w))))
+	query = urllib.parse.urlencode({'SERVICE': 'WMS', 'VERSION': '1.3.0', 'REQUEST': 'GetMap', 'LAYERS': PNOA_LAYER,
+	                                'STYLES': '', 'CRS': 'EPSG:3857', 'BBOX': f'{w},{s},{e},{n}', 'WIDTH': big_w,
+	                                'HEIGHT': big_h, 'FORMAT': 'image/jpeg'})
+	try:
+		with urllib.request.urlopen(f'{PNOA_WMS}?{query}', timeout=timeout) as r:
+			if not r.headers.get('Content-Type', '').startswith('image/'):
+				return None
+			data = r.read()
+	except (OSError, ValueError):
+		return None
+	name = f'/vsimem/pnoa_{id(data)}.jpg'
+	gdal.FileFromMemBuffer(name, data)
+	try:
+		img = gdal.Open(name)
+		if img is None or img.RasterCount < 3:
+			return None
+		mem = gdal.GetDriverByName('MEM').CreateCopy('', img)
+		mem.SetGeoTransform([w, (e - w) / big_w, 0, n, 0, -(n - s) / big_h])
+		mem.SetProjection(web.ExportToWkt())
+		out = gdal.Warp('', mem, format='MEM', dstSRS=ds.GetProjection(), outputBounds=(x0, y0, x1, y1), width=width,
+		                height=height, resampleAlg='bilinear')
+		return np.dstack([out.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3)]).astype('uint8')
+	except RuntimeError:
+		return None
+	finally:
+		gdal.Unlink(name)
+
+
 def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
+	"""The image of the catalogue of a map: its main band with the colours of its legend (grey where its trend is not
+	significant), over the PNOA orthophoto if it is its base map (basemap pnoa; without network, as without it).
+	Returns whether it has the orthophoto."""
 	import numpy as np
 	gdal, _ = _gdal()
 	ds = gdal.Open(cog)
@@ -713,7 +776,13 @@ def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
 		p = read(sig['band'])
 		grey = [int(NOT_SIGNIFICANT[i:i + 2], 16) for i in (1, 3, 5)] + [255]
 		rgba[np.isfinite(values) & ~(p < sig['alpha'])] = grey
+	ortho = _orthophoto(ds, width, h) if entry.get('basemap') == 'pnoa' else None
+	if ortho is not None:  # the map over the orthophoto, with the opacity of the map of the viewer (MAP_OPACITY)
+		a = rgba[..., 3:4].astype('float64') / 255 * MAP_OPACITY
+		rgb = ortho * (1 - a) + rgba[..., :3] * a
+		rgba = np.dstack([np.clip(np.round(rgb), 0, 255), np.full(rgb.shape[:2], 255)]).astype('uint8')
 	_write_png(rgba, dst)
+	return ortho is not None
 
 
 def _write_png(rgba, dst):
@@ -1043,6 +1112,32 @@ def license_of(value=None):
 	raise ValueError(f'unknown licence {value}: one of {", ".join(LICENSES)} or {{name, url, text}}')
 
 
+BASEMAPS = ('osm', 'pnoa', 'none')  # the base maps of the maps of the viewer (map.js): OpenStreetMap, PNOA, none
+TAG = re.compile(r'[^\x00-\x1f<>]{1,40}')  # a tag: a short label of one line
+
+
+def basemap_of(value=None):
+	"""The base map of a map of a report: one of BASEMAPS ('osm', the default; 'pnoa', the orthophoto of the Instituto
+	Geográfico Nacional of Spain; 'none'), or ValueError."""
+	key = str(value or 'osm').strip().lower()
+	if key not in BASEMAPS:
+		raise ValueError(f"unknown basemap {value}: one of {', '.join(BASEMAPS)}")
+	return key
+
+
+def tags_of(value=None):
+	"""The tags of a report (a text or a list of texts, e.g. the project, PRESINMED), without repetitions; ValueError
+	for a tag that is empty, longer than 40 characters or with < or >."""
+	out = []
+	for t in _list(value):
+		t = str(t).strip()
+		if not TAG.fullmatch(t):
+			raise ValueError(f'a tag is a short text, up to 40 characters, without < or >: {t!r}')
+		if t not in out:
+			out.append(t)
+	return out
+
+
 def build(spec, rid, base, folders, log, folder):
 	"""Write the files of the report SPEC to FOLDER and return its report.json."""
 	files = _Files(folder)
@@ -1053,7 +1148,10 @@ def build(spec, rid, base, folders, log, folder):
 	from .report import manual_links
 	for it, nums in zip(items, numbers):
 		links = manual_links(it.get('args'), it.get('result'))  # what each variable is: its section of the wiki
+		basemap = basemap_of(it.get('basemap') or spec.get('basemap'))
 		for r in _results(it, files, len(results)):
+			if r['kind'] == 'map':
+				r['basemap'] = basemap
 			r['references'] = nums  # numbers (from 1) of its references in those of the report
 			if links:
 				r['manual'] = [{k: link.get(k) for k in ('variable', 'title', 'url', 'url_es')} for link in links]
@@ -1077,6 +1175,8 @@ def build(spec, rid, base, folders, log, folder):
 		_thumbnail_of_image(os.path.join(folder, (pngs or gifs)[0]), dst)
 	else:
 		thumbnail = None
+	if any(m.get('basemap') == 'pnoa' for m in maps_) and PNOA_CREDIT not in credits:
+		credits = list(credits) + [PNOA_CREDIT]  # the orthophoto under its maps, and under its image of the catalogue
 	region = _region(spec, items)
 	if maps_:
 		bs = [r['bounds'] for r in maps_]
@@ -1095,6 +1195,7 @@ def build(spec, rid, base, folders, log, folder):
 		'published': published,
 		'authors': [str(a) for a in _list(spec.get('authors'))] or ['OBSNEV - University of Granada'],
 		'collection': spec.get('collection'), 'keywords': [str(k) for k in _list(spec.get('keywords'))],
+		'tags': tags_of(spec.get('tags')),
 		'license': license_of(spec.get('license')), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
 		'software': {'monitoreo': __version__},
 		'references': [{k: r.get(k) for k in ('citation', 'doi', 'url')} for r in refs], 'credits': credits,
@@ -1128,6 +1229,9 @@ def publish(spec, site=None, base=None, log=None):
 	if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,79}', rid):
 		raise ValueError(f'the id of a report has lowercase letters, digits and hyphens: {rid}')
 	license_of(spec.get('license'))
+	tags_of(spec.get('tags'))
+	for b in [spec.get('basemap')] + [it.get('basemap') for it in _list(spec.get('results')) if isinstance(it, dict)]:
+		basemap_of(b)  # before writing anything
 	folders = [_path(p, base) for p in _list(spec.get('files'))]
 	reports = os.path.join(site, 'reports')
 	os.makedirs(reports, exist_ok=True)
@@ -1178,7 +1282,7 @@ def install_viewer(site=None):
 
 
 CATALOG_KEYS = ('id', 'title', 'question', 'summary', 'region', 'variables', 'analyses', 'periods', 'years',
-                'published', 'authors', 'collection', 'keywords', 'license')
+                'published', 'authors', 'collection', 'keywords', 'tags', 'license')
 
 
 def update_catalog(site=None):
@@ -1297,6 +1401,9 @@ def check_report(report, folder=None):
 		w, s, e, n = region['bounds']
 		if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
 			p.append('region.bounds are [west, south, east, north] in degrees')
+	tags = report.get('tags')  # none in the reports published before the tags
+	if tags is not None and (not isinstance(tags, list) or not all(isinstance(t, str) and TAG.fullmatch(t) for t in tags)):
+		p.append('tags is a list of short texts, without < or >')
 	lists = [f'{k} is a list' for k in ('variables', 'analyses', 'periods', 'results', 'files', 'sections', 'keywords')
 	         if not isinstance(report.get(k), list)]
 	if lists:  # the rest cannot be checked
@@ -1325,6 +1432,8 @@ def check_report(report, folder=None):
 		if call is not None and (not call.get('tool') or not isinstance(call.get('args'), dict)):
 			p.append(f'{where}: the call has a tool and its args')
 		if r.get('kind') == 'map':
+			if r.get('basemap') is not None and r['basemap'] not in BASEMAPS:  # none before the base maps
+				p.append(f"{where}: its basemap is one of {', '.join(BASEMAPS)}")
 			missing = [f'{where}: no {k}' for k in ('cog', 'crs', 'proj4', 'bounds', 'extent', 'size', 'bands', 'band')
 			           if not r.get(k)]
 			if missing:

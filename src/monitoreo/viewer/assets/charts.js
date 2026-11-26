@@ -335,15 +335,20 @@ MO.chart = (() => {
 		lim : null;
 	const yScale = (lim) => lim ? {domain: lim, nice: false, zero: false} : {zero: false};
 
+	// The year of a row of a series (of its date)
+	const yearOf = (r) => String(r.date).slice(0, 4);
+
 	// A time series with a line per year over the days of the year (time_series with doy), from the oldest year (light)
-	// to the newest (dark, thicker); its y axis, that of the result (ylim) if one was given
-	function doySpec(rows, result) {
+	// to the newest (dark, thicker); its y axis, that of the result (ylim) if one was given. YEARS: all the years of
+	// the series, so that each year keeps its colour when the reader shows only some of them.
+	function doySpec(rows, result, years) {
 		const data = rows.map((r) => {
 			const d = new Date(`${r.date}T00:00:00Z`);
 			const doy = Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
 			return {...r, year: String(d.getUTCFullYear()), doy, day: new Date(Date.UTC(2000, 0, doy))};
 		});
-		const newest = data.reduce((y, r) => r.year > y ? r.year : y, '');
+		const all = years || [...new Set(data.map((r) => r.year))].sort();
+		const newest = all.reduce((y, x) => x > y ? x : y, '');
 		const lim = range(result.ylim);
 		return {
 			data: {values: data}, width: 'container', height: 260,
@@ -351,7 +356,8 @@ MO.chart = (() => {
 			encoding: {
 				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
 				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: yScale(lim)},
-				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true}},
+				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true, domain: all},
+					legend: {values: [...new Set(data.map((r) => r.year))].sort()}},  // only the years shown
 				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
 				tooltip: [{field: 'date', title: 'Date'}, {field: 'value', title: 'Value', format: '.4~g'}],
 			},
@@ -523,6 +529,9 @@ MO.chart = (() => {
 		const regionOf = kind === 'areas' ? features(rows) : (r) => r.region;
 		const regions = [...new Set(rows.map(regionOf))];
 		const box = el('div', {class: 'chart'});
+		// a line per year: the years of the series and those shown (a checkbox each, with All and None)
+		const allYears = kind === 'doy' ? [...new Set(rows.map(yearOf))].sort() : null;
+		let shownYears = allYears && allYears.length > 1 ? new Set(allYears) : null;
 		const draw = async (subset) => {
 			box.replaceChildren();
 			narrow = (box.clientWidth || container.clientWidth) < 520;
@@ -533,7 +542,11 @@ MO.chart = (() => {
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'transect') return embed(box, transectSpec(subset, result));
-			if (kind === 'doy') return embed(box, doySpec(subset, result));
+			if (kind === 'doy') {  // only the years the reader keeps checked
+				const shown = shownYears ? subset.filter((r) => shownYears.has(yearOf(r))) : subset;
+				if (!shown.length) return box.append(el('p', {class: 'empty'}, 'Choose one or more years.'));
+				return embed(box, doySpec(shown, result, allYears));
+			}
 			if (kind === 'doy_profile') return embed(box, doyProfileSpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
 			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
@@ -562,6 +575,22 @@ MO.chart = (() => {
 				el('label', {for: id}, 'Region'),
 				el('select', {id, onchange: (e) => { current = rows.filter((r) => regionOf(r) === e.target.value); draw(current); }},
 					regions.map((r) => el('option', {value: r}, r))))));
+		}
+		if (shownYears) {
+			const boxes = allYears.map((y) => el('input', {type: 'checkbox', value: y, checked: true, onchange: (e) => {
+				if (e.target.checked) shownYears.add(y); else shownYears.delete(y);
+				draw(current);
+			}}));
+			const every = (on) => {
+				boxes.forEach((b) => { b.checked = on; });
+				shownYears = new Set(on ? allYears : []);
+				draw(current);
+			};
+			container.append(el('div', {class: 'map-controls years', role: 'group', 'aria-label': 'Years shown in the chart'},
+				el('span', {class: 'years-label'}, 'Years'),
+				allYears.map((y, i) => el('label', {class: 'check'}, boxes[i], y)),
+				el('button', {type: 'button', class: 'button small', onclick: () => every(true)}, 'All'),
+				el('button', {type: 'button', class: 'button small', onclick: () => every(false)}, 'None')));
 		}
 		container.append(box);
 		await draw(current);

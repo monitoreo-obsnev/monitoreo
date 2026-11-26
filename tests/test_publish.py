@@ -221,6 +221,73 @@ def test_catalog(outputs):
 		publish.remove('../site', site)
 
 
+
+def test_tags_and_the_orthophoto(outputs, monkeypatch):
+	"""The tags of a report reach its report.json and the catalogue (which filters by them); with basemap pnoa its
+	maps open over the PNOA orthophoto, which is also under its image in the catalogue, and the credits name it."""
+	import numpy as np
+	asked = []
+
+	def ortho(ds, width, height, timeout=30):
+		asked.append((width, height))
+		return np.full((height, width, 3), (10, 20, 30), dtype='uint8')
+
+	monkeypatch.setattr(publish, '_orthophoto', ortho)
+	site = outputs / 'site'
+	r = publish.publish(_spec(tags=['PRESINMED', ' PRESINMED', 'Sierra Nevada'], basemap='PNOA'), site, outputs, log='')
+	folder = site / 'reports' / r['id']
+	assert r['tags'] == ['PRESINMED', 'Sierra Nevada'] and publish.check_report(r, str(folder)) == []
+	m = r['results'][0]
+	assert m['kind'] == 'map' and m['basemap'] == 'pnoa' and publish.PNOA_CREDIT in r['credits']
+	assert asked == [(publish.THUMBNAIL_WIDTH, round(15 * publish.THUMBNAIL_WIDTH / 20))]
+	png = gdal.Open(str(folder / 'thumbnail.png'))
+	rgba = np.dstack([png.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3, 4)])
+	png = None  # closed: Windows does not delete an open file when the report is published again
+	assert (rgba[..., 3] == 255).all()  # opaque: the orthophoto where the map has no data
+	assert rgba[0, 0].tolist() == [10, 20, 30, 255] and rgba[-1, -1].tolist() != [10, 20, 30, 255]
+	cat = json.loads((site / 'catalog.json').read_text(encoding='utf-8'))
+	assert cat['reports'][0]['tags'] == ['PRESINMED', 'Sierra Nevada'] and publish.check_site(site) == []
+
+	# a map can have its own base map; without one, OpenStreetMap, and neither the orthophoto nor its credit
+	asked.clear()
+	r = publish.publish(_spec(tags='PRESINMED', basemap='pnoa', results=[
+		{'answer': 'data/map.json', 'basemap': 'osm'}, {'answer': 'data/series.json'}]), site, outputs, log='')
+	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and not asked
+	assert publish.PNOA_CREDIT not in r['credits']
+	r = publish.publish(_spec(), site, outputs, log='')
+	assert r['tags'] == [] and r['results'][0]['basemap'] == 'osm'
+
+	# wrong values: nothing is published
+	with pytest.raises(ValueError, match='basemap'):
+		publish.publish(_spec(id='otro', basemap='satellite'), site, outputs, log='')
+	with pytest.raises(ValueError, match='basemap'):
+		publish.publish(_spec(id='otro', results=[{'answer': 'data/map.json', 'basemap': 'google'}]), site, outputs,
+		                log='')
+	with pytest.raises(ValueError, match='tag'):
+		publish.publish(_spec(id='otro', tags=['<b>PRESINMED</b>']), site, outputs, log='')
+	assert not (site / 'reports' / 'otro').exists()
+	bad = json.loads(json.dumps(r))
+	bad['tags'] = 'PRESINMED'
+	bad['results'][0]['basemap'] = 'google'
+	problems = ' | '.join(publish.check_report(bad, str(site / 'reports' / r['id'])))
+	assert 'tags is a list' in problems and 'its basemap is one of osm, pnoa, none' in problems
+	# a report published before the tags and the base maps is still right
+	old = json.loads(json.dumps(r))
+	del old['tags'], old['results'][0]['basemap']
+	assert publish.check_report(old, str(site / 'reports' / r['id'])) == []
+
+
+def test_the_orthophoto_without_network(tmp_path, monkeypatch):
+	"""Without the WMS of the IGN the image of the catalogue is made without the orthophoto."""
+	import urllib.request
+
+	def down(*a, **k):
+		raise OSError('no network')
+
+	monkeypatch.setattr(urllib.request, 'urlopen', down)
+	ds = gdal.Open(_tif(tmp_path / 'm.tif', ['value'], [0.5]))
+	assert publish._orthophoto(ds, 40, 30) is None
+
 def test_problems(outputs):
 	site = outputs / 'site'
 	with pytest.raises(ValueError, match='title'):

@@ -1,5 +1,5 @@
-// Catalogue of the reports (catalog.json): a card per report, with filters by park, variable, analysis and year of
-// the data and a search box. The filters are kept in the address (?area=...&year=...), to share a selection; the
+// Catalogue of the reports (catalog.json): a card per report, with filters by park, variable, analysis, year of the
+// data and tag (e.g. the project of a report, PRESINMED) and a search box. The filters are kept in the address (?area=...&year=...), to share a selection; the
 // addresses of the viewer in Spanish (?parque=...&analisis=...&anio=...) are read too.
 'use strict';
 
@@ -27,7 +27,7 @@
 	for (const r of reports) {
 		r._years = new Set(yearsOf(r));
 		r._text = fold([r.title, r.question, r.summary, r.region?.name, r.region?.full_name, r.collection,
-			...(r.keywords || []), ...(r.variables || []).flatMap((v) => [v.variable, v.name, v.sensor]),
+			...(r.keywords || []), ...(r.tags || []), ...(r.variables || []).flatMap((v) => [v.variable, v.name, v.sensor]),
 			...(r.analyses || []).flatMap((a) => [MO.analysis(a), a.name])].join(' '));
 	}
 
@@ -43,13 +43,16 @@
 	options('analysis', uniq(reports.flatMap((r) => (r.analyses || []).map((a) => [a.id, MO.analysis(a)]))).sort(byLabel));
 	const years = [...new Set(reports.flatMap((r) => [...r._years]))].sort((a, b) => b - a);
 	options('year', years.map((y) => [String(y), String(y)]));
+	const tags = uniq(reports.flatMap((r) => (r.tags || []).map((t) => [t, t]))).sort(byLabel);
+	options('tag', tags);
+	document.getElementById('tag').closest('.field').hidden = !tags.length;  // no report has tags
 
 	// the filters of the address (and those of the addresses in Spanish)
 	const params = new URLSearchParams(location.search);
 	for (const [old, name] of [['parque', 'area'], ['analisis', 'analysis'], ['anio', 'year']]) {
 		if (params.has(old) && !params.has(name)) params.set(name, params.get(old));
 	}
-	for (const name of ['q', 'area', 'variable', 'analysis', 'year']) {
+	for (const name of ['q', 'area', 'variable', 'analysis', 'year', 'tag']) {
 		const input = form.elements[name];
 		if (params.has(name)) input.value = params.get(name);
 	}
@@ -66,6 +69,7 @@
 				el('h2', {}, r.title),
 				r.summary && el('p', {}, r.summary),
 				el('div', {class: 'meta'},
+					(r.tags || []).map((t) => el('span', {class: 'chip tag', title: 'Tag'}, t)),
 					MO.variables(r.variables).map((v) => el('span', {class: 'chip'}, v)),
 					span && el('span', {class: 'chip', title: 'Years of the data'}, span),
 					(r.analyses || []).map((a) => el('span', {class: 'chip analysis'}, MO.analysis(a)))),
@@ -80,6 +84,7 @@
 			(!f.variable || (r.variables || []).some((v) => v.variable === f.variable)) &&
 			(!f.analysis || (r.analyses || []).some((a) => a.id === f.analysis)) &&
 			(!f.year || r._years.has(Number(f.year))) &&
+			(!f.tag || (r.tags || []).includes(f.tag)) &&
 			q.every((w) => r._text.includes(w)));
 		cards.replaceChildren(...(shown.length ? shown.map(card) :
 			[el('p', {class: 'empty'}, 'No report matches these filters.')]));

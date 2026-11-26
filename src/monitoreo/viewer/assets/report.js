@@ -38,6 +38,9 @@
 		['Published', MO.date(report.published)],
 		['Authors', (report.authors || []).join('; ')],
 		report.collection && ['Collection', report.collection],
+		// its tags, each a link to the catalogue of the reports with that tag
+		report.tags?.length && ['Tags', el('span', {class: 'tags'}, report.tags.map((t) =>
+			el('a', {class: 'chip tag', href: `./?tag=${encodeURIComponent(t)}`, title: `The reports with the tag ${t}`}, t)))],
 		report.license && ['License', MO.license(report.license)],
 	].filter(Boolean);
 	const head = el('header', {class: 'report-head'},
