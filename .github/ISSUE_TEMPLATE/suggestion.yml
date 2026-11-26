@@ -14,7 +14,7 @@ body:
     id: tool
     attributes:
       label: Tool / Herramienta
-      description: Earth Engine app, QGIS plugin, Assistant, Python or command line, MCP server, R package or Results viewer
+      description: Earth Engine app, QGIS plugin, Assistant, Python or command line, MCP server, R package, Results viewer or Field app
   - type: input
     id: version
     attributes:
