@@ -157,8 +157,11 @@ MO.chart = (() => {
 		const color = {field: 'serie', type: 'nominal', scale: {domain, range: palette()},
 			legend: domain.length > 1 ? {columns: narrow ? 1 : Math.min(domain.length, 2)} : null};
 		const yTitle = axisTitle(result);
+		// an annual series: a tick each year (each 5 years in a long one), not two per year with the same label
+		const nYears = new Set(data.map((d) => String(d.date).slice(0, 4))).size;
+		const yearTicks = annual ? {format: '%Y', tickCount: {interval: 'year', step: nYears > 20 ? 5 : 1}} : {};
 		const x = (brush) => ({field: 't', type: 'temporal', title: null, scale: Object.assign({type: 'utc'},
-			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, annual ? {format: '%Y'} : {})});
+			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, yearTicks)});
 		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
 		const long = !annual && rows.length > 60;
 		const tipTime = {field: 't', type: 'temporal', timeUnit: annual ? 'utcyear' : 'utcyearmonth', title: annual ? 'Year' : 'Month',

@@ -316,6 +316,49 @@ def test_the_names_of_the_classes(tmp_path):
 		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, class_labels=['Dry', 'Wet'])]),
 		                site, tmp_path, log='')
 
+
+def test_a_map_in_classes(tmp_path):
+	"""breaks draws a map in classes of its values (as area_by_class), named by class_labels and with the colours of
+	palette (one per class), also in its image of the catalogue; the difference of a comparison stays continuous."""
+	import numpy as np
+	tif = _tif(tmp_path / 'state.tif', ['difference', 'reference', 'other'], [0.01, 0.04, 0.12])
+	item = {'tool': 'download_comparison',
+	        'args': {'region': {'wdpa_id': 389011}, 'variable': 'LSWI', 'sensor': 'Sentinel-2', 'start': '2017-06-01',
+	                 'end': '2019-09-30', 'other_start': '2023-06-01', 'other_end': '2025-09-30'},
+	        'result': {'file': tif, 'bands': ['difference', 'reference', 'other'], 'min': -0.1, 'max': 0.1}}
+	site = tmp_path / 'site'
+	r = publish.publish(_spec(files=None, downloads=None, results=[dict(
+		item, band='other', breaks=[0.05, 0.10], class_labels=['Dry', 'Intermediate', 'Wet'],
+		palette=['ecab4e', '529400', '023701'])]), site, tmp_path, log='')
+	(m,) = r['results']
+	legends = {b['name']: b['legend'] for b in m['bands']}
+	assert legends['difference']['type'] == 'continuous' and m['band'] == 'other'
+	assert legends['other'] == legends['reference'] == {'type': 'breaks', 'breaks': [0.05, 0.1], 'classes': [
+		{'label': 'Dry', 'color': '#ecab4e'}, {'label': 'Intermediate', 'color': '#529400'},
+		{'label': 'Wet', 'color': '#023701'}]}
+	assert publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	png = gdal.Open(str(site / 'reports' / r['id'] / 'thumbnail.png'))
+	rgba = np.dstack([png.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3, 4)])
+	png = None
+	assert rgba[-1, -1].tolist() == [2, 55, 1, 255] and rgba[0, 0, 3] == 0  # wet (0.12 and more); NoData
+	# without names nor colours: those of area_by_class with breaks
+	r = publish.publish(_spec(files=None, downloads=None, results=[dict(item, breaks=[0.05, 0.10])]), site, tmp_path,
+	                    log='')
+	classes = r['results'][0]['bands'][1]['legend']['classes']
+	assert [c['label'] for c in classes] == ['below 0.05', '0.05 to 0.1', '0.1 or more']
+	assert all(re.fullmatch(r'#[0-9a-f]{6}', c['color']) for c in classes)
+	with pytest.raises(ValueError, match='one per class'):
+		publish.publish(_spec(id='otro', files=None, downloads=None,
+		                      results=[dict(item, breaks=[0.05, 0.10], class_labels=['Dry', 'Wet'])]), site, tmp_path,
+		                log='')
+
+def test_the_step_of_a_table_without_its_call(tmp_path):
+	"""A CSV published without its call (a table made from several results) gets its step from its dates."""
+	annual = _csv(tmp_path / 'a.csv', [{'region': 'r', 'date': f'{y}-01-01', 'value': 1} for y in (2017, 2018)])
+	monthly = _csv(tmp_path / 'm.csv', [{'region': 'r', 'date': f'2017-{m:02d}-01', 'value': 1} for m in (1, 2)])
+	daily = _csv(tmp_path / 'd.csv', [{'region': 'r', 'date': '2017-01-05', 'value': 1}])
+	assert [publish._step_of(p) for p in (annual, monthly, daily)] == ['annual', 'monthly', None]
+
 def test_the_orthophoto_without_network(tmp_path, monkeypatch):
 	"""Without the WMS of the IGN the image of the catalogue is made without the orthophoto."""
 	import urllib.request

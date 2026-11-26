@@ -44,6 +44,7 @@ written, in their language:
         basemap: osm                      # the base map of this map (default: that of the report)
         view: [-3.42, 37.03, -3.30, 37.10] # where the map opens, and its image in the catalogue (default: all of it)
         class_labels: [Dry, Intermediate, Wet] # of an area by class: the names of its classes, in order
+        breaks: [0.05, 0.10]              # a map in the classes of its values (with class_labels; palette, their colours)
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -679,11 +680,36 @@ def _georef(ds):
 	        'resolution': abs(gt[1])}
 
 
+def breaks_legend(breaks, labels=None, colours=None, entry=None, unit=''):
+	"""The legend of a map drawn in the classes of its values, as area_by_class with BREAKS: {'type': 'breaks',
+	'breaks', 'classes': [{label, color}]}, the classes of classes.break_classes (below the first break, ..., the last
+	one or more), named by LABELS (class_labels) and with COLOURS (palette: one per class) if given, else with those of
+	area_by_class (the ramp of the variable of the catalog ENTRY)."""
+	from . import classes
+	from .services import _ramp_colour
+	b = classes.check_breaks(breaks)
+	cl = classes.break_classes(b, unit_text(unit))
+	names = [str(x).strip() for x in _list(labels)] if labels is not None else [c[1] for c in cl]
+	if len(names) != len(cl) or not all(names):
+		raise ValueError(f"class_labels of a map in classes: {len(cl)} names, one per class, in order: "
+		                 + ', '.join(c[1] for c in cl))
+	cols = [str(c).lstrip('#').lower() for c in _list(colours)] if colours is not None else []
+	if len(cols) != len(cl) or not all(re.fullmatch(r'[0-9a-f]{6}', c) for c in cols):
+		ramp = maps.ramp(entry)
+		cols = [_ramp_colour(ramp, (i + 0.5) / len(cl)) for i in range(len(cl))]
+	return {'type': 'breaks', 'breaks': b, 'classes': [{'label': n, 'color': f'#{c}'} for n, c in zip(names, cols)]}
+
+
 def _colours(values, legend):
 	"""RGBA (uint8, H x W x 4) of the array VALUES (NaN: transparent) with a LEGEND of the viewer."""
 	import numpy as np
 	rgba = np.zeros(values.shape + (4,), dtype='uint8')
 	ok = np.isfinite(values)
+	if legend['type'] == 'breaks':  # the class of each value: how many breaks it reaches
+		cls = np.searchsorted(np.asarray(legend['breaks'], dtype='float64'), np.where(ok, values, -np.inf), side='right')
+		for i, c in enumerate(legend['classes']):
+			rgba[ok & (cls == i)] = [int(c['color'][k:k + 2], 16) for k in (1, 3, 5)] + [255]
+		return rgba
 	if legend['type'] == 'categories':
 		for c in legend['classes']:
 			sel = ok & (np.round(values) == c['value'])
@@ -881,6 +907,15 @@ def _area_classes(args, path):
 	return out
 
 
+def _step_of(path):
+	"""The step of a table without its call (a CSV with dates): 'annual' if all its dates are the 1st of January,
+	'monthly' if all are the 1st of a month, else None."""
+	dates = [str(r.get('date') or '')[:10] for r in _read_csv(path)]
+	if not dates or not all(re.fullmatch(r'\d{4}-\d{2}-\d{2}', d) for d in dates):
+		return None
+	return 'annual' if all(d[5:] == '01-01' for d in dates) else 'monthly' if all(d[8:] == '01' for d in dates) else None
+
+
 def _axis_range(lim):
 	"""The range of a y axis as report.json has it: [min, max] of YLIM (two numbers, or a text 'min, max': see
 	services.check_ylim), or None (from the data; also if YLIM is not a range)."""
@@ -967,6 +1002,12 @@ def _results(item, files, n):
 		if {'red', 'green', 'blue'} <= set(arrays):  # a true colour made by Python, R or the command line
 			raise ValueError(TRUE_COLOUR)
 		bands = _bands(tool, args, res, arrays, item.get('palette'), unit)
+		if item.get('breaks') is not None:  # in classes of its values (not its difference), e.g. dry, intermediate, wet
+			legend = breaks_legend(item['breaks'], item.get('class_labels'), item.get('palette'),
+			                       _entry(args.get('variable'), args.get('sensor')), unit)
+			for b in bands:
+				if b['name'] != 'difference' and b['legend'].get('type') == 'continuous':
+					b['legend'] = dict(legend)
 		names = [b['name'] for b in bands]
 		main = item.get('band') or next((b for b in MAIN_BANDS if b in names), names[0])
 		sig = None
@@ -985,7 +1026,7 @@ def _results(item, files, n):
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
 		         (item.get('caption') if not out else None), 'tool': tool, 'csv': path, 'png': None,
-		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
+		         'unit': unit_text(unit), 'step': args.get('step') or (None if tool else _step_of(res['csv'])), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
 		if chart == 'series' and composite.is_days(args.get('metric')):  # the snow cover days: a bar per step
@@ -1394,6 +1435,13 @@ def _legend_problems(legend, where):
 				isinstance(c.get('value'), (int, float)) and c.get('label')
 				and re.fullmatch(r'#[0-9a-f]{6}', str(c.get('color'))) for c in cl):
 			return [f'{where}: classes with value, label and colour #rrggbb']
+		return []
+	if legend.get('type') == 'breaks':
+		b, cl = legend.get('breaks'), legend.get('classes')
+		ok = isinstance(b, list) and b and all(isinstance(x, (int, float)) for x in b) and b == sorted(set(b))
+		if not ok or not isinstance(cl, list) or len(cl) != len(b) + 1 or not all(
+				c.get('label') and re.fullmatch(r'#[0-9a-f]{6}', str(c.get('color'))) for c in cl):
+			return [f'{where}: increasing breaks, and a class with label and colour #rrggbb more than breaks']
 		return []
 	return [f"{where}: unknown legend type {legend.get('type')}"]
 

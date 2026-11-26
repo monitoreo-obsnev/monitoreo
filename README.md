@@ -104,6 +104,8 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer, MCP server, Python package, Command line**: A map can open on a part of it (`view: [west, south, east, north]`), e.g. where small patches are seen, and its image in the catalogue is that part.
 - **Results viewer** (fix): The y axis of a chart of a variable without unit (NDVI) is titled with the variable instead of «[unitless]».
 - **Results viewer, Python package, Command line**: The charts of the area of each class and of the burn severity have a legend with the colour of each class, and a report can name the classes of an area by class (`class_labels: [Dry, Intermediate, Wet]`).
+- **Results viewer, Python package, Command line**: A map can be drawn in the classes of its values (`breaks: [0.05, 0.10]`, with `class_labels`), with a legend of its classes and, on clicking a pixel, its value and its class; with the swipe, the classes of two periods side by side.
+- **Results viewer** (fix): An annual time series has a tick per year (every 5 years in a long one) instead of two with the same year, also a table published without its call, whose step comes from its dates.
 - **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
 
 ### [v0.3.75](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.75) · 2026-11-26 · package 0.3.85

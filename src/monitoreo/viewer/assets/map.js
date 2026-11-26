@@ -25,6 +25,9 @@ MO.map = (() => {
 	function colour(band, index) {
 		const L = band.legend, v = ['band', index];
 		if (L.type === 'categories') return ['match', v, ...L.classes.flatMap((c) => [c.value, rgba(c.color)]), [0, 0, 0, 0]];
+		// in classes of its values: the colour of the first class whose upper break it does not reach
+		if (L.type === 'breaks') return ['case', ...L.breaks.flatMap((b, i) => [['<', v, b], rgba(L.classes[i].color)]),
+			rgba(L.classes[L.classes.length - 1].color)];
 		const n = L.palette.length;
 		return ['interpolate', ['linear'], v, ...L.palette.flatMap((c, k) => [L.min + (L.max - L.min) * k / (n - 1), rgba(c)])];
 	}
@@ -42,7 +45,7 @@ MO.map = (() => {
 		const L = band.legend;
 		const title = band.unit ? `${band.label} (${band.unit})` : band.label;
 		const items = [el('div', {class: 'legend-title'}, title)];
-		if (L.type === 'categories') {
+		if (L.type === 'categories' || L.type === 'breaks') {
 			for (const c of L.classes) items.push(el('span', {class: 'legend-item'}, el('span', {class: 'swatch', style: `background:${c.color}`}), c.label));
 		} else {
 			const ticks = [L.min, L.max];
@@ -71,6 +74,10 @@ MO.map = (() => {
 		if (band.legend.type === 'categories') {
 			const c = band.legend.classes.find((x) => x.value === Math.round(v));
 			return c ? c.label : MO.num(v);
+		}
+		if (band.legend.type === 'breaks') {  // its value and its class
+			const i = band.legend.breaks.filter((b) => v >= b).length;
+			return `${MO.num(v, 3)} (${band.legend.classes[i].label})`;
 		}
 		if (band.name === 'p_value') return MO.pValue(v);
 		if (band.name === 'n') return MO.num(v);
