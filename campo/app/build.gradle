@@ -1,0 +1,29 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'es.ugr.monitoreo.campo'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'es.ugr.monitoreo.campo'
+        minSdk 26
+        targetSdk 35
+        versionCode 7
+        versionName '0.4.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // APK local de uso personal: firmado con la clave de depuración para instalarlo directamente
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
