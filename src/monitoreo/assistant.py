@@ -77,10 +77,19 @@ CLOUD_MAX_BYTES = 2 * 2 ** 20 - 64 * 2 ** 10  # of a request to the broker, whos
 DOCUMENTS_HEAD = 'Documents of the user'  # the start of the message with their text (see Assistant.document_message)
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
-DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'monitoreo', 'ollama': 'auto',
-            'model': 'qwen3:8b', 'context': 16384, 'think': False}
+DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'auto', 'ollama': 'auto',
+            'model': 'qwen3:8b', 'context': 16384, 'think': False, 'glm_model': 'glm-4.7-flash'}
 UI_LANGUAGES = ('en', 'es')  # of the texts of the page (ui_lang of the settings; none: that of the browser)
-PROVIDERS = ('monitoreo', 'ollama')  # the model of MonitorEO (its broker), or a model of Ollama (on this computer)
+# the model of MonitorEO (its broker), a model of GLM (the API of Z.ai, with a key), or a model of Ollama (on this
+# computer); auto: each of them in this order, the next one when the previous one fails (see Assistant.ask_model)
+PROVIDERS = ('auto', 'monitoreo', 'glm', 'ollama')
+CHAIN = {'auto': ('monitoreo', 'glm', 'ollama'), 'monitoreo': ('monitoreo',), 'glm': ('glm',), 'ollama': ('ollama',)}
+PROVIDER_NAMES = {'monitoreo': 'the model of MonitorEO', 'glm': 'GLM (Z.ai)', 'ollama': 'the model of this computer'}
+GLM_URL = 'https://api.z.ai/api/paas/v4'  # its API, like that of OpenAI (/chat/completions)
+GLM_MODELS = ('glm-4.7-flash', 'glm-4.5-flash')  # those free of charge of Z.ai, the first one by default
+# the backup key of GLM, used when the user has none or theirs fails (out of the repository): the environment variable
+# MONITOREO_GLM_KEY (or ZAI_API_KEY) or this file, with the key alone
+GLM_BACKUP_FILE = os.path.join(OUTPUT, 'glm_backup_key.txt')
 CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
 	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended'},
@@ -1056,10 +1065,115 @@ def ollama(base, path, payload=None, timeout=600, abort=None):
 
 def chat_model(settings, system, messages, tools):
 	"""The next message of the model of the settings: {'role', 'content', 'tool_calls'} (and 'model', the one of
-	MonitorEO that answered)."""
-	if settings.get('provider') != 'ollama':
-		return chat_cloud(system, messages, tools, settings.get('cloud_model'))
-	return chat_ollama(settings, system, messages, tools)
+	MonitorEO or of GLM that answered). The provider is one of CHAIN (not auto: see Assistant.ask_model)."""
+	provider = settings.get('provider')
+	if provider == 'ollama':
+		return chat_ollama(settings, system, messages, tools)
+	if provider == 'glm':
+		return chat_glm(settings, system, messages, tools)
+	return chat_cloud(system, messages, tools, settings.get('cloud_model'))
+
+
+class GlmError(ModelError):
+	"""An error of the API of GLM, with its HTTP status (None: no connection)."""
+
+	def __init__(self, text, status=None):
+		super().__init__(text)
+		self.status = status
+
+
+def glm_backup_key():
+	"""The backup key of GLM (see GLM_BACKUP_FILE), or ''."""
+	key = os.environ.get('MONITOREO_GLM_KEY') or os.environ.get('ZAI_API_KEY') or ''
+	if not key.strip():
+		try:
+			with open(GLM_BACKUP_FILE, encoding='utf-8') as f:
+				key = f.read()
+		except OSError:
+			key = ''
+	return key.strip()
+
+
+def glm_keys(settings):
+	"""The keys of GLM to try, in order: that of the user (Settings), then the backup one; [(key, whose)]."""
+	keys = []
+	for key, whose in ((str(settings.get('glm_key') or '').strip(), 'your'), (glm_backup_key(), 'backup')):
+		if key and key not in [k for k, _ in keys]:
+			keys.append((key, whose))
+	return keys
+
+
+def glm(key, payload, timeout=240, abort=None):
+	"""Answer (JSON) of /chat/completions of the API of GLM with KEY. ABORT: as in ollama."""
+	req = urllib.request.Request(GLM_URL + '/chat/completions', method='POST', data=json.dumps(payload).encode(),
+	                             headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {key}',
+	                                      'Accept-Language': 'en-US,en'})
+	try:
+		with (abortable(abort).open if abort is not None else urllib.request.urlopen)(req, timeout=timeout) as r:
+			return json.loads(r.read().decode())
+	except urllib.error.HTTPError as e:
+		body = e.read().decode(errors='replace')
+		try:
+			error = json.loads(body).get('error', body)
+			body = error.get('message', body) if isinstance(error, dict) else error
+		except (ValueError, AttributeError):
+			pass
+		raise GlmError(f'HTTP {e.code}: {body}', e.code) from e
+	except (urllib.error.URLError, OSError) as e:
+		raise GlmError(f'no connection with GLM ({e})') from e
+
+
+def glm_messages(system, messages):
+	"""The conversation as the API of GLM takes it: that of OpenAI (openai_messages) with only its standard fields (not
+	the thought signatures of Gemini nor the thinking of Claude, from answers of the model of MonitorEO)."""
+	out = []
+	for m in openai_messages(system, messages):
+		keep = {'role': m['role'], 'content': m.get('content') or ''}
+		if m.get('tool_call_id'):
+			keep['tool_call_id'] = m['tool_call_id']
+		if m.get('tool_calls'):
+			keep['tool_calls'] = [{'id': c['id'], 'type': 'function',
+			                       'function': {'name': c['function'].get('name'),
+			                                    'arguments': c['function'].get('arguments') or '{}'}}
+			                      for c in m['tool_calls']]
+		out.append(keep)
+	return out
+
+
+def chat_glm(settings, system, messages, tools):
+	"""The next message of the model of GLM of the settings (glm_model), with the key of the user or, if they have none
+	or it fails (wrong, out of quota, too many requests), the backup one; as chat_cloud gives it. If that model does
+	not answer with any key (the free models of Z.ai are often overloaded: HTTP 429), the other free ones
+	(GLM_MODELS) are tried, in their order; the message says which one answered (model)."""
+	keys = glm_keys(settings)
+	if not keys:
+		raise ModelError('there is no key of the API of GLM: write yours in Settings (it is free at https://z.ai)')
+	chosen = str(settings.get('glm_model') or GLM_MODELS[0]).strip()
+	conversation = glm_messages(system, messages)
+	errors = []
+	for model in [chosen] + [m for m in GLM_MODELS if m != chosen]:
+		payload = {'model': model, 'messages': conversation, 'temperature': 0.2, 'thinking': {'type': 'disabled'}}
+		if tools:
+			payload['tools'] = tools
+		for key, whose in keys:
+			try:
+				try:
+					answer = glm(key, payload, abort=settings.get('abort'))
+				except GlmError as e:
+					if e.status == 400 and 'thinking' in str(e).lower():  # a model without the option of thinking
+						del payload['thinking']
+						answer = glm(key, payload, abort=settings.get('abort'))
+					else:
+						raise
+			except GlmError as e:
+				errors.append(f'{model}, {whose} key: {e}')
+				if e.status in (401, 403, 429) or (e.status or 0) >= 500 or e.status is None:
+					continue  # the other key may work (a wrong key, its limit, the service overloaded)
+				break  # an error of the request (400: e.g. the model does not exist): the next model
+			out = openai_answer(answer)
+			out['model'] = answer.get('model') or model
+			return out
+	raise ModelError('GLM does not answer: ' + '; '.join(errors))
 
 
 def chat_cloud(system, messages, tools, model=None):
@@ -1084,6 +1198,15 @@ def chat_cloud(system, messages, tools, model=None):
 	except Exception as e:  # no connection
 		raise ModelError(f'no connection with the language model of MonitorEO ({type(e).__name__}: {e}); in '
 		                 'Settings you can use a model on this computer instead') from e
+	out = openai_answer(answer)
+	if answer.get('model'):
+		out['model'] = answer['model']
+	return out
+
+
+def openai_answer(answer):
+	"""The message of an ANSWER of /chat/completions (of the broker or of GLM) as chat_ollama gives it: the arguments of
+	the calls as objects and, as they came, the other fields of the calls and of the message."""
 	choices = answer.get('choices') or [{}]
 	message = dict(choices[0].get('message') or {})
 	calls = []
@@ -1101,8 +1224,6 @@ def chat_cloud(system, messages, tools, model=None):
 	                                            flags=re.S).strip())
 	if calls:
 		out['tool_calls'] = calls
-	if answer.get('model'):
-		out['model'] = answer['model']
 	return out
 
 
@@ -1360,6 +1481,9 @@ class Assistant:
 		self.documents_lock = threading.Lock()  # the uploads run in threads of their own (see add_document)
 		self.uploading = {}  # the names of the documents being uploaded, with their bytes
 		self.cloud_model = None  # the model of MonitorEO that answered last
+		self.glm_model = None  # that of GLM
+		self.active = None  # the provider in use (one of CHAIN): the first one of the settings, or the one that
+		# answered after the previous ones failed (see ask_model)
 		self.engine = engine.Engine()
 		self.model_checked = False  # whether the model of the settings was checked against those installed
 		self.projects = None  # the last answer of services.own_projects (see the route /api/projects)
@@ -1375,13 +1499,26 @@ class Assistant:
 		s = self.settings.get('ollama') or 'auto'
 		return self.engine.url if s == 'auto' else s
 
+	def chain(self):
+		"""The providers of the settings, in the order in which they are tried (CHAIN)."""
+		return CHAIN.get(self.settings.get('provider'), CHAIN['auto'])
+
+	def provider(self):
+		"""The provider in use: the one that answered last, if it is of the settings, else their first one."""
+		chain = self.chain()
+		return self.active if self.active in chain else chain[0]
+
 	def cloud(self):
-		"""Whether the model is that of MonitorEO, through its broker (else, one of Ollama)."""
-		return self.settings.get('provider') != 'ollama'
+		"""Whether the model is in the cloud (that of MonitorEO, through its broker, or one of GLM), else one of
+		Ollama."""
+		return self.provider() != 'ollama'
 
 	def model_name(self):
-		"""The name of the model for the page: that of MonitorEO that answered last (or the one asked for), or that of
-		Ollama."""
+		"""The name of the model for the page: that of MonitorEO that answered last (or the one asked for), that of GLM,
+		or that of Ollama."""
+		if self.provider() == 'glm':
+			return 'GLM ' + model_title(self.glm_model or self.settings.get('glm_model') or GLM_MODELS[0]).replace(
+				'Glm ', '')
 		if self.cloud():
 			return model_title(self.cloud_model or self.settings.get('cloud_model')) if (
 				self.cloud_model or self.settings.get('cloud_model')) else CLOUD
@@ -1691,15 +1828,14 @@ class Assistant:
 		self.messages.append({'role': 'user', 'content': text})
 		self.question = self.question or said
 		self.waiting = False
+		self.active = None  # each message of the user tries the first provider of the settings again
 		for _ in range(MAX_STEPS):
 			yield {'type': 'status', 'text': f'The model ({self.model_name()}) is thinking…'}
 			try:
-				if not self.cloud() and not self.base():
-					raise ModelError('the engine of the models is missing: install it in Settings')
-				self.model_call = []  # its sockets (Ollama), to cut it if the user stops it (see stop)
-				message = await asyncio.to_thread(chat_model, {**self.model_settings(), 'abort': self.model_call},
-				                                  self.system_prompt(), self.messages, self.tools)
-				self.cloud_model = message.get('model') or self.cloud_model
+				message, failed = await self.ask_model()
+				for provider, error in failed:  # those that failed before the one that answered
+					yield {'type': 'notice', 'text': f'⚠ {PROVIDER_NAMES[provider]} does not answer ({error}): '
+					                                 f'{PROVIDER_NAMES[self.provider()]} answers instead.'}
 			except ModelError as e:
 				if isinstance(e, TooLong) and len(self.messages) == mark + 1 + bool(note):  # nothing answered yet:
 					del self.messages[mark:]  # the conversation as it was (the documents of the note go again later)
@@ -2295,6 +2431,39 @@ class Assistant:
 		                    project=self.settings.get('project'), shared=not self.settings.get('project'),
 		                    names=self.all_names())
 
+	async def ask_model(self):
+		"""The next message of the model, and the providers that failed before the one that answered, [(provider,
+		error)]: the provider in use and, if it fails, the next ones of the settings (auto: that of MonitorEO, then GLM,
+		then Ollama), each with its own instructions (system_prompt). ModelError if all of them fail; TooLong at once
+		(the conversation is too long: chat takes back the message)."""
+		chain = self.chain()
+		failed = []
+		for provider in chain[chain.index(self.provider()):]:
+			self.active = provider
+			try:
+				if provider == 'ollama' and not self.base():
+					raise ModelError('the engine of the models is missing: install it in Settings')
+				self.model_call = []  # its sockets (Ollama, GLM), to cut it if the user stops it (see stop)
+				message = await asyncio.to_thread(
+					chat_model, {**self.model_settings(), 'provider': provider, 'abort': self.model_call},
+					self.system_prompt(), self.messages, self.tools)
+			except TooLong:  # the conversation is too long (for the others too): the user has to shorten it
+				raise
+			except ModelError as e:
+				_log({'provider': provider, 'error': str(e)})
+				failed.append((provider, str(e)))
+				continue
+			if provider == 'glm':
+				self.glm_model = message.pop('model', None) or self.glm_model
+			else:
+				self.cloud_model = message.get('model') or self.cloud_model
+			return message, failed
+		if len(failed) == 1:
+			text = failed[0][1]
+		else:
+			text = 'none of the models answers: ' + '; '.join(f'{PROVIDER_NAMES[p]}: {e}' for p, e in failed)
+		raise ModelError(text)
+
 	def system_prompt(self):
 		"""The instructions of the model (those of the big models of the cloud or those of the small ones of Ollama),
 		with the layers of the user."""
@@ -2855,8 +3024,11 @@ def logs_text(settings):
 	project = (settings.get('project') or '').strip()
 	return logs.collect('assistant', __version__, where=OUTPUT, hide=[project] if project else (),
 	                    extra={'Earth Engine': 'a project of the user' if project else 'the shared account of MonitorEO',
-	                           'Language model': f"Ollama, {settings.get('model')}" if settings.get('provider') == 'ollama'
-	                           else 'that of MonitorEO'})
+	                           'Language model': {'ollama': f"Ollama, {settings.get('model')}",
+	                                              'glm': f"GLM, {settings.get('glm_model')}",
+	                                              'monitoreo': 'that of MonitorEO'}.get(
+		                           settings.get('provider'), f"that of MonitorEO, then GLM ({settings.get('glm_model')}), "
+		                                                     f"then Ollama ({settings.get('model')})")})
 
 
 def make_app(assistant, token, port):
@@ -2931,6 +3103,18 @@ def make_app(assistant, token, port):
 	async def logo(request):
 		return FileResponse(os.path.join(HERE, 'logos', 'monitoreo_obsnev.png'))
 
+	async def glm_help(request):
+		"""The guide to create a key of GLM and its limits (the link of the window GLM of the page)."""
+		return FileResponse(os.path.join(HERE, 'ui', 'glm_help.html'), media_type='text/html; charset=utf-8')
+
+	async def glm_help_image(request):
+		"""A picture of that guide (the steps in the page of Z.ai, with the keys blurred)."""
+		name = request.path_params['name']
+		folder = os.path.join(HERE, 'ui', 'glm_help')
+		if not re.fullmatch(r'[\w-]+\.png', name) or not os.path.isfile(os.path.join(folder, name)):
+			return Response(status_code=404)
+		return FileResponse(os.path.join(folder, name), media_type='image/png')
+
 	async def state(request):
 		s, e = assistant.settings, assistant.engine
 		cloud = assistant.cloud()  # then Ollama is neither looked for nor started
@@ -2938,7 +3122,8 @@ def make_app(assistant, token, port):
 			with contextlib.suppress(RuntimeError):
 				await asyncio.to_thread(e.find)
 		base, a = assistant.base(), engine.asset()
-		installed = await asyncio.to_thread(models, {'ollama': base}) if base and not cloud else None
+		local = 'ollama' in assistant.chain()  # its models are listed if Ollama is there (auto: the third option)
+		installed = await asyncio.to_thread(models, {'ollama': base}) if base and local else None
 		if installed is not None and not assistant.model_checked:  # once: a model installed already, by default
 			assistant.model_checked = True
 			chosen = default_model(s['model'], installed)
@@ -2946,7 +3131,11 @@ def make_app(assistant, token, port):
 				s['model'] = chosen
 				save_settings(s)
 		return JSONResponse({'version': __version__, 'released': __released__, 'signed_in': signed_in(), 'project': s.get('project'),
-		                     'provider': 'monitoreo' if cloud else 'ollama', 'model_name': assistant.model_name(),
+		                     'provider': s.get('provider') if s.get('provider') in PROVIDERS else 'auto',
+		                     'active': assistant.provider(), 'model_name': assistant.model_name(),
+		                     'glm': {'own_key': bool(str(s.get('glm_key') or '').strip()),
+		                             'backup_key': bool(glm_backup_key()),
+		                             'model': s.get('glm_model') or GLM_MODELS[0], 'models': GLM_MODELS},
 		                     'model': s['model'], 'ollama': base or s.get('ollama'), 'models': installed,
 		                     'recommended': RECOMMENDED,
 		                     'engine': {'auto': s.get('ollama', 'auto') == 'auto', 'how': e.how,
@@ -2983,6 +3172,11 @@ def make_app(assistant, token, port):
 				assistant.settings[k] = str(body[k]).strip()
 		if body.get('provider') in PROVIDERS:
 			assistant.settings['provider'] = body['provider']
+			assistant.active = None
+		if body.get('glm_model'):
+			assistant.settings['glm_model'] = str(body['glm_model']).strip()
+		if 'glm_key' in body:  # the key of GLM of the user (empty: none, only the backup one)
+			assistant.settings['glm_key'] = str(body['glm_key'] or '').strip()
 		if body.get('ui_lang') in UI_LANGUAGES:  # the language of the page (its own texts)
 			assistant.settings['ui_lang'] = body['ui_lang']
 		save_settings(assistant.settings)
@@ -3119,6 +3313,8 @@ def make_app(assistant, token, port):
 	return Starlette(routes=[
 		Route('/', guarded(index, need_token=False)),
 		Route('/logo.png', guarded(logo, need_token=False)),
+		Route('/glm-help', guarded(glm_help, need_token=False)),
+		Route('/glm-help/{name}', guarded(glm_help_image, need_token=False)),
 		Route('/vendor/{path:path}', guarded(vendor, need_token=False)),
 		Route('/api/pixel', guarded(pixel), methods=['POST']),
 		Route('/api/pixel/keep', guarded(keep_pixel), methods=['POST']),

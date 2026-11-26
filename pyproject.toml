@@ -32,7 +32,7 @@ monitoreo = "monitoreo.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-monitoreo = ["catalog.json", "community.json.gz", "eecatalog.json.gz", "municipalities.json.gz", "seas.json.gz", "logos/*", "viewer/*.html", "viewer/assets/*", "ui/*.html", "ui/vendor/leaflet/*"]
+monitoreo = ["catalog.json", "community.json.gz", "eecatalog.json.gz", "municipalities.json.gz", "seas.json.gz", "logos/*", "viewer/*.html", "viewer/assets/*", "ui/*.html", "ui/glm_help/*", "ui/vendor/leaflet/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]  # the tests use this clone, whatever version of monitoreo is installed

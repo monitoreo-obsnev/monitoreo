@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clave de GLM</title>
+<style>
+  :root { --bg: #ffffff; --ink: #1d232a; --muted: #5b6672; --line: #d9dee3; --accent: #1f6f5c; --note: #f3f6f4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15191d; --ink: #e6e9ec; --muted: #9aa5b0; --line: #2c333a; --accent: #6fc2a8; --note: #1d2428; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 28px 0 8px; border-top: 1px solid var(--line); padding-top: 20px; }
+  a { color: var(--accent); }
+  .muted { color: var(--muted); }
+  .note { background: var(--note); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 6px; }
+  ol li, ul li { margin: 6px 0; }
+  code { background: var(--note); padding: 1px 5px; border-radius: 4px; }
+  nav { margin: 8px 0 0; }
+  figure { margin: 12px 0 18px; }
+  figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+  figure.small img { max-width: min(100%, 480px); }
+  figcaption { color: var(--muted); font-size: .9rem; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+<section id="es" lang="es">
+  <h1>Cómo usar GLM con tu propia clave</h1>
+  <p class="muted">Asistente de MonitorEO · versión local · <a href="#en">English below</a></p>
+
+  <p>El asistente usa primero el modelo de MonitorEO. Si no responde, pasa a <b>GLM</b>, los modelos de lenguaje de
+    Z.ai (Zhipu), y si tampoco responde, al modelo de este ordenador (Ollama). Para GLM hace falta una clave de su API.
+    El asistente trae una clave de respaldo, compartida, pero con tu propia clave tienes tus propios límites y no
+    compites con otros usuarios.</p>
+
+  <h2>1. Crear la clave (unos minutos, gratis)</h2>
+  <ol>
+    <li>Entra en <a href="https://z.ai/model-api" target="_blank" rel="noopener">z.ai/model-api</a> y regístrate o
+      inicia sesión.</li>
+    <li>Abre la página de claves: <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener">z.ai/manage-apikey/apikey-list</a>.</li>
+    <li>En la pestaña <b>Standard</b> (no en <i>GLM Coding Plan</i>: esas claves son de otro servicio y no funcionan con
+      el asistente), pulsa <b>Add API Key</b>, arriba a la derecha de la lista.
+      <figure><img src="glm-help/1-agregar-clave.png" alt="Página API Keys de Z.ai con la ventana «Create a new API key» abierta" loading="lazy">
+        <figcaption>La página <b>API Keys</b> de Z.ai, después de pulsar <b>Add API Key</b>.</figcaption></figure></li>
+    <li>Escribe un nombre para reconocerla (por ejemplo <code>MonitoreoTest</code>) y pulsa <b>Create</b>.
+      <figure class="small"><img src="glm-help/2-nombre.png" alt="Ventana «Create a new API key» con el nombre MonitoreoTest" loading="lazy">
+        <figcaption>El nombre solo sirve para distinguirla en la lista.</figcaption></figure></li>
+    <li>Pulsa <b>Copy</b> y luego <b>Done</b>. Z.ai la muestra entera <b>solo esta vez</b>: si la pierdes, crea otra.
+      <figure class="small"><img src="glm-help/3-copiar.png" alt="Ventana «Save Your API Key» con la clave oculta y el botón Copy" loading="lazy">
+        <figcaption>La clave aparece en el recuadro (aquí, difuminada). No la compartas ni la publiques.</figcaption></figure></li>
+  </ol>
+
+  <h2>2. Ponerla en el asistente</h2>
+  <ol>
+    <li>Abre <b>Ajustes</b> (arriba).</li>
+    <li>En <b>Modelo de lenguaje</b>, elige <b>Automático</b> (recomendado) o <b>GLM</b>.</li>
+    <li>Pega la clave en el campo de GLM y pulsa <b>Guardar</b>. Debe aparecer «✓ tu clave».</li>
+    <li>Deja el modelo <code>glm-4.7-flash</code>. Si está saturado (pasa a menudo con los gratuitos), el asistente
+      prueba solo <code>glm-4.5-flash</code>, y al revés.</li>
+  </ol>
+  <p>La clave se guarda solo en este ordenador (en <code>MonitorEO/assistant.json</code>), no se muestra en la página
+    y no va en los registros que envía «Enviar los registros». Con <b>Quitar mi clave</b> se borra.</p>
+
+  <h2>3. Límites de uso</h2>
+  <ul>
+    <li><b>Coste:</b> GLM-4.7-Flash y GLM-4.5-Flash cuestan 0 en la
+      <a href="https://docs.z.ai/guides/overview/pricing" target="_blank" rel="noopener">tabla de precios de Z.ai</a>.
+      No hace falta recargar saldo ni contratar un plan para usarlos.</li>
+    <li><b>Peticiones:</b> al ser gratuitos, Z.ai limita cuántas peticiones acepta a la vez y por minuto. Z.ai
+      <b>no publica en su documentación un límite diario fijo</b> para estos modelos. Los límites de tu cuenta se ven,
+      con la sesión iniciada, en
+      <a href="https://z.ai/manage-apikey/rate-limits" target="_blank" rel="noopener">z.ai/manage-apikey/rate-limits</a>.</li>
+    <li><b>Cuánto gasta una pregunta:</b> cada pregunta al asistente usa <b>entre 1 y 8 peticiones</b>, una por cada
+      paso del modelo (buscar la zona, elegir la variable, calcular…).</li>
+    <li><b>Si se llega al límite o el modelo está saturado</b> (error 429): el asistente prueba la clave de respaldo,
+      luego el otro modelo gratuito de GLM con cada clave y, si nada responde, el modelo de este ordenador. Basta con
+      esperar un minuto y volver a preguntar.</li>
+  </ul>
+
+  <h2>4. Qué ve Z.ai</h2>
+  <p class="note">Con GLM, el texto de la conversación y de tus documentos va a Z.ai, como con el modelo de MonitorEO
+    va a Google o Anthropic. Los resultados (mapas, series, tablas) no salen de tu ordenador ni de Google Earth Engine:
+    el modelo nunca los ve.</p>
+</section>
+
+<section id="en" lang="en">
+  <h2 style="border-top-width:3px">How to use GLM with your own key</h2>
+  <p class="muted">MonitorEO assistant · local version · <a href="#es">Español arriba</a></p>
+  <p>The assistant uses the model of MonitorEO first. If it does not answer, it goes on to <b>GLM</b>, the language
+    models of Z.ai (Zhipu), and then to the model of this computer (Ollama). GLM needs a key of its API. The assistant
+    has a shared backup key, but your own key gives you your own limits.</p>
+  <ol>
+    <li>Sign up or sign in at <a href="https://z.ai/model-api" target="_blank" rel="noopener">z.ai/model-api</a>.</li>
+    <li>On <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener">z.ai/manage-apikey/apikey-list</a>,
+      tab <b>Standard</b> (not a Coding Plan key), press <b>Add API Key</b>, give it a name, press <b>Create</b>, then
+      <b>Copy</b> and <b>Done</b>: it is shown only once (see the pictures above).</li>
+    <li>In the assistant: <b>Settings</b> → <b>Language model</b> → <b>Automatic</b> or <b>GLM</b>, paste the key and
+      press <b>Save</b>.</li>
+  </ol>
+  <p><b>Limits.</b> GLM-4.7-Flash and GLM-4.5-Flash are free of charge. Z.ai limits how many requests it accepts at a
+    time and per minute, and its documentation <b>does not publish a fixed daily limit</b> for them: see those of your
+    account at <a href="https://z.ai/manage-apikey/rate-limits" target="_blank" rel="noopener">z.ai/manage-apikey/rate-limits</a>.
+    Each question to the assistant takes 1 to 8 requests. At the limit or when the model is overloaded (error 429) the
+    assistant tries the backup key, then the other free model of GLM, and then the model of this computer; wait a
+    minute and ask again.</p>
+  <p>The key stays on this computer (<code>MonitorEO/assistant.json</code>) and is not in the logs. With GLM, the text
+    of the conversation goes to Z.ai; the results never leave your computer and Earth Engine.</p>
+</section>
+</main>
+</body>
+</html>

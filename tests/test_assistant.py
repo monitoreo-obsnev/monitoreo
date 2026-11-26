@@ -1945,9 +1945,10 @@ CLOUD_USER = 'mo-' + 'c' * 16
 
 
 def test_settings_of_the_model(monkeypatch, tmp_path):
-	# the model of MonitorEO by default; the settings saved before it existed keep their model of Ollama
+	# auto by default (MonitorEO, then GLM, then Ollama); the settings saved before the model of MonitorEO existed keep
+	# their model of Ollama
 	monkeypatch.setattr(assistant, 'SETTINGS', str(tmp_path / 'assistant.json'))
-	assert assistant.load_settings()['provider'] == 'monitoreo'
+	assert assistant.load_settings()['provider'] == 'auto'
 	(tmp_path / 'assistant.json').write_text(json.dumps({'model': 'qwen3:4b'}))
 	assert assistant.load_settings()['provider'] == 'ollama'
 	(tmp_path / 'assistant.json').write_text(json.dumps({'model': 'qwen3:4b', 'provider': 'monitoreo'}))
@@ -2797,3 +2798,130 @@ def test_the_dates_have_the_colours_of_the_map_of_the_result():
 	assert assistant.common_range({**ramp, 'args': {'metric': 'days'}}, 'median') is None
 	assert assistant.common_range({**ramp, 'tool': 'rgb_map'}) is None
 	assert assistant.common_range({**ramp, 'result': {'min': None, 'max': None}}) is None
+
+
+# GLM (Z.ai): the second model of auto, after that of MonitorEO and before Ollama --------------------------------------
+
+def test_chain_falls_back_to_glm_then_ollama(monkeypatch):
+	tried = []
+
+	def model(settings, system, messages, tools):
+		tried.append((settings['provider'], len(system)))
+		if settings['provider'] == 'monitoreo':
+			raise assistant.ModelError('the language model of MonitorEO does not answer now')
+		if settings['provider'] == 'glm' and fail_glm:
+			raise assistant.ModelError('GLM (glm-4.7-flash) does not answer: backup key: HTTP 429: busy')
+		return {'role': 'assistant', 'content': 'Hola', 'model': 'glm-4.7-flash'}
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'auto', 'ollama': 'http://127.0.0.1:1'})
+		return a, [e async for e in a.chat('hola')]
+
+	fail_glm = False
+	a, events = asyncio.run(run())
+	assert [p for p, _ in tried] == ['monitoreo', 'glm']
+	assert a.provider() == 'glm' and a.model_name() == 'GLM 4.7 Flash' and a.cloud()
+	notice = next(e for e in events if e['type'] == 'notice')['text']
+	assert 'the model of MonitorEO does not answer' in notice and 'GLM (Z.ai) answers instead' in notice
+	assert next(e for e in events if e['type'] == 'assistant')['text'] == 'Hola'
+	tried.clear()
+	fail_glm = True
+	a, events = asyncio.run(run())
+	assert [p for p, _ in tried] == ['monitoreo', 'glm', 'ollama'] and a.provider() == 'ollama' and not a.cloud()
+	assert tried[0][1] != tried[2][1]  # the big instructions in the cloud, the small ones for Ollama
+
+
+def test_chain_all_fail_and_single_provider(monkeypatch):
+	def model(settings, system, messages, tools):
+		raise assistant.ModelError(f"{settings['provider']} is down")
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+
+	async def run(provider):
+		a = FakeAssistant({**assistant.DEFAULTS, 'provider': provider, 'ollama': 'http://127.0.0.1:1'})
+		return [e async for e in a.chat('hola')]
+
+	error = next(e for e in asyncio.run(run('auto')) if e['type'] == 'error')['text']
+	assert 'none of the models answers' in error and 'glm is down' in error and 'ollama is down' in error
+	error = next(e for e in asyncio.run(run('glm')) if e['type'] == 'error')['text']
+	assert error == 'Language model: glm is down'
+
+
+def test_glm_keys(monkeypatch, tmp_path):
+	monkeypatch.delenv('MONITOREO_GLM_KEY', raising=False)
+	monkeypatch.delenv('ZAI_API_KEY', raising=False)
+	monkeypatch.setattr(assistant, 'GLM_BACKUP_FILE', str(tmp_path / 'glm_backup_key.txt'))
+	assert assistant.glm_keys({}) == []
+	(tmp_path / 'glm_backup_key.txt').write_text(' backup \n')
+	assert assistant.glm_keys({'glm_key': 'mine'}) == [('mine', 'your'), ('backup', 'backup')]
+	monkeypatch.setenv('ZAI_API_KEY', 'env')
+	assert assistant.glm_keys({'glm_key': 'env'}) == [('env', 'your')]
+	with pytest.raises(assistant.ModelError, match='no key'):
+		monkeypatch.delenv('ZAI_API_KEY')
+		(tmp_path / 'glm_backup_key.txt').unlink()
+		assistant.chat_glm({}, 'System', [], [])
+
+
+def test_chat_glm(monkeypatch):
+	# the request of OpenAI without the fields of other models, the backup key when that of the user fails, and the
+	# arguments of the calls as objects
+	sent = []
+
+	def api(key, payload, timeout=240, abort=None):
+		sent.append((key, json.loads(json.dumps(payload))))
+		if key == 'mine':
+			raise assistant.GlmError('HTTP 429: too many requests', 429)
+		return {'model': 'glm-4.7-flash', 'choices': [{'message': {
+			'role': 'assistant', 'content': '<think>x</think>Voy', 'reasoning_content': 'r',
+			'tool_calls': [{'id': 'c1', 'type': 'function',
+			                'function': {'name': 'time_series', 'arguments': '{"variable": "NDVI"}'}}]}}]}
+
+	monkeypatch.setattr(assistant, 'glm', api)
+	monkeypatch.setattr(assistant, 'glm_backup_key', lambda: 'backup')
+	messages = [{'role': 'user', 'content': 'NDVI'},
+	            {'role': 'assistant', 'content': '', 'extra_content': {'google': {'thought_signature': 's'}},
+	             'tool_calls': [{'id': 'g1', 'function': {'name': 'list_variables', 'arguments': {}},
+	                             'extra_content': {'google': {}}}]},
+	            {'role': 'tool', 'tool_name': 'list_variables', 'content': 'NDVI…'}]
+	out = assistant.chat_model({'provider': 'glm', 'glm_key': 'mine', 'glm_model': 'glm-4.5-flash'}, 'System',
+	                           messages, [{'type': 'function', 'function': {'name': 'time_series'}}])
+	assert [k for k, _ in sent] == ['mine', 'backup']
+	payload = sent[1][1]
+	assert payload['model'] == 'glm-4.5-flash' and payload['thinking'] == {'type': 'disabled'}
+	assert payload['temperature'] == 0.2 and payload['tools'][0]['function']['name'] == 'time_series'
+	assert payload['messages'][2] == {'role': 'assistant', 'content': '', 'tool_calls': [
+		{'id': 'g1', 'type': 'function', 'function': {'name': 'list_variables', 'arguments': '{}'}}]}
+	assert payload['messages'][3] == {'role': 'tool', 'content': 'NDVI…', 'tool_call_id': 'g1'}
+	assert out['content'] == 'Voy' and out['model'] == 'glm-4.7-flash'
+	assert out['tool_calls'][0]['function']['arguments'] == {'variable': 'NDVI'}
+	sent.clear()
+	monkeypatch.setattr(assistant, 'glm', lambda key, payload, **k: (_ for _ in ()).throw(
+		assistant.GlmError('HTTP 400: model not found', 400)))
+	with pytest.raises(assistant.ModelError, match='HTTP 400'):  # an error of the request: the other key is not tried
+		assistant.chat_glm({'glm_key': 'mine'}, 'System', [], [])
+
+
+def test_chat_glm_other_free_model_when_overloaded(monkeypatch):
+	# the model chosen overloaded with every key (HTTP 429): the other free model answers, with the first key that works
+	sent = []
+
+	def api(key, payload, timeout=240, abort=None):
+		sent.append((payload['model'], key))
+		if payload['model'] == 'glm-4.7-flash':
+			raise assistant.GlmError('HTTP 429: The service may be temporarily overloaded', 429)
+		return {'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]}
+
+	monkeypatch.setattr(assistant, 'glm', api)
+	monkeypatch.setattr(assistant, 'glm_backup_key', lambda: 'backup')
+	out = assistant.chat_glm({'glm_key': 'mine'}, 'System', [{'role': 'user', 'content': 'hola'}], [])
+	assert sent == [('glm-4.7-flash', 'mine'), ('glm-4.7-flash', 'backup'), ('glm-4.5-flash', 'mine')]
+	assert out['content'] == 'Hola' and out['model'] == 'glm-4.5-flash'
+	monkeypatch.setattr(assistant, 'glm', lambda key, payload, **k: (_ for _ in ()).throw(
+		assistant.GlmError('HTTP 429: overloaded', 429)))
+	with pytest.raises(assistant.ModelError) as e:  # all of them overloaded: each one in the message
+		assistant.chat_glm({'glm_key': 'mine'}, 'System', [], [])
+	assert 'glm-4.7-flash, your key' in str(e.value) and 'glm-4.5-flash, backup key' in str(e.value)
