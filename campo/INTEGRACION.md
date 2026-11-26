@@ -72,6 +72,29 @@ Android (Java, sin AndroidX)                       Página web local (assets/www
 | `openUrl` | UI | Abre un enlace en el navegador (el manual) |
 | `appInfo` | pool | `{version, code}` del APK |
 
+### Idiomas (`i18n.js`, `en.js`)
+
+El texto del código está en español. `en.js` guarda el inglés en `window.CAMPO_EN`, con el texto español exacto como
+clave, y `window.CAMPO_EN_PATTERNS` reúne las expresiones regulares para los errores que llevan valores.
+
+`i18n.js` ofrece estas funciones:
+
+- `t('¿Borrar "{0}"?', nombre)` devuelve el texto en el idioma elegido.
+- `i18n.tr(mensaje)` traduce los errores del puente nativo y de las bibliotecas; la usa `errText`.
+- `translateDom()` traduce el HTML estático.
+- `i18n.int`, `i18n.date` y `i18n.dateTime` dan números y fechas con el formato del idioma.
+
+El idioma elegido se guarda en `localStorage['campo.lang']`; si no hay ninguno, se usa el del teléfono. Al cambiarlo se
+recarga la página. Las llamadas al núcleo que aceptan idioma (`wikiSection`, `trendRows`) reciben `i18n.lang`.
+
+Algunos textos siguen en español a propósito:
+
+- las herramientas del asistente y lo que lee el modelo;
+- el prompt de sistema, salvo una regla que le pide responder en inglés si la interfaz está en inglés.
+
+`i18n.missing()` lista los textos sin traducir que se han visto. Al integrar en `monitoreo`, conviene unir este
+diccionario con el sistema de idiomas de ese repositorio.
+
 ### iPhone (`ios/`)
 
 `ios/Campo/WebViewController.swift` y `Net.swift` repiten en Swift el puente de `MainActivity.java` y `Net.java`, con

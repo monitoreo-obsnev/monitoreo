@@ -10,7 +10,7 @@
 <body>
 <header>
   <div class="brand">MonitorEO <b>Campo</b> <span id="brand-version" class="ver"></span></div>
-  <div id="net" class="pill">…</div>
+  <div class="row-tight"><div id="net" class="pill">…</div><button id="btn-lang" class="pill lang">EN</button></div>
 </header>
 
 <main>
@@ -128,6 +128,7 @@
   <!-- Preguntar: el asistente (ai.js) -->
   <section id="tab-ask" class="tab">
     <div class="ask-head"><div id="ask-ctx" class="ctx"></div><button id="ask-new" class="small">Nueva</button></div>
+    <div id="ask-pick" class="ask-pick hidden"></div>
     <div id="ask-log" class="ask-log"></div>
     <div class="ask-bar">
       <textarea id="ask-input" rows="1" placeholder="Pregunta sobre tus puntos…"></textarea>
@@ -210,6 +211,8 @@
 <script src="lib/ee_api_js.js"></script>
 <script src="lib/catalog.js"></script>
 <script src="lib/core.js"></script>
+<script src="en.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 <script src="ai.js"></script>
 </body>

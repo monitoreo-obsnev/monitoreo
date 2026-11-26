@@ -15,6 +15,8 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 .brand { font-size: 17px; } .brand b { color: var(--accent); }
 .pill { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--chip); color: var(--muted); }
 .pill.off { background: var(--warn); color: #fff; }
+.row-tight { display: flex; align-items: center; gap: 6px; }
+button.pill.lang { border: 0; font-weight: 600; min-width: 34px; cursor: pointer; }
 main { flex: 1; position: relative; overflow: hidden; }
 .tab { display: none; position: absolute; inset: 0; overflow-y: auto; padding: 12px; }
 .tab.active { display: block; }
@@ -97,6 +99,14 @@ body.dl-mode .map-tools, body.dl-mode .legend { display: none; }
 .ctx { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12.5px; min-width: 0; }
 .ctx .c { background: var(--chip); border-radius: 12px; padding: 3px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ctx .c b { color: var(--accent); }
+.ctx button.c.pick { border: 1px solid var(--line); font: inherit; color: var(--ink); cursor: pointer; }
+.ask-pick { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--card); display: flex;
+  flex-direction: column; gap: 6px; max-height: 55vh; overflow-y: auto; }
+.ask-pick .pts { display: flex; flex-direction: column; gap: 4px; }
+.ask-pick .opt { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 10px; color: var(--ink); font: inherit; font-size: 14px; }
+.ask-pick .opt.on { border-color: var(--accent); }
+.ask-pick input { flex: 1; min-width: 0; }
 .ask-log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .ask-log .me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-radius: 16px 16px 4px 16px;
   padding: 9px 12px; max-width: 85%; white-space: pre-wrap; }

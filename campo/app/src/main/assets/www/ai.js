@@ -23,13 +23,13 @@
   function $(id) { return document.getElementById(id); }
 
   var PROVIDERS = {
-    monitoreo: {name: 'Modelo de MonitorEO', short: 'MonitorEO', key: false},
+    monitoreo: {name: t('Modelo de MonitorEO'), short: 'MonitorEO', key: false},
     claude: {name: 'Claude (Anthropic)', short: 'Claude', key: true, model: 'claude-opus-5-5',
       help: 'console.anthropic.com → API keys'},
     gemini: {name: 'Gemini (Google)', short: 'Gemini', key: true, model: 'gemini-3.8-flash',
       help: 'aistudio.google.com → Get API key'},
     glm: {name: 'GLM (Z.ai)', short: 'GLM', key: true, model: 'glm-4.7-flash',
-      help: 'z.ai → API keys (glm-4.7-flash y glm-4.5-flash son gratis)'}
+      help: t('z.ai → API keys (glm-4.7-flash y glm-4.5-flash son gratis)')}
   };
   var GLM_FREE = ['glm-4.7-flash', 'glm-4.5-flash'];  // those of the backup key of GLM of the broker (GLM_MODELS)
   var CLAUDE_FALLBACKS = ['claude-opus-5-5', 'claude-sonnet-5-5'];  // with fallbacks "default" (as the broker)
@@ -43,6 +43,8 @@
   if (!S.aiProvider || !PROVIDERS[S.aiProvider]) S.aiProvider = 'monitoreo';
   S.aiModels = S.aiModels || {};
   function modelOf(p) { return (S.aiModels[p] || PROVIDERS[p].model || '').trim(); }
+  function vname(e) { return i18n.lang === 'en' ? e.vname_en || e.vname : e.vname || e.vname_en; }
+  function rawErr(e) { return (e && e.message) || String(e); }  // the message as it came (Spanish), for the model and tests
 
   // The instructions --------------------------------------------------------------------------------------------------
 
@@ -52,7 +54,7 @@
       var twins = C.usable.filter(function (x) { return x.index === e.index && x.sensor === e.sensor; });
       return e.ref + ' ' + e.index + ' ' + e.sensor + (twins.length > 1 ? ' ' + String(e.col).split('/').pop() : '') +
         ' ' + e.m + ' m ' + (e.static ? 'capa fija' : 'desde ' + firstYear(e.dr)) + (e.metric ? ' solo ' + e.metric : '') +
-        ' · ' + (e.vname || e.vname_en);
+        ' · ' + vname(e);
     }).join('\n');
   }
   function instructions() {
@@ -76,9 +78,13 @@
       'con las estaciones.\n' +
       '6. Al explicar: da el valor con su unidad, el periodo y el tamaño de píxel. Una tendencia solo es ' +
       'significativa con p < 0,05; di n (años). Nubes, nieve o sombras pueden dejar periodos sin datos: dilo si pasa.\n' +
-      '7. Responde en el idioma del último mensaje del usuario, breve (se lee en un teléfono: 2–6 frases), sin tablas ' +
-      'largas: la app ya muestra el gráfico o la tabla de cada resultado. Termina con una línea «Datos: …» con la ' +
-      'fuente que dé la herramienta.\n' +
+      (i18n.lang === 'en' ?
+        '7. La interfaz de la app está en inglés: responde siempre en inglés (salvo que el usuario escriba en otro ' +
+        'idioma: entonces en el suyo), breve (se lee en un teléfono: 2–6 frases), sin tablas largas: la app ya muestra ' +
+        'el gráfico o la tabla de cada resultado. Termina con una línea «Data: …» con la fuente que dé la herramienta.\n' :
+        '7. Responde en el idioma del último mensaje del usuario, breve (se lee en un teléfono: 2–6 frases), sin tablas ' +
+        'largas: la app ya muestra el gráfico o la tabla de cada resultado. Termina con una línea «Datos: …» con la ' +
+        'fuente que dé la herramienta.\n') +
       '8. No nombres tus herramientas internas: di lo que haces.\n' +
       '9. Si el usuario no acepta un cálculo largo, propón uno más corto (menos años, paso mayor).\n\n' +
       'Las fechas van como AAAA-MM-DD. Variables de MonitorEO (ref, índice, sensor, píxel, desde, nombre):\n' +
@@ -138,9 +144,9 @@
       {punto: P_PUNTO, ref: P_REF, inicio: P_INI, fin: P_FIN, metrica: P_MET, correccion_topografica: P_TOPO,
         nieve_ndsi: P_NIEVE}, ['ref'])
   ];
-  var LABELS = {puntos: 'Puntos guardados', ubicacion: 'Ubicación del GPS', guardar_punto: 'Guardar el punto',
-    variable: 'Ficha de la variable', resultados_guardados: 'Resultados guardados', ficha: 'Ficha rápida',
-    valor: 'Valor del periodo', serie: 'Serie temporal', tendencia: 'Tendencia', capa: 'Capa en el mapa'};
+  var LABELS = {puntos: t('Puntos guardados'), ubicacion: t('Ubicación del GPS'), guardar_punto: t('Guardar el punto'),
+    variable: t('Ficha de la variable'), resultados_guardados: t('Resultados guardados'), ficha: t('Ficha rápida'),
+    valor: t('Valor del periodo'), serie: t('Serie temporal'), tendencia: t('Tendencia'), capa: t('Capa en el mapa')};
 
   // Running the tools -----------------------------------------------------------------------------------------------
 
@@ -175,7 +181,7 @@
     var e = r.params && r.params.ref ? mo.byRef(r.params.ref) : null, p = r.params || {};
     var o = {resultado: C.KIND[r.kind], calculado: r.computed};
     if (e) {
-      o.variable = e.index + ' · ' + e.sensor + ' (' + (e.vname || e.vname_en) + ')';
+      o.variable = e.index + ' · ' + e.sensor + ' (' + vname(e) + ')';
       o.unidad = C.unitText(e, p.metric || 'mean') || 'sin unidad';
     }
     if (p.period) o.periodo = p.period.join(' → ');
@@ -237,15 +243,15 @@
     },
     guardar_punto: function (a) {
       if (!isFinite(a.lat) || !isFinite(a.lon) || Math.abs(a.lat) > 90 || Math.abs(a.lon) > 180) throw new Error('coordenadas no válidas');
-      var p = C.addPoint(a.nombre || 'Punto', a.lat, a.lon);
+      var p = C.addPoint(a.nombre || t('Punto'), a.lat, a.lon);
       C.select(p.id);
       return {id: p.id, nombre: p.name};
     },
     variable: function (a) {
       var e = mo.byRef(Number(a.ref));
       if (!e) throw new Error('no hay variable con ref ' + a.ref);
-      var w = mo.wikiSection(e.index, 'es');
-      return {ref: e.ref, indice: e.index, nombre: e.vname || e.vname_en, tipo: e.type, sensor: e.sensor,
+      var w = mo.wikiSection(e.index, i18n.lang);
+      return {ref: e.ref, indice: e.index, nombre: vname(e), tipo: e.type, sensor: e.sensor,
         coleccion: e.col, pixel_m: e.m, fechas: e.dr, paso_de_las_imagenes: e.tr, unidad: C.unitText(e, 'mean'),
         capa_fija: Boolean(e.static), solo_metrica: e.metric || undefined, fuente: mo.dataSource(e),
         correccion_topografica: mo.noTopographic(e) ? 'no: ' + mo.noTopographic(e) : 'sí',
@@ -261,7 +267,7 @@
     ficha: function (a, ctx) {
       var p = pointOf(a), radius = a.radio === undefined || a.radio === null ? Number(S['an-radius'] || 100) : Number(a.radio);
       return compute(ctx, p, function (project) {
-        return C.computeFicha([p], radius, function (k, n) { ctx.progress(k + ' de ' + n + ' variables'); })
+        return C.computeFicha([p], radius, function (k, n) { ctx.progress(t('{0} de {1} variables', k, n)); })
           .then(function (out) { return C.fichaRecord(p, out[p.id], radius, project); });
       });
     },
@@ -271,29 +277,29 @@
     },
     serie: function (a, ctx) {
       var p = pointOf(a), c = analysisOf(a), n = C.seriesSteps(c).length;
-      return ask(ctx, n > 60, 'La serie tiene ' + n + ' pasos de ' + c.e.index + ' · ' + c.e.sensor + ' (' +
-        c.params.period.join(' → ') + '): puede tardar varios minutos.').then(function () {
+      return ask(ctx, n > 60, t('La serie tiene {0} pasos de {1} · {2} ({3}): puede tardar varios minutos.', n,
+        c.e.index, c.e.sensor, c.params.period.join(' → '))).then(function () {
         return compute(ctx, p, function (project) {
-          return C.computeSeries(p, c, project, function (k, m) { ctx.progress(k + ' de ' + m + ' pasos'); });
+          return C.computeSeries(p, c, project, function (k, m) { ctx.progress(t('{0} de {1} pasos', k, m)); });
         });
       });
     },
     tendencia: function (a, ctx) {
       var p = pointOf(a), c = analysisOf(a, 'annual'), years = C.trendYears(c).length;
       var heavy = years > 12 || (years > 8 && Number(c.e.m) <= 30 && !c.params.season);
-      return ask(ctx, heavy, 'La tendencia usa ' + years + ' años de ' + c.e.index + ' · ' + c.e.sensor +
-        (c.params.season ? ' (temporada ' + c.params.season.join('/') + ')' : ' (años completos)') +
-        ': puede tardar varios minutos.').then(function () {
+      return ask(ctx, heavy, t('La tendencia usa {0} años de {1} · {2} ({3}): puede tardar varios minutos.', years,
+        c.e.index, c.e.sensor, c.params.season ? t('temporada {0}', c.params.season.join('/')) : t('años completos')))
+        .then(function () {
         return compute(ctx, p, function (project) {
-          return C.computeTrend(p, c, project, function (k, m) { ctx.progress(k + ' de ' + m + ' años'); });
+          return C.computeTrend(p, c, project, function (k, m) { ctx.progress(t('{0} de {1} años', k, m)); });
         });
       });
     },
     capa: function (a, ctx) {
       var p = pointOf(a), c = analysisOf(a);
       var days = c.params.period ? (Date.parse(c.params.period[1]) - Date.parse(c.params.period[0])) / 864e5 : 0;
-      return ask(ctx, days > 2 * 366 && Number(c.e.m) <= 30, 'La capa compone ' + Math.round(days / 365) + ' años de ' +
-        c.e.sensor + ' a ' + c.e.m + ' m en 3 km: puede tardar varios minutos.').then(function () {
+      return ask(ctx, days > 2 * 366 && Number(c.e.m) <= 30, t('La capa compone {0} años de {1} a {2} m en 3 km: ' +
+        'puede tardar varios minutos.', Math.round(days / 365), c.e.sensor, c.e.m)).then(function () {
         return compute(ctx, p, function (project) {
           return C.computeLayer(p, c, project, function (t) { ctx.progress(t); });
         });
@@ -303,9 +309,9 @@
   // A computation of P in Earth Engine, kept with its results, drawn in the chat and summarized for the model
   function compute(ctx, p, f) {
     var started = Date.now();
-    ctx.progress('conectando con Earth Engine');
+    ctx.progress(t('conectando con Earth Engine'));
     return C.connect().then(function (project) {
-      ctx.progress('Earth Engine, proyecto ' + project);
+      ctx.progress(t('Earth Engine, proyecto {0}', project));
       return f(project);
     }).then(function (r) { return C.keep(r, p, started); }).then(function (r) {
       ctx.result(r, p);
@@ -356,7 +362,7 @@
   function post(provider, body, extra) {
     var text = JSON.stringify(body);
     if (provider === 'monitoreo' && text.length > MAX_BYTES) {
-      return Promise.reject(new Error('la conversación es demasiado larga para el modelo de MonitorEO: empieza una nueva'));
+      return Promise.reject(new Error(t('la conversación es demasiado larga para el modelo de MonitorEO: empieza una nueva')));
     }
     return C.native('aiRequest', Object.assign({provider: provider, body: text}, extra || {})).then(function (r) {
       var d = null;
@@ -371,8 +377,8 @@
     if (model) body.model = model;
     return post('monitoreo', body, {url: C.broker() + '/chat?user=' + S.userId}).then(function (r) {
       if (r.status !== 200) {
-        var d = r.data || {}, err = new Error((d.error || errorText(r)) +
-          (d.code === 'day' || d.code === 'user' ? '' : ' (en Ajustes puedes usar tu propia clave de Claude, Gemini o GLM)'));
+        var d = r.data || {}, err = new Error(i18n.tr(d.error || errorText(r)) +
+          (d.code === 'day' || d.code === 'user' ? '' : t(' (en Ajustes puedes usar tu propia clave de Claude, Gemini o GLM)')));
         err.code = d.code;
         throw err;
       }
@@ -423,7 +429,7 @@
   function claudeAnswer(response) {
     var blocks = response.content || [], message;
     if (response.stop_reason === 'refusal') {
-      message = {role: 'assistant', content: 'Claude ha declinado esta petición.'};
+      message = {role: 'assistant', content: t('Claude ha declinado esta petición.')};
     } else {
       message = {role: 'assistant', content: blocks.filter(function (b) { return b.type === 'text'; })
         .map(function (b) { return b.text || ''; }).join('\n\n').trim()};
@@ -504,19 +510,19 @@
         return r;
       }).then(function (r) {
         if (r.status === 200) return openaiAnswer(r.data);
-        errors.push(models[i] + ', tu clave: ' + errorText(r));
+        errors.push(t('{0}, tu clave: {1}', models[i], errorText(r)));
         if (r.status === 401 || r.status === 403) return backup();
         return attempt(i + 1);
       }, function (e) {
-        errors.push(models[i] + ', tu clave: ' + C.errText(e));
-        if (/no hay clave/.test(C.errText(e))) return backup();
+        errors.push(t('{0}, tu clave: {1}', models[i], C.errText(e)));
+        if (/no hay clave/.test(rawErr(e))) return backup();
         return attempt(i + 1);
       });
     }
     function backup() {
       return chatMonitoreo(messages, tools, GLM_FREE.indexOf(chosen) >= 0 ? chosen : GLM_FREE[0]).catch(function (e) {
-        errors.push('la clave de reserva de MonitorEO: ' + C.errText(e));
-        throw new Error('GLM no responde: ' + errors.join('; '));
+        errors.push(t('la clave de reserva de MonitorEO: {0}', C.errText(e)));
+        throw new Error(t('GLM no responde: {0}', errors.join('; ')));
       });
     }
     return attempt(0);
@@ -563,7 +569,7 @@
     var e = a && a.ref ? mo.byRef(Number(a.ref)) : null;
     if (e) bits.push(e.index + ' · ' + e.sensor);
     if (a && a.inicio && a.fin) bits.push(a.inicio + ' → ' + a.fin);
-    if (a && a.temporada) bits.push('temporada ' + a.temporada);
+    if (a && a.temporada) bits.push(t('temporada {0}', a.temporada));
     var p = a && a.punto ? C.pointById(a.punto) : null;
     if (p) bits.push(p.name);
     return bits.join(' · ');
@@ -575,8 +581,8 @@
     var card = d.firstChild;
     card.classList.add('in-chat');
     var acts = card.querySelector('.acts');
-    acts.innerHTML = (r.kind === 'layer' ? '<button class="small primary" data-act="map">Ver en el mapa</button>' : '') +
-      '<button class="small" data-act="an">Ver en Análisis</button>';
+    acts.innerHTML = (r.kind === 'layer' ? '<button class="small primary" data-act="map">' + esc(t('Ver en el mapa')) +
+      '</button>' : '') + '<button class="small" data-act="an">' + esc(t('Ver en Análisis')) + '</button>';
     acts.onclick = function (ev) {
       var b = ev.target.closest('button');
       if (!b) return;
@@ -594,8 +600,8 @@
     return new Promise(function (resolve) {
       var d = document.createElement('div');
       d.className = 'confirm';
-      d.innerHTML = '⚠ ' + esc(text) + '<div class="acts"><button class="small primary" data-yes="1">Calcular</button>' +
-        '<button class="small" data-yes="0">Cancelar</button></div>';
+      d.innerHTML = '⚠ ' + esc(text) + '<div class="acts"><button class="small primary" data-yes="1">' +
+        esc(t('Calcular')) + '</button><button class="small" data-yes="0">' + esc(t('Cancelar')) + '</button></div>';
       d.onclick = function (ev) {
         var b = ev.target.closest('button');
         if (!b) return;
@@ -611,8 +617,8 @@
     text = String(text || '').trim();
     if (!text || running) return;
     if (!navigator.onLine) {
-      add('ai', '<p>Sin conexión no puedo preguntar al modelo. Los resultados guardados de cada punto están en ' +
-        '<b>Análisis</b> y se ven sin cobertura.</p>');
+      add('ai', '<p>' + t('Sin conexión no puedo preguntar al modelo. Los resultados guardados de cada punto están en ' +
+        '<b>Análisis</b> y se ven sin cobertura.') + '</p>');
       return;
     }
     $('ask-input').value = '';
@@ -626,12 +632,12 @@
     var steps = document.createElement('div');
     steps.className = 'steps';
     box.appendChild(steps);
-    var thinking = stepLine(steps, 'Pensando (' + providerTitle() + ')');
+    var thinking = stepLine(steps, t('Pensando ({0})', providerTitle()));
     var provider = S.aiProvider, tools = TOOLS, n = 0;
 
     function next() {
       if (run.stopped) return Promise.resolve();
-      if (++n > MAX_STEPS) throw new Error('demasiados pasos para una pregunta: hazla más concreta');
+      if (++n > MAX_STEPS) throw new Error(t('demasiados pasos para una pregunta: hazla más concreta'));
       return CHAT[provider]([{role: 'system', content: instructions()}].concat(conv), tools).then(function (m) {
         if (run.stopped) return;
         done(thinking);
@@ -641,10 +647,10 @@
         delete keep.model;
         conv.push(keep);
         if (m.content) {
-          var t = document.createElement('div');
-          t.className = 'text';
-          t.innerHTML = md(m.content);
-          box.appendChild(t);
+          var tx = document.createElement('div');  // not t: that is the translation
+          tx.className = 'text';
+          tx.innerHTML = md(m.content);
+          box.appendChild(tx);
           scroll();
         }
         if (!calls.length) return;
@@ -652,7 +658,7 @@
           return prev.then(function () { return runTool(c); });
         }, Promise.resolve()).then(function () {
           if (run.stopped) return;
-          thinking = stepLine(steps, 'Pensando');
+          thinking = stepLine(steps, t('Pensando'));
           return next();
         });
       });
@@ -681,7 +687,7 @@
         clearInterval(timer);
         done(line, true);
         line.querySelector('.prog').textContent = C.errText(e);
-        conv.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify({error: C.errText(e)})});
+        conv.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify({error: rawErr(e)})});
       });
     }
     next().catch(function (e) {
@@ -727,7 +733,7 @@
   }
   function setBusy(b) {
     $('ask-send').textContent = b ? '■' : '➤';
-    $('ask-send').title = b ? 'Detener' : 'Enviar';
+    $('ask-send').title = b ? t('Detener') : t('Enviar');
     $('ask-send').classList.toggle('stop', b);
   }
   function stop() {
@@ -736,12 +742,12 @@
     running = null;
     unanswered();
     setBusy(false);
-    add('ai muted small', 'Detenido.');
+    add('ai muted small', esc(t('Detenido.')));
   }
   function providerTitle(model) {
     var p = PROVIDERS[S.aiProvider];
-    if (S.aiProvider === 'monitoreo') return 'Modelo de MonitorEO' + (model ? ' (' + model + ')' : '');
-    return p.short + ' · ' + (model || modelOf(S.aiProvider)) + ' · tu clave';
+    if (S.aiProvider === 'monitoreo') return model ? t('Modelo de MonitorEO ({0})', model) : t('Modelo de MonitorEO');
+    return t('{0} · {1} · tu clave', p.short, model || modelOf(S.aiProvider));
   }
   function newChat() {
     if (running) stop();
@@ -752,11 +758,11 @@
     $('ask-log').innerHTML = '';
     welcome();
   }
-  var SUGGESTIONS = ['¿Cómo está la vegetación en este punto?', '¿El NDVI de verano está aumentando aquí desde 2017?',
-    '¿Cuánto llovió el año pasado aquí?', 'Calcula la ficha de mi ubicación actual'];
+  var SUGGESTIONS = [t('¿Cómo está la vegetación en este punto?'), t('¿El NDVI de verano está aumentando aquí desde 2017?'),
+    t('¿Cuánto llovió el año pasado aquí?'), t('Calcula la ficha de mi ubicación actual')];
   function welcome() {
-    var d = add('ai', '<p>Pregúntame por los puntos de tu viaje: calculo las variables de MonitorEO en Earth Engine y ' +
-      'te explico el resultado, que queda guardado con el punto.</p><div class="sugg">' +
+    var d = add('ai', '<p>' + esc(t('Pregúntame por los puntos de tu viaje: calculo las variables de MonitorEO en ' +
+      'Earth Engine y te explico el resultado, que queda guardado con el punto.')) + '</p><div class="sugg">' +
       SUGGESTIONS.map(function (s) { return '<button class="small">' + esc(s) + '</button>'; }).join('') + '</div>');
     d.querySelector('.sugg').onclick = function (ev) {
       var b = ev.target.closest('button');
@@ -765,9 +771,68 @@
   }
   function drawContext() {
     var p = C.pointById(C.selected());
-    $('ask-ctx').innerHTML = '<span class="c">📍 <b>' + esc(p ? p.name : 'sin punto elegido') + '</b></span>' +
+    $('ask-ctx').innerHTML = '<button id="ask-point" class="c pick" title="' + esc(t('Elegir el punto')) + '">📍 <b>' +
+      esc(p ? p.name : t('sin punto elegido')) + '</b> ▾</button>' +
       '<span class="c">' + esc(providerTitle()) + '</span>';
+    $('ask-point').onclick = togglePick;
+    if (!$('ask-pick').classList.contains('hidden')) drawPick();
   }
+
+  // The point of the questions: the current location, a saved point, or a new one (on the map or by coordinates).
+  function togglePick() {
+    var box = $('ask-pick');
+    if (box.classList.contains('hidden')) { drawPick(); box.classList.remove('hidden'); } else box.classList.add('hidden');
+  }
+  function closePick() { $('ask-pick').classList.add('hidden'); }
+  function drawPick() {
+    var sel = C.selected();
+    var pts = C.points().slice().reverse();
+    $('ask-pick').innerHTML =
+      '<button class="opt" data-pick="gps">◎ ' + esc(t('Mi ubicación actual (GPS)')) + '</button>' +
+      (pts.length ? '<div class="pts">' + pts.map(function (p) {
+        return '<button class="opt' + (p.id === sel ? ' on' : '') + '" data-pick="pt" data-id="' + esc(p.id) + '">' +
+          (p.id === sel ? '✓ ' : '📍 ') + esc(p.name) + '<span class="muted small"> ' + p.lat.toFixed(4) + ', ' +
+          p.lon.toFixed(4) + '</span></button>';
+      }).join('') + '</div>' : '<div class="muted small">' + esc(t('Aún no hay puntos guardados.')) + '</div>') +
+      '<div class="row wrap"><button class="small" data-pick="map">＋ ' + esc(t('Punto nuevo en el mapa')) + '</button>' +
+      '<button class="small" data-pick="coords">＋ ' + esc(t('Por coordenadas')) + '</button></div>' +
+      '<div id="ask-coords" class="row hidden"><input id="ask-lat" inputmode="decimal" placeholder="' + esc(t('Latitud')) +
+      '"><input id="ask-lon" inputmode="decimal" placeholder="' + esc(t('Longitud')) + '">' +
+      '<button class="small primary" data-pick="coords-ok">' + esc(t('Usar')) + '</button></div>';
+  }
+  function distance(a, b) {  // m
+    var r = Math.PI / 180, x = (b.lon - a.lon) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;
+    return Math.sqrt(x * x + y * y) * 6371000;
+  }
+  // the location of the GPS: the saved point at it (within its accuracy, or 20 m), else a new point
+  function useLocation() {
+    closePick();
+    C.locate().then(function (loc) {
+      var near = C.points().filter(function (p) { return distance(p, loc) <= Math.max(20, loc.accuracy || 0); })
+        .sort(function (a, b) { return distance(a, loc) - distance(b, loc); })[0];
+      var p = near || C.addPoint(t('Ubicación {0}', new Date().toLocaleString(i18n.locale,
+        {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})), loc.lat, loc.lon);
+      C.select(p.id);
+    }, function () {});
+  }
+  function useCoords() {
+    var lat = parseFloat(String($('ask-lat').value).replace(',', '.'));
+    var lon = parseFloat(String($('ask-lon').value).replace(',', '.'));
+    if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) return C.toast(t('Coordenadas no válidas (grados decimales WGS84)'));
+    var p = C.addPoint(t('Punto {0}', C.points().length + 1), lat, lon);
+    closePick();
+    C.select(p.id);
+  }
+  $('ask-pick').onclick = function (ev) {
+    var b = ev.target.closest('button[data-pick]');
+    if (!b) return;
+    var what = b.getAttribute('data-pick');
+    if (what === 'gps') useLocation();
+    else if (what === 'pt') { C.select(b.getAttribute('data-id')); closePick(); }
+    else if (what === 'map') { closePick(); C.pickOnMap('ask'); }
+    else if (what === 'coords') { $('ask-coords').classList.remove('hidden'); $('ask-lat').focus(); }
+    else if (what === 'coords-ok') useCoords();
+  };
   function autosize() {
     var t = $('ask-input');
     t.style.height = 'auto';
@@ -792,8 +857,8 @@
     $('ai-key-box').classList.toggle('hidden', !info.key);
     $('ai-monitoreo-box').classList.toggle('hidden', info.key);
     if (info.key) {
-      $('ai-key-state').textContent = keys[p] ? 'Clave guardada en el teléfono (' + keys[p] + ').' :
-        'Sin clave. Consíguela en ' + info.help + '.';
+      $('ai-key-state').textContent = keys[p] ? t('Clave guardada en el teléfono ({0}).', keys[p]) :
+        t('Sin clave. Consíguela en {0}.', info.help);
       $('ai-key').value = '';
       $('ai-model').value = modelOf(p);
       $('ai-model').placeholder = info.model;
@@ -811,7 +876,7 @@
   };
   $('ai-model').onchange = function () {
     var v = $('ai-model').value.trim();
-    if (v && !/^[A-Za-z0-9._-]{1,80}$/.test(v)) { C.toast('Nombre de modelo no válido'); return; }
+    if (v && !/^[A-Za-z0-9._-]{1,80}$/.test(v)) { C.toast(t('Nombre de modelo no válido')); return; }
     S.aiModels[S.aiProvider] = v;
     C.saveSettings();
     drawContext();
@@ -819,26 +884,26 @@
   $('ai-key-save').onclick = function () {
     var k = $('ai-key').value.trim();
     $('ai-key').value = '';
-    if (!k) return C.toast('Pega la clave primero');
+    if (!k) return C.toast(t('Pega la clave primero'));
     C.native('aiSetKey', {provider: S.aiProvider, key: k}).then(function (out) {
       keys = out;
-      C.toast('Clave guardada en el teléfono');
+      C.toast(t('Clave guardada en el teléfono'));
       drawAiSettings();
     }).catch(function (e) { C.toast(C.errText(e), 5000); });
   };
   $('ai-key-clear').onclick = function () {
-    if (!confirm('¿Olvidar la clave de ' + PROVIDERS[S.aiProvider].name + '?')) return;
+    if (!confirm(t('¿Olvidar la clave de {0}?', PROVIDERS[S.aiProvider].name))) return;
     C.native('aiClearKey', S.aiProvider).then(function (out) { keys = out; drawAiSettings(); });
   };
   $('ai-test').onclick = function () {
-    $('ai-test-state').textContent = 'Probando…';
+    $('ai-test-state').textContent = t('Probando…');
     CHAT[S.aiProvider]([{role: 'system', content: 'Responde solo «ok».'}, {role: 'user', content: 'Di ok.'}], [])
       .then(function (m) {
-        $('ai-test-state').textContent = 'Responde ' + (m.model || modelOf(S.aiProvider)) + ': «' + String(m.content || '').slice(0, 60) + '»';
-      }, function (e) { $('ai-test-state').textContent = 'Error: ' + C.errText(e); });
+        $('ai-test-state').textContent = t('Responde {0}: «{1}»', m.model || modelOf(S.aiProvider), String(m.content || '').slice(0, 60));
+      }, function (e) { $('ai-test-state').textContent = t('Error: {0}', C.errText(e)); });
   };
   $('ai-provider').innerHTML = Object.keys(PROVIDERS).map(function (k) {
-    return '<option value="' + k + '">' + esc(PROVIDERS[k].name + (PROVIDERS[k].key ? ' · tu clave' : ' · gratis, sin clave')) + '</option>';
+    return '<option value="' + k + '">' + esc(PROVIDERS[k].key ? t('{0} · tu clave', PROVIDERS[k].name) : t('{0} · gratis, sin clave', PROVIDERS[k].name)) + '</option>';
   }).join('');
   document.querySelector('nav button[data-tab=settings]').addEventListener('click', function () {
     loadKeys().then(drawAiSettings);

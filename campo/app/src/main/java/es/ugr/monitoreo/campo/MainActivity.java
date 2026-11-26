@@ -222,6 +222,8 @@ public class MainActivity extends Activity {
                 return aiKeys();
             case "aiRequest":
                 return aiRequest(new JSONObject(arg));
+            case "setLang":  // the language of the page (i18n.js): the dialogs of the WebView follow that of the phone
+                return "{}";
             case "appInfo": {
                 android.content.pm.PackageInfo i = getPackageManager().getPackageInfo(getPackageName(), 0);
                 return new JSONObject().put("version", i.versionName).put("code", i.getLongVersionCode()).toString();
