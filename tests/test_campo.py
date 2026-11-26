@@ -47,6 +47,29 @@ def test_the_functions_of_the_core_that_the_app_calls_exist():
 	assert not used - names, f'core.js no longer has what the field app calls: {sorted(used - names)}'
 
 
+def test_build_copies_the_core_of_its_own_folder_only(tmp_path, monkeypatch):
+	"""gee/build.py copies the core into the campo/ next to the gee/ it writes: run on a copy elsewhere (as
+	tests/test_release_date.py does, with an older version), it leaves the app of this repository alone."""
+	import importlib.util
+	import shutil
+	spec = importlib.util.spec_from_file_location('build_campo', os.path.join(ROOT, 'gee', 'build.py'))
+	build = importlib.util.module_from_spec(spec)
+	sys.path.insert(0, os.path.join(ROOT, 'src'))
+	spec.loader.exec_module(build)
+	gee = tmp_path / 'gee'
+	lib = tmp_path / 'campo' / 'app' / 'src' / 'main' / 'assets' / 'www' / 'lib'
+	gee.mkdir()
+	lib.mkdir(parents=True)
+	for name in ('catalog.js', 'core.js', 'ui.js'):
+		shutil.copy(os.path.join(ROOT, 'gee', name), gee / name)
+	(gee / 'core.js').write_text('// changed', encoding='utf-8')
+	before = read(WWW, 'lib', 'core.js')
+	monkeypatch.setattr(build, 'HERE', str(gee))
+	build.app()
+	assert (lib / 'core.js').read_text(encoding='utf-8') == '// changed'  # the campo/ next to its gee/
+	assert read(WWW, 'lib', 'core.js') == before  # not that of this repository
+
+
 def test_sync_check_says_whether_the_core_is_there():
 	out = subprocess.run([sys.executable, os.path.join(CAMPO, 'sync.py'), 'check'], capture_output=True, text=True)
 	assert out.returncode == 0, out.stdout + out.stderr
