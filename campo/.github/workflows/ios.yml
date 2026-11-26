@@ -1,0 +1,55 @@
+# Builds the iPhone app (ios/) on a Mac of GitHub: an .ipa without signature, to be signed and installed from Windows
+# with Sideloadly (or AltStore) with an Apple ID. The version is that of the APK (app/build.gradle).
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', 'app/src/main/assets/**', 'app/build.gradle', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version of the APK
+        id: v
+        run: |
+          echo "name=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" app/build.gradle)" >> "$GITHUB_OUTPUT"
+          echo "code=$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' app/build.gradle)" >> "$GITHUB_OUTPUT"
+
+      - name: Project (XcodeGen)
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild -project ios/Campo.xcodeproj -scheme Campo -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=${{ steps.v.outputs.name }} CURRENT_PROJECT_VERSION=${{ steps.v.outputs.code }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee build.log | grep -E "error:|warning: .*swift|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/Campo.app
+
+      - name: Package the .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Campo.app Payload/
+          zip -qry "MonitorEO-Campo-${{ steps.v.outputs.name }}.ipa" Payload
+          ls -l *.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonitorEO-Campo-${{ steps.v.outputs.name }}-ios
+          path: MonitorEO-Campo-*.ipa
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log
+          path: build.log

@@ -28,7 +28,7 @@ REPO = 'https://github.com/monitoreo-obsnev/monitoreo'
 SECTION = '## Changelog'
 UNRELEASED = '### Unreleased'
 TOOLS = ('All tools', 'Earth Engine app', 'QGIS plugin', 'MCP server', 'Assistant', 'Python package', 'Command line',
-         'R package', 'Results viewer')
+         'R package', 'Results viewer', 'Field app')
 RELEASE = re.compile(r'^### \[(?P<tag>v?\d+(?:\.\d+)+)\]\(' + re.escape(REPO) + r'/releases/tag/(?P<link>[^)]+)\)'
                      r' · (?P<date>\d{4}-\d{2}-\d{2}) · package (?P<package>\d+(?:\.\d+)+)$')
 ENTRY = re.compile(r'^- \*\*(?P<tools>[^*]+)\*\*(?P<fix> \(fix\))?: (?P<text>\S.*)$')

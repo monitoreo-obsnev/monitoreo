@@ -1,0 +1,137 @@
+# MonitorEO Campo, the field app (campo/): builds the APK for Android and the .ipa for iPhone with the core of gee/
+# of the same commit (campo/sync.py core, also done by the Android build), so the app always computes as the
+# monitoreo it comes with:
+# - on every push to main that changes campo/ or the core (gee/core.js, gee/catalog.js), as artifacts of the run;
+# - when a tag v* is pushed or a release is published, attaching both to the release;
+# - by hand (Actions > Field app > Run workflow), with the tag of a release or without one (only artifacts).
+# The APK is signed with the key in the secrets CAMPO_KEYSTORE (the keystore in base64), CAMPO_KEYSTORE_PASSWORD,
+# CAMPO_KEY_ALIAS and CAMPO_KEY_PASSWORD when the repository has them; otherwise with a debug key, for testing only
+# (Android does not install it over an APK signed with another key). The .ipa has no signature: Sideloadly (or
+# AltStore) signs it with the Apple ID of the user (wiki page Field-app).
+name: Field app
+
+on:
+  push:
+    branches: [main]
+    paths: ['campo/**', 'gee/core.js', 'gee/catalog.js', '.github/workflows/campo.yml']
+    tags: ['v*']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag of the release to attach the apps to (empty: only artifacts)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: campo-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG || github.ref }}
+      - name: The core of gee/ in the app
+        run: python campo/sync.py core
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # the Android SDK of the runner (ANDROID_HOME), with its licenses accepted so that Gradle installs what is missing;
+      # android-actions/setup-android@v3 failed, as its default package "tools" no longer exists
+      - name: Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > campo/local.properties
+      - name: Version of the app
+        id: v
+        run: echo "name=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" campo/app/build.gradle)" >> "$GITHUB_OUTPUT"
+      - name: Build the APK
+        env:
+          KEYSTORE_B64: ${{ secrets.CAMPO_KEYSTORE }}
+          CAMPO_KEYSTORE_PASSWORD: ${{ secrets.CAMPO_KEYSTORE_PASSWORD }}
+          CAMPO_KEY_ALIAS: ${{ secrets.CAMPO_KEY_ALIAS }}
+          CAMPO_KEY_PASSWORD: ${{ secrets.CAMPO_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/campo.jks"
+            export CAMPO_KEYSTORE="$RUNNER_TEMP/campo.jks"
+          else
+            echo "::warning::No secret CAMPO_KEYSTORE: the APK is signed with a debug key, for testing only"
+          fi
+          cd campo
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "../MonitorEO-Campo-${{ steps.v.outputs.name }}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonitorEO-Campo-${{ steps.v.outputs.name }}-android
+          path: MonitorEO-Campo-*.apk
+          if-no-files-found: error
+      - name: Attach the APK to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes ""
+          gh release upload "$TAG" MonitorEO-Campo-*.apk --clobber
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG || github.ref }}
+      - name: The core of gee/ in the app
+        run: python3 campo/sync.py core
+      - name: Version of the app (that of the APK)
+        id: v
+        run: |
+          echo "name=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" campo/app/build.gradle)" >> "$GITHUB_OUTPUT"
+          echo "code=$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' campo/app/build.gradle)" >> "$GITHUB_OUTPUT"
+      - name: Project (XcodeGen)
+        run: |
+          brew install xcodegen
+          cd campo/ios && xcodegen generate
+      - name: Build
+        run: |
+          cd campo
+          xcodebuild -project ios/Campo.xcodeproj -scheme Campo -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=${{ steps.v.outputs.name }} CURRENT_PROJECT_VERSION=${{ steps.v.outputs.code }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tee build.log | grep -E "error:|warning: .*swift|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/Campo.app
+      - name: Package the .ipa
+        run: |
+          mkdir Payload
+          cp -R campo/build/Build/Products/Release-iphoneos/Campo.app Payload/
+          zip -qry "MonitorEO-Campo-${{ steps.v.outputs.name }}.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonitorEO-Campo-${{ steps.v.outputs.name }}-ios
+          path: MonitorEO-Campo-*.ipa
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-log-ios
+          path: campo/build.log
+      - name: Attach the .ipa to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "MonitorEO $TAG" --notes ""
+          gh release upload "$TAG" MonitorEO-Campo-*.ipa --clobber

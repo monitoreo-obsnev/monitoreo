@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MonitorEO Campo</title>
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">MonitorEO <b>Campo</b> <span id="brand-version" class="ver"></span></div>
+  <div class="row-tight"><div id="net" class="pill">…</div><button id="btn-lang" class="pill lang">EN</button></div>
+</header>
+
+<main>
+  <!-- Mapa -->
+  <section id="tab-map" class="tab active">
+    <div id="map"></div>
+    <div class="map-tools">
+      <button id="btn-gps" class="fab" title="Mi ubicación">◎</button>
+      <button id="btn-base" class="fab small" title="Cambiar mapa base">▦</button>
+      <button id="btn-dl" class="fab small" title="Descargar el mapa de una zona para usarlo sin conexión">⤓</button>
+      <button id="btn-clear-layer" class="fab small hidden" title="Quitar capa">✕</button>
+    </div>
+    <div id="layer-legend" class="legend hidden"></div>
+    <div id="dl-frame" class="dl-frame hidden"></div>
+    <div id="dl-sheet" class="sheet hidden">
+      <b>Descargar el mapa de esta zona</b>
+      <div class="muted small">Mueve y acerca el mapa para encuadrar la zona en el recuadro.</div>
+      <div class="row">
+        <label>Detalle máximo <select id="dl-zoom"></select></label>
+        <label>Nombre <input id="dl-name"></label>
+      </div>
+      <div class="row">
+        <label class="radio"><input type="checkbox" id="dl-sat"> Satélite</label>
+        <label class="radio"><input type="checkbox" id="dl-topo"> Topográfico</label>
+      </div>
+      <div id="dl-est" class="est"></div>
+      <div id="dl-prog" class="hidden"><div class="progress"><div id="dl-bar"></div></div><div id="dl-ptext" class="muted small"></div></div>
+      <div class="row"><button id="dl-go" class="primary">Descargar</button><button id="dl-cancel">Cancelar</button></div>
+    </div>
+  </section>
+
+  <!-- Puntos -->
+  <section id="tab-points" class="tab">
+    <div class="row wrap">
+      <button id="pt-gps" class="primary">+ Mi ubicación</button>
+      <button id="pt-coords">+ Coordenadas</button>
+      <button id="pt-import">Importar</button>
+      <button id="pt-export">Exportar</button>
+    </div>
+    <div id="coord-form" class="card hidden">
+      <label>Nombre <input id="cf-name" placeholder="Punto"></label>
+      <div class="row">
+        <label>Latitud <input id="cf-lat" inputmode="decimal" placeholder="37.0937"></label>
+        <label>Longitud <input id="cf-lon" inputmode="decimal" placeholder="-3.3976"></label>
+      </div>
+      <div class="row"><button id="cf-save" class="primary">Guardar</button><button id="cf-cancel">Cancelar</button></div>
+    </div>
+    <div class="card">
+      <div class="row between"><b>Antes de salir al campo</b></div>
+      <p class="muted">Calcula la ficha de todos los puntos (una petición por variable) y la guarda en el teléfono para
+        verla sin cobertura.</p>
+      <button id="pt-precompute">Precalcular ficha de todos los puntos</button>
+      <div id="pre-status" class="muted"></div>
+    </div>
+    <ul id="point-list" class="list"></ul>
+  </section>
+
+  <!-- Análisis -->
+  <section id="tab-analysis" class="tab">
+    <div id="an-empty" class="card muted">Elige un punto en el mapa o en la lista.</div>
+    <div id="an-body" class="hidden">
+      <div class="card">
+        <div class="row between">
+          <div><b id="an-name"></b><div id="an-coords" class="muted small"></div></div>
+          <button id="an-goto" class="small">Ver en mapa</button>
+        </div>
+      </div>
+      <div class="card">
+        <button id="an-ficha" class="primary wide">Ficha rápida del punto</button>
+        <p class="muted small">NDVI, EVI, NDWI y NDSI de Sentinel-2 (últimos 60 días), temperatura de superficie de
+          Landsat (últimos 90 días), precipitación del último año completo (ERA5-Land), elevación y pendiente.</p>
+      </div>
+      <div class="card">
+        <div class="grid2">
+          <label>Tema <select id="an-theme"></select></label>
+          <label>Variable <select id="an-var"></select></label>
+          <label>Desde <input id="an-start" type="date"></label>
+          <label>Hasta <input id="an-end" type="date"></label>
+          <label>Radio <select id="an-radius">
+            <option value="0">Píxel del punto</option><option value="30">30 m</option>
+            <option value="100" selected>100 m</option><option value="250">250 m</option><option value="500">500 m</option>
+          </select></label>
+          <label>Métrica de las imágenes <select id="an-metric">
+            <option value="mean">media</option><option value="median">mediana</option>
+            <option value="max">máximo</option><option value="min">mínimo</option>
+          </select></label>
+          <label>Paso de la serie <select id="an-step">
+            <option value="monthly">mensual</option><option value="16-day">16 días</option><option value="annual">anual</option>
+          </select></label>
+          <label>Temporada (opcional) <input id="an-season" placeholder="06-01/09-30"></label>
+          <label>Test de la tendencia <select id="an-test">
+            <option value="mk">Mann-Kendall</option>
+            <option value="hamed-rao">Hamed-Rao (autocorrelación)</option>
+            <option value="tfpw">TFPW (preblanqueo)</option>
+          </select></label>
+        </div>
+        <label class="radio"><input type="checkbox" id="an-topo"> Corrección topográfica SCS+C (reflectancia de Landsat)</label>
+        <label class="radio"><input type="checkbox" id="an-snowndsi"> Nieve también por su NDSI ≥ 0,4 (Sentinel-2 y Landsat)</label>
+        <div class="row between" style="margin-top:6px">
+          <div id="an-varinfo" class="muted small"></div>
+          <button id="an-help" class="small" title="Qué mide y cómo se calcula (manual)">?</button>
+        </div>
+        <div class="row wrap">
+          <button id="an-value" class="primary">Valor del periodo</button>
+          <button id="an-series">Serie temporal</button>
+          <button id="an-trend">Tendencia</button>
+          <button id="an-layer">Capa en el mapa</button>
+        </div>
+      </div>
+      <div id="an-status" class="status hidden"></div>
+      <div id="an-results"></div>
+    </div>
+  </section>
+
+  <!-- Preguntar: el asistente (ai.js) -->
+  <section id="tab-ask" class="tab">
+    <div class="ask-head"><div id="ask-ctx" class="ctx"></div><button id="ask-new" class="small">Nueva</button></div>
+    <div id="ask-pick" class="ask-pick hidden"></div>
+    <div id="ask-log" class="ask-log"></div>
+    <div class="ask-bar">
+      <textarea id="ask-input" rows="1" placeholder="Pregunta sobre tus puntos…"></textarea>
+      <button id="ask-send" class="send" title="Enviar">➤</button>
+    </div>
+  </section>
+
+  <!-- Ajustes -->
+  <section id="tab-settings" class="tab">
+    <div class="card">
+      <b>Cuenta de Earth Engine</b>
+      <label class="radio"><input type="radio" name="mode" value="shared"> Cuenta compartida de MonitorEO (gratis,
+        horas de cálculo limitadas al mes)</label>
+      <label class="radio"><input type="radio" name="mode" value="sa"> Mi cuenta de servicio (JSON)</label>
+      <div id="shared-box">
+        <div id="usage" class="muted small"></div>
+        <button id="btn-usage" class="small">Ver horas restantes</button>
+        <div class="muted small">ID anónimo de esta instalación: <code id="user-id"></code></div>
+      </div>
+      <div id="sa-box">
+        <div id="sa-info" class="muted small"></div>
+        <div class="row wrap">
+          <button id="btn-sa">Elegir JSON de la cuenta de servicio</button>
+          <button id="btn-sa-clear" class="small">Olvidar</button>
+        </div>
+        <label>Proyecto de Google Cloud <input id="sa-project" placeholder="(el del JSON)"></label>
+        <p class="muted small">La clave se guarda solo en el almacenamiento privado de la app. La cuenta debe estar
+          registrada para Earth Engine en su proyecto.</p>
+      </div>
+      <div class="row wrap"><button id="btn-test" class="primary">Probar conexión</button></div>
+      <div id="conn-status" class="muted small"></div>
+    </div>
+    <div class="card">
+      <b>Asistente (Preguntar)</b>
+      <label>Modelo de lenguaje <select id="ai-provider"></select></label>
+      <div id="ai-monitoreo-box" class="muted small">El de MonitorEO, a través de su servidor: sin clave ni coste. La
+        conversación y los valores calculados van a Anthropic o a Google, que no los usan para entrenar sus modelos.
+        Tiene un límite de preguntas por día.</div>
+      <div id="ai-key-box">
+        <div id="ai-key-state" class="muted small"></div>
+        <div class="row">
+          <input id="ai-key" type="password" autocomplete="off" placeholder="Pega aquí tu clave de API">
+          <button id="ai-key-save" class="small">Guardar</button>
+          <button id="ai-key-clear" class="small">Olvidar</button>
+        </div>
+        <label>Modelo <input id="ai-model" autocomplete="off" spellcheck="false"></label>
+        <p class="muted small">La clave se guarda solo en el almacenamiento privado de la app y se añade a cada petición
+          fuera de la página. Pagas tú el uso según la tarifa del proveedor; la conversación va a ese proveedor.</p>
+      </div>
+      <div class="row wrap"><button id="ai-test" class="small">Probar el modelo</button></div>
+      <div id="ai-test-state" class="muted small"></div>
+    </div>
+    <div class="card">
+      <b>Mapas sin conexión</b>
+      <p class="muted small">Zonas del mapa base descargadas en el teléfono: se ven sin cobertura hasta el detalle elegido.
+        Uso personal; descarga solo las zonas que vayas a visitar.</p>
+      <ul id="area-list" class="list"></ul>
+      <button id="btn-new-area" class="small">Descargar una zona</button>
+    </div>
+    <div class="card">
+      <b>Datos guardados</b>
+      <div id="storage-info" class="muted small"></div>
+      <button id="btn-clear-results" class="small">Borrar resultados guardados</button>
+    </div>
+    <div class="card">
+      <b>Versiones</b>
+      <div id="update-state" class="muted small"></div>
+      <div class="row wrap">
+        <button id="btn-update-check" class="small">Buscar versión nueva</button>
+        <button id="btn-update-get" class="primary small hidden">Descargar la versión nueva</button>
+      </div>
+    </div>
+    <div class="card small muted" id="about"></div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="map" class="active">🗺<span>Mapa</span></button>
+  <button data-tab="points">📍<span>Puntos</span></button>
+  <button data-tab="analysis">📈<span>Análisis</span></button>
+  <button data-tab="ask">💬<span>Preguntar</span></button>
+  <button data-tab="settings">⚙<span>Ajustes</span></button>
+</nav>
+<div id="toast" class="toast hidden"></div>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="lib/chart.umd.js"></script>
+<script src="lib/ee_api_js.js"></script>
+<script src="lib/catalog.js"></script>
+<script src="lib/core.js"></script>
+<script src="en.js"></script>
+<script src="i18n.js"></script>
+<script src="signing.js"></script>  <!-- written by app/build.gradle: whether the APK has the release key -->
+<script src="app.js"></script>
+<script src="ai.js"></script>
+</body>
+</html>

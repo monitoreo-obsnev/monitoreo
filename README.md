@@ -29,6 +29,7 @@ responde en el idioma de la pregunta.
 | Paquete de Python `monitoreo` | scripts, cuadernos, línea de comandos | [Python](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python), [Línea de comandos](https://github.com/monitoreo-obsnev/monitoreo/wiki/Línea-de-comandos) | `src/monitoreo` |
 | Paquete de R `monitoreo` | R, con `sf`, `terra` o `rgee` | [R](https://github.com/monitoreo-obsnev/monitoreo/wiki/R) | `r/monitoreo` |
 | Visor de resultados | cualquiera, en el navegador (publican los administradores) | [Visor de resultados](https://github.com/monitoreo-obsnev/monitoreo/wiki/Visor-de-resultados) | `src/monitoreo/viewer`, `monitoreo publish` |
+| App de campo **MonitorEO Campo** para Android (APK) e iPhone (.ipa) | trabajo de campo: puntos por GPS, valor, serie y tendencia de cada variable en el punto, resultados y mapas sin cobertura, asistente | [App de campo](https://github.com/monitoreo-obsnev/monitoreo/wiki/App-de-campo) | `campo` |
 
 ## Cómo citar
 
@@ -69,6 +70,7 @@ or in English and answers in the language of the question.
 | Python package `monitoreo` | scripts, notebooks, command line | [Python package](https://github.com/monitoreo-obsnev/monitoreo/wiki/Python-package), [Command line](https://github.com/monitoreo-obsnev/monitoreo/wiki/Command-line) | `src/monitoreo` |
 | R package `monitoreo` | R, with `sf`, `terra` or `rgee` | [R package](https://github.com/monitoreo-obsnev/monitoreo/wiki/R-package) | `r/monitoreo` |
 | Results viewer | anyone, in the browser (administrators publish) | [Results viewer](https://github.com/monitoreo-obsnev/monitoreo/wiki/Results-viewer) | `src/monitoreo/viewer`, `monitoreo publish` |
+| Field app **MonitorEO Campo** for Android (APK) and iPhone (.ipa) | field work: points by GPS, the value, series and trend of each variable at the point, results and maps without coverage, assistant | [Field app](https://github.com/monitoreo-obsnev/monitoreo/wiki/Field-app) | `campo` |
 
 ### How to cite
 
@@ -103,6 +105,14 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer** (fix): The y axis of a chart of a variable without unit (NDVI) is titled with the variable instead of «[unitless]».
 - **Results viewer, Python package, Command line**: The charts of the area of each class and of the burn severity have a legend with the colour of each class, and a report can name the classes of an area by class (`class_labels: [Dry, Intermediate, Wet]`).
 - **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
+
+### [v0.3.75](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.75) · 2026-11-26 · package 0.3.85
+
+- **Field app**: MonitorEO Campo, the app for field work on Android and iPhone, is a tool of MonitorEO: points by GPS, by touching the map, by coordinates or imported, and at each of them the value, the time series and the trend of the variables of MonitorEO, the layer around it and a quick sheet, computed as in the Earth Engine app and kept on the phone to see without coverage, with base maps for offline use and an assistant that answers questions about the points, in English or Spanish (button EN/ES, by default the language of the phone). The APK and the .ipa come with each release, and the app says when there is a new one (Settings → Versions).
+
+### [v0.3.74](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.74) · 2026-11-26 · package 0.3.84
+
+- **Assistant**: GLM (Z.ai) is the second language model: with the new choice Automatic (by default), if the model of MonitorEO does not answer, GLM answers, and then the model on this computer, with a notice in the conversation. GLM works with your own free key of Z.ai (Settings, with a guide to get one and its limits) and, without it, with the backup key of MonitorEO in its server, when that key is set; if its free model is busy, the other one answers.
 
 ### [v0.3.73](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.73) · 2026-11-25 · package 0.3.83
 

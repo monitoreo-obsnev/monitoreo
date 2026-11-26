@@ -33,6 +33,10 @@
 # printed nor written anywhere else. Claude (models claude-*) needs the key of the API of Anthropic in the secret
 # monitoreo-claude-key, created once by hand from the Console of Anthropic, without showing it (copy the key, then):
 #     pbpaste | gcloud secrets create monitoreo-claude-key --project PROJECT --replication-policy automatic --data-file -
+# GLM (Z.ai), the backup key of the second model of the assistant (models glm-*, GLM_MODELS of main.py), needs a
+# standard key of the API of Z.ai (z.ai/manage-apikey/apikey-list) in the secret monitoreo-glm-key, created the same
+# way:
+#     pbpaste | gcloud secrets create monitoreo-glm-key --project PROJECT --replication-policy automatic --data-file -
 # CHAT_MODELS (comma-separated, in order: the first one answers, the next ones only while it has no credit; default
 # claude-sonnet-5-5,gemini-3.8-flash, chosen on 2026-11-05 by a comparison of the models on a bank of questions; the
 # users do not choose: CHAT_CHOOSE stays 0), CHAT_REASONING (default low),
@@ -40,7 +44,7 @@
 # of each user a day, default 400) are those of main.py. Set spend caps in AI Studio (Spend) and in the Console of
 # Anthropic: they are what limit the cost. To stop the language model at once:
 #     gcloud services api-keys delete monitoreo-gemini --project PROJECT
-# (`undelete` within 30 days), or disable the key of Anthropic in its Console.
+# (`undelete` within 30 days), or disable the key of Anthropic in its Console (and that of Z.ai in its page of keys).
 set -euo pipefail
 PROJECT=${1:?usage: deploy.sh PROJECT [REGION]}
 REGION=${2:-europe-west1}
@@ -56,6 +60,7 @@ CHAT_USER_DAY=${CHAT_USER_DAY:-400}
 KEY=monitoreo-gemini
 SECRET=monitoreo-gemini-key
 CLAUDE_SECRET=monitoreo-claude-key
+GLM_SECRET=monitoreo-glm-key
 HERE=$(cd "$(dirname "$0")" && pwd)
 PUBLIC=monitoreo-public@$PROJECT.iam.gserviceaccount.com
 BROKER=monitoreo-broker@$PROJECT.iam.gserviceaccount.com
@@ -104,6 +109,10 @@ if gcloud secrets describe "$CLAUDE_SECRET" --project "$PROJECT" >/dev/null 2>&1
   gcloud secrets add-iam-policy-binding "$CLAUDE_SECRET" --project "$PROJECT" --member "serviceAccount:$BROKER" \
     --role roles/secretmanager.secretAccessor --condition None --quiet >/dev/null
   SECRETS="$SECRETS,ANTHROPIC_API_KEY=$CLAUDE_SECRET:latest"
+fi
+if gcloud secrets describe "$GLM_SECRET" --project "$PROJECT" >/dev/null 2>&1; then  # GLM, if its key is there
+  gcloud secrets add-iam-policy-binding "$GLM_SECRET" --project "$PROJECT" --member "serviceAccount:$BROKER"     --role roles/secretmanager.secretAccessor --condition None --quiet >/dev/null
+  SECRETS="$SECRETS,ZAI_API_KEY=$GLM_SECRET:latest"
 fi
 
 # ^;^: the variables are separated by ; (CHAT_MODELS has commas)

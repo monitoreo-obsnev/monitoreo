@@ -85,8 +85,8 @@
     monitoreo mcp [--no-update]                      server MCP (stdio) for language models, at the last version
                                                      of GitHub (installed when it starts, if needed)
     monitoreo assistant [--port 8765] [--browser] [--no-update]   AI assistant in a window of its own (or
-                                                     the browser), with a language model of Ollama and the MCP server,
-                                                     at the last version of GitHub
+                                                     the browser), with the language model of MonitorEO, GLM (Z.ai) or
+                                                     one of Ollama and the MCP server, at the last version of GitHub
 
 The region is a JSON dictionary, e.g. '{"wdpa_id": 555513}', '{"admin2": 141938}', '{"country": "ESP"}',
 '{"island_at": [2.9, 39.6]}', '{"sea": "Alboran Sea"}' or '{"sea": 3324}' (a sea area of the IHO, by its name or its
@@ -711,8 +711,8 @@ def main(argv=None):
 	p.add_argument('--lang', default='en', choices=('en', 'es'))
 	p = sub.add_parser('mcp', help='server MCP (stdio) for language models')
 	p.add_argument('--no-update', action='store_true', help='do not install the last version of GitHub before starting')
-	p = sub.add_parser('assistant', help='AI assistant, in a window of its own (language model of Ollama and '
-	                                     'MCP server)')
+	p = sub.add_parser('assistant', help='AI assistant, in a window of its own (language model of MonitorEO, GLM or '
+	                                     'Ollama, and MCP server)')
 	p.add_argument('--port', type=int, default=8765)
 	p.add_argument('--browser', action='store_true', help='open it in the browser instead of in a window of its own')
 	p.add_argument('--no-browser', action='store_true', help='open neither a window nor the browser (only the server)')

@@ -1022,7 +1022,8 @@ def _broker_module(monkeypatch, **env):
 	import importlib.util
 	monkeypatch.setenv('PUBLIC_SA', 'public@p.iam.gserviceaccount.com')
 	monkeypatch.setenv('EE_PROJECT', 'shared-project')
-	for k in ('GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'CHAT_MODELS', 'CHAT_MODEL', 'CHAT_CHOOSE'):
+	for k in ('GEMINI_API_KEY', 'ANTHROPIC_API_KEY', 'ZAI_API_KEY', 'GLM_MODELS', 'CHAT_MODELS', 'CHAT_MODEL',
+	          'CHAT_CHOOSE'):
 		monkeypatch.delenv(k, raising=False)
 	for k, v in env.items():
 		monkeypatch.setenv(k, v)
@@ -1192,6 +1193,65 @@ def test_broker_without_credit(monkeypatch):
 	assert e.value.answer['code'] == 'busy' and asked[-1] == 'claude-sonnet-5-5'  # only without credit, Gemini
 	monkeypatch.setattr(broker, 'ANTHROPIC_API_KEY', '')
 	assert broker.chat(body, '1.1.1.1', user)['model'] == 'gemini-3.8-flash'  # without the key of Claude
+
+
+def test_broker_glm(monkeypatch):
+	# the backup key of GLM of the assistant: a request that asks for a model of GLM gets it (the users do not choose the
+	# other models), with the key of the secret towards Z.ai only, the messages with only their standard fields and
+	# without thinking; if it is busy, the other free model; without the key of GLM, GLM is not available
+	import io
+	import urllib.error
+	import urllib.request
+	broker = _broker_module(monkeypatch, GEMINI_API_KEY='g', ZAI_API_KEY='z')
+	assert broker.GLM_MODELS == ['glm-4.7-flash', 'glm-4.5-flash'] and broker.model_key('glm-4.5-flash') == 'z'
+	sent, busy = [], set()
+
+	class Answer(io.BytesIO):
+		def __enter__(self):
+			return self
+
+		def __exit__(self, *a):
+			return False
+
+	def urlopen(req, timeout=None):
+		request = json.loads(req.data)
+		sent.append((req.full_url, dict(req.header_items()), request))
+		if request['model'] in busy:
+			raise urllib.error.HTTPError(req.full_url, 429, 'busy', {}, io.BytesIO(
+				json.dumps({'error': {'code': '1305', 'message': 'overloaded'}}).encode()))
+		return Answer(json.dumps({'model': request['model'], 'usage': {'prompt_tokens': 5, 'completion_tokens': 1},
+		                          'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]}).encode())
+	monkeypatch.setattr(urllib.request, 'urlopen', urlopen)
+	user = 'mo-' + 'e' * 16
+	messages = [{'role': 'system', 'content': 'You are the assistant of MonitorEO.'},
+	            {'role': 'user', 'content': 'NDVI'},
+	            {'role': 'assistant', 'content': None, 'extra_content': {'anthropic': {'content': []}},
+	             'tool_calls': [{'id': 'c1', 'type': 'function', 'extra_content': {'google': {}},
+	                             'function': {'name': 'list_variables', 'arguments': '{}'}}]},
+	            {'role': 'tool', 'tool_call_id': 'c1', 'content': 'NDVI…'}]
+	body = json.dumps({'model': 'glm-4.5-flash', 'messages': messages, 'temperature': 0.2,
+	                   'tools': [{'type': 'function', 'function': {'name': 'list_variables'}}]}).encode()
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'glm-4.5-flash'
+	url, headers, request = sent[0]
+	assert url == broker.GLM and headers['Authorization'] == 'Bearer z' and 'g' not in headers['Authorization'][7:]
+	assert request['thinking'] == {'type': 'disabled'} and request['max_tokens'] == broker.CHAT_MAX_TOKENS
+	assert request['messages'][0]['content'] == broker.SCOPE + 'You are the assistant of MonitorEO.'
+	assert request['messages'][2] == {'role': 'assistant', 'content': '', 'tool_calls': [
+		{'id': 'c1', 'type': 'function', 'function': {'name': 'list_variables', 'arguments': '{}'}}]}
+	assert request['messages'][3] == {'role': 'tool', 'content': 'NDVI…', 'tool_call_id': 'c1'}
+	busy.add('glm-4.5-flash')  # busy: the other free model answers
+	assert broker.chat(body, '1.1.1.1', user)['model'] == 'glm-4.7-flash'
+	assert [r['model'] for _, _, r in sent[1:]] == ['glm-4.5-flash', 'glm-4.7-flash']
+	busy.add('glm-4.7-flash')
+	with pytest.raises(broker.ChatError) as e:
+		broker.chat(body, '1.1.1.1', user)
+	assert e.value.answer['code'] == 'busy' and 'GLM (Z.ai) is busy' in e.value.answer['error']
+	monkeypatch.setattr(broker, 'ZAI_API_KEY', '')  # a broker without the key of GLM: no other model instead
+	sent.clear()
+	with pytest.raises(broker.ChatError) as e:
+		broker.chat(body, '1.1.1.1', user)
+	assert e.value.answer == {'code': 'off', 'error': 'GLM (Z.ai) is not available in MonitorEO'} and not sent
+	assert broker.chat(body.replace(b'glm-4.5-flash', b'claude-x'), '1.1.1.1', user)['model'] == 'gemini-3.8-flash'
 
 
 def test_quota_warning_in_the_cli_and_the_mcp_server(monkeypatch, capsys):
