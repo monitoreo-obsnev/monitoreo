@@ -130,7 +130,7 @@ MO.chart = (() => {
 		return {data: {values: data}, height: 280, width: 'container', mark: {type: 'bar'},
 			encoding: Object.assign({
 				x: {field: 'step', type: 'ordinal', sort: steps, scale: {domain: steps}, title: null, axis: {labelOverlap: true}},
-				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || null},
+				y: {field: 'value', type: 'quantitative', title: axisTitle(result)},
 				color,
 				tooltip: [{field: 'date', title: 'Date'}].concat(regions.length > 1 ? [{field: 'region', title: 'Region'}] : [],
 					[{field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
@@ -156,7 +156,7 @@ MO.chart = (() => {
 		const domain = [...new Set(data.map((d) => d.serie).concat(sen.map((d) => d.serie)))];
 		const color = {field: 'serie', type: 'nominal', scale: {domain, range: palette()},
 			legend: domain.length > 1 ? {columns: narrow ? 1 : Math.min(domain.length, 2)} : null};
-		const yTitle = result.ylabel || result.unit || result.call?.args?.variable || null;
+		const yTitle = axisTitle(result);
 		const x = (brush) => ({field: 't', type: 'temporal', title: null, scale: Object.assign({type: 'utc'},
 			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, annual ? {format: '%Y'} : {})});
 		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
@@ -255,7 +255,7 @@ MO.chart = (() => {
 		return {
 			vconcat: [
 				{data: {values: long}, height: 240, width: 'container', layer: [
-					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || result.call?.args?.variable || null}, color}},
+					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: axisTitle(result)}, color}},
 					{mark: {type: 'point', filled: true, size: 55, opacity: 1}, encoding: {x, y: {field: 'value', type: 'quantitative'}, color, tooltip}},
 				]},
 				{data: {values: rows}, height: 120, width: 'container',
@@ -335,6 +335,12 @@ MO.chart = (() => {
 		lim : null;
 	const yScale = (lim) => lim ? {domain: lim, nice: false, zero: false} : {zero: false};
 
+	// The title of the y axis of a chart: the label or the unit of its result, but not a unit that is none
+	// ('[unitless]', in the reports published before), which says nothing: then the variable (NDVI), or FALLBACK
+	const UNITLESS = /^\[?\s*(unitless|none|1)?\s*\]?$/i;
+	const axisTitle = (result, fallback = null) => [result.ylabel, result.unit].find((t) => t && !UNITLESS.test(String(t))) ||
+		result.call?.args?.variable || fallback;
+
 	// The year of a row of a series (of its date)
 	const yearOf = (r) => String(r.date).slice(0, 4);
 
@@ -355,7 +361,7 @@ MO.chart = (() => {
 			mark: {type: 'line', point: {size: 18}, clip: Boolean(lim)},
 			encoding: {
 				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
-				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: yScale(lim)},
+				y: {field: 'value', type: 'quantitative', title: axisTitle(result, 'Value'), scale: yScale(lim)},
 				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true, domain: all},
 					legend: {values: [...new Set(data.map((r) => r.year))].sort()}},  // only the years shown
 				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
@@ -438,7 +444,7 @@ MO.chart = (() => {
 							scale: {zero: false}}}},
 				{mark: {type: 'line', point: true, color: '#1f77b4'},
 					encoding: {x: {field: 'km', type: 'quantitative'},
-						y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value',
+						y: {field: 'value', type: 'quantitative', title: axisTitle(result, 'Value'),
 							scale: {zero: false}},
 						tooltip: [{field: 'km', title: 'km', format: '.2f'}, {field: 'value', title: 'Value', format: '.4~g'},
 							{field: 'elevation', title: 'Elevation (m)', format: '.0f'}]}},
@@ -460,7 +466,7 @@ MO.chart = (() => {
 		const spread = band && `Percentiles ${band[0].slice(1)} to ${band[1].slice(1)}`;
 		const scale = {domain: band ? [name, spread] : [name], range: [palette()[0], '#9e9e9e']};
 		const layer = [{mark: {type: 'line', point: true}, encoding: {x,
-			y: {field: mid, type: 'quantitative', title: result.ylabel || result.unit || mid, scale: {zero: false}},
+			y: {field: mid, type: 'quantitative', title: axisTitle(result, mid), scale: {zero: false}},
 			color: {datum: name, scale},
 			tooltip: [{field: 'zone_label', title: 'Zone'}, {field: mid, title: name, format: '.4~g'},
 				...(band || []).map((s) => ({field: s, title: COLUMNS[s] || s, format: '.4~g'})),

@@ -42,6 +42,7 @@ written, in their language:
         result: {file: trend.tif, min: -0.002, max: 0.002, palette: [...]}
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
         basemap: osm                      # the base map of this map (default: that of the report)
+        view: [-3.42, 37.03, -3.30, 37.10] # where the map opens, and its image in the catalogue (default: all of it)
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -701,18 +702,16 @@ def _colours(values, legend):
 NOT_SIGNIFICANT = '#dcdbd6'  # pixels without a significant trend
 
 
-def _orthophoto(ds, width, height, timeout=30):
-	"""The PNOA orthophoto of the Instituto Geográfico Nacional of Spain (its WMS) on the grid of the dataset DS drawn
-	at WIDTH x HEIGHT pixels: an array of height x width x 3 (uint8), or None if it cannot be had (no network, the
-	service down; outside Spain it is white)."""
+def _orthophoto(wkt, extent, width, height, timeout=30):
+	"""The PNOA orthophoto of the Instituto Geográfico Nacional of Spain (its WMS) on EXTENT (x0, y0, x1, y1) of the CRS
+	WKT drawn at WIDTH x HEIGHT pixels: an array of height x width x 3 (uint8), or None if it cannot be had (no network,
+	the service down; outside Spain it is white)."""
 	import urllib.parse
 	import urllib.request
 	import numpy as np
 	gdal, osr = _gdal()
-	gt = ds.GetGeoTransform()
-	x0, x1 = gt[0], gt[0] + gt[1] * ds.RasterXSize
-	y1, y0 = gt[3], gt[3] + gt[5] * ds.RasterYSize
-	src = osr.SpatialReference(wkt=ds.GetProjection())
+	x0, y0, x1, y1 = extent
+	src = osr.SpatialReference(wkt=wkt)
 	web = osr.SpatialReference()
 	web.ImportFromEPSG(3857)
 	for srs in (src, web):
@@ -742,7 +741,7 @@ def _orthophoto(ds, width, height, timeout=30):
 		mem = gdal.GetDriverByName('MEM').CreateCopy('', img)
 		mem.SetGeoTransform([w, (e - w) / big_w, 0, n, 0, -(n - s) / big_h])
 		mem.SetProjection(web.ExportToWkt())
-		out = gdal.Warp('', mem, format='MEM', dstSRS=ds.GetProjection(), outputBounds=(x0, y0, x1, y1), width=width,
+		out = gdal.Warp('', mem, format='MEM', dstSRS=wkt, outputBounds=(x0, y0, x1, y1), width=width,
 		                height=height, resampleAlg='bilinear')
 		return np.dstack([out.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3)]).astype('uint8')
 	except RuntimeError:
@@ -751,19 +750,44 @@ def _orthophoto(ds, width, height, timeout=30):
 		gdal.Unlink(name)
 
 
+def _window(ds, view):
+	"""(column, row, columns, rows) of the pixels of the dataset DS inside VIEW ([west, south, east, north] in degrees),
+	or of all of them without a VIEW or if none is inside."""
+	whole = (0, 0, ds.RasterXSize, ds.RasterYSize)
+	if not view:
+		return whole
+	_, osr = _gdal()
+	geo = osr.SpatialReference()
+	geo.ImportFromEPSG(4326)
+	dst = osr.SpatialReference(wkt=ds.GetProjection())
+	for srs in (geo, dst):
+		srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+	tr = osr.CoordinateTransformation(geo, dst)
+	w, s, e, n = view
+	pts = [tr.TransformPoint(w + (e - w) * i / 4, s + (n - s) * j / 4)[:2] for i in range(5) for j in range(5)]
+	gt = ds.GetGeoTransform()
+	cols = [(x - gt[0]) / gt[1] for x, _ in pts]
+	rows = [(y - gt[3]) / gt[5] for _, y in pts]
+	c0, c1 = max(0, int(min(cols))), min(ds.RasterXSize, int(math.ceil(max(cols))))
+	r0, r1 = max(0, int(min(rows))), min(ds.RasterYSize, int(math.ceil(max(rows))))
+	return (c0, r0, c1 - c0, r1 - r0) if c1 > c0 and r1 > r0 else whole
+
+
 def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
 	"""The image of the catalogue of a map: its main band with the colours of its legend (grey where its trend is not
-	significant), over the PNOA orthophoto if it is its base map (basemap pnoa; without network, as without it).
-	Returns whether it has the orthophoto."""
+	significant), of its initial view if it has one (view), over the PNOA orthophoto if it is its base map (basemap
+	pnoa; without network, as without it). Returns whether it has the orthophoto."""
 	import numpy as np
 	gdal, _ = _gdal()
 	ds = gdal.Open(cog)
-	h = max(1, round(ds.RasterYSize * width / ds.RasterXSize))
+	c0, r0, nc, nr = _window(ds, entry.get('view'))
+	h = max(1, round(nr * width / nc))
 	names = [b['name'] for b in entry['bands']]
 
 	def read(name):
 		b = ds.GetRasterBand(names.index(name) + 1)
-		a = b.ReadAsArray(buf_xsize=width, buf_ysize=h, resample_alg=gdal.GRIORA_NearestNeighbour).astype('float64')
+		a = b.ReadAsArray(c0, r0, nc, nr, buf_xsize=width, buf_ysize=h,
+		                  resample_alg=gdal.GRIORA_NearestNeighbour).astype('float64')
 		if b.GetNoDataValue() is not None:
 			a[a == b.GetNoDataValue()] = np.nan
 		return a
@@ -776,7 +800,9 @@ def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
 		p = read(sig['band'])
 		grey = [int(NOT_SIGNIFICANT[i:i + 2], 16) for i in (1, 3, 5)] + [255]
 		rgba[np.isfinite(values) & ~(p < sig['alpha'])] = grey
-	ortho = _orthophoto(ds, width, h) if entry.get('basemap') == 'pnoa' else None
+	gt = ds.GetGeoTransform()
+	extent = (gt[0] + c0 * gt[1], gt[3] + (r0 + nr) * gt[5], gt[0] + (c0 + nc) * gt[1], gt[3] + r0 * gt[5])
+	ortho = _orthophoto(ds.GetProjection(), extent, width, h) if entry.get('basemap') == 'pnoa' else None
 	if ortho is not None:  # the map over the orthophoto, with the opacity of the map of the viewer (MAP_OPACITY)
 		a = rgba[..., 3:4].astype('float64') / 255 * MAP_OPACITY
 		rgb = ortho * (1 - a) + rgba[..., :3] * a
@@ -1125,6 +1151,20 @@ def basemap_of(value=None):
 	return key
 
 
+def view_of(value=None):
+	"""The initial view of a map of a report, [west, south, east, north] in degrees (e.g. a part of the area where
+	its small patches are seen), or None (the whole map); ValueError if it is not a box."""
+	if value is None:
+		return None
+	try:
+		w, s, e, n = [float(v) for v in value]
+	except (TypeError, ValueError):
+		raise ValueError(f'a view is [west, south, east, north] in degrees: {value}') from None
+	if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
+		raise ValueError(f'a view is [west, south, east, north] in degrees: {value}')
+	return [w, s, e, n]
+
+
 def tags_of(value=None):
 	"""The tags of a report (a text or a list of texts, e.g. the project, PRESINMED), without repetitions; ValueError
 	for a tag that is empty, longer than 40 characters or with < or >."""
@@ -1149,9 +1189,12 @@ def build(spec, rid, base, folders, log, folder):
 	for it, nums in zip(items, numbers):
 		links = manual_links(it.get('args'), it.get('result'))  # what each variable is: its section of the wiki
 		basemap = basemap_of(it.get('basemap') or spec.get('basemap'))
+		view = view_of(it.get('view') or spec.get('view'))
 		for r in _results(it, files, len(results)):
 			if r['kind'] == 'map':
 				r['basemap'] = basemap
+				if view:
+					r['view'] = view
 			r['references'] = nums  # numbers (from 1) of its references in those of the report
 			if links:
 				r['manual'] = [{k: link.get(k) for k in ('variable', 'title', 'url', 'url_es')} for link in links]
@@ -1230,8 +1273,9 @@ def publish(spec, site=None, base=None, log=None):
 		raise ValueError(f'the id of a report has lowercase letters, digits and hyphens: {rid}')
 	license_of(spec.get('license'))
 	tags_of(spec.get('tags'))
-	for b in [spec.get('basemap')] + [it.get('basemap') for it in _list(spec.get('results')) if isinstance(it, dict)]:
-		basemap_of(b)  # before writing anything
+	for it in [spec] + [it for it in _list(spec.get('results')) if isinstance(it, dict)]:
+		basemap_of(it.get('basemap'))  # before writing anything
+		view_of(it.get('view'))
 	folders = [_path(p, base) for p in _list(spec.get('files'))]
 	reports = os.path.join(site, 'reports')
 	os.makedirs(reports, exist_ok=True)
@@ -1434,6 +1478,11 @@ def check_report(report, folder=None):
 		if r.get('kind') == 'map':
 			if r.get('basemap') is not None and r['basemap'] not in BASEMAPS:  # none before the base maps
 				p.append(f"{where}: its basemap is one of {', '.join(BASEMAPS)}")
+			if r.get('view') is not None:
+				try:
+					view_of(r['view'])
+				except ValueError:
+					p.append(f'{where}: its view is [west, south, east, north] in degrees')
 			missing = [f'{where}: no {k}' for k in ('cog', 'crs', 'proj4', 'bounds', 'extent', 'size', 'bands', 'band')
 			           if not r.get(k)]
 			if missing:

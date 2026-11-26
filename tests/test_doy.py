@@ -230,16 +230,19 @@ vm.runInThisContext(fs.readFileSync(process.argv[process.argv.length - 1], 'utf8
 var tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
 var last = function () { return specs[specs.length - 1]; };
 var years = function (s) { return Array.from(new Set(s.data.values.map(function (r) { return r.year; }))); };
-MO.chart.render(el('div'), {id: 'r', chart: 'doy', csv: 'series.csv', ylabel: 'NDVI'}, '').then(async function () {
+MO.chart.render(el('div'), {id: 'r', chart: 'doy', csv: 'series.csv', ylabel: '[unitless]', unit: '',
+	call: {args: {variable: 'NDVI'}}}, '').then(async function () {
 	var boxes = made.filter(function (e) { return e.tag === 'input' && e.attrs.type === 'checkbox'; });
 	var button = function (t) { return made.find(function (e) { return e.tag === 'button' && e.children[0] === t; }); };
 	var chart = made.find(function (e) { return e.attrs.class === 'chart'; });
 	var out = {boxes: boxes.map(function (b) { return b.attrs.value; }), first: years(last()),
-		domain: last().encoding.color.scale.domain};
+		domain: last().encoding.color.scale.domain, legend: last().encoding.color.legend.values,
+		y: last().encoding.y.title};
 	boxes[0].attrs.onchange({target: {checked: false}});
 	await tick();
 	out.without = years(last());
 	out.domain_without = last().encoding.color.scale.domain;
+	out.legend_without = last().encoding.color.legend.values;
 	button('None').attrs.onclick();
 	await tick();
 	out.none = chart.children.map(function (c) { return c.attrs && c.attrs.class; });
@@ -266,5 +269,7 @@ def test_the_viewer_lets_the_reader_choose_the_years(tmp_path):
 	out = json.loads(run.stdout.strip().splitlines()[-1])
 	assert out['boxes'] == ['2023', '2024'] and out['first'] == ['2023', '2024']
 	assert out['without'] == ['2024'] and out['domain_without'] == out['domain'] == ['2023', '2024']
+	assert out['legend'] == ['2023', '2024'] and out['legend_without'] == ['2024']  # the legend, of those shown
+	assert out['y'] == 'NDVI'  # the variable, not '[unitless]' (the label of the reports published before)
 	assert out['none'] == ['empty']  # 'Choose one or more years.'
 	assert out['all'] == ['2023', '2024'] and out['checked'] == [True, True]

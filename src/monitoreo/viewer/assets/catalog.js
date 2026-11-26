@@ -1,6 +1,7 @@
 // Catalogue of the reports (catalog.json): a card per report, with filters by park, variable, analysis, year of the
-// data and tag (e.g. the project of a report, PRESINMED) and a search box. The filters are kept in the address (?area=...&year=...), to share a selection; the
-// addresses of the viewer in Spanish (?parque=...&analisis=...&anio=...) are read too.
+// data and tag (e.g. the project of a report, PRESINMED) and a search box. The filters are kept in the address
+// (?area=...&year=...&tag=...), to share a selection; the addresses of the viewer in Spanish
+// (?parque=...&analisis=...&anio=...) are read too.
 'use strict';
 
 (async () => {

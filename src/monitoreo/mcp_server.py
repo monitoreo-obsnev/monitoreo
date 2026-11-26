@@ -1219,7 +1219,7 @@ def publish_report(title: str, summary: str, files: List[str], question: Optiona
                    answer: Optional[str] = None, method: Optional[str] = None, region: Optional[dict] = None,
                    authors: Optional[List[str]] = None, downloads: Optional[List[str]] = None,
                    report_id: Optional[str] = None, site: Optional[str] = None, tags: Optional[List[str]] = None,
-                   basemap: Optional[str] = None) -> str:
+                   basemap: Optional[str] = None, view: Optional[List[float]] = None) -> str:
 	"""For the administrators of the viewer of results of MonitorEO: publish an analysis as a report of the static
 	web site in the folder site (default: MONITOREO_SITE or ~/MonitorEO/visor). files: the GeoTIFF, CSV and figure
 	files written by the other tools (download_trend, download_comparison, download_image, burn_severity, time_series,
@@ -1229,12 +1229,14 @@ def publish_report(title: str, summary: str, files: List[str], question: Optiona
 	paragraphs separated by a blank line), method; region: {"name": ..., "wdpa_id": ...}; downloads: other files (a
 	PDF); tags: short labels that the catalogue filters by (e.g. the project, ["PRESINMED"]); basemap: the base map
 	of its maps, "osm" (OpenStreetMap, default), "pnoa" (the orthophoto of Spain, also under its image in the
-	catalogue) or "none". The GeoTIFFs become Cloud Optimized GeoTIFFs and the site gets the report, the viewer and its catalogue. It
-	is public only when an administrator deploys the folder (git push to the repository of the site, or rsync to its
-	server); `monitoreo serve` shows it on this computer."""
+	catalogue) or "none"; view: where its maps open, [west, south, east, north] in degrees (e.g. where small
+	patches are seen; also the part of the map in its image of the catalogue). The GeoTIFFs become Cloud Optimized
+	GeoTIFFs and the site gets the report, the viewer and its catalogue. It is public only when an administrator
+	deploys the folder (git push to the repository of the site, or rsync to its server); `monitoreo serve` shows it
+	on this computer."""
 	spec = {'title': title, 'summary': summary, 'question': question, 'answer': answer, 'method': method,
 	        'region': region, 'authors': authors, 'downloads': downloads, 'results': list(files), 'tags': tags,
-	        'basemap': basemap}
+	        'basemap': basemap, 'view': view}
 	if report_id:
 		spec['id'] = report_id
 	res = services.publish_report({k: v for k, v in spec.items() if v is not None}, site, OUTPUT,

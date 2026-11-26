@@ -228,7 +228,7 @@ def test_tags_and_the_orthophoto(outputs, monkeypatch):
 	import numpy as np
 	asked = []
 
-	def ortho(ds, width, height, timeout=30):
+	def ortho(wkt, extent, width, height, timeout=30):
 		asked.append((width, height))
 		return np.full((height, width, 3), (10, 20, 30), dtype='uint8')
 
@@ -255,7 +255,18 @@ def test_tags_and_the_orthophoto(outputs, monkeypatch):
 	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and not asked
 	assert publish.PNOA_CREDIT not in r['credits']
 	r = publish.publish(_spec(), site, outputs, log='')
-	assert r['tags'] == [] and r['results'][0]['basemap'] == 'osm'
+	assert r['tags'] == [] and r['results'][0]['basemap'] == 'osm' and 'view' not in r['results'][0]
+
+	# a view: the map opens there, and its image in the catalogue is that part of it
+	asked.clear()
+	view = [-3.55, 37.105, -3.52, 37.125]
+	r = publish.publish(_spec(basemap='pnoa', view=view), site, outputs, log='')
+	assert r['results'][0]['view'] == view and publish.check_report(r, str(folder)) == []
+	(w, h), = asked
+	assert w == publish.THUMBNAIL_WIDTH and h != round(15 * w / 20)  # not the shape of the whole map
+	png = gdal.Open(str(folder / 'thumbnail.png'))
+	assert (png.RasterXSize, png.RasterYSize) == (w, h)
+	png = None
 
 	# wrong values: nothing is published
 	with pytest.raises(ValueError, match='basemap'):
@@ -265,15 +276,19 @@ def test_tags_and_the_orthophoto(outputs, monkeypatch):
 		                log='')
 	with pytest.raises(ValueError, match='tag'):
 		publish.publish(_spec(id='otro', tags=['<b>PRESINMED</b>']), site, outputs, log='')
+	with pytest.raises(ValueError, match='view'):
+		publish.publish(_spec(id='otro', view=[-3.5, 37.2, -3.6, 37.1]), site, outputs, log='')
 	assert not (site / 'reports' / 'otro').exists()
 	bad = json.loads(json.dumps(r))
 	bad['tags'] = 'PRESINMED'
 	bad['results'][0]['basemap'] = 'google'
+	bad['results'][0]['view'] = [10, 50]
 	problems = ' | '.join(publish.check_report(bad, str(site / 'reports' / r['id'])))
 	assert 'tags is a list' in problems and 'its basemap is one of osm, pnoa, none' in problems
+	assert 'its view is [west, south, east, north]' in problems
 	# a report published before the tags and the base maps is still right
 	old = json.loads(json.dumps(r))
-	del old['tags'], old['results'][0]['basemap']
+	del old['tags'], old['results'][0]['basemap'], old['results'][0]['view']
 	assert publish.check_report(old, str(site / 'reports' / r['id'])) == []
 
 
@@ -286,7 +301,9 @@ def test_the_orthophoto_without_network(tmp_path, monkeypatch):
 
 	monkeypatch.setattr(urllib.request, 'urlopen', down)
 	ds = gdal.Open(_tif(tmp_path / 'm.tif', ['value'], [0.5]))
-	assert publish._orthophoto(ds, 40, 30) is None
+	assert publish._orthophoto(ds.GetProjection(), (450000, 4106250, 455000, 4110000), 40, 30) is None
+	assert publish._window(ds, None) == (0, 0, 20, 15)
+	assert publish._window(ds, [10, 50, 11, 51]) == (0, 0, 20, 15)  # a view outside the map: all of it
 
 def test_problems(outputs):
 	site = outputs / 'site'

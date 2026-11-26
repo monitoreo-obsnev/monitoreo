@@ -99,6 +99,8 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer, MCP server, Python package, Command line**: A report can have tags (`tags`, e.g. PRESINMED): they appear on its card and on its page, and the catalogue has a Tag filter (`?tag=PRESINMED`).
 - **Results viewer, MCP server, Python package, Command line**: A report can open its maps over the PNOA orthophoto (`basemap: pnoa`, or `none`; OpenStreetMap by default), and its image in the catalogue is then its map over the orthophoto.
 - **Results viewer**: A chart with a line per year has a checkbox for each year (and All, None) to show only some of them, each with its own colour.
+- **Results viewer, MCP server, Python package, Command line**: A map can open on a part of it (`view: [west, south, east, north]`), e.g. where small patches are seen, and its image in the catalogue is that part.
+- **Results viewer** (fix): The y axis of a chart of a variable without unit (NDVI) is titled with the variable instead of «[unitless]».
 
 ### [v0.3.73](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.73) · 2026-11-25 · package 0.3.83
 

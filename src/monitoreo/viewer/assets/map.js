@@ -177,6 +177,9 @@ MO.map = (() => {
 		legend(box, result, band, dim);
 
 		const extent = ol.proj.transformExtent(result.bounds, 'EPSG:4326', 'EPSG:3857');
+		// where it opens: its view if the report gave one (a part of the map, e.g. where small patches are seen), else all
+		const start = Array.isArray(result.view) && result.view.length === 4 ?
+			ol.proj.transformExtent(result.view, 'EPSG:4326', 'EPSG:3857') : extent;
 		let map;
 		try {
 			map = new ol.Map({
@@ -201,7 +204,7 @@ MO.map = (() => {
 			const size = map.getSize();
 			if (fitted || !size || !size[0] || !size[1]) return;
 			fitted = true;
-			map.getView().fit(extent, {padding: [16, 16, 16, 16]});
+			map.getView().fit(start, {padding: [16, 16, 16, 16]});
 		};
 		map.on('change:size', fit);
 		fit();
