@@ -94,9 +94,9 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.74](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.74) · 2026-11-26 · package 0.3.84
 
-- **Assistant**: GLM (Z.ai) is the second language model: with the new choice Automatic (by default), if the model of MonitorEO does not answer, GLM answers, and then the model on this computer, with a notice in the conversation. GLM works with the backup key of MonitorEO or with your own free key of Z.ai (Settings, with a guide to get one and its limits); if its free model is busy, the other one answers.
+- **Assistant**: GLM (Z.ai) is the second language model: with the new choice Automatic (by default), if the model of MonitorEO does not answer, GLM answers, and then the model on this computer, with a notice in the conversation. GLM works with your own free key of Z.ai (Settings, with a guide to get one and its limits) and, without it, with the backup key of MonitorEO in its server, when that key is set; if its free model is busy, the other one answers.
 
 ### [v0.3.73](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.73) · 2026-11-25 · package 0.3.83
 
