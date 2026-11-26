@@ -70,14 +70,20 @@ warning that begins with «where, the condition on ...» is about the variable o
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
 LSWI, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
-frequency, snow cover days) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow,
+frequency, snow cover days, snow melt-out day) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow,
 aerosols). The snow cover frequency (SCF, Sentinel-2, Landsat and MODIS) is the % of the clear observations of each
 pixel with snow: always with metric "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the
 quality). The snow cover days (SCD, Sentinel-2, Landsat and MODIS) are the days with snow of each pixel, from the same
 images (the SCF of each month times its days, summed): always with metric "days", the same fixed filters; their
 time_series chart has a bar per step (with step "daily", a bar per day with images: the share of its clear pixels with
 snow, 0 to 1 day); with temporal "period", the mean
-days of each season (or of each 12 months without a season). An estimate: better with more images (n_images). The elevation and the slope
+days of each season (or of each 12 months without a season). An estimate: better with more images (n_images). The
+snow melt-out day (SMOD, Sentinel-2, Landsat and MODIS) is the day of the year (1 = 1 January) of the first clear image
+without snow after the last one with snow, in each season of each year (by default 1 January to 31 August; a season
+must end before the snowfalls of autumn), from the same images: always with metric "melt", the same fixed filters and
+shadows of the relief; one per year: time_series and trends with step "annual" (Sen's slope in days per year, negative
+is earlier), maps with temporal "period" (the mean day of the years) or "annual"; no monthly, 16-day or daily steps. A
+pixel without snow in the season takes the day of its first clear image; one whose snow does not go has no data. The elevation and the slope
 (variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
 series, trends or comparisons. The topographic wetness index (variable TWI, sensor "MERIT Hydro": ln(a / tan β) of
@@ -92,11 +98,11 @@ before the formula (SCS+C, Soenen et al. 2005, with the slope and aspect of the 
 facing the sun look brighter, and those facing away darker, than the same cover on flat ground. Off by default; use it
 in mountains (slopes of more than 5 degrees), above all to compare slopes of different aspect or dates with a low sun
 (winter), not on flat land, for water (NDWI) or snow. Not for Sentinel-2 (its Level-2A, Sen2Cor, is already
-corrected), LST, SCF, SCD, CF, MODIS or the climate (an error says so). It costs more in Earth Engine.
+corrected), LST, SCF, SCD, SMOD, CF, MODIS or the climate (an error says so). It costs more in Earth Engine.
 Snow by its NDSI: quality {"snow_ndsi": 0.4}, with the snow filter on, also removes from each image of Sentinel-2 and
 Landsat the pixels whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more: the patches and edges of snow that the QA
 band (SCL, QA_PIXEL) misses, which raise the standard deviation or the minimum of a moisture index (NDMI, LSWI) in
-mountains. Off by default; not for the NDSI, SCF and SCD (snow), MODIS or the data by their ID (an error says so), and
+mountains. Off by default; not for the NDSI, SCF, SCD and SMOD (snow), MODIS or the data by their ID (an error says so), and
 not applied to the variables that measure water (NDWI, Chl-a, NDCI, WAVI: open water has a high NDSI too).
 Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,

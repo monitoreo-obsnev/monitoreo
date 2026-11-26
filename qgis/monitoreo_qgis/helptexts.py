@@ -360,6 +360,8 @@ HELP = {
 		'<p>The <b>snow cover days</b> (SCD) are drawn with a bar per step, over their table: with Annual and a season, '
 		'the days of each season; with Daily, a bar per day with images, the share of its clear pixels with snow (0 to '
 		'1 day).</p>'
+		'<p>The <b>snow melt-out day</b> (SMOD) has one value per year (or season of each year): its step is always '
+		'<b>Annual</b>.</p>'
 		+ manual('Concepts#from-the-pile-of-images-to-a-number-metric-and-statistic'),
 	'ts_metric':
 		'<p>How the images of each step are summarized on each pixel: with the step Monthly and <b>Mean</b>, the mean '
@@ -400,7 +402,7 @@ HELP = {
 		'and the vegetation greens. It is computed as the first one: the same region, period, season, step, metric of '
 		'each step, statistic of the region, pixel filters and pixels (<b>Only the pixels where</b> and the land cover '
 		'mask), with its own rules (the snow and cloud cover frequencies, SCF and CF, only take the metric Mean, and the '
-		'snow cover days, SCD, the metric Days). Each '
+		'snow cover days, SCD, the metric Days, and the snow melt-out day, SMOD, the metric Melt-out day). Each '
 		'variable takes the filters you chose, without that of what it measures: with the NDSI and the NDVI, the NDSI '
 		'keeps its snow and the NDVI is computed without it, on either axis. With the SCF or the CF in the panel, whose '
 		'filters are fixed (greyed out), the filters checked before choosing them. When '

@@ -30,6 +30,12 @@ of a year or less is one span, and gives its days; one of several years, the mea
 '16-day' they are the sum of the calendar months (those of a season), not their mean. Every reduction of the images of a window goes through reduce_span, which knows
 them.
 
+The snow melt-out day (metric 'melt', the only metric of the variable SMOD) is not a reducer of the images either:
+in each season of each year it is the day of the year of the first clear image without snow after the last one with
+snow (see melt). It is one per season: with temporal = 'period' it is the mean of those of the seasons of the period;
+with 'annual', the interannual metric of them; 'monthly' and '16-day' are refused, and so are the steps of a time
+series, a trend or an animation shorter than a year (check_step). Without a season, that of MELT_SEASON.
+
 The period is [first day, last day] (both included). A season ['MM-DD', 'MM-DD'] keeps only those days of each year;
 it can cross the new year (['11-01', '02-28']), and then it belongs to the year in which it starts.
 """
@@ -44,6 +50,12 @@ TEMPORAL = ('period', 'annual', 'monthly', '16-day')
 METRICS = ('mean, median, mode, min, max, sum, std (standard deviation), cv (coefficient of variation, %), count or '
            'pN (percentile N, e.g. p95, p2.5)')
 DAYS = 'days'  # the snow cover days, the only metric of the variable SCD (see the docstring and days)
+MELT = 'melt'  # the snow melt-out day, the only metric of the variable SMOD (see the docstring and melt)
+# the season of the snow melt-out day when none is given: from 1 January, so that the melt of the low mountain
+# (February) is seen, to 31 August, before the first snowfalls of autumn would be taken for the last snow of spring
+MELT_SEASON = ['01-01', '08-31']
+# the metrics of one variable, that the others do not take: what each one is, for the errors (see variable.specs)
+ONLY = {DAYS: 'that of the snow cover days (variable SCD)', MELT: 'that of the snow melt-out day (variable SMOD)'}
 SIMPLE = ('mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'cv', 'count')
 RGB_METRICS = 'mean, median, min, max or pN'  # the metrics of the true colour (see the docstring)
 MOSAICS = ('max', 'min')  # the metrics of the true colour taken from one image (qualityMosaic)
@@ -66,6 +78,24 @@ def is_days(metric):
 	return isinstance(metric, str) and _low(metric) == DAYS
 
 
+def is_melt(metric):
+	"""Whether METRIC is that of the snow melt-out day ('melt', see melt)."""
+	return isinstance(metric, str) and _low(metric) == MELT
+
+
+def is_only(metric):
+	"""Whether METRIC is the only metric of one variable, that the others do not take (ONLY: 'days', 'melt')."""
+	return isinstance(metric, str) and _low(metric) in ONLY
+
+
+def check_step(metric, step):
+	"""Raise ValueError if METRIC is that of the snow melt-out day ('melt'), one per season of each year, and STEP
+	(of a time series, a trend, an animation, or the temporal aggregation of a map) is shorter than a year."""
+	if is_melt(metric) and step not in ('annual', 'period'):
+		raise ValueError(f"the snow melt-out day (metric '{MELT}') is one per year (or season of each year): use "
+		                 f"the step 'annual' (temporal 'annual' or 'period' for a map), not '{step}'")
+
+
 def reducer(metric):
 	"""Earth Engine reducer of a metric. That of the coefficient of variation ('cv') is that of the mean and the
 	standard deviation (outputs mean and stdDev), from which it is computed (see cv and value_of)."""
@@ -84,10 +114,11 @@ def reducer(metric):
 
 
 def check_metric(metric):
-	"""Raise ValueError if METRIC is not valid (without Earth Engine). 'days' is only a metric of the images of the
-	snow cover days (variable.specs refuses it for the other variables and between the years)."""
+	"""Raise ValueError if METRIC is not valid (without Earth Engine). 'days' and 'melt' are only metrics of the images
+	of the snow cover days and of the snow melt-out day (variable.specs refuses them for the other variables and
+	between the years)."""
 	m = _low(metric)
-	if m in SIMPLE or m == DAYS:
+	if m in SIMPLE or m in ONLY:
 		return
 	p = re.fullmatch(r'p(\d+(?:\.\d+)?)', m)
 	if not (p and 0 <= float(p.group(1)) <= 100):
@@ -265,6 +296,34 @@ def days(col, start, end):
 	return weighted.divide(observed).multiply((end - start).days).updateMask(observed.gt(0)).toFloat().rename('value')
 
 
+SNOW = 50  # an image of the snow (100 = snow, 0 = no snow) has snow from 50 up: its pixels averaged at a coarser scale
+
+
+def melt(col, start, end):
+	"""ee.Image ('value') of the snow melt-out day of the images of COL (each 100 = snow, 0 = no snow, masked
+	without a clear observation) between START and END (dates or 'YYYY-MM-DD', END excluded): the day of the year (1 =
+	1 January of the year of the last day of the window, so that a season across the new year counts from the 1 January
+	of its spring; the days before it are 0 or negative) of the first image without snow after the last image with snow.
+	With no image with snow, that of the first image without snow (the snow had gone before the window, or there was
+	none); masked where no image after the last one with snow is clear of snow (the snow did not go in the window) or
+	no image is clear. A day with snow is one whose image is SNOW or more."""
+	start, end = _day(start), _day(end)
+	jan1 = ee.Date(_iso(dt.date((end - dt.timedelta(days=1)).year, 1, 1)))
+	col = col.filterDate(_iso(start), _iso(end))
+
+	def day(img):  # the day of the year of the image where it has snow (band snow) and where it has none (free)
+		img = ee.Image(img)
+		value = img.select('value')
+		doy = ee.Image.constant(ee.Date(img.get('system:time_start')).difference(jan1, 'day').floor().add(1)).toFloat()
+		return doy.updateMask(value.gte(SNOW)).rename('snow').addBands(doy.updateMask(value.lt(SNOW)).rename('free'))
+
+	days_of = col.map(day)
+	last = days_of.select('snow').max().unmask(-1e6)  # no image with snow: before every image
+	after = days_of.select('free').map(lambda i: ee.Image(i).updateMask(ee.Image(i).gt(last)))
+	empty = ee.Image.constant(0).toFloat().rename('value').updateMask(0)
+	return ee.Image(ee.Algorithms.If(col.size().gt(0), after.min().toFloat().rename('value'), empty))
+
+
 def spans(period, season=None):
 	"""(first day, day after the last) of the spans over which the snow cover days of PERIOD are averaged with temporal
 	'period' (see the docstring): its seasons, or, without a season, the spans of 12 months from its first day (the
@@ -282,12 +341,12 @@ def spans(period, season=None):
 
 def reduce_span(col, metric, start, end, bands=('value',), mosaic=None):
 	"""Image of the images of COL between START and END (dates or 'YYYY-MM-DD', END excluded) reduced with METRIC (see
-	_reduce), or, for the snow cover days ('days'), their days (see days): the reduction of the images of a window, in
-	every tool (maps, series, trends, animations)."""
-	if is_days(metric):
+	_reduce), or, for the snow cover days ('days'), their days (see days), and for the snow melt-out day ('melt'),
+	its day (see melt): the reduction of the images of a window, in every tool (maps, series, trends, animations)."""
+	if is_days(metric) or is_melt(metric):
 		if len(tuple(bands)) > 1:
-			raise ValueError('the snow cover days have no true colour')
-		return days(col, start, end)
+			raise ValueError(f"the snow {'cover days have' if is_days(metric) else 'melt-out day has'} no true colour")
+		return days(col, start, end) if is_days(metric) else melt(col, start, end)
 	return _reduce(col.filterDate(_iso(_day(start)), _iso(_day(end))), metric, bands, mosaic)
 
 
@@ -310,12 +369,15 @@ def composite(col, metric, temporal='period', interannual='mean', period=None, s
 	if temporal not in TEMPORAL:
 		raise ValueError(f"unknown temporal aggregation {temporal}: use {', '.join(TEMPORAL)}")
 	bands = tuple(bands)
-	wins = windows(period, season)
 	check_metric(metric)
+	check_step(metric, temporal)
+	season = season or (MELT_SEASON if is_melt(metric) else None)
+	wins = windows(period, season)
 	red, mosaic = metric, _mosaic(metric, bands)
 	if temporal == 'period':
-		if is_days(metric):  # the snow cover days: the mean of those of each season or year (see the docstring)
-			return _reduce(ee.ImageCollection.fromImages([days(col, a, b) for a, b in spans(period, season)]), 'mean')
+		if is_days(metric) or is_melt(metric):  # the mean of those of each season or year (see the docstring)
+			each = [reduce_span(col, metric, a, b, bands) for a, b in spans(period, season)]
+			return _reduce(ee.ImageCollection.fromImages(each), 'mean')
 		return _reduce(col.filter(date_filter(wins)), red, bands, mosaic)
 	check_metric(interannual)
 	red2, mosaic2 = interannual, _mosaic(interannual, bands)

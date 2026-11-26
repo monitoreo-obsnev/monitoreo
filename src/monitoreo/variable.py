@@ -277,15 +277,18 @@ def specs(var, defaults=None, two_periods=False):
 			why = e.get('notes', {}).get('metric')
 			raise ValueError(f"{e['index']} ({e['sensor']}) only takes the metric '{only}'{f': {why}' if why else ''}. "
 			                 f"Use metric '{only}' (the metric between years, interannual, can be any)")
-		if only != composite.DAYS and any(composite.is_days(m) for m in metrics):  # see composite.days
-			what = f"{e['index']} ({e['sensor']})" if e else (base.get('name') or _default_name(base))
-			raise ValueError(f"the metric '{composite.DAYS}' is that of the snow cover days (variable SCD): {what} "
-			                 f"does not take it")
-		if base['temporal'] != 'period' and composite.is_days(base['interannual']):
-			raise ValueError(f"the metric '{composite.DAYS}' is not a metric between the years (interannual): use "
-			                 f"mean, median, min, max...")
+		for special, what_is in composite.ONLY.items():  # see composite.days and composite.melt
+			if only != special and any(str(m).strip().lower() == special for m in metrics):
+				what = f"{e['index']} ({e['sensor']})" if e else (base.get('name') or _default_name(base))
+				raise ValueError(f"the metric '{special}' is {what_is}: {what} does not take it")
+		if base['temporal'] != 'period' and composite.is_only(base['interannual']):
+			raise ValueError(f"the metric '{str(base['interannual']).strip().lower()}' is not a metric between the "
+			                 f"years (interannual): use mean, median, min, max...")
 		if base['temporal'] not in composite.TEMPORAL:
 			raise ValueError(f"unknown temporal {base['temporal']}: use {', '.join(composite.TEMPORAL)}")
+		if any(composite.is_melt(m) for m in metrics):  # one per season of each year (see composite.melt)
+			composite.check_step(composite.MELT, base['temporal'])
+			base['season'] = base['season'] or list(composite.MELT_SEASON)
 		if not base.get('period'):
 			raise ValueError(f'variable {base.get("name") or _default_name(base)}: give period [first day, last day]')
 		composite.windows(base['period'], base['season'])

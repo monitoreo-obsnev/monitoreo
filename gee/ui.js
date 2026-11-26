@@ -108,6 +108,11 @@
 				'imágenes toma la de los demás). Su métrica es siempre «días». Con «Todo el periodo», la media de los ' +
 				'días de cada temporada o, sin temporada, de cada 12 meses. Es una estimación: mejor con más imágenes.',
 			scdDailyNote: 'Cada barra diaria va de 0 a 1 día: la parte de los píxeles sin nubes con nieve ese día.',
+			smodNote: 'Día de deshielo: en cada píxel, el día del año (1 = 1 de enero) de la primera imagen sin nubes y ' +
+				'sin nieve tras la última con nieve, en la temporada de cada año (por defecto del 1 de enero al 31 de ' +
+				'agosto), con las reglas y la corrección de sombras de su frecuencia de nieve. Su métrica es siempre ' +
+				'«día de deshielo» y su paso, el año. Un píxel sin nieve en la temporada toma su primera imagen sin ' +
+				'nubes; uno cuya nieve no se va, ninguno.',
 			nImages: 'Imágenes', validPixels: 'Píxeles válidos',
 			cfNote: 'Frecuencia de nubes: % de las observaciones de cada píxel con nubes. Cada imagen es 100 (nube) o 0, ' +
 				'así que su métrica es siempre la media.',
@@ -412,6 +417,11 @@
 				'(a month without images takes that of the others). Its metric is always days. With Whole period, the ' +
 				'mean days of each season or, without a season, of each 12 months. An estimate: better with more images.',
 			scdDailyNote: 'Each daily bar goes from 0 to 1 day: the share of the clear pixels with snow that day.',
+			smodNote: 'Snow melt-out day: on each pixel, the day of the year (1 = 1 January) of the first clear image ' +
+				'without snow after the last one with snow, in the season of each year (by default 1 January to 31 ' +
+				'August), with the rules and the correction of shadows of its snow cover frequency. Its metric is always ' +
+				'the melt-out day and its step the year. A pixel without snow in the season takes its first clear ' +
+				'image; one whose snow does not go, none.',
 			nImages: 'Images', validPixels: 'Valid pixels',
 			cfNote: 'Cloud frequency: % of the observations of each pixel with clouds. Each image is 100 (cloud) or 0, ' +
 				'so its metric is always the mean.',
@@ -634,9 +644,11 @@
 	var STATS = ['mean', 'median', 'min', 'max', 'std', 'cv', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
 	var METRIC_NAMES = {
 		es: {mean: 'Media', median: 'Mediana', min: 'Mínimo', max: 'Máximo', std: 'Desviación típica',
-			cv: 'Coeficiente de variación (%)', count: 'Número', sum: 'Suma', days: 'Días (de nieve)'},
+			cv: 'Coeficiente de variación (%)', count: 'Número', sum: 'Suma', days: 'Días (de nieve)',
+			melt: 'Día de deshielo'},
 		en: {mean: 'Mean', median: 'Median', min: 'Minimum', max: 'Maximum', std: 'Standard deviation',
-			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum', days: 'Days (snow cover)'}
+			cv: 'Coefficient of variation (%)', count: 'Count', sum: 'Sum', days: 'Days (snow cover)',
+			melt: 'Melt-out day (snow)'}
 	};
 
 	var state = {
@@ -1609,6 +1621,10 @@
 		});
 		// its only metric (SCF), also of each frame of the animation
 		if (e.metric) state.mapMetric = state.stepMetric = state.trendMetric = state.animMetric = e.metric;
+		if (mo.isMelt(e.metric)) {  // the snow melt-out day: one per year (composite.check_step)
+			state.step = state.trendStep = state.animStep = 'annual';
+			if (state.temporal !== 'period' && state.temporal !== 'annual') state.temporal = 'period';
+		}
 		render();
 	}
 
@@ -1639,7 +1655,7 @@
 	function variableNote(e) {
 		if (!e.metric) return null;
 		if (e.index === 'SCF') return e.sensor === 'Modis' ? 'scfModisNote' : 'scfNote';
-		return {SCD: 'scdNote', CF: 'cfNote'}[e.index] || null;
+		return {SCD: 'scdNote', SMOD: 'smodNote', CF: 'cfNote'}[e.index] || null;
 	}
 
 	function metricSelect(value, onChange) {

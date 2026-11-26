@@ -9,19 +9,20 @@ import types
 
 import pytest
 
-from monitoreo import catalog, charts, composite, drive, fire, sensors, services, timeseries, trends, variable
+from monitoreo import catalog, charts, composite, drive, fire, report, sensors, services, timeseries, trends, variable
 from monitoreo.grid import Grid
 
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 92  # the 35 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 96  # the 35 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
 	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
 	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150), the
 	# SCF of MODIS (Terra and Aqua: refs 151 and 152), the snow cover days (SCD) of Landsat and MODIS (153 to 155) and
-	# the SCF and the SCD of Sentinel-2 (156 and 157)
+	# the SCF and the SCD of Sentinel-2 (156 and 157), and the snow melt-out day (SMOD) of Landsat, MODIS (Terra and
+	# Aqua) and Sentinel-2 (161 to 164)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -90,7 +91,8 @@ def test_sentinel2_pixel_is_that_of_its_coarsest_band():
 			assert e['m'] == (20 if bands & coarse else 10), (e['ref'], e['index'], bands)
 			got[e['index']] = e['m']
 	assert got == {'LSWI': 20, 'NDSI': 20, 'NDWI': 10, 'ALBEDO': 20, 'Chl-a': 20, 'EVI': 10, 'NDVI': 10, 'NDCI': 20,
-	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'CF': 10, 'RdNBR': 20, 'CLre': 20, 'CLreB7': 20, 'WAVI': 10}
+	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'SMOD': 20, 'CF': 10, 'RdNBR': 20, 'CLre': 20, 'CLreB7': 20,
+	               'WAVI': 10}
 
 
 def test_red_edge_chlorophyll_and_water_adjusted_vegetation_index(monkeypatch):
@@ -212,7 +214,7 @@ def test_scf_of_modis_and_snow_cover_days_in_the_catalog():
 		assert e['ft'] == scf['ft'] and sensors.parse_formula(e) == sensors.parse_formula(scf)
 		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'SCD' in sensors.MEASURES['snow']
 	assert catalog.udunits('[days]') == 'day'
-	assert [t for t in catalog.THEMES if t['key'] == 'snow'][0]['indices'] == ['NDSI', 'SCF', 'SCD']
+	assert [t for t in catalog.THEMES if t['key'] == 'snow'][0]['indices'] == ['NDSI', 'SCF', 'SCD', 'SMOD']
 	# the metric days: only that of the snow cover days, not between the years, nor for the other variables
 	spec = services.make_spec('SCD', 'Modis', '2021-10-01', '2022-05-31', metric='days')
 	assert spec['metric'] == 'days' and spec['name'] == 'SCD_MODIS_days'
@@ -236,6 +238,62 @@ def test_scf_of_modis_and_snow_cover_days_in_the_catalog():
 	assert d['metric'] == 'days' and d['measures'] == ['snow'] and d['fixed_filters'] == ['clouds', 'water']
 	assert [r['ref'] for r in services.list_variables(text='snow cover days')] == [153, 154, 155, 157]
 	assert catalog.unit_of('[days]', 'days') == '[days]'
+
+
+def test_snow_melt_out_day_in_the_catalog():
+	# the images of the SCF of each sensor (its rules, shadows of the relief and fixed filters), the only metric melt
+	for ref, sensor, base in ((161, 'Landsat', 105), (162, 'Modis', 151), (163, 'Modis', 152), (164, 'Sentinel-2', 156)):
+		e, scf = catalog.find(None, ref=ref), catalog.find(None, ref=base)
+		assert (e['index'], e['sensor'], e['col'], e['m']) == ('SMOD', sensor, scf['col'], scf['m'])
+		assert (e['unit'], e['metric'], e['axis'], e['theme']) == ('[day of year]', 'melt', 'Snow Melt-Out Day (SMOD)',
+		                                                           'snow')
+		assert e['ft'] == scf['ft'] and sensors.parse_formula(e) == sensors.parse_formula(scf) and sensors.is_scf(e)
+		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'SMOD' in sensors.MEASURES['snow']
+		assert e['f'].startswith(scf['f']) and 'first clear image without snow after the last one with snow' in e['f']
+		assert ('barroudumont2025' if sensor != 'Modis' else 'dietz2012') in e['references']
+	assert catalog.find('SMOD', 'Sentinel-2')['ref'] == 164 and catalog.find('SMOD', 'Landsat')['ref'] == 161
+	assert catalog.udunits('[day of year]') == 'day' and catalog.unit_of('[day of year]', 'melt') == '[day of year]'
+	# the metric melt: only that of the snow melt-out day, not between the years, nor for the other variables
+	spec = services.make_spec('SMOD', 'Sentinel-2', '2018-01-01', '2024-12-31', metric='melt')
+	assert spec['metric'] == 'melt' and spec['name'] == 'SMOD_S2_melt'
+	assert spec['season'] == composite.MELT_SEASON == ['01-01', '08-31']  # the default season, in the record
+	assert services._ylabel(spec) == 'Snow Melt-Out Day (SMOD) [day of year]'
+	spec = services.make_spec('SMOD', 'Landsat', '1990-01-01', '2020-12-31', metric='melt', temporal='annual',
+	                          interannual='median', season=['03-01', '08-31'])
+	assert spec['interannual'] == 'median' and spec['season'] == ['03-01', '08-31']  # the season given
+	with pytest.raises(ValueError, match="only takes the metric 'melt'"):
+		services.make_spec('SMOD', 'Landsat', '2021-01-01', '2021-12-31', metric='mean')
+	with pytest.raises(ValueError, match="only takes the metric 'melt'"):
+		services.map_layer({'bbox': [-3.4, 37.0, -3.3, 37.1]}, 'SMOD', 'Modis', '2021-01-01', '2021-12-31')
+	with pytest.raises(ValueError, match="'melt' is not a metric between the years"):
+		services.make_spec('SMOD', 'Modis', '2010-01-01', '2020-12-31', metric='melt', temporal='annual',
+		                   interannual='melt')
+	with pytest.raises(ValueError, match="one per year"):  # not monthly nor 16-day
+		services.make_spec('SMOD', 'Modis', '2010-01-01', '2020-12-31', metric='melt', temporal='monthly')
+	for var, sensor in (('NDVI', 'Landsat'), ('SCF', 'Modis'), ('SCD', 'Sentinel-2')):
+		with pytest.raises(ValueError):
+			services.make_spec(var, sensor, '2021-01-01', '2021-12-31', metric='melt')
+	with pytest.raises(ValueError, match="the metric 'melt' is that of the snow melt-out day"):
+		services.make_spec(collection='IDAHO_EPSCOR/TERRACLIMATE', band='pr', start='2020-01-01', end='2020-12-31',
+		                   metric='melt')
+	with pytest.raises(ValueError, match="only takes the metric 'melt'"):  # nor the days of the snow cover days
+		services.make_spec('SMOD', 'Landsat', '2021-01-01', '2021-12-31', metric='days')
+	# one value per year: the steps of series, trends and animations shorter than a year are refused
+	for step in ('monthly', '16-day', 'daily'):
+		with pytest.raises(ValueError, match=f"use the step 'annual'.*not '{step}'"):
+			composite.check_step('melt', step)
+	composite.check_step('melt', 'annual')
+	composite.check_step('melt', 'period')
+	composite.check_step('mean', 'monthly')  # the other metrics: any step
+	with pytest.raises(ValueError, match='one per year'):
+		services.time_series({'bbox': [-3.4, 37.0, -3.3, 37.1]}, 'SMOD', 'Sentinel-2', '2018-01-01', '2020-12-31',
+		                     step='monthly', metric='melt')
+	assert composite.is_melt(' Melt ') and composite.is_only('days') and not composite.is_only('mean')
+	composite.check_metric('melt')
+	d = services.describe_variable('SMOD', 'Landsat')
+	assert d['metric'] == 'melt' and d['measures'] == ['snow'] and d['fixed_filters'] == ['clouds', 'water']
+	assert [r['ref'] for r in services.list_variables(text='snow melt-out day')] == [161, 162, 163, 164]
+	assert report.STATS['melt'] == 'snow melt-out day'
 
 
 def test_scf_and_snow_cover_days_of_sentinel2_in_the_catalog():

@@ -56,7 +56,7 @@ import urllib.request
 import webbrowser
 import zipfile
 
-from . import __released__, __version__, about, areas, catalog, documents, engine, logs, manual, report, services
+from . import __released__, __version__, about, areas, catalog, composite, documents, engine, logs, manual, report, services
 from .variable import bands_of, check_rgb, pin_where
 from .steps import PERIOD_MAP, UNITS, map_steps
 
@@ -277,12 +277,12 @@ vegetation index).
 - Topographic correction: in mountains, with Landsat, add "topographic": true to quality (e.g. \
 {{"topographic": true}}) when the user compares slopes of different aspect (north and south faces) or winter dates, or \
 asks for it: the slopes facing the sun look brighter and those facing away darker than on flat land. Sentinel-2 comes \
-already corrected (Sen2Cor): never with it. Not for water, snow, LST, SCF, SCD, CF, MODIS or the climate; on flat land \
-it changes nothing. It costs more in Earth Engine.
+already corrected (Sen2Cor): never with it. Not for water, snow, LST, SCF, SCD, SMOD, CF, MODIS or the climate; on \
+flat land it changes nothing. It costs more in Earth Engine.
 - Snow by its NDSI: in mountains with snow in the season, with Sentinel-2 or Landsat, add "snow_ndsi": 0.4 to quality \
 (e.g. {{"snow_ndsi": 0.4}}) when the user computes a standard deviation, a minimum or a maximum of the NDMI, the LSWI or \
 another index in the snow season, or asks for it: it also removes the patches of snow that the QA band misses. Not for \
-the NDSI, SCF or SCD, nor MODIS; it is not applied to the NDWI, Chl-a, NDCI or WAVI (open water has a high NDSI too).
+the NDSI, SCF, SCD or SMOD, nor MODIS; it is not applied to the NDWI, Chl-a, NDCI or WAVI (open water has a high NDSI too).
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \
 always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water are \
@@ -294,6 +294,14 @@ with metric "days" (the SCF of each month times its days, summed), the same fixe
 (every 5 days, since 2017) follows them better, and MODIS (daily, 500 m) best. Their time series come as a bar chart \
 (a bar per step) with its table; to see which days had snow, step "daily": a bar and a row per day with images, the \
 share of its clear pixels with snow (0 to 1 day).
+- Snow melt-out day (when the snow goes: the day of the year, 1 = 1 January, of the first clear image without snow \
+after the last one with snow): variable "SMOD", sensor "Sentinel-2" (every 5 days, since 2017), "Landsat" (8 to 16 \
+days, since 1984) or "Modis" (daily, 500 m), always with metric "melt", the same fixed filters and correction of the \
+shadows of the relief as the SCF. One per year: a time series with step "annual", a trend with step "annual" (Sen's \
+slope in days per year: negative is an earlier melt-out), or a map (temporal "period", the mean day of the years, or \
+"annual"); no monthly, 16-day or daily steps. Its season is 1 January to 31 August unless the user gives another one \
+(it must end before the first snowfalls of autumn). A pixel without snow in the season takes the day of its first \
+clear image; one whose snow does not go has no data.
 - Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
 "Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.
@@ -2343,7 +2351,9 @@ class Assistant:
 		days = (dt.date.fromisoformat(end[:10]) - dt.date.fromisoformat(start[:10])).days
 		step = a.get('step') if a.get('step') in UNITS else a.get('temporal') if a.get('temporal') in UNITS else \
 		       '16-day' if days <= 400 else 'monthly' if days <= 6 * 366 else 'annual'  # that of the result, if any
-		args = {**base, 'region': point, 'start': start, 'end': end, 'step': step}
+		only = a.get('metric') if composite.is_only(a.get('metric')) else None  # SCD and SMOD: their only metric
+		step = 'annual' if composite.is_melt(only) else step  # the snow melt-out day: one per year
+		args = {**base, 'region': point, 'start': start, 'end': end, 'step': step, **({'metric': only} if only else {})}
 		error, texts, images = await self.call('time_series', args)
 		if error:
 			raise RuntimeError(re.sub(r'^[A-Za-z]+Error: ', '', error))

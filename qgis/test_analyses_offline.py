@@ -269,6 +269,19 @@ scf = dock.variable.findText('SCF · Landsat', Qt.MatchFlag.MatchStartsWith)
 if scf >= 0:
 	dock.variable.setCurrentIndex(scf)
 	assert dock.anim_metric.currentData() == 'mean' and not dock.anim_metric.isEnabled()
+# the snow melt-out day: its only metric (Melt-out day) and one value per year, so the steps Annual and greyed out; the
+# metric melt and the steps come back with another variable
+smod = dock.variable.findText('SMOD · Sentinel-2', Qt.MatchFlag.MatchStartsWith)
+if smod >= 0:
+	dock.step.setCurrentIndex(dock.step.findData('monthly'))
+	dock.variable.setCurrentIndex(smod)
+	for w in (dock.ts_metric, dock.trend_metric, dock.map_metric, dock.anim_metric):
+		assert w.currentData() == 'melt' and not w.isEnabled()
+	for w in (dock.step, dock.trend_step, dock.anim_step):
+		assert w.currentData() == 'annual' and not w.isEnabled()
+	assert dock.temporal.currentData() in ('period', 'annual')
+	dock.variable.setCurrentIndex(dock.variable.findText('NDVI · Sentinel-2', Qt.MatchFlag.MatchStartsWith))
+	assert dock.step.isEnabled() and dock.ts_metric.isEnabled() and dock.ts_metric.findData('melt') < 0
 
 # the pixel filter of what the variable measures: unchecked and greyed out (snow with the NDSI, water with the NDWI),
 # the others as the user leaves them, and those chosen back with another variable, also after the fixed ones of the SCF

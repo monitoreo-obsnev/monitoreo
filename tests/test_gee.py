@@ -167,6 +167,13 @@ CASES = {
 	'map_scf_seasons': {'kind': 'percentiles', 'region': LAGUNAS,
 	                    'spec': {'ref': 105, 'period': ['2008-10-01', '2011-05-31'], 'metric': 'mean',
 	                             'temporal': 'annual', 'interannual': 'mean', 'season': ['10-01', '05-31']}},
+	# the snow melt-out day (composite.melt): a series of Sentinel-2 by years (its default season) and the map of the
+	# mean day of the years of Landsat, with a season of its own
+	'series_smod_s2': {'kind': 'series', 'region': LAGUNAS, 'step': 'annual', 'metric': 'melt', 'stat': 'mean',
+	                   'spec': {'ref': 164, 'period': ['2019-01-01', '2021-12-31'], 'metric': 'melt'}},
+	'map_smod_landsat': {'kind': 'percentiles', 'region': LAGUNAS,
+	                     'spec': {'ref': 161, 'period': ['2015-01-01', '2020-12-31'], 'metric': 'melt',
+	                              'season': ['03-01', '08-31']}},
 	# the true colour of the images of a variable (rgb_map): the percentiles 2 and 98 of its bands red, green and blue
 	'rgb_s2_median': {'kind': 'rgb_percentiles', 'region': GUAJARES,
 	                  'spec': {'ref': 27, 'period': ['2021-06-01', '2021-08-31'], 'metric': 'median'}},
