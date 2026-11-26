@@ -19,6 +19,10 @@ final class WebViewController: UIViewController, WKScriptMessageHandler, WKNavig
     static let aiProviders = ["claude", "gemini", "glm"]
 
     var web: WKWebView!
+    /// The language of the page (i18n.js tells it with setLang): for the buttons of its dialogs.
+    var english = !(Locale.preferredLanguages.first ?? "es").hasPrefix("es")
+    var okText: String { english ? "OK" : "Aceptar" }
+    var cancelText: String { english ? "Cancel" : "Cancelar" }
     let work = DispatchQueue(label: "es.ugr.monitoreo.campo.work", qos: .userInitiated, attributes: .concurrent)
 
     let tokenLock = NSLock()
@@ -94,15 +98,15 @@ final class WebViewController: UIViewController, WKScriptMessageHandler, WKNavig
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        a.addAction(UIAlertAction(title: "Aceptar", style: .default) { _ in completionHandler() })
+        a.addAction(UIAlertAction(title: self.okText, style: .default) { _ in completionHandler() })
         present(a, animated: true)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        a.addAction(UIAlertAction(title: "Cancelar", style: .cancel) { _ in completionHandler(false) })
-        a.addAction(UIAlertAction(title: "Aceptar", style: .default) { _ in completionHandler(true) })
+        a.addAction(UIAlertAction(title: self.cancelText, style: .cancel) { _ in completionHandler(false) })
+        a.addAction(UIAlertAction(title: self.okText, style: .default) { _ in completionHandler(true) })
         present(a, animated: true)
     }
 
@@ -110,8 +114,8 @@ final class WebViewController: UIViewController, WKScriptMessageHandler, WKNavig
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
         let a = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
         a.addTextField { $0.text = defaultText; $0.clearButtonMode = .whileEditing }
-        a.addAction(UIAlertAction(title: "Cancelar", style: .cancel) { _ in completionHandler(nil) })
-        a.addAction(UIAlertAction(title: "Aceptar", style: .default) { _ in completionHandler(a.textFields?.first?.text ?? "") })
+        a.addAction(UIAlertAction(title: self.cancelText, style: .cancel) { _ in completionHandler(nil) })
+        a.addAction(UIAlertAction(title: self.okText, style: .default) { _ in completionHandler(a.textFields?.first?.text ?? "") })
         present(a, animated: true)
     }
 
@@ -138,6 +142,9 @@ final class WebViewController: UIViewController, WKScriptMessageHandler, WKNavig
         case "openFile": pick(id, serviceAccount: false)
         case "saveFile": save(id, arg)
         case "locate": locate(id)
+        case "setLang":
+            english = arg == "en"
+            answer(id, "{}")
         case "openUrl":
             if let u = URL(string: arg), ["http", "https", "mailto"].contains(u.scheme?.lowercased() ?? "") {
                 UIApplication.shared.open(u)

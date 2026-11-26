@@ -6,12 +6,12 @@ de MonitorEO calculadas en Google Earth Engine en cada punto, con el mismo códi
 
 ## Instalar en el teléfono
 
-1. Copia `MonitorEO-Campo-0.4.0.apk` al teléfono (cable, Drive, Telegram…) y ábrelo. Android pedirá permitir
+1. Copia `MonitorEO-Campo-0.5.0.apk` al teléfono (cable, Drive, Telegram…) y ábrelo. Android pedirá permitir
    "instalar apps desconocidas" para la app desde la que lo abras.
    Con cable y depuración USB activada:
 
    ```bash
-   "%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" install -r MonitorEO-Campo-0.4.0.apk
+   "%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" install -r MonitorEO-Campo-0.5.0.apk
    ```
 
 2. Ajustes → cuenta:
@@ -100,6 +100,16 @@ Ejecuta `preparar.py` tras actualizar el repositorio `monitoreo` para llevar a l
 
 ## Versiones
 
+- **0.5.0** (2026-11-26): la app está en español y en inglés.
+  - El botón EN/ES de la cabecera cambia el idioma; se recarga la página y se conservan los puntos, los resultados y
+    los ajustes.
+  - Por defecto se usa el idioma del teléfono.
+  - El asistente responde en el idioma elegido.
+  - En Preguntar, el punto de la cabecera es un botón. Permite elegir:
+    - la ubicación actual: usa el punto guardado que haya ahí o crea uno nuevo;
+    - uno de los puntos guardados;
+    - un punto nuevo tocando el mapa o escribiendo sus coordenadas.
+  - Primera versión para iPhone (`ios/`).
 - **0.4.0** (2026-11-26): asistente (pestaña Preguntar). Un modelo de lenguaje elige qué calcular, la app lo calcula
   con las mismas funciones que Análisis y el modelo explica el resultado. Por defecto usa el modelo de MonitorEO a
   través de su broker (sin clave); también acepta una clave propia de Claude, Gemini o GLM (Z.ai), guardada solo en
