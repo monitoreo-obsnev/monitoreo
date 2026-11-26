@@ -360,7 +360,8 @@ MO.chart = (() => {
 			data: {values: data}, width: 'container', height: 260,
 			mark: {type: 'line', point: {size: 18}, clip: Boolean(lim)},
 			encoding: {
-				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
+				// a tick on the first day of each month (with a season, only its months: not Jun, Jun, Jun...)
+				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: {interval: 'month', step: 1}}},
 				y: {field: 'value', type: 'quantitative', title: axisTitle(result, 'Value'), scale: yScale(lim)},
 				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true, domain: all},
 					legend: {values: [...new Set(data.map((r) => r.year))].sort()}},  // only the years shown
