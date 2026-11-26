@@ -296,8 +296,8 @@ with metric "days" (the SCF of each month times its days, summed), the same fixe
 share of its clear pixels with snow (0 to 1 day).
 - Snow melt-out day (when the snow goes: the day of the year, 1 = 1 January, of the first clear image without snow \
 after the last one with snow): variable "SMOD", sensor "Sentinel-2" (every 5 days, since 2017), "Landsat" (8 to 16 \
-days, since 1984) or "Modis" (daily, 500 m), always with metric "melt", the same fixed filters and correction of the \
-shadows of the relief as the SCF. One per year: a time series with step "annual", a trend with step "annual" (Sen's \
+days, since 1984) or "Modis" (daily, 500 m), always with metric "melt", the same rules and fixed filters as the SCF of \
+its sensor (with the shadows of the relief). One per year: a time series with step "annual", a trend with step "annual" (Sen's \
 slope in days per year: negative is an earlier melt-out), or a map (temporal "period", the mean day of the years, or \
 "annual"); no monthly, 16-day or daily steps. Its season is 1 January to 31 August unless the user gives another one \
 (it must end before the first snowfalls of autumn). A pixel without snow in the season takes the day of its first \

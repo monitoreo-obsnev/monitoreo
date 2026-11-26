@@ -80,8 +80,8 @@ snow, 0 to 1 day); with temporal "period", the mean
 days of each season (or of each 12 months without a season). An estimate: better with more images (n_images). The
 snow melt-out day (SMOD, Sentinel-2, Landsat and MODIS) is the day of the year (1 = 1 January) of the first clear image
 without snow after the last one with snow, in each season of each year (by default 1 January to 31 August; a season
-must end before the snowfalls of autumn), from the same images: always with metric "melt", the same fixed filters and
-shadows of the relief; one per year: time_series and trends with step "annual" (Sen's slope in days per year, negative
+must end before the snowfalls of autumn), from the same images: always with metric "melt", the same rules and fixed
+filters as the SCF of its sensor; one per year: time_series and trends with step "annual" (Sen's slope in days per year, negative
 is earlier), maps with temporal "period" (the mean day of the years) or "annual"; no monthly, 16-day or daily steps. A
 pixel without snow in the season takes the day of its first clear image; one whose snow does not go has no data. The elevation and the slope
 (variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,

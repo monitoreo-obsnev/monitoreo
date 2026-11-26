@@ -119,8 +119,12 @@ S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, 
 # MODIS (Cloud Score+ does not take the snow for clouds more than the ground without snow).
 # The SCF of MODIS (Terra MOD10A1, Aqua MYD10A1, formula SCF(NDSI_Snow_Cover)): snow if NDSI_Snow_Cover (100 x the
 # NDSI) >= 100 x SCF['ndsi'], the same threshold; clouds, water and the other flags (200-255) of the daily snow product
-# have no data (its fixed filters and the valid range of PRODUCTS). The snow cover days (SCD) and the snow melt-out day
-# (SMOD) are made of the same images (composite.days, composite.melt).
+# have no data (its fixed filters and the valid range of PRODUCTS). It has no rule of the shadow of the relief: the
+# NDSI of the product is that of the TOA reflectance, without thresholds of brightness, and its screens (low visible
+# reflectance) do not take the snow away in the shadow; checked against the SCF of Landsat 8 and 9 with its rule of the shadow, on the 112 days of both from November to May of 2014-15 to 2024-25 in the high Sierra Nevada, MODIS
+# Terra saw 98.4 % of the snow of Landsat in the shadow (pixels of 500 m at least half in the shadow of the sun of the
+# scene, 20 minutes after Terra) and 98.4 % in the sun. The snow cover days (SCD) and the snow melt-out day (SMOD) are
+# made of the same images (composite.days, composite.melt).
 SCF = {
 	'ndsi': 0.35,           # minimum NDSI of snow (surface reflectance in the sun, TOA in the shadow)
 	'green': 0.1,           # green and NIR surface reflectance of snow in the sun: above these

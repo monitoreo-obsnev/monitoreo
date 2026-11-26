@@ -120,7 +120,10 @@ SCF_MODIS_NOTES = {
 	'ft': 'Snow cover frequency (SCF) of MODIS: % of the clear observations of each pixel with snow or ice, from the '
 	      'daily snow product of Terra (MOD10A1) or Aqua (MYD10A1), 500 m. Each image is 100 where NDSI_Snow_Cover >= 35 '
 	      '(an NDSI of 0.35, the threshold of the SCF of Landsat) and 0 where it is 0 to 34; clouds (250), inland water '
-	      'and ocean (237, 239), night and the other flags (200-255) have no data. Its only metric is the mean.',
+	      'and ocean (237, 239), night and the other flags (200-255) have no data. It needs no rule of the shadow of '
+	      'the relief: its NDSI is that of the TOA reflectance, without thresholds of brightness, and the screens of '
+	      'the product do not take the snow away in the shadow (checked against the SCF of Landsat 8 and 9 with its rule of the shadow, on the 112 days of both from November to May of 2014-15 to 2024-25 in the high Sierra Nevada, MODIS Terra saw 98.4 % of the snow '
+	      'of Landsat both in the shadow and in the sun, on its pixels of 500 m). Its only metric is the mean.',
 	'metric': SCF['notes']['metric'],
 	'filters': SCF['notes']['filters'],
 }
@@ -181,7 +184,7 @@ EXTRA.update({
 	          'summed', 'm': 20, 'references': ['hall1995', 'gascoin2019']}),
 })
 # Snow melt-out day (SMOD): the day of the year when the snow of each pixel goes, from the images of its SCF (the same
-# rules, shadows of the relief and pixel filters): the first clear image without snow after the last one with snow, in
+# rules and pixel filters, and in Landsat and Sentinel-2 its rule of the shadow of the relief): the first clear image without snow after the last one with snow, in
 # each season of each year (composite.melt): the only metric 'melt'. Earlier is blue-green, later dark blue.
 SMOD_PALETTE = ['ffffd9', 'edf8b1', 'c7e9b4', '7fcdbb', '41b6c4', '1d91c0', '225ea8', '253494', '081d58']
 SMOD_F = '; melt-out: the day of the year of the first clear image without snow after the last one with snow'
@@ -195,8 +198,9 @@ SMOD = dict(SCF, **{
 		'ft': 'Snow melt-out day (SMOD): the day of the year (1 = 1 January) when the snow of each pixel goes, in each '
 		      'season of each year (by default 1 January to 31 August: from the melt of the low mountain to before the '
 		      'first snowfalls of autumn): the day of the first clear image without snow after the last image with '
-		      'snow, from the images of its snow cover frequency (SCF: each image snow or no snow, with the rules, the '
-		      'correction of the shadows of the relief and the pixel filters of the SCF of its sensor). A pixel '
+		      'snow, from the images of its snow cover frequency (SCF: each image snow or no snow, with the rules and '
+		      'the pixel filters of the SCF of its sensor: in Landsat and Sentinel-2, with its correction of the shadows '
+		      'of the relief; MODIS sees the snow in the shadow as in the sun and needs none). A pixel '
 		      'without snow in the whole season takes the day of its first clear image (the snow had gone before, or '
 		      'there was none); one whose snow does not go in the season has no data. It is the day of an image, so it '
 		      'can be up to the days between two clear images after the real melt-out (Sentinel-2: 5, since 2017; '

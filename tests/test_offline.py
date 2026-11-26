@@ -204,6 +204,9 @@ def test_scf_of_modis_and_snow_cover_days_in_the_catalog():
 		assert sensors.is_scf(e) and sensors.parse_formula(e) == ('scf', ['NDSI_Snow_Cover'])  # no Earth Engine
 		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'NDSI_Snow_Cover >= 35' in e['notes']['ft']
 		assert 'hillShadow' not in e['notes']['ft'] and e['references'] == ['hall1995', 'riggs2017', 'hammond2018']
+		# no rule of the shadow of the relief: its NDSI (TOA, without thresholds of brightness) sees the snow there, as
+		# checked against Landsat (98.4 % of its snow in the shadow and in the sun)
+		assert 'needs no rule of the shadow' in e['notes']['ft'] and '98.4 %' in e['notes']['ft']
 	assert catalog.find('SCF', 'Modis')['ref'] == 151 and catalog.find('SCF', 'Modis', 'MODIS/061/MYD10A1')['ref'] == 152
 	assert catalog.find('NDSI', 'Modis')['unit'] == '[unitless]'  # the entry they copy is unchanged
 	# the snow cover days: the images of the SCF of each sensor, the only metric days, in days (UDUNITS day)
@@ -251,6 +254,7 @@ def test_snow_melt_out_day_in_the_catalog():
 		assert sensors.fixed_filters(e) == ['clouds', 'water'] and 'SMOD' in sensors.MEASURES['snow']
 		assert e['f'].startswith(scf['f']) and 'first clear image without snow after the last one with snow' in e['f']
 		assert ('barroudumont2025' if sensor != 'Modis' else 'dietz2012') in e['references']
+		assert 'MODIS sees the snow in the shadow as in the sun and needs none' in e['notes']['ft']
 	assert catalog.find('SMOD', 'Sentinel-2')['ref'] == 164 and catalog.find('SMOD', 'Landsat')['ref'] == 161
 	assert catalog.udunits('[day of year]') == 'day' and catalog.unit_of('[day of year]', 'melt') == '[day of year]'
 	# the metric melt: only that of the snow melt-out day, not between the years, nor for the other variables

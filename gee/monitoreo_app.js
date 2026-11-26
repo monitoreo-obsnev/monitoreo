@@ -21911,7 +21911,8 @@ var MonitorEO = (function () {
 			scdDailyNote: 'Cada barra diaria va de 0 a 1 d\u00eda: la parte de los p\u00edxeles sin nubes con nieve ese d\u00eda.',
 			smodNote: 'D\u00eda de deshielo: en cada p\u00edxel, el d\u00eda del a\u00f1o (1 = 1 de enero) de la primera imagen sin nubes y ' +
 				'sin nieve tras la \u00faltima con nieve, en la temporada de cada a\u00f1o (por defecto del 1 de enero al 31 de ' +
-				'agosto), con las reglas y la correcci\u00f3n de sombras de su frecuencia de nieve. Su m\u00e9trica es siempre ' +
+				'agosto), con las reglas de su frecuencia de nieve (en Landsat y Sentinel-2, con su correcci\u00f3n de las ' +
+				'sombras del relieve; MODIS ve la nieve en sombra como al sol). Su m\u00e9trica es siempre ' +
 				'\u00abd\u00eda de deshielo\u00bb y su paso, el a\u00f1o. Un p\u00edxel sin nieve en la temporada toma su primera imagen sin ' +
 				'nubes; uno cuya nieve no se va, ninguno.',
 			nImages: 'Im\u00e1genes', validPixels: 'P\u00edxeles v\u00e1lidos',
@@ -22220,7 +22221,8 @@ var MonitorEO = (function () {
 			scdDailyNote: 'Each daily bar goes from 0 to 1 day: the share of the clear pixels with snow that day.',
 			smodNote: 'Snow melt-out day: on each pixel, the day of the year (1 = 1 January) of the first clear image ' +
 				'without snow after the last one with snow, in the season of each year (by default 1 January to 31 ' +
-				'August), with the rules and the correction of shadows of its snow cover frequency. Its metric is always ' +
+				'August), with the rules of its snow cover frequency (in Landsat and Sentinel-2, with its correction of ' +
+				'the shadows of the relief; MODIS sees the snow in the shadow as in the sun). Its metric is always ' +
 				'the melt-out day and its step the year. A pixel without snow in the season takes its first clear ' +
 				'image; one whose snow does not go, none.',
 			nImages: 'Images', validPixels: 'Valid pixels',
