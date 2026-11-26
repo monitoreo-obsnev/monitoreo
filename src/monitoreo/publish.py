@@ -43,6 +43,7 @@ written, in their language:
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
         basemap: osm                      # the base map of this map (default: that of the report)
         view: [-3.42, 37.03, -3.30, 37.10] # where the map opens, and its image in the catalogue (default: all of it)
+        class_labels: [Dry, Intermediate, Wet] # of an area by class: the names of its classes, in order
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -1019,6 +1020,13 @@ def _results(item, files, n):
 		elif chart == 'areas':  # the colour of each class, as in its chart of Python (from its CSV if the result has none)
 			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')}
 			                    for c in res.get('classes') or _area_classes(args, res['csv'])]
+			if item.get('class_labels') is not None:  # names that say what each class is ('Dry', not 'below 0.05')
+				names = [str(x).strip() for x in _list(item['class_labels'])]
+				if len(names) != len(entry['classes']) or not all(names):
+					raise ValueError(f"class_labels of {title}: {len(entry['classes'])} names, one per class, in order: "
+					                 + ', '.join(str(c['label']) for c in entry['classes']))
+				for c, name in zip(entry['classes'], names):
+					c['label'] = name
 		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
 			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):

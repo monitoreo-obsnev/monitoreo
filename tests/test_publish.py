@@ -292,6 +292,30 @@ def test_tags_and_the_orthophoto(outputs, monkeypatch):
 	assert publish.check_report(old, str(site / 'reports' / r['id'])) == []
 
 
+
+def test_the_names_of_the_classes(tmp_path):
+	"""class_labels gives names that say what each class of an area by class is (Dry, not below 0.05), in order."""
+	csv_path = _csv(tmp_path / 'state.csv', [
+		{'region': 'Borreguiles', 'class': c, 'label': label, 'ha': ha, 'percent': pct}
+		for c, label, ha, pct in ((0, 'below 0.05', 80.0, 9.2), (1, '0.05 to 0.1', 162.0, 18.6), (2, '0.1 or more', 630.0, 72.2))])
+	item = {'tool': 'area_by_class', 'args': {'region': {'wdpa_id': 389011}, 'variable': 'LSWI', 'sensor': 'Sentinel-2',
+	                                          'start': '2017-06-01', 'end': '2019-09-30', 'breaks': [0.05, 0.1]},
+	        'result': {'csv': csv_path, 'classes': [{'class': 0, 'label': 'below 0.05', 'colour': 'ecab4e'},
+	                                                {'class': 1, 'label': '0.05 to 0.1', 'colour': '529400'},
+	                                                {'class': 2, 'label': '0.1 or more', 'colour': '023701'}]}}
+	site = tmp_path / 'site'
+	spec = _spec(files=None, downloads=None, results=[dict(item, class_labels=['Dry', 'Intermediate', 'Wet'])])
+	r = publish.publish(spec, site, tmp_path, log='')
+	(chart,) = r['results']
+	assert chart['chart'] == 'areas' and [c['label'] for c in chart['classes']] == ['Dry', 'Intermediate', 'Wet']
+	assert [c['colour'] for c in chart['classes']] == ['ecab4e', '529400', '023701']  # the colours stay
+	assert publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	assert [c['label'] for c in r['results'][0]['classes']] == ['below 0.05', '0.05 to 0.1', '0.1 or more']
+	with pytest.raises(ValueError, match='one per class'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, class_labels=['Dry', 'Wet'])]),
+		                site, tmp_path, log='')
+
 def test_the_orthophoto_without_network(tmp_path, monkeypatch):
 	"""Without the WMS of the IGN the image of the catalogue is made without the orthophoto."""
 	import urllib.request

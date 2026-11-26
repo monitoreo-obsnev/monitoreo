@@ -285,6 +285,7 @@ MO.chart = (() => {
 		const key = index.toLowerCase();
 		const names = new Map(classes.map((c) => [c.value, c.label]));
 		const data = rows.filter((r) => r.class !== 0).map((r) => ({...r, label: names.get(r.class) ?? r.label}));
+		const shown = classes.filter((c) => c.value !== 0);  // the legend: the classes of the bars
 		return {
 			data: {values: data}, width: 'container', height: {step: 30},
 			layer: [
@@ -292,8 +293,9 @@ MO.chart = (() => {
 					encoding: {
 						y: {field: 'label', type: 'nominal', sort: classes.map((c) => c.label), title: null},
 						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
-						color: {field: 'label', type: 'nominal', legend: null,
-							scale: {domain: classes.map((c) => c.label), range: classes.map((c) => c.color)}},
+						color: {field: 'label', type: 'nominal', scale: {domain: classes.map((c) => c.label),
+							range: classes.map((c) => c.color)}, legend: {title: `Severity (${index})`, values: shown.map((c) => c.label),
+							labelLimit: 320, columns: narrow || shown.some((c) => String(c.label).length > 14) ? 1 : Math.min(shown.length, 3)}},
 						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
 							{field: `${key}_min`, title: `${index} from`, format: index === 'RdNBR' ? '.3f' : '.2f'},
 							{field: `${key}_max`, title: `${index} to`, format: index === 'RdNBR' ? '.3f' : '.2f'}]}},
@@ -310,7 +312,11 @@ MO.chart = (() => {
 	function areasSpec(rows, result) {
 		const classes = result.classes || [];
 		const labels = classes.map((c) => c.label);
-		const data = rows.filter((r) => r.ha > 0);
+		// the names of the classes are those of the result (class_labels of the report, e.g. 'Dry' for 'below 0.05')
+		const names = new Map(classes.map((c) => [String(c.class), c.label]));
+		const data = rows.filter((r) => r.ha > 0).map((r) => ({...r, label: names.get(String(r.class)) ?? r.label}));
+		const args = result.call?.args || {};
+		const title = args.trend ? `Trend of ${args.variable || 'the variable'}` : args.breaks ? (args.variable || 'Class') : 'Class';
 		return {
 			data: {values: data}, width: 'container', height: {step: 24},
 			layer: [
@@ -318,8 +324,10 @@ MO.chart = (() => {
 					encoding: {
 						y: {field: 'label', type: 'nominal', sort: labels, title: null},
 						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
-						color: {field: 'label', type: 'nominal', legend: null,
-							scale: {domain: labels, range: classes.map((c) => `#${c.colour || '6baed6'}`)}},
+						color: {field: 'label', type: 'nominal', scale: {domain: labels,
+							range: classes.map((c) => `#${c.colour || '6baed6'}`)}, legend: classes.length < 2 ? null :
+							{title, values: labels, labelLimit: 320, columns: narrow || labels.some((l) => String(l).length > 14) ? 1 :
+							Math.min(labels.length, 3)}},
 						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
 							{field: 'percent', title: '% of the area with classes', format: '.1f'}]}},
 				{mark: {type: 'text', align: 'left', dx: 5, fontSize: 12},
