@@ -72,6 +72,7 @@ TOOLS = {  # the tools, as the issue templates and the options of the form name 
 	'mcp': ('MCP server', 'MCP server / Servidor MCP'),
 	'r': ('R package', 'R package / Paquete de R'),
 	'viewer': ('Results viewer', 'Results viewer / Visor de resultados'),
+	'campo': ('Field app', 'Field app / App de campo'),
 }
 FEEDBACK = {
 	'en': {'button': 'Suggest a change or report an error',

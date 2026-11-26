@@ -26,7 +26,7 @@ band names):
   python gee/build.py --project my-ee-project
 
 After changing only core.js or ui.js, monitoreo_app.js can be written from the catalog.js there is, without Earth
-Engine:
+Engine (every run also copies catalog.js and core.js into the field app, campo/):
 
   python gee/build.py --app-only
 
@@ -43,6 +43,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import textwrap
 
@@ -196,13 +197,20 @@ def _read(name):
 		return f.read()
 
 
+CAMPO = os.path.join(HERE, '..', 'campo', 'app', 'src', 'main', 'assets', 'www', 'lib')  # the field app (campo/)
+
+
 def app():
-	"""Write monitoreo_app.js: catalog.js, core.js and ui.js in a single script."""
+	"""Write monitoreo_app.js: catalog.js, core.js and ui.js in a single script; and copy catalog.js and core.js into
+	the field app (campo/), which computes with them unchanged."""
 	text = ascii_js('\n'.join(_read(name) for name in ('catalog.js', 'core.js', 'ui.js')))
 	with open(os.path.join(HERE, 'monitoreo_app.js'), 'w', encoding='ascii') as f:
 		f.write('// MonitorEO for the Earth Engine Code Editor and Earth Engine Apps. Written by gee/build.py from\n'
 		        '// catalog.js, core.js and ui.js of https://github.com/monitoreo-obsnev/monitoreo: do not edit.\n\n')
 		f.write(text)
+	if os.path.isdir(CAMPO):
+		for name in ('catalog.js', 'core.js'):
+			shutil.copyfile(os.path.join(HERE, name), os.path.join(CAMPO, name))
 
 
 def _js(value, depth=0):

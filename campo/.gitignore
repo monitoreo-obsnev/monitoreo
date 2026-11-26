@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+# claves de cuentas de servicio y tokens: nunca al repositorio
+*.json
+!app/src/main/assets/**/*.json
+*.pem
+*.p12
+!ios/Campo/Assets.xcassets/**/*.json
+*.ipa
