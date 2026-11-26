@@ -101,6 +101,7 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer**: A chart with a line per year has a checkbox for each year (and All, None) to show only some of them, each with its own colour.
 - **Results viewer, MCP server, Python package, Command line**: A map can open on a part of it (`view: [west, south, east, north]`), e.g. where small patches are seen, and its image in the catalogue is that part.
 - **Results viewer** (fix): The y axis of a chart of a variable without unit (NDVI) is titled with the variable instead of «[unitless]».
+- **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
 
 ### [v0.3.73](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.73) · 2026-11-25 · package 0.3.83
 
