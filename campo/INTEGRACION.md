@@ -152,6 +152,19 @@ No hacen falta cambios en el broker. Ideas opcionales:
 - Desplegar la 0.3.84 en Cloud Run: el broker desplegado el 2026-11-26 respondió con Claude Sonnet 5.5 a una petición de
   `glm-4.7-flash`, es decir, aún sin la clave de reserva de GLM.
 
+### Aviso de versión nueva
+
+Una vez al día como mucho, con conexión, la app consulta las versiones de `monitoreo-obsnev/monitoreo` en la API de
+GitHub (`/releases`, a través del método `http` del puente). Busca el APK (`MonitorEO-Campo-<versión>.apk`) o, en el
+iPhone, el `.ipa` más nuevo, sin contar borradores ni versiones previas. Si es más nuevo que el instalado, muestra un
+aviso y la tarjeta **Ajustes → Versiones**, con el enlace de descarga. El botón **Buscar versión nueva** lo comprueba al
+momento.
+
+El aviso dice si el APK nuevo se instala encima o si antes hay que exportar los puntos y desinstalar la app. Lo sabe por
+`window.CAMPO_SIGNED`, que `app/build.gradle` escribe en `www/signing.js` de cada compilación: `true` solo en una
+versión firmada con la clave de `CAMPO_KEYSTORE`. Se guarda en `localStorage`: `campo.update` (la versión encontrada) y
+`campo.updateChecked` (cuándo se comprobó).
+
 ## 4. Datos en el teléfono
 
 - `localStorage`:
