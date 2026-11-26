@@ -52,7 +52,7 @@ def ready():
 	if branch in ('main', 'master', 'HEAD'):
 		sys.exit('campo/sync.py: switch to a branch of the change first (git switch -c <topic> origin/main), not '
 		         + branch)
-	if git('status', '--porcelain', capture=True):
+	if git('status', '--porcelain', '--untracked-files=no', capture=True):  # untracked files do not matter
 		sys.exit('campo/sync.py: commit or stash the changes pending first')
 	return branch
 
