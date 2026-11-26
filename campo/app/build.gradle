@@ -2,6 +2,17 @@ plugins {
     id 'com.android.application'
 }
 
+// The core of MonitorEO (gee/core.js and gee/catalog.js of monitoreo), copied into the page before every build, so
+// that the app always computes with the monitoreo next to it: the variable MONITOREO (the folder of that repository),
+// ../gee (the app inside monitoreo, in campo/) or ../monitoreo/gee (the app in its own repository, next to monitoreo).
+def monitoreoGee = [System.getenv('MONITOREO') ? new File(System.getenv('MONITOREO'), 'gee') : null,
+                    rootProject.file('../gee'), rootProject.file('../monitoreo/gee')]
+        .find { it != null && new File(it, 'core.js').isFile() && new File(it, 'catalog.js').isFile() }
+
+// A release signed with a key of its own when the build has it (the secrets of the workflow of monitoreo), otherwise
+// with the debug key, for personal use: CAMPO_KEYSTORE (path), CAMPO_KEYSTORE_PASSWORD, CAMPO_KEY_ALIAS, CAMPO_KEY_PASSWORD
+def releaseKey = System.getenv('CAMPO_KEYSTORE')
+
 android {
     namespace 'es.ugr.monitoreo.campo'
     compileSdk 35
@@ -14,11 +25,22 @@ android {
         versionName '0.4.0'
     }
 
+    signingConfigs {
+        if (releaseKey) {
+            release {
+                storeFile file(releaseKey)
+                storePassword System.getenv('CAMPO_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('CAMPO_KEY_ALIAS')
+                keyPassword System.getenv('CAMPO_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            // APK local de uso personal: firmado con la clave de depuración para instalarlo directamente
-            signingConfig signingConfigs.debug
+            // without a key of its own: signed with the debug key, to install it directly (personal use)
+            signingConfig releaseKey ? signingConfigs.release : signingConfigs.debug
         }
     }
 
@@ -27,3 +49,13 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+def monitoreoCore = tasks.register('monitoreoCore', Copy) {
+    description = 'Copies gee/core.js and gee/catalog.js of monitoreo into the page of the app'
+    if (monitoreoGee) {
+        from(monitoreoGee) { include 'core.js', 'catalog.js' }
+        into 'src/main/assets/www/lib'
+    }
+    onlyIf { monitoreoGee != null }
+}
+tasks.named('preBuild') { dependsOn monitoreoCore }

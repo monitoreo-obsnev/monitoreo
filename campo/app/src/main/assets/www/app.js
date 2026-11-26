@@ -1312,9 +1312,39 @@
     'Google Earth Engine. Remote Sensing of Environment, 202, 18–27. https://doi.org/10.1016/j.rse.2017.06.031. ' +
     'Contiene datos modificados de Copernicus Sentinel; Landsat por cortesía del USGS.';
 
+  // Suggest a change or report an error, as in the other tools of MonitorEO (monitoreo.about.feedback('campo', version)):
+  // an issue of GitHub or the anonymous form, both filled with the tool and the version
+  var FEEDBACK_TOOL = ['Field app', 'Field app / App de campo'];  // monitoreo.about.TOOLS['campo']
+  function feedbackLinks(version) {
+    var q = function (o) { return Object.keys(o).map(function (k) { return k + '=' + encodeURIComponent(o[k]); }).join('&'); };
+    var issue = {tool: FEEDBACK_TOOL[0]}, form = {usp: 'pp_url', 'entry.1706228456': FEEDBACK_TOOL[1]};
+    if (version) issue.version = form['entry.1533130685'] = version;
+    return {issue: 'https://github.com/monitoreo-obsnev/monitoreo/issues/new/choose?' + q(issue),
+            form: 'https://docs.google.com/forms/d/e/1FAIpQLSddJakYhTHL2sVhIQtUX5rC7gYuaAAWYQ4krgFxS3-nzZMg0w/viewform?' + q(form)};
+  }
+  function drawFeedback(version) {
+    var f = feedbackLinks(version), box = document.createElement('div');
+    box.className = 'feedback';
+    box.innerHTML = '<br><b>Sugerir un cambio o informar de un error</b>: <a href="#" data-url="' + esc(f.issue) +
+      '">en GitHub</a> (público, con una cuenta de GitHub) o <a href="#" data-url="' + esc(f.form) +
+      '">formulario anónimo</a> (sin cuenta, nombre ni correo).';
+    box.querySelectorAll('a').forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault();
+        var url = a.getAttribute('data-url');
+        if (window.Android) native('openUrl', url); else window.open(url, '_blank');
+      };
+    });
+    var old = $('about').querySelector('.feedback');
+    if (old) old.parentNode.removeChild(old);
+    $('about').appendChild(box);
+  }
+  drawFeedback('');
+
   native('appInfo').then(function (i) {  // the version of the APK installed (versionName of app/build.gradle)
     $('app-version').textContent = i.version;
     $('brand-version').textContent = 'v' + i.version;
+    drawFeedback(i.version);
   }).catch(function () { $('app-version').textContent = '(navegador)'; });
 
   // Tabs, network, back button ---------------------------------------------------------------------------------------
