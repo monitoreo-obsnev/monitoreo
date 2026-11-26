@@ -1355,11 +1355,76 @@
   }
   drawFeedback('');
 
+  // A new version of the app: the newest APK (Android) or .ipa (iPhone) attached to the releases of monitoreo, looked
+  // for at most once a day (and with the button of Settings). Whether the APK installed is signed with the release key
+  // (signing.js, written by app/build.gradle) says if the new one installs over it or needs this one uninstalled first.
+  var RELEASES = 'https://api.github.com/repos/monitoreo-obsnev/monitoreo/releases?per_page=30';
+  var UPDATE_EVERY = 24 * 3600 * 1000;
+  var installed = null;  // {version, platform} of the app installed
+  function versionParts(v) { return String(v).split('.').map(function (x) { return parseInt(x, 10) || 0; }); }
+  function newerVersion(a, b) {  // whether version A is newer than version B
+    var p = versionParts(a), q = versionParts(b);
+    for (var i = 0; i < Math.max(p.length, q.length); i++) {
+      var d = (p[i] || 0) - (q[i] || 0);
+      if (d) return d > 0;
+    }
+    return false;
+  }
+  function latestApp(releases, ios) {  // {version, url, tag} of the newest app of the platform in RELEASES
+    var re = ios ? /^MonitorEO-Campo-(\d+(?:\.\d+)*)\.ipa$/ : /^MonitorEO-Campo-(\d+(?:\.\d+)*)\.apk$/, best = null;
+    (releases || []).forEach(function (r) {
+      if (r.draft || r.prerelease) return;
+      (r.assets || []).forEach(function (a) {
+        var m = re.exec(a.name);
+        if (m && (!best || newerVersion(m[1], best.version))) best = {version: m[1], url: a.browser_download_url, tag: r.tag_name};
+      });
+    });
+    return best;
+  }
+  function drawUpdate(note) {
+    var u = load('campo.update', null), checked = load('campo.updateChecked', 0);
+    if (u && installed && !newerVersion(u.version, installed.version)) u = null;  // already installed
+    var text;
+    if (u) {
+      text = t('Hay una versión nueva: {0} (tienes la {1}).', u.version, installed.version) + ' ' +
+        (installed.platform === 'ios' ? t('Instálala con Sideloadly como la primera vez: los puntos y los resultados se conservan.') :
+         window.CAMPO_SIGNED ? t('Al abrir el APK, Android la instala encima de esta: los puntos y los resultados se conservan.') :
+         t('Esta instalación está firmada con una clave de prueba: antes de instalar la nueva, exporta los puntos (Puntos → Exportar) y desinstala esta app; después importa los puntos. Los resultados guardados se pierden.'));
+    } else if (installed) {
+      text = checked ? t('Tienes la última versión ({0}). Comprobado: {1}.', installed.version, i18n.dateTime(checked)) :
+        t('Versión instalada: {0}.', installed.version);
+    } else {
+      text = t('solo disponible en el teléfono');
+    }
+    $('update-state').textContent = text + (note ? ' ' + note : '');
+    $('btn-update-get').classList.toggle('hidden', !u);
+    $('btn-update-get').onclick = u ? function () { native('openUrl', u.url); } : null;
+    $('btn-update-check').disabled = !installed;
+    return u;
+  }
+  function checkUpdate(manual) {
+    if (!installed) return drawUpdate();
+    if (!navigator.onLine) return drawUpdate(manual ? t('Sin conexión: no se puede comprobar.') : '');
+    if (!manual && Date.now() - load('campo.updateChecked', 0) < UPDATE_EVERY) return drawUpdate();
+    $('update-state').textContent = t('Buscando una versión nueva…');
+    return httpJson(RELEASES).then(function (r) {
+      if (r.status !== 200 || !Array.isArray(r.data)) throw new Error('GitHub: HTTP ' + r.status);
+      var best = latestApp(r.data, installed.platform === 'ios');
+      store('campo.update', best && newerVersion(best.version, installed.version) ? best : null);
+      store('campo.updateChecked', Date.now());
+      var u = drawUpdate();
+      if (u && !manual) toast(t('Hay una versión nueva de MonitorEO Campo ({0}): mira Ajustes.', u.version), 6000);
+    }).catch(function (e) { drawUpdate(t('No se pudo comprobar: {0}', errText(e))); });
+  }
+  $('btn-update-check').onclick = function () { checkUpdate(true); };
+
   native('appInfo').then(function (i) {  // the version of the APK installed (versionName of app/build.gradle)
     $('app-version').textContent = i.version;
     $('brand-version').textContent = 'v' + i.version;
     drawFeedback(i.version);
-  }).catch(function () { $('app-version').textContent = t('(navegador)'); });
+    installed = {version: i.version, platform: i.platform === 'ios' ? 'ios' : 'android'};
+    checkUpdate(false);
+  }).catch(function () { $('app-version').textContent = t('(navegador)'); drawUpdate(); });
 
   // Tabs, network, back button ---------------------------------------------------------------------------------------
 

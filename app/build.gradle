@@ -59,3 +59,27 @@ def monitoreoCore = tasks.register('monitoreoCore', Copy) {
     onlyIf { monitoreoGee != null }
 }
 tasks.named('preBuild') { dependsOn monitoreoCore }
+
+// www/signing.js in the assets of each build: window.CAMPO_SIGNED, whether the APK has the release key (a release built
+// with CAMPO_KEYSTORE). The notice of a new version (app.js) tells from it whether the new APK installs over this one.
+abstract class CampoSigning extends DefaultTask {
+    @Input abstract Property<Boolean> getSigned()
+    @OutputDirectory abstract DirectoryProperty getOutputDir()
+
+    @TaskAction
+    void write() {
+        def f = outputDir.file('www/signing.js').get().asFile
+        f.parentFile.mkdirs()
+        f.text = "// Written by app/build.gradle: whether this APK is signed with the release key of the app\n" +
+                "window.CAMPO_SIGNED = ${signed.get()};\n"
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def task = tasks.register("campoSigning${variant.name.capitalize()}", CampoSigning) {
+            signed.set(releaseKey != null && variant.buildType == 'release')
+        }
+        variant.sources.assets.addGeneratedSourceDirectory(task, { it.outputDir })
+    }
+}

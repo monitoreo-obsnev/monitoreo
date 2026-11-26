@@ -193,6 +193,14 @@
       <div id="storage-info" class="muted small"></div>
       <button id="btn-clear-results" class="small">Borrar resultados guardados</button>
     </div>
+    <div class="card">
+      <b>Versiones</b>
+      <div id="update-state" class="muted small"></div>
+      <div class="row wrap">
+        <button id="btn-update-check" class="small">Buscar versión nueva</button>
+        <button id="btn-update-get" class="primary small hidden">Descargar la versión nueva</button>
+      </div>
+    </div>
     <div class="card small muted" id="about"></div>
   </section>
 </main>
@@ -213,6 +221,7 @@
 <script src="lib/core.js"></script>
 <script src="en.js"></script>
 <script src="i18n.js"></script>
+<script src="signing.js"></script>  <!-- written by app/build.gradle: whether the APK has the release key -->
 <script src="app.js"></script>
 <script src="ai.js"></script>
 </body>

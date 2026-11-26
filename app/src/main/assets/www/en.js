@@ -4,6 +4,19 @@
  * its English. A text with {0}, {1}… keeps them (they can change places). Sections: page, app.js, ai.js.
  */
 window.CAMPO_EN = {
+ "Versiones": "Versions",
+ "Buscar versión nueva": "Check for a new version",
+ "Descargar la versión nueva": "Download the new version",
+ "Hay una versión nueva: {0} (tienes la {1}).": "There is a new version: {0} (you have {1}).",
+ "Instálala con Sideloadly como la primera vez: los puntos y los resultados se conservan.": "Install it with Sideloadly as the first time: the points and the results are kept.",
+ "Al abrir el APK, Android la instala encima de esta: los puntos y los resultados se conservan.": "When you open the APK, Android installs it over this one: the points and the results are kept.",
+ "Esta instalación está firmada con una clave de prueba: antes de instalar la nueva, exporta los puntos (Puntos → Exportar) y desinstala esta app; después importa los puntos. Los resultados guardados se pierden.": "This installation is signed with a test key: before installing the new one, export the points (Points → Export) and uninstall this app; then import the points. The saved results are lost.",
+ "Tienes la última versión ({0}). Comprobado: {1}.": "You have the latest version ({0}). Checked: {1}.",
+ "Versión instalada: {0}.": "Installed version: {0}.",
+ "Sin conexión: no se puede comprobar.": "No connection: cannot check.",
+ "Buscando una versión nueva…": "Looking for a new version…",
+ "Hay una versión nueva de MonitorEO Campo ({0}): mira Ajustes.": "There is a new version of MonitorEO Campo ({0}): see Settings.",
+ "No se pudo comprobar: {0}": "Could not check: {0}",
  "Toca el mapa donde quieras el punto nuevo": "Tap the map where you want the new point",
  "Ubicación {0}": "Location {0}",
  "Usar": "Use",
