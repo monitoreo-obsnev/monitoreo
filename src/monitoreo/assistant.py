@@ -87,9 +87,8 @@ CHAIN = {'auto': ('monitoreo', 'glm', 'ollama'), 'monitoreo': ('monitoreo',), 'g
 PROVIDER_NAMES = {'monitoreo': 'the model of MonitorEO', 'glm': 'GLM (Z.ai)', 'ollama': 'the model of this computer'}
 GLM_URL = 'https://api.z.ai/api/paas/v4'  # its API, like that of OpenAI (/chat/completions)
 GLM_MODELS = ('glm-4.7-flash', 'glm-4.5-flash')  # those free of charge of Z.ai, the first one by default
-# the backup key of GLM, used when the user has none or theirs fails (out of the repository): the environment variable
-# MONITOREO_GLM_KEY (or ZAI_API_KEY) or this file, with the key alone
-GLM_BACKUP_FILE = os.path.join(OUTPUT, 'glm_backup_key.txt')
+# without a key of GLM of the user (Settings), or if theirs fails, GLM answers with the backup key of MonitorEO, through
+# its broker (see chat_glm)
 CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
 	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended'},
@@ -1082,27 +1081,6 @@ class GlmError(ModelError):
 		self.status = status
 
 
-def glm_backup_key():
-	"""The backup key of GLM (see GLM_BACKUP_FILE), or ''."""
-	key = os.environ.get('MONITOREO_GLM_KEY') or os.environ.get('ZAI_API_KEY') or ''
-	if not key.strip():
-		try:
-			with open(GLM_BACKUP_FILE, encoding='utf-8') as f:
-				key = f.read()
-		except OSError:
-			key = ''
-	return key.strip()
-
-
-def glm_keys(settings):
-	"""The keys of GLM to try, in order: that of the user (Settings), then the backup one; [(key, whose)]."""
-	keys = []
-	for key, whose in ((str(settings.get('glm_key') or '').strip(), 'your'), (glm_backup_key(), 'backup')):
-		if key and key not in [k for k, _ in keys]:
-			keys.append((key, whose))
-	return keys
-
-
 def glm(key, payload, timeout=240, abort=None):
 	"""Answer (JSON) of /chat/completions of the API of GLM with KEY. ABORT: as in ollama."""
 	req = urllib.request.Request(GLM_URL + '/chat/completions', method='POST', data=json.dumps(payload).encode(),
@@ -1141,21 +1119,20 @@ def glm_messages(system, messages):
 
 
 def chat_glm(settings, system, messages, tools):
-	"""The next message of the model of GLM of the settings (glm_model), with the key of the user or, if they have none
-	or it fails (wrong, out of quota, too many requests), the backup one; as chat_cloud gives it. If that model does
-	not answer with any key (the free models of Z.ai are often overloaded: HTTP 429), the other free ones
-	(GLM_MODELS) are tried, in their order; the message says which one answered (model)."""
-	keys = glm_keys(settings)
-	if not keys:
-		raise ModelError('there is no key of the API of GLM: write yours in Settings (it is free at https://z.ai)')
+	"""The next message of the model of GLM of the settings (glm_model), as chat_cloud gives it, with the key of the user
+	(Settings) and, if they have none or it fails (wrong, out of quota, overloaded), with the backup key of MonitorEO,
+	which is in its broker and never leaves it (chat_cloud with that model). With the key of the user, if that model does
+	not answer (the free models of Z.ai are often overloaded: HTTP 429), the other free ones (GLM_MODELS) are tried, in
+	their order, as the broker does with its key; the message says which one answered (model)."""
 	chosen = str(settings.get('glm_model') or GLM_MODELS[0]).strip()
-	conversation = glm_messages(system, messages)
+	key = str(settings.get('glm_key') or '').strip()
 	errors = []
-	for model in [chosen] + [m for m in GLM_MODELS if m != chosen]:
-		payload = {'model': model, 'messages': conversation, 'temperature': 0.2, 'thinking': {'type': 'disabled'}}
-		if tools:
-			payload['tools'] = tools
-		for key, whose in keys:
+	if key:
+		conversation = glm_messages(system, messages)
+		for model in [chosen] + [m for m in GLM_MODELS if m != chosen]:
+			payload = {'model': model, 'messages': conversation, 'temperature': 0.2, 'thinking': {'type': 'disabled'}}
+			if tools:
+				payload['tools'] = tools
 			try:
 				try:
 					answer = glm(key, payload, abort=settings.get('abort'))
@@ -1166,14 +1143,20 @@ def chat_glm(settings, system, messages, tools):
 					else:
 						raise
 			except GlmError as e:
-				errors.append(f'{model}, {whose} key: {e}')
-				if e.status in (401, 403, 429) or (e.status or 0) >= 500 or e.status is None:
-					continue  # the other key may work (a wrong key, its limit, the service overloaded)
-				break  # an error of the request (400: e.g. the model does not exist): the next model
+				errors.append(f'{model}, your key: {e}')
+				if e.status in (401, 403):  # a wrong key (or without access): the backup one
+					break
+				continue  # the next model (busy, overloaded, no connection, a model that does not exist)
 			out = openai_answer(answer)
 			out['model'] = answer.get('model') or model
 			return out
-	raise ModelError('GLM does not answer: ' + '; '.join(errors))
+	try:
+		return chat_cloud(system, messages, tools, chosen if chosen in GLM_MODELS else GLM_MODELS[0])
+	except TooLong:
+		raise
+	except ModelError as e:
+		errors.append(f'the backup key of MonitorEO: {e}')
+		raise ModelError('GLM does not answer: ' + '; '.join(errors)) from e
 
 
 def chat_cloud(system, messages, tools, model=None):
@@ -2441,6 +2424,9 @@ class Assistant:
 		for provider in chain[chain.index(self.provider()):]:
 			self.active = provider
 			try:
+				if provider == 'ollama' and not self.base() and self.settings.get('ollama', 'auto') == 'auto':
+					with contextlib.suppress(RuntimeError):  # not looked for while a model of the cloud was in use
+						await asyncio.to_thread(self.engine.find)
 				if provider == 'ollama' and not self.base():
 					raise ModelError('the engine of the models is missing: install it in Settings')
 				self.model_call = []  # its sockets (Ollama, GLM), to cut it if the user stops it (see stop)
@@ -2454,7 +2440,9 @@ class Assistant:
 				failed.append((provider, str(e)))
 				continue
 			if provider == 'glm':
-				self.glm_model = message.pop('model', None) or self.glm_model
+				model = message.pop('model', None)
+				if str(model or '').startswith('glm-'):  # (a broker without GLM answers with its own model)
+					self.glm_model = model
 			else:
 				self.cloud_model = message.get('model') or self.cloud_model
 			return message, failed
@@ -3134,7 +3122,7 @@ def make_app(assistant, token, port):
 		                     'provider': s.get('provider') if s.get('provider') in PROVIDERS else 'auto',
 		                     'active': assistant.provider(), 'model_name': assistant.model_name(),
 		                     'glm': {'own_key': bool(str(s.get('glm_key') or '').strip()),
-		                             'backup_key': bool(glm_backup_key()),
+		                             'backup_key': True,  # that of MonitorEO, in its broker
 		                             'model': s.get('glm_model') or GLM_MODELS[0], 'models': GLM_MODELS},
 		                     'model': s['model'], 'ollama': base or s.get('ollama'), 'models': installed,
 		                     'recommended': RECOMMENDED,

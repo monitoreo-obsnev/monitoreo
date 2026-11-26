@@ -213,7 +213,7 @@ dialog textarea { width: 100%; margin-top: 4px; resize: vertical; box-sizing: bo
       <div class="row" id="glmRow" hidden>
         <label class="label" for="glmKey">GLM (Z.ai)</label>
         <select id="glmModel"></select>
-        <input id="glmKey" type="password" autocomplete="off" placeholder="your key of the API of Z.ai (empty: the backup key)">
+        <input id="glmKey" type="password" autocomplete="off" placeholder="your key of the API of Z.ai (empty: the backup key of MonitorEO)">
         <button id="saveGlm" type="button">Save</button>
         <button id="clearGlm" type="button" hidden>Remove my key</button>
         <button id="glmHelpButton" type="button" title="How to create your key of GLM, and its limits">ⓘ How to get a key</button>
@@ -569,21 +569,21 @@ Object.assign(ES, {  // GLM (Z.ai), the second model of the automatic choice
   'Automatic: the model of MonitorEO; if it fails, GLM; then the model on this computer':
     'Automático: el modelo de MonitorEO; si falla, GLM; luego el modelo de este ordenador',
   'GLM (Z.ai), in the cloud, with a key of its API': 'GLM (Z.ai), en la nube, con una clave de su API',
-  'your key of the API of Z.ai (empty: the backup key)': 'tu clave de la API de Z.ai (vacío: la clave de respaldo)',
+  'your key of the API of Z.ai (empty: the backup key of MonitorEO)': 'tu clave de la API de Z.ai (vacío: la clave de respaldo de MonitorEO)',
   'Remove my key': 'Quitar mi clave', 'removed': 'quitada', 'Understood': 'Entendido',
   'ⓘ How to get a key': 'ⓘ Cómo conseguir una clave',
   'How to create your key of GLM, and its limits': 'Cómo crear tu clave de GLM, y sus límites',
-  '✓ your key': '✓ tu clave', '✓ your key, and the backup key if yours fails': '✓ tu clave, y la de respaldo si la tuya falla',
-  '✓ the backup key (write yours to use it first)': '✓ la clave de respaldo (escribe la tuya para usarla primero)',
+  '✓ your key': '✓ tu clave', '✓ your key, and the backup key of MonitorEO if yours fails': '✓ tu clave, y la de respaldo de MonitorEO si la tuya falla',
+  '✓ the backup key of MonitorEO (write yours to have limits of your own)': '✓ la clave de respaldo de MonitorEO (escribe la tuya para tener tus propios límites)',
   '⚠ no key: create one, free, at z.ai and write it here': '⚠ sin clave: crea una, gratis, en z.ai y escríbela aquí',
   '✓ ready: the conversation goes to Z.ai (Zhipu), the company of GLM': '✓ listo: la conversación va a Z.ai (Zhipu), la empresa de GLM',
   '⚠ GLM needs a key of its API: write it below': '⚠ GLM necesita una clave de su API: escríbela abajo',
 });
 const PATTERNS = [
   [/^(\S+) \(free\)$/, '$1 (gratis)'],
-  [/^✓ ready: first the model of MonitorEO; if it does not answer, GLM \((.+?)\)(, which needs a key)?; then the model on this computer, if it is downloaded$/,
+  [/^✓ ready: first the model of MonitorEO; if it does not answer, GLM \((.+?)\)(, which needs a key)?; then the model on this computer, if it is downloaded\. The conversation goes to the company of the model that answers: Google or Anthropic, Z\.ai with GLM$/,
    (m, model, key) => `✓ listo: primero el modelo de MonitorEO; si no responde, GLM (${model})` + (key ? ', que necesita una clave' : '') +
-                      '; luego el modelo de este ordenador, si está descargado'],
+                      '; luego el modelo de este ordenador, si está descargado. La conversación va a la empresa del modelo que responde: Google o Anthropic, Z.ai con GLM'],
   [/^⚠ (the model of MonitorEO|GLM \(Z\.ai\)|the model of this computer) does not answer \((.*)\): (the model of MonitorEO|GLM \(Z\.ai\)|the model of this computer) answers instead\.$/s,
    (m, a, error, b) => { const n = {'the model of MonitorEO': 'el modelo de MonitorEO', 'GLM (Z.ai)': 'GLM (Z.ai)', 'the model of this computer': 'el modelo de este ordenador'};
                          return `⚠ ${n[a]} no responde (${error}): responde ${n[b]} en su lugar.`; }],
@@ -790,14 +790,15 @@ async function refresh() {
   $('clearGlm').hidden = !glm.own_key;
   if (!$('glmMsg').dataset.busy) {
     $('glmMsg').className = glmKey ? 'ok' : 'warn';
-    $('glmMsg').textContent = glm.own_key ? '✓ your key' + (glm.backup_key ? ', and the backup key if yours fails' : '') :
-      glm.backup_key ? '✓ the backup key (write yours to use it first)' :
+    $('glmMsg').textContent = glm.own_key ? '✓ your key' + (glm.backup_key ? ', and the backup key of MonitorEO if yours fails' : '') :
+      glm.backup_key ? '✓ the backup key of MonitorEO (write yours to have limits of your own)' :
       '⚠ no key: create one, free, at z.ai and write it here';
   }
   $('providerMsg').className = state.provider === 'ollama' || (state.provider === 'glm' && !glmKey) ? 'warn' : 'ok';
   $('providerMsg').textContent = {
     auto: '✓ ready: first the model of MonitorEO; if it does not answer, GLM (' + (glm.model || 'GLM') + ')' +
-          (glmKey ? '' : ', which needs a key') + '; then the model on this computer, if it is downloaded',
+          (glmKey ? '' : ', which needs a key') + '; then the model on this computer, if it is downloaded. ' +
+          'The conversation goes to the company of the model that answers: Google or Anthropic, Z.ai with GLM',
     monitoreo: '✓ ready: the conversation goes to the company of the model (Google or Anthropic), ' +
                'which does not use it to train its models',
     glm: glmKey ? '✓ ready: the conversation goes to Z.ai (Zhipu), the company of GLM' :
@@ -1127,26 +1128,26 @@ function showGlmHelp() {  // what GLM is, how to get a key and its limits, with 
   const T = es ? {
     title: 'GLM: el segundo modelo del asistente',
     what: 'Si el modelo de MonitorEO no responde, el asistente usa GLM (Z.ai), y si tampoco, el modelo de este ordenador. ' +
-          'Trae una clave de respaldo compartida; con la tuya tienes tus propios límites.',
+          'MonitorEO tiene una clave de respaldo de GLM, compartida, en su servidor; con la tuya tienes tus propios límites.',
     how: 'Cómo conseguir tu clave (gratis):',
     steps: [['Regístrate o inicia sesión en ', 'https://z.ai/model-api', 'z.ai/model-api'],
             ['Crea una clave estándar (Standard API Key, no del Coding Plan) en ', 'https://z.ai/manage-apikey/apikey-list', 'API Keys'],
             ['Pégala aquí, en el campo de GLM, y pulsa Guardar.']],
     limits: 'Límites: glm-4.7-flash y glm-4.5-flash no cuestan nada, pero Z.ai limita las peticiones a la vez y por minuto, ' +
             'y no publica en su documentación un límite diario fijo. Cada pregunta usa de 1 a 8 peticiones. Los límites de tu cuenta: ',
-    limitsAfter: '. Si se alcanzan o el modelo está saturado, el asistente prueba la clave de respaldo, luego el otro modelo gratuito de GLM y, por último, el modelo de este ordenador.',
+    limitsAfter: '. Si se alcanzan o el modelo está saturado, el asistente prueba el otro modelo gratuito de GLM, luego la clave de respaldo de MonitorEO y, por último, el modelo de este ordenador.',
     guide: 'Instructivo completo, paso a paso', page: 'z.ai/manage-apikey/rate-limits',
   } : {
     title: 'GLM: the second model of the assistant',
     what: 'If the model of MonitorEO does not answer, the assistant uses GLM (Z.ai), and then the model of this computer. ' +
-          'It has a shared backup key; with yours you have your own limits.',
+          'MonitorEO has a shared backup key of GLM, in its server; with yours you have limits of your own.',
     how: 'How to get your key (free):',
     steps: [['Sign up or sign in at ', 'https://z.ai/model-api', 'z.ai/model-api'],
             ['Create a Standard API Key (not a Coding Plan one) in ', 'https://z.ai/manage-apikey/apikey-list', 'API Keys'],
             ['Paste it here, in the field of GLM, and press Save.']],
     limits: 'Limits: glm-4.7-flash and glm-4.5-flash are free of charge, but Z.ai limits the requests at a time and per minute, ' +
             'and its documentation publishes no fixed daily limit. Each question takes 1 to 8 requests. The limits of your account: ',
-    limitsAfter: '. When they are reached or the model is overloaded, the assistant tries the backup key, then the other free model of GLM and, last, the model of this computer.',
+    limitsAfter: '. When they are reached or the model is overloaded, the assistant tries the other free model of GLM, then the backup key of MonitorEO and, last, the model of this computer.',
     guide: 'Whole guide, step by step', page: 'z.ai/manage-apikey/rate-limits',
   };
   $('glmHelpText').replaceChildren(

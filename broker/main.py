@@ -66,11 +66,19 @@ address may ask CHAT_LIMIT times an hour and each user (the same ID) CHAT_USER_D
 assistant asks from 1 to 8 times): what stops abuse; the spend caps of the projects (AI Studio, the Console of
 Anthropic) are what limit the cost. The log has the tokens of each request, never its text.
 
+/chat is also the backup key of GLM (Z.ai), the second model of the assistant (after that of MonitorEO, before a
+model on the computer of the user), for its users without a key of GLM of their own or whose key fails: a request that
+asks for one of GLM_MODELS (its free models) gets that one or, while it is busy, the next ones, with the key of the
+secret ZAI_API_KEY, which never leaves this service either; the limits of each address and user are the same. GLM gets
+the messages with only their standard fields and without thinking (glm_request). Z.ai, not Google nor Anthropic, then
+gets the conversation.
+
 Environment: PUBLIC_SA (e-mail of monitoreo-public), EE_PROJECT (project of the quota), LIMIT (tokens per address and
 hour, default 60), USER_LIMIT (research EECU-hours a month of each user, default 25), EECU_LIMIT (EECU-hours a month of
 the tier of EE_PROJECT, default 1000: the Contributor tier), PROJECT_RESERVE (EECU-hours of EECU_LIMIT not given to the
 users of the shared account, default 10 % of EECU_LIMIT), REQUIRE_USER (default 1), GEMINI_API_KEY and
-ANTHROPIC_API_KEY (a model without its key is skipped), CHAT_MODELS (comma-separated, in order; default CHAT_MODEL or
+ANTHROPIC_API_KEY (a model without its key is skipped), ZAI_API_KEY (GLM), GLM_MODELS (default
+glm-4.7-flash,glm-4.5-flash), CHAT_MODELS (comma-separated, in order; default CHAT_MODEL or
 claude-sonnet-5-5,gemini-3.8-flash), CHAT_CHOOSE (default 0), CHAT_REASONING (default low), CHAT_MAX_TOKENS (default
 8192), CHAT_LIMIT (default 120), CHAT_USER_DAY (default 400) and PORT (given by Cloud Run). It needs the
 standard library of Python and, for Claude, the package anthropic (see Dockerfile).
@@ -100,6 +108,11 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '').strip()
 GEMINI = os.environ.get('GEMINI_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
 CHAT_MODELS = [m.strip() for m in (os.environ.get('CHAT_MODELS') or os.environ.get('CHAT_MODEL') or
                                    'claude-sonnet-5-5,gemini-3.8-flash').split(',') if m.strip()]
+ZAI_API_KEY = os.environ.get('ZAI_API_KEY', '').strip()  # the backup key of GLM of the assistant (see GLM_MODELS)
+GLM = os.environ.get('GLM_URL', 'https://api.z.ai/api/paas/v4/chat/completions')
+# the free models of GLM (Z.ai) that a request may always ask for (the second model of the assistant, when its user has
+# no key of GLM or theirs fails): the one asked for and, if it is busy, the next ones
+GLM_MODELS = [m.strip() for m in os.environ.get('GLM_MODELS', 'glm-4.7-flash,glm-4.5-flash').split(',') if m.strip()]
 CLAUDE_FALLBACKS = ('claude-opus-5-5', 'claude-sonnet-5-5')  # with fallbacks "default" (Claude Haiku 5.5 has none)
 CLAUDE_BETAS = ['thinking-binding-controls-2026-08-01']  # drop_block (see claude_params)
 GEMINI_DROP = ('title', 'default', 'additionalProperties', '$schema')  # of the schemas of the tools, for Gemini
@@ -361,7 +374,8 @@ def chat_request(body):
 	"""The request of BODY (JSON of the assistant, as the OpenAI chat completions API takes it) that goes on: only what
 	it needs, with the length of answer of this service, its scope before the system message and the models that may
 	answer it, in order: CHAT_MODELS (the first one, and the next ones only while it has no credit), or, only with
-	CHAT_CHOOSE (to compare the models), the one of CHAT_MODELS that the request asks for."""
+	CHAT_CHOOSE (to compare the models), the one of CHAT_MODELS that the request asks for, or, for a request that asks
+	for one of GLM_MODELS (the backup key of GLM of the assistant), that one and then the other ones of GLM_MODELS."""
 	try:
 		req = json.loads(body)
 	except ValueError:
@@ -374,7 +388,10 @@ def chat_request(body):
 		messages[0]['content'] = SCOPE + messages[0]['content']
 	else:
 		messages.insert(0, {'role': 'system', 'content': SCOPE.strip()})
-	models = [out['model']] if CHAT_CHOOSE and out.get('model') in CHAT_MODELS else list(CHAT_MODELS)
+	if out.get('model') in GLM_MODELS:
+		models = [out['model']] + [m for m in GLM_MODELS if m != out['model']]
+	else:
+		models = [out['model']] if CHAT_CHOOSE and out.get('model') in CHAT_MODELS else list(CHAT_MODELS)
 	out.update(messages=messages, model=models[0], models=models, max_tokens=CHAT_MAX_TOKENS)
 	return out
 
@@ -597,15 +614,74 @@ def gemini(request):
 		raise ChatError(502, 'model', 'the language model of MonitorEO does not answer now') from e
 
 
+def glm_request(request):
+	"""REQUEST as the API of GLM (Z.ai, like that of OpenAI) takes it: each message with only its standard fields (not
+	the blocks of other models in extra_content, which the assistant sends back), without thinking (the effort of the
+	other models)."""
+	messages = []
+	for m in request['messages']:
+		keep = {'role': m.get('role'), 'content': m.get('content') or ''}
+		if m.get('tool_call_id'):
+			keep['tool_call_id'] = m['tool_call_id']
+		if m.get('tool_calls'):
+			keep['tool_calls'] = []
+			for c in m['tool_calls']:
+				function = c.get('function') or {}
+				args = function.get('arguments')
+				keep['tool_calls'].append({'id': c.get('id'), 'type': 'function', 'function': {
+					'name': function.get('name'),
+					'arguments': args if isinstance(args, str) else json.dumps(args or {}, ensure_ascii=False)}})
+		messages.append(keep)
+	out = {k: request[k] for k in ('tools', 'tool_choice', 'temperature') if k in request}
+	out.update(model=request['model'], messages=messages, max_tokens=request['max_tokens'],
+	           thinking={'type': 'disabled'})
+	return out
+
+
+def glm(request):
+	"""The answer (JSON) of GLM to REQUEST, or ChatError (busy: the free models of Z.ai are often overloaded)."""
+	req = urllib.request.Request(GLM, data=json.dumps(glm_request(request)).encode(),
+	                             headers={'Authorization': 'Bearer ' + ZAI_API_KEY, 'Content-Type': 'application/json',
+	                                      'Accept-Language': 'en-US,en'})
+	try:
+		with urllib.request.urlopen(req, timeout=180) as r:
+			return json.load(r)
+	except urllib.error.HTTPError as e:
+		try:
+			detail = (json.load(e).get('error') or {}).get('message') or ''
+		except Exception:  # noqa: BLE001
+			detail = ''
+		if e.code == 429:
+			raise ChatError(503, 'busy', 'GLM (Z.ai) is busy: try again in a minute') from e
+		if e.code in (401, 403):
+			raise ChatError(503, 'off', 'GLM (Z.ai) is not available in MonitorEO') from e
+		if e.code == 400:  # a request that GLM does not take (never the key in it)
+			raise ChatError(502, 'model', f'GLM (Z.ai) did not take the request: {detail}') from e
+		raise ChatError(502, 'model', f'GLM (Z.ai) failed ({e.code})') from e
+	except (urllib.error.URLError, OSError, ValueError) as e:
+		raise ChatError(502, 'model', 'GLM (Z.ai) does not answer now') from e
+
+
 def model_key(model):
 	"""The key of the API of MODEL ('' if this service has none)."""
+	if model.startswith('glm-'):
+		return ZAI_API_KEY
 	return ANTHROPIC_API_KEY if model.startswith('claude-') else GEMINI_API_KEY
+
+
+def ask(request):
+	"""The answer (in the form of OpenAI) of the model of REQUEST, or ChatError."""
+	model = request['model']
+	if model.startswith('claude-'):
+		return claude(request)
+	return glm(request) if model.startswith('glm-') else gemini(request)
 
 
 def chat(body, address, user):
 	"""The answer of /chat to the request BODY of USER from ADDRESS, or ChatError: from the first of its models with a
-	key and credit (a model that says it has no credit passes the request to the next one)."""
-	if not any(model_key(m) for m in CHAT_MODELS):
+	key and credit (a model that says it has no credit passes the request to the next one; a model of GLM that is busy
+	too)."""
+	if not any(model_key(m) for m in CHAT_MODELS + GLM_MODELS):
 		raise ChatError(503, 'off', 'the language model of MonitorEO is not available')
 	if not user:
 		raise ChatError(400, 'user', 'this version of MonitorEO is too old for its language model: update it')
@@ -616,19 +692,24 @@ def chat(body, address, user):
 		raise ChatError(429, 'day', 'you have asked the language model of MonitorEO too much today: go on tomorrow '
 		                            'or use a model on your computer (Settings of the assistant)')
 	request = chat_request(body)
+	glm_asked = request['model'] in GLM_MODELS
 	models = [m for m in request.pop('models') if model_key(m)]
+	if not models and glm_asked:
+		raise ChatError(503, 'off', 'GLM (Z.ai) is not available in MonitorEO')
 	ready = [m for m in models if has_credit(m)] or models[-1:]  # without credit in any, the last one is tried
 	if not ready:
 		raise ChatError(503, 'off', 'the language model of MonitorEO is not available')
 	for i, model in enumerate(ready):
 		request['model'] = model
 		try:
-			answer = claude(request) if model.startswith('claude-') else gemini(request)
+			answer = ask(request)
 			break
 		except ChatError as e:
-			if e.answer['code'] != 'credit' or i == len(ready) - 1:
+			passes = ('credit', 'busy') if model.startswith('glm-') else ('credit',)
+			if e.answer['code'] not in passes or i == len(ready) - 1:
 				raise
-			no_credit(model)
+			if e.answer['code'] == 'credit':
+				no_credit(model)
 	use = answer.get('usage') or {}
 	print(f"chat {user} model={model} prompt={use.get('prompt_tokens')} answer={use.get('completion_tokens')}"
 	      f" cache_read={use.get('cache_read_tokens', '-')} cache_write={use.get('cache_write_tokens', '-')}"

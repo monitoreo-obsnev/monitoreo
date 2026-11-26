@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from monitoreo import assistant, maps, report
+from monitoreo import assistant, maps, report, services
 from monitoreo.steps import MAX_MAP_STEPS, UNITS, map_steps
 
 TOOLS = [
@@ -2851,37 +2851,20 @@ def test_chain_all_fail_and_single_provider(monkeypatch):
 	assert error == 'Language model: glm is down'
 
 
-def test_glm_keys(monkeypatch, tmp_path):
-	monkeypatch.delenv('MONITOREO_GLM_KEY', raising=False)
-	monkeypatch.delenv('ZAI_API_KEY', raising=False)
-	monkeypatch.setattr(assistant, 'GLM_BACKUP_FILE', str(tmp_path / 'glm_backup_key.txt'))
-	assert assistant.glm_keys({}) == []
-	(tmp_path / 'glm_backup_key.txt').write_text(' backup \n')
-	assert assistant.glm_keys({'glm_key': 'mine'}) == [('mine', 'your'), ('backup', 'backup')]
-	monkeypatch.setenv('ZAI_API_KEY', 'env')
-	assert assistant.glm_keys({'glm_key': 'env'}) == [('env', 'your')]
-	with pytest.raises(assistant.ModelError, match='no key'):
-		monkeypatch.delenv('ZAI_API_KEY')
-		(tmp_path / 'glm_backup_key.txt').unlink()
-		assistant.chat_glm({}, 'System', [], [])
-
-
 def test_chat_glm(monkeypatch):
-	# the request of OpenAI without the fields of other models, the backup key when that of the user fails, and the
-	# arguments of the calls as objects
+	# the key of the user towards Z.ai: the request of OpenAI without the fields of other models, and the arguments of
+	# the calls as objects
 	sent = []
 
 	def api(key, payload, timeout=240, abort=None):
 		sent.append((key, json.loads(json.dumps(payload))))
-		if key == 'mine':
-			raise assistant.GlmError('HTTP 429: too many requests', 429)
-		return {'model': 'glm-4.7-flash', 'choices': [{'message': {
+		return {'model': 'glm-4.5-flash', 'choices': [{'message': {
 			'role': 'assistant', 'content': '<think>x</think>Voy', 'reasoning_content': 'r',
 			'tool_calls': [{'id': 'c1', 'type': 'function',
 			                'function': {'name': 'time_series', 'arguments': '{"variable": "NDVI"}'}}]}}]}
 
 	monkeypatch.setattr(assistant, 'glm', api)
-	monkeypatch.setattr(assistant, 'glm_backup_key', lambda: 'backup')
+	monkeypatch.setattr(services, '_broker', lambda *a, **k: pytest.fail('the backup key is not needed'))
 	messages = [{'role': 'user', 'content': 'NDVI'},
 	            {'role': 'assistant', 'content': '', 'extra_content': {'google': {'thought_signature': 's'}},
 	             'tool_calls': [{'id': 'g1', 'function': {'name': 'list_variables', 'arguments': {}},
@@ -2889,24 +2872,52 @@ def test_chat_glm(monkeypatch):
 	            {'role': 'tool', 'tool_name': 'list_variables', 'content': 'NDVI…'}]
 	out = assistant.chat_model({'provider': 'glm', 'glm_key': 'mine', 'glm_model': 'glm-4.5-flash'}, 'System',
 	                           messages, [{'type': 'function', 'function': {'name': 'time_series'}}])
-	assert [k for k, _ in sent] == ['mine', 'backup']
-	payload = sent[1][1]
-	assert payload['model'] == 'glm-4.5-flash' and payload['thinking'] == {'type': 'disabled'}
+	key, payload = sent[0]
+	assert key == 'mine' and payload['model'] == 'glm-4.5-flash' and payload['thinking'] == {'type': 'disabled'}
 	assert payload['temperature'] == 0.2 and payload['tools'][0]['function']['name'] == 'time_series'
 	assert payload['messages'][2] == {'role': 'assistant', 'content': '', 'tool_calls': [
 		{'id': 'g1', 'type': 'function', 'function': {'name': 'list_variables', 'arguments': '{}'}}]}
 	assert payload['messages'][3] == {'role': 'tool', 'content': 'NDVI…', 'tool_call_id': 'g1'}
-	assert out['content'] == 'Voy' and out['model'] == 'glm-4.7-flash'
+	assert out['content'] == 'Voy' and out['model'] == 'glm-4.5-flash'
 	assert out['tool_calls'][0]['function']['arguments'] == {'variable': 'NDVI'}
-	sent.clear()
-	monkeypatch.setattr(assistant, 'glm', lambda key, payload, **k: (_ for _ in ()).throw(
-		assistant.GlmError('HTTP 400: model not found', 400)))
-	with pytest.raises(assistant.ModelError, match='HTTP 400'):  # an error of the request: the other key is not tried
-		assistant.chat_glm({'glm_key': 'mine'}, 'System', [], [])
+
+
+def test_chat_glm_backup_key_of_monitoreo(monkeypatch):
+	# without a key of the user, or with a wrong one, GLM answers with the backup key of MonitorEO, in its broker: the
+	# request of the broker with the model of GLM chosen (the broker tries the other one if it is busy)
+	asked, broker = [], []
+
+	def api(key, payload, timeout=240, abort=None):
+		asked.append((payload['model'], key))
+		raise assistant.GlmError('HTTP 401: invalid key', 401)
+
+	def fake_broker(path, body=None, timeout=30, **params):
+		broker.append((path, body, params))
+		return {'model': 'glm-4.7-flash', 'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]}
+
+	monkeypatch.setattr(assistant, 'glm', api)
+	monkeypatch.setattr(services, '_broker', fake_broker)
+	conversation = [{'role': 'user', 'content': 'hola'}]
+	out = assistant.chat_glm({}, 'System', conversation, [])
+	assert asked == [] and out['content'] == 'Hola' and out['model'] == 'glm-4.7-flash'
+	path, body, params = broker[0]
+	assert path == '/chat' and body['model'] == 'glm-4.7-flash' and params['user'] == services.user_id()
+	out = assistant.chat_glm({'glm_key': 'wrong', 'glm_model': 'glm-4.5-flash'}, 'System', conversation, [])
+	assert asked == [('glm-4.5-flash', 'wrong')]  # a wrong key: not with the other model, the backup key at once
+	assert broker[1][1]['model'] == 'glm-4.5-flash'
+
+	def busy(path, body=None, timeout=30, **params):
+		raise services.BrokerError('GLM (Z.ai) is busy: try again in a minute', 'busy')
+	monkeypatch.setattr(services, '_broker', busy)
+	with pytest.raises(assistant.ModelError) as e:
+		assistant.chat_glm({'glm_key': 'wrong'}, 'System', conversation, [])
+	assert 'glm-4.7-flash, your key: HTTP 401' in str(e.value)
+	assert 'the backup key of MonitorEO: GLM (Z.ai) is busy' in str(e.value)
 
 
 def test_chat_glm_other_free_model_when_overloaded(monkeypatch):
-	# the model chosen overloaded with every key (HTTP 429): the other free model answers, with the first key that works
+	# the model chosen overloaded with the key of the user (HTTP 429): the other free model, with that key, before the
+	# backup key of MonitorEO
 	sent = []
 
 	def api(key, payload, timeout=240, abort=None):
@@ -2916,12 +2927,35 @@ def test_chat_glm_other_free_model_when_overloaded(monkeypatch):
 		return {'choices': [{'message': {'role': 'assistant', 'content': 'Hola'}}]}
 
 	monkeypatch.setattr(assistant, 'glm', api)
-	monkeypatch.setattr(assistant, 'glm_backup_key', lambda: 'backup')
+	monkeypatch.setattr(services, '_broker', lambda *a, **k: pytest.fail('the backup key is not needed'))
 	out = assistant.chat_glm({'glm_key': 'mine'}, 'System', [{'role': 'user', 'content': 'hola'}], [])
-	assert sent == [('glm-4.7-flash', 'mine'), ('glm-4.7-flash', 'backup'), ('glm-4.5-flash', 'mine')]
+	assert sent == [('glm-4.7-flash', 'mine'), ('glm-4.5-flash', 'mine')]
 	assert out['content'] == 'Hola' and out['model'] == 'glm-4.5-flash'
-	monkeypatch.setattr(assistant, 'glm', lambda key, payload, **k: (_ for _ in ()).throw(
-		assistant.GlmError('HTTP 429: overloaded', 429)))
-	with pytest.raises(assistant.ModelError) as e:  # all of them overloaded: each one in the message
-		assistant.chat_glm({'glm_key': 'mine'}, 'System', [], [])
-	assert 'glm-4.7-flash, your key' in str(e.value) and 'glm-4.5-flash, backup key' in str(e.value)
+
+
+def test_auto_finds_the_engine_of_ollama(monkeypatch):
+	# auto starts with a model of the cloud, so Ollama was not looked for: it is when its turn comes
+	tried = []
+
+	def model(settings, system, messages, tools):
+		tried.append((settings['provider'], settings['ollama']))
+		if settings['provider'] != 'ollama':
+			raise assistant.ModelError(f"{settings['provider']} is down")
+		return {'role': 'assistant', 'content': 'Hola'}
+
+	monkeypatch.setattr(assistant, 'chat_model', model)
+	monkeypatch.setattr(assistant, 'signed_in', lambda: True)
+
+	async def run():
+		a = FakeAssistant({**assistant.DEFAULTS, 'provider': 'auto', 'ollama': 'auto'})
+		a.engine.url = None
+
+		def find():
+			a.engine.url = 'http://127.0.0.1:11434'
+			return a.engine.url
+		a.engine.find = find
+		return [e async for e in a.chat('hola')]
+
+	events = asyncio.run(run())
+	assert tried[-1] == ('ollama', 'http://127.0.0.1:11434')
+	assert next(e for e in events if e['type'] == 'assistant')['text'] == 'Hola'

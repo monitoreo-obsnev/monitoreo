@@ -29,12 +29,12 @@
 <main>
 <section id="es" lang="es">
   <h1>Cómo usar GLM con tu propia clave</h1>
-  <p class="muted">Asistente de MonitorEO · versión local · <a href="#en">English below</a></p>
+  <p class="muted">Asistente de MonitorEO · <a href="#en">English below</a></p>
 
   <p>El asistente usa primero el modelo de MonitorEO. Si no responde, pasa a <b>GLM</b>, los modelos de lenguaje de
-    Z.ai (Zhipu), y si tampoco responde, al modelo de este ordenador (Ollama). Para GLM hace falta una clave de su API.
-    El asistente trae una clave de respaldo, compartida, pero con tu propia clave tienes tus propios límites y no
-    compites con otros usuarios.</p>
+    Z.ai (Zhipu), y si tampoco responde, al modelo de este ordenador (Ollama). GLM necesita una clave de su API.
+    MonitorEO tiene una clave de respaldo, compartida, en su servidor, así que GLM funciona sin que hagas nada; con tu
+    propia clave tienes tus propios límites y no compites con otros usuarios.</p>
 
   <h2>1. Crear la clave (unos minutos, gratis)</h2>
   <ol>
@@ -75,23 +75,25 @@
       <a href="https://z.ai/manage-apikey/rate-limits" target="_blank" rel="noopener">z.ai/manage-apikey/rate-limits</a>.</li>
     <li><b>Cuánto gasta una pregunta:</b> cada pregunta al asistente usa <b>entre 1 y 8 peticiones</b>, una por cada
       paso del modelo (buscar la zona, elegir la variable, calcular…).</li>
-    <li><b>Si se llega al límite o el modelo está saturado</b> (error 429): el asistente prueba la clave de respaldo,
-      luego el otro modelo gratuito de GLM con cada clave y, si nada responde, el modelo de este ordenador. Basta con
+    <li><b>Si se llega al límite o el modelo está saturado</b> (error 429): el asistente prueba el otro modelo gratuito
+      de GLM, luego la clave de respaldo de MonitorEO (con sus dos modelos) y, si nada responde, el modelo de este
+      ordenador. Basta con
       esperar un minuto y volver a preguntar.</li>
   </ul>
 
   <h2>4. Qué ve Z.ai</h2>
-  <p class="note">Con GLM, el texto de la conversación y de tus documentos va a Z.ai, como con el modelo de MonitorEO
-    va a Google o Anthropic. Los resultados (mapas, series, tablas) no salen de tu ordenador ni de Google Earth Engine:
+  <p class="note">Con GLM, el texto de la conversación y de tus documentos va a Z.ai (con la clave de respaldo, a
+    través del servidor de MonitorEO), como con el modelo de MonitorEO va a Google o Anthropic. Los resultados (mapas, series, tablas) no salen de tu ordenador ni de Google Earth Engine:
     el modelo nunca los ve.</p>
 </section>
 
 <section id="en" lang="en">
   <h2 style="border-top-width:3px">How to use GLM with your own key</h2>
-  <p class="muted">MonitorEO assistant · local version · <a href="#es">Español arriba</a></p>
+  <p class="muted">MonitorEO assistant · <a href="#es">Español arriba</a></p>
   <p>The assistant uses the model of MonitorEO first. If it does not answer, it goes on to <b>GLM</b>, the language
-    models of Z.ai (Zhipu), and then to the model of this computer (Ollama). GLM needs a key of its API. The assistant
-    has a shared backup key, but your own key gives you your own limits.</p>
+    models of Z.ai (Zhipu), and then to the model of this computer (Ollama). GLM needs a key of its API. MonitorEO
+    has a shared backup key, in its server, so GLM works without you doing anything; your own key gives you limits of
+    your own.</p>
   <ol>
     <li>Sign up or sign in at <a href="https://z.ai/model-api" target="_blank" rel="noopener">z.ai/model-api</a>.</li>
     <li>On <a href="https://z.ai/manage-apikey/apikey-list" target="_blank" rel="noopener">z.ai/manage-apikey/apikey-list</a>,
@@ -104,10 +106,11 @@
     time and per minute, and its documentation <b>does not publish a fixed daily limit</b> for them: see those of your
     account at <a href="https://z.ai/manage-apikey/rate-limits" target="_blank" rel="noopener">z.ai/manage-apikey/rate-limits</a>.
     Each question to the assistant takes 1 to 8 requests. At the limit or when the model is overloaded (error 429) the
-    assistant tries the backup key, then the other free model of GLM, and then the model of this computer; wait a
+    assistant tries the other free model of GLM, then the backup key of MonitorEO (with both models), and then the model
+    of this computer; wait a
     minute and ask again.</p>
   <p>The key stays on this computer (<code>MonitorEO/assistant.json</code>) and is not in the logs. With GLM, the text
-    of the conversation goes to Z.ai; the results never leave your computer and Earth Engine.</p>
+    of the conversation goes to Z.ai (with the backup key, through the server of MonitorEO); the results never leave your computer and Earth Engine.</p>
 </section>
 </main>
 </body>
