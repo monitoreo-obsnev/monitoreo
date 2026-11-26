@@ -47,7 +47,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # the Android SDK of the runner (ANDROID_HOME), with its licenses accepted so that Gradle installs what is missing;
+      # android-actions/setup-android@v3 failed, as its default package "tools" no longer exists
+      - name: Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > campo/local.properties
       - name: Version of the app
         id: v
         run: echo "name=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" campo/app/build.gradle)" >> "$GITHUB_OUTPUT"
