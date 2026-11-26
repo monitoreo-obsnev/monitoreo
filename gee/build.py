@@ -197,9 +197,6 @@ def _read(name):
 		return f.read()
 
 
-CAMPO = os.path.join(HERE, '..', 'campo', 'app', 'src', 'main', 'assets', 'www', 'lib')  # the field app (campo/)
-
-
 def app():
 	"""Write monitoreo_app.js: catalog.js, core.js and ui.js in a single script; and copy catalog.js and core.js into
 	the field app (campo/), which computes with them unchanged."""
@@ -208,9 +205,10 @@ def app():
 		f.write('// MonitorEO for the Earth Engine Code Editor and Earth Engine Apps. Written by gee/build.py from\n'
 		        '// catalog.js, core.js and ui.js of https://github.com/monitoreo-obsnev/monitoreo: do not edit.\n\n')
 		f.write(text)
-	if os.path.isdir(CAMPO):
+	campo = os.path.join(HERE, '..', 'campo', 'app', 'src', 'main', 'assets', 'www', 'lib')  # the field app, next to HERE
+	if os.path.isdir(campo):
 		for name in ('catalog.js', 'core.js'):
-			shutil.copyfile(os.path.join(HERE, name), os.path.join(CAMPO, name))
+			shutil.copyfile(os.path.join(HERE, name), os.path.join(campo, name))
 
 
 def _js(value, depth=0):
