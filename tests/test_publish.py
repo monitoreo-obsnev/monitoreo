@@ -359,6 +359,47 @@ def test_the_step_of_a_table_without_its_call(tmp_path):
 	daily = _csv(tmp_path / 'd.csv', [{'region': 'r', 'date': '2017-01-05', 'value': 1}])
 	assert [publish._step_of(p) for p in (annual, monthly, daily)] == ['annual', 'monthly', None]
 
+
+def test_the_trend_of_a_series_of_its_own_values(tmp_path):
+	"""trend: true draws on an annual series without a trend_table (a table made from several results) the Sen line
+	of its own values, with its Mann-Kendall p-value; a series that is not annual cannot have it."""
+	values = [46, 86, 70, 68, 74, 56, 70, 73, 70]
+	csv_path = _csv(tmp_path / 'wet.csv', [{'region': 'Borreguiles', 'date': f'{2017 + i}-01-01', 'value': v}
+	                                      for i, v in enumerate(values)])
+	site = tmp_path / 'site'
+	item = {'result': {'csv': csv_path, 'unit': '%'}, 'title': 'Wet share', 'trend': True}
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	(s,) = r['results']
+	assert s['chart'] == 'series' and s['step'] == 'annual' and publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	(line,) = s['sen']
+	from monitoreo import trends
+	years = list(range(2017, 2026))
+	slope, intercept = trends.sen(years, values)
+	assert (line['from'], line['to'], line['origin'], line['period']) == (2017, 2025, 2017, '2017-2025')
+	assert line['slope'] == slope and line['intercept'] == intercept and line['significant'] is False
+	assert abs(line['p_value'] - trends.mann_kendall(years, values)[3]) < 1e-12
+	monthly = _csv(tmp_path / 'm.csv', [{'region': 'r', 'date': f'2017-{m:02d}-01', 'value': m} for m in (1, 2, 3)])
+	with pytest.raises(ValueError, match='annual series'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, result={'csv': monthly})]),
+		                site, tmp_path, log='')
+
+
+def test_two_variables_over_the_years(tmp_path):
+	"""chart: series_two draws a table of two variables over the years (its column variable), each with its axis."""
+	rows = [{'region': 'Borreguiles', 'variable': v, 'date': f'{y}-01-01', 'value': x}
+	        for v, base in (('NDVI', 0.4), ('LSWI', 0.1)) for y, x in zip(range(2017, 2020), (base, base + 0.02, base + 0.01))]
+	csv_path = _csv(tmp_path / 'both.csv', rows)
+	site = tmp_path / 'site'
+	item = {'result': {'csv': csv_path}, 'title': 'NDVI and LSWI', 'chart': 'series_two'}
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	(c,) = r['results']
+	assert c['chart'] == 'series_two' and c['variables'] == ['NDVI', 'LSWI']
+	assert (c['ylabel'], c['other_ylabel']) == ('NDVI', 'LSWI') and publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	one = _csv(tmp_path / 'one.csv', rows[:3])
+	with pytest.raises(ValueError, match='two variables'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, result={'csv': one})]), site,
+		                tmp_path, log='')
+
 def test_the_orthophoto_without_network(tmp_path, monkeypatch):
 	"""Without the WMS of the IGN the image of the catalogue is made without the orthophoto."""
 	import urllib.request

@@ -45,6 +45,8 @@ written, in their language:
         view: [-3.42, 37.03, -3.30, 37.10] # where the map opens, and its image in the catalogue (default: all of it)
         class_labels: [Dry, Intermediate, Wet] # of an area by class: the names of its classes, in order
         breaks: [0.05, 0.10]              # a map in the classes of its values (with class_labels; palette, their colours)
+        trend: true                       # an annual series: the Sen line of its own values (Mann-Kendall p in its legend)
+        chart: series_two                 # a table of two variables (column variable) over the years, an axis each
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -118,7 +120,7 @@ ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
           'transect': 'transect'}
 CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'doy',
-               'doy_profile', 'table')
+               'doy_profile', 'series_two', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -1029,6 +1031,14 @@ def _results(item, files, n):
 		         'unit': unit_text(unit), 'step': args.get('step') or (None if tool else _step_of(res['csv'])), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart == 'series_two':  # two variables over the years, each with its own axis (a table of two series)
+			names = list(dict.fromkeys(r['variable'] for r in _read_csv(res['csv']) if r.get('variable')))
+			if len(names) != 2:
+				raise ValueError(f'the chart series_two of {title} is of a table with two variables (its column variable), '
+				                 f'not {len(names)}')
+			entry['variables'] = names
+			entry['ylabel'] = res.get('ylabel') or names[0]
+			entry['other_ylabel'] = res.get('other_ylabel') or names[1]
 		if chart == 'series' and composite.is_days(args.get('metric')):  # the snow cover days: a bar per step
 			entry['bars'] = True
 		if chart == 'doy':  # the range of its y axis, if one was given (ylim)
@@ -1109,6 +1119,30 @@ def _link_trends(results, folder):
 				              'significant': r.get('significant') == 'True'})
 		if lines:
 			s['sen'] = lines
+
+
+def _own_trend(entry, folder, alpha=0.05):
+	"""The Sen lines of an annual series ENTRY from its own values (the option trend of a result, e.g. of a table made
+	from several results, which has no trend_table of the same call), as those of _link_trends: Mann-Kendall and Sen's
+	slope of each region with MIN_YEARS years or more."""
+	by = {}
+	for r in _read_csv(os.path.join(folder, entry['csv'])):
+		v = _num(r.get('value'))
+		if v is not None:
+			by.setdefault(r.get('region') or '', []).append((int(str(r['date'])[:4]), v))
+	lines = []
+	for region, pts in by.items():
+		pts.sort()
+		years, values = [p[0] for p in pts], [p[1] for p in pts]
+		if len(pts) < trends.MIN_YEARS:
+			continue
+		_, tau, _, p = trends.mann_kendall(years, values)
+		slope, intercept = trends.sen(years, values)
+		start, end = f'{years[0]}-01-01', f'{years[-1]}-12-31'
+		lines.append({'region': region, 'trend': None, 'start': start, 'end': end, 'period': period_text(start, end),
+		              'origin': years[0], 'from': years[0], 'to': years[-1], 'slope': slope, 'intercept': intercept,
+		              'p_value': p, 'significant': p < alpha})
+	return lines
 
 
 def _region(spec, items):
@@ -1234,12 +1268,15 @@ def build(spec, rid, base, folders, log, folder):
 	published = str(spec.get('published') or dt.date.today().isoformat())[:10]
 	refs, credits, numbers = references.of_items(items, dt.date.fromisoformat(published))
 	results = []
+	own = []  # the series with trend: true
 	from .report import manual_links
 	for it, nums in zip(items, numbers):
 		links = manual_links(it.get('args'), it.get('result'))  # what each variable is: its section of the wiki
 		basemap = basemap_of(it.get('basemap') or spec.get('basemap'))
 		view = view_of(it.get('view') or spec.get('view'))
 		for r in _results(it, files, len(results)):
+			if it.get('trend') and r.get('chart') == 'series':
+				own.append(r)
 			if r['kind'] == 'map':
 				r['basemap'] = basemap
 				if view:
@@ -1249,6 +1286,10 @@ def build(spec, rid, base, folders, log, folder):
 				r['manual'] = [{k: link.get(k) for k in ('variable', 'title', 'url', 'url_es')} for link in links]
 			results.append(r)
 	_link_trends(results, folder)
+	for r in own:  # trend: true, the Sen line of its own values (if the report has no trend of the same series)
+		if r.get('step') != 'annual':
+			raise ValueError(f"trend of {r['title']}: the Sen line of its own values is for an annual series")
+		r['sen'] = r.get('sen') or _own_trend(r, folder)
 	for d in _list(spec.get('downloads')):
 		d = {'path': d} if isinstance(d, str) else dict(d)
 		src = _find(d['path'], base, folders)
@@ -1458,6 +1499,11 @@ def _axes_problems(r, where):
 
 	p = [f'{where}: {k} is [min, max] of the y axis, or null' for k in ('ylim', 'other_ylim')
 	     if r.get(k) is not None and not is_range(r[k])]
+	if r.get('chart') == 'series_two':
+		names = r.get('variables')
+		if not (isinstance(names, list) and len(names) == 2 and all(isinstance(n, str) and n for n in names)):
+			p.append(f'{where}: variables is a list of two names')
+		return p
 	if r.get('chart') != 'doy_profile':
 		return p
 	names = r.get('variables')

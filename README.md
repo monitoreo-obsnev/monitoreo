@@ -106,6 +106,8 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer, Python package, Command line**: The charts of the area of each class and of the burn severity have a legend with the colour of each class, and a report can name the classes of an area by class (`class_labels: [Dry, Intermediate, Wet]`).
 - **Results viewer, Python package, Command line**: A map can be drawn in the classes of its values (`breaks: [0.05, 0.10]`, with `class_labels`), with a legend of its classes and, on clicking a pixel, its value and its class; with the swipe, the classes of two periods side by side.
 - **Results viewer** (fix): An annual time series has a tick per year (every 5 years in a long one) instead of two with the same year, also a table published without its call, whose step comes from its dates.
+- **Results viewer, Python package, Command line**: An annual series can show the Sen line of its own values (`trend: true`), and a table of two variables over the years is a chart with an axis for each one (`chart: series_two`, e.g. NDVI on the left and LSWI on the right).
+- **Results viewer** (fix): The lowest and the highest values of a time series are no longer drawn on the edge of the chart, and the tooltip of a table without images nor pixels no longer shows «NaN».
 - **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
 
 ### [v0.3.75](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.75) · 2026-11-26 · package 0.3.85

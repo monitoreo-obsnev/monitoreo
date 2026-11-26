@@ -162,14 +162,17 @@ MO.chart = (() => {
 		const yearTicks = annual ? {format: '%Y', tickCount: {interval: 'year', step: nYears > 20 ? 5 : 1}} : {};
 		const x = (brush) => ({field: 't', type: 'temporal', title: null, scale: Object.assign({type: 'utc'},
 			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, yearTicks)});
-		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
+		// a margin above and below, so that the highest and the lowest years are not drawn on the edge of the chart
+		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false, padding: 12}};
 		const long = !annual && rows.length > 60;
 		const tipTime = {field: 't', type: 'temporal', timeUnit: annual ? 'utcyear' : 'utcyearmonth', title: annual ? 'Year' : 'Month',
 			format: annual ? '%Y' : '%B %Y'};
 		const tooltip = regions.length > 1
 			? [tipTime, ...regions.map((r) => ({field: r, type: 'quantitative', title: r, format: '.4~g'}))]
-			: [tipTime, {field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
-				{field: 'n_images', type: 'quantitative', title: 'Images'}, {field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}];
+			: [tipTime, {field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'}].concat(
+				// the images and the pixels of each step, if the table has them (not a table made from several results)
+				rows.some((r) => Number.isFinite(r.n_images)) ? [{field: 'n_images', type: 'quantitative', title: 'Images'}] : [],
+				rows.some((r) => Number.isFinite(r.n_pixels)) ? [{field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}] : []);
 		const layers = [
 			{mark: {type: 'line', interpolate: 'linear', invalid: 'break-paths-show-domains'}, encoding: {x: x(long), y, color}},
 			annual && {mark: {type: 'point', filled: true, size: 40, opacity: 1}, encoding: {x: x(long), y, color}},
@@ -444,6 +447,36 @@ MO.chart = (() => {
 			Object.assign(spec, axis(0));
 	}
 
+	// Two variables over the years (chart series_two: a table of two annual series, e.g. the NDVI and the LSWI), each
+	// with its own axis, the first on the left and the second on the right, in the colours of the seasonal profile
+	function seriesTwoSpec(rows, result) {
+		const names = (result.variables || []).length ? result.variables.slice(0, 2) :
+			[...new Set(rows.map((r) => r.variable))].slice(0, 2);
+		const colours = PROFILE_COLOURS.map(([v, c]) => MO.css(v) || c);
+		const titles = [result.ylabel || names[0], result.other_ylabel || names[1]];
+		const series = [`${titles[0]} (left axis)`, `${titles[1]} (right axis)`];
+		const data = rows.filter((r) => names.includes(r.variable) && Number.isFinite(r.value))
+			.map((r) => ({...r, t: utc(r.date), serie: series[names.indexOf(r.variable)]}));
+		const nYears = new Set(data.map((d) => String(d.date).slice(0, 4))).size;
+		const x = {field: 't', type: 'temporal', title: null, scale: {type: 'utc'},
+			axis: {format: '%Y', tickCount: {interval: 'year', step: nYears > 20 ? 5 : 1}, grid: false, labelOverlap: true}};
+		const color = {field: 'serie', type: 'nominal', scale: {domain: series, range: colours.slice(0, 2)},
+			legend: {columns: narrow ? 1 : 2}};
+		const tooltip = [{field: 't', type: 'temporal', timeUnit: 'utcyear', title: 'Year', format: '%Y'},
+			{field: 'variable', title: 'Variable'}, {field: 'value', title: 'Value', format: '.4~g'}];
+		const axis = (k) => {
+			const only = {filter: {field: 'variable', equal: names[k]}};
+			const y = {field: 'value', type: 'quantitative', title: titles[k], scale: {zero: false, padding: 12},
+				axis: {orient: k ? 'right' : 'left', grid: !k, titleColor: colours[k], labelColor: colours[k]}};
+			return {layer: [
+				{transform: [only], mark: {type: 'line'}, encoding: {x, y, color}},
+				{transform: [only], mark: {type: 'point', filled: true, size: 40, opacity: 1}, encoding: {x, y, color, tooltip}},
+			]};
+		};
+		return {data: {values: data}, width: 'container', height: 280, layer: [axis(0), axis(1)],
+			resolve: {scale: {y: 'independent'}}};
+	}
+
 	// A profile along a line (transect): the variable against the distance, over the elevation in grey
 	function transectSpec(rows, result) {
 		const data = rows.map((r) => ({...r, km: r.distance_m / 1000}));
@@ -566,6 +599,7 @@ MO.chart = (() => {
 				return embed(box, doySpec(shown, result, allYears));
 			}
 			if (kind === 'doy_profile') return embed(box, doyProfileSpec(subset, result));
+			if (kind === 'series_two') return embed(box, seriesTwoSpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
 			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
 				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
@@ -585,7 +619,7 @@ MO.chart = (() => {
 		};
 		let current = rows;
 		if (regions.length > 1 &&
-			['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy', 'doy_profile'].includes(kind) ||
+			['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy', 'doy_profile', 'series_two'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => regionOf(r) === regions[0]);
