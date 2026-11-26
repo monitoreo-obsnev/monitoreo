@@ -98,7 +98,7 @@ Earth Engine app, which gives it its version and date.
 
 ### Unreleased
 
-- **Field app**: MonitorEO Campo, the app for field work on Android and iPhone, is a tool of MonitorEO: points by GPS, by touching the map, by coordinates or imported, and at each of them the value, the time series and the trend of the variables of MonitorEO, the layer around it and a quick sheet, computed as in the Earth Engine app and kept on the phone to see without coverage, with base maps for offline use and an assistant that answers questions about the points. The APK and the .ipa come with each release.
+- **Field app**: MonitorEO Campo, the app for field work on Android and iPhone, is a tool of MonitorEO: points by GPS, by touching the map, by coordinates or imported, and at each of them the value, the time series and the trend of the variables of MonitorEO, the layer around it and a quick sheet, computed as in the Earth Engine app and kept on the phone to see without coverage, with base maps for offline use and an assistant that answers questions about the points, in English or Spanish (button EN/ES, by default the language of the phone). The APK and the .ipa come with each release.
 
 ### [v0.3.74](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.74) · 2026-11-26 · package 0.3.84
 
