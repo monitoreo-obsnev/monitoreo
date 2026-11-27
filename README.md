@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Field app**: The notice of a new version on the iPhone says to install it with Sideloadly or AltStore, and the help says that, for now, the iPhone version installs only from a computer with one of them, for testing: with a free Apple ID it lasts 7 days (then it is installed again and the points and results are kept), with at most 3 apps at a time.
+
 ### [v0.3.77](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.77) · 2026-11-27 · package 0.3.87
 
 - **Assistant**: The models of Ollama, its last resort after the model of MonitorEO and GLM, get a context of 32,768 tokens by default (16,384 before, also in the settings saved with it), so that the tools can explain more (up to 60,000 characters); the recommended models need 16 GB of memory, and qwen3:4b is no longer recommended.
