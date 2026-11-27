@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.77](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.77) · 2026-11-27 · package 0.3.87
 
 - **Results viewer, MCP server, Python package, Command line**: A report can have tags (`tags`, e.g. PRESINMED): they appear on its card and on its page, and the catalogue has a Tag filter (`?tag=PRESINMED`).
 - **Results viewer, MCP server, Python package, Command line**: A report can open its maps over the PNOA orthophoto (`basemap: pnoa`, or `none`; OpenStreetMap by default), and its image in the catalogue is then its map over the orthophoto.
