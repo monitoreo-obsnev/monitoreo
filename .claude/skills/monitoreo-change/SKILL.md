@@ -1,13 +1,14 @@
 ---
 name: monitoreo-change
-description: The MonitorEO team's methodology for every change to this repository (monitoreo-obsnev/monitoreo: the Python package monitoreo, its CLI, MCP server and assistant, the QGIS plugin, the R package, the Earth Engine app in gee/, the results viewer and the catalog of variables). Use it whenever you are about to add, fix, change or document anything here — a new variable, sensor or formula in the catalog, a new tool, option or output, a bug fix, wiki documentation, a release — and before committing, pushing or opening a pull request, even if the developer only says "add X", "fix this" or "sube el cambio" and never mentions branches, tests or docs.
+description: The MonitorEO team's methodology for every change to this repository (monitoreo-obsnev/monitoreo: the Python package monitoreo, its CLI, MCP server and assistant, the QGIS plugin, the R package, the Earth Engine app in gee/, the field app in campo/, the results viewer and the catalog of variables). Use it whenever you are about to add, fix, change or document anything here — a new variable, sensor or formula in the catalog, a new tool, option or output, a bug fix, wiki documentation, a release — and before committing, pushing or opening a pull request, even if the developer only says "add X", "fix this" or "sube el cambio" and never mentions branches, tests or docs.
 ---
 
 # Changing MonitorEO
 
 MonitorEO is one computation (`monitoreo.services`) offered through many tools: the Python package and its command
 line, the MCP server, the AI assistant, the QGIS plugin, the R package, the Earth Engine app (a JavaScript
-port in `gee/`) and the results viewer. Several people change it at the same time. The defects that reach users are
+port in `gee/`), the field app (`campo/`, which computes with the core of the Earth Engine app) and the results viewer.
+Three people change it at the same time, each with their own Claude. The defects that reach users are
 almost never in the line someone meant to change. They come from what nobody remembered to change:
 
 - a variable added to the catalog but not to the help of the tools or to the wiki;
@@ -24,10 +25,20 @@ in order, and tell the developer what you are doing at each step, in their langu
   GitHub (team decision, 2026-11-09), because other people are working on `main` at the same time.
 - **Ask before anything that leaves this computer**: pushing a branch, opening or merging a PR, updating the Earth
   Engine app in the Code Editor or deploying the broker. Show what will be published, then wait for a clear yes. An
-  approval covers only the step it was given for. The exceptions are the wiki (after the merge of its PR, or
-  documentation that the developer asked for without code, when it is done), the release that follows a merge (next
-  rules) and the deletion of merged branches, code and wiki (section 7): the team approved them once for all. A
-  release that the developer asks for is approved by their request: all its steps, unless they say otherwise.
+  approval covers only the step it was given for. The exceptions are the issue that announces a change (section 3),
+  the wiki (after the merge of its PR, or documentation that the developer asked for without code, when
+  it is done), the release that follows a merge (next rules) and the deletion of merged branches, code and wiki
+  (section 7): the team approved them once for all. A release that the developer asks for is approved by their
+  request: all its steps, unless they say otherwise.
+- **The method is the one in `main`.** Claude reads this skill and `CLAUDE.md` from the checkout, so a branch that
+  started before the team changed them still has the old rules. When you go on with a branch that already exists, run
+  `git fetch origin && git diff --stat HEAD...origin/main -- .claude/skills/monitoreo-change CLAUDE.md` first: if
+  `main` changed them,
+  merge `origin/main` into the branch and read the skill again before going on. The checker fails until you do.
+- **Team decisions live in the repository.** Three people work on MonitorEO, each with their own Claude, and the
+  memory of one Claude is invisible to the others. A decision of the team (a rule, an account, a model, the name of
+  something, what not to offer) goes into this skill or `CLAUDE.md` through a PR, and the wiki if users or other
+  developers need it. Keep in the personal memory only what is personal: your own account, the paths of your computer.
 - **The wiki after every merge** (team decision, 2026-11-09). As soon as a PR is merged, merge its wiki branch into
   the wiki's `master` and push it, without asking again, then tell the developer (`references/docs.md`). A change of
   the wiki alone that the developer asked for (documentation, without code) is pushed when it is done. Wiki pages
@@ -46,6 +57,22 @@ in order, and tell the developer what you are doing at each step, in their langu
   in both. Answer the developer in the language they write in.
 - **Never invent a reference, a DOI or a unit.** If a source is unknown, ask the team; the catalog has a `PENDING`
   mechanism for that (see `references/new-variable.md`).
+- **Shared resources, from `main` and one at a time** (team decision, 2026-11-27). Some things exist only once for
+  everyone, and a step done from an old branch or by two people at once undoes the work of another:
+
+  | Resource | How it changes | Guard |
+  |---|---|---|
+  | `main` on GitHub | only by a PR, merged when the workflow **Tests** is green | the workflow **Tests**, which the protection of `main` can require |
+  | Versions, tags and releases | one release at a time (`references/release.md`) | the checker |
+  | The wiki's `master` | after the merge of its PR (`references/docs.md`) | |
+  | The Earth Engine app | `python gee/push_app.py` from `main` after the merge, then the Code Editor | `push_app.py` refuses another checkout |
+  | The broker of the shared account (Cloud Run) | `broker/deploy.sh ee-ugr-default-project` from `main` after the merge of its PR | `deploy.sh` refuses another checkout (`ALLOW_ANY=1` only for a test project) |
+  | The repository of the field app (`kampax/monitoreo-campo`) | `python campo/sync.py pull` / `push` on a branch (wiki page Development, Field app) | |
+  | The quota of the shared account | say where it computes, before computing | |
+
+  Some steps need credentials that not everyone has: the cookie of the account of the Earth Engine app, `gcloud` with
+  an owner of the project of the broker, the repository of the field app. If the developer lacks them, never skip the
+  step silently and never work around it: write in the PR and in the report that it is pending, and who can do it.
 
 ## 2. Start the branch
 
@@ -58,6 +85,18 @@ git switch -c <topic> origin/main
 Name the branch after the change in short kebab-case, in English: `ndmi-sentinel2`, `fix-assistant-static-maps`,
 `cli-variables-json`. Start from `origin/main`, never from another feature branch, unless the developer asks for it.
 Stacked branches drag unmerged work into the PR, as `elevation-slope` did with `snow-cover-frequency`.
+
+**Look at what the others are doing** before you edit anything. Branches stay on each computer until their PR, so the
+work in progress of the others is only visible in the issues that announce it and in the open PRs:
+
+```bash
+gh issue list --label "in progress"
+gh pr list --state open
+```
+
+If one of them touches the same files, function or variables as this change, tell the developer before you start,
+and propose how to share the work: wait for it, build on it, or split it. Two branches that change the same thing
+merge as text and break as code. You announce this change yourself once you know what it touches (end of section 3).
 
 ## 3. Find what the change touches
 
@@ -81,13 +120,27 @@ duplicate entry is easy to add and hard to remove once users and reports depend 
 Most changes touch more places than they seem to. Before editing, list them for the developer: the files, the tools,
 the tests and the wiki pages you will change. Then they can say if something is missing or out of scope.
 
+**Announce the change** (team decision, 2026-11-27, approved once for all) when the developer agrees with that list:
+an issue with what it will do and the files or areas it will touch, assigned to yourself, so that the others see it in
+their list of work in progress (section 2). The PR closes it.
+
+```bash
+gh label create "in progress" --color FBCA04 --description "Someone is working on it" 2>/dev/null
+gh issue create --label "in progress" --assignee @me --title "<the change>" --body "<what, and the files or areas>"
+```
+
+There is none for a release (its branch `release-*` is the announcement), for documentation alone, or for a change that
+stops here (it exists already, or the developer drops it). If the developer said not to publish anything yet, do not
+open it: write in the report the issue you would open. If the work is abandoned later, close the issue and say why.
+
 ## 4. The rules every change keeps
 
 These are the invariants of MonitorEO. Tests check some of them; the rest depend on you.
 
 - **One computation, every tool.** New behaviour goes into `monitoreo.services` and reaches every tool that exposes that
-  function: the CLI, the MCP server, the assistant, the QGIS plugin, the R package, the Earth Engine app and the viewer.
-  If a tool cannot have it, say why in the PR. For example, the shared account cannot export to Google Drive.
+  function: the CLI, the MCP server, the assistant, the QGIS plugin, the R package, the Earth Engine app, the field app
+  and the viewer. If a tool cannot have it, say why in the PR. For example, the shared account cannot export to Google
+  Drive.
 - **Everything is cited.** Every variable, algorithm, method and Earth Engine dataset has its references in
   `catalog.json`: APA citations with a DOI, and each dataset cited as its page of the Earth Engine catalog suggests,
   with the credit line its terms of use ask for. Verify every DOI at doi.org before you use it. After adding
@@ -122,12 +175,18 @@ These are the invariants of MonitorEO. Tests check some of them; the rest depend
 
 ## 5. Check before the pull request
 
-Run the checker of this skill first. It looks at the branch, the conflicts with `main`, the catalog (references, units,
-the Earth Engine app, the wiki) and the generated files (R help, versions):
+Run the checker of this skill first. It looks at the branch, the conflicts with `main`, whether `main` changed the
+method since the branch started, a release (its tag, and no other release in progress), the catalog (references,
+units, the Earth Engine app, the wiki) and the generated files (R help, versions):
 
 ```bash
 python .claude/skills/monitoreo-change/scripts/check_change.py
 ```
+
+GitHub runs the offline tests and the checker again on every PR (the workflow **Tests**,
+`.github/workflows/tests.yml`), on the merge of the branch with `main`, in a clean environment. They are the same
+checks except the wiki, which GitHub does not have, so run them here first: a red PR waits for its fix, and `main`
+takes only green ones.
 
 Then, as the change requires:
 
@@ -181,11 +240,14 @@ Then, as the change requires:
   template, read it from `main` (`git show origin/main:.github/PULL_REQUEST_TEMPLATE.md`). Use
   `gh pr create --base main --head <branch>` if `gh` is signed in. If not, write the body to a file and give the
   developer the link `https://github.com/monitoreo-obsnev/monitoreo/compare/main...<branch>?expand=1`, where GitHub
-  fills the body from the template.
+  fills the body from the template. Write `Closes #<n>` with the issue that announced the change (section 3), so that
+  the merge closes it.
 - **Merge it when the developer says so** (team decision, 2026-11-09: whoever opens a PR may merge it; nobody else has
   to review it first). Check first that GitHub can merge it (`gh pr view <n> --json mergeable`), that `main` is merged
-  in and the tests pass; for stacked PRs, merge them in order. Use a merge commit, as the history does:
-  `gh pr merge <n> --merge --delete-branch`. **Never push to `main`**: everything reaches it through a PR.
+  in and that the workflow **Tests** is green (`gh pr checks <n> --watch`); if it failed, read its log
+  (`gh run view <run> --log-failed`) and fix the branch. For stacked PRs, merge them in order. Use a merge commit, as
+  the history does: `gh pr merge <n> --merge --delete-branch`. **Never push to `main`**: everything reaches it through
+  a PR.
 - **After the merge**, when `git fetch origin` shows it in `main`:
   - make the release, if the PR changed what users get (`references/release.md`);
   - merge the wiki branch into the wiki's `master` and push it, without asking again;
@@ -213,6 +275,7 @@ End with a short report for the developer:
 - the branch, its commits and the PR link (or the compare link);
 - the tests you ran and their result;
 - what was not verified (Earth Engine, QGIS, the rebuild of the Earth Engine app) and why;
-- what is still pending: the Earth Engine app, and the wiki push or the release if they are not done yet.
+- what is still pending: the Earth Engine app, and the wiki push or the release if they are not done yet, and the
+  steps of a shared resource that the developer could not do (section 1), with who can do them.
 
 Saying plainly what was not checked is part of the method. A reviewer needs to know where to look.

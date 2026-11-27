@@ -23,9 +23,35 @@ of the Earth Engine app (`gee/catalog.js`, `gee/monitoreo_app.js`) has not got t
 The **tag** of a release is the plugin's version (`v0.3.15`). The workflow `qgis-plugin.yml` fails if they differ.
 Raise both by one patch step unless the developer says otherwise. The last releases are in `git tag --sort=-v:refname`.
 
+## One release at a time
+
+Three people merge PRs, and each merge that changes what users get is followed by a release, so two releases can
+start at once. They would take the same versions, the same branch `release-<version>` and the same tag. Before
+starting one (team decision, 2026-11-27):
+
+```bash
+git fetch --prune origin
+gh pr list --state open --search "head:release-"      # a release in progress
+git ls-remote --heads origin 'release-*'
+git ls-remote --tags --sort=-v:refname origin 'v*' | grep -v '\^{}' | head -1   # the last tag on GitHub
+```
+
+- If another release is in progress, do not start yours: wait for its merge. If your PR was merged before that
+  release merges `main` in, it goes into that release (tell its author, so that they merge `main` and add its entries);
+  if not, make yours after it.
+- The new plugin version is one patch step above the last tag on GitHub (the tag is the plugin's version, not only
+  that of this clone); the package goes one patch step above its version in `main`.
+- Push the branch of the release and open its PR as soon as its commit is made: on GitHub, the branch `release-*` is
+  how the others see that a release is in progress.
+
+The checker fails if the tag of the branch exists already, if it is not after the last tag, if a branch `release-*`
+raises no version, or if another branch `release-*` that started before it, and is not merged, is on GitHub (one
+that started after it gets a warning: it waits for this one).
+
 ## Steps
 
-1. A branch `release-<plugin version>` from an up-to-date `origin/main`.
+1. A branch `release-<plugin version>` from an up-to-date `origin/main`, after checking that no other release is in
+   progress (above).
 2. One commit that raises the four files, sets `__released__` to the date of today, writes them into the copy of the
    Earth Engine app with `python gee/build.py --about-only` (without Earth Engine: `gee/catalog.js` and
    `gee/monitoreo_app.js`), and gives the release its entries in the changelog of `README.md`: rename
@@ -41,10 +67,13 @@ Raise both by one patch step unless the developer says otherwise. The last relea
    - `python qgis/build_plugin.py`, which needs internet; with `bandit` and `detect-secrets` installed it runs the same
      security scan as plugins.qgis.org;
    - `metadata.txt` must have no `%` (plugins.qgis.org cannot read it).
-4. Open the PR of the release, like any other change, and merge it when GitHub can merge it (the release is
-   approved already).
+4. Push the branch and open the PR of the release at once, like any other change, and merge it when GitHub can merge
+   it and the workflow **Tests** is green (the release is approved already). If `main` moved in the meantime, merge it
+   into the branch first and check the entries of the changelog again: the PRs merged since go into this release.
 5. After the merge, push an annotated tag on the merge commit,
-   `git tag -a v<plugin version> -m "MonitorEO <plugin version>"` and `git push origin v<plugin version>`. The workflows
+   `git tag -a v<plugin version> -m "MonitorEO <plugin version>"` and `git push origin v<plugin version>`. If GitHub has
+   that tag already (`git ls-remote --tags origin v<plugin version>`), stop and tell the developer: someone else made
+   that release, and a tag is never moved. The workflows
    then create the GitHub release (`qgis-plugin.yml` writes its notes from the changelog, attaches the plugin zip,
    whose `metadata.txt` has the changelog of the last releases for the plugin manager of QGIS, and uploads it to
    plugins.qgis.org;
