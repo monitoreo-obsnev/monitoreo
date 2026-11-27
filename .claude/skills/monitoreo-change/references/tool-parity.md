@@ -18,6 +18,7 @@ tool's code often has a twin in another.
 | R package | `r/monitoreo/R/monitoreo.R` | an `mo_*` function with roxygen (`@inheritParams mo_params`, `@return`, `@section References`, `@export`) that calls `services()$...` and returns its attributes with `cited()`; then regenerate `man/` and `NAMESPACE` with roxygen2; a test in `r/monitoreo/tests/testthat` |
 | Earth Engine app | `gee/core.js` (computation), `gee/ui.js` (interface), then `gee/build.py` | the port, if the app offers the function; `tests/test_gee.py` checks it gives the same values as Python |
 | Results viewer | `src/monitoreo/publish.py`, `src/monitoreo/viewer/assets/*.js` | if the new result can be published |
+| Field app | `campo/` (a git subtree of `kampax/monitoreo-campo`): its page `campo/app/src/main/assets/www` (`app.js`, `ai.js`) | it computes with `gee/core.js` and `gee/catalog.js` unchanged, which `gee/build.py` copies into it (`python campo/sync.py core` by hand); renaming or removing a function of the core that it calls changes the app in the same PR (`tests/test_campo.py`); its own changes come from its repository with `python campo/sync.py pull`, and those made here go back with `push` (wiki page Development, Field app) |
 | Downloads of variables | `src/monitoreo/recipe.py` | if a recipe can ask for it |
 
 Not every function belongs in every tool. Drive exports need the user's own account, and only the assistant has the

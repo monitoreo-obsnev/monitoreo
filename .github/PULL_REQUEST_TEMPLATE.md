@@ -1,16 +1,18 @@
 ## What it changes
 
-<!-- What users get, and why. For a bug: the error users saw and how to reproduce it. -->
+<!-- What users get, and why. For a bug: the error users saw and how to reproduce it. Then "Closes #<n>", with the
+issue "in progress" that announced this change (none for a release or for documentation alone). -->
 
 ## Checklist
 
 <!-- Tick what was done; for what does not apply, write "n/a" and why. -->
 
 - [ ] A branch from an up-to-date `main`, with `main` merged in again before this PR; the tests pass after that merge
-- [ ] Offline tests pass: `PYTHONPATH=src python -m pytest tests -q -m "not ee"`
+- [ ] Offline tests pass: `PYTHONPATH=src python -m pytest tests -q -m "not ee"`, and the workflow **Tests** of this
+      PR is green
 - [ ] Tests added or updated for what changes
 - [ ] Every tool that exposes the function has it (command line, MCP server, assistant, QGIS plugin, R package, Earth
-      Engine app, results viewer), or the reason why not is written here
+      Engine app, field app, results viewer), or the reason why not is written here
 - [ ] New variables, methods or datasets: references with DOI in `catalog.json`, the datasets with their credit line,
       and the references of `.zenodo.json` regenerated
 - [ ] Units in UDUNITS (`catalog.UDUNITS`)

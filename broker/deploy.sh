@@ -4,6 +4,10 @@
 #     broker/deploy.sh PROJECT [REGION]
 #
 # PROJECT must be registered in Earth Engine and have billing (Cloud Run). It can be run again: what exists is kept.
+# It deploys only from main as GitHub has it now, with nothing uncommitted in broker/: the broker is shared by everyone,
+# so it is deployed after the merge of its pull request (git switch main && git pull), never from a branch, which may
+# lack what the others added to it (team decision, 2026-11-27). ALLOW_ANY=1 skips that check, only for a test project:
+# never for ee-ugr-default-project, the project of the shared account, where it is refused.
 # USER_LIMIT (default 25) is the research EECU-hours of each user of the shared account a month: who spends them gets no
 # more tokens until the next month. The monthly EECU quota of PROJECT is read from the quota counters of Cloud
 # Monitoring (quota/limit and quota/allocation/usage of earthengine.googleapis.com/monthly_eecu_usage_time, as Earth
@@ -65,6 +69,32 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 PUBLIC=monitoreo-public@$PROJECT.iam.gserviceaccount.com
 BROKER=monitoreo-broker@$PROJECT.iam.gserviceaccount.com
 BUILD=monitoreo-build@$PROJECT.iam.gserviceaccount.com
+
+# only from main as GitHub has it now (git ls-remote: a local origin/main may be from before the merge)
+SHARED=ee-ugr-default-project
+if [ "${ALLOW_ANY:-0}" = 1 ] && [ "$PROJECT" = "$SHARED" ]; then
+  echo "deploy.sh: ALLOW_ANY=1 is only for a test project, never for $SHARED: deploy it from main" >&2
+  exit 1
+fi
+if [ "${ALLOW_ANY:-0}" != 1 ]; then
+  head=$(git -C "$HERE" rev-parse HEAD 2>/dev/null) || head=''
+  main=$(git -C "$HERE" ls-remote origin refs/heads/main 2>/dev/null | cut -f1) || main=''
+  if [ -z "$head" ]; then
+    echo "deploy.sh: $HERE is not in a clone of monitoreo: the broker is deployed from main, after the merge" >&2
+    exit 1
+  elif [ -z "$main" ]; then
+    echo "deploy.sh: cannot ask GitHub for its main (git ls-remote origin) to check that the checkout is at it" >&2
+    exit 1
+  elif [ "$head" != "$main" ]; then
+    echo "deploy.sh: the checkout is at ${head:0:7}, not at main as GitHub has it (${main:0:7}): the broker is" \
+      "deployed after the merge of its pull request, from main (git switch main && git pull)" >&2
+    exit 1
+  elif [ -n "$(git -C "$HERE" status --porcelain -- .)" ]; then
+    echo "deploy.sh: broker/ has uncommitted changes (git status broker): the broker is deployed from what main" \
+      "has" >&2
+    exit 1
+  fi
+fi
 
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   iamcredentials.googleapis.com earthengine.googleapis.com monitoring.googleapis.com secretmanager.googleapis.com \

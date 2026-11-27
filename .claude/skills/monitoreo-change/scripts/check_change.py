@@ -8,6 +8,9 @@ It reads and computes nothing in Earth Engine, and changes no file. It checks:
 
   - git: that the work is on a branch (not main), what is not committed, whether main moved since the branch started
     and whether the branch still merges into origin/main without conflicts;
+  - the method: whether main changed this skill or CLAUDE.md since the branch started (then the branch follows old
+    rules until main is merged in);
+  - a release: that its tag is new and after the last one, and that no other release is in progress;
   - the catalog: references (with their datasets) and UDUNITS units of every variable, and, for the variables new on
     this branch, that the help of the tools, the Earth Engine app and the wiki know them;
   - the generated files: the Earth Engine app (gee/catalog.js) against the catalog, the R help (man/) against its
@@ -18,6 +21,9 @@ It reads and computes nothing in Earth Engine, and changes no file. It checks:
 
 Each line starts with OK, WARN (to look at, or to say in the PR) or FAIL (to fix before the PR). The exit status is 1
 if anything failed.
+
+The workflow .github/workflows/tests.yml runs it on every pull request, on the merge of the branch with main that
+GitHub makes (a detached HEAD: the branch is then $GITHUB_HEAD_REF).
 """
 
 import argparse
@@ -61,14 +67,21 @@ def changed_since_base(paths):
 def check_git(fetch):
 	print('\n== Git')
 	if fetch:
-		p = git('fetch', 'origin')
+		p = git('fetch', '--prune', 'origin')  # --prune: forget the branches deleted on GitHub (merged ones)
 		if p.returncode:
 			say('WARN', f'git fetch failed, comparing with the last known {MAIN}: {p.stderr.strip()[:200]}')
-	branch = git('branch', '--show-current').stdout.strip()
-	if branch in ('main', 'master', ''):
+	branch = branch_name()
+	if in_pull_request():  # its own name may be main: a pull request from the main of a fork
+		say('OK', f'the pull request of the branch {branch}')
+	elif branch in ('main', 'master', ''):
 		say('FAIL', f'you are on {branch or "a detached HEAD"}: work on a branch (git switch -c <topic> {MAIN})')
 	else:
 		say('OK', f'branch {branch}')
+		remote = f'origin/{branch}'
+		if (git('rev-parse', '--verify', '--quiet', remote).returncode == 0
+		        and git('merge-base', '--is-ancestor', remote, 'HEAD').returncode == 1):
+			say('WARN', f'{remote} has commits this branch does not: pushed from another computer, or someone else '
+			            'is using the same name (git log HEAD..' + remote + ')')
 	dirty = [line for line in git('status', '--porcelain').stdout.splitlines() if not line.endswith('.serena/')]
 	if dirty:
 		say('WARN', f'{len(dirty)} files not committed: ' + ', '.join(line[3:] for line in dirty[:8])
@@ -86,6 +99,135 @@ def check_git(fetch):
 		say('OK', f'merges into {MAIN} without text conflicts')
 	else:
 		say('WARN', f'could not test the merge ({p.stderr.strip()[:200]}): git 2.38 or newer is needed')
+
+
+def in_pull_request():
+	"""Whether this runs in a pull request of GitHub Actions, which checks out the merge of the branch with main (a
+	detached HEAD, whose second parent is the head of the branch)."""
+	return bool(os.environ.get('GITHUB_HEAD_REF', '').strip())
+
+
+def branch_name():
+	"""The branch checked out or, in a pull request of GitHub Actions, the branch of the pull request."""
+	return git('branch', '--show-current').stdout.strip() or os.environ.get('GITHUB_HEAD_REF', '').strip()
+
+
+def branch_head():
+	"""The last commit of the branch: HEAD, or in a pull request of GitHub Actions the second parent of the merge."""
+	if in_pull_request() and git('rev-parse', '--verify', '--quiet', 'HEAD^2').returncode == 0:
+		return 'HEAD^2'
+	return 'HEAD'
+
+
+def branch_base():
+	"""The commit of main where the branch started (its merge base), or ''."""
+	return git('merge-base', branch_head(), MAIN).stdout.strip()
+
+
+# The method -----------------------------------------------------------------------------------------------------
+
+# the rules of the team: Claude reads them from the checkout, so a branch behind main follows the old ones
+METHOD = ['.claude/skills/monitoreo-change', 'CLAUDE.md']
+
+
+def check_method():
+	print('\n== The method of the team (this skill and CLAUDE.md)')
+	base = branch_base()
+	if not base:
+		say('WARN', f'no commit in common with {MAIN}: the method of the team was not compared')
+		return
+	files = git('diff', '--name-only', base, MAIN, '--', *METHOD).stdout.split()
+	if files:
+		say('FAIL', f'{MAIN} changed the method of the team since this branch started ({", ".join(files[:4])}'
+		            f'{" ..." if len(files) > 4 else ""}): merge it in (git merge {MAIN}) and read the skill again, '
+		            'as this branch still has the old rules')
+	else:
+		say('OK', f'the branch has the method of the team of {MAIN}')
+
+
+# A release ------------------------------------------------------------------------------------------------------
+
+PLUGIN_VERSION = ('qgis/monitoreo_qgis/metadata.txt', r'^version\s*=\s*(\S+)')
+PACKAGE_VERSION = ('pyproject.toml', r'^version\s*=\s*"([^"]+)"')
+
+
+def numbers(version):
+	"""(0, 3, 76) of '0.3.76', or None."""
+	return tuple(int(n) for n in version.split('.')) if version and re.fullmatch(r'\d+(\.\d+)*', version) else None
+
+
+def version_at(rev, where):
+	"""The version of WHERE (file, pattern) at the commit REV, or in the working tree if REV is None."""
+	text = read(where[0]) if rev is None else git('show', f'{rev}:{where[0]}').stdout
+	m = re.search(where[1], text or '', re.M)
+	return m.group(1) if m else None
+
+
+def started(rev):
+	"""When the branch REV started: the time of its first commit that main has not, or None."""
+	first = git('log', '--reverse', '--format=%ct', f'{MAIN}..{rev}').stdout.split()
+	return int(first[0]) if first else None
+
+
+def check_release():
+	"""A branch that changes the versions since it started (a release, references/release.md): both go up, above
+	those of main, its tag is new and after the last one, and no other release started before it is in progress (two
+	at once would take the same versions and tag)."""
+	head, base = branch_head(), branch_base()
+	if not base:
+		return
+	now = None if head == 'HEAD' else head  # in a pull request of GitHub Actions, the head of the branch
+	versions = {name: (version_at(now, where), version_at(base, where), version_at(MAIN, where))
+	            for name, where in (('QGIS plugin', PLUGIN_VERSION), ('package', PACKAGE_VERSION))}
+	if all(v[0] == v[1] for v in versions.values()):
+		if branch_name().startswith('release-'):  # e.g. main merged in, with the same versions released by someone else
+			print('\n== Release')
+			say('FAIL', f'the branch {branch_name()} does not raise the versions since it started (main has the plugin '
+			            f'{versions["QGIS plugin"][2]} and the package {versions["package"][2]}): if someone else made '
+			            'this release, raise them again from those of main')
+		return  # not a release: the branch does not change the versions
+	print('\n== Release')
+	if None in (numbers(v) for vs in versions.values() for v in vs):
+		say('WARN', f'versions that are not numbers, not compared: {versions}')
+		return
+	behind = [f'{k} {v} (main {m})' for k, (v, b, m) in versions.items() if v != b and numbers(v) <= numbers(m)]
+	same = [f'{k} {v}' for k, (v, b, m) in versions.items() if v == b]
+	if behind:
+		say('FAIL', 'versions not above those of main: ' + ', '.join(behind) + f'. Merge {MAIN} and raise them from '
+		            'its versions')
+	if same:
+		say('WARN', f'only one version goes up ({", ".join(same)} stays): a release raises both '
+		            '(references/release.md)')
+	plugin, plugin_base, _ = versions['QGIS plugin']
+	if plugin == plugin_base:
+		say('WARN', 'no new tag: the tag of a release is the version of the QGIS plugin, which stays')
+	else:
+		tags = {t: numbers(t[1:]) for t in git('tag', '--list', 'v*').stdout.split() if numbers(t[1:])}
+		tag, last = f'v{plugin}', (max(tags, key=tags.get) if tags else None)
+		if tag in tags:
+			say('FAIL', f'the tag {tag} exists already: someone else made that release. Merge {MAIN} and raise the '
+			            'versions again')
+		elif last and numbers(plugin) <= tags[last]:
+			say('FAIL', f'{tag} is not after the last tag, {last}: raise the plugin version from {last}')
+		else:
+			say('OK', f'the tag {tag} is new and after the last one ({last or "none"})')
+	mine = f'origin/{branch_name()}'
+	mine_started = started(head) or float('inf')
+	before, after = [], []
+	for ref in git('for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/release-*').stdout.split():
+		if git('merge-base', '--is-ancestor', ref, MAIN).returncode == 0:
+			continue  # a release merged already
+		if ref == mine and git('merge-base', '--is-ancestor', ref, head).returncode == 0:
+			continue  # this branch, pushed (not someone else's branch with the same name)
+		(before if ((started(ref) or 0), ref) < (mine_started, mine) else after).append(ref)
+	if before:
+		say('FAIL', f'another release started before this one is in progress ({", ".join(before)}): two at once take '
+		            f'the same versions. Wait for its merge, then merge {MAIN} into this branch and raise the versions '
+		            'again; if it was abandoned, ask its author before deleting it')
+	if after:
+		say('WARN', f'another release started after this one ({", ".join(after)}): it waits for this one')
+	if not before and not after:
+		say('OK', 'no other release in progress')
 
 
 # Catalog --------------------------------------------------------------------------------------------------------
@@ -379,6 +521,8 @@ def main():
 	if not os.path.exists(os.path.join(ROOT, 'src', 'monitoreo', 'catalog.json')):
 		sys.exit('run it from the root of the repository monitoreo')
 	check_git(not args.no_fetch)
+	check_method()
+	check_release()
 	check_catalog(os.path.abspath(args.wiki))
 	check_generated()
 	check_changelog()
