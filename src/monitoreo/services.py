@@ -2709,6 +2709,13 @@ def remove_report(report_id, site=None):
 	return {'site': publish.site_folder(site), 'removed': report_id}
 
 
+def tag_report(report_id, tags, site=None):
+	"""Give a report of the viewer of results in the folder SITE the TAGS (a text or a list; none removes them), in its
+	report.json and in the catalogue, without publishing it again (it keeps them if published again without tags)."""
+	from . import publish
+	return {'site': publish.site_folder(site), 'id': report_id, 'tags': publish.set_tags(report_id, tags, site)}
+
+
 def check_site(site=None):
 	"""Problems of the catalogue and the reports of the viewer of results in the folder SITE ([] if it is right)."""
 	from . import publish

@@ -77,6 +77,7 @@
     monitoreo publish REPORT.yaml [...] [--site S]   publish reports in the static viewer of results (administrators)
     monitoreo publish [--remove ID] [--check] [--site S]   remove a report, or check the site; with nothing else,
                                                      update its viewer (after updating monitoreo) and its catalogue
+    monitoreo publish --tags ID [TAG ...] [--site S]   the tags of a published report, without publishing it again
     monitoreo serve [SITE] [--port 8000]             the viewer of results on this computer
     monitoreo [--project P] projects                 the Google Cloud projects of your Google account (of
                                                      `earthengine authenticate`) registered in Earth Engine, for
@@ -689,6 +690,9 @@ def main(argv=None):
 	p.add_argument('reports', nargs='*', help='YAML files of the reports (see monitoreo.publish)')
 	p.add_argument('--site', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
 	p.add_argument('--remove', action='append', default=[], metavar='ID', help='remove this report from the site')
+	p.add_argument('--tags', action='append', default=[], nargs='+', metavar=('ID', 'TAG'),
+	               help='give this published report these tags, without publishing it again (none: no tags; it keeps '
+	                    'them if published again without tags), e.g. --tags 2026-10-teide-incendio Fire "National parks"')
 	p.add_argument('--check', action='store_true', help='check the catalogue and every report of the site')
 	p = sub.add_parser('serve', help='the viewer of results on this computer (with range requests, as the web servers)')
 	p.add_argument('site', nargs='?', help='folder of the site (default: MONITOREO_SITE or ~/MonitorEO/visor)')
@@ -1293,13 +1297,16 @@ def _burn(args, services):
 def _publish(args):
 	from . import publish, services
 	try:
-		if not (args.reports or args.remove or args.check):
+		if not (args.reports or args.remove or args.tags or args.check):
 			publish.install_viewer(args.site)
 			publish.update_catalog(args.site)
 			print(f'Updated the viewer and the catalogue of {publish.site_folder(args.site)}')
 		for rid in args.remove:
 			res = services.remove_report(rid, args.site)
 			print(f"Removed {rid} from {res['site']}")
+		for rid, *tags in args.tags:
+			res = services.tag_report(rid, tags, args.site)
+			print(f"Tags of {rid}: {', '.join(res['tags']) or 'none'}")
 		for path in args.reports:
 			res = services.publish_report(path, args.site)
 			for r in res['reports']:

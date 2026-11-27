@@ -31,6 +31,7 @@ written, in their language:
     published: 2026-10-29                # default: today
     collection: Network of National Parks, October 2026
     tags: [PRESINMED]                    # short labels, e.g. the project: the catalogue filters the reports by them
+                                         # (those of a published report: set_tags, monitoreo publish --tags ID TAG...)
     basemap: pnoa                        # base map of its maps: osm (OpenStreetMap, default), pnoa (orthophoto of
                                          # Spain, also under its image in the catalogue) or none
     results:                             # the outputs of the analysis, in the order of the page
@@ -1368,6 +1369,10 @@ def publish(spec, site=None, base=None, log=None):
 		view_of(it.get('view'))
 	folders = [_path(p, base) for p in _list(spec.get('files'))]
 	reports = os.path.join(site, 'reports')
+	old = os.path.join(reports, rid, 'report.json')
+	if 'tags' not in spec and os.path.isfile(old):  # published again without tags: it keeps those it had (set_tags)
+		with open(old, encoding='utf-8') as f:
+			spec = dict(spec, tags=json.load(f).get('tags') or [])
 	os.makedirs(reports, exist_ok=True)
 	tmp = os.path.join(reports, f'.{rid}.tmp')
 	shutil.rmtree(tmp, ignore_errors=True)
@@ -1397,6 +1402,23 @@ def remove(rid, site=None):
 		raise ValueError(f'there is no report {rid} in {site}')
 	shutil.rmtree(folder)
 	return update_catalog(site)
+
+
+def set_tags(rid, tags, site=None):
+	"""Give the report RID of SITE the TAGS (a text or a list of texts; none removes them), in its report.json and in
+	the catalogue, without publishing it again: e.g. those published before the tags, whose YAML is elsewhere. A report
+	published again keeps them if its YAML has no tags. Returns its tags."""
+	site = site_folder(site)
+	path = os.path.join(site, 'reports', str(rid), 'report.json')
+	if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', str(rid)) or not os.path.isfile(path):
+		raise ValueError(f'there is no report {rid} in {site}')
+	tags = tags_of(tags)
+	with open(path, encoding='utf-8') as f:
+		report = json.load(f)
+	report['tags'] = tags
+	_write_json(report, path)
+	update_catalog(site)
+	return tags
 
 
 def install_viewer(site=None):

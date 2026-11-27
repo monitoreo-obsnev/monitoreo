@@ -254,8 +254,9 @@ def test_tags_and_the_orthophoto(outputs, monkeypatch):
 		{'answer': 'data/map.json', 'basemap': 'osm'}, {'answer': 'data/series.json'}]), site, outputs, log='')
 	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and not asked
 	assert publish.PNOA_CREDIT not in r['credits']
-	r = publish.publish(_spec(), site, outputs, log='')
-	assert r['tags'] == [] and r['results'][0]['basemap'] == 'osm' and 'view' not in r['results'][0]
+	r = publish.publish(_spec(), site, outputs, log='')  # without tags in its YAML: it keeps those it had
+	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and 'view' not in r['results'][0]
+	assert publish.publish(_spec(tags=[]), site, outputs, log='')['tags'] == []
 
 	# a view: the map opens there, and its image in the catalogue is that part of it
 	asked.clear()
@@ -455,6 +456,30 @@ def test_specs_and_services(outputs):
 	assert [r['id'] for r in res['reports']] == ['uno', 'dos'] and res['reports'][1]['page'] == 'report.html?id=dos'
 	assert services.check_site(str(outputs / 'site')) == []
 	assert services.remove_report('uno', str(outputs / 'site'))['removed'] == 'uno'
+
+
+def test_tags_of_a_published_report(outputs):
+	"""The tags of a published report without publishing it again (those published before the tags): in its
+	report.json and the catalogue; published again without tags it keeps them, with tags it takes those."""
+	site = outputs / 'site'
+	r = publish.publish(_spec(), site, outputs, log='')
+	assert r['tags'] == []
+	res = services.tag_report(r['id'], ['Fire', 'National parks', 'Fire'], str(site))
+	assert res['tags'] == ['Fire', 'National parks']
+	report = json.loads((site / 'reports' / r['id'] / 'report.json').read_text(encoding='utf-8'))
+	cat = json.loads((site / 'catalog.json').read_text(encoding='utf-8'))
+	assert report['tags'] == ['Fire', 'National parks'] and cat['reports'][0]['tags'] == ['Fire', 'National parks']
+	assert publish.check_site(site) == []
+	assert publish.publish(_spec(), site, outputs, log='')['tags'] == ['Fire', 'National parks']  # its YAML has none
+	assert publish.publish(_spec(tags=['Snow']), site, outputs, log='')['tags'] == ['Snow']
+	assert services.tag_report(r['id'], [], str(site))['tags'] == []
+	with pytest.raises(ValueError, match='there is no report'):
+		publish.set_tags('no-such-report', ['Fire'], site)
+	with pytest.raises(ValueError, match='a tag is a short text'):
+		publish.set_tags(r['id'], ['<b>'], site)
+	from monitoreo import cli
+	assert cli.main(['publish', '--site', str(site), '--tags', r['id'], 'Wet meadows', 'Snow']) in (None, 0)
+	assert json.loads((site / 'catalog.json').read_text(encoding='utf-8'))['reports'][0]['tags'] == ['Wet meadows', 'Snow']
 
 
 def test_calls_log(outputs, monkeypatch):

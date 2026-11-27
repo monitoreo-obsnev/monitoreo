@@ -110,6 +110,7 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer** (fix): The lowest and the highest values of a time series are no longer drawn on the edge of the chart, and the tooltip of a table without images nor pixels no longer shows «NaN».
 - **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
 - **Results viewer**: The short answer of a report is right below its question, above its facts, and its region is called «Area» (also in the filter of the catalog).
+- **Python package, Command line**: The tags of a published report can be changed without publishing it again (`monitoreo publish --tags ID TAG ...`, `services.tag_report`), e.g. those published before the tags; published again from a YAML without tags, a report keeps them.
 
 ### [v0.3.76](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.76) · 2026-11-27 · package 0.3.86
 
