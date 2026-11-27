@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.79](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.79) · 2026-11-27 · package 0.3.89
 
 - **All tools**: Two new indices of Sentinel-2 and Landsat: the moisture stress index MSI (SWIR1 / NIR, higher is drier; Hunt & Rock 1989), in the theme Water, and the modified soil adjusted vegetation index MSAVI2 (Qi et al. 1994), for sparse vegetation, drylands and burned areas, in the theme Vegetation.
 - **All tools**: The NDWI and the LSWI of MODIS from its 8-day surface reflectance at 500 m, of Terra (MOD09A1, since 2000) and Aqua (MYD09A1, since 2002), with the pixel filters of its quality band; the NDWI of MODIS of the catalog until now ends in February 2023 and stays as it was.
