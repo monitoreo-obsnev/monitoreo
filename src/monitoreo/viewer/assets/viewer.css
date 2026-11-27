@@ -190,6 +190,7 @@ img { max-width: 100%; }
 	font-size: 19px; line-height: 1.5; margin: 22px 0 6px; padding: 16px 18px; border-left: 4px solid var(--accent);
 	background: var(--accent-soft); border-radius: 0 var(--radius) var(--radius) 0;
 }
+.report-head .lead { margin: 4px 0 16px; }  /* the short answer, right below the question and above its facts */
 .prose p { margin: 0 0 12px; }
 .prose h2, .block > h2 { font-size: 22px; margin: 34px 0 10px; letter-spacing: -0.01em; }
 

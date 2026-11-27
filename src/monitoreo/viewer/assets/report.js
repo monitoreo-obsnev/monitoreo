@@ -27,9 +27,9 @@
 			label + (files.has(path) ? ` · ${MO.bytes(files.get(path).bytes)}` : ''))
 		: null;
 
-	// head: region, title, facts
+	// head: region, title, its short answer (summary) right below it, facts
 	const facts = [
-		['Park or area', [region.full_name || region.name,
+		['Area', [region.full_name || region.name,
 			region.wdpa_id && [' · ', el('a', {href: `https://www.protectedplanet.net/${encodeURIComponent(region.wdpa_id)}`}, `WDPA ${region.wdpa_id}`)]]],
 		region.area_km2 && ['Surface area', `${MO.num(region.area_km2)} km²`],
 		['Variables', (report.variables || []).map((v, i) => [i ? '; ' : '', v.sensor ? `${v.variable} from ${v.sensor}` : v.variable, v.name ? ` (${v.name})` : ''])],
@@ -47,10 +47,10 @@
 		el('a', {class: 'back', href: './'}, '← Catalog of results'),
 		el('div', {class: 'kicker'}, region.name || ''),
 		el('h1', {}, report.title),
+		report.summary && el('p', {class: 'lead'}, report.summary),
 		el('dl', {class: 'facts'}, facts.map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', {}, v)))));
 
 	const parts = [head];
-	if (report.summary) parts.push(el('p', {class: 'lead'}, report.summary));
 	if (report.question && report.question !== report.title) parts.push(el('p', {}, el('strong', {}, 'Question: '), report.question));
 	if (report.answer) parts.push(el('section', {class: 'prose'}, el('h2', {}, 'Answer'), MO.paragraphs(report.answer)));
 

@@ -109,6 +109,7 @@ Earth Engine app, which gives it its version and date.
 - **Results viewer, Python package, Command line**: An annual series can show the Sen line of its own values (`trend: true`), and a table of two variables over the years is a chart with an axis for each one (`chart: series_two`, e.g. NDVI on the left and LSWI on the right).
 - **Results viewer** (fix): The lowest and the highest values of a time series are no longer drawn on the edge of the chart, and the tooltip of a table without images nor pixels no longer shows «NaN».
 - **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
+- **Results viewer**: The short answer of a report is right below its question, above its facts, and its region is called «Area» (also in the filter of the catalog).
 
 ### [v0.3.76](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.76) · 2026-11-27 · package 0.3.86
 
