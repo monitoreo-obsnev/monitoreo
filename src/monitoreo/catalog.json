@@ -401,6 +401,12 @@
     "clc2018"
    ],
    "credit": "Generated using European Union's Copernicus Land Monitoring Service information; https://doi.org/10.2909/960998c1-1870-4e82-8051-6485205ebbac"
+  },
+  "JRC/GSW1_4/GlobalSurfaceWater": {
+   "references": [
+    "pekel2016"
+   ],
+   "credit": "Source: EC JRC/Google"
   }
  },
  "methods": {
@@ -895,6 +901,10 @@
   "wu2020": {
    "citation": "Wu, Q. (2020). geemap: A Python package for interactive mapping with Google Earth Engine. Journal of Open Source Software, 5(51), 2305.",
    "doi": "10.21105/joss.02305"
+  },
+  "pekel2016": {
+   "citation": "Pekel, J.-F., Cottam, A., Gorelick, N., & Belward, A. S. (2016). High-resolution mapping of global surface water and its long-term changes. Nature, 540(7633), 418–422.",
+   "doi": "10.1038/nature20584"
   }
  },
  "variables": [

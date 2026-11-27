@@ -447,6 +447,27 @@ var MonitorEO = (function () {
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
 	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI', 'WAVI'], snow: ['NDSI', 'SCF', 'SCD', 'SMOD'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
+	// sensors.PERMANENT_WATER (quality {water: 'permanent'})
+	var PERMANENT_WATER = {image: 'JRC/GSW1_4/GlobalSurfaceWater', band: 'occurrence', min: 50};
+
+	// sensors.water_permanent
+	function waterPermanent(quality) {
+		return String((quality || {}).water).toLowerCase() === 'permanent';
+	}
+
+	// sensors.permanent_land
+	function permanentLand() {
+		return ee.Image(PERMANENT_WATER.image).select(PERMANENT_WATER.band).unmask(0).lt(PERMANENT_WATER.min);
+	}
+
+	// fire.burn_quality
+	function burnQuality(quality) {
+		var q = {};
+		Object.keys(quality || {}).forEach(function (k) { q[k] = quality[k]; });
+		var water = q.water === undefined ? true : q.water;
+		if (water === true || ['true', 'auto'].indexOf(String(water).toLowerCase()) >= 0) q.water = 'permanent';
+		return q;
+	}
 	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat and Sentinel-2
 	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
 		scene_clouds: 80, cloud_score: 0.6, dem: 'USGS/SRTMGL1_003'};
@@ -764,6 +785,7 @@ var MonitorEO = (function () {
 	// sensors.quality_mask
 	function qualityMask(img, entry, quality) {
 		var on = filters(entry, quality);
+		var permanent = !fixedFilters(entry) && on.water && waterPermanent(quality);
 		var masks = [];
 		var ndsi = snowNdsiOf(entry, quality);
 		if (ndsi !== null) {  // also the snow that the QA band misses
@@ -773,7 +795,7 @@ var MonitorEO = (function () {
 		if (entry.sensor === 'Sentinel-2') {
 			var scl = img.select('SCL');
 			['clouds', 'water', 'snow'].forEach(function (f) {
-				if (!on[f]) return;
+				if (!on[f] || (f === 'water' && permanent)) return;
 				if (f === 'clouds' && quality.cloud_score !== null && quality.cloud_score !== undefined) {
 					masks.push(img.select('cs_cdf').gte(quality.cloud_score));
 				} else {
@@ -785,15 +807,16 @@ var MonitorEO = (function () {
 			var qa = img.select('QA_PIXEL');
 			if (on.clouds) masks.push(bits(qa, 1, 4).eq(0));  // dilated cloud, cirrus, cloud, cloud shadow
 			if (on.snow) masks.push(bits(qa, 5).eq(0));
-			if (on.water) masks.push(bits(qa, 7).eq(0));
+			if (on.water && !permanent) masks.push(bits(qa, 7).eq(0));
 			if (on.aerosols) masks.push(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3));  // level 3 = high
 		} else {
 			var product = PRODUCTS[entry.col] || {};
 			if (product.valid) masks.push(img.select(product.valid[0]).lte(product.valid[1]));
 			FILTERS.forEach(function (f) {
-				if (on[f]) masks.push(product[f](img));
+				if (on[f] && !(f === 'water' && permanent)) masks.push(product[f](img));
 			});
 		}
+		if (permanent) masks.push(permanentLand());
 		if (!masks.length) return null;
 		var mask = masks[0];
 		for (var i = 1; i < masks.length; i++) mask = mask.and(masks[i]);
@@ -4571,7 +4594,8 @@ var MonitorEO = (function () {
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, noTopographic: noTopographic, SNOW_NDSI: SNOW_NDSI,
-		SNOW_NDSI_DEFAULT: SNOW_NDSI_DEFAULT, snowNdsi: snowNdsi, snowNdsiOf: snowNdsiOf, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
+		SNOW_NDSI_DEFAULT: SNOW_NDSI_DEFAULT, snowNdsi: snowNdsi, snowNdsiOf: snowNdsiOf, PERMANENT_WATER: PERMANENT_WATER,
+		waterPermanent: waterPermanent, permanentLand: permanentLand, burnQuality: burnQuality, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
 		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
 	};
 })();

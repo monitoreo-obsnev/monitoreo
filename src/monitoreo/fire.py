@@ -8,7 +8,9 @@ Sentinel-2, 145 Landsat, 146 MODIS Terra and 147 MODIS Aqua): dNBR / sqrt(|NBR b
 0.001 (Howe et al. 2022), classified with the thresholds of the article (its Table 4).
 
 The NBR before and after are the METRIC (the median by default) of the images of a period before and of a period
-after the fire, with the pixel filters of MonitorEO (clouds, shadows, water, snow).
+after the fire, with the pixel filters of MonitorEO (clouds, shadows, water, snow); the water is the permanent water
+of the JRC Global Surface Water (Pekel et al. 2016), not the water flagged in each image, which mistakes burned surfaces
+for water (see burn_quality).
 
 References (monitoreo.references gives them, with those of the data, with each result):
     García, M. J. L., & Caselles, V. (1991). Mapping burns and natural reforestation using Thematic Mapper data.
@@ -26,6 +28,8 @@ References (monitoreo.references gives them, with those of the data, with each r
       https://doi.org/10.1016/j.rse.2006.12.006
     Parks, S. A., Dillon, G. K., & Miller, C. (2014). A new metric for quantifying burn severity: The Relativized
       Burn Ratio. Remote Sensing, 6(3), 1827–1844. https://doi.org/10.3390/rs6031827
+    Pekel, J.-F., Cottam, A., Gorelick, N., & Belward, A. S. (2016). High-resolution mapping of global surface water
+      and its long-term changes. Nature, 540(7633), 418–422. https://doi.org/10.1038/nature20584
     Silva-Cardoza, A. I., Vega-Nieva, D. J., Briseño-Reyes, J., Briones-Herrera, C. I., López-Serrano, P. M.,
       Corral-Rivas, J. J., Parks, S. A., & Holsinger, L. M. (2022). Evaluating a new relative phenological
       correction and the effect of Sentinel-based Earth Engine compositing approaches to map fire severity and
@@ -36,6 +40,19 @@ References (monitoreo.references gives them, with those of the data, with each r
 """
 
 import ee
+
+from . import sensors
+
+
+def burn_quality(quality=None):
+	"""QUALITY for the images of a burn index: with the water filter on (its default, True or 'auto'), the permanent
+	water of the JRC Global Surface Water (sensors.PERMANENT_WATER) instead of the water flagged by the QA band of each
+	image, which mistakes burned surfaces for water and so removed burned pixels; False keeps it off."""
+	q = dict(quality or {})
+	water = q.get('water', sensors.QUALITY['water'])
+	if water is True or str(water).lower() in ('true', 'auto'):
+		q['water'] = 'permanent'
+	return q
 
 # (class, lowest dNBR of the class, name, as in gee/core.js): a class goes from its lowest dNBR to that of the next one
 SEVERITY = [

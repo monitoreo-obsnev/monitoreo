@@ -759,6 +759,10 @@ def describe(spec, rgb=False):
 			d['topographic_correction'] = TOPOGRAPHIC_TEXT
 		if sensors.snow_ndsi_of(e, spec['quality']) is not None:
 			d['snow_ndsi'] = sensors.snow_ndsi_of(e, spec['quality'])
+		if sensors.permanent_water_of(e, spec['quality']):
+			w = sensors.PERMANENT_WATER
+			d['water_filter'] = (f"permanent water of the JRC Global Surface Water ({w['image']}, band {w['band']} >= "
+			                     f"{w['min']} %), not the water flagged in each image")
 		if e['ref'] in catalog.FIXES:
 			d['fixed'] = catalog.FIXES[e['ref']]
 		if e.get('notes', {}).get('ft'):

@@ -838,7 +838,7 @@ def test_fix_args_of_the_rdnbr_of_modis():
 def test_default_model():
 	assert [m['name'] for m in assistant.RECOMMENDED][0] == assistant.DEFAULTS['model'] == 'qwen3:8b'
 	assert assistant.default_model('qwen3:8b', ['qwen3:8b', 'gpt-oss:20b']) == 'qwen3:8b'  # the chosen one, installed
-	assert assistant.default_model('qwen3:8b', ['gpt-oss:20b', 'qwen3:4b']) == 'qwen3:4b'  # installed, in their order
+	assert assistant.default_model('qwen3:8b', ['gpt-oss:20b', 'qwen3:4b']) == 'gpt-oss:20b'  # installed, in their order
 	assert assistant.default_model('qwen3:8b', ['nomic-embed-text']) == 'qwen3:8b'  # not one without tools
 	assert assistant.default_model('qwen3:8b', []) == 'qwen3:8b'
 
@@ -1700,18 +1700,17 @@ def test_data_of_the_catalog_or_by_its_id():
 
 def test_tools_of_the_mcp_server():
 	"""The tools of the MCP server as the model gets them: those of the data of Earth Engine by their ID, with their
-	arguments, but compact (see assistant._compact and _description), as the small models of Ollama have 16,384 tokens
-	of context for the instructions, the tools and the conversation: their size before those data (39,337 characters)
-	is the limit, with some room; and the tool list_classes (the codes of the classes of the categorical layers, which
-	the model needs to find an ecoregion by its name), some 400 more, and find_seas (the MRGIDs of the oceans and seas),
-	some 400 more; and the percentiles of the colour ramps of the maps (and vmin and vmax of compare_map and
-	download_image), some 1,000 more."""
+	arguments, but compact (see assistant._compact and _description). The assistant asks first the model of MonitorEO
+	and then GLM, models of the cloud with large contexts; the models of Ollama, its last resort, have 32,768 tokens of
+	context (assistant.DEFAULTS; 16,384 until 2026-11-27, when the tools were limited to 44,000 characters) for the
+	instructions, the tools and the conversation: the tools keep under 60,000 characters (some 15,000 tokens)."""
 	from monitoreo import mcp_server as mcp
 	tools = assistant.model_tools([assistant._json(t) for t in asyncio.run(mcp.server.list_tools())])
 	names = [t['function']['name'] for t in tools]
 	assert sorted(names) == sorted(assistant.ADVICE + assistant.RESULTS + assistant.TASKS)
 	text = json.dumps(tools)
-	assert len(text) < 44000, len(text)
+	assert len(text) < 60000, len(text)
+	assert len(text) + len(assistant.instructions()) < 90000  # with the instructions of the models of Ollama
 	assert '"title"' not in text and '{"type": "null"}' not in text and '"default": null' not in text
 	source = ' '.join(mcp.SOURCE_DOC.split())
 	assert source[:60] not in text  # said once in the instructions
@@ -2959,3 +2958,16 @@ def test_auto_finds_the_engine_of_ollama(monkeypatch):
 	events = asyncio.run(run())
 	assert tried[-1] == ('ollama', 'http://127.0.0.1:11434')
 	assert next(e for e in events if e['type'] == 'assistant')['text'] == 'Hola'
+
+
+def test_an_old_saved_context_gets_the_new_default(tmp_path, monkeypatch):
+	"""A context saved with the old default (16384: the page never let the user choose it) gets the current one, and
+	the default is not saved again; another context saved by hand is kept."""
+	monkeypatch.setattr(assistant, 'SETTINGS', str(tmp_path / 'assistant.json'))
+	monkeypatch.setattr(assistant, 'OUTPUT', str(tmp_path))
+	(tmp_path / 'assistant.json').write_text(json.dumps({'model': 'qwen3:8b', 'provider': 'auto', 'context': 16384}))
+	assert assistant.load_settings()['context'] == assistant.DEFAULTS['context'] == 32768
+	assistant.save_settings(assistant.load_settings())
+	assert 'context' not in json.loads((tmp_path / 'assistant.json').read_text())
+	(tmp_path / 'assistant.json').write_text(json.dumps({'context': 65536}))
+	assert assistant.load_settings()['context'] == 65536

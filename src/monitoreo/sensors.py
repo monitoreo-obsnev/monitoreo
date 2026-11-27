@@ -96,6 +96,13 @@ MEASURES = {  # variables whose signal a filter removes
 	'aerosols': {'ARSL'},
 }
 S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, clouds, cirrus; water; snow
+# The water filter 'permanent' (quality {'water': 'permanent'}): instead of the water flagged in each image by its QA
+# band, the permanent water of the JRC Global Surface Water (Pekel et al. 2016): the pixels where water was seen in at
+# least PERMANENT_WATER['min'] % of the valid observations of 1984-2021 (band occurrence). The flags of each image
+# mistake dark surfaces for water: after a fire, QA_PIXEL of Landsat flagged as water 442 ha of the 3,384 ha burned in
+# Lanjarón (Sierra Nevada, 2005-11-09) and the SCL of Sentinel-2 can do the same; the burn severity removed them. The
+# burn severity (services.burn_severity) uses it whenever the water filter is on; any tool can ask for it.
+PERMANENT_WATER = {'image': 'JRC/GSW1_4/GlobalSurfaceWater', 'band': 'occurrence', 'min': 50}
 
 # Snow cover frequency (SCF) of Landsat: the % of the clear observations of each pixel with snow or ice, the mean of
 # its images, each 100 (snow) or 0 (no snow). The method of the study of the snow of Sierra Nevada and its glacial
@@ -453,6 +460,25 @@ PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 PRODUCTS['MODIS/061/MYD09GA'] = PRODUCTS['MODIS/061/MOD09GA']
 
 
+def water_permanent(quality):
+	"""Whether QUALITY asks for the permanent water of the JRC Global Surface Water instead of the water flagged by
+	the QA bands ({'water': 'permanent'})."""
+	return str((quality or {}).get('water')).lower() == 'permanent'
+
+
+def permanent_water_of(entry, quality):
+	"""Whether the images of ENTRY lose the permanent water (water_permanent) with QUALITY: with the water filter on,
+	and not for the variables with fixed filters (the SCF and the CF keep their own water, whatever QUALITY says)."""
+	return fixed_filters(entry) is None and filters(entry, quality)['water'] and water_permanent(quality)
+
+
+def permanent_land():
+	"""Mask of the pixels that are not permanent water (PERMANENT_WATER): 1 where water was seen in less than its
+	'min' % of the observations of the JRC Global Surface Water, or never observed as water."""
+	w = PERMANENT_WATER
+	return ee.Image(w['image']).select(w['band']).unmask(0).lt(w['min'])
+
+
 def filters(entry, quality=None):
 	"""Pixel filters (clouds, water, snow, aerosols) that apply to ENTRY with QUALITY: {filter: True/False}, with
 	'auto' resolved and False for the filters its sensor has no QA band for (e.g. aerosols of Sentinel-2); with fixed
@@ -546,10 +572,11 @@ def quality_mask(img, entry, quality):
 		green, swir1, scale, offset = SNOW_NDSI[sensor]
 		refl = img.select([green, swir1]).multiply(scale).add(offset)
 		masks.append(refl.normalizedDifference([green, swir1]).lt(ndsi))
+	permanent = permanent_water_of(entry, quality)  # the permanent water instead of the flags of each image
 	if sensor == 'Sentinel-2':
 		scl = img.select('SCL')
 		for f, classes in S2_SCL.items():
-			if not on[f]:
+			if not on[f] or (f == 'water' and permanent):
 				continue
 			if f == 'clouds' and quality.get('cloud_score') is not None:
 				masks.append(img.select('cs_cdf').gte(quality['cloud_score']))
@@ -561,7 +588,7 @@ def quality_mask(img, entry, quality):
 			masks.append(bits(qa, 1, 4).eq(0))  # dilated cloud, cirrus, cloud, cloud shadow
 		if on['snow']:
 			masks.append(bits(qa, 5).eq(0))
-		if on['water']:
+		if on['water'] and not permanent:
 			masks.append(bits(qa, 7).eq(0))
 		if on['aerosols']:
 			masks.append(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3))  # aerosol level 3 = high
@@ -570,7 +597,9 @@ def quality_mask(img, entry, quality):
 		if 'valid' in product:
 			b, vmax = product['valid']
 			masks.append(img.select(b).lte(vmax))
-		masks += [product[f](img) for f in FILTERS if on[f]]
+		masks += [product[f](img) for f in FILTERS if on[f] and not (f == 'water' and permanent)]
+	if permanent:
+		masks.append(permanent_land())
 	if not masks:
 		return None
 	mask = masks[0]

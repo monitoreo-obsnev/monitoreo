@@ -24,7 +24,7 @@ References:
 import datetime as dt
 import unicodedata
 
-from . import about, areas, catalog, landcover, sensors
+from . import about, areas, catalog, fire, landcover, sensors
 
 MONITOREO = 'monitoreo'  # the ID of the citation of MonitorEO (monitoreo.about)
 LANDSAT = 'LANDSAT'  # the collection of the catalog with Landsat 5, 7, 8 and 9 (monitoreo.sensors.LANDSAT)
@@ -213,6 +213,8 @@ def of_variable(entry, quality=None, period=None, formula=True):
 		ids += _methods('landsat_qa')
 	if sensors.snow_ndsi_of(entry, q) is not None:  # the snow by its NDSI
 		ids += _methods('snow_ndsi')
+	if sensors.permanent_water_of(entry, q):  # the permanent water of the JRC Global Surface Water
+		cols.append(sensors.PERMANENT_WATER['image'])
 	if sensors.topographic(q) and not sensors.no_topographic(entry):  # SCS+C, with the slope and aspect of the SRTM
 		ids += _methods('topographic')
 		cols.append(sensors.TOPOGRAPHIC['dem'])
@@ -393,8 +395,8 @@ def cite(tool, args=None, date=None, datasets=()):
 			cols.append(ECOREGIONS)
 	elif tool == 'burn_severity':
 		index = {'rbr': 'RBR', 'rdnbr': 'RdNBR'}.get(str(args.get('index') or 'dNBR').lower(), 'NBR')
-		spec = {'index': index, 'sensor': args.get('sensor') or 'Sentinel-2', 'quality': args.get('quality'),
-		        'where': args.get('where')}
+		spec = {'index': index, 'sensor': args.get('sensor') or 'Sentinel-2', 'where': args.get('where'),
+		        'quality': fire.burn_quality(args.get('quality') if isinstance(args.get('quality'), dict) else None)}
 		if args.get('collection'):  # MODIS Aqua (MYD09GA) for the RdNBR
 			spec['collection'] = args['collection']
 		more, credits = of_spec(spec, period)

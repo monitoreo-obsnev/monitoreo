@@ -539,7 +539,9 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
 		                                  'for the variables of its catalog)'))
 	if entry and not static:
-		facts.append(('Discarded pixels', _discarded(entry, args.get('quality'))))
+		quality = args.get('quality') if isinstance(args.get('quality'), dict) else None
+		facts.append(('Discarded pixels', _discarded(entry, fire.burn_quality(quality) if tool == 'burn_severity'
+		                                             else quality)))
 	if entry and not static and sensors.topographic(args.get('quality') if isinstance(args.get('quality'), dict)
 	                                                else None):
 		facts.append(('Topographic correction', variables.TOPOGRAPHIC_TEXT))
@@ -1240,6 +1242,10 @@ def _discarded(entry, quality):
 	ndsi = sensors.snow_ndsi_of(e, q)
 	if ndsi is not None:  # the snow also by its NDSI
 		names.append(f'snow by its NDSI (green, SWIR1) of {ndsi:g} or more')
+	if sensors.permanent_water_of(e, q):  # the permanent water instead of the flags of each image
+		w = sensors.PERMANENT_WATER
+		names = [f"permanent water (JRC Global Surface Water, water in at least {w['min']} % of the observations)"
+		         if n == FILTERS['water'] else n for n in names]
 	return ', '.join(names) if names else 'none'
 
 
