@@ -3377,9 +3377,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(ref),
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(ref),
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -3488,7 +3488,10 @@
 			'10.3390/rs14205249', false],
 		['Veraverbeke, S., Lhermitte, S., Verstraeten, W. W., & Goossens, R. (2010). The temporal dimension of ' +
 			'differenced Normalized Burn Ratio (dNBR) fire/burn severity studies: The case of the large 2007 Peloponnese ' +
-			'wildfires in Greece. Remote Sensing of Environment, 114(11), 2548–2563.', '10.1016/j.rse.2010.05.029', true]
+			'wildfires in Greece. Remote Sensing of Environment, 114(11), 2548–2563.', '10.1016/j.rse.2010.05.029', true],
+		['Pekel, J.-F., Cottam, A., Gorelick, N., & Belward, A. S. (2016). High-resolution mapping of global surface ' +
+			'water and its long-term changes. Nature, 540(7633), 418–422. Source: EC JRC/Google.', '10.1038/nature20584',
+			false]
 	];
 
 	// The entry of the catalog of the burn severity chosen (mo.burnEntry): that of its index and of its sensor or, for
@@ -3506,9 +3509,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: e.ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(e.ref),
+		var before = mo.spec({ref: e.ref, period: state.fireBefore.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(e.ref)),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(e.ref),
+		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(e.ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -3576,9 +3579,9 @@
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
 		checkPeriod(state.fireAfter);
-		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: qualityFor(ref),
+		var before = mo.spec({ref: ref, period: state.fireBefore.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
-		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: qualityFor(ref),
+		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
 		mo.used(before);
@@ -4236,7 +4239,7 @@
 	// of the entry E measures what the filter removes) for E: not for those with fixed filters (SCF, CF, the fixed
 	// layers, the data by ID), but for the variable of the right axis of a PROFILE (those chosen, otherQuality; 'auto',
 	// on: the right axis leaves out that of what it measures)
-	function applyQuality(e, quality, skip, profile) {
+	function applyQuality(e, quality, skip, profile, burn) {
 		var fixed = mo.fixedFilters(e);
 		if (fixed && !profile) {
 			if (quality !== undefined) skip('quality', e.custom ? t('customFilters') : t('fixedFilters'));
@@ -4251,7 +4254,12 @@
 				one[k] = v;
 				if (mo.FILTERS.indexOf(k) >= 0) {  // 'auto' with fixed filters: on (for the right axis)
 					var auto = Boolean(fixed) || (mo.MEASURES[k] || []).indexOf(e.index) < 0;
-					q[k] = String(v).toLowerCase() === 'auto' ? auto : Boolean(v);
+					if (k === 'water' && String(v).toLowerCase() === 'permanent') {  // in the burn severity, always
+						q.water = true;
+						if (!burn) skip('quality', 'only in the burn severity', one);
+					} else {
+						q[k] = String(v).toLowerCase() === 'auto' ? auto : Boolean(v);
+					}
 				} else if (k === 'cloud_score' && (v === null || typeof v === 'number')) {
 					q.cloud_score = v;
 				} else if (k === 'topographic' && (v === true || v === false || v === null)) {
@@ -4591,7 +4599,8 @@
 		state.compareOn = analysis === 'compare_map' || analysis === 'compare_series';
 		var landcover = analysis === 'area_by_class' && o.landcover !== undefined;  // a land cover map: no variable
 		var e = analysis === 'burn_severity' ? applyFire(o, options, skip) : applySource(o, skip);
-		if (!landcover) applyQuality(e, o.quality, skip, analysis === 'time_series' && o.other_variable !== undefined);
+		if (!landcover) applyQuality(e, o.quality, skip, analysis === 'time_series' && o.other_variable !== undefined,
+			analysis === 'burn_severity');
 		applyDates(analysis, o, skip);
 		applyOptions(analysis, e, o, options, skip);
 		if (a.takes.indexOf('where') >= 0) {

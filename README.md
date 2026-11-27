@@ -98,6 +98,8 @@ Earth Engine app, which gives it its version and date.
 
 ### Unreleased
 
+- **All tools** (fix): The burn severity no longer leaves out burned land: the water flagged in each image (QA_PIXEL of Landsat, the SCL of Sentinel-2) takes burned surfaces for water (442 of the 3,384 ha of the fire of Lanjarón of 2005 in Landsat 5), so it now leaves out the permanent water of the JRC Global Surface Water instead (Pekel et al. 2016), cited with its results.
+- **Python package, MCP server, Assistant, R package**: The water filter can be the permanent water of the JRC Global Surface Water instead of the water flagged in each image (quality `{"water": "permanent"}`), e.g. for the series of a burned area; the QGIS plugin and the Earth Engine app have it in the burn severity only.
 - **Results viewer, MCP server, Python package, Command line**: A report can have tags (`tags`, e.g. PRESINMED): they appear on its card and on its page, and the catalogue has a Tag filter (`?tag=PRESINMED`).
 - **Results viewer, MCP server, Python package, Command line**: A report can open its maps over the PNOA orthophoto (`basemap: pnoa`, or `none`; OpenStreetMap by default), and its image in the catalogue is then its map over the orthophoto.
 - **Results viewer**: A chart with a line per year has a checkbox for each year (and All, None) to show only some of them, each with its own colour.

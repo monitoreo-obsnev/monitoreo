@@ -766,7 +766,7 @@ def region_kind(region):
 	return None, f'the panel has no region {k}: {kinds}'
 
 
-def quality_fields(quality):
+def quality_fields(quality, burn=False):
 	"""The pixel filters QUALITY of some parameters as the panel takes them ({filter: True, False or 'auto',
 	'cloud_score': whether Cloud Score+ is checked}; those not given, as sensors.QUALITY) and the reports of those it
 	cannot take (its Cloud Score+ is 0.6, and it has no filter of whole scenes)."""
@@ -777,6 +777,11 @@ def quality_fields(quality):
 	for k, v in (quality or {}).items():
 		if k in sensors.FILTERS and v in (True, False, 'auto'):
 			q[k] = v
+		elif k == 'water' and str(v).lower() == 'permanent':  # the panel has it only in the burn severity, always
+			q[k] = True
+			if not burn:
+				reports.append(missing('quality.water', v, 'the panel removes the water flagged in each image (the '
+				                       'permanent water of the JRC Global Surface Water only in the burn severity)'))
 		elif k == 'cloud_score' and v in (None, sensors.QUALITY['cloud_score']):
 			q[k] = v
 		elif k == 'cloud_score':
@@ -945,7 +950,7 @@ def panel_fields(analysis, params):
 		used.add('season')
 		field('season', p.get('season'), 'season' in p)
 	if 'quality' in p or burn or (row and not row.get('static')):
-		q, bad = quality_fields(p.get('quality'))
+		q, bad = quality_fields(p.get('quality'), burn)
 		reports += bad
 		field('quality', {'filters': q, 'own': burn}, 'quality' in p)
 	period = [str(p['start'])[:10], str(p['end'])[:10]] if p.get('start') and p.get('end') else None

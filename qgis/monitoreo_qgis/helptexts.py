@@ -638,11 +638,12 @@ HELP = {
 		'm): a pixel of 500 m mixes burned and unburned land, so its RdNBR is less extreme, the hectares of each class '
 		'are approximate and small fires are missed.</p>'
 		'<p>It uses the group <b>Pixel filters</b> (tab Data: <b>Remove pixels with</b>; those you chose, also '
-		'while a variable with fixed filters greys them out) and its conditions of '
+		'while a variable with fixed filters greys them out; the water, the permanent water of the JRC Global Surface '
+		'Water, as the water flagged in each image takes burned land for water) and its conditions of '
 		'<b>Only the pixels where</b>, over the period before the fire. The region is that of the group '
 		'<b>Region</b>, always on the pixels of the data: as the maps, up to 4 million pixels (a bigger region gets a '
 		'warning, before computing anything).</p>'
-		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010')])
+		+ cite_html([references.get('howe2022'), references.get('veraverbeke2010'), references.get('pekel2016')])
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
 	'fire_index':
 		'<ul><li><b>dNBR</b>: NBR before the fire minus NBR after it, in the 7 classes of the USGS (Key &amp; Benson '

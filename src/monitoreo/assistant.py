@@ -273,7 +273,10 @@ e.g. ["06-01", "08-31"] for the summer.
 PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll index, B8 / B5 - 1), "CLreB7" (the same with B7) and "WAVI" (water adjusted \
 vegetation index).
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI, the Chl-a or the WAVI pass quality \
-{{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure.
+{{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure. \
+After a fire, the water flagged in each image takes burned land for water: the burn severity already uses the permanent \
+water of the JRC Global Surface Water instead, and the series of a burned area should too, with quality \
+{{"water": "permanent"}}.
 - Topographic correction: in mountains, with Landsat, add "topographic": true to quality (e.g. \
 {{"topographic": true}}) when the user compares slopes of different aspect (north and south faces) or winter dates, or \
 asks for it: the slopes facing the sun look brighter and those facing away darker than on flat land. Sentinel-2 comes \

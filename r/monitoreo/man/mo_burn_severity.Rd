@@ -47,6 +47,8 @@ rbr, dnbr, nbr_before and nbr_after; RdNBR: rdnbr, severity (class 0 to 3), dnbr
 \item{season}{optional \code{c("MM-DD", "MM-DD")}: only those days of each year (e.g. the summer).}
 
 \item{quality}{pixel filters, e.g. \code{list(snow = FALSE)} (default: clouds, water, snow and aerosols removed);
+\code{list(water = "permanent")} leaves out the permanent water of the JRC Global Surface Water instead of the
+water flagged in each image, which takes burned land for water (the default of \code{mo_burn_severity()});
 only for the variables of the catalog: the data given as \code{collection} or \code{image} keep their own mask.
 \code{list(topographic = TRUE)}: the topographic correction SCS+C (Soenen et al. 2005) of the surface reflectance
 of Landsat, for mountains (slopes facing and away from the sun, dates with a low sun; Sentinel-2 comes already

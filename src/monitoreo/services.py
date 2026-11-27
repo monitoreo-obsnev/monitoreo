@@ -2476,6 +2476,10 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	WHERE: only the pixels that pass these conditions on variables (as in the other tools), computed over the period
 	before the fire.
 
+	QUALITY: the pixel filters, as in the other tools, except the water: with it on (the default), the permanent water
+	of the JRC Global Surface Water (fire.burn_quality), as the water flagged in each image takes burned pixels for
+	water.
+
 	PERIMETER: the vector file (.gpkg, .geojson or .shp) where to write the perimeter of the burned area, to use
 	it as the region of other analyses ({'file': PERIMETER, 'name_field': 'region'}): a feature for each feature of
 	REGION, a MultiPolygon in EPSG:4326 of its burned pixels (index at least BURNED_MIN: by default the value from
@@ -2488,6 +2492,7 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
 	if index is None:
 		raise ValueError(f"unknown burn index: use {', '.join(BURN_INDICES[:-1])} or {BURN_INDICES[-1]}")
+	quality = fire.burn_quality(quality)  # the permanent water, not the water flags that take burned pixels for water
 	outline = _perimeter_args(index, perimeter, burned_min, min_ha, sensor, (start, end), (other_start, other_end))
 	known = {s.lower().replace(' ', ''): s for s in BURN_SENSORS[index]}
 	if sensor is not None and str(sensor).lower().replace(' ', '') not in known:
