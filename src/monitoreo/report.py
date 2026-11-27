@@ -532,6 +532,7 @@ def item_facts(tool, args, result=None, names=None):
 		part = int(args['part'])
 		facts.append(('Part of the year', MONTHS[part - 1] if args.get('step') == 'monthly' else f'16-day period {part}'))
 	metric = args.get('metric') or ('median' if tool in ('region_stats', 'map_layer', 'compare_map', 'burn_severity',
+	                                                      'recovery_map',
 	                                                      'download_image', 'download_comparison', 'rgb_map',
 	                                                      'download_rgb', 'timelapse', 'transect', 'map_figure') or
 	                                (tool == 'area_by_class' and not args.get('trend')) else 'mean')
@@ -560,6 +561,17 @@ def item_facts(tool, args, result=None, names=None):
 		facts.append(('Control ring', f'from {float(gap):g} to {float(gap) + float(width):g} m of the affected area'
 		                              + (f'; its pixels and those of the affected area with {matched} (percentiles 5 and '
 		                                 '95 in the affected area)' if matched else '')))
+	if tool == 'recovery_map':
+		facts.append(('Event', str(args.get('event'))))
+		facts.append(('Method', 'on each pixel, the annual series (the temporal metric of each year, within the season), '
+		                        'its missing years filled by linear interpolation, and the metrics of Marcos et al. (2023) '
+		                        'of an annual series: the reference (median ± MAD of the '
+		                        f"{args.get('reference_years') or 3} years before the event), the impact of the year after "
+		                        'it, the trend as a running median of 3 years, DIT, RRT, RET and the share recovered'))
+		summary = (result or {}).get('summary') or {}
+		if summary.get('pixels'):
+			facts.append(('Pixels', f"{summary['pixels']:,} with metrics; recovered (an RRT) "
+			                        f"{100 * (summary.get('recovered_share') or 0):.0f} %"))
 	if tool == 'recovery_metrics':
 		facts.append(('Event', str(args.get('event'))))
 		facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (

@@ -18,6 +18,8 @@
                                                      NDVI)
     monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D [--affected A --control C | --ring]
                                                      severity and recovery after a disturbance (Marcos et al. 2023)
+    monitoreo recovery-map VARIABLE --sensor S --region JSON --start D --end D --event D [--season MM-DD MM-DD]
+                                                     the recovery on each pixel: a GeoTIFF of the metrics
     monitoreo ring --region JSON --out F.gpkg [--gap 150] [--width 1500] [--exclude JSON] [--within JSON]
                                                      the control ring of an affected area, matched by elevation
     monitoreo count VARIABLE --sensor S --region JSON --start D --end D [--step annual] [--csv F] [--png F]
@@ -510,6 +512,21 @@ def main(argv=None):
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
 	_ring_options(p)
+	p = sub.add_parser('recovery-map', help='the recovery after a disturbance on each pixel: a GeoTIFF of the metrics of '
+	                                         'Marcos et al. (2023) of the annual series of each pixel')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	p.add_argument('--region', required=True, help='JSON dictionary of the area, e.g. \'{"file": "fire.gpkg"}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', required=True, help='first day: at least --reference-years before the event')
+	p.add_argument('--end', required=True)
+	p.add_argument('--event', required=True, help='date of the disturbance, YYYY-MM-DD')
+	p.add_argument('--season', nargs=2, metavar=('MM-DD', 'MM-DD'), help='only these days of each year, e.g. 07-01 09-30')
+	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
+	p.add_argument('--reference-years', type=int, default=3, help='years before the event of the reference (default 3)')
+	p.add_argument('--equilibrium', type=float, default=0.05, help='relative change of a stable year (default 0.05)')
+	p.add_argument('--resolution', type=float, help='pixel size in metres (default: that of the data)')
+	p.add_argument('--out', help='GeoTIFF of the metrics (the yearly values go to <out>_yearly.tif)')
 	p = sub.add_parser('ring', help='the control ring of an affected area: a vector file of the '
 	                                                   'affected area and the ring, and the where that matches them')
 	p.add_argument('--region', required=True, help='JSON dictionary of the affected area, e.g. \'{"file": "fire.gpkg"}\'')
@@ -1154,6 +1171,25 @@ def _compute(args, services):
 		return
 	if args.cmd == 'recovery':
 		_recovery(args, services, progress)
+		return
+	if args.cmd == 'recovery-map':
+		try:
+			res = services.recovery_map(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
+			                            event=args.event, metric=args.metric, season=args.season,
+			                            resolution=args.resolution, reference_years=args.reference_years,
+			                            equilibrium=args.equilibrium, path=args.out, where=_where(args),
+			                            progress=lambda d, t, what='years': print(f'  {d}/{t} {what}', file=sys.stderr))
+		except ValueError as e:
+			sys.exit(f'ERROR: {e}')
+		s = res['summary']
+		print(f"{s['pixels']:,} pixels with metrics" + (
+			f"; recovered (back in the reference): {100 * (s['recovered_share'] or 0):.0f} %"
+			+ (f", in a median of {s['RRT_median']:g} years" if s['RRT_median'] is not None else '')
+			+ (f"; median impact {s['impact_pct_median']:g} %" if s['impact_pct_median'] is not None else '')
+			+ (f", recovered {s['recovered_pct_median']:g} %" if s['recovered_pct_median'] is not None else '')
+			if s['pixels'] else ': none has a reference and a year after the event'))
+		print(f"\n{res['title']} | GeoTIFF {res['file']} (bands {', '.join(res['bands'])}) | yearly {res['yearly']}"
+		      + _documented(res))
 		return
 	if args.cmd == 'ring':
 		try:
