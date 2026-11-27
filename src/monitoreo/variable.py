@@ -407,10 +407,13 @@ def mask(spec, region, res):
 	for cs, lo, hi in where_specs(spec):
 		value = image(cs, region, res)
 		m = ee.Image(1).updateMask(value.mask())
-		if lo is not None:
-			m = m.And(value.gte(float(lo)))
-		if hi is not None:
-			m = m.And(value.lte(float(hi)))
+		if across_zero(entry_of(cs), lo, hi):  # an angle from min to 360 and from 0 to max (e.g. the north: 315 to 45)
+			m = m.And(value.gte(float(lo)).Or(value.lte(float(hi))))
+		else:
+			if lo is not None:
+				m = m.And(value.gte(float(lo)))
+			if hi is not None:
+				m = m.And(value.lte(float(hi)))
 		masks.append(m)
 	classes = spec.get('exclude_landcover')
 	if classes:
@@ -422,6 +425,13 @@ def mask(spec, region, res):
 	for m in masks[1:]:
 		out = out.And(m)
 	return out.selfMask()
+
+
+def across_zero(entry, lo, hi):
+	"""Whether a condition of where on the variable of ENTRY between LO and HI is a range of angles across 0 (the north):
+	a circular variable (ASPECT, field circular of the catalog) with a min greater than its max, e.g. 315 and 45 (the
+	slopes that face north), which keeps the values from min to 360 and from 0 to max."""
+	return bool(entry and entry.get('circular')) and lo is not None and hi is not None and float(lo) > float(hi)
 
 
 def entry_of(spec):
@@ -636,11 +646,24 @@ def _fixed(spec, res):
 	if terrain:
 		if terrain not in TERRAIN:
 			raise ValueError(f"unknown terrain {terrain}: use {', '.join(TERRAIN)}")
-		img = getattr(ee.Terrain, terrain)(img)
+		dem = img
+		img = getattr(ee.Terrain, terrain)(dem)
+		if terrain == 'aspect':  # flat pixels have no aspect (ee.Terrain gives them 0, the north): no data
+			img = img.updateMask(ee.Terrain.slope(dem).gt(0))
 	agg = str(spec.get('aggregate') or 'auto').lower()
 	if agg in ('auto', 'mean') and res > 2 * native:
-		img = img.reduceResolution(ee.Reducer.mean(), True, 65535)
+		img = _circular_mean(img) if terrain == 'aspect' else img.reduceResolution(ee.Reducer.mean(), True, 65535)
 	return img.toFloat().rename('value')
+
+
+def _circular_mean(img):
+	"""The circular mean of the angles IMG (degrees from the north, 0 to 360: the aspect) on bigger pixels: the angle
+	of the mean of the sines and cosines of its pixels, from 0 to 360, so that the mean of 350 and 10 is 0 (the north),
+	not 180. The same calls of Earth Engine, in the same order, as circularMean of gee/core.js."""
+	rad = img.multiply(math.pi / 180)
+	sc = ee.Image.cat([rad.sin(), rad.cos()]).reduceResolution(ee.Reducer.mean(), True, 65535)
+	# Image.atan2 of Earth Engine: x.atan2(y) is the angle of the vector [x, y], atan2(y, x): here [cos, sin]
+	return sc.select(1).atan2(sc.select(0)).multiply(180 / math.pi).add(360).mod(360)
 
 
 def _from_collection(spec, region, res):

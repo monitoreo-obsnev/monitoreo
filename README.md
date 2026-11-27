@@ -96,6 +96,15 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: Two new indices of Sentinel-2 and Landsat: the moisture stress index MSI (SWIR1 / NIR, higher is drier; Hunt & Rock 1989), in the theme Water, and the modified soil adjusted vegetation index MSAVI2 (Qi et al. 1994), for sparse vegetation, drylands and burned areas, in the theme Vegetation.
+- **All tools**: The NDWI and the LSWI of MODIS from its 8-day surface reflectance at 500 m, of Terra (MOD09A1, since 2000) and Aqua (MYD09A1, since 2002), with the pixel filters of its quality band; the NDWI of MODIS of the catalog until now ends in February 2023 and stays as it was.
+- **All tools**: The yearly gross and net primary production of MODIS (GPP and NPP of MOD17A3HGF and MYD17A3HGF, 500 m, 2001-2025 (Aqua since 2003), in kg of carbon per m² and year, without their fill values), in the theme Vegetation.
+- **All tools**: Drought indices in the theme Climate: the Palmer Drought Severity Index of TerraClimate (PDSI, monthly, 4.6 km) and the SPEI of 1, 3, 6 and 12 months of SPEIbase v2.11 of the CSIC (SPEI1, SPEI3, SPEI6, SPEI12, monthly, 0.5°, 1901-2024).
+- **All tools**: The burn date, the day of the year when each pixel burned (BURNDATE, only the burned pixels, the first day of the period), from MODIS MCD64A1 (500 m, since 2000) or ESA FireCCI51 (250 m, 2001-2020), in the theme Fire.
+- **All tools**: The aspect of the Copernicus DEM (ASPECT, degrees from the north, without the flat pixels), a fixed layer of the theme Terrain; as a condition of «only the pixels where», a minimum greater than the maximum goes across the north (e.g. 315 to 45: the slopes that face north), and on big pixels it is their circular mean.
+
 ### [v0.3.78](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.78) · 2026-11-27 · package 0.3.88
 
 - **Field app**: The notice of a new version on the iPhone says to install it with Sideloadly or AltStore, and the help says that, for now, the iPhone version installs only from a computer with one of them, for testing: with a free Apple ID it lasts 7 days (then it is installed again and the points and results are kept), with at most 3 apps at a time.

@@ -192,13 +192,14 @@ HELP = {
 		+ manual('Concepts#period-and-season'),
 	'theme':
 		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI, red-edge chlorophyll index CLre '
-		'with B8 or CLreB7 with B7, water adjusted vegetation index WAVI), <b>Water</b> (NDWI, LSWI, '
-		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, and the burn severity of a fire: '
-		'dNBR, RBR or RdNBR), '
+		'with B8 or CLreB7 with B7, water adjusted vegetation index WAVI, modified soil adjusted vegetation index '
+		'MSAVI2, gross and net primary production GPP and NPP), <b>Water</b> (NDWI, LSWI, moisture stress index MSI, '
+		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, the burn date '
+		'BURNDATE, and the burn severity of a fire: dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
 		'(land surface temperature, albedo, evapotranspiration), <b>Atmosphere</b> (aerosols, cloud frequency), '
-		'<b>Climate</b> (precipitation, temperature, water balance, WorldClim), <b>Terrain</b> (elevation, slope, '
-		'topographic wetness index) and <b>Ecosystems</b> (the ecoregions and biomes of RESOLVE, categorical layers of '
+		'<b>Climate</b> (precipitation, temperature, water balance, drought indices PDSI and SPEI, WorldClim), '
+		'<b>Terrain</b> (elevation, slope, aspect, topographic wetness index) and <b>Ecosystems</b> (the ecoregions and biomes of RESOLVE, categorical layers of '
 		'classes). '
 		'<b>All the variables</b> lists every one.</p>'
 		'<p>A theme can have analyses of its own, shown only in it (and with <b>All the variables</b>): the '
@@ -298,7 +299,8 @@ HELP = {
 		'<p>Only the pixels of the region whose variables pass these conditions (both, if both are checked): e.g. '
 		'<b>ELEVATION · Copernicus</b> between 1500 and an empty max keeps the pixels above 1,500 m, <b>SLOPE · '
 		'Copernicus</b> with max 20, those with slopes under 20°, and <b>TWI · MERIT Hydro</b> with min 10, the wet '
-		'valley bottoms. Give a min, a max or both, in the unit shown.</p>'
+		'valley bottoms. Give a min, a max or both, in the unit shown. <b>ASPECT · Copernicus</b> is an angle: a min '
+		'greater than the max goes across the north, e.g. min 315 and max 45 keeps the slopes that face north.</p>'
 		'<p>A variable with dates (NDVI, PRECIP...) is its mean over the <b>Period</b> above, the same pixels for '
 		'every step of a series or a trend, and for both periods of a comparison. Series, maps, trends, comparisons '
 		'and exports keep only those pixels, and their README says which.</p>'
@@ -609,7 +611,7 @@ HELP = {
 		'a series, of the group Trends for trends), which shows the patterns of each date better.</p>' + manual('QGIS-plugin#4-add-the-map'),
 	'resolution':
 		'<p>Pixel size of the GeoTIFF of <b>Map (GeoTIFF)</b>, in meters. With 0, <i>that of the data</i>: 10 m in '
-		'Sentinel-2 (20 m for the variables that read its bands of 20 m: LSWI, NDSI, NDCI, Chl-a, CLre, CLreB7, NBR, the albedo, the '
+		'Sentinel-2 (20 m for the variables that read its bands of 20 m: LSWI, MSI, NDSI, NDCI, Chl-a, CLre, CLreB7, NBR, the albedo, the '
 		'snow cover frequency and days and the burn severity), 30 m in Landsat and from 250 m to 4.6 km in MODIS. A '
 		'bigger pixel gives a smaller file and a faster export.</p>'
 		'<p>The export to Google Drive keeps the pixels of the data also in a large area (more than 100,000 km²): it is '

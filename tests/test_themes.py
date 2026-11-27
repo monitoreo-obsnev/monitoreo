@@ -40,9 +40,9 @@ def test_the_analyses_of_a_theme_are_tools():
 
 def test_list_variables_by_theme():
 	fire = services.list_variables(theme='fire')
-	assert {v['variable'] for v in fire} == {'NBR', 'RBR', 'RdNBR'} and fire[0]['theme'] == 'Fire'
+	assert {v['variable'] for v in fire} == {'NBR', 'RBR', 'RdNBR', 'BURNDATE'} and fire[0]['theme'] == 'Fire'
 	assert services.list_variables(theme='Nieve', lang='es')[0]['theme'] == 'Nieve'
-	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'TWI'}
+	assert {v['variable'] for v in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'ASPECT', 'TWI'}
 	with pytest.raises(ValueError, match='unknown theme'):
 		services.list_variables(theme='mountains')
 	assert services.describe_variable('LST', 'Modis')['theme'] == 'Energy and temperature'
@@ -161,6 +161,10 @@ CATALOG.other_themes = input.other_themes;
 if (input.twi) {
 	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.twi.ref; }).concat([input.twi]);
 }
+if (input.aspect) {  // the aspect of the Copernicus DEM, as gee/build.py writes it from the package
+	CATALOG.variables = CATALOG.variables.filter(function (v) { return v.ref !== input.aspect.ref; })
+		.concat([input.aspect]);
+}
 var mo = global.MonitorEO;
 function attempt(f) {
 	try {
@@ -235,6 +239,13 @@ out.twi = (input.twiRes || []).map(function (res) {
 	return log.slice();
 });
 out.twiConstants = mo.TWI;
+out.aspect = (input.aspectRes || []).map(function (res) {
+	var s = mo.spec({ref: input.aspect.ref});
+	log = [];
+	mo.image(s, object(), res);
+	return log.slice();
+});
+out.acrossZero = (input.acrossZero || []).map(function (c) { return mo.acrossZero(mo.byRef(c[0]), c[1], c[2]); });
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -378,6 +389,28 @@ ASSETS = {'WORLDCLIM/V1/BIO': {'type': 'Image', 'properties': {'system:title': '
 # The topographic wetness index of MERIT Hydro (ref 148) on its pixels (90 m), on finer ones (bilinear, after the
 # index) and on bigger ones (the mean of the index of its pixels)
 TWI_RES = [90, 30, 1000]
+# The aspect of the Copernicus DEM (ref 184) on its pixels (30 m), on finer ones and on bigger ones (the circular mean)
+ASPECT_RES = [30, 10, 1000]
+# conditions of where (ref, min, max): across the north only for the aspect with min greater than max
+ACROSS_ZERO = [[184, 315, 45], [184, 45, 315], [184, 315, None], [107, 30, 10], [184, '300', '20']]
+
+
+def _aspect_entry():
+	"""The entry of the aspect in gee/catalog.js, as gee/build.py writes it (entries)."""
+	build = _build()
+	e = catalog.find('ASPECT', 'Copernicus')
+	kind, bands = sensors.parse_formula(e)
+	return dict({k: e.get(k) for k in build.FIELDS}, fk=kind, fb=bands)
+
+
+def _python_aspect_chain(res, monkeypatch):
+	"""The calls of Earth Engine of variable.image of the aspect on pixels of RES metres."""
+	spec = services.make_spec('ASPECT', 'Copernicus')
+	monkeypatch.setitem(variable._types, 'COPERNICUS/DEM/GLO30_2024_1', 'IMAGE_COLLECTION')  # its tiles: a mosaic
+	rec = []
+	monkeypatch.setattr(variable, 'ee', _Root(rec))
+	variable.image(spec, _Obj(rec), res)
+	return rec
 
 
 def _twi_entry():
@@ -440,7 +473,8 @@ def app():
 	        'themes': COMMUNITY_THEMES, 'records': [legacy, 'projects/someone/assets/nothing'],
 	        'sources': ['IDAHO_EPSCOR/TERRACLIMATE', 'projects/sat-io/open-datasets/FABDEM', 'users/someone/an_image'],
 	        'infos': INFOS, 'assets': ASSETS, 'community': _build().community_index(),
-	        'other_themes': catalog.OTHER_THEMES, 'twi': _twi_entry(), 'twiRes': TWI_RES}
+	        'other_themes': catalog.OTHER_THEMES, 'twi': _twi_entry(), 'twiRes': TWI_RES, 'aspect': _aspect_entry(),
+	        'aspectRes': ASPECT_RES, 'acrossZero': ACROSS_ZERO}
 	run = subprocess.run(['node', '-e', NODE, GEE], input=json.dumps(data), capture_output=True, text=True, timeout=120)
 	assert run.returncode == 0, run.stderr
 	return json.loads(run.stdout)
@@ -489,6 +523,27 @@ def test_the_app_builds_the_twi_as_the_package(app, monkeypatch):
 	assert native == finer == twi + [['resample', 'bilinear'], ['toFloat'], ['rename', 'value']]
 	assert coarser == twi + [['Reducer.mean'], ['reduceResolution', '<ee>', True, 65535], ['toFloat'],
 	                         ['rename', 'value']]
+
+
+def test_the_app_builds_the_aspect_as_the_package(app, monkeypatch):
+	"""staticImage of gee/core.js calls Earth Engine as variable._fixed for the aspect of the Copernicus DEM: the
+	mosaic of its tiles, the aspect of the DEM without its flat pixels (slope 0) and, on pixels more than twice as big,
+	the circular mean of its pixels (the angle of the mean of their sines and cosines, from 0 to 360), not their mean;
+	and the conditions of where across the north (min greater than max) only for a circular variable."""
+	e = _aspect_entry()
+	assert (e['terrain'], e['circular'], e['static'], e['unit']) == ('aspect', True, True, '[°]')
+	for res, js in zip(ASPECT_RES, app['aspect']):
+		assert js == _python_aspect_chain(res, monkeypatch), res
+	native, finer, coarser = app['aspect']
+	aspect = [['Terrain.aspect', '<ee>'], ['Terrain.slope', '<ee>'], ['gt', 0], ['updateMask', '<ee>']]
+	assert native[-len(aspect) - 2:] == aspect + [['toFloat'], ['rename', 'value']]
+	assert ['resample', 'bilinear'] in finer and ['resample', 'bilinear'] not in native
+	circular = [['multiply', math.pi / 180], ['sin'], ['cos'], ['Image.cat', ['<ee>', '<ee>']], ['Reducer.mean'],
+	            ['reduceResolution', '<ee>', True, 65535], ['select', 1], ['select', 0], ['atan2', '<ee>'],
+	            ['multiply', 180 / math.pi], ['add', 360], ['mod', 360], ['toFloat'], ['rename', 'value']]
+	assert coarser[-len(circular):] == circular and coarser[:-len(circular)] == native[:-2]
+	assert app['acrossZero'] == [variable.across_zero(catalog.find(None, ref=r), lo, hi) for r, lo, hi in ACROSS_ZERO]
+	assert app['acrossZero'] == [True, False, False, False, True]
 
 
 def test_the_app_takes_the_ids_and_units_as_the_package(app):

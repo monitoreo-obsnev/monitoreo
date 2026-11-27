@@ -29,10 +29,14 @@ HEADINGS = {
 	'CLre': ('CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'),
 	'CLreB7': ('CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'),
 	'WAVI': ('WAVI: índice de vegetación ajustado al agua', 'WAVI: Water Adjusted Vegetation Index'),
+	'MSAVI2': ('MSAVI2: índice de vegetación ajustado al suelo modificado',
+	           'MSAVI2: Modified Soil Adjusted Vegetation Index'),
+	'GPP': ('GPP y NPP: producción primaria bruta y neta', 'GPP and NPP: gross and net primary production'),
 	'Chl-a': ('Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'),
 	'NDCI': ('NDCI: índice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'),
 	'NDWI': ('NDWI: índice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'),
 	'LSWI': ('LSWI: índice de agua superficial terrestre', 'LSWI: Land Surface Water Index'),
+	'MSI': ('MSI: índice de estrés hídrico', 'MSI: Moisture Stress Index'),
 	'NDSI': ('NDSI: índice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'),
 	'SCF': ('SCF: frecuencia de nieve', 'SCF: snow cover frequency'),
 	'SCD': ('SCD: días de nieve', 'SCD: snow cover days'),
@@ -43,18 +47,22 @@ HEADINGS = {
 	'ARSL': ('ARSL: profundidad óptica de aerosoles', 'ARSL: Aerosol Optical Depth'),
 	'NBR': ('NBR y RBR: incendios', 'NBR and RBR: fires'),
 	'RdNBR': ('RdNBR: dNBR relativo (incendios)', 'RdNBR: relative dNBR (fires)'),
+	'BURNDATE': ('BURNDATE: fecha de quema', 'BURNDATE: burn date'),
 	'ELEVATION': ('ELEVATION y SLOPE: elevación y pendiente', 'ELEVATION and SLOPE: elevation and slope'),
+	'ASPECT': ('ASPECT: orientación', 'ASPECT: aspect'),
 	'TWI': ('TWI: índice topográfico de humedad', 'TWI: topographic wetness index'),
 	'CF': ('CF: frecuencia de nubes', 'CF: cloud frequency'),
 	'CLIMATE': ('Clima: precipitación, temperatura y balance de agua',
 	            'Climate: precipitation, temperature and water balance'),
+	'PDSI': ('PDSI y SPEI: índices de sequía', 'PDSI and SPEI: drought indices'),
 	'BIO': ('BIO01 a BIO19: variables bioclimáticas de WorldClim', 'BIO01 to BIO19: bioclimatic variables of WorldClim'),
 	'ECOREGION': ('ECOREGION y BIOME: ecorregiones y biomas', 'ECOREGION and BIOME: ecoregions and biomes'),
 	'DATA': ('Datos de Earth Engine por su ID', 'Earth Engine data by its ID'),
 	'dNBR': ('Severidad de incendios (dNBR)', 'Burn severity (dNBR)'),  # the index of burn_severity
 }
 # the variables explained in the section of another one
-SAME_SECTION = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION',
+SAME_SECTION = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
+                **{v: 'PDSI' for v in ('SPEI1', 'SPEI3', 'SPEI6', 'SPEI12')},
                 **{v: 'CLIMATE' for v in ('PRECIP', 'TMAX', 'TMIN', 'TMEAN', 'PET', 'AET', 'CWD', 'SOILM', 'VPD')},
                 **{f'BIO{i:02d}': 'BIO' for i in range(1, 20)}}
 

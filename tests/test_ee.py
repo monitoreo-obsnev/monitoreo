@@ -527,3 +527,68 @@ def test_the_whole_mediterranean_sea_is_one_region():
 	out = services.time_series({'sea': 1905}, 'Chl-a', 'Modis', '2021-01-01', '2021-01-31', step='monthly')
 	assert out['regions'] == ['Mediterranean Sea'] and len(out['rows']) == 1, out['rows']
 	assert 0.05 < out['rows'][0]['value'] < 5 and out['rows'][0]['n_pixels'] > 0
+
+
+SIERRA_NEVADA = {'bbox': [-3.45, 37.0, -3.3, 37.1]}  # the high Sierra Nevada, below the Mulhacén
+
+
+def test_the_aspect_and_the_faces_across_the_north():
+	"""The aspect of the Copernicus DEM: angles of 0 to 360 without the flat pixels; a condition of where with min
+	greater than max keeps the angles across the north (315 to 45) and nothing in between; on pixels of 1 km, the
+	circular mean of its pixels stays between 0 and 360."""
+	aspect = services.region_stats(SIERRA_NEVADA, 'ASPECT', 'Copernicus', scale=30)['rows'][0]
+	assert 0 <= aspect['min'] and aspect['max'] < 360 and aspect['n_pixels'] > 100000
+	north = [{'variable': 'ASPECT', 'sensor': 'Copernicus', 'min': 315, 'max': 45}]
+	faces = services.region_stats(SIERRA_NEVADA, 'ASPECT', 'Copernicus', scale=30, stats=['min', 'max', 'p5', 'p95'],
+	                              where=north)['rows'][0]
+	assert 0 < faces['n_pixels'] < aspect['n_pixels'] and faces['p5'] < 45 and faces['p95'] > 315
+	# none of the angles between 45 and 315: the north faces within the south ones are none
+	between = north + [{'variable': 'ASPECT', 'sensor': 'Copernicus', 'min': 45.5, 'max': 314.5}]
+	assert services.region_stats(SIERRA_NEVADA, 'ASPECT', 'Copernicus', scale=30, where=between)['rows'][0][
+		'n_pixels'] == 0
+	coarse = services.region_stats(SIERRA_NEVADA, 'ASPECT', 'Copernicus', scale=1000)['rows'][0]
+	assert 0 <= coarse['min'] and coarse['max'] < 360 and coarse['n_pixels'] > 100
+
+
+def test_the_ndwi_and_lswi_of_the_8_day_reflectance_of_modis():
+	"""The NDWI (bands 2 and 5) and the LSWI (bands 2 and 6) of MOD09A1 and MYD09A1: the normalized differences of the
+	reflectance of the pixels that pass the filters of StateQA, as a direct computation in Earth Engine; a value per
+	month with 3 or 4 images of 8 days."""
+	region = ee.Geometry.Rectangle(SIERRA_NEVADA['bbox'])
+	for index, b in (('NDWI', 'sur_refl_b05'), ('LSWI', 'sur_refl_b06')):
+		for col in ('MODIS/061/MOD09A1', 'MODIS/061/MYD09A1'):
+			rows = services.time_series(SIERRA_NEVADA, index, 'Modis', '2024-06-01', '2024-06-30', step='monthly',
+			                            collection=col)['rows']
+			assert len(rows) == 1 and 3 <= rows[0]['n_images'] <= 5 and -0.5 < rows[0]['value'] < 0.6, (index, col)
+
+			def direct(img):
+				qa = img.select('StateQA')
+				state = qa.bitwiseAnd(3)
+				keep = state.eq(0).Or(state.eq(3)).And(qa.rightShift(2).bitwiseAnd(1).eq(0)) \
+					.And(qa.rightShift(10).bitwiseAnd(1).eq(0)).And(qa.rightShift(3).bitwiseAnd(7).eq(1)) \
+					.And(qa.rightShift(15).bitwiseAnd(1).eq(0)).And(qa.rightShift(6).bitwiseAnd(3).neq(3))
+				refl = img.select(['sur_refl_b02', b]).multiply(0.0001).updateMask(keep)
+				return refl.normalizedDifference(['sur_refl_b02', b])
+
+			mean = ee.ImageCollection(col).filterDate('2024-06-01', '2024-07-01').map(direct).mean()
+			want = mean.reduceRegion(ee.Reducer.mean(), region, 500).values().get(0).getInfo()
+			assert abs(rows[0]['value'] - want) < 0.01, (index, col, rows[0]['value'], want)
+
+
+def test_primary_production_drought_and_burn_date():
+	"""The yearly GPP and NPP of MODIS without their fill values (kg C/m²/year, NPP below GPP), the PDSI and the SPEI of
+	the dry 2022 of the Iberian Peninsula (negative), and the burn date of the fire of Sierra Bermeja (8 September 2021,
+	day 251) only on the burned pixels."""
+	gpp = services.time_series(SIERRA_NEVADA, 'GPP', 'Modis', '2020-01-01', '2021-12-31', step='annual')['rows']
+	npp = services.time_series(SIERRA_NEVADA, 'NPP', 'Modis', '2020-01-01', '2021-12-31', step='annual')['rows']
+	assert len(gpp) == 2 and all(0.1 < g['value'] < 2 and 0 < n['value'] < g['value'] for g, n in zip(gpp, npp))
+	iberia = {'bbox': [-9.0, 37.0, -1.0, 42.5]}
+	for index, sensor in (('PDSI', 'TerraClimate'), ('SPEI3', 'SPEIbase'), ('SPEI12', 'SPEIbase')):
+		dry = services.time_series(iberia, index, sensor, '2022-07-01', '2022-07-31', step='monthly')['rows'][0]
+		assert -5 < dry['value'] < -0.5, (index, dry)
+	bermeja = {'bbox': [-5.23, 36.47, -5.10, 36.57]}
+	fire = services.region_stats(bermeja, 'BURNDATE', 'Modis', '2021-09-01', '2021-09-30', metric='min')['rows'][0]
+	assert 245 <= fire['p50'] <= 262 and fire['min'] >= 244 and fire['n_pixels'] > 100
+	cci = services.region_stats({'bbox': [-4.9, 36.5, -4.6, 36.75]}, 'BURNDATE', 'Modis', '2012-01-01', '2012-12-31',
+	                            metric='min', collection='ESA/CCI/FireCCI/5_1')['rows'][0]
+	assert 240 <= cci['p50'] <= 255 and cci['min'] >= 1  # the fire of Coín and Mijas of 30 August 2012 (day 243)

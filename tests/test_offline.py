@@ -15,14 +15,17 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 96  # the 35 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	assert len(entries) == 116  # the 47 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
+	# MSAVI2 of Landsat and Sentinel-2, the NDWI and LSWI of MODIS MOD09A1 and MYD09A1, the GPP and NPP of MOD17A3HGF and
+	# MYD17A3HGF: 165 to 176), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
 	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
 	# ecoregions and biomes of RESOLVE Ecoregions 2017 (ECOREGION and BIOME, categorical layers: refs 149 and 150), the
 	# SCF of MODIS (Terra and Aqua: refs 151 and 152), the snow cover days (SCD) of Landsat and MODIS (153 to 155) and
 	# the SCF and the SCD of Sentinel-2 (156 and 157), and the snow melt-out day (SMOD) of Landsat, MODIS (Terra and
-	# Aqua) and Sentinel-2 (161 to 164)
+	# Aqua) and Sentinel-2 (161 to 164), the PDSI of TerraClimate (177), the SPEI of 1, 3, 6 and 12 months of SPEIbase
+	# (178 to 181), the burn date of MCD64A1 and FireCCI51 (182, 183) and the aspect of the Copernicus DEM (184)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -92,7 +95,92 @@ def test_sentinel2_pixel_is_that_of_its_coarsest_band():
 			got[e['index']] = e['m']
 	assert got == {'LSWI': 20, 'NDSI': 20, 'NDWI': 10, 'ALBEDO': 20, 'Chl-a': 20, 'EVI': 10, 'NDVI': 10, 'NDCI': 20,
 	               'NBR': 20, 'RBR': 20, 'SCF': 20, 'SCD': 20, 'SMOD': 20, 'CF': 10, 'RdNBR': 20, 'CLre': 20, 'CLreB7': 20,
-	               'WAVI': 10}
+	               'WAVI': 10, 'MSI': 20, 'MSAVI2': 10}
+
+
+def test_moisture_stress_and_modified_soil_adjusted_vegetation_index(monkeypatch):
+	"""MSI (SWIR1 / NIR, Hunt & Rock 1989) and MSAVI2 (Qi et al. 1994) of Landsat and Sentinel-2: expressions of the
+	bands of the catalog (the square root of the MSAVI2 as ** 0.5, which the expressions of Earth Engine read and
+	parse_formula does not take for a band), without unit, cited, in the themes Water and Vegetation."""
+	monkeypatch.setitem(sensors._band_names, 'COPERNICUS/S2_SR_HARMONIZED',
+	                    ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B11', 'B12', 'SCL'])
+	want = {('MSI', 'Landsat'): (165, 30, {'swir1': 'swir1', 'nir': 'nir'}, ['hunt1989'], 'water'),
+	        ('MSI', 'Sentinel-2'): (166, 20, {'B11': 'B11', 'B8': 'B8'}, ['hunt1989'], 'water'),
+	        ('MSAVI2', 'Landsat'): (167, 30, {'nir': 'nir', 'red': 'red'}, ['qi1994'], 'vegetation'),
+	        ('MSAVI2', 'Sentinel-2'): (168, 10, {'B8': 'B8', 'B4': 'B4'}, ['qi1994'], 'vegetation')}
+	for (index, sensor), (ref, m, bands, refs, theme) in want.items():
+		e = catalog.find(index, sensor)
+		assert (e['ref'], e['m'], e['unit'], e['references'], e['theme']) == (ref, m, '[unitless]', refs, theme)
+		assert sensors.parse_formula(e) == ('expr', bands) and e['notes']['ft']
+		assert not sensors.no_topographic(e) if sensor == 'Landsat' else True  # reflectances of Landsat
+	assert catalog.find('MSAVI2', 'Sentinel-2')['ft'] == '(2 * B8 + 1 - ((2 * B8 + 1) ** 2 - 8 * (B8 - B4)) ** 0.5) / 2'
+	assert catalog.find('MSI', 'Landsat')['f'] == 'SR_B6 / SR_B5'
+	# the MSAVI2 of a pixel as the formula of the article: NIR 0.3 and red 0.1
+	nir, red = 0.3, 0.1
+	assert abs(eval(catalog.find('MSAVI2', 'Landsat')['ft'], {'nir': nir, 'red': red}) -
+	           (2 * nir + 1 - ((2 * nir + 1) ** 2 - 8 * (nir - red)) ** 0.5) / 2) < 1e-12
+
+
+def test_the_new_variables_of_modis_climate_and_fire():
+	"""The NDWI (bands 2 and 5, as MOD09GA_006_NDWI) and the LSWI (bands 2 and 6) of the 8-day reflectance of MODIS, with
+	the filters of StateQA; the yearly GPP and NPP without their fill values; the PDSI of TerraClimate and the SPEI of
+	SPEIbase; the burn date of MCD64A1 and FireCCI51, with the only metric min; each in its theme, cited, in UDUNITS."""
+	old = catalog.find('NDWI', 'Modis')
+	assert old['col'] == 'MODIS/MOD09GA_006_NDWI' and 'MOD09A1' in old['notes']['dr']  # still the first: no change
+	for index, band, refs in (('NDWI', 'sur_refl_b05', ['gao1996']), ('LSWI', 'sur_refl_b06', ['xiao2004'])):
+		for col in ('MODIS/061/MOD09A1', 'MODIS/061/MYD09A1'):
+			e = catalog.find(index, 'Modis', col)
+			assert (e['m'], e['tr'], e['scale'], e['unit'], e['references']) == (500, '8-days', 0.0001, '[unitless]', refs)
+			assert e['ft'] == f'N(sur_refl_b02,{band})' and e['theme'] == 'water' and e['large_areas']
+			assert sensors.filters(e) == {f: True for f in sensors.FILTERS}  # those of StateQA
+			assert sensors.filters(e, {'water': 'auto'})['water'] is (index != 'NDWI')  # the NDWI measures water
+			assert set(sensors.PRODUCTS[col]) == set(sensors.FILTERS)
+	for index, band in (('GPP', 'Gpp'), ('NPP', 'Npp')):
+		for col in ('MODIS/061/MOD17A3HGF', 'MODIS/061/MYD17A3HGF'):
+			e = catalog.find(index, 'Modis', col)
+			assert (e['ft'], e['scale'], e['unit'], e['tr'], e['theme']) == (band, 0.0001, '[kg C/m²/year]', 'yearly',
+			                                                                  'vegetation')
+			assert sensors.valid_ranges(sensors.PRODUCTS[col]) == [('Gpp', 65500, None), ('Npp', 32700, None)]
+			assert not any(sensors.filters(e).values())
+	assert catalog.udunits('[kg C/m²/year]') == 'kg m-2 year-1'
+	pdsi = catalog.find('PDSI', 'TerraClimate')
+	assert (pdsi['ref'], pdsi['ft'], pdsi['scale'], pdsi['unit'], pdsi['theme']) == (177, 'pdsi', 0.01, '[unitless]',
+	                                                                                 'climate')
+	for ref, n in ((178, 1), (179, 3), (180, 6), (181, 12)):
+		e = catalog.find(f'SPEI{n}', 'SPEIbase')
+		assert (e['ref'], e['col'], e['ft'], e['m'], e['tr'], e['theme']) == (ref, 'CSIC/SPEI/2_11', f'SPEI_{n:02d}_month',
+		                                                                      55660, 'monthly', 'climate')
+		assert e['references'] == ['vicenteserrano2010', 'begueria2014'] and not any(sensors.filters(e).values())
+	for ref, col, m in ((182, 'MODIS/061/MCD64A1', 500), (183, 'ESA/CCI/FireCCI/5_1', 250)):
+		e = catalog.find('BURNDATE', 'Modis', col)
+		assert (e['ref'], e['m'], e['metric'], e['unit'], e['theme']) == (ref, m, 'min', '[day of year]', 'fire')
+		assert sensors.valid_ranges(sensors.PRODUCTS[col]) == [('BurnDate', 366, 1)]  # no 0 (unburned) nor flags
+	assert catalog.find('BURNDATE', 'Modis')['col'] == 'MODIS/061/MCD64A1'  # the first one
+	with pytest.raises(ValueError, match="only takes the metric 'min'"):
+		services.make_spec('BURNDATE', 'Modis', '2021-01-01', '2021-12-31', metric='mean')
+	assert services.make_spec('BURNDATE', 'Modis', '2021-01-01', '2021-12-31', metric='min')['metric'] == 'min'
+	assert services.list_variables(text='SPEI') and {r['variable'] for r in services.list_variables(sensor='SPEIbase')} \
+		== {'SPEI1', 'SPEI3', 'SPEI6', 'SPEI12'}
+
+
+def test_the_aspect_and_its_conditions_across_the_north():
+	"""The aspect of the Copernicus DEM: a fixed layer, an angle (circular), whose conditions of where with a min
+	greater than the max go across the north, in the README as «or»; the other variables keep min and max."""
+	e = catalog.find('ASPECT', 'Copernicus')
+	assert (e['ref'], e['col'], e['band'], e['terrain'], e['unit'], e['static'], e['theme'], e['circular']) == (
+		184, 'COPERNICUS/DEM/GLO30_2024_1', 'DEM', 'aspect', '[°]', True, 'terrain', True)
+	assert sensors.parse_formula(e) == ('static', ['DEM']) and e['references'] == ['rizzoli2017', 'zevenbergen1987']
+	assert variable.across_zero(e, 315, 45) and not variable.across_zero(e, 45, 315)
+	assert not variable.across_zero(e, 315, None) and not variable.across_zero(catalog.find('SLOPE', 'Copernicus'), 30, 10)
+	d = services.describe_variable('ASPECT', 'Copernicus')
+	assert d['circular'] and d['static'] and 'north' in d['notes']['ft']
+	assert 'circular' not in services.describe_variable('SLOPE', 'Copernicus')
+	north = {'variable': 'ASPECT', 'sensor': 'Copernicus', 'min': 315, 'max': 45}
+	assert report.where_text([north]) == 'ASPECT (Copernicus) ≥ 315 or ≤ 45 °'
+	assert report.where_text([dict(north, min=135, max=225)]) == 'ASPECT (Copernicus) ≥ 135 and ≤ 225 °'
+	spec = services.make_spec('NDVI', 'Sentinel-2', '2021-06-01', '2021-08-31', where=[north])
+	(cs, lo, hi), = variable.where_specs(spec)
+	assert (cs['index'], lo, hi) == ('ASPECT', 315, 45) and not cs.get('period')
 
 
 def test_red_edge_chlorophyll_and_water_adjusted_vegetation_index(monkeypatch):
@@ -462,7 +550,8 @@ def test_elevation_and_slope_in_the_catalog():
 		assert sensors.fixed_filters(e) == [] and not any(sensors.filters(e, {'clouds': True, 'water': True}).values())
 		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
 	# the topographic wetness index (148) and the categorical layers of RESOLVE (ECOREGION, BIOME), fixed layers too
-	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107] + list(range(125, 144)) + [148, 149, 150]
+	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107, 184] + list(range(125, 144)) + [148, 149,
+	                                                                                                          150]
 	# no metric, period nor season: one spec, named without them
 	spec = services.make_spec('SLOPE', 'Copernicus')
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)
@@ -483,7 +572,7 @@ def test_elevation_and_slope_in_the_catalog():
 	d = services.describe_variable('SLOPE', 'Copernicus')
 	assert d['static'] and d['fixed_filters'] == [] and d['group'] == 'Topography' and 'degrees' in d['notes']['ft']
 	assert [(r['variable'], r['static']) for r in services.list_variables(sensor='Copernicus')] == [
-		('ELEVATION', True), ('SLOPE', True)]
+		('ELEVATION', True), ('SLOPE', True), ('ASPECT', True)]
 	assert 'static' not in services.describe_variable('NDVI', 'Sentinel-2')
 
 
@@ -538,7 +627,7 @@ def test_twi_in_the_catalog():
 	assert d['static'] and d['fixed_filters'] == [] and d['group'] == 'Topography' and 'D8' in d['notes']['ft']
 	assert [(r['variable'], r['static'], r['theme']) for r in services.list_variables(sensor='MERIT Hydro')] == [
 		('TWI', True, 'Terrain')]
-	assert {r['variable'] for r in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'TWI'}
+	assert {r['variable'] for r in services.list_variables(theme='terrain')} == {'ELEVATION', 'SLOPE', 'ASPECT', 'TWI'}
 
 
 def test_list_variables_compares_sensors_as_find():
@@ -546,7 +635,7 @@ def test_list_variables_compares_sensors_as_find():
 	for sensor in ('MERIT Hydro', 'merit hydro', 'MERITHydro', 'MERIT  Hydro'):
 		assert [r['variable'] for r in services.list_variables(sensor=sensor)] == ['TWI'], sensor
 		assert catalog.find('TWI', sensor)['ref'] == 148
-	assert [r['variable'] for r in services.list_variables(sensor='Cop ernicus')] == ['ELEVATION', 'SLOPE']
+	assert [r['variable'] for r in services.list_variables(sensor='Cop ernicus')] == ['ELEVATION', 'SLOPE', 'ASPECT']
 	assert catalog.name_key('ERA5-Land') == catalog.name_key('era5-land') == 'era5-land'
 	assert services.list_variables(sensor='MERIT-Hydro') == []  # a hyphen is not a space
 
