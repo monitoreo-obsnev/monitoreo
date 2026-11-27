@@ -71,14 +71,14 @@ MAX_LAYER = 100 * 2 ** 20  # bytes
 DOCUMENTS = os.path.join(OUTPUT, 'documentos')  # the documents added by the user, their text and documentos.json
 MAX_DOCUMENTS = 10 * 2 ** 20  # bytes of all the documents together
 # characters of the documents that go in the conversation (the rest of a long one, with the tool read_document): the
-# big models of the cloud read whole reports; the small ones of Ollama, with a context of 16k tokens, only their start
+# big models of the cloud read whole reports; the small ones of Ollama, with a context of 32k tokens, only their start
 INLINE = {'cloud': 300_000, 'local': 3_000}
 CLOUD_MAX_BYTES = 2 * 2 ** 20 - 64 * 2 ** 10  # of a request to the broker, whose limit is 2 MiB
 DOCUMENTS_HEAD = 'Documents of the user'  # the start of the message with their text (see Assistant.document_message)
 HERE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
 DEFAULTS = {'project': os.environ.get('EE_PROJECT', ''), 'provider': 'auto', 'ollama': 'auto',
-            'model': 'qwen3:8b', 'context': 16384, 'think': False, 'glm_model': 'glm-4.7-flash'}
+            'model': 'qwen3:8b', 'context': 32768, 'think': False, 'glm_model': 'glm-4.7-flash'}
 UI_LANGUAGES = ('en', 'es')  # of the texts of the page (ui_lang of the settings; none: that of the browser)
 # the model of MonitorEO (its broker), a model of GLM (the API of Z.ai, with a key), or a model of Ollama (on this
 # computer); auto: each of them in this order, the next one when the previous one fails (see Assistant.ask_model)
@@ -91,8 +91,7 @@ GLM_MODELS = ('glm-4.7-flash', 'glm-4.5-flash')  # those free of charge of Z.ai,
 # its broker (see chat_glm)
 CLOUD = 'MonitorEO'  # the name of its model in the page until the broker says which one it is
 RECOMMENDED = [  # the models of Ollama of the list of the page, the first one by default, with their download in GB
-	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended'},
-	{'name': 'qwen3:4b', 'gb': 2.5, 'note': 'faster and lighter; makes more mistakes'},
+	{'name': 'qwen3:8b', 'gb': 5.2, 'note': 'recommended; 16 GB of memory'},
 	{'name': 'gpt-oss:20b', 'gb': 14, 'note': 'for computers with 16 GB of memory or more'},
 ]
 MODEL_GB = {m['name']: m['gb'] for m in RECOMMENDED}
@@ -579,8 +578,9 @@ def variables_text():
 
 def model_tools(tools):
 	"""The tools of the MCP server (as listed by it, in JSON) that the model may call, as Ollama wants them, without
-	the arguments in HIDDEN, and compact (see _compact and _description): the small models of Ollama have 16,384
-	tokens of context for the instructions, the tools and the conversation."""
+	the arguments in HIDDEN, and compact (see _compact and _description): the models of Ollama, the last resort after
+	the model of MonitorEO and GLM, have 32,768 tokens of context (DEFAULTS) for the instructions, the tools and the
+	conversation."""
 	out = []
 	for t in tools:
 		if t['name'] not in ADVICE + RESULTS + TASKS:
@@ -1279,7 +1279,7 @@ def chat_ollama(settings, system, messages, tools):
 	"""The next message of the model of Ollama (/api/chat): {'role', 'content', 'tool_calls'}."""
 	payload = {'model': settings['model'], 'messages': [{'role': 'system', 'content': system}] + messages,
 	           'tools': tools, 'stream': False,
-	           'options': {'num_ctx': int(settings.get('context') or 16384), 'temperature': 0.2}}
+	           'options': {'num_ctx': int(settings.get('context') or DEFAULTS['context']), 'temperature': 0.2}}
 	if settings.get('think') is not None:
 		payload['think'] = bool(settings['think'])
 	try:
@@ -1331,19 +1331,27 @@ def models(settings):
 
 # The assistant -------------------------------------------------------------------------------------------------------
 
+OLD_CONTEXTS = (16384,)  # the defaults of the context of Ollama before (16384 until 2026-11-27): saved, not chosen
+
+
 def load_settings():
 	"""The settings of the assistant; those saved before the model of MonitorEO (without provider) keep their model of
-	Ollama."""
+	Ollama. A context saved with an old default (OLD_CONTEXTS: the page never let the user choose it) gets the current
+	one."""
 	try:
 		with open(SETTINGS, encoding='utf-8') as f:
 			saved = json.load(f)
 	except (OSError, ValueError):
 		return dict(DEFAULTS)
+	if saved.get('context') in OLD_CONTEXTS:
+		saved.pop('context')
 	return {**DEFAULTS, 'provider': 'ollama', **saved}
 
 
 def save_settings(settings):
+	"""Save SETTINGS, without the context when it is the default (so that a new default reaches every user)."""
 	os.makedirs(OUTPUT, exist_ok=True)
+	settings = {k: v for k, v in settings.items() if not (k == 'context' and v == DEFAULTS['context'])}
 	with open(SETTINGS, 'w', encoding='utf-8') as f:
 		json.dump(settings, f, ensure_ascii=False, indent=1)
 

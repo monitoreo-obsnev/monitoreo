@@ -98,6 +98,7 @@ Earth Engine app, which gives it its version and date.
 
 ### Unreleased
 
+- **Assistant**: The models of Ollama, its last resort after the model of MonitorEO and GLM, get a context of 32,768 tokens by default (16,384 before, also in the settings saved with it), so that the tools can explain more (up to 60,000 characters); the recommended models need 16 GB of memory, and qwen3:4b is no longer recommended.
 - **All tools** (fix): The burn severity no longer leaves out burned land: the water flagged in each image (QA_PIXEL of Landsat, the SCL of Sentinel-2) takes burned surfaces for water (442 of the 3,384 ha of the fire of Lanjarón of 2005 in Landsat 5), so it now leaves out the permanent water of the JRC Global Surface Water instead (Pekel et al. 2016), cited with its results.
 - **Python package, MCP server, Assistant, R package**: The water filter can be the permanent water of the JRC Global Surface Water instead of the water flagged in each image (quality `{"water": "permanent"}`), e.g. for the series of a burned area; the QGIS plugin and the Earth Engine app have it in the burn severity only.
 - **Results viewer, MCP server, Python package, Command line**: A report can have tags (`tags`, e.g. PRESINMED): they appear on its card and on its page, and the catalogue has a Tag filter (`?tag=PRESINMED`).

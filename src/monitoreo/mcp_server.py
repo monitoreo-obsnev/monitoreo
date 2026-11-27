@@ -629,7 +629,8 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	of images and of valid pixels of each value. Writes a CSV
 	table and a PNG chart (paths in the answer) and returns the chart. Required: region, start and end, and variable
 	and sensor or collection and band. quality: pixel filters, e.g. {"snow": false} or {"cloud_score": null} (SCL
-	clouds); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
+	clouds), or {"water": "permanent"} (the permanent water of the JRC Global Surface Water instead of the water flagged
+	in each image, which takes burned land for water: for the series of a burned area); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
 	step annual); with interannual (the metric between the years of each step, default median) or other_variable (and
 	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default: the data's)."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
@@ -1181,7 +1182,8 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	of the region (unburned, low, moderate-low, moderate-high and high severity, and enhanced regrowth) and the burned
 	area (dNBR >= 0.1), writes them to a CSV and downloads a GeoTIFF with the bands dnbr, severity (class -2 to 4),
 	nbr_before and nbr_after. Use periods without the fire: e.g. the 3 months before it and the 2-3 months after it
-	ends. For small regions (bigger ones: lower resolution). index "RBR" (only when the user asks for it): the
+	ends. The water left out is the permanent water of the JRC Global Surface Water, not the water flagged in each image
+	(which takes burned land for water); quality {"water": false} keeps the water. For small regions (bigger ones: lower resolution). index "RBR" (only when the user asks for it): the
 	Relativized Burn Ratio, dNBR / (NBR before + 1.001), with the NBR of B8A and B12 of Sentinel-2 (20 m; Landsat:
 	NIR and SWIR2), without phenological correction and on the scale of the dNBR (articles multiply it by 1000): a
 	continuous index without classes; returns its mean, median, std, cv (coefficient of variation, %), p10, p90, min
