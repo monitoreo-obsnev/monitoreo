@@ -430,3 +430,52 @@ def doy_profile_png(profile, path=None, title=None, ylabel=None, other_ylabel=No
 		fig.suptitle(textwrap.fill(title, 110), fontsize=10)
 	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
+
+
+def recovery_png(affected, difference, event, path=None, title=None, ylabel=None, names=('affected', 'control'),
+                 control=None, dpi=150, source=None):
+	"""PNG (bytes) of the recovery metrics (monitoreo.recovery): above, the series of the affected area (and of the
+	control, thin), its deseasonalized series and its STL trend, the reference interval (median ± MAD) and the times
+	tINF, tREF and tEQ; below, the same for the difference affected - control, if there is one. AFFECTED, CONTROL and
+	DIFFERENCE are the metrics of recovery.of_series (with their '_series'); EVENT a date. Written to PATH if given."""
+	from matplotlib.figure import Figure
+
+	panels = 2 if difference else 1
+	fig = Figure(figsize=(10, 6.5 if panels == 2 else 4.5), dpi=dpi)
+	axes = fig.subplots(panels, 1, sharex=True, squeeze=False, gridspec_kw={'height_ratios': [3, 2][:panels]})[:, 0]
+	marks = (('tINF', '#e69f00'), ('tREF', '#009e73'), ('tEQ', '#56b4e9'))
+
+	def draw(ax, m, colour, label, raw=True):
+		s = m.get('_series') or {}
+		dates = s.get('dates') or []
+		if raw and s.get('values') is not None:
+			ax.plot(dates, s['values'], color=colour, lw=0.6, alpha=0.5, label=f'{label} (series)')
+		if s.get('deseasonalized') is not None and s.get('trend') is not None:
+			ax.plot(dates, s['deseasonalized'], color=colour, lw=1, label=f'{label}, without seasonality')
+			ax.plot(dates, s['trend'], color='black' if not raw else '#7f1d1d', lw=2, label=f'{label}, trend (STL)')
+		if m.get('reference'):
+			lo, hi = m['reference']['interval']
+			ax.axhspan(lo, hi, color='#999999', alpha=0.25, label='reference (median ± MAD)')
+		for key, c in marks:
+			if m.get(key):
+				ax.axvline(dt.date.fromisoformat(m[key]), color=c, ls='--', lw=1.2, label=key)
+		ax.axvline(event, color='black', lw=1.5)
+
+	draw(axes[0], affected, '#c0504d', names[0])
+	if control and (control.get('_series') or {}).get('values') is not None:
+		axes[0].plot(control['_series']['dates'], control['_series']['values'], color='#4f81bd', lw=0.6, alpha=0.6,
+		             label=f'{names[1]} (series)')
+	if ylabel:
+		axes[0].set_ylabel(ylabel)
+	if title:
+		axes[0].set_title(title, fontsize=11)
+	axes[0].legend(fontsize=7, ncol=3, loc='lower left', frameon=False)
+	if difference:
+		draw(axes[1], difference, '#555555', f'{names[0]} − {names[1]}', raw=False)
+		axes[1].axhline(0, color='#bbbbbb', lw=0.8)
+		axes[1].set_ylabel('difference')
+		axes[1].legend(fontsize=7, ncol=2, loc='lower left', frameon=False)
+	for ax in axes:
+		ax.grid(alpha=0.3)
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
+	return _png(fig, path)

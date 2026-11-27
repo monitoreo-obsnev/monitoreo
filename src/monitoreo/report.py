@@ -44,6 +44,12 @@ METHODS = {
 	'image_count': 'For each time step, the images of the step over the region, and on each pixel the images with a '
 	               'valid value after the pixel filters (their count): over the region, the mean of that count on the '
 	               'pixels with at least one, and the fraction of the pixels of the region with at least one.',
+	'recovery_metrics': 'The time series of the affected area (and of the control, and of their difference), its gaps '
+	                    'filled by linear interpolation, decomposed with a robust STL (Cleveland et al. 1990); on the '
+	                    'deseasonalized series and its trend, the metrics of Marcos et al. (2023): the reference (median '
+	                    '± MAD of the years before the event), the severity S95, the times DIT, RRT and RET, the share '
+	                    'recovered, the standardized anomalies after the event and the Mann-Kendall test and Sen slope '
+	                    'of the yearly means before and after it.',
 	'time_series_profile': 'For each time step, the temporal metric of the images of the step on each pixel and, over '
 	                       'the region, the spatial statistic of those values; then, for each step of the year (each '
 	                       'month, 16-day period or calendar day), the metric between the years of its values in the '
@@ -164,6 +170,10 @@ TABLES = {
 	'image_count': (('rows',), [('region', 'Region'), ('date', 'Date'), ('n_images', 'Images'),
 	                            ('observations', 'Valid observations per pixel'), ('coverage', 'Coverage'),
 	                            ('n_pixels', 'Valid pixels')]),
+	'recovery_metrics': (('rows',), [('series', 'Series'), ('direction', 'Change'), ('S95', 'S95{u}'),
+	                                  ('impact_pct', 'Impact (%)'), ('DIT_years', 'DIT (years)'),
+	                                  ('RRT_years', 'RRT (years)'), ('RET_years', 'RET (years)'),
+	                                  ('recovered_pct', 'Recovered (%)')]),
 	# the seasonal profile of time_series with doy and interannual or other_variable (see is_profile)
 	'time_series_profile': (('profile',), [('region', 'Region'), ('variable', 'Variable'), ('label', 'Step of the year'),
 	                                       ('doy', 'Day of the year'), ('value', 'Value{u}'), ('unit', 'Unit'),
@@ -513,7 +523,7 @@ def item_facts(tool, args, result=None, names=None):
 	if any(warned):  # days of the period without images of its data (monitoreo.coverage)
 		facts.append(('Warnings', ' '.join(str(w) for w in warned if w)))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse',
-	            'image_count') or (tool == 'area_by_class' and args.get('trend')):
+	            'image_count', 'recovery_metrics') or (tool == 'area_by_class' and args.get('trend')):
 		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class', 'image_count')
 		                            else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
@@ -534,8 +544,16 @@ def item_facts(tool, args, result=None, names=None):
 		each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[args['temporal']]
 		facts.append(('Temporal aggregation', f"{_stat(metric)} of each {each} and, between the years, "
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
-	if tool in ('time_series', 'trend_table', 'compare_series'):
+	if tool in ('time_series', 'trend_table', 'compare_series', 'recovery_metrics'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
+	if tool == 'recovery_metrics':
+		facts.append(('Event', str(args.get('event'))))
+		facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (
+			f", control {args.get('control')} (and their difference)" if args.get('control') else '')))
+		facts.append(('Reference', f"median ± MAD of the deseasonalized series in the {args.get('reference_years') or 3} "
+		                           'years before the event'))
+		facts.append(('Equilibrium', f"yearly medians that change less than {float(args.get('equilibrium') or 0.05):.0%} "
+		                             '(less than 1 MAD in the difference)'))
 	if tool == 'time_series' and is_profile(args):
 		facts += _profile_facts(args, result)
 	elif tool == 'time_series' and args.get('doy'):
