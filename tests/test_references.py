@@ -190,6 +190,17 @@ def test_cite():
 		        'mainknorn2017'} <= set(_ids(s2))
 		assert not {'usgs_landsat89', 'macander2015'} & set(_ids(s2))
 		assert any(c.startswith('Contains modified Copernicus Sentinel data') for c in s2['credits'])
+	# the snow melt-out day: the method of the melt-out day (Barrou Dumont et al. 2025; MODIS: Dietz et al. 2012) and
+	# the data of the SCF of its sensor (the SRTM and the TOA scenes of the shadows of Landsat and Sentinel-2)
+	smod = references.cite('time_series', {'variable': 'SMOD', 'sensor': 'Sentinel-2', 'start': '2018-01-01',
+	                                       'end': '2024-12-31', 'metric': 'melt', 'step': 'annual'})
+	assert {'hall1995', 'gascoin2019', 'barroudumont2025', 'esa_s2_l1c', 'nasa_srtmgl1'} <= set(_ids(smod))
+	smod = references.cite('trend_table', {'variable': 'SMOD', 'sensor': 'Landsat', 'start': '1990-01-01',
+	                                       'end': '2024-12-31', 'metric': 'melt', 'step': 'annual'})
+	assert {'barroudumont2025', 'farr2007', 'nasa_srtmgl1'} <= set(_ids(smod)) and 'dietz2012' not in _ids(smod)
+	smod = references.cite('time_series', {'variable': 'SMOD', 'sensor': 'Modis', 'start': '2001-01-01',
+	                                       'end': '2024-12-31', 'metric': 'melt', 'step': 'annual'})
+	assert {'hall1995', 'riggs2017', 'dietz2012', 'mod10a1'} <= set(_ids(smod)) and 'farr2007' not in _ids(smod)
 
 
 def test_services_cite(monkeypatch, tmp_path):

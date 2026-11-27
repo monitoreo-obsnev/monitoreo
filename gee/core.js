@@ -115,6 +115,10 @@ var MonitorEO = (function () {
 		'count or pN (percentile N, e.g. p95, p2.5)';
 	var SIMPLE = ['mean', 'median', 'mode', 'min', 'max', 'sum', 'std', 'cv', 'count'];
 	var DAYS = 'days';  // composite.DAYS: the snow cover days, the only metric of the variable SCD (see days)
+	var MELT = 'melt';  // composite.MELT: the snow melt-out day, the only metric of the variable SMOD (see melt)
+	var MELT_SEASON = ['01-01', '08-31'];  // composite.MELT_SEASON: its season when none is given
+	// composite.ONLY: the metrics of one variable, that the others do not take, and what each one is
+	var ONLY = {days: 'that of the snow cover days (variable SCD)', melt: 'that of the snow melt-out day (variable SMOD)'};
 	// composite.CV: the coefficient of variation, 100 × the standard deviation / the mean, in % (Pearson 1896), of the
 	// images of each pixel or of the pixels of a region, computed from the reducers of the mean and of the standard
 	// deviation (population), without a value where the mean is 0; composite.SPREAD: the metrics whose values are not in
@@ -137,6 +141,20 @@ var MonitorEO = (function () {
 		return typeof metric === 'string' && metric.trim().toLowerCase() === DAYS;
 	}
 
+	// composite.is_melt
+	function isMelt(metric) {
+		return typeof metric === 'string' && metric.trim().toLowerCase() === MELT;
+	}
+
+	// composite.check_step: error if METRIC is that of the snow melt-out day ('melt'), one per season of each year, and
+	// STEP (of a series, a trend, an animation, or the temporal aggregation of a map) is shorter than a year
+	function checkStep(metric, step) {
+		if (isMelt(metric) && step !== 'annual' && step !== 'period') {
+			throw new Error("the snow melt-out day (metric '" + MELT + "') is one per year (or season of each year): " +
+				"use the step 'annual' (temporal 'annual' or 'period' for a map), not '" + step + "'");
+		}
+	}
+
 	// composite.reducer (that of the coefficient of variation: of the mean and the standard deviation, outputs mean and
 	// stdDev, from which cv and cvValue compute it)
 	function reducer(metric) {
@@ -153,7 +171,7 @@ var MonitorEO = (function () {
 	// composite.check_metric: error if METRIC is not valid (without Earth Engine)
 	function checkMetric(metric) {
 		var m = String(metric).trim().toLowerCase();
-		if (SIMPLE.indexOf(m) >= 0 || m === DAYS) return;
+		if (SIMPLE.indexOf(m) >= 0 || ONLY[m]) return;
 		var p = /^p(\d+(?:\.\d+)?)$/.exec(m);
 		if (!(p && Number(p[1]) <= 100)) throw new Error('unknown metric ' + metric + ': use ' + METRICS);
 	}
@@ -289,6 +307,30 @@ var MonitorEO = (function () {
 			.toFloat().rename('value');
 	}
 
+	var SNOW = 50;  // composite.SNOW: an image of the snow (100 = snow, 0 = no snow) has snow from 50 up
+
+	// composite.melt: image ('value') of the snow melt-out day of the images of COL (100 = snow, 0 = no snow) between
+	// START and END (dates or 'YYYY-MM-DD', END excluded): the day of the year (1 = 1 January of the year of the last day
+	// of the window) of the first image without snow after the last image with snow; with no image with snow, that of
+	// the first image without snow; masked where the snow does not go in the window or no image is clear
+	function melt(col, start, end) {
+		start = asDate(start);
+		end = asDate(end);
+		var jan1 = ee.Date(iso(ymd(addDays(end, -1).getUTCFullYear(), 1, 1)));
+		col = col.filterDate(iso(start), iso(end));
+		var daysOf = col.map(function (img) {
+			img = ee.Image(img);
+			var value = img.select('value');
+			var doy = ee.Image.constant(ee.Date(img.get('system:time_start')).difference(jan1, 'day').floor().add(1))
+				.toFloat();
+			return doy.updateMask(value.gte(SNOW)).rename('snow').addBands(doy.updateMask(value.lt(SNOW)).rename('free'));
+		});
+		var last = daysOf.select('snow').max().unmask(-1e6);  // no image with snow: before every image
+		var after = daysOf.select('free').map(function (i) { return ee.Image(i).updateMask(ee.Image(i).gt(last)); });
+		var empty = ee.Image.constant(0).toFloat().rename('value').updateMask(0);
+		return ee.Image(ee.Algorithms.If(col.size().gt(0), after.min().toFloat().rename('value'), empty));
+	}
+
 	// composite.spans: [first day, day after the last] of the spans over which the snow cover days of PERIOD are
 	// averaged with temporal 'period': its seasons, or, without a season, the spans of 12 months from its first day
 	function spans(period, season) {
@@ -306,11 +348,15 @@ var MonitorEO = (function () {
 	}
 
 	// composite.reduce_span: image of the images of COL between START and END (dates or 'YYYY-MM-DD', END excluded)
-	// reduced with RED (see reduce), or, for the snow cover days ('days'), their days (see days)
+	// reduced with RED (see reduce), or, for the snow cover days ('days'), their days (see days), and for the snow
+	// melt-out day ('melt'), its day (see melt)
 	function reduceSpan(col, red, start, end, bands, mosaic) {
-		if (isDays(red)) {
-			if (bands && bands.length > 1) throw new Error('the snow cover days have no true colour');
-			return days(col, start, end);
+		if (isDays(red) || isMelt(red)) {
+			if (bands && bands.length > 1) {
+				throw new Error(isDays(red) ? 'the snow cover days have no true colour' :
+					'the snow melt-out day has no true colour');
+			}
+			return isDays(red) ? days(col, start, end) : melt(col, start, end);
 		}
 		return reduce(col.filterDate(iso(asDate(start)), iso(asDate(end))), red, bands, mosaic);
 	}
@@ -334,13 +380,15 @@ var MonitorEO = (function () {
 	// the variable ('value') and its true colour (red, green, blue)
 	function composite(col, metric, temporal, interannual, period, season, bands) {
 		bands = bands || ['value'];
-		var wins = windows(period, season);
 		checkMetric(metric);
+		checkStep(metric, temporal);
+		season = season || (isMelt(metric) ? MELT_SEASON : null);
+		var wins = windows(period, season);
 		var red = metric, mos = mosaic(metric, bands);
 		if (temporal === 'period') {
-			if (isDays(metric)) {  // the snow cover days: the mean of those of each season or year
+			if (isDays(metric) || isMelt(metric)) {  // the mean of those of each season or year
 				return reduce(ee.ImageCollection.fromImages(spans(period, season).map(function (sp) {
-					return days(col, sp[0], sp[1]);
+					return reduceSpan(col, metric, sp[0], sp[1], bands);
 				})), 'mean');
 			}
 			return reduce(col.filter(dateFilter(wins)), red, bands, mos);
@@ -397,7 +445,7 @@ var MonitorEO = (function () {
 	var SCENE_CLOUDS ={'Sentinel-2': 'CLOUDY_PIXEL_PERCENTAGE', 'Landsat': 'CLOUD_COVER_LAND'};
 	var QUALITY = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null};
 	var FILTERS = ['clouds', 'water', 'snow', 'aerosols'];
-	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI', 'WAVI'], snow: ['NDSI', 'SCF', 'SCD'], aerosols: ['ARSL']};
+	var MEASURES = {water: ['NDWI', 'Chl-a', 'NDCI', 'WAVI'], snow: ['NDSI', 'SCF', 'SCD', 'SMOD'], aerosols: ['ARSL']};
 	var S2_SCL = {clouds: [3, 8, 9, 10], water: [6], snow: [11]};
 	// sensors.SCF: the rules of the snow of the snow cover frequency (SCF) of Landsat and Sentinel-2
 	var SCF = {ndsi: 0.35, green: 0.1, nir: 0.1, toa_green: 0.08, min_elevation: 1500, shadow_reach: 70,
@@ -1338,6 +1386,10 @@ var MonitorEO = (function () {
 		for (var k in options) s[k] = options[k];
 		s.quality = withQuality(s.quality);
 		onlyMetric(s.entry ? s.entry : s.ref === undefined || s.ref === null ? {} : byRef(s.ref), s.metric);
+		if (isMelt(s.metric)) {  // variable.specs: one per season of each year, by default MELT_SEASON
+			checkStep(MELT, s.temporal);
+			s.season = s.season || MELT_SEASON.slice();
+		}
 		// variable.specs: a period without images of its data is an Error; one with days without them, a warning
 		// (notes, for the results panel)
 		if (s.period && (s.ref !== undefined && s.ref !== null || s.entry)) checkPeriod(s);
@@ -1579,8 +1631,9 @@ var MonitorEO = (function () {
 		if (e.metric && String(metric).trim().toLowerCase() !== e.metric) {
 			throw new Error(e.index + ' (' + e.sensor + ") only takes the metric '" + e.metric + "'");
 		}
-		if (e.metric !== DAYS && isDays(metric)) {  // composite.days: only for the snow cover days
-			throw new Error("the metric '" + DAYS + "' is that of the snow cover days (variable SCD): " +
+		var m = String(metric).trim().toLowerCase();
+		if (ONLY[m] && e.metric !== m) {  // composite.days, composite.melt: only for the variable of each
+			throw new Error("the metric '" + m + "' is " + ONLY[m] + ': ' +
 				(e.index ? e.index + ' (' + e.sensor + ')' : 'this variable') + ' does not take it');
 		}
 	}
@@ -2619,6 +2672,7 @@ var MonitorEO = (function () {
 
 	// The steps of timeseries.bins, except 'daily' (dailyDays)
 	function seriesBins(s, step) {
+		checkStep(s.metric, step);  // the snow melt-out day: one per year (timeseries.table)
 		var wins = windows(s.period, s.season);
 		var out = [];
 		if (step === 'annual') {
@@ -3030,6 +3084,7 @@ var MonitorEO = (function () {
 
 	// ee.List of the days with images ('YYYY-MM-dd') of the period of S, to evaluate: then dailyBins
 	function dailyDays(s, region) {
+		checkStep(s.metric, 'daily');  // the snow melt-out day: one per year (timeseries.table)
 		var wins = windows(s.period, s.season);
 		var col = collection(s, region).filter(dateFilter(wins));
 		return col.aggregate_array('system:time_start').map(function (t) {
@@ -3368,6 +3423,7 @@ var MonitorEO = (function () {
 	var UDUNITS = {'[unitless]': '1', '[°C]': 'degC', '[kg/m²/8 days]': 'kg m-2 (8 day)-1', '[J/m²/day]': 'J m-2 day-1',
 		'[mg m⁻³]': 'mg m-3', '[%]': '%', '[m]': 'm', '[°]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
 		'[mm/day]': 'mm day-1', '[kPa]': 'kPa', '[days]': 'day',  // [days]: the snow cover days
+		'[day of year]': 'day',  // the snow melt-out day: days since the 31 December before (1 = 1 January)
 		'[class]': ''};  // [class]: class codes, without a unit (catalog.UDUNITS)
 
 	function udunits(unit) {
@@ -3467,6 +3523,7 @@ var MonitorEO = (function () {
 		var col = collection(s, region);
 		var red = metric || 'mean';
 		checkMetric(red);
+		checkStep(red, step);  // the snow melt-out day: one per year
 		var out = [];
 		seasonalBins(s, step).forEach(function (b) {
 			if (b[0] === part) out.push([b[1], reduceSpan(col, red, b[2], b[3])]);
@@ -4394,6 +4451,7 @@ var MonitorEO = (function () {
 		'NDSI': ['NDSI: índice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'],
 		'SCF': ['SCF: frecuencia de nieve', 'SCF: snow cover frequency'],
 		'SCD': ['SCD: días de nieve', 'SCD: snow cover days'],
+		'SMOD': ['SMOD: día de deshielo', 'SMOD: snow melt-out day'],
 		'ET': ['ET y LE: evapotranspiración y calor latente', 'ET and LE: evapotranspiration and latent heat'],
 		'LST': ['LST: temperatura de la superficie', 'LST: Land Surface Temperature'],
 		'ALBEDO': ['ALBEDO', 'ALBEDO'],
@@ -4445,7 +4503,8 @@ var MonitorEO = (function () {
 		assetSource: assetSource, assetInfo: assetInfo, fromCollection: fromCollection, communityTheme: communityTheme,
 		communityThemes: communityThemes, communityDatasets: communityDatasets, communityRecord: communityRecord,
 		staticImage: staticImage, TWI: TWI, twiImage: twiImage, iso: iso, date: date, isDate: isDate, isMonthDay: isMonthDay, windows: windows, bins: bins,
-		reducer: reducer, DAYS: DAYS, isDays: isDays, days: days, spans: spans, reduceSpan: reduceSpan,
+		reducer: reducer, DAYS: DAYS, isDays: isDays, days: days, MELT: MELT, MELT_SEASON: MELT_SEASON, isMelt: isMelt,
+		melt: melt, checkStep: checkStep, spans: spans, reduceSpan: reduceSpan,
 		composite: composite, TEMPORAL: TEMPORAL,
 		QUALITY: QUALITY, FILTERS: FILTERS, MEASURES: MEASURES, filters: filters, fixedFilters: fixedFilters,
 		conflicts: conflicts,

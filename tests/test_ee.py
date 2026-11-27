@@ -328,6 +328,41 @@ def test_snow_of_sentinel2_as_that_of_landsat():
 	assert daily['bars'] is True and all(0 <= r['value'] <= 1 for r in daily['rows'] if r['value'] is not None)
 
 
+def test_snow_melt_out_day():
+	"""The snow melt-out day over the high Sierra Nevada (below the Mulhacén, 2800-3400 m): in late spring or summer
+	every year, a little later with Landsat (fewer images) than with Sentinel-2, the same in a map of the period and in
+	its series, and the day of the first image without snow after the last with snow on a pixel."""
+	import datetime as dt
+	from monitoreo import composite, variable
+	lakes = {'bbox': [-3.40, 37.03, -3.33, 37.07]}
+	s2 = services.time_series(lakes, 'SMOD', 'Sentinel-2', '2019-01-01', '2021-12-31', step='annual', metric='melt')
+	assert [r['date'] for r in s2['rows']] == ['2019-01-01', '2020-01-01', '2021-01-01']  # the default season
+	assert all(120 < r['value'] < 230 for r in s2['rows']) and not s2['bars']
+	assert s2['ylabel'] == 'Snow Melt-Out Day (SMOD) [day of year]'
+	landsat = services.time_series(lakes, 'SMOD', 'Landsat', '2019-01-01', '2021-12-31', step='annual', metric='melt')
+	assert all(abs(a['value'] - b['value']) < 30 for a, b in zip(s2['rows'], landsat['rows']))
+	mean = services.region_stats(lakes, 'SMOD', 'Sentinel-2', '2019-01-01', '2021-12-31', metric='melt',
+	                             stats=['mean'])
+	value = (mean['rows'] if isinstance(mean, dict) else mean)[0]['mean']
+	assert abs(value - sum(r['value'] for r in s2['rows']) / 3) < 5  # the mean of the years, pixel by pixel
+	# on one pixel: the day of the first clear image without snow after the last one with snow
+	point = ee.Geometry.Point([-3.3655, 37.0505])
+	spec = services.make_spec('SMOD', 'Sentinel-2', '2020-01-01', '2020-12-31', metric='melt')
+	col = variable.collection(spec, point.buffer(100), 20).filterDate('2020-01-01', '2020-09-01')
+	proj = ee.Image(col.first()).select('value').projection()  # the same pixel in every image and in the day
+	obs = col.map(lambda i: ee.Feature(None, {'t': i.get('system:time_start'), 'v': i.select('value').reduceRegion(
+		ee.Reducer.first(), point, crs=proj).get('value')})).filter(ee.Filter.notNull(['v'])).getInfo()['features']
+	seen = sorted((dt.datetime.utcfromtimestamp(f['properties']['t'] / 1000).date(), f['properties']['v'])
+	              for f in obs)
+	last = max(d for d, v in seen if v >= 50)
+	first = min(d for d, v in seen if v < 50 and d > last)
+	got = composite.melt(variable.collection(spec, point.buffer(100), 20), '2020-01-01', '2020-09-01').reduceRegion(
+		ee.Reducer.first(), point, crs=proj).get('value').getInfo()
+	assert got == first.timetuple().tm_yday
+	with pytest.raises(ValueError, match="use the step 'annual'"):
+		services.time_series(lakes, 'SMOD', 'Sentinel-2', '2020-01-01', '2020-12-31', step='monthly', metric='melt')
+
+
 def test_animation(tmp_path):
 	"""An animation of three years: a frame per year with its images, the colours of the map of the period, a GIF
 	with its texts and its README."""

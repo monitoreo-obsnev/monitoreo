@@ -83,6 +83,7 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	crs = crs or region_crs(regions)
 	col = variable.collection(spec, geom, scale)
 	composite.check_metric(metric)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year
 	# the statistic count is the number of pixels: once (Earth Engine refuses two outputs count)
 	sred = ee.Reducer.count() if str(stat).strip().lower() == 'count' else \
 		composite.reducer(stat).combine(ee.Reducer.count(), '', True)

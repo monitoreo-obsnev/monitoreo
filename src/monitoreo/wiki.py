@@ -36,6 +36,7 @@ HEADINGS = {
 	'NDSI': ('NDSI: índice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'),
 	'SCF': ('SCF: frecuencia de nieve', 'SCF: snow cover frequency'),
 	'SCD': ('SCD: días de nieve', 'SCD: snow cover days'),
+	'SMOD': ('SMOD: día de deshielo', 'SMOD: snow melt-out day'),
 	'ET': ('ET y LE: evapotranspiración y calor latente', 'ET and LE: evapotranspiration and latent heat'),
 	'LST': ('LST: temperatura de la superficie', 'LST: Land Surface Temperature'),
 	'ALBEDO': ('ALBEDO', 'ALBEDO'),

@@ -548,6 +548,14 @@
    "citation": "Gascoin, S., Grizonnet, M., Bouchet, M., Salgues, G., & Hagolle, O. (2019). Theia Snow collection: high-resolution operational snow cover maps from Sentinel-2 and Landsat-8 data. Earth System Science Data, 11(2), 493–514.",
    "doi": "10.5194/essd-11-493-2019"
   },
+  "barroudumont2025": {
+   "citation": "Barrou Dumont, Z., Gascoin, S., Inglada, J., Dietz, A., Köhler, J., Lafaysse, M., Monteiro, D., Carmagnola, C., Bayle, A., Dedieu, J.-P., Hagolle, O., & Choler, P. (2025). Trends in the annual snow melt-out day over the French Alps and Pyrenees from 38 years of high-resolution satellite data (1986–2023). The Cryosphere, 19(7), 2407–2429.",
+   "doi": "10.5194/tc-19-2407-2025"
+  },
+  "dietz2012": {
+   "citation": "Dietz, A. J., Wohner, C., & Kuenzer, C. (2012). European snow cover characteristics between 2000 and 2011 derived from improved MODIS daily snow cover products. Remote Sensing, 4(8), 2432–2454.",
+   "doi": "10.3390/rs4082432"
+  },
   "mu2011": {
    "citation": "Mu, Q., Zhao, M., & Running, S. W. (2011). Improvements to a MODIS global terrestrial evapotranspiration algorithm. Remote Sensing of Environment, 115(8), 1781–1800.",
    "doi": "10.1016/j.rse.2011.02.019"

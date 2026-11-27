@@ -92,7 +92,7 @@ SNOW_NDSI = {'Sentinel-2': ('B3', 'B11', 0.0001, 0.0), 'Landsat': ('green', 'swi
 SNOW_NDSI_DEFAULT = 0.4  # the threshold of the check boxes of the QGIS plugin and the Earth Engine app
 MEASURES = {  # variables whose signal a filter removes
 	'water': {'NDWI', 'Chl-a', 'NDCI', 'WAVI'},  # open water, water quality and aquatic vegetation
-	'snow': {'NDSI', 'SCF', 'SCD'},
+	'snow': {'NDSI', 'SCF', 'SCD', 'SMOD'},
 	'aerosols': {'ARSL'},
 }
 S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, clouds, cirrus; water; snow
@@ -119,8 +119,12 @@ S2_SCL = {'clouds': [3, 8, 9, 10], 'water': [6], 'snow': [11]}  # cloud shadow, 
 # MODIS (Cloud Score+ does not take the snow for clouds more than the ground without snow).
 # The SCF of MODIS (Terra MOD10A1, Aqua MYD10A1, formula SCF(NDSI_Snow_Cover)): snow if NDSI_Snow_Cover (100 x the
 # NDSI) >= 100 x SCF['ndsi'], the same threshold; clouds, water and the other flags (200-255) of the daily snow product
-# have no data (its fixed filters and the valid range of PRODUCTS). The snow cover days (SCD) are made of the same
-# images (composite.days).
+# have no data (its fixed filters and the valid range of PRODUCTS). It has no rule of the shadow of the relief: the
+# NDSI of the product is that of the TOA reflectance, without thresholds of brightness, and its screens (low visible
+# reflectance) do not take the snow away in the shadow; checked against the SCF of Landsat 8 and 9 with its rule of the shadow, on the 112 days of both from November to May of 2014-15 to 2024-25 in the high Sierra Nevada, MODIS
+# Terra saw 98.4 % of the snow of Landsat in the shadow (pixels of 500 m at least half in the shadow of the sun of the
+# scene, 20 minutes after Terra) and 98.4 % in the sun. The snow cover days (SCD) and the snow melt-out day (SMOD) are
+# made of the same images (composite.days, composite.melt).
 SCF = {
 	'ndsi': 0.35,           # minimum NDSI of snow (surface reflectance in the sun, TOA in the shadow)
 	'green': 0.1,           # green and NIR surface reflectance of snow in the sun: above these
@@ -155,8 +159,8 @@ TWI = {
 
 def is_scf(entry):
 	"""Whether ENTRY is made of the images of the snow cover frequency: the SCF (formula SCF(green,nir,swir1) of
-	Landsat, SCF(B3,B8,B11) of Sentinel-2, SCF(NDSI_Snow_Cover) of MODIS) and the snow cover days (SCD), which have the
-	same formula."""
+	Landsat, SCF(B3,B8,B11) of Sentinel-2, SCF(NDSI_Snow_Cover) of MODIS), the snow cover days (SCD) and the snow melt-out day
+	(SMOD), which have the same formula."""
 	return str(entry.get('ft', '')).replace(' ', '').upper().startswith('SCF(')
 
 

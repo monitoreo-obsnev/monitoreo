@@ -150,7 +150,7 @@ METHODS = {
 FILTERS = {'clouds': 'clouds', 'water': 'water', 'snow': 'snow', 'aerosols': 'aerosols'}
 STATS = {'mean': 'mean', 'median': 'median', 'min': 'minimum', 'max': 'maximum', 'std': 'standard deviation',
          'cv': 'coefficient of variation (%)', 'sum': 'sum', 'count': 'count', 'mode': 'mode',
-         'days': 'snow cover days'}
+         'days': 'snow cover days', 'melt': 'snow melt-out day'}
 
 # the table of each tool: its key in the answer (the first one found), and its columns (key, label); in the labels,
 # {u} is the unit of the variable and {uy} that unit per year
