@@ -59,7 +59,8 @@ def test_the_panel_folds_its_groups_under_their_titles():
 	titles = [s[0][2:].split(' · ')[0] for s in out['first']]
 	assert titles == ['Region', 'Variable and period', 'Pixel filters', 'Map', 'Area by class',
 	                  'Gradients (elevation bands and profiles)', 'Animation (timelapse)', 'Time series',
-	                  'Trends (Mann-Kendall and Sen)', 'Parameters of the analysis (JSON)', 'About MonitorEO']
+	                  'Trends (Mann-Kendall and Sen)', 'Recovery after a disturbance', 'Parameters of the analysis (JSON)',
+	                  'About MonitorEO']
 	shown = {s[0][2:].split(' · ')[0]: s[1] for s in out['first']}
 	assert [k for k, v in shown.items() if v] == ['Region', 'Variable and period']  # the others folded
 	assert all(s[0].startswith('▸ ') for s in out['first'] if not s[1])

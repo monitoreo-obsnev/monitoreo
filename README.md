@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Python package, R package, Command line, MCP server, Assistant, Earth Engine app**: The severity and recovery after a disturbance (`recovery_metrics`; `monitoreo recovery`; `mo_recovery_metrics()`; the section Recovery after a disturbance of the Earth Engine app): the metrics of the post-fire trajectories of Marcos et al. (2023) of the time series of an affected area and, with a control area, of the control and of their difference (BACI), on a robust STL decomposition (Cleveland et al. 1990): the severity S95 and the impact, the times DIT, RRT (the recovery time) and RET, the share of the loss recovered, the anomalies after the event and the trends before and after it. The QGIS plugin does not have it yet.
+
 ### [v0.3.81](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.81) · 2026-11-27 · package 0.3.91
 
 - **Python package, R package, Command line, MCP server, Assistant**: The images and valid observations of a variable in each year, month or 16 days of a period over a region, after the pixel filters (`image_count`; `monitoreo count`; `mo_image_count()`): the images of each step, the valid images per pixel and the fraction of the region with data, to choose the period of a series or a trend before computing it (e.g. the summers of Landsat 5 in the 1990s). The QGIS plugin and the Earth Engine app give the same with the metric count of their time series.

@@ -510,6 +510,13 @@
   ],
   "harmonize": [
    "roy2016"
+  ],
+  "recovery": [
+   "marcos2023",
+   "cleveland1990",
+   "mann1945",
+   "kendall1938",
+   "sen1968"
   ]
  },
  "references": {
@@ -952,6 +959,14 @@
   "pekel2016": {
    "citation": "Pekel, J.-F., Cottam, A., Gorelick, N., & Belward, A. S. (2016). High-resolution mapping of global surface water and its long-term changes. Nature, 540(7633), 418–422.",
    "doi": "10.1038/nature20584"
+  },
+  "marcos2023": {
+   "citation": "Marcos, B., Gonçalves, J., Alcaraz-Segura, D., Cunha, M., & Honrado, J. P. (2023). Assessing the resilience of ecosystem functioning to wildfires using satellite-derived metrics of post-fire trajectories. Remote Sensing of Environment, 286, 113441.",
+   "doi": "10.1016/j.rse.2022.113441"
+  },
+  "cleveland1990": {
+   "citation": "Cleveland, R. B., Cleveland, W. S., McRae, J. E., & Terpenning, I. (1990). STL: A seasonal-trend decomposition procedure based on loess. Journal of Official Statistics, 6(1), 3–73. Fortran code of the authors:",
+   "url": "https://netlib.org/a/stl"
   },
   "hunt1989": {
    "citation": "Hunt, E. R., Jr., & Rock, B. N. (1989). Detection of changes in leaf water content using near- and middle-infrared reflectances. Remote Sensing of Environment, 30(1), 43–54.",

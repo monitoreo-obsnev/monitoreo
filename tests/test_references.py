@@ -26,7 +26,7 @@ def test_bibliography():
 	# only Key & Benson 2006, the WDPA, FAO GAUL 2025, the correspondence of the CORINE classes and the ecosystem types
 	# of MAES (BISE 2023, the table of the land cover masks) and the municipalities of Spain of the IGN have no DOI
 	# (cited with their URL, as their pages say)
-	assert sum(1 for r in refs.values() if not r.get('doi')) <= 5
+	assert sum(1 for r in refs.values() if not r.get('doi')) <= 6  # Cleveland et al. 1990 (STL) has none: its code
 	for name, ids in cat['methods'].items():
 		assert ids and set(ids) <= set(refs), name
 	for col, d in cat['datasets'].items():

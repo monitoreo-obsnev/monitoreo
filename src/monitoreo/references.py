@@ -39,7 +39,7 @@ EARTH_ENGINE = TRENDS + ('time_series', 'time_series_to_drive', 'export_time_ser
                          'region_stats', 'thumbnail', 'composite_image', 'export_image', 'export_image_to_drive',
                          'download_image', 'download_variables', 'compare_series', 'compare_map', 'download_comparison',
                          'burn_severity', 'find_protected_areas', 'timelapse', 'area_by_class', 'transect',
-                         'map_figure', 'image_count') + RGB
+                         'map_figure', 'image_count', 'recovery_metrics') + RGB
 
 
 # The references of the data of Earth Engine outside the datasets of catalog.json met so far (see of_asset): {id:
@@ -425,6 +425,8 @@ def cite(tool, args=None, date=None, datasets=()):
 		ids += _test_methods(args.get('test'))
 	if tool == 'timelapse':
 		ids += _methods('timelapse')
+	if tool == 'recovery_metrics':  # Marcos et al. 2023, STL, Mann-Kendall and Sen
+		ids += _methods('recovery')
 	if tool == 'area_by_class':
 		ids += _methods('area_by_class') + (_test_methods(args.get('test')) if args.get('trend') else [])
 	if tool == 'map_figure':

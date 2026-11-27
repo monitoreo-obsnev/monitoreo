@@ -1059,6 +1059,69 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   cited(df, res)
 }
 
+#' Severity and recovery after a disturbance
+#'
+#' The metrics of the post-fire trajectories of Marcos et al. (2023) of the time series of a variable over an affected
+#' area and, with a control area, over the control and their difference (BACI): the series, its gaps filled by linear
+#' interpolation, is decomposed with a robust STL (Cleveland et al. 1990); on the deseasonalized series and its trend,
+#' the reference (median and MAD of the \code{reference_years} before the event), the severity S95 and the impact,
+#' DIT (years to the inflection of the trend), RRT (years until it is back in the reference interval: the recovery
+#' time), RET (years to a new equilibrium), the share of the loss recovered in the last year, the standardized
+#' anomalies after the event and the Mann-Kendall test and Sen slope of the yearly means before and after it.
+#' @inheritParams mo_params
+#' @param event the date of the disturbance, \code{"YYYY-MM-DD"}.
+#' @param affected name of the affected feature of the region (default: the only one).
+#' @param control optional name of the control feature (unburned land near it, of the same vegetation).
+#' @param step \code{"monthly"} (default, the best), \code{"16-day"} or \code{"annual"}.
+#' @param reference_years years before the event of the reference (default 3).
+#' @param equilibrium relative change of the yearly medians below which the series is stable (default 0.05).
+#' @param min_coverage optional minimum coverage of the steps (see \code{mo_time_series()}).
+#' @param csv optional path of a CSV file with the table of the metrics.
+#' @param chart optional path of a PNG chart of the trajectories.
+#' @return A data.frame with a row per series (affected, control, difference) and the columns series, region,
+#'   direction, reference_median, reference_mad, S95, impact_pct, impact_mad, tINF, DIT_years, tREF, RRT_years, tEQ,
+#'   RET_years, recovered_pct, z_min_first_year, z_max_first_year, steps_abs_z_over_2_after, sen_before, p_before,
+#'   sen_after, p_after, amplitude_before, amplitude_after and gaps; with the attributes metrics (all of them, by series),
+#'   series (the time series), title, csv, chart, readme, references and credits.
+#' @section References: The result carries its references (with DOI): Marcos et al. (2023), Cleveland et al. (1990),
+#'   Mann-Kendall and Sen, those of the variable and its data, of the region, of Google Earth Engine and of MonitorEO.
+#' @references Marcos, B., Gonçalves, J., Alcaraz-Segura, D., Cunha, M., & Honrado, J. P. (2023). Assessing the
+#'   resilience of ecosystem functioning to wildfires using satellite-derived metrics of post-fire trajectories.
+#'   Remote Sensing of Environment, 286, 113441. \doi{10.1016/j.rse.2022.113441}
+#'
+#' Cleveland, R. B., Cleveland, W. S., McRae, J. E., & Terpenning, I. (1990). STL: A seasonal-trend decomposition
+#'   procedure based on loess. Journal of Official Statistics, 6(1), 3--73.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' # the NDVI of a burned area and its control ring, the fire of 2005-09-22
+#' zones <- sf::read_sf("zones.gpkg")
+#' x <- mo_recovery_metrics(mo_sf(zones, "region"), "NDVI", "Landsat", "1995-01-01", "2025-12-31",
+#'                          event = "2005-09-22", affected = "affected", control = "control")
+#' x[, c("series", "S95", "RRT_years", "recovered_pct")]
+#' }
+#' @export
+mo_recovery_metrics <- function(region, variable = NULL, sensor = NULL, start, end, event, affected = NULL,
+                                control = NULL, step = "monthly", metric = "mean", stat = "mean", season = NULL,
+                                quality = NULL, scale = NULL, reference_years = 3, equilibrium = 0.05,
+                                min_coverage = NULL, csv = NULL, chart = NULL, collection = NULL, band = NULL,
+                                where = NULL) {
+  check_data(variable, sensor, collection, NULL, band, NULL, NULL, NULL)
+  res <- services()$recovery_metrics(region, variable, sensor, start, end, event, step, metric, stat,
+                                     season = season, quality = quality, scale = scale, affected = affected,
+                                     control = control, reference_years = as.integer(reference_years),
+                                     equilibrium = equilibrium, min_coverage = min_coverage, csv = csv,
+                                     chart = if (is.null(chart)) NULL else path.expand(chart),
+                                     collection = collection, band = band, where = where)
+  df <- rows_df(res$rows)
+  attr(df, "metrics") <- res$metrics
+  attr(df, "series") <- rows_df(res$series)
+  attr(df, "title") <- res$title
+  attr(df, "csv") <- res$csv
+  attr(df, "chart") <- res$chart
+  cited(df, res)
+}
+
 #' Images and valid observations of a variable per step
 #'
 #' How many images and valid observations a variable has over a region in each step of a period, after the pixel
