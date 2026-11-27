@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.78](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.78) · 2026-11-27 · package 0.3.88
 
 - **Field app**: The notice of a new version on the iPhone says to install it with Sideloadly or AltStore, and the help says that, for now, the iPhone version installs only from a computer with one of them, for testing: with a free Apple ID it lasts 7 days (then it is installed again and the points and results are kept), with at most 3 apps at a time.
 
