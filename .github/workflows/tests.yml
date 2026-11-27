@@ -1,0 +1,64 @@
+# Tests: the checks of every pull request to main (team decision, 2026-11-27, when three people started to change
+# MonitorEO at the same time). It runs the offline tests and the checker of the skill monitoreo-change on the merge of
+# the branch with main, as GitHub would make it, so it also catches what a clean text merge breaks. Nothing computes in
+# Earth Engine (-m "not ee") and nothing is published. A pull request is merged only with this workflow green (the
+# protection of main can require its job, "Offline tests and checker"). On every push to main it runs the tests again,
+# so that a broken main is seen at once.
+#
+# The environment is that of environment.yml (conda-forge; tests/test_check_change.py checks that it has its packages),
+# without the window of the assistant (pywebview) and with the package from this checkout (PYTHONPATH=src), not from
+# GitHub. Its cache is renewed every week, so that the tests also meet the new versions of the packages that users
+# get. The wiki is not cloned: its pages of a change are pushed after the merge (references/docs.md of the skill), so
+# the tests and the checks of the wiki are left out here.
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: Offline tests and checker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # origin/main, the other branches and the tags, for the checker
+
+      - name: Week of the cache of the environment
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: monitoreo
+          create-args: >-
+            python=3.12 earthengine-api numpy pyyaml gdal matplotlib-base mcp starlette uvicorn pypdf pillow pytest
+          cache-environment: true
+          cache-environment-key: environment-${{ steps.week.outputs.week }}
+
+      - name: Node (the tests of the Earth Engine app and the field app)
+        run: node --version
+
+      - name: Offline tests
+        env:
+          PYTHONPATH: src
+        run: python -m pytest tests -q -m "not ee" -p no:cacheprovider -rs
+
+      - name: Checker of the skill monitoreo-change
+        if: github.event_name == 'pull_request'
+        run: python .claude/skills/monitoreo-change/scripts/check_change.py --no-fetch
