@@ -320,3 +320,51 @@ def difference(rows_a, rows_b, step):
 	db, yb, _ = regular(rows_b, step)
 	b = dict(zip(db, yb))
 	return [{'date': str(x), 'value': float(v - b[x])} for x, v in zip(da, ya) if x in b]
+
+
+# The metrics of each pixel of a stack of yearly images (services.recovery_map): the bands of its GeoTIFF
+PIXEL_BANDS = ['reference_median', 'reference_mad', 'impact', 'impact_pct', 'impact_mad', 'direction', 'DIT_years',
+               'RRT_years', 'RET_years', 'recovered_pct', 'n_years']
+
+
+def pixel_metrics(stack, years, event, reference_years=REFERENCE_YEARS, equilibrium=EQUILIBRIUM, progress=None):
+	"""The metrics of Marcos et al. (2023) of each pixel of STACK (an array of yearly values: years x rows x columns, NaN
+	without value) of the YEARS, as of_series computes them for an annual series (metrics with a step of one value per
+	year, dated on 1 July, its gaps filled by linear interpolation): {band of PIXEL_BANDS: array rows x columns} (NaN where
+	the pixel has no reference, no year after the event or fewer than 3 years with a value; direction -1 for a decrease,
+	1 for an increase; RRT and RET NaN where they did not happen). PROGRESS(done, total, 'rows of pixels') after each
+	row."""
+	stack = np.asarray(stack, dtype=float)
+	_, rows, cols = stack.shape
+	dates = [dt.date(int(y), 7, 1) for y in years]
+	d = np.array(dates)
+	pre = (d < event) & (d >= add_years(event, -reference_years))
+	post = d >= event
+	out = {b: np.full((rows, cols), np.nan) for b in PIXEL_BANDS}
+	keys = (('reference_median', None), ('impact', 'impact'), ('impact_pct', 'impact_pct'),
+	        ('impact_mad', 'impact_mad'), ('DIT_years', 'DIT_years'), ('RRT_years', 'RRT_years'),
+	        ('RET_years', 'RET_years'), ('recovered_pct', 'recovered_pct'))
+	for i in range(rows):
+		for j in range(cols):
+			y = stack[:, i, j]
+			have = np.isfinite(y)
+			if have.any():  # outside the region, no value: NoData
+				out['n_years'][i, j] = have.sum()
+			if not (have & pre).any() or not (have & post).any() or have.sum() < 3:
+				continue
+			k = np.where(have)[0]  # the grid of the years from the first to the last value, filled
+			first, last = k[0], k[-1]
+			yy = np.interp(np.arange(first, last + 1), k, y[k])
+			m = metrics(dates[first:last + 1], yy, event, 1, reference_years, equilibrium)
+			if 'reference' not in m or 'direction' not in m:
+				continue
+			out['reference_median'][i, j] = m['reference']['median']
+			out['reference_mad'][i, j] = m['reference']['mad']
+			out['direction'][i, j] = -1 if m['direction'] == 'decrease' else 1
+			for band, key in keys[1:]:
+				v = m.get(key)
+				if v is not None:
+					out[band][i, j] = v
+		if progress:
+			progress(i + 1, rows, 'rows of pixels')
+	return out

@@ -150,6 +150,20 @@ BANDS = {
 	'red': ('Surface reflectance, red (true colour)', ''),
 	'green': ('Surface reflectance, green (true colour)', ''),
 	'blue': ('Surface reflectance, blue (true colour)', ''),
+	# recovery_map (monitoreo.recovery.pixel_metrics): the metrics of the annual series of each pixel
+	'reference_median': ('Reference: median of the years before the event', '{u}'),
+	'reference_mad': ('Reference: median absolute deviation of the years before the event', '{u}'),
+	'impact': ('Impact: the reference median minus the value of the year after the event (positive: a loss)', '{u}'),
+	'impact_pct': ('Impact: the value of the year after the event minus the reference median, in % of it', '%'),
+	'impact_mad': ('Impact: the value of the year after the event minus the reference median, in MADs (negative: a '
+	               'decrease)', ''),
+	'direction': ('Direction of the change the year after the event: -1 decrease, 1 increase', ''),
+	'DIT_years': ('Years from the event to the inflection of the trend (DIT)', 'years'),
+	'RRT_years': ('Years from the event until it is back in the reference interval: recovery time (RRT; no value: '
+	              'not recovered)', 'years'),
+	'RET_years': ('Years from the event to a new equilibrium (RET)', 'years'),
+	'recovered_pct': ('Share of the loss recovered in the last year with data', '%'),
+	'n_years': ('Years with a value', ''),
 }
 TRUE_COLOUR = ('the true colour (download_rgb) cannot be published in the viewer of results yet: leave it out of the '
                'report (its GeoTIFF and README stay on the computer)')

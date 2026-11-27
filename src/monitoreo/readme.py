@@ -15,6 +15,7 @@ monitoreo.services writes them with every result that has files (document); thei
 import datetime as dt
 import json
 import os
+import re
 import textwrap
 
 from . import __version__, about, publish, references
@@ -217,7 +218,8 @@ COLUMNS_RDNBR = {
 BANDS = dict({'value': ('Value of the variable', '{u}')}, **publish.BANDS)
 # the unit of each band in UDUNITS ({u}: that of the variable); the others are dimensionless ('1')
 BAND_UDUNITS = {'value': '{u}', 'slope': '{u} year-1', 'intercept': '{u}', 'difference': '{u}', 'reference': '{u}',
-                'other': '{u}'}
+                'other': '{u}', 'reference_median': '{u}', 'reference_mad': '{u}', 'impact': '{u}', 'impact_pct': '%',
+                'DIT_years': 'year', 'RRT_years': 'year', 'RET_years': 'year', 'recovered_pct': '%', 'n_years': '1'}
 
 
 def _now():
@@ -364,6 +366,8 @@ def name_bands(path, unit):
 def band_udunits(band, unit):
 	"""The unit in UDUNITS of a band of the tools, with UNIT that of the variable in UDUNITS ('' if unknown: then
 	that of the bands of the variable is unknown too)."""
+	if re.fullmatch(r'y\d{4}', str(band)):  # a band per year (recovery_map): the variable
+		band = 'value'
 	template = BAND_UDUNITS.get(band, '1' if band in BANDS else '')
 	if '{u}' not in template:
 		return template
@@ -382,7 +386,7 @@ def text(tool, args, result, computed=None):
 	from . import report
 	result = result if isinstance(result, dict) else {}
 	given = call_args(args)
-	files = _files(result, ('file', 'gif', 'csv', 'chart', 'perimeter'))
+	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'chart', 'perimeter'))
 	name = os.path.basename(files[0]) if files else tool
 	title = report.item_title(tool, given, result)
 	out = [f'README of {name}', '=' * min(WIDTH, len(f'README of {name}')), '', title,
@@ -456,7 +460,8 @@ def text(tool, args, result, computed=None):
 			names = [b for _, b, _ in bands]
 			klass = categorical_entry(given)
 			for i, b, bu in bands:
-				label = publish.band_text(b, names)[0] if b == 'severity' else BANDS.get(b, ('', ''))[0]
+				label = publish.band_text(b, names)[0] if b == 'severity' else \
+					f'Value of the variable in {b[1:]}' if re.fullmatch(r'y\d{4}', b) else BANDS.get(b, ('', ''))[0]
 				if klass and b == 'value':  # class codes, without a unit
 					label = f"Class of each pixel: its code ({klass['band']} of {klass['col']}), without a unit"
 				out.append(_wrap(f'{i} {b}: {label}' + (f' ({bu})' if bu else '')))
@@ -548,7 +553,7 @@ def document(tool, args, result, computed=None):
 		folders = result.get('folders') or {}
 		paths = [recipe_folder(d, result) for d in (folders.values() if isinstance(folders, dict) else folders)]
 		return [p for p in paths if p] or None
-	files = _files(result, ('file', 'gif', 'csv', 'perimeter'))
+	files = _files(result, ('file', 'yearly', 'gif', 'csv', 'perimeter'))
 	if not files:
 		return None
 	for f in files:

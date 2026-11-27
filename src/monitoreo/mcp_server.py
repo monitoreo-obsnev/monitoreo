@@ -1069,6 +1069,26 @@ def image_count(region: dict, variable: Optional[str] = None, sensor: Optional[s
 
 
 @tool
+def recovery_map(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                 event: str, season: Optional[List[str]] = None, metric: str = 'median', quality: Optional[dict] = None,
+                 resolution: Optional[float] = None, reference_years: int = 3, equilibrium: float = 0.05,
+                 where: Optional[list] = None) -> str:
+	"""The recovery after a disturbance on each pixel (the map of recovery_metrics): the metric of each year from start to
+	end (season: e.g. ["07-01", "09-30"], the summer, so that every year compares the same time), and on each pixel the
+	metrics of Marcos et al. (2023) of its annual series: the reference (median ± MAD of the reference_years before the
+	event), the impact of the year after it (impact, impact_pct, impact_mad, direction), DIT, RRT (the recovery time;
+	no value where not recovered), RET and recovered_pct. Writes a GeoTIFF of those bands and another of a band per
+	year; returns their paths and a summary (pixels, share recovered, median RRT, impact and share recovered). For
+	small areas (a fire, an avalanche path): every year is downloaded."""
+	_ready()
+	path = _out(_stem('recovery_map', _data(variable, sensor, {}), event, start, end), 'tif')
+	res = services.recovery_map(region, variable, sensor, start, end, event, metric, season, quality, resolution,
+	                            reference_years=reference_years, equilibrium=equilibrium, path=path, where=where)
+	return _text({k: res.get(k) for k in ('title', 'summary', 'file', 'yearly', 'bands', 'years', 'resolution', 'readme',
+	                                       'references', 'credits', 'manual')})
+
+
+@tool
 def control_ring(region: dict, gap: float = 150, width: float = 1500, exclude: Optional[dict] = None,
                  within: Optional[dict] = None, match: Optional[List[str]] = None) -> str:
 	"""The control area of a disturbance: a ring from gap to gap + width metres around the region (the affected area: a

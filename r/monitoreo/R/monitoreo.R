@@ -1063,6 +1063,42 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   cited(df, res)
 }
 
+#' Recovery after a disturbance on each pixel
+#'
+#' The map of \code{mo_recovery_metrics()}: the temporal \code{metric} of each year from \code{start} to \code{end}
+#' (within \code{season}, e.g. the summer), and on each pixel the metrics of Marcos et al. (2023) of its annual
+#' series: the reference (median and MAD of the \code{reference_years} before the event), the impact of the year after
+#' it, DIT, RRT (the recovery time; no value where not recovered), RET and the share recovered.
+#' @inheritParams mo_params
+#' @param event the date of the disturbance, \code{"YYYY-MM-DD"}.
+#' @param metric the temporal metric of each year (default \code{"median"}).
+#' @param resolution pixel size in metres (default: that of the data).
+#' @param reference_years years before the event of the reference (default 3).
+#' @param equilibrium relative change of the yearly values below which it is stable (default 0.05).
+#' @param path optional path of the GeoTIFF of the metrics (the yearly values go to \code{<path>_yearly.tif}).
+#' @return A list: file (the GeoTIFF of the metrics, bands reference_median, reference_mad, impact, impact_pct,
+#'   impact_mad, direction, DIT_years, RRT_years, RET_years, recovered_pct, n_years), yearly (a band per year), years,
+#'   summary (pixels, recovered_share, RRT_median, impact_pct_median, recovered_pct_median), readme, references and
+#'   credits.
+#' @references Marcos, B., Gonçalves, J., Alcaraz-Segura, D., Cunha, M., & Honrado, J. P. (2023). Assessing the
+#'   resilience of ecosystem functioning to wildfires using satellite-derived metrics of post-fire trajectories.
+#'   Remote Sensing of Environment, 286, 113441. \doi{10.1016/j.rse.2022.113441}
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' x <- mo_recovery_map(mo_sf(sf::read_sf("fire.gpkg"), "region"), "NDVI", "Landsat", "1999-01-01", "2025-12-31",
+#'                      event = "2005-09-22", season = c("07-01", "09-30"), path = "recovery.tif")
+#' terra::plot(terra::rast(x$file)[["RRT_years"]])
+#' }
+#' @export
+mo_recovery_map <- function(region, variable = NULL, sensor = NULL, start, end, event, metric = "median",
+                            season = NULL, quality = NULL, resolution = NULL, reference_years = 3,
+                            equilibrium = 0.05, path = NULL, where = NULL) {
+  services()$recovery_map(region, variable, sensor, start, end, event, metric, season, quality, resolution,
+                          reference_years = as.integer(reference_years), equilibrium = equilibrium,
+                          path = if (is.null(path)) NULL else path.expand(path), where = where)
+}
+
 #' Control ring of an affected area
 #'
 #' The control area of a disturbance: a ring from \code{gap} to \code{gap + width} metres around the affected area

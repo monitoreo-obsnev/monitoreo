@@ -62,7 +62,7 @@ import ee
 from . import animation, areas, catalog, categorical, charts, classes, composite, control, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
-from .grid import Grid, download
+from .grid import NODATA, Grid, download
 
 # Broker of the shared account of MonitorEO (broker/ in the repository): tokens of one hour of a service account that
 # only computes in Earth Engine with the quota of the project of MonitorEO. MONITOREO_BROKER replaces it.
@@ -1252,6 +1252,130 @@ def control_ring(region, gap=control.DEFAULTS['gap'], width=control.DEFAULTS['wi
 		         'width_m': info['width'], 'match': text, 'geometry': f['geometry']} for f in reg['geojson']['features']]
 		out['file'] = areas.save_polygons(rows, path, 'zones', CONTROL_TYPES)
 	return out
+
+
+def _read_stack(path, nodata=NODATA):
+	"""The bands of the GeoTIFF PATH as an array bands x rows x columns, NaN where NODATA, and its geotransform and
+	projection."""
+	from osgeo import gdal
+	import numpy as np
+	gdal.UseExceptions()
+	ds = gdal.Open(path)
+	arr = ds.ReadAsArray().astype(float)
+	if arr.ndim == 2:
+		arr = arr[None]
+	arr[arr == nodata] = np.nan
+	out = arr, ds.GetGeoTransform(), ds.GetProjection()
+	ds = None
+	return out
+
+
+def _write_bands(path, bands, geotransform, projection, metadata=None, nodata=NODATA):
+	"""Write BANDS ({name: array rows x columns, NaN without value}) to the float32 GeoTIFF PATH (NoData NODATA), each
+	band named as its key."""
+	from osgeo import gdal
+	import numpy as np
+	gdal.UseExceptions()
+	names = list(bands)
+	rows, cols = bands[names[0]].shape
+	ds = gdal.GetDriverByName('GTiff').Create(path, cols, rows, len(names), gdal.GDT_Float32,
+	                                          ['COMPRESS=DEFLATE', 'PREDICTOR=3', 'TILED=YES'])
+	ds.SetGeoTransform(geotransform)
+	ds.SetProjection(projection)
+	for i, name in enumerate(names, 1):
+		b = ds.GetRasterBand(i)
+		b.SetDescription(name)
+		b.SetNoDataValue(nodata)
+		b.WriteArray(np.where(np.isfinite(bands[name]), bands[name], nodata).astype('float32'))
+	if metadata:
+		ds.SetMetadata(metadata)
+	ds = None
+	return path
+
+
+YEARS_PER_REQUEST = 4  # yearly composites in each request of recovery_map
+RECOVERY_MAP_PIXELS = 1_000_000  # pixels of its grid at most: bigger pixels beyond (some 8 minutes of metrics)
+
+
+@_cited
+def recovery_map(region, variable=None, sensor=None, start=None, end=None, event=None, metric='median', season=None,
+                 quality=None, resolution=None, crs='auto', reference_years=recovery.REFERENCE_YEARS,
+                 equilibrium=recovery.EQUILIBRIUM, path=None, max_pixels=RECOVERY_MAP_PIXELS, tile=512, workers=8,
+                 progress=None, **source):
+	"""The recovery after a disturbance on the date EVENT on each pixel of REGION: the METRIC of the images of each year
+	of START to END (within SEASON, e.g. the summer: one value per year), on a grid of RESOLUTION metres in CRS (as
+	download_image), downloaded as a GeoTIFF of a band per year (the file '<PATH>_yearly.tif'), and on each pixel the
+	metrics of Marcos et al. (2023) of its annual series, as recovery_metrics computes them with the step annual
+	(monitoreo.recovery.pixel_metrics): the reference (median and MAD of the REFERENCE_YEARS before the event), the
+	impact of the year after it (in the unit of the variable, in % and in MADs, with its direction), DIT, RRT (the
+	recovery time: the years until it is back in the reference interval; no value where it is not) and RET, and the
+	share recovered in the last year. Writes them to the GeoTIFF PATH (float32, NoData -9999), a band each
+	(recovery.PIXEL_BANDS). Returns {'file', 'yearly', 'bands', 'years', 'event', 'grid', 'resolution',
+	'native_resolution', 'summary': {pixels (with metrics), recovered_share (with an RRT), RRT_median, impact_pct_median,
+	recovered_pct_median}, 'name', 'unit'}. A grid of more than MAX_PIXELS (RECOVERY_MAP_PIXELS) gets bigger pixels (see
+	download_image): every year is downloaded and the metrics run on each pixel. A SEASON across the new year (e.g.
+	11-01 to 03-31) is refused: its windows would not be one per calendar year. PROGRESS(done, total, what) for the
+	years and then for the rows of pixels."""
+	import numpy as np
+	_, ev, reference_years, equilibrium = recovery.check('annual', event, start, end, reference_years, equilibrium)
+	if season and len(season) == 2 and str(season[0]) > str(season[1]):
+		raise ValueError(f'recovery_map takes a season inside the calendar year (one value per year), not one across the '
+		                 f'new year ({season[0]} to {season[1]}): give, e.g., the months of one side of it')
+	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	variables.check_dates(spec, 'recovery map')
+	regions = areas.region(region)
+	native = float(variables.native_scale(spec))
+	grid, res = _fit_grid(regions, resolution, crs, max_pixels, native)
+	geom = regions.geometry()
+	steps = timeseries.bins(spec, 'annual', geom)
+	years = [int(a[:4]) for a, _ in steps]
+	if len(set(years)) != len(years):
+		raise ValueError('recovery_map needs one window per calendar year: give a season inside the year')
+	col = variables.collection(spec, geom, res)
+	path = path or _slug(_file_stem(variable, sensor, metric, start, end, source) + f'_recovery_{ev}') + '.tif'
+	yearly = os.path.splitext(path)[0] + '_yearly.tif'
+	desc = variables.describe(spec)
+	# the years in groups of YEARS_PER_REQUEST bands: a request with every year runs out of the memory of Earth Engine
+	parts = []
+	try:
+		for k in range(0, len(steps), YEARS_PER_REQUEST):
+			group = steps[k:k + YEARS_PER_REQUEST]
+			img = ee.Image.cat([composite.reduce_span(col, metric, a, b).rename(f'y{a[:4]}') for a, b in group])
+			part = f'{yearly}.{k}.tif'
+			parts.append(part)
+			download(img.clipToCollection(regions), grid, part, tile=tile, workers=workers,
+			         bands=[f'y{a[:4]}' for a, _ in group])
+			if progress:
+				progress(min(k + YEARS_PER_REQUEST, len(steps)), len(steps), 'years')
+		arrays = [_read_stack(p) for p in parts]
+	finally:  # the parts, also when a request fails
+		for p in parts:
+			if os.path.exists(p):
+				os.remove(p)
+	gt, proj = arrays[0][1], arrays[0][2]
+	stack = np.concatenate([a[0] for a in arrays])
+	del arrays
+	_write_bands(yearly, {f'y{y}': stack[i] for i, y in enumerate(years)}, gt, proj,
+	             {'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(desc, years=years), default=str)})
+	got = recovery.pixel_metrics(stack, years, ev, reference_years, equilibrium, progress)
+	meta = {'source': 'Google Earth Engine and MonitorEO (monitoreo.recovery.pixel_metrics)',
+	        'monitoreo': json.dumps(dict(desc, years=years, event=str(ev), reference_years=reference_years,
+	                                     equilibrium=equilibrium, method='Marcos et al. 2023, annual'), default=str)}
+	_write_bands(path, got, gt, proj, meta)
+	have = np.isfinite(got['reference_median']) & np.isfinite(got['impact'])
+	n = int(have.sum())
+
+	def median(band):
+		v = got[band][have & np.isfinite(got[band])]
+		return float(np.median(v)) if len(v) else None
+	summary = {'pixels': n, 'recovered_share': float(np.isfinite(got['RRT_years'][have]).mean()) if n else None,
+	           'RRT_median': median('RRT_years'), 'impact_pct_median': median('impact_pct'),
+	           'recovered_pct_median': median('recovered_pct')}
+	return {'file': path, 'yearly': yearly, 'bands': list(got), 'years': years, 'event': str(ev),
+	        'grid': grid.describe(), 'resolution': res, 'native_resolution': native, 'summary': summary,
+	        'name': _named(spec, metric), 'unit': _unit(spec),
+	        'title': f"Recovery of {_series_name(spec)} after {ev}, on each pixel | {years[0]}-{years[-1]}, {metric} of "
+	                 f"each year, reference of {reference_years} years"}
 
 
 # the columns of the table of the recovery metrics (a row for the affected area, the control and their difference)
