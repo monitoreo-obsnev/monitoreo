@@ -247,12 +247,32 @@ def _rings(polygon, pixels, crs, min_m2):
 	return ee.List([rings.get(0)]).cat(rings.slice(1).map(hole, True))
 
 
-def perimeter(value, burned_min, regions, scale, crs, min_ha=PERIMETER_MIN_HA):
+def check_keep(seed=None, largest=False):
+	"""Which burned patches the perimeter keeps (see perimeter): None (all of them), 'largest' or the point SEED
+	[lon, lat]. ValueError, before Earth Engine, with both or with a SEED that is not a point in degrees."""
+	if seed is not None and seed != [] and largest:
+		raise ValueError('seed or largest: the patch nearest to a point, or the largest one, not both')
+	if largest:
+		return 'largest'
+	if seed is None or seed == []:
+		return None
+	try:
+		lon, lat = (float(v) for v in seed)
+	except (TypeError, ValueError):
+		raise ValueError(f'seed: a point [lon, lat] in degrees inside or near the fire, e.g. [-3.42, 37.01], not '
+		                 f'{seed!r}') from None
+	if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+		raise ValueError(f'seed: [lon, lat] in degrees (longitude -180 to 180, latitude -90 to 90), not {seed!r}')
+	return [lon, lat]
+
+
+def perimeter(value, burned_min, regions, scale, crs, min_ha=PERIMETER_MIN_HA, keep=None):
 	"""ee.FeatureCollection of the perimeter of the burned area of each feature of REGIONS (see PERIMETER_MIN_HA): a
 	feature with a MultiPolygon (EPSG:4326) of the connected pixels (eight neighbours) of SCALE metres in CRS of the
 	ee.Image VALUE (a burn index) at least BURNED_MIN, without the patches of less than MIN_HA hectares and with the
 	unburned islands of less than MIN_HA filled, and the properties name (that of the feature), ha (its area, in
-	hectares) and patches (its polygons)."""
+	hectares) and patches (its polygons). KEEP (check_keep): only the largest patch ('largest'), or that nearest to the
+	point [lon, lat] (the one that contains it, if any): the fire alone in a large region."""
 	burned = value.gte(burned_min).selfMask().rename('burned')
 	min_m2 = float(min_ha) * 1e4
 	min_pixels = min_m2 / float(scale) ** 2
@@ -272,6 +292,11 @@ def perimeter(value, burned_min, regions, scale, crs, min_ha=PERIMETER_MIN_HA):
 		                                            eightConnected=True, maxPixels=1e13, tileScale=4,
 		                                            geometryInNativeProjection=True)
 		kept = patches.filter(ee.Filter.gte('count', min_pixels))
+		if keep == 'largest':
+			kept = kept.sort('count', False).limit(1)
+		elif keep is not None:  # the patch nearest to the point (0 m: the one that contains it)
+			point = ee.Geometry.Point(keep)
+			kept = kept.map(lambda f: f.set('distance', f.geometry().distance(point, scale))).sort('distance').limit(1)
 		coords = ee.List(kept.iterate(lambda f, acc: ee.List(acc).cat(polygons(f)), ee.List([])))
 		shape = ee.Geometry.MultiPolygon(coords, pixels, False)
 		return ee.Feature(shape.transform('EPSG:4326', float(scale) / 10),

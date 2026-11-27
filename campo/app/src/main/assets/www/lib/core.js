@@ -3340,8 +3340,8 @@ var MonitorEO = (function () {
 		checkMetric(metric);
 		var red = metric;
 		// the statistic count is the number of pixels: once (Earth Engine refuses two outputs count)
-		var sred = String(stat).trim().toLowerCase() === 'count' ? ee.Reducer.count() :
-			reducer(stat).combine(ee.Reducer.count(), '', true);
+		var onlyCount = String(stat).trim().toLowerCase() === 'count';
+		var sred = onlyCount ? ee.Reducer.count() : reducer(stat).combine(ee.Reducer.count(), '', true);
 		var out = ee.String(reducer(stat).getOutputs().get(0));
 		var bands = steps.map(function (st, i) { return 's' + i; });
 		var img = ee.Image.cat(steps.map(function (st, i) {
@@ -3353,21 +3353,26 @@ var MonitorEO = (function () {
 			var total = (whereMask(s, regions.geometry(), scale) || ee.Image(1)).rename('total');
 			regions = regions.map(function (f) {
 				f = ee.Feature(f);
-				var n = total.reduceRegion({reducer: ee.Reducer.count(), geometry: f.geometry(), scale: scale, crs: crs,
-					maxPixels: 1e13, tileScale: tileScale || 4}).get('total');
+				// with the reducer of the steps, which counts the pixels as they do (with mean or median, also those that
+				// the region only touches): with count alone, the region would have fewer pixels than its steps
+				var n = total.reduceRegion({reducer: sred, geometry: f.geometry(), scale: scale, crs: crs,
+					maxPixels: 1e13, tileScale: tileScale || 4}).get(onlyCount ? 'total' : 'total_count');
 				return f.set('total_count', ee.Algorithms.If(n, n, 0));
 			});
 		}
 		var stats = img.reduceRegions({collection: regions, reducer: sred, scale: scale, crs: crs,
 			tileScale: tileScale || 4});
 		var prefix = bands.map(function (b) { return bands.length > 1 ? b + '_' : ''; });
+		// the output count of each step: with the reducer count alone over several bands, the name of its band (s0, s1...)
+		var counted = bands.map(function (b, i) { return onlyCount && bands.length > 1 ? b : prefix[i] + 'count'; });
 		return stats.map(function (f) {
 			f = ee.Feature(f);
 			return ee.FeatureCollection(steps.map(function (st, i) {
-				var props = {region: f.get('name'), date: st[0], value: statValue(f, stat, out, prefix[i]),
-					n_pixels: f.get(prefix[i] + 'count'), n_images: nImages.get(i)};
+				var props = {region: f.get('name'), date: st[0],
+					value: onlyCount ? f.get(counted[i]) : statValue(f, stat, out, prefix[i]),
+					n_pixels: f.get(counted[i]), n_images: nImages.get(i)};
 				if (minCoverage !== null) {  // the fraction of the pixels of the region with a value (none without its count)
-					var all = ee.Number(f.get('total_count')), valid = f.get(prefix[i] + 'count');
+					var all = ee.Number(f.get('total_count')), valid = f.get(counted[i]);
 					var cover = ee.Algorithms.If(valid, ee.Algorithms.If(all.gt(0), ee.Number(valid).divide(all), 0), null);
 					props.coverage = cover;
 					props.value = ee.Algorithms.If(ee.Algorithms.IsEqual(cover, null), props.value,
@@ -4264,13 +4269,14 @@ var MonitorEO = (function () {
 
 	// services.burn_severity: {dnbr, severity, nbr_before, nbr_after (an image with these bands), hectares
 	// (ee.FeatureCollection of the regions with the grouped hectares of each class)}. With INDEX 'RBR', burnRatio;
-	// with 'RdNBR', rdnbrSeverity (BEFORE and AFTER, then, specs of their entries of the catalog: see burnEntry)
-	function burnSeverity(before, after, regions, scale, crs, index) {
+	// with 'RdNBR', rdnbrSeverity (BEFORE and AFTER, then, specs of their entries of the catalog: see burnEntry).
+	// OFFSET (a number, see burnOffset; null: none) is subtracted from the dNBR before its classes, the RBR and the RdNBR
+	function burnSeverity(before, after, regions, scale, crs, index, offset) {
 		index = burnIndex(index);
-		if (index === 'RBR') return burnRatio(before, after, regions, scale, crs);
-		if (index === 'RdNBR') return rdnbrSeverity(before, after, regions, scale, crs);
+		if (index === 'RBR') return burnRatio(before, after, regions, scale, crs, offset);
+		if (index === 'RdNBR') return rdnbrSeverity(before, after, regions, scale, crs, offset);
 		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
-		var dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr');
+		var dnbr = lessOffset(img.select('reference').subtract(img.select('other')).rename('dnbr'), offset);
 		var severity = classify(dnbr);
 		var hectares = ee.Image.pixelArea().divide(1e4).addBands(severity).updateMask(dnbr.mask());
 		var stats = hectares.reduceRegions({collection: regions, reducer: ee.Reducer.sum().group(1, 'class'),
@@ -4298,10 +4304,10 @@ var MonitorEO = (function () {
 			.combine(ee.Reducer.minMax(), '', true).combine(ee.Reducer.sum(), '', true);
 	}
 
-	function burnRatio(before, after, regions, scale, crs) {
+	function burnRatio(before, after, regions, scale, crs, offset) {
 		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
 		var pre = img.select('reference'), post = img.select('other');
-		var dnbr = pre.subtract(post).rename('dnbr');
+		var dnbr = lessOffset(pre.subtract(post).rename('dnbr'), offset);
 		var rbr = dnbr.divide(pre.add(RBR_OFFSET)).rename('rbr');  // fire.rbr
 		var stats = rbr.addBands(ee.Image.pixelArea().divide(1e4).updateMask(rbr.mask()).rename('ha')).reduceRegions({
 			collection: regions, reducer: burnStatsReducer(), scale: scale, crs: crs, tileScale: 4});
@@ -4324,11 +4330,12 @@ var MonitorEO = (function () {
 	// RDNBR_SEVERITY: see severityTable and burnedHa), stats (ee.FeatureCollection of the regions with the statistics of
 	// the RdNBR and the hectares with values: see rdnbrTable)}. BEFORE and AFTER are specs of the entry RdNBR of the
 	// catalog (144 Sentinel-2, 145 Landsat, 146 MODIS Terra, 147 MODIS Aqua: see burnEntry). Without the offset of the
-	// article (the dNBR of an unburned area outside the fire), as the dNBR and the RBR
-	function rdnbrSeverity(before, after, regions, scale, crs) {
+	// article (the dNBR of an unburned area outside the fire) unless OFFSET gives it (see burnOffset), as the dNBR and
+	// the RBR
+	function rdnbrSeverity(before, after, regions, scale, crs, offset) {
 		var img = comparisonImage(before, after, regions.geometry()).clipToCollection(regions);
 		var pre = img.select('reference'), post = img.select('other');
-		var dnbr = pre.subtract(post).rename('dnbr');
+		var dnbr = lessOffset(pre.subtract(post).rename('dnbr'), offset);
 		var value = rdnbr(dnbr, pre);
 		var severity = classify(value, 'RdNBR');
 		var ha = ee.Image.pixelArea().divide(1e4).updateMask(value.mask());
@@ -4349,6 +4356,26 @@ var MonitorEO = (function () {
 				cv: cvNumber(p.rdnbr_mean, p.rdnbr_stdDev), p10: p.rdnbr_p10, p90: p.rdnbr_p90, min: p.rdnbr_min,
 				max: p.rdnbr_max, ha: p.ha_sum || 0};
 		});
+	}
+
+	// services._offset: the offset of the dNBR (burnSeverity subtracts it with lessOffset), the median of the dNBR of
+	// the pixels of OFFSET_REGIONS (an ee.FeatureCollection: an unburned area near the fire, of the same vegetation; also
+	// outside the region of the fire) of SCALE metres in CRS, from the NBR of BEFORE and AFTER (the specs of the fire:
+	// the same data, periods, pixel filters and conditions) computed over those regions (Miller & Thode 2007, Parks et
+	// al. 2014): an ee.Number, null if they have no pixel with a dNBR (see OFFSET_NONE)
+	var OFFSET_NONE = 'offset_region has no pixel with a dNBR (both periods with valid images): give an unburned area ' +
+		'with vegetation near the fire, inside the data';
+	function burnOffset(before, after, offsetRegions, scale, crs) {
+		offsetRegions = ee.FeatureCollection(offsetRegions);
+		var img = comparisonImage(before, after, offsetRegions.geometry()).clipToCollection(offsetRegions);
+		var dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr');
+		return dnbr.reduceRegion({reducer: ee.Reducer.median(), geometry: offsetRegions.geometry(),
+			scale: scale, crs: crs, maxPixels: 1e13, tileScale: 4}).get('dnbr');
+	}
+
+	// services._offset: the dNBR (an ee.Image) without OFFSET (a number; null or undefined: no offset)
+	function lessOffset(dnbr, offset) {
+		return offset === null || offset === undefined ? dnbr : dnbr.subtract(Number(offset)).rename('dnbr');
 	}
 
 	// fire.table: rows of every class of INDEX ('dNBR', the default, or 'RdNBR') of a region from the GROUPS of the
@@ -4404,11 +4431,40 @@ var MonitorEO = (function () {
 		return ee.List([rings.get(0)]).cat(holes);
 	}
 
+	// fire.check_keep: which burned patches the perimeter keeps (see burnPerimeter): null (all of them), 'largest' or
+	// the point SEED [lon, lat]. An Error, before Earth Engine, with both or with a SEED that is not a point in degrees
+	function checkKeep(seed, largest) {
+		function truthy(x) {  // as Python: not an empty list, text or dictionary, 0, false, null
+			return x !== null && typeof x === 'object' ? Object.keys(x).length > 0 : Boolean(x);
+		}
+		var none = seed === null || seed === undefined || (Array.isArray(seed) && !seed.length);
+		if (!none && truthy(largest)) {
+			throw new Error('seed or largest: the patch nearest to a point, or the largest one, not both');
+		}
+		if (truthy(largest)) return 'largest';
+		if (none) return null;
+		var point = Array.isArray(seed) && seed.length === 2 ? seed.map(function (v) {  // float(v) of Python
+			if (typeof v === 'number' || typeof v === 'boolean') return Number(v);
+			var s = typeof v === 'string' ? v.trim() : '';
+			return /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s) ? Number(s) : NaN;
+		}) : [NaN, NaN];
+		if (isNaN(point[0]) || isNaN(point[1])) {
+			throw new Error('seed: a point [lon, lat] in degrees inside or near the fire, e.g. [-3.42, 37.01], not ' +
+				JSON.stringify(seed));
+		}
+		if (!(point[0] >= -180 && point[0] <= 180 && point[1] >= -90 && point[1] <= 90)) {
+			throw new Error('seed: [lon, lat] in degrees (longitude -180 to 180, latitude -90 to 90), not ' +
+				JSON.stringify(seed));
+		}
+		return point;
+	}
+
 	// fire.perimeter: the perimeter of the burned area of each feature of REGIONS, an ee.FeatureCollection of a
 	// MultiPolygon (EPSG:4326) of the connected pixels (eight neighbours) of SCALE metres in CRS of the image VALUE (a
 	// burn index) at least BURNED_MIN, without the patches of less than MIN_HA hectares and with the unburned islands of
-	// less than MIN_HA filled, with the properties name, ha and patches
-	function burnPerimeter(value, burnedMinValue, regions, scale, crs, minHa) {
+	// less than MIN_HA filled, with the properties name, ha and patches. KEEP (checkKeep): only the largest patch
+	// ('largest'), or that nearest to the point [lon, lat] (the one that contains it, if any)
+	function burnPerimeter(value, burnedMinValue, regions, scale, crs, minHa, keep) {
 		minHa = minHa === null || minHa === undefined ? PERIMETER_MIN_HA : Number(minHa);
 		var burned = ee.Image(value).gte(burnedMinValue).selfMask().rename('burned');
 		var minM2 = minHa * 1e4;
@@ -4428,6 +4484,13 @@ var MonitorEO = (function () {
 				geometryType: 'polygon', eightConnected: true, maxPixels: 1e13, tileScale: 4,
 				geometryInNativeProjection: true});
 			var kept = patches.filter(ee.Filter.gte('count', minPixels));
+			if (keep === 'largest') {
+				kept = kept.sort('count', false).limit(1);
+			} else if (keep) {  // the patch nearest to the point (0 m: the one that contains it)
+				var point = ee.Geometry.Point(keep);
+				kept = kept.map(function (f) { return f.set('distance', f.geometry().distance(point, scale)); })
+					.sort('distance').limit(1);
+			}
 			var coords = ee.List(kept.iterate(function (f, acc) { return ee.List(acc).cat(polygons(f)); }, ee.List([])));
 			var shape = ee.Geometry.MultiPolygon(coords, pixels, false);
 			return ee.Feature(shape.transform('EPSG:4326', scale / 10), {name: region.get('name'),
@@ -4788,7 +4851,8 @@ var MonitorEO = (function () {
 		CLASSES: CLASSES, BURN_INDICES: BURN_INDICES, BURN_SENSORS: BURN_SENSORS, burnIndex: burnIndex,
 		burnEntry: burnEntry, severityLimits: severityLimits, severityLegend: severityLegend, classLabel: classLabel,
 		rdnbr: rdnbr, rdnbrSeverity: rdnbrSeverity, rdnbrTable: rdnbrTable, burnedHa: burnedHa,
-		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter,
+		PERIMETER_MIN_HA: PERIMETER_MIN_HA, burnedMin: burnedMin, burnPerimeter: burnPerimeter, checkKeep: checkKeep,
+		burnOffset: burnOffset, lessOffset: lessOffset, OFFSET_NONE: OFFSET_NONE,
 		ramp: ramp, STRETCH: STRETCH, checkPercentiles: checkPercentiles, checkRange: checkRange,
 		stretchReducer: stretchReducer, stretchOf: stretchOf, frameImages: frameImages, frameRanges: frameRanges,
 		ordered: ordered, frameVis: frameVis, percentiles: percentiles, visParams: visParams, spread: spread,

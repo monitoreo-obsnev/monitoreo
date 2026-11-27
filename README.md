@@ -96,6 +96,14 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Python package, R package, Command line, MCP server, Assistant**: The images and valid observations of a variable in each year, month or 16 days of a period over a region, after the pixel filters (`image_count`; `monitoreo count`; `mo_image_count()`): the images of each step, the valid images per pixel and the fraction of the region with data, to choose the period of a series or a trend before computing it (e.g. the summers of Landsat 5 in the 1990s). The QGIS plugin and the Earth Engine app give the same with the metric count of their time series.
+- **All tools**: The burn severity keeps in the perimeter only the burned patch of the fire, the one nearest to a point in it (`seed`; `--seed LON LAT`; Keep in the QGIS plugin, Patches in the Earth Engine app) or the largest one (`largest`; `--largest`), so that a large region gives the perimeter of the fire without the other patches that pass the threshold (other fires, harvests, pastures that dried).
+- **All tools**: The burn severity subtracts from the dNBR the median dNBR of a region of unburned land near the fire (`offset_region`; `--offset-region`; Offset region in the QGIS plugin, a layer of polygons; the button «Use this region as the offset region» in the Earth Engine app), before its classes, the RBR and the RdNBR, as the offset of Miller & Thode (2007) and Parks et al. (2014): the change between both periods that is not the fire (phenology, drought, the drying of pastures and heath) is no longer taken for burned land.
+- **All tools** (fix): A time series with the statistic count over several steps (months, years) had no values; with one step it had them.
+- **All tools** (fix): With a minimum coverage, the coverage of a step with the statistic mean or median could be a little more than 1 (the pixels that the region only touches were counted in the step but not in the region).
+
 ### [v0.3.80](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.80) · 2026-11-27 · package 0.3.90
 
 - **All tools**: Landsat 5 and 7 harmonized with Landsat 8 and 9, an option off by default (quality `harmonize`; `--harmonize` in the command line; a check box in the QGIS plugin and the Earth Engine app): their surface reflectance becomes that of Landsat 8 and 9 with the functions of Roy et al. (2016), so that a long series or trend of Landsat has no step in 2013.

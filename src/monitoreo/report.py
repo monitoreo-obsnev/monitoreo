@@ -41,6 +41,9 @@ TITLES = {'region_stats': 'Statistics of {var}, {period}{season}', 'map_layer': 
 METHODS = {
 	'time_series': 'For each time step, the temporal metric of the images of the step on each pixel and, over the '
 	               'region, the spatial statistic of those values.',
+	'image_count': 'For each time step, the images of the step over the region, and on each pixel the images with a '
+	               'valid value after the pixel filters (their count): over the region, the mean of that count on the '
+	               'pixels with at least one, and the fraction of the pixels of the region with at least one.',
 	'time_series_profile': 'For each time step, the temporal metric of the images of the step on each pixel and, over '
 	                       'the region, the spatial statistic of those values; then, for each step of the year (each '
 	                       'month, 16-day period or calendar day), the metric between the years of its values in the '
@@ -135,7 +138,8 @@ METHODS = {
 	                       'at least 0.001 (Howe et al., 2022), with the NBR of the bands B8 and B12 of Sentinel-2 (NIR '
 	                       'and SWIR2 of Landsat; bands 2 and 7 of the daily surface reflectance of MODIS), on the scale '
 	                       'of the dNBR, without the factor 1000 of the article (0.641 here is 641 there), and without '
-	                       'its offset (the mean dNBR of an unburned area outside the fire). Severity classes of the '
+	                       'its offset (the dNBR of an unburned area outside the fire) unless an offset region gives it '
+	                       '(see Offset of the dNBR). Severity classes of the '
 	                       'article (its Table 4): ' + '; '.join(fire.class_label(c) for c in fire.legend('RdNBR')) +
 	                       f'. Changed area: RdNBR ≥ {fire.RDNBR_BURNED:g} (low to high severity). The classes were '
 	                       'calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of '
@@ -157,6 +161,9 @@ STATS = {'mean': 'mean', 'median': 'median', 'min': 'minimum', 'max': 'maximum',
 TABLES = {
 	'time_series': (('rows',), [('region', 'Region'), ('date', 'Date'), ('value', 'Value{u}'),
 	                            ('n_images', 'Images'), ('n_pixels', 'Valid pixels')]),
+	'image_count': (('rows',), [('region', 'Region'), ('date', 'Date'), ('n_images', 'Images'),
+	                            ('observations', 'Valid observations per pixel'), ('coverage', 'Coverage'),
+	                            ('n_pixels', 'Valid pixels')]),
 	# the seasonal profile of time_series with doy and interannual or other_variable (see is_profile)
 	'time_series_profile': (('profile',), [('region', 'Region'), ('variable', 'Variable'), ('label', 'Step of the year'),
 	                                       ('doy', 'Day of the year'), ('value', 'Value{u}'), ('unit', 'Unit'),
@@ -505,9 +512,10 @@ def item_facts(tool, args, result=None, names=None):
 	warned = result.get('warnings') if isinstance(result.get('warnings'), list) else []
 	if any(warned):  # days of the period without images of its data (monitoreo.coverage)
 		facts.append(('Warnings', ' '.join(str(w) for w in warned if w)))
-	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse') or \
-			(tool == 'area_by_class' and args.get('trend')):
-		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class') else 'monthly')
+	if tool in ('time_series', 'trend_table', 'compare_series', 'trend_map', 'download_trend', 'timelapse',
+	            'image_count') or (tool == 'area_by_class' and args.get('trend')):
+		step = args.get('step') or ('annual' if 'trend' in tool or tool in ('timelapse', 'area_by_class', 'image_count')
+		                            else 'monthly')
 		facts.append(('Step', STEPS.get(step, step)))
 	if tool in ('trend_map', 'download_trend') and args.get('part') or (
 			tool == 'area_by_class' and args.get('trend') and args.get('part') and args.get('step') in ('monthly', '16-day')):
@@ -520,7 +528,7 @@ def item_facts(tool, args, result=None, names=None):
 	if tool == 'area_by_class' and args.get('landcover'):  # a land cover map: no variable, period nor metric
 		static = True
 		facts += _landcover_facts(args)
-	if not static:
+	if not static and tool != 'image_count':  # it counts the images: no metric
 		facts.append(('Temporal metric', _stat(metric)))
 	if args.get('temporal') in PARTS and not static:  # the metric of each year, month or 16 days, then between years
 		each = {'annual': 'year', 'monthly': 'month', '16-day': '16-day period'}[args['temporal']]
@@ -574,8 +582,14 @@ def item_facts(tool, args, result=None, names=None):
 		label = f'Changed area (RdNBR ≥ {fire.RDNBR_BURNED:g})' if fire_variable(args) == 'RdNBR' else 'Burned area'
 		facts.append((label, '; '.join(f'{k}: {_num(v)} ha' for k, v in burned.items()) if len(burned) > 1
 		              else f'{_num(next(iter(burned.values())))} ha'))
+	if tool == 'burn_severity' and result.get('offset') is not None:
+		facts.append(('Offset of the dNBR', f"{_num(result['offset'])}, the median dNBR of the offset region "
+		                                    f"({region_text(args.get('offset_region'), names or {})}), subtracted from "
+		                                    'the dNBR before its classes and indices (Miller & Thode 2007; Parks et '
+		                                    'al. 2014)'))
 	if tool == 'burn_severity' and isinstance(result.get('perimeter_ha'), dict):
-		facts.append(('Perimeter of the burned area', perimeter_text(burn_index(args), result)))
+		facts.append(('Perimeter of the burned area', perimeter_text(burn_index(args), result)
+		              + (f"; only {result['perimeter_kept']}" if result.get('perimeter_kept') else '')))
 	if tool == 'burn_severity' and fire_variable(args) == 'RdNBR' and isinstance(result.get('stats'), list):
 		stats = [r for r in result['stats'] if isinstance(r, dict) and r.get('median') is not None]
 		text = [f"{_num(r['median'])} ({_num(r.get('p10'))} to {_num(r.get('p90'))})" for r in stats]

@@ -114,7 +114,8 @@ SWITCH_ACCOUNT = ' In the assistant: press «Use my Google account» and choose 
 ADVICE = ('list_variables', 'describe_variable', 'find_protected_areas',
           'find_admin_units', 'find_seas', 'describe_asset', 'community_themes',
           'community_datasets', 'landcover_maps', 'find_datasets', 'list_classes',
-          'apply_parameters')  # their answers go to the model (apply_parameters: to repeat an analysis from its JSON)
+          'apply_parameters', 'image_count')  # their answers go to the model (apply_parameters: to repeat an analysis
+# from its JSON; image_count: how many images a period has, to choose it)
 RESULTS = ('time_series', 'region_stats', 'map_layer', 'rgb_map', 'trend_table', 'trend_map', 'compare_series',
            'compare_map', 'burn_severity', 'download_image', 'download_rgb', 'download_trend', 'download_comparison',
            'download_variables', 'timelapse', 'area_by_class', 'transect')  # their answers go only to the user and the report
@@ -197,7 +198,8 @@ LABELS = {'manual': 'Looking in the manual of MonitorEO', 'read_document': 'Read
           'find_datasets': 'Searching the Earth Engine data catalog for «{text}»',
           'landcover_maps': 'Looking at the land cover maps of the land cover masks',
           'list_classes': 'Looking at the classes of {variable}',
-          'apply_parameters': 'Reading the parameters of an analysis'}
+          'apply_parameters': 'Reading the parameters of an analysis',
+          'image_count': 'Counting the images of {variable} over the region'}
 LABEL_KEYS = ('variable', 'text', 'asset')  # the arguments that the labels name
 
 RECEIPT_NOTE = 'The result is shown to the user and goes to their report; you only get a receipt, without the values.'
@@ -291,7 +293,8 @@ flat land it changes nothing. It costs more in Earth Engine.
 (e.g. {{"snow_ndsi": 0.4}}) when the user computes a standard deviation, a minimum or a maximum of the NDMI, the LSWI or \
 another index in the snow season, or asks for it: it also removes the patches of snow that the QA band misses. Not for \
 the NDSI, SCF, SCD or SMOD, nor MODIS; it is not applied to the NDWI, Chl-a, NDCI or WAVI (open water has a high NDSI too).
-- Long series of Landsat: for a trend or a series of Landsat that crosses 2013 (e.g. NDVI 1985-2025), add "harmonize": true to quality (Landsat 5 and 7 as Landsat 8 and 9, Roy et al. 2016), so that the change of sensor is not taken for a trend; not for LST, SCF, SCD, SMOD or CF. A period between 2012-05-05 and 2013-03-18 needs "landsat7": true (Landsat 7 with the stripes of its failure). If a series has months of a few clear pixels (snow, clouds), give min_coverage, e.g. 0.5.
+- Long series of Landsat: for a trend or a series of Landsat that crosses 2013 (e.g. NDVI 1985-2025), add "harmonize": true to quality (Landsat 5 and 7 as Landsat 8 and 9, Roy et al. 2016), so that the change of sensor is not taken for a trend; not for LST, SCF, SCD, SMOD or CF. A period between 2012-05-05 and 2013-03-18 needs "landsat7": true (Landsat 7 with the stripes of its failure). If a series has months of a few clear pixels (snow, clouds), give min_coverage, e.g. 0.5. When the images may be few (Landsat 5 in the 1990s, cloudy winters, a short season), image_count first tells how many valid observations each year or month has, to choose the period.
+- Burn severity over a large region: with perimeter, seed [lon, lat] (a point in the fire) or largest true keeps only the patch of the fire; offset_region (unburned land near the fire, of the same vegetation) subtracts its median dNBR, the change that is not the fire (the drying of pastures and heath).
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \
 always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water are \

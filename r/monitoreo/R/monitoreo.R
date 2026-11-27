@@ -1059,6 +1059,50 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   cited(df, res)
 }
 
+#' Images and valid observations of a variable per step
+#'
+#' How many images and valid observations a variable has over a region in each step of a period, after the pixel
+#' filters (clouds, shadows, water, snow): to choose the period, the step and the season of a series, a trend or a
+#' comparison before computing it, when the data may be scarce (Landsat 5 in the 1990s, cloudy winters, the gap
+#' between Landsat 5 and Landsat 8). The observations of a step are the images with a valid value on each pixel
+#' (the metric count of \code{mo_time_series()}), averaged over the pixels of the region with at least one.
+#' @inheritParams mo_params
+#' @param step \code{"annual"} (default), \code{"monthly"}, \code{"16-day"} or \code{"daily"}.
+#' @param csv optional path of a CSV file with the table.
+#' @param chart optional path of a PNG chart of the observations.
+#' @return A data.frame with a row per step and region: region, date (first day of the step), n_images (images of
+#'   the step over the region), observations (valid images per pixel, the mean over the pixels with data), coverage
+#'   (fraction of the pixels of the region with at least one valid image) and n_pixels; with the attributes summary
+#'   (by region: n_steps, n_images, steps_without_data, observations_min, observations_median and coverage_min), title,
+#'   scale, csv, chart, readme, references and credits.
+#' @section References: The result carries the references (with DOI) of its Earth Engine datasets, of the pixel
+#'   filters, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
+#'   data ask for. \code{mo_references()} prints them.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' # the summers of Landsat 5 in the valley of Ordesa in the 1990s
+#' x <- mo_image_count(mo_bbox(-0.10, 42.64, -0.03, 42.68), "NDVI", "Landsat", "1990-01-01", "1999-12-31",
+#'                     season = c("06-01", "09-30"))
+#' attr(x, "summary")
+#' }
+#' @export
+mo_image_count <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", season = NULL,
+                           quality = NULL, scale = NULL, csv = NULL, chart = NULL, collection = NULL, band = NULL,
+                           where = NULL) {
+  check_data(variable, sensor, collection, NULL, band, NULL, NULL, NULL)
+  res <- services()$image_count(region, variable, sensor, start, end, step, season = season, quality = quality,
+                                scale = scale, csv = csv, chart = if (is.null(chart)) NULL else path.expand(chart),
+                                collection = collection, band = band, where = where)
+  df <- rows_df(res$rows)
+  attr(df, "summary") <- rows_df(res$summary)
+  attr(df, "title") <- res$title
+  attr(df, "scale") <- res$scale
+  attr(df, "csv") <- res$csv
+  attr(df, "chart") <- res$chart
+  cited(df, res)
+}
+
 # The range of a y axis (ylim or other_ylim, named NAME) of mo_time_series() for Python: two numbers, as a list, or
 # NULL; a clear error with the words of R otherwise (Python checks that the first is the smaller).
 axis_range <- function(x, name) {
@@ -2410,8 +2454,8 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' surface reflectance, 500 m, as Veraverbeke et al. 2010; of Terra, MOD09GA, since 2000-02-24, or, with
 #' \code{collection = "MODIS/061/MYD09GA"}, of Aqua, since 2002-07-04). It is on the scale of the dNBR of MonitorEO,
 #' without the factor 1000 of the article (0.641 here is 641 there), like the RBR, and without the offset of the
-#' article (the mean dNBR of an unburned area outside the fire), which the dNBR and the RBR of MonitorEO do not apply
-#' either. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
+#' article (the dNBR of an unburned area outside the fire) unless \code{offset_region} gives it, as for the dNBR
+#' and the RBR. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
 #' California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with the composite burn index
 #' (CBI) measured in the field one year after the fire (extended assessment): the period
 #' after should be about one year after the fire, in the same season as the period before. With MODIS (500 m), mixed
@@ -2426,6 +2470,15 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #' feature of the region, those whose index is at least \code{burned_min} (by default that of its classes: dNBR 0.1,
 #' RdNBR 0.069; the RBR, without classes, needs it), joined when they touch, even by a corner, without the patches of
 #' less than \code{min_ha} hectares and with the unburned islands of less than \code{min_ha} inside them filled.
+#' With \code{seed} (a point \code{c(lon, lat)} in the fire) or \code{largest = TRUE}, the perimeter keeps only the
+#' burned patch nearest to the point (the one that contains it) or the largest one: the fire alone in a large
+#' region. The classes are still those of the whole region: give the perimeter as the region of another call for
+#' those of the fire alone.
+#'
+#' With \code{offset_region} (a region of unburned land near the fire, of the same vegetation), its median dNBR, the
+#' change between both periods that is not the fire (phenology, drought, the drying of pastures and heath), is
+#' subtracted from the dNBR before its classes, the RBR and the RdNBR, as the offset of Miller and Thode (2007) and
+#' Parks et al. (2014).
 #' @inheritParams mo_params
 #' @param start,end the period before the fire.
 #' @param other_start,other_end the period after the fire.
@@ -2446,6 +2499,10 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'   classes, dNBR 0.1 or RdNBR 0.069; needed with \code{index = "RBR"}).
 #' @param min_ha with \code{perimeter}: the burned patches of less than these hectares are left out, and the unburned
 #'   islands of less than them inside them filled (default 1; 0: every pixel).
+#' @param offset_region optional region (as \code{region}) of unburned land near the fire: its median dNBR is
+#'   subtracted from the dNBR (attribute offset).
+#' @param seed with \code{perimeter}: optional point \code{c(lon, lat)}; only the burned patch nearest to it.
+#' @param largest with \code{perimeter}: \code{TRUE} for only the largest burned patch.
 #' @return A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
 #'   region, class, label, rdnbr_min, rdnbr_max, ha) or, for the RBR, of the statistics of the index by region (region,
 #'   mean, median, std, cv (coefficient of variation, \%), p10, p90, min, max, ha), with the attributes burned_ha (hectares burned by region: dNBR >= 0.1; for
@@ -2453,7 +2510,8 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 #'   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
 #'   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
 #'   of the GeoTIFF), title, file, readme, references and credits; with \code{perimeter}, also perimeter (its path),
-#'   perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha.
+#'   perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha (and perimeter_kept with
+#'   \code{seed} or \code{largest}); with \code{offset_region}, offset.
 #' @section References: The result carries its references (with DOI): those of the formula or algorithm of the variable,
 #'   of its Earth Engine datasets (cited as their pages of the Earth Engine catalog suggest), of the pixel filters, of
 #'   the method, of the region, of Google Earth Engine and of MonitorEO, and the credits that the terms of use of the
@@ -2520,13 +2578,16 @@ mo_download_comparison <- function(region, variable = NULL, sensor = NULL, start
 mo_burn_severity <- function(region, start, end, other_start, other_end, sensor = "Sentinel-2", path = NULL,
                              metric = "median", season = NULL, quality = NULL, resolution = NULL, crs = "auto",
                              csv = NULL, index = "dNBR", where = NULL, collection = NULL, perimeter = NULL,
-                             burned_min = NULL, min_ha = NULL) {
+                             burned_min = NULL, min_ha = NULL, offset_region = NULL, seed = NULL,
+                             largest = FALSE) {
   res <- services()$burn_severity(region, sensor, start, end, other_start, other_end, metric, season = season,
                                   quality = quality, resolution = resolution, crs = crs,
                                   path = if (is.null(path)) NULL else path.expand(path), csv = csv, index = index,
                                   where = where, collection = collection,
                                   perimeter = if (is.null(perimeter)) NULL else path.expand(perimeter),
-                                  burned_min = burned_min, min_ha = min_ha)
+                                  burned_min = burned_min, min_ha = min_ha, offset_region = offset_region,
+                                  seed = if (is.null(seed)) NULL else as.list(as.numeric(seed)),
+                                  largest = isTRUE(largest))
   df <- rows_df(if (identical(res$index, "RBR")) res$stats else res$classes)
   attr(df, "burned_ha") <- unlist(res$burned_ha)
   if (!is.null(res$classes) && !is.null(res$stats)) attr(df, "stats") <- rows_df(res$stats)  # RdNBR: both
@@ -2539,7 +2600,9 @@ mo_burn_severity <- function(region, start, end, other_start, other_end, sensor 
     attr(df, "perimeter_patches") <- unlist(res$perimeter_patches)
     attr(df, "burned_min") <- res$burned_min
     attr(df, "min_ha") <- res$min_ha
+    attr(df, "perimeter_kept") <- res$perimeter_kept
   }
+  attr(df, "offset") <- res$offset
   cited(df, res)
 }
 

@@ -42,6 +42,7 @@ def _read(name):
 
 
 def _catalogs(files):
+	"""The modules that the app requires, in the order it requires them: core, then the modules of the catalog."""
 	return [n for n in files if n != 'app']
 
 
@@ -51,12 +52,13 @@ def _catalogs(files):
 def test_every_file_is_ascii_and_under_the_limit_of_earth_engine():
 	files = build.modules()
 	assert build.LIMIT < build.MAX_FILE == 524288  # measured: Earth Engine takes 524288 bytes, not 524289
-	assert list(files) == ['app'] + [f'catalog_{n}' for n in range(1, len(files))]
+	assert list(files) == ['app', 'core'] + [f'catalog_{n}' for n in range(1, len(files) - 1)]
 	for name, text in files.items():
 		assert build.MODULE.fullmatch(name)
 		assert len(text.encode('ascii')) <= build.LIMIT, name  # encode fails if a character is not ASCII
-	# the app is core.js and ui.js as they are, with the \u escapes of monitoreo_app.js
-	assert files['app'].endswith(build.ascii_js(_read('core.js') + '\n' + _read('ui.js')))
+	# the app is ui.js and the module core is core.js, as they are, with the \u escapes of monitoreo_app.js
+	assert files['app'].endswith(build.ascii_js(_read('ui.js')))
+	assert files['core'].endswith(build.ascii_js(_read('core.js')) + '\nexports.MonitorEO = MonitorEO;\n')
 	with open(os.path.join(GEE, 'monitoreo_app.js'), encoding='ascii') as f:
 		assert build.ascii_js(_read('core.js')) in f.read()
 	assert build.ascii_js('aá \U0001f600') == 'a\\u00e1\\u2028\\ud83d\\ude00'
@@ -65,10 +67,12 @@ def test_every_file_is_ascii_and_under_the_limit_of_earth_engine():
 def test_the_requires_are_literal_paths_of_the_files_written(tmp_path):
 	for repo in (build.REPO, 'users/someone/test-repo'):
 		files = build.modules(repo)
-		paths = re.findall(r"\brequire\(([^)]*)\)", files['app'])
-		assert paths == [f"'{repo}:{name}'" for name in _catalogs(files)]
-		assert files['app'].count('require(') == len(paths)  # core.js and ui.js require nothing
-		assert all(build.MODULE.fullmatch(p.strip("'").split(':')[1]) for p in paths)
+		# the app requires the module core, and the module core the modules of the catalog
+		paths = [re.findall(r"\brequire\(([^)]*)\)", files[n]) for n in ('app', 'core')]
+		assert paths == [[f"'{repo}:core'"], [f"'{repo}:{name}'" for name in _catalogs(files)[1:]]]
+		for n, found in zip(('app', 'core'), paths):
+			assert files[n].count('require(') == len(found)  # core.js and ui.js require nothing
+		assert all(build.MODULE.fullmatch(p.strip("'").split(':')[1]) for found in paths for p in found)
 		assert f'Overwrite from repository script path {repo}:app' in files['app']
 	for repo in ('', 'monitoreo', "users/x/y'); evil('", 'users/x/y:app'):
 		with pytest.raises(ValueError, match='not the path of a repository'):
@@ -90,33 +94,39 @@ def test_a_key_or_a_file_bigger_than_the_limit():
 	assert len(parts) > 2 and all(len(p) <= 200000 for p in parts)
 	with pytest.raises(ValueError, match="the key '[a-z_]+' of the catalog alone takes"):
 		build.catalog_modules(data, len(json.dumps(data[big])) // 2)
-	with pytest.raises(ValueError, match='the file app of the repository of the app takes'):
+	with pytest.raises(ValueError, match='the file (app|core) of the repository of the app takes'):
 		build.modules(limit=200000)  # core.js and ui.js are bigger
 
 
 # In Node: the modules and the script app ------------------------------------------------------------------------
 
-# the modules of input.modules evaluated as Earth Engine evaluates a module (its exports), then the script app with a
-# require that gives them by their path: the CATALOG of catalog.js (as JSON, before core.js and ui.js run), the paths
-# required and whether CATALOG has the very objects of the modules
+# the modules of input.modules evaluated as Earth Engine evaluates a module (its exports, in a scope of its own), when
+# a script requires them by their path, then the script app: the CATALOG of catalog.js (as JSON, before core.js and
+# ui.js run), the paths required, whether the CATALOG of the module core has the very objects of the modules of the
+# catalog, and whether core.js left anything global
 LOAD = r"""
 var original = vm.runInNewContext(input.catalog + '\nJSON.stringify(CATALOG);', {});
-var exportsOf = {}, merged = {}, required = [];
+var sources = {}, exportsOf = {}, merged = {}, required = [];
 Object.keys(input.modules).filter(function (n) { return n !== 'app'; }).forEach(function (name) {
-	var exports = {};
-	vm.runInThisContext('(function (exports) {\n' + input.modules[name] + '\n})', {filename: name})(exports);
-	exportsOf[input.repo + ':' + name] = exports;
-	Object.keys(exports.part).forEach(function (k) { merged[k] = exports.part[k]; });
+	sources[input.repo + ':' + name] = input.modules[name];
 });
-var catalogEqual = JSON.stringify(merged) === original;
 global.require = function (p) {
 	required.push(p);
-	if (!exportsOf[p]) throw new Error('no module ' + p);
+	if (!sources[p]) throw new Error('no module ' + p);
+	if (!exportsOf[p]) {
+		var exports = {};
+		exportsOf[p] = exports;
+		vm.runInThisContext('(function (exports) {\n' + sources[p] + '\n})', {filename: p})(exports);
+		if (exports.part) Object.keys(exports.part).forEach(function (k) { merged[k] = exports.part[k]; });
+	}
 	return exportsOf[p];
 };
 vm.runInThisContext(input.modules.app, {filename: 'app'});
-var loaded = {catalogEqual: catalogEqual, required: required, keys: Object.keys(CATALOG),
-	same: Object.keys(merged).every(function (k) { return CATALOG[k] === merged[k]; })};
+var catalogEqual = JSON.stringify(merged) === original;
+var CORE_CATALOG = MonitorEO.CATALOG;
+var loaded = {catalogEqual: catalogEqual, required: required, keys: Object.keys(CORE_CATALOG),
+	same: Object.keys(merged).every(function (k) { return CORE_CATALOG[k] === merged[k]; }),
+	global: typeof CATALOG !== 'undefined'};
 """
 
 
@@ -132,8 +142,9 @@ def test_the_modules_give_the_catalog_of_catalog_js(tmp_path, monkeypatch):
 	"""Several modules (a smaller limit), with a core.js and a ui.js that only read CATALOG: the same catalog, filled
 	before core.js runs."""
 	shutil.copy(os.path.join(GEE, 'catalog.js'), tmp_path)
-	(tmp_path / 'core.js').write_text('var MonitorEO = {keys: Object.keys(CATALOG)};\n', encoding='utf-8')
-	(tmp_path / 'ui.js').write_text('MonitorEO.ui = CATALOG.themes.length;\n', encoding='utf-8')
+	(tmp_path / 'core.js').write_text('var MonitorEO = {keys: Object.keys(CATALOG), CATALOG: CATALOG};\n',
+	                                  encoding='utf-8')
+	(tmp_path / 'ui.js').write_text('MonitorEO.ui = MonitorEO.CATALOG.themes.length;\n', encoding='utf-8')
 	monkeypatch.setattr(build, 'HERE', str(tmp_path))
 	files = build.modules(limit=200000)
 	assert len(files) > 3
@@ -141,9 +152,9 @@ def test_the_modules_give_the_catalog_of_catalog_js(tmp_path, monkeypatch):
 	          LOAD + 'loaded.core = MonitorEO;\nprocess.stdout.write(JSON.stringify(loaded));')
 	out = _node(script, {'modules': files, 'repo': build.REPO, 'catalog': _read('catalog.js')})
 	keys = list(build.read_catalog())
-	assert out['catalogEqual'] and out['same'] and out['keys'] == keys
+	assert out['catalogEqual'] and out['same'] and out['keys'] == keys and not out['global']
 	assert out['required'] == [f'{build.REPO}:{n}' for n in _catalogs(files)]
-	assert out['core'] == {'keys': keys, 'ui': len(catalog.THEMES)}
+	assert out['core']['keys'] == keys and out['core']['ui'] == len(catalog.THEMES)
 
 
 # the panel that ui.js draws (with the ui of PANEL): the kind of each widget, its texts and the values of its items
@@ -177,7 +188,7 @@ def test_the_app_of_the_repository_is_the_app_of_its_parts():
 	data = {'assets': {}, 'modules': files, 'repo': build.REPO, 'catalog': _read('catalog.js')}
 	expected = _node(head + parts + TREE, data)
 	out = _node(head + LOAD + TREE, data)
-	assert out['catalogEqual'] and out['same'] and out['keys'] == list(build.read_catalog())
+	assert out['catalogEqual'] and out['same'] and out['keys'] == list(build.read_catalog()) and not out['global']
 	assert out['required'] == [f'{build.REPO}:{n}' for n in _catalogs(files)]
 	assert out['tree'] == expected['tree'] and out['functions'] == expected['functions']
 	assert {'spec', 'collection', 'image', 'series'} <= set(out['functions'])
