@@ -5808,7 +5808,33 @@ var CATALOG = {
      "WorldClim BIO Variables V1"
     ]
    ]
-  }
+  },
+  "landsat7": [
+   [
+    "LANDSAT/LT05/C02/T1_L2",
+    "1984-03-16",
+    "2012-05-05",
+    "USGS Landsat 5 Level 2, Collection 2, Tier 1"
+   ],
+   [
+    "LANDSAT/LE07/C02/T1_L2",
+    "1999-05-28",
+    "2024-01-19",
+    "USGS Landsat 7 Level 2, Collection 2, Tier 1"
+   ],
+   [
+    "LANDSAT/LC08/C02/T1_L2",
+    "2013-03-18",
+    null,
+    "USGS Landsat 8 Level 2, Collection 2, Tier 1"
+   ],
+   [
+    "LANDSAT/LC09/C02/T1_L2",
+    "2021-10-31",
+    null,
+    "USGS Landsat 9 Level 2, Collection 2, Tier 1"
+   ]
+  ]
  },
  "eecatalog": {
   "datasets": [

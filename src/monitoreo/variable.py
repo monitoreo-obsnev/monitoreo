@@ -27,7 +27,10 @@ interannual over period and season (see composite). Other keys:
                      the topographic correction SCS+C of the surface reflectance of Landsat (see
                      sensors.TOPOGRAPHIC; off by default); with snow_ndsi: a number (e.g. 0.4) and the snow filter
                      on, Sentinel-2 and Landsat also lose the pixels of each image whose NDSI (green, SWIR1) is that
-                     number or more (see sensors.OPTIONS; off by default)
+                     number or more (see sensors.OPTIONS; off by default); with harmonize: true, the surface
+                     reflectance of Landsat 5 and 7 as that of Landsat 8 and 9 (Roy et al. 2016, see
+                     sensors.HARMONIZE); with landsat7: true, the images of Landsat 7 after 2003-05-31 too, with
+                     the gaps of its scan line corrector (see sensors.LANDSAT7); both off by default
   resample           'auto' (bilinear when the output pixels are smaller than those of the data), 'nearest',
                      'bilinear' or 'bicubic'; a categorical layer (ECOREGION, BIOME: class codes), only 'auto' or
                      'nearest' (rasterized at the output pixel)
@@ -71,6 +74,11 @@ TOPOGRAPHIC_TEXT = (f"SCS+C (Soenen et al. 2005) of the surface reflectance, wit
                     f"({sensors.TOPOGRAPHIC['dem']}) and the sun of each scene, on slopes of at least "
                     f"{sensors.TOPOGRAPHIC['min_slope']} degrees lit by the sun; C of each band and scene fitted in the "
                     f"study area and {sensors.TOPOGRAPHIC['surroundings'] // 1000} km around it")
+HARMONIZE_TEXT = ('the surface reflectance of Landsat 5 (TM) and 7 (ETM+) transformed to that of Landsat 8 and 9 '
+                  '(OLI) with the ordinary least squares functions of ETM+ to OLI of Roy et al. (2016): OLI = '
+                  + ', '.join(f'{a:g} + {b:g} x {k}' for k, (b, a) in sensors.HARMONIZE.items()))
+LANDSAT7_TEXT = (f"the images of Landsat 7 after the failure of its scan line corrector "
+                 f"({sensors.LANDSAT7['slc_failure']}) too, with stripes without data (about 22 % of each scene)")
 TERRAIN = ('slope', 'aspect')  # of the band of an image (ee.Terrain), in degrees whatever the unit of the band
 # how several bands of the data of Earth Engine by their ID are combined on each pixel (band_reducer): their sum or
 # their mean (ee.Reducer.sum and mean over the bands)
@@ -240,6 +248,18 @@ def specs(var, defaults=None, two_periods=False):
 			raise ValueError('quality snow_ndsi (snow by its NDSI) is for the variables of Sentinel-2 and Landsat of the '
 			                 'catalog, not for the data of Earth Engine given by their ID')
 		sensors.check_snow_ndsi(e, base['quality'])
+	for o, check, applies in (('harmonize', sensors.check_harmonize, lambda: not sensors.no_harmonize(e)),
+	                          ('landsat7', sensors.check_landsat7, lambda: e.get('sensor') == 'Landsat')):
+		if not base['quality'].get(o):
+			continue
+		if o not in (var.get('quality') or {}) and (k != 'catalog' or not applies()):
+			# from the options of the whole recipe (DEFAULTS): only for the variables that can have it, as a default
+			base['quality'].pop(o, None)
+			continue
+		if k != 'catalog':
+			raise ValueError(f'quality {o} is for the variables of Landsat of the catalog, not for the data of Earth '
+			                 'Engine given by their ID')
+		check(e, base['quality'])
 	if base.get('unit') is not None and not str(base['unit']).strip():
 		base.pop('unit')  # '' or blank: not given, as in services.make_spec and the app (not dimensionless)
 	if k == 'catalog' and base.get('unit') is not None:
@@ -782,6 +802,10 @@ def describe(spec, rgb=False):
 			d['topographic_correction'] = TOPOGRAPHIC_TEXT
 		if sensors.snow_ndsi_of(e, spec['quality']) is not None:
 			d['snow_ndsi'] = sensors.snow_ndsi_of(e, spec['quality'])
+		if sensors.harmonize(spec['quality']) and not sensors.no_harmonize(e):
+			d['harmonization'] = HARMONIZE_TEXT
+		if sensors.landsat7(spec['quality']) and e.get('sensor') == 'Landsat':
+			d['landsat7'] = LANDSAT7_TEXT
 		if sensors.permanent_water_of(e, spec['quality']):
 			w = sensors.PERMANENT_WATER
 			d['water_filter'] = (f"permanent water of the JRC Global Surface Water ({w['image']}, band {w['band']} >= "

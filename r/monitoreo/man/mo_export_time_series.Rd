@@ -25,7 +25,8 @@ mo_export_time_series(
   band_reducer = NULL,
   band_scale = NULL,
   band_offset = NULL,
-  unit = NULL
+  unit = NULL,
+  min_coverage = NULL
 )
 }
 \arguments{
@@ -76,7 +77,10 @@ of Landsat, for mountains (slopes facing and away from the sun, dates with a low
 corrected); off by default. \code{list(snow_ndsi = 0.4)}: with the snow filter on, Sentinel-2 and Landsat also
 lose the pixels of each image whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more, the patches of snow
 that their quality band misses (e.g. for the standard deviation of the NDMI in mountains); off by default, and not
-applied to the variables that measure water (open water has a high NDSI too).}
+applied to the variables that measure water (open water has a high NDSI too). \code{list(harmonize = TRUE)}:
+the surface reflectance of Landsat 5 and 7 as that of Landsat 8 and 9 (Roy et al. 2016), for long series and
+trends that cross 2013; \code{list(landsat7 = TRUE)}: Landsat 7 also after 2003-05-31, with the stripes of the
+failure of its scan line corrector, which fills 2012-05-05 to 2013-03-18; both off by default, for Landsat.}
 
 \item{scale}{pixel size of the statistics in metres (default: automatic).}
 
@@ -130,6 +134,9 @@ reaches the CSV, the README and the GeoTIFF. With several bands, that of every b
 sum of bands is not turned from a rate into a total (12 monthly bands in mm sum to mm). The variables of the
 catalog have their own, and the slope or the aspect of \code{terrain} (in the functions that take it)
 \code{"degree"}.}
+
+\item{min_coverage}{the smallest fraction of the pixels of the region with a valid value for a step to have a value,
+e.g. 0.5 (the others have none, and the rows get their coverage); default none.}
 }
 \value{
 A list (operation, file, folder, references, credits); \code{mo_task_status()} follows the task.

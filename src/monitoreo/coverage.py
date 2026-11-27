@@ -14,7 +14,8 @@ from ('data_source'), and their charts say it in a line «Data: ...».
 The dates are those of the copy of the index (eecatalog.load()['downloaded']), which its maintainers refresh at each
 release (python -m monitoreo.eecatalog): a collection that goes on has no last date. The Landsat of the catalog
 (LANDSAT) is Landsat 5, 7 (only until 2003-05-31, see sensors.LANDSAT), 8 and 9, so its images have a gap between
-the last of Landsat 5 and the first of Landsat 8. The data of Earth Engine given by their ID (collection=) have the
+the last of Landsat 5 and the first of Landsat 8, except with quality landsat7 (Landsat 7 until its last image, see
+sensors.LANDSAT7), which fills it. The data of Earth Engine given by their ID (collection=) have the
 dates of their record of the index, if they have one (else no date is checked: asking Earth Engine would cost a call
 for each one), their last image the day before the end of its extent (that of a yearly collection is the end of its
 last year: ESA/WorldCover/v200, of 2021, ends on 2022-01-01); the fixed layers (elevation, slope, an image) have no
@@ -121,16 +122,18 @@ def text(ids, name):
 	return f'{join(ids)} ({name})' if name else join(ids)
 
 
-def parts(entry):
+def parts(entry, quality=None):
 	"""The Earth Engine collections of the images of the variable of the catalog ENTRY, with the dates of their images
-	as MonitorEO reads them: [(ID, first day, last day or None if it goes on)] (a day None if the index does not have
-	it). The Landsat of the catalog is its four collections, Landsat 7 only until 2003-05-31 (sensors.LANDSAT); a
+	as MonitorEO reads them with QUALITY: [(ID, first day, last day or None if it goes on)] (a day None if the index does
+	not have it). The Landsat of the catalog is its four collections, Landsat 7 only until 2003-05-31 (sensors.LANDSAT;
+	until its last image with quality landsat7, see sensors.landsat_parts); a
 	collection with a gap-filled version (sensors.GAP_FILLED: ET and LE of MODIS) is that version up to the date of
 	catalog.json and the collection after it."""
 	if entry.get('col') == LANDSAT:
 		from . import sensors
 		out = []
-		for col, _, last in sensors.LANDSAT:
+		seven = sensors.landsat7(quality) or entry.get('landsat7_slc_off')  # see used
+		for col, _, last in sensors.landsat_parts({'landsat7': bool(seven)}):
 			rec = _records().get(col) or {}
 			end = rec.get('end')
 			if last:  # its images until the day before LAST
@@ -278,7 +281,10 @@ def used(spec, entry=None):
 	asset = None if entry else spec.get('collection') or spec.get('image')
 	if not entry and not asset:
 		return
-	key = ('entry', entry['col']) if entry else ('asset', asset)
+	from . import sensors
+	if entry and entry.get('col') == LANDSAT and sensors.landsat7(spec.get('quality')):  # Landsat 7 after 2003 too
+		entry = dict(entry, landsat7_slc_off=True)  # (see parts)
+	key = (('entry', entry['col'], bool(entry.get('landsat7_slc_off'))) if entry else ('asset', asset))
 	period = spec.get('period')
 	periods = [(str(period[0])[:10], str(period[1])[:10])] if period and not (entry or {}).get('static') else []
 	notes.data.setdefault(key, [entry, asset, []])[2].extend(periods)
@@ -339,7 +345,7 @@ def _verdict(spec, entry=None, today=None):
 	if entry is not None:
 		if entry.get('static'):
 			return None, []
-		found, step = parts(entry), step_days(entry)
+		found, step = parts(entry, spec.get('quality')), step_days(entry)
 	else:
 		asset = spec.get('collection')
 		rec = _records().get(asset) if asset else None
@@ -372,8 +378,10 @@ def _verdict(spec, entry=None, today=None):
 		if before and after:
 			gap = ((dt.date.fromisoformat(before) + dt.timedelta(days=1)).isoformat(),
 			       (dt.date.fromisoformat(after) - dt.timedelta(days=1)).isoformat())
+			seven = ('' if entry is None or entry.get('col') != LANDSAT else ' Or add Landsat 7 after 2003, with the '
+			         'gaps of its scan line corrector, which has images then (quality landsat7: true).')
 			return (f'The images of {data} have none from {gap[0]} to {gap[1]}: the period asked for{season}, {a} to '
-			        f'{b}, has no data. Choose a period before or after those days.'), []
+			        f'{b}, has no data. Choose a period before or after those days.{seven}'), []
 		return None, []
 	out = []
 	data = _text_of(inside)
@@ -417,11 +425,14 @@ def _text_of(found):
 def app_index():
 	"""The collections of the variables of the catalog with the dates and short titles of their images, for the Earth
 	Engine app (gee/build.py, catalog.js): {'checked' (the day of the index), 'collections': {col of the catalog:
-	[[ID, first day, last day, short title]]}} (see parts and title), so that it checks the periods and names the data
+	[[ID, first day, last day, short title]]}, 'landsat7': those of LANDSAT with quality landsat7} (see parts and title), so that it checks the periods and names the data
 	as the package does."""
 	from . import catalog
 	cols = {}
+	landsat7 = None
 	for e in catalog.variables():
 		if e['col'] not in cols:
 			cols[e['col']] = [[p[0], p[1], p[2], title(p[0])] for p in parts(e)]
-	return {'checked': checked(), 'collections': cols}
+		if e['col'] == LANDSAT and landsat7 is None:  # with quality landsat7: Landsat 7 until its last image
+			landsat7 = [[p[0], p[1], p[2], title(p[0])] for p in parts(e, {'landsat7': True})]
+	return {'checked': checked(), 'collections': cols, 'landsat7': landsat7}

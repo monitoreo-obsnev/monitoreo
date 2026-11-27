@@ -507,6 +507,9 @@
   ],
   "snow_ndsi": [
    "hall1995"
+  ],
+  "harmonize": [
+   "roy2016"
   ]
  },
  "references": {
@@ -569,6 +572,10 @@
   "xiao2004": {
    "citation": "Xiao, X., Zhang, Q., Braswell, B., Urbanski, S., Boles, S., Wofsy, S., Moore, B., & Ojima, D. (2004). Modeling gross primary production of temperate deciduous broadleaf forest using satellite images and climate data. Remote Sensing of Environment, 91(2), 256–270.",
    "doi": "10.1016/j.rse.2004.03.010"
+  },
+  "roy2016": {
+   "citation": "Roy, D. P., Kovalskyy, V., Zhang, H. K., Vermote, E. F., Yan, L., Kumar, S. S., & Egorov, A. (2016). Characterization of Landsat-7 to Landsat-8 reflective wavelength and normalized difference vegetation index continuity. Remote Sensing of Environment, 185, 57–70.",
+   "doi": "10.1016/j.rse.2015.12.024"
   },
   "hall1995": {
    "citation": "Hall, D. K., Riggs, G. A., & Salomonson, V. V. (1995). Development of methods for mapping global snow cover using moderate resolution imaging spectroradiometer data. Remote Sensing of Environment, 54(2), 127–140.",

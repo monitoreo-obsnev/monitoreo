@@ -346,6 +346,25 @@ HELP = {
 		'which measure snow, and for the NDWI, the chlorophyll and the WAVI, which measure water: open water has a high '
 		'NDSI too.</p>'
 		+ manual('Concepts#per-pixel-filters'),
+	'harmonize':
+		'<p>Only for the variables of Landsat computed from its reflectance (not the land surface temperature nor the snow '
+		'or cloud frequency). Checked, the surface reflectance of Landsat 5 and 7 is turned into that of Landsat 8 and 9 '
+		'with the functions of Roy et al. (2016): their sensors see the same surface with other values (the NDVI of '
+		'Landsat 8 is higher), a step in 2013 that a trend of a long series takes for a change.</p>'
+		'<p>Check it for series and trends of Landsat that cross 2013 (e.g. 1985 to 2025).</p>'
+		+ manual('Concepts#per-pixel-filters'),
+	'landsat7':
+		'<p>Only for Landsat. Landsat 7 is used until 2003-05-31, when the scan line corrector of its sensor failed; '
+		'after it, each image has stripes without data (about 22 % of the scene). Checked, its images after that day are '
+		'used too: more images in cloudy places, and images between Landsat 5 (until 2012-05-05) and Landsat 8 (from '
+		'2013-03-18), a period that has no data without them.</p>'
+		+ manual('Concepts#per-pixel-filters'),
+	'min_coverage':
+		'<p>For the time series, the comparison of periods, the trend table and the export of the series. Checked, a step '
+		'(a month, a year...) has no value when its valid pixels, after the pixel filters, are less than half the pixels '
+		'of the region: a month with clouds, shadow or snow over most of it gives the value of the few pixels left, '
+		'which can be far from that of the region. The table gets the coverage of each step.</p>'
+		+ manual('Concepts#per-pixel-filters'),
 	'topographic':
 		'<p>Only for Landsat. Checked, the reflectance of each image is corrected for the relief before the variable is '
 		'computed (SCS+C, Soenen et al. 2005, with the slope and aspect of the SRTM and the position of the sun of the '

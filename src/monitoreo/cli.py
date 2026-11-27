@@ -104,8 +104,8 @@ restricted mode (it has spent its noncommercial compute quota: computations are 
 requests; with the shared account, use your own project), and when
 the period begins before the first image of the data or ends (or even begins) after the last one of
 data that ended in the copy of the Earth Engine data catalog, which Earth Engine may have extended since (a period that
-ends before the first image, falls between Landsat 5 and Landsat 8 or begins after today is an error that says their
-dates); their charts say where the values come from, in a line «Data: ...» (the Earth Engine collection and its
+ends before the first image, falls between Landsat 5 and Landsat 8 (without --landsat7) or begins after today is an
+error that says their dates); their charts say where the values come from, in a line «Data: ...» (the Earth Engine collection and its
 product level). The recipe of download is a YAML
 file with the variables, their metrics and the pixel sizes of the study area and of its ecoregions (see
 monitoreo.recipe). The report of publish is a YAML file with its texts and the results of an analysis (see
@@ -229,9 +229,21 @@ SNOW_NDSI_HELP = ('with the snow filter, also remove the pixels of each image wh
                   'WAVI, as open water has a high NDSI too)')
 
 
+HARMONIZE_HELP = ('turn the surface reflectance of Landsat 5 and 7 into that of Landsat 8 and 9 (Roy et al. 2016), so '
+                  'that a long series has no step in 2013 (Landsat variables computed from reflectances; not LST, SCF, '
+                  'SCD, SMOD or CF)')
+LANDSAT7_HELP = ('use Landsat 7 also after 2003-05-31, with the stripes without data of the failure of its scan line '
+                 'corrector: more images from 2003 to 2024, and images between Landsat 5 and Landsat 8 (2012-05-05 to '
+                 '2013-03-18)')
+MIN_COVERAGE_HELP = ('leave without value the steps whose valid pixels (after the pixel filters) are less than this '
+                     'fraction of the pixels of the region, e.g. 0.5; the CSV gets their coverage')
+
+
 def _topographic_option(p):
 	p.add_argument('--topographic-correction', action='store_true', help=TOPOGRAPHIC_HELP)
 	p.add_argument('--snow-ndsi', type=float, metavar='NDSI', help=SNOW_NDSI_HELP)
+	p.add_argument('--harmonize', action='store_true', help=HARMONIZE_HELP)
+	p.add_argument('--landsat7', action='store_true', help=LANDSAT7_HELP)
 
 
 # the themes of the data of Earth Engine outside the catalog (catalog.OTHER_THEMES), with the commands and options of
@@ -313,17 +325,24 @@ def _source(args, parser):
 	if getattr(args, 'snow_ndsi', None) is not None:
 		parser.error('--snow-ndsi is for the variables of Sentinel-2 and Landsat of the catalog, not for the data of '
 		             'Earth Engine given by its ID')
+	for o in ('harmonize', 'landsat7'):
+		if getattr(args, o, False):
+			parser.error(f'--{o} is for the variables of Landsat of the catalog, not for the data of Earth Engine given '
+			             'by its ID')
 	return dict(given, **({'collection': args.collection} if args.collection else {}))
 
 
 def _topographic(args):
-	"""The quality of the topographic correction and of the snow by its NDSI, if asked (--topographic-correction,
-	--snow-ndsi)."""
+	"""The quality of the topographic correction, of the snow by its NDSI and of Landsat 5 and 7, if asked
+	(--topographic-correction, --snow-ndsi, --harmonize, --landsat7)."""
 	q = {}
 	if getattr(args, 'topographic_correction', False):
 		q['topographic'] = True
 	if getattr(args, 'snow_ndsi', None) is not None:
 		q['snow_ndsi'] = args.snow_ndsi
+	for o in ('harmonize', 'landsat7'):
+		if getattr(args, o, False):
+			q[o] = True
 	return {'quality': q} if q else {}
 
 
@@ -454,6 +473,7 @@ def main(argv=None):
 	                    'maximum of the values of its variable)')
 	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
+	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
 	computes['image'] = image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, '
 	                                                             'aggregated in time, and of the true colour of the '
 	                                                             'same images')
@@ -546,6 +566,7 @@ def main(argv=None):
 		p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
 		if name == 'trend':
 			p.add_argument('--test', default='mk', choices=TREND_TESTS, help=TEST_HELP)
+		p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
 		p.add_argument('--scale', type=float)
 		p.add_argument('--csv')
 		p.add_argument('--png')
@@ -731,6 +752,8 @@ def main(argv=None):
 			areas.error('--topographic-correction is for the variables of Landsat, not for --landcover')
 		if args.snow_ndsi is not None:
 			areas.error('--snow-ndsi is for the variables of Sentinel-2 and Landsat, not for --landcover')
+		if args.harmonize or args.landsat7:
+			areas.error('--harmonize and --landsat7 are for the variables of Landsat, not for --landcover')
 		args.source = {}
 	if args.cmd == 'info' and '/' in args.variable:  # an ID of Earth Engine: not the list of every variable
 		info.error(f'{args.variable} is not a variable of the catalog (monitoreo list): monitoreo asset {args.variable} '
@@ -1033,14 +1056,15 @@ def _compute(args, services):
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
 		                           progress=progress, where=_where(args), doy=args.doy, interannual=args.interannual,
 		                           other_variable=args.other_variable, other_sensor=args.other_sensor, ylim=args.ylim,
-		                           other_ylim=args.other_ylim, **args.source)
+		                           other_ylim=args.other_ylim, min_coverage=args.min_coverage, **args.source)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
 		sys.exit(_error(e, args))
 	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
 	if args.doy and (args.interannual or args.other_variable):  # the seasonal profile: what the chart and the CSV have
 		_profile(res, services, files)
 		return
-	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images'])
+	_table(_fmt(res['rows']), ['region', 'date', 'value', 'n_pixels', 'n_images']
+	       + (['coverage'] if args.min_coverage else []))
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
 	      + files
 	      + _manual(res))
@@ -1228,7 +1252,8 @@ def _trend_or_compare(args, services):
 	try:
 		region = json.loads(args.region)
 		same = dict(args.source, start=args.start, end=args.end, step=args.step, metric=args.metric, stat=args.stat,
-		            scale=args.scale, csv=args.csv, chart=args.png, progress=progress, where=_where(args))
+		            scale=args.scale, csv=args.csv, chart=args.png, progress=progress, where=_where(args),
+		            min_coverage=args.min_coverage)
 		if args.cmd == 'trend':
 			res = services.trend_table(region, test=args.test, **same)
 		else:

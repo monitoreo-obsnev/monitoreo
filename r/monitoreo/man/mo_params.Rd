@@ -92,7 +92,13 @@ of Landsat, for mountains (slopes facing and away from the sun, dates with a low
 corrected); off by default. \code{list(snow_ndsi = 0.4)}: with the snow filter on, Sentinel-2 and Landsat also
 lose the pixels of each image whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more, the patches of snow
 that their quality band misses (e.g. for the standard deviation of the NDMI in mountains); off by default, and not
-applied to the variables that measure water (open water has a high NDSI too).}
+applied to the variables that measure water (open water has a high NDSI too). \code{list(harmonize = TRUE)}:
+the surface reflectance of Landsat 5 and 7 as that of Landsat 8 and 9 (Roy et al. 2016), for long series and
+trends that cross 2013; \code{list(landsat7 = TRUE)}: Landsat 7 also after 2003-05-31, with the stripes of the
+failure of its scan line corrector, which fills 2012-05-05 to 2013-03-18; both off by default, for Landsat.}
+
+\item{min_coverage}{the smallest fraction of the pixels of the region with a valid value for a step to have a value,
+e.g. 0.5 (the others have none, and the rows get their coverage); default none.}
 
 \item{where}{only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the

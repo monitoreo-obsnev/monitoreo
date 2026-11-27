@@ -545,6 +545,14 @@ def item_facts(tool, args, result=None, names=None):
 	if entry and not static and sensors.topographic(args.get('quality') if isinstance(args.get('quality'), dict)
 	                                                else None):
 		facts.append(('Topographic correction', variables.TOPOGRAPHIC_TEXT))
+	q_args = args.get('quality') if isinstance(args.get('quality'), dict) else None
+	if entry and not static and sensors.harmonize(q_args) and not sensors.no_harmonize(entry):
+		facts.append(('Landsat 5 and 7 harmonized', variables.HARMONIZE_TEXT))
+	if entry and not static and sensors.landsat7(q_args) and entry.get('sensor') == 'Landsat':
+		facts.append(('Landsat 7', variables.LANDSAT7_TEXT))
+	if args.get('min_coverage'):
+		facts.append(('Minimum coverage', f"steps without value where the valid pixels are less than "
+		                                  f"{float(args['min_coverage']):g} of the pixels of the region"))
 	other = _entry(args.get('other_variable'), args.get('other_sensor') or args.get('sensor')) \
 		if tool == 'time_series' and is_profile(args) and not static else None
 	if other:  # the same filters chosen, as they apply to the variable of the right axis (also after data by ID)

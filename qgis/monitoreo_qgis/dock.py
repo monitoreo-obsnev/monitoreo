@@ -36,7 +36,7 @@ from . import deps
 
 deps.setup_path()
 from monitoreo import (areas, assets, catalog, categorical, classes, fire, landcover, maps,  # noqa: E402
-                       municipalities, parameters, seas, sensors, services, steps, trends)
+                       municipalities, parameters, seas, sensors, services, steps, timeseries, trends)
 from monitoreo import variable as variables  # noqa: E402
 from monitoreo.publish import period_text  # noqa: E402
 
@@ -133,6 +133,11 @@ NO_SNOW_NDSI = ('The snow by its NDSI is for the variables of Sentinel-2 and Lan
 NO_TOPOGRAPHIC = ('The topographic correction is for the surface reflectance of Landsat (Sentinel-2 comes already '
                   'corrected; not for the land surface temperature, the snow or cloud frequency, MODIS, the climate or '
                   'the fixed layers)')
+NO_HARMONIZE = ('The harmonization of Landsat 5 and 7 with Landsat 8 and 9 is for the variables of Landsat computed '
+                'from its surface reflectance (not the land surface temperature, the snow or cloud frequency, nor the '
+                'other sensors)')
+NO_LANDSAT7 = 'Landsat 7 after 2003 is for the variables of Landsat of the catalog'
+MIN_COVERAGE = 0.5  # the fraction of the check box of the minimum coverage of the steps of the series
 READ_HINT = ('Write the ID of an image or a collection of images of Earth Engine (e.g. IDAHO_EPSCOR/TERRACLIMATE) and '
              'press Read: its bands, units, licence and how to cite it')
 ZONE_STATS = ['p25', 'p50', 'p75', 'mean']  # the statistics of each band of Gradients (of a categorical layer, mode)
@@ -167,7 +172,7 @@ DATA = ('variable', 'sensor', 'collection', 'ref', 'image', 'band', 'band_reduce
 # the fields of the panel that the parameters set, in this order (the variable first: it greys out some of the others);
 # those of COMBOS are the list of the panel of the same name
 FIELDS = ('variable', 'region', 'line', 'where', 'period', 'compare', 'season', 'quality', 'step', 'ts_metric', 'stat',
-          'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_test',
+          'min_coverage', 'doy', 'doy_interannual', 'doy_other', 'trend_step', 'trend_part', 'trend_metric', 'trend_test',
           'trend_alpha', 'trend_colours', 'map_metric', 'temporal', 'interannual', 'map_kind', 'map_colours', 'resolution', 'zones',
           'stats', 'area_kind', 'area_map', 'area_breaks', 'anim_step', 'anim_metric', 'anim_fps', 'anim_colours',
           'anim_same', 'fire_index', 'fire_sensor',
@@ -790,7 +795,7 @@ def quality_fields(quality, burn=False):
 			                       f"{sensors.QUALITY['cloud_score']:g} (checked) or the SCL of Sentinel-2 (unchecked)"))
 		elif k == 'scene_clouds' and v is None:
 			continue
-		elif k == 'topographic' and v in (True, False, None):
+		elif k in ('topographic', 'harmonize', 'landsat7') and v in (True, False, None):
 			q[k] = bool(v)
 		elif k == 'snow_ndsi':
 			try:
@@ -805,10 +810,11 @@ def quality_fields(quality, burn=False):
 				                       f"{sensors.SNOW_NDSI_DEFAULT:g} or more (checked) or none (unchecked)"))
 		else:
 			reports.append(missing(f'quality.{k}', v, 'the panel has no such pixel filter (clouds, water, snow and '
-			                       'aerosols: true, false or "auto"; cloud_score; topographic: true or false; '
-			                       f'snow_ndsi: {sensors.SNOW_NDSI_DEFAULT:g} or null)'))
+			                       'aerosols: true, false or "auto"; cloud_score; topographic, harmonize, landsat7: true '
+			                       f'or false; snow_ndsi: {sensors.SNOW_NDSI_DEFAULT:g} or null)'))
 	return dict({f: q[f] for f in sensors.FILTERS}, cloud_score=q['cloud_score'] is not None,
-	            topographic=bool(q.get('topographic')), snow_ndsi=bool(q.get('snow_ndsi'))), reports
+	            topographic=bool(q.get('topographic')), snow_ndsi=bool(q.get('snow_ndsi')),
+	            harmonize=bool(q.get('harmonize')), landsat7=bool(q.get('landsat7'))), reports
 
 
 def where_fields(where, period=None):
@@ -961,6 +967,19 @@ def panel_fields(analysis, params):
 	field('where', {'conditions': rows, 'landcover': cover}, 'where' in p)
 
 	# the options of the analysis
+	if analysis in ('time_series', 'compare_series', 'time_series_to_drive', 'trend_table'):
+		used.add('min_coverage')
+		try:
+			m = timeseries.check_min_coverage(p.get('min_coverage'))
+		except ValueError as e:
+			m, bad = None, str(e)
+		else:
+			bad = None if m in (None, MIN_COVERAGE) else (f'the panel leaves without value the steps with valid pixels in '
+			                                              f'less than {MIN_COVERAGE:g} of the region (checked) or none '
+			                                              '(unchecked)')
+		if bad:  # unchecked: not another threshold than that of the panel
+			reports.append(missing('min_coverage', p.get('min_coverage'), bad))
+		field('min_coverage', m == MIN_COVERAGE, 'min_coverage' in p)
 	if analysis in ('time_series', 'compare_series', 'time_series_to_drive'):
 		take('step', choices=STEPS)
 		take('ts_metric', 'metric', METRICS)
@@ -1560,6 +1579,12 @@ class MonitorEODock(QDockWidget):
 		self.topographic = QCheckBox('Topographic correction (Landsat)')  # off: SCS+C, in its help ⓘ
 		self.topographic.setChecked(False)
 		f.addRow('', info(self.topographic, HELP['topographic']))
+		self.harmonize = QCheckBox('Harmonize Landsat 5 and 7 with Landsat 8 and 9 (Roy et al. 2016)')
+		self.harmonize.setChecked(False)  # off: for long series and trends of Landsat, in its help ⓘ
+		f.addRow('', info(self.harmonize, HELP['harmonize']))
+		self.landsat7 = QCheckBox('Also Landsat 7 after 2003 (with stripes without data)')
+		self.landsat7.setChecked(False)  # off: the images of the failure of its scan line corrector, in its help ⓘ
+		f.addRow('', info(self.landsat7, HELP['landsat7']))
 		self.landcover_group(s, pixels)
 		f = QFormLayout()
 		pixels.addLayout(f)
@@ -1607,6 +1632,10 @@ class MonitorEODock(QDockWidget):
 		f.addRow('Step', info(self.step, HELP['step']))
 		f.addRow('Metric of each step', info(self.ts_metric, HELP['ts_metric']))
 		f.addRow('Statistic of the region', info(self.stat, HELP['stat']))
+		self.min_coverage = QCheckBox(f'no value in the steps with valid pixels in less than {MIN_COVERAGE:.0%} of the '
+		                              'region (also the trend table and the export of the series)')
+		self.min_coverage.setChecked(False)  # off: also for the trend table and the export (the same statistic)
+		f.addRow('Minimum coverage', info(self.min_coverage, HELP['min_coverage']))
 		chart = Section('Chart', summary=self.chart_summary)
 		self.chart_box = chart
 		f.addRow(chart)
@@ -1922,7 +1951,8 @@ class MonitorEODock(QDockWidget):
 			edit.textChanged.connect(refresh)
 		for d in (self.start, self.end, self.other_start, self.other_end):
 			d.dateChanged.connect(refresh)
-		checks = [self.compare_on, self.season_on, self.cloud_score, self.snow_ndsi, self.topographic, self.doy,
+		checks = [self.compare_on, self.season_on, self.cloud_score, self.snow_ndsi, self.topographic, self.harmonize,
+		          self.landsat7, self.min_coverage, self.doy,
 		          self.trend_alpha, self.landcover_box] + list(self.filters.values()) + [c['on'] for c in self.where]
 		for c in checks:
 			c.toggled.connect(refresh)
@@ -1979,6 +2009,10 @@ class MonitorEODock(QDockWidget):
 				parts.append('where ' + c['variable'].currentText().split(' · ')[0])
 		if self.topographic.isEnabled() and self.topographic.isChecked():
 			parts.append('topographic correction')
+		if self.harmonize.isEnabled() and self.harmonize.isChecked():
+			parts.append('Landsat 5 and 7 harmonized')
+		if self.landsat7.isEnabled() and self.landsat7.isChecked():
+			parts.append('Landsat 7 after 2003')
 		return ', '.join(parts)
 
 	def chart_summary(self):
@@ -2728,7 +2762,15 @@ class MonitorEODock(QDockWidget):
 			out.append(missing('quality.snow_ndsi', sensors.SNOW_NDSI_DEFAULT, NO_SNOW_NDSI))
 		if given and q.get('topographic') and not own and not self.topographic.isEnabled():
 			out.append(missing('quality.topographic', True, NO_TOPOGRAPHIC))
+		for k, box, why in (('harmonize', self.harmonize, NO_HARMONIZE), ('landsat7', self.landsat7, NO_LANDSAT7)):
+			box.setChecked(bool(q.get(k)))
+			if given and q.get(k) and not own and not box.isEnabled():
+				out.append(missing(f'quality.{k}', True, why))
 		return out
+
+	def put_min_coverage(self, value, given, name):
+		self.min_coverage.setChecked(bool(value))
+		return []
 
 	def put_doy(self, value, given, name):
 		self.doy.setChecked(bool(value))
@@ -3259,7 +3301,16 @@ class MonitorEODock(QDockWidget):
 			quality['topographic'] = True
 		if self.snow_ndsi.isChecked() and (own or self.snow_ndsi.isEnabled()):  # the snow by its NDSI, when asked
 			quality['snow_ndsi'] = sensors.SNOW_NDSI_DEFAULT
+		for k in ('harmonize', 'landsat7'):  # Landsat 5 and 7 as 8 and 9, Landsat 7 after 2003: when asked
+			box = getattr(self, k)
+			if box.isChecked() and (own or box.isEnabled()):
+				quality[k] = True
 		return quality
+
+	def coverage_args(self):
+		"""{'min_coverage': MIN_COVERAGE} when its check box is checked (the series, their comparison, the trend table
+		and the export of the series), else {}."""
+		return {'min_coverage': MIN_COVERAGE} if self.min_coverage.isChecked() else {}
 
 	def snow_ndsi_enabled(self, v=None):
 		"""The check box of the snow by its NDSI, enabled for the variables of the catalog of Sentinel-2 and Landsat with
@@ -3629,7 +3680,7 @@ class MonitorEODock(QDockWidget):
 			if step not in trends.STEPS:
 				raise ValueError('To compare periods, choose the step Monthly, 16 days or Annual')
 			return 'compare_series', dict(region=region, **var, other_start=other[0], other_end=other[1], step=step,
-			                              metric=metric, stat=stat)
+			                              metric=metric, stat=stat, **self.coverage_args())
 		doy = self.doy.isChecked() and step != 'annual'  # a line per year: not with a value per year
 		profile = self.doy_args(var) if doy else {}
 		if profile.get('other_variable'):
@@ -3641,8 +3692,12 @@ class MonitorEODock(QDockWidget):
 				quality.pop('topographic', None)  # (the right axis gets it only if it can, services._other_spec)
 			if not self.snow_ndsi.isEnabled():  # the snow by its NDSI, likewise
 				quality.pop('snow_ndsi', None)
+			for k in ('harmonize', 'landsat7'):  # the Landsat options, likewise (services._other_spec)
+				if not getattr(self, k).isEnabled():
+					quality.pop(k, None)
 			var = dict(var, quality=quality)
-		return 'time_series', dict(region=region, **var, step=step, metric=metric, stat=stat, doy=doy, **profile)
+		return 'time_series', dict(region=region, **var, step=step, metric=metric, stat=stat, doy=doy, **profile,
+		                           **self.coverage_args())
 
 	def run_series(self):
 		call = self.call_of('series')
@@ -3778,6 +3833,11 @@ class MonitorEODock(QDockWidget):
 		self.snow_ndsi_enabled(v)
 		self.topographic.setEnabled(bool(v.get('topographic')))  # the surface reflectance of Landsat
 		self.topographic.setToolTip('' if v.get('topographic') else NO_TOPOGRAPHIC)
+		self.harmonize.setEnabled(bool(v.get('harmonize')))  # Landsat 5 and 7 as 8 and 9: its surface reflectance
+		self.harmonize.setToolTip('' if v.get('harmonize') else NO_HARMONIZE)
+		seven = v.get('sensor') == 'Landsat' and not v.get('custom')
+		self.landsat7.setEnabled(seven)
+		self.landsat7.setToolTip('' if seven else NO_LANDSAT7)
 		measured = set() if fixed is not None else \
 			{f for f in sensors.FILTERS if v.get('variable') in sensors.MEASURES.get(f, ())}
 		own = self.own_filters()
@@ -3830,7 +3890,7 @@ class MonitorEODock(QDockWidget):
 		region, var = self.region(), self.variable_args()
 		return 'trend_table', dict(region=region, **var, step=self.trend_step.currentData(),
 		                           metric=self.trend_metric.currentData(), test=self.trend_test.currentData(),
-		                           stat=self.stat.currentData())
+		                           stat=self.stat.currentData(), **self.coverage_args())
 
 	def run_trend_table(self):
 		call = self.call_of('trend_table')
@@ -4422,7 +4482,8 @@ class MonitorEODock(QDockWidget):
 		group Time series; the Drive folder is its output); ValueError if the fields are not valid."""
 		region, var = self.region(), self.variable_args()
 		return 'time_series_to_drive', dict(region=region, **var, step=self.step.currentData(),
-		                                    metric=self.ts_metric.currentData(), stat=self.stat.currentData())
+		                                    metric=self.ts_metric.currentData(), stat=self.stat.currentData(),
+		                                    **self.coverage_args())
 
 	def run_export_series(self):
 		call = self.call_of('export_series')
@@ -4531,6 +4592,9 @@ class MonitorEODock(QDockWidget):
 			quality.pop('topographic', None)
 		if sensor not in sensors.SNOW_NDSI:  # the snow by its NDSI: not for MODIS
 			quality.pop('snow_ndsi', None)
+		if sensor != 'Landsat':  # Landsat 5 and 7 as 8 and 9, Landsat 7 after 2003: only Landsat
+			quality.pop('harmonize', None)
+			quality.pop('landsat7', None)
 		stem = os.path.join(folder, burn_stem(index))
 		more = {'collection': collection} if collection else {}  # MODIS (RdNBR): Terra or Aqua
 		outline = self.perimeter_args(index, stem)  # the polygons of the burned area

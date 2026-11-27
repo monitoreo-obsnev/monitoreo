@@ -99,9 +99,10 @@ def _years(period):
 	return a if a == b else f'{a}-{b}'
 
 
-def datasets(collection, period=None):
+def datasets(collection, period=None, quality=None):
 	"""The Earth Engine datasets of COLLECTION: itself, or, for LANDSAT, the Landsat collections of the PERIOD
-	((first, last day); all of them without it), or, for a collection with a gap-filled version (sensors.GAP_FILLED),
+	((first, last day); all of them without it; Landsat 7 until its last image with quality landsat7, see
+	sensors.landsat_parts), or, for a collection with a gap-filled version (sensors.GAP_FILLED),
 	that version up to its last image and the collection after it, those of the PERIOD."""
 	dates = catalog.load()['collections']
 	if collection in sensors.GAP_FILLED:
@@ -115,8 +116,12 @@ def datasets(collection, period=None):
 	if collection != LANDSAT:
 		return [collection]
 	out = []
-	for col, _, last in sensors.LANDSAT:
-		start, end = dates.get(col, {}).get('start'), last or dates.get(col, {}).get('end')
+	for col, _, last in sensors.landsat_parts(quality):
+		end = last or dates.get(col, {}).get('end')
+		if col == sensors.LANDSAT7['collection'] and not last:  # with landsat7: until its last image
+			from . import coverage
+			end = (coverage._records().get(col) or {}).get('end') or end
+		start = dates.get(col, {}).get('start')
 		if period and ((end and end < period[0]) or (start and start > period[1])):
 			continue
 		out.append(col)
@@ -201,7 +206,7 @@ def of_variable(entry, quality=None, period=None, formula=True):
 	snow cover frequency and the cloud frequency); see cite for the metrics max and min."""
 	keep = formula or sensors.is_scf(entry) or sensors.is_cf(entry)
 	ids = list(entry.get('references', [])) if keep else []
-	cols = datasets(entry['col'], period)
+	cols = datasets(entry['col'], period, quality)
 	on = sensors.filters(entry, quality)
 	q = dict(sensors.QUALITY, **(quality or {}))
 	if entry['sensor'] == 'Sentinel-2':
@@ -215,6 +220,8 @@ def of_variable(entry, quality=None, period=None, formula=True):
 		ids += _methods('snow_ndsi')
 	if sensors.permanent_water_of(entry, q):  # the permanent water of the JRC Global Surface Water
 		cols.append(sensors.PERMANENT_WATER['image'])
+	if sensors.harmonize(q) and not sensors.no_harmonize(entry):  # Landsat 5 and 7 as Landsat 8 and 9 (Roy et al. 2016)
+		ids += _methods('harmonize')
 	if sensors.topographic(q) and not sensors.no_topographic(entry):  # SCS+C, with the slope and aspect of the SRTM
 		ids += _methods('topographic')
 		cols.append(sensors.TOPOGRAPHIC['dem'])
