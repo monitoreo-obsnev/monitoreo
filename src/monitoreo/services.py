@@ -1105,6 +1105,57 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 	        'folder': folder}
 
 
+IMAGE_COUNT_COLUMNS = ['region', 'date', 'n_images', 'observations', 'coverage', 'n_pixels']
+
+
+@_cited
+def image_count(region, variable=None, sensor=None, start=None, end=None, step='annual', season=None, quality=None,
+                scale=None, csv=None, chart=None, progress=None, **source):
+	"""The images and the valid observations of a variable over REGION in each STEP ('daily', '16-day', 'monthly',
+	'annual') of its period (and SEASON), after the pixel filters of QUALITY (clouds, shadows, water, snow...): to
+	choose a period before analysing it (e.g. the summers of Landsat 5 in the 1990s) or to tell apart the steps with few
+	clear images. For each step and feature of the region: n_images, the images of the step over the region (as in
+	the time series); observations, the mean over the pixels of the region with data of their valid observations in the
+	step (images with a value on the pixel: the metric count of the time series, with the statistic mean); coverage,
+	the fraction of the pixels of the region with at least one (those that where and exclude_landcover keep; see
+	timeseries); and n_pixels, those pixels. Writes the table to CSV and a chart of the observations to CHART (PNG).
+	Returns {'rows': [{region, date, n_images, observations, coverage, n_pixels}], 'summary': [{region, n_steps,
+	n_images, steps_without_data, observations_min, observations_median, coverage_min}], 'csv', 'chart', 'scale',
+	'title', 'n_steps', 'regions'}."""
+	spec = make_spec(variable, sensor, start, end, metric='count', season=season, quality=quality, **source)
+	variables.check_dates(spec, 'image count')
+	regions = areas.region(region)
+	rows, used_scale = timeseries.series(spec, regions, step, 'count', 'mean', scale, progress, coverage=True)
+	out_rows = [{'region': r['region'], 'date': r['date'], 'n_images': r.get('n_images'),
+	             'observations': r.get('value'), 'coverage': r.get('coverage'), 'n_pixels': r.get('n_pixels')}
+	            for r in rows]
+	summary = []
+	for name in sorted({r['region'] for r in out_rows}):
+		part = [r for r in out_rows if r['region'] == name]
+		obs = sorted(r['observations'] or 0 for r in part)
+		summary.append({'region': name, 'n_steps': len(part), 'n_images': sum(r['n_images'] or 0 for r in part),
+		                'steps_without_data': sum(1 for r in part if not r['observations']),
+		                'observations_min': obs[0] if obs else None,
+		                'observations_median': obs[len(obs) // 2] if obs else None,
+		                'coverage_min': min((r['coverage'] or 0 for r in part), default=None)})
+	what = _series_name(spec)
+	title = f"Images and valid observations of {what} | {step}, {spec['period'][0]} / {spec['period'][1]}"
+	out = {'rows': out_rows, 'summary': summary, 'csv': None, 'chart': None, 'scale': used_scale, 'title': title,
+	       'n_steps': len({r['date'] for r in out_rows}), 'regions': [s['region'] for s in summary]}
+	if csv:
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'step': step, 'scale_m': used_scale}
+		out['csv'] = timeseries.write_csv(out_rows, csv, meta, IMAGE_COUNT_COLUMNS)
+	if chart and out_rows:
+		try:
+			drawn = [dict(r, value=r['observations']) for r in out_rows]
+			charts.time_series_png(drawn, chart, title=title, ylabel='Valid observations per pixel',
+			                       source=coverage.source(), bars=True)
+			out['chart'] = chart
+		except ImportError:  # no matplotlib: the table and the CSV are still there
+			pass
+	return out
+
+
 # Maps --------------------------------------------------------------------------------------------------------------
 
 def composite_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
@@ -2471,7 +2522,7 @@ BURN_SENSORS = {'dNBR': ('Sentinel-2', 'Landsat'), 'RBR': ('Sentinel-2', 'Landsa
 def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start=None, other_end=None,
                   metric='median', season=None, quality=None, resolution=None, crs='auto', path=None, csv=None,
                   max_pixels=None, tile=512, workers=8, progress=None, index='dNBR', where=None, collection=None,
-                  perimeter=None, burned_min=None, min_ha=None):
+                  perimeter=None, burned_min=None, min_ha=None, offset_region=None, seed=None, largest=False):
 	"""Burn severity of a fire over each feature of REGION (see monitoreo.fire): the dNBR, NBR of a period before the
 	fire (START to END) minus NBR of a period after it (OTHER_START to OTHER_END), each the METRIC of the images of
 	SENSOR ('Sentinel-2' or 'Landsat') in its period, and its classes of the USGS (Key & Benson 2006). The hectares of
@@ -2492,7 +2543,7 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	before| at least 0.001 (Howe et al. 2022), with the NBR of the catalog entry RdNBR (B8 and B12 in Sentinel-2, as
 	Howe et al. 2022; NIR and SWIR2 in Landsat; bands 2 and 7 of the daily surface reflectance of MODIS, SENSOR
 	'Modis': Terra, MOD09GA, or, with COLLECTION 'MODIS/061/MYD09GA', Aqua), without the offset of the dNBR of the
-	unburned area around the fire and on the scale of the dNBR (the article multiplies it by 1000), and its classes
+	unburned area around the fire unless OFFSET_REGION gives it (see below) and on the scale of the dNBR (the article multiplies it by 1000), and its classes
 	of the article (its Table 4: 0 unchanged, RdNBR < 0.069; 1 low, 0.069 to 0.316; 2 moderate, 0.316 to 0.641; 3
 	high, >= 0.641): {'index': 'RdNBR', 'classes': [{region, class, label, rdnbr_min, rdnbr_max, ha}], 'burned_ha':
 	{region: hectares with RdNBR >= 0.069, those of the classes low to high}, 'stats': [{region, mean, median, p10,
@@ -2518,12 +2569,25 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	and with the unburned islands of less than MIN_HA inside them filled (0: every burned pixel, every island). Its
 	fields are those of fire.PERIMETER_FIELDS: region, ha (its area), patches (its burned patches of 8 connected
 	pixels), index, burned_min, min_ha, sensor, before and after. The answer then has also 'perimeter' (its path),
-	'perimeter_ha' ({region: hectares}), 'perimeter_patches' ({region: patches}), 'burned_min' and 'min_ha'."""
+	'perimeter_ha' ({region: hectares}), 'perimeter_patches' ({region: patches}), 'burned_min' and 'min_ha'. SEED (a
+	point [lon, lat]) or LARGEST: the perimeter keeps only the burned patch nearest to SEED (the one that contains it, if
+	any) or the largest one, in each feature of REGION: the fire alone in a large region, without the other patches
+	that pass BURNED_MIN (other fires, harvests, the drying of pastures); 'perimeter_kept' says which. The classes and
+	statistics are still those of the whole REGION: give the perimeter as the region of another burn_severity for those
+	of the fire alone.
+
+	OFFSET_REGION (a region, as REGION; e.g. an unburned area around the fire, of the same vegetation): the median dNBR
+	of its pixels (the change between both periods that is not the fire: phenology, drought, the drying of pastures and
+	heath) is subtracted from the dNBR before its classes, the RBR and the RdNBR, the offset of Miller & Thode (2007)
+	and Parks et al. (2014): dNBR - offset, (dNBR - offset) / (NBR before + 1.001) and (dNBR - offset) / sqrt(|NBR
+	before|). The answer has 'offset' (that median) and the band dnbr of the GeoTIFF is the dNBR without it."""
 	index = {i.lower(): i for i in BURN_INDICES}.get(str(index or 'dNBR').lower())
 	if index is None:
 		raise ValueError(f"unknown burn index: use {', '.join(BURN_INDICES[:-1])} or {BURN_INDICES[-1]}")
 	quality = fire.burn_quality(quality)  # the permanent water, not the water flags that take burned pixels for water
-	outline = _perimeter_args(index, perimeter, burned_min, min_ha, sensor, (start, end), (other_start, other_end))
+	outline = _perimeter_args(index, perimeter, burned_min, min_ha, sensor, (start, end), (other_start, other_end),
+	                          seed, largest)
+	offset_regions = areas.region(offset_region) if offset_region else None
 	known = {s.lower().replace(' ', ''): s for s in BURN_SENSORS[index]}
 	if sensor is not None and str(sensor).lower().replace(' ', '') not in known:
 		raise ValueError(f"the burn index {index} is computed with the sensors {', '.join(BURN_SENSORS[index])}, not "
@@ -2533,17 +2597,21 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		                 'MODIS/061/MYD09GA, Aqua)')
 	if index == 'RBR':
 		return _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path,
-		            csv, max_pixels, tile, workers, progress, where, outline=outline)
+		            csv, max_pixels, tile, workers, progress, where, outline=outline, **_offset_kw(offset_regions))
 	if index == 'RdNBR':
 		return _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs,
-		              path, csv, max_pixels, tile, workers, progress, where, collection, outline=outline)
+		              path, csv, max_pixels, tile, workers, progress, where, collection, outline=outline,
+		              **_offset_kw(offset_regions))
 	regions_ = areas.region(region)
 	spec0 = make_spec('NBR', sensor, start, end, metric=metric, season=season, quality=quality)
 	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, 'NBR', sensor, start, end, other_start, other_end,
 	                                               metric, 'period', 'mean', season, quality, res,
 	                                               {'where': where} if where else {})
-	dnbr = img.select('reference').subtract(img.select('other')).rename('dnbr')
+	dnbr, offset = _offset(img.select('reference').subtract(img.select('other')).rename('dnbr'), offset_regions, res,
+	                       grid.crs, lambda r: _comparison(r, 'NBR', sensor, start, end, other_start, other_end, metric,
+	                                                       'period', 'mean', season, quality, res,
+	                                                       {'where': where} if where else {})[2])
 	severity = fire.classify(dnbr)
 	hectares = ee.Image.pixelArea().divide(1e4).addBands(severity).updateMask(dnbr.mask())
 	stats = hectares.reduceRegions(collection=regions, reducer=ee.Reducer.sum().group(1, 'class'), scale=res,
@@ -2557,10 +2625,11 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 	title = (f"Burn severity (dNBR, USGS) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
 	         f"after {other_start} / {other_end}")
 	out = {'index': 'dNBR', 'classes': classes, 'burned_ha': burned, 'scale': res, 'title': title, 'csv': None,
-	       'file': None, 'bands': None, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
+	       'file': None, 'bands': None, 'grid': grid.describe(), 'resolution': res, 'native_resolution': native,
+	       **_offset_answer(offset)}
 	if csv:
 		meta = {'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}', 'metric': metric,
-		        'scale_m': res}
+		        'scale_m': res, **_offset_answer(offset)}
 		out['csv'] = timeseries.write_csv(classes, csv, meta, BURN_COLUMNS)
 	if path:
 		bands = ['dnbr', 'severity', 'nbr_before', 'nbr_after']
@@ -2568,7 +2637,7 @@ def burn_severity(region, sensor='Sentinel-2', start=None, end=None, other_start
 		download(image, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
 		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
-		             severity='USGS, Key & Benson 2006'), default=str)})
+		             severity='USGS, Key & Benson 2006', **_offset_answer(offset)), default=str)})
 		out.update(file=path, bands=bands)
 	if outline:
 		out.update(_burn_perimeter(dnbr, regions, res, grid.crs, outline))
@@ -2599,7 +2668,7 @@ def _burn_stats(index, band, regions, scale, crs):
 
 
 def _rbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
-         max_pixels, tile, workers, progress, where=None, outline=None):
+         max_pixels, tile, workers, progress, where=None, outline=None, offset_regions=None):
 	"""burn_severity with the index RBR."""
 	regions_ = areas.region(region)
 	spec0 = make_spec('RBR', sensor, start, end, metric=metric, season=season, quality=quality, two_periods=True)
@@ -2608,16 +2677,19 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 	                                               metric, 'period', 'mean', season, quality, res,
 	                                               {'where': where} if where else {}, two_periods=True)
 	before, after = img.select('reference'), img.select('other')
-	dnbr = before.subtract(after).rename('dnbr')
+	dnbr, offset = _offset(before.subtract(after).rename('dnbr'), offset_regions, res, grid.crs,
+	                       lambda r: _comparison(r, 'RBR', sensor, start, end, other_start, other_end, metric, 'period',
+	                                             'mean', season, quality, res, {'where': where} if where else {},
+	                                             two_periods=True)[2])
 	rbr = fire.rbr(dnbr, before)
 	rows = _burn_stats(rbr, 'rbr', regions, res, grid.crs)
 	title = (f"Relativized Burn Ratio (RBR) {sensor} ({metric}) | before {spec['period'][0]} / {spec['period'][1]}, "
 	         f"after {other_start} / {other_end}")
 	out = {'index': 'RBR', 'stats': rows, 'scale': res, 'title': title, 'csv': None, 'file': None, 'bands': None,
-	       'grid': grid.describe(), 'resolution': res, 'native_resolution': native}
+	       'grid': grid.describe(), 'resolution': res, 'native_resolution': native, **_offset_answer(offset)}
 	if csv:
 		meta = {'index': 'RBR', 'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}',
-		        'metric': metric, 'scale_m': res}
+		        'metric': metric, 'scale_m': res, **_offset_answer(offset)}
 		out['csv'] = timeseries.write_csv(rows, csv, meta, RBR_COLUMNS)
 	if path:
 		bands = ['rbr', 'dnbr', 'nbr_before', 'nbr_after']
@@ -2625,7 +2697,7 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 		download(image, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
 		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
-		             index='RBR = dNBR / (NBR before + 1.001)'), default=str)})
+		             index='RBR = dNBR / (NBR before + 1.001)', **_offset_answer(offset)), default=str)})
 		out.update(file=path, bands=bands)
 	if outline:
 		out.update(_burn_perimeter(rbr, regions, res, grid.crs, outline))
@@ -2633,7 +2705,7 @@ def _rbr(region, sensor, start, end, other_start, other_end, metric, season, qua
 
 
 def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, quality, resolution, crs, path, csv,
-           max_pixels, tile, workers, progress, where=None, collection=None, outline=None):
+           max_pixels, tile, workers, progress, where=None, collection=None, outline=None, offset_regions=None):
 	"""burn_severity with the index RdNBR (Miller & Thode 2007), with the classes of the article."""
 	regions_ = areas.region(region)
 	source = dict({'where': where} if where else {}, **({'collection': collection} if collection else {}))
@@ -2644,7 +2716,9 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 	                                               metric, 'period', 'mean', season, quality, res, source,
 	                                               two_periods=True)
 	before, after = img.select('reference'), img.select('other')
-	dnbr = before.subtract(after).rename('dnbr')
+	dnbr, offset = _offset(before.subtract(after).rename('dnbr'), offset_regions, res, grid.crs,
+	                       lambda r: _comparison(r, 'RdNBR', sensor, start, end, other_start, other_end, metric,
+	                                             'period', 'mean', season, quality, res, source, two_periods=True)[2])
 	rdnbr = fire.rdnbr(dnbr, before)
 	severity = fire.classify(rdnbr, 'RdNBR')
 	ha = ee.Image.pixelArea().divide(1e4).updateMask(rdnbr.mask())
@@ -2663,10 +2737,10 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 	         f"{spec['period'][1]}, after {other_start} / {other_end}")
 	out = {'index': 'RdNBR', 'classes': classes, 'burned_ha': burned, 'stats': rows, 'scale': res, 'title': title,
 	       'csv': None, 'file': None, 'bands': None, 'grid': grid.describe(), 'resolution': res,
-	       'native_resolution': native}
+	       'native_resolution': native, **_offset_answer(offset)}
 	if csv:
 		meta = {'index': 'RdNBR', 'sensor': sensor, 'before': f'{start}/{end}', 'after': f'{other_start}/{other_end}',
-		        'metric': metric, 'scale_m': res}
+		        'metric': metric, 'scale_m': res, **_offset_answer(offset)}
 		out['csv'] = timeseries.write_csv(classes, csv, meta, RDNBR_COLUMNS)
 	if path:
 		bands = ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after']
@@ -2675,40 +2749,74 @@ def _rdnbr(region, sensor, start, end, other_start, other_end, metric, season, q
 		         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
 		             variables.describe(spec), before=[start, end], after=[other_start, other_end],
 		             index='RdNBR = dNBR / sqrt(max(|NBR before|, 0.001))',
-		             severity='Miller & Thode 2007 (Table 4)'), default=str)})
+		             severity='Miller & Thode 2007 (Table 4)', **_offset_answer(offset)), default=str)})
 		out.update(file=path, bands=bands)
 	if outline:
 		out.update(_burn_perimeter(rdnbr, regions, res, grid.crs, outline))
 	return out
 
 
-def _perimeter_args(index, path, burned_min, min_ha, sensor, before, after):
+def _perimeter_args(index, path, burned_min, min_ha, sensor, before, after, seed=None, largest=False):
 	"""What burn_severity needs for the perimeter of the burned area, checked before computing anything: {path,
-	index, burned_min, min_ha, sensor, before, after}, or None without PATH (and then neither BURNED_MIN nor MIN_HA)."""
+	index, burned_min, min_ha, sensor, before, after, keep (fire.check_keep of SEED and LARGEST)}, or None without PATH
+	(and then neither BURNED_MIN, MIN_HA, SEED nor LARGEST)."""
+	keep = fire.check_keep(seed, largest)
 	if not path:
-		if burned_min is not None or min_ha is not None:
-			raise ValueError('burned_min and min_ha are for the perimeter of the burned area: give also perimeter, the '
-			                 f"vector file to write ({', '.join(areas.VECTOR_DRIVERS)})")
+		if burned_min is not None or min_ha is not None or keep is not None:
+			raise ValueError('burned_min, min_ha, seed and largest are for the perimeter of the burned area: give also '
+			                 f"perimeter, the vector file to write ({', '.join(areas.VECTOR_DRIVERS)})")
 		return None
 	areas.vector_driver(path)
 	min_ha = fire.PERIMETER_MIN_HA if min_ha is None else float(min_ha)
 	if min_ha < 0:
 		raise ValueError('min_ha, the smallest burned patch and unburned island of the perimeter, cannot be negative')
 	return {'path': path, 'index': index, 'burned_min': fire.burned_min(index, burned_min), 'min_ha': min_ha,
-	        'sensor': sensor, 'before': '/'.join(map(str, before)), 'after': '/'.join(map(str, after))}
+	        'sensor': sensor, 'before': '/'.join(map(str, before)), 'after': '/'.join(map(str, after)),
+	        **({'keep': keep} if keep is not None else {})}
 
 
 def _burn_perimeter(value, regions, scale, crs, outline):
 	"""Write the perimeter of the burned area (fire.perimeter) of the burn index VALUE over each feature of REGIONS,
 	with pixels of SCALE metres in CRS, to the vector file of OUTLINE (see _perimeter_args). Returns {'perimeter',
 	'perimeter_ha', 'perimeter_patches', 'burned_min', 'min_ha'} for the answer of burn_severity."""
-	fc = fire.perimeter(value, outline['burned_min'], regions, scale, crs, outline['min_ha'])
+	fc = fire.perimeter(value, outline['burned_min'], regions, scale, crs, outline['min_ha'],
+	                    **({'keep': outline['keep']} if outline.get('keep') is not None else {}))
 	rows = fire.perimeter_rows(fc.getInfo()['features'])
 	same = {k: outline[k] for k in ('index', 'burned_min', 'min_ha', 'sensor', 'before', 'after')}
 	areas.save_polygons([dict(r, **same) for r in rows], outline['path'], 'perimeter', fire.PERIMETER_TYPES)
+	keep = outline.get('keep')
 	return {'perimeter': outline['path'], 'perimeter_ha': {r['region']: r['ha'] for r in rows},
 	        'perimeter_patches': {r['region']: r['patches'] for r in rows}, 'burned_min': outline['burned_min'],
-	        'min_ha': outline['min_ha']}
+	        'min_ha': outline['min_ha'],
+	        **({'perimeter_kept': 'the largest burned patch' if keep == 'largest' else
+	            f'the burned patch nearest to the point {keep[0]:g}, {keep[1]:g} (lon, lat)'} if keep else {})}
+
+
+def _offset(dnbr, offset_regions, scale, crs, images):
+	"""The dNBR (ee.Image DNBR) without the offset of OFFSET_REGIONS (an ee.FeatureCollection, or None: no offset), and
+	that offset: the median of the dNBR of their pixels, of SCALE metres in CRS (see burn_severity), from IMAGES(regions),
+	the NBR before (band reference) and after (band other) over them, as those of the fire (the same data, periods,
+	pixel filters and conditions): outside the region of the fire too. ValueError if they have no pixel with a dNBR."""
+	if offset_regions is None:
+		return dnbr, None
+	img = images(offset_regions)
+	around = img.select('reference').subtract(img.select('other')).rename('dnbr')
+	median = around.reduceRegion(ee.Reducer.median(), offset_regions.geometry(), scale, crs, maxPixels=1e13,
+	                           tileScale=4).get('dnbr').getInfo()
+	if median is None:
+		raise ValueError('offset_region has no pixel with a dNBR (both periods with valid images): give an unburned area '
+		                 'with vegetation near the fire, inside the data')
+	return dnbr.subtract(median).rename('dnbr'), float(median)
+
+
+def _offset_kw(offset_regions):
+	"""The offset regions as a keyword of _rbr and _rdnbr, only when there are some ({} without them)."""
+	return {} if offset_regions is None else {'offset_regions': offset_regions}
+
+
+def _offset_answer(offset):
+	"""The offset of the dNBR in an answer of burn_severity: {'offset': its value}, or {} without one."""
+	return {} if offset is None else {'offset': offset}
 
 
 # Publication -------------------------------------------------------------------------------------------------------

@@ -15,8 +15,8 @@
 
 The app is published from the git repository of its scripts in Earth Engine, users/monitoreo-obsnev/monitoreo (see
 modules and gee/push_app.py): Earth Engine refuses any file of a repository over 512 KiB and monitoreo_app.js is
-bigger, so there the app is the script app (core.js and ui.js) and the catalog is in the modules catalog_1,
-catalog_2... that it requires. They are written from the catalog.js, core.js and ui.js there are, without Earth Engine:
+bigger, so there the app is the script app (ui.js), which requires the module core (core.js), which requires the
+modules of the catalog catalog_1, catalog_2... They are written from the catalog.js, core.js and ui.js there are, without Earth Engine:
 
   python gee/build.py --modules DIR
 
@@ -61,9 +61,9 @@ LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
 REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine
 MAX_FILE = 524288  # bytes: the biggest file Earth Engine takes in a push to a repository (measured; any push size)
-LIMIT = 516096  # bytes of each file of the repository of the app (504 KiB), with a margin of 8 KiB under MAX_FILE: the
-# script app (core.js and ui.js) took 503,506 bytes on 2026-11-27, near it; the next big change of the app splits it
-MODULE = re.compile(r'app|catalog_[0-9]+')  # the names of the files that modules writes
+LIMIT = 516096  # bytes of each file of the repository of the app (504 KiB), with a margin of 8 KiB under MAX_FILE: core.js
+# and ui.js together took 515,822 bytes on 2026-11-27, so they are two files since then (the module core and the app)
+MODULE = re.compile(r'app|core|catalog_[0-9]+')  # the names of the files that modules writes
 # the tables of the regions whose credits the app shows (core.js, CITED_REGIONS): the administrative units, FAO GAUL
 # 2025 (levels 1 and 2) and the municipalities of Spain of the IGN (level 3), and the seas of the IHO (Marine Regions)
 ADMIN_DATASETS = [areas.GAUL[1], areas.GAUL[2], municipalities.ASSET, seas.ASSET]
@@ -255,27 +255,32 @@ def catalog_modules(data, limit=LIMIT):
 
 def modules(repo=REPO, limit=LIMIT):
 	"""The files of the git repository REPO of the app in Earth Engine, {name: text}, from the catalog.js, core.js and
-	ui.js there are (without Earth Engine): app, the script published (the catalog filled from the modules, then
-	core.js and ui.js as they are), and catalog_1, catalog_2..., the modules of the catalog (catalog_modules). Earth
-	Engine refuses any file over 512 KiB (MAX_FILE), so each is in ASCII (with the \\u escapes of monitoreo_app.js)
-	and of at most LIMIT bytes. The app requires each module by its literal path (REPO:catalog_1), as Earth Engine
-	needs to bundle them when it publishes the app. ValueError if a file does not fit in LIMIT."""
+	ui.js there are (without Earth Engine): app, the script published (ui.js, with the MonitorEO of the module core);
+	core, the module of core.js (the catalog filled from the modules of the catalog, then core.js, which it exports as
+	MonitorEO); and catalog_1, catalog_2..., the modules of the catalog (catalog_modules). Earth Engine refuses any file
+	over 512 KiB (MAX_FILE), so each is in ASCII (with the \\u escapes of monitoreo_app.js) and of at most LIMIT bytes.
+	Each file requires the modules by their literal paths (REPO:core, REPO:catalog_1), as Earth Engine needs to bundle
+	them when it publishes the app. ValueError if a file does not fit in LIMIT."""
 	if not re.fullmatch(r'[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+', repo):
 		raise ValueError(f'{repo!r} is not the path of a repository of Earth Engine (e.g. {REPO})')
 	parts = catalog_modules(read_catalog(), limit)
 	names = [f'catalog_{n}' for n in range(1, len(parts) + 1)]
 	requires = ',\n'.join(f"\trequire('{repo}:{name}')" for name in names)
-	head = (f'// MonitorEO for Earth Engine Apps: the script app of the repository {repo}, published\n'
-	        f'// with Apps > the pencil of MonitorEO > Overwrite from repository script path {repo}:app.\n'
-	        '// Written by gee/build.py from catalog.js, core.js and ui.js of\n'
-	        '// https://github.com/monitoreo-obsnev/monitoreo: do not edit. The catalog is in the modules catalog_1,\n'
-	        '// catalog_2... that it requires: Earth Engine refuses any file of a repository over 512 KiB.\n'
-	        '\n'
+	source = ('// Written by gee/build.py from catalog.js, core.js and ui.js of\n'
+	          '// https://github.com/monitoreo-obsnev/monitoreo: do not edit. Earth Engine refuses any file of a\n'
+	          '// repository over 512 KiB: the app (ui.js) requires the module core (core.js), which requires the\n'
+	          '// modules of the catalog catalog_1, catalog_2...\n\n')
+	app = (f'// MonitorEO for Earth Engine Apps: the script app of the repository {repo}, published\n'
+	       f'// with Apps > the pencil of MonitorEO > Overwrite from repository script path {repo}:app.\n' + source +
+	       f"var MonitorEO = require('{repo}:core').MonitorEO;\n\n")
+	core = (f'// MonitorEO for Earth Engine Apps: the module core of the repository {repo}, required by its\n'
+	        '// script app.\n' + source +
 	        'var CATALOG = {};\n'
 	        f'[\n{requires}\n].forEach(function (m) {{\n'
 	        '\tfor (var key in m.part) CATALOG[key] = m.part[key];\n'
 	        '});\n\n')
-	files = {'app': head + ascii_js('\n'.join(_read(name) for name in ('core.js', 'ui.js')))}
+	files = {'app': app + ascii_js(_read('ui.js')),
+	         'core': core + ascii_js(_read('core.js')) + '\nexports.MonitorEO = MonitorEO;\n'}
 	files.update(zip(names, parts))
 	for name, text in files.items():
 		if len(text.encode('ascii')) > limit:

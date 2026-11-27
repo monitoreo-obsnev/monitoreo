@@ -16,6 +16,9 @@
                                                      years of the values of each step of the year (each month, 16 days
                                                      or day), of one variable or of two on two y axes (e.g. NDSI and
                                                      NDVI)
+    monitoreo count VARIABLE --sensor S --region JSON --start D --end D [--step annual] [--csv F] [--png F]
+                                                     the images and valid observations of each step, after the
+                                                     pixel filters: to choose a period before analysing it
     monitoreo image VARIABLE --sensor S --region JSON --start D --end D [--out F.tif] [--rgb F.tif] [--metric median]
                     [--resolution M]                 GeoTIFF of the map of a variable aggregated in time (--out), of the
                                                      true colour of the same images (--rgb: bands red, green and blue)
@@ -474,6 +477,21 @@ def main(argv=None):
 	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
+	computes['count'] = p = sub.add_parser('count', help='images and valid observations of a variable per step over a '
+	                                                     'region, after the pixel filters: to choose a period before '
+	                                                     'analysing it')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555513}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', required=True)
+	p.add_argument('--end', required=True)
+	p.add_argument('--step', default='annual', choices=('daily', '16-day', 'monthly', 'annual'),
+	               help='a row per year (default), month, 16 days or day with images')
+	p.add_argument('--scale', type=float)
+	p.add_argument('--csv')
+	p.add_argument('--png')
 	computes['image'] = image = p = sub.add_parser('image', help='GeoTIFF of the map of a variable over a region, '
 	                                                             'aggregated in time, and of the true colour of the '
 	                                                             'same images')
@@ -667,7 +685,8 @@ def main(argv=None):
 	                    'before| at least 0.001 (Howe et al. 2022), for heterogeneous vegetation and to compare fires, '
 	                    'with the classes of the article (unchanged, low, moderate and high severity; unchanged is not '
 	                    'unburned), on the scale of the dNBR, without the factor 1000 of the article (0.641 here is 641 '
-	                    'there) and without its offset (the dNBR of an unburned area outside the fire). Its classes '
+	                    'there) and without its offset (the dNBR of an unburned area outside the fire) unless '
+	                    '--offset-region gives it. Its classes '
 	                    'were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of '
 	                    'California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with field '
 	                    'data one year after the fire: give a period after about one year after the fire, in the '
@@ -694,6 +713,16 @@ def main(argv=None):
 	p.add_argument('--min-ha', type=float, metavar='HA',
 	               help='with --perimeter: the burned patches of less than HA hectares are left out and the unburned '
 	                    'islands of less than HA inside them filled (default 1; 0: all)')
+	keep = p.add_mutually_exclusive_group()
+	keep.add_argument('--seed', nargs=2, type=float, metavar=('LON', 'LAT'),
+	                  help='with --perimeter: only the burned patch nearest to this point (the one that contains it), '
+	                       'e.g. the fire alone in a large region')
+	keep.add_argument('--largest', action='store_true', help='with --perimeter: only the largest burned patch')
+	p.add_argument('--offset-region', metavar='JSON',
+	               help='a region (as --region) of unburned land near the fire, of the same vegetation: its median '
+	                    'dNBR (the change that is not the fire: phenology, drought, the drying of pastures) is '
+	                    'subtracted from the dNBR before the classes, the RBR and the RdNBR (the offset of Miller & '
+	                    'Thode 2007 and Parks et al. 2014)')
 	p = sub.add_parser('download', help='GeoTIFFs of a recipe of variables over a study area and its ecoregions')
 	p.add_argument('recipe', help='YAML file of the recipe (see monitoreo.recipe)')
 	p.add_argument('--area', required=True, help='vector file of the study area, or a region as JSON')
@@ -774,8 +803,10 @@ def main(argv=None):
 		            'the data of Earth Engine given by its ID')
 	if args.cmd == 'burn' and args.sensor == 'Modis' and args.index != 'RdNBR':
 		burn.error(f'--sensor Modis is only for --index RdNBR: the {args.index} is computed with Sentinel-2 or Landsat')
-	if args.cmd == 'burn' and (args.burned_min is not None or args.min_ha is not None) and not args.perimeter:
-		burn.error('--burned-min and --min-ha are for the perimeter of the burned area: give also --perimeter FILE')
+	if args.cmd == 'burn' and (args.burned_min is not None or args.min_ha is not None or args.seed or args.largest) \
+			and not args.perimeter:
+		burn.error('--burned-min, --min-ha, --seed and --largest are for the perimeter of the burned area: give also '
+		           '--perimeter FILE')
 	if args.cmd == 'burn' and args.perimeter and args.index == 'RBR' and args.burned_min is None:
 		burn.error('--index RBR has no classes: give --burned-min, the RBR from which a pixel is burned, for the '
 		           'perimeter')
@@ -1051,6 +1082,9 @@ def _compute(args, services):
 	if args.cmd == 'stats':
 		_stats(args, services)
 		return
+	if args.cmd == 'count':
+		_count(args, services, progress)
+		return
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
@@ -1068,6 +1102,20 @@ def _compute(args, services):
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
 	      + files
 	      + _manual(res))
+
+
+def _count(args, services, progress):
+	"""The images and valid observations of a variable per step (services.image_count): a row per step and region."""
+	try:
+		res = services.image_count(json.loads(args.region), start=args.start, end=args.end, step=args.step,
+		                           scale=args.scale, csv=args.csv, chart=args.png, progress=progress, where=_where(args),
+		                           **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	_table(_fmt(res['rows']), services.IMAGE_COUNT_COLUMNS)
+	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
+	print(f"\n{res['title']} | scale {res['scale']:g} m | observations: valid images per pixel (mean over the pixels "
+	      f"with data); coverage: fraction of the region with data" + files + _manual(res))
 
 
 def _range_label(res, default='p1-p99'):
@@ -1284,6 +1332,8 @@ def _burn(args, services):
 		                             csv=args.csv, index=args.index, where=_where(args), collection=args.collection,
 		                             progress=lambda d, t: print(f'  {d}/{t} tiles', file=sys.stderr),
 		                             perimeter=args.perimeter, burned_min=args.burned_min, min_ha=args.min_ha,
+		                             seed=args.seed, largest=args.largest,
+		                             offset_region=json.loads(args.offset_region) if args.offset_region else None,
 		                             **_topographic(args))
 	except ValueError as e:
 		sys.exit(f'ERROR: {e}')
@@ -1307,11 +1357,14 @@ def _burn(args, services):
 		print()
 		for region, ha in res['burned_ha'].items():
 			print(f'{region}: burned area (dNBR >= {fire.BURNED:g}) {ha:.1f} ha')
+	if res.get('offset') is not None:
+		print(f"\ndNBR offset (median of --offset-region, subtracted): {res['offset']:.4g}")
 	if res.get('perimeter'):
 		print()
 		for region, ha in res['perimeter_ha'].items():
 			print(f"{region}: perimeter of the burned area ({res['index']} >= {res['burned_min']:g}, patches and "
-			      f"islands of at least {res['min_ha']:g} ha) {ha:.1f} ha in {res['perimeter_patches'][region]} patches")
+			      f"islands of at least {res['min_ha']:g} ha) {ha:.1f} ha in {res['perimeter_patches'][region]} patches"
+			      + (f" ({res['perimeter_kept']})" if res.get('perimeter_kept') else ''))
 	print(f"\n{res['title']} | pixels of {res['scale']:g} m"
 	      + (f" | CSV {res['csv']}" if res.get('csv') else '') + (f" | GeoTIFF {res['file']}" if res.get('file') else '')
 	      + (f" | perimeter {res['perimeter']}" if res.get('perimeter') else '')

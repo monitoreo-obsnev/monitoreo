@@ -23,7 +23,10 @@ mo_burn_severity(
   collection = NULL,
   perimeter = NULL,
   burned_min = NULL,
-  min_ha = NULL
+  min_ha = NULL,
+  offset_region = NULL,
+  seed = NULL,
+  largest = FALSE
 )
 }
 \arguments{
@@ -98,6 +101,13 @@ classes, dNBR 0.1 or RdNBR 0.069; needed with \code{index = "RBR"}).}
 
 \item{min_ha}{with \code{perimeter}: the burned patches of less than these hectares are left out, and the unburned
 islands of less than them inside them filled (default 1; 0: every pixel).}
+
+\item{offset_region}{optional region (as \code{region}) of unburned land near the fire: its median dNBR is
+subtracted from the dNBR (attribute offset).}
+
+\item{seed}{with \code{perimeter}: optional point \code{c(lon, lat)}; only the burned patch nearest to it.}
+
+\item{largest}{with \code{perimeter}: \code{TRUE} for only the largest burned patch.}
 }
 \value{
 A data.frame of the hectares of each class by region (region, class, label, dnbr_min, dnbr_max, ha; RdNBR:
@@ -107,7 +117,8 @@ A data.frame of the hectares of each class by region (region, class, label, dnbr
   stats (RdNBR: the statistics of the RdNBR by region, with the columns of those of the RBR), legend (dNBR and
   RdNBR: the classes with the colours of their maps, value, label, color and their limits, to draw the band severity
   of the GeoTIFF), title, file, readme, references and credits; with \code{perimeter}, also perimeter (its path),
-  perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha.
+  perimeter_ha (its hectares by region), perimeter_patches, burned_min and min_ha (and perimeter_kept with
+  \code{seed} or \code{largest}); with \code{offset_region}, offset.
 }
 \description{
 The dNBR (NBR of a period before the fire minus NBR of a period after it) and the classes of the USGS (Key and
@@ -124,8 +135,8 @@ and SWIR2, 30 m: Landsat 5, 7 until 2003, 8 and 9) or MODIS (\code{sensor = "Mod
 surface reflectance, 500 m, as Veraverbeke et al. 2010; of Terra, MOD09GA, since 2000-02-24, or, with
 \code{collection = "MODIS/061/MYD09GA"}, of Aqua, since 2002-07-04). It is on the scale of the dNBR of MonitorEO,
 without the factor 1000 of the article (0.641 here is 641 there), like the RBR, and without the offset of the
-article (the mean dNBR of an unburned area outside the fire), which the dNBR and the RBR of MonitorEO do not apply
-either. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
+article (the dNBR of an unburned area outside the fire) unless \code{offset_region} gives it, as for the dNBR
+and the RBR. The classes were calibrated with Landsat TM (30 m) and field plots of 14 fires of the Sierra Nevada of
 California, mostly in conifer and live oak forests (also pinyon pine and sagebrush), with the composite burn index
 (CBI) measured in the field one year after the fire (extended assessment): the period
 after should be about one year after the fire, in the same season as the period before. With MODIS (500 m), mixed
@@ -140,6 +151,15 @@ analyses (\code{mo_sf(sf::read_sf(perimeter), "region")}): a MultiPolygon in EPS
 feature of the region, those whose index is at least \code{burned_min} (by default that of its classes: dNBR 0.1,
 RdNBR 0.069; the RBR, without classes, needs it), joined when they touch, even by a corner, without the patches of
 less than \code{min_ha} hectares and with the unburned islands of less than \code{min_ha} inside them filled.
+With \code{seed} (a point \code{c(lon, lat)} in the fire) or \code{largest = TRUE}, the perimeter keeps only the
+burned patch nearest to the point (the one that contains it) or the largest one: the fire alone in a large
+region. The classes are still those of the whole region: give the perimeter as the region of another call for
+those of the fire alone.
+
+With \code{offset_region} (a region of unburned land near the fire, of the same vegetation), its median dNBR, the
+change between both periods that is not the fire (phenology, drought, the drying of pastures and heath), is
+subtracted from the dNBR before its classes, the RBR and the RdNBR, as the offset of Miller and Thode (2007) and
+Parks et al. (2014).
 }
 \section{References}{
  The result carries its references (with DOI): those of the formula or algorithm of the variable,

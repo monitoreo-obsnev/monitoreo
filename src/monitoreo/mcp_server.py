@@ -126,7 +126,8 @@ min_coverage of time_series, compare_series, trend_table and export_time_series_
 steps whose valid pixels are less than that fraction of the pixels of the region (clouds, shadow, snow, the stripes of
 Landsat 7) have no value; the rows say their coverage. The pixels of the region are those that where and
 exclude_landcover keep: pixels that never have a value (permanent water with the water filter) lower every coverage. Use it when a month of a few clear pixels would give a value far
-from that of the region (mountains with snow or clouds).
+from that of the region (mountains with snow or clouds). image_count says, before them, how many images and valid
+observations per pixel each step has (e.g. the summers of Landsat 5 in the 1990s), to choose the period and the step.
 Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
 stats of region_stats), for any variable: mean, median, min, max, std (standard deviation), cv (coefficient of
@@ -1030,6 +1031,39 @@ def download_variables(recipe: dict, area: dict, name: str, dry_run: bool = Fals
 
 
 @tool
+def image_count(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
+                step: str = 'annual', season: Optional[List[str]] = None, quality: Optional[dict] = None,
+                scale: Optional[float] = None, collection: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
+                where: Optional[list] = None):
+	"""How many images and valid observations a variable has over a region in each step ('annual', 'monthly', '16-day',
+	'daily') of a period, after the pixel filters (clouds, shadows, water, snow): use it BEFORE a series, a trend or a
+	comparison when the data may be scarce (Landsat 5 in the 1990s, cloudy winters, a gap between sensors, a short
+	season) to choose the period, the step and the season. For each step and feature: n_images (images of the step over
+	the region), observations (the valid images per pixel: the mean over the pixels with data), coverage (fraction of
+	the region with at least one valid image) and n_pixels; summary per feature: steps, images, steps without data and
+	the smallest observations and coverage. Writes a CSV and a PNG chart. Required: region, start and end, and variable
+	and sensor (or collection and band)."""
+	source = _source(variable, sensor, collection, None, band, None, None, None)
+	_dates(variable, sensor, source, 'image count', start=start, end=end)
+	_ready()
+	stem = _stem('image_count', _data(variable, sensor, source), step, start, end)
+	res = services.image_count(region, variable, sensor, start, end, step, season=season, quality=quality, scale=scale,
+	                           csv=_out(stem, 'csv'), chart=_out(stem, 'png'), where=where, **source)
+	rows = res['rows']
+	summary = {k: res.get(k) for k in ('title', 'scale', 'n_steps', 'regions', 'summary', 'csv', 'chart', 'readme',
+	                                    'parameters', 'references', 'credits', 'manual')}
+	_notes(summary, res)
+	summary['rows'] = rows[:MAX_ROWS_SHOWN]
+	if len(rows) > MAX_ROWS_SHOWN:
+		summary['note'] = f'{len(rows)} rows: the first {MAX_ROWS_SHOWN} are shown, all of them are in the CSV file'
+	out = [_text(summary)]
+	if res['chart']:
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
+
+
+@tool
 def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
                 step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,
@@ -1204,7 +1238,9 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
                   metric: str = 'median', season: Optional[List[str]] = None, quality: Optional[dict] = None,
                   resolution: Optional[float] = None, crs: str = 'auto', index: str = 'dNBR',
                   where: Optional[list] = None, collection: Optional[str] = None, perimeter: bool = False,
-                  burned_min: Optional[float] = None, min_ha: Optional[float] = None) -> str:
+                  burned_min: Optional[float] = None, min_ha: Optional[float] = None,
+                  offset_region: Optional[dict] = None, seed: Optional[List[float]] = None,
+                  largest: bool = False) -> str:
 	"""Burn severity of a fire with the dNBR and the official classes of the USGS (Key & Benson 2006): dNBR = NBR of
 	a period before the fire (start to end) minus NBR of a period after it (other_start to other_end), with
 	Sentinel-2 (20 m, since 2017) or Landsat (30 m, since 1984). Returns the hectares of each class over each feature
@@ -1223,7 +1259,7 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	sqrt(|NBR before|) with |NBR before| at least 0.001 (Howe et al. 2022), the change relative to the vegetation
 	before the fire, with the classes of the article (unchanged < 0.069, low 0.069 to 0.316, moderate 0.316 to 0.641,
 	high >= 0.641), on the scale of the dNBR, without the factor 1000 of the article (0.641 here is 641 there) and
-	without its offset (the dNBR of an unburned area outside the fire). Sensors: Sentinel-2 (B8 and B12, 20 m),
+	without its offset (the dNBR of an unburned area outside the fire) unless offset_region gives it. Sensors: Sentinel-2 (B8 and B12, 20 m),
 	Landsat (30 m) or "Modis" (500 m, only with this index: the daily surface reflectance of Terra, since 2000, or of
 	Aqua, since 2002-07-04, with collection "MODIS/061/MYD09GA"; its classes are approximate, as a pixel of 500 m
 	mixes burned and unburned land, and small fires are missed). Its classes were calibrated with Landsat TM (30 m)
@@ -1238,7 +1274,14 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	(perimeter_ha, perimeter_patches), to give as the region of the next analyses: {"file": <perimeter>, "name_field":
 	"region"} (e.g. the NDVI after the fire inside it). Burned: index >= burned_min, by default dNBR 0.1 or RdNBR 0.069
 	(the RBR has no classes: ask the user for burned_min, e.g. 0.1); burned patches of less than min_ha hectares
-	(default 1) are left out, and unburned islands of less than min_ha inside them filled (0: every pixel)."""
+	(default 1) are left out, and unburned islands of less than min_ha inside them filled (0: every pixel). With
+	perimeter, seed [lon, lat] (a point in the fire) or largest true keep only the burned patch nearest to the point or
+	the largest one: the fire alone in a large region (perimeter_kept); the classes are still those of the whole region:
+	give the perimeter as the region of another call for those of the fire alone.
+	offset_region (a region as region: unburned land near the fire, of the same vegetation; e.g. a ring around it
+	without the fire): its median dNBR (offset in the answer: the change that is not the fire, such as phenology,
+	drought or the drying of pastures and heath) is subtracted from the dNBR before the classes, the RBR and the RdNBR,
+	as Miller & Thode 2007 and Parks et al. 2014."""
 	_ready()
 	name = {i.lower(): i for i in services.BURN_INDICES}.get(str(index or 'dNBR').lower())
 	prefix = f'{name}_' if name and name != 'dNBR' else ''  # burn_severity_RBR_..., burn_severity_RdNBR_...
@@ -1248,7 +1291,8 @@ def burn_severity(region: dict, start: str, end: str, other_start: str, other_en
 	                                    quality=quality, resolution=resolution, crs=crs, path=tif,
 	                                    csv=_out(stem, 'csv'), index=index, where=where, collection=collection,
 	                                    perimeter=tif[:-4] + '_perimeter.gpkg' if perimeter else None,
-	                                    burned_min=burned_min, min_ha=min_ha))
+	                                    burned_min=burned_min, min_ha=min_ha, offset_region=offset_region, seed=seed,
+	                                    largest=largest))
 
 
 @tool

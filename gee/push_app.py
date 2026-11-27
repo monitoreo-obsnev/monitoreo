@@ -1,8 +1,8 @@
 """Publish the app of MonitorEO from the git repository of its scripts in Earth Engine.
 
 The app is the script app of the repository users/monitoreo-obsnev/monitoreo (account everest@go.ugr.es, Earth Engine
-user monitoreo-obsnev), with the catalog in the modules catalog_1, catalog_2... that it requires (gee/build.py
-modules: Earth Engine refuses any file of a repository over 512 KiB). This script writes them into a clone of that
+user monitoreo-obsnev): ui.js, which requires the module core (core.js), which requires the modules of the catalog
+catalog_1, catalog_2... (gee/build.py modules: Earth Engine refuses any file of a repository over 512 KiB). This script writes them into a clone of that
 repository (~/.cache/monitoreo/gee-app), commits them if something changed, pushes the commit to the repository and
 then to its backup, users/javiermartinez/monitoreo, a mirror whose master goes to the same commit:
 

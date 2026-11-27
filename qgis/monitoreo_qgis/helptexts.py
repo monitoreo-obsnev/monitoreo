@@ -686,8 +686,8 @@ HELP = {
 		'0.069, the classes low to high) and the mean, median, standard deviation, coefficient of variation (%), '
 		'percentiles 10 and 90, minimum and maximum of the RdNBR; '
 		'the layer, the band <i>severity</i> with the colour of each class. On the scale of the dNBR of MonitorEO, '
-		'without the factor 1000 of the article (0.641 here is 641 there), and without its offset (the mean dNBR of '
-		'unburned land outside the fire), as the dNBR and the RBR. The classes were calibrated with Landsat TM (30 m) '
+		'without the factor 1000 of the article (0.641 here is 641 there), and without its offset (the dNBR of '
+		'unburned land outside the fire) unless <b>Offset region</b> gives it, as the dNBR and the RBR. The classes were calibrated with Landsat TM (30 m) '
 		'and field plots (composite burn index) of 14 fires of the Sierra Nevada of California, mostly in conifer '
 		'and live oak forests (also pinyon pine and sagebrush), measured one year after the fire: they fit best a period after the fire about one year later, in '
 		'the same season as the period before, and other vegetation may need other thresholds. With MODIS (500 m) they '
@@ -706,6 +706,19 @@ HELP = {
 		'default) are left out (isolated pixels of harvests or clouds left), and the unburned islands of less than it '
 		'inside them filled; 0 keeps every pixel. A feature for each feature of the region, with its hectares.</p>'
 		+ manual('QGIS-plugin#9-burn-severity-of-a-fire'),
+	'fire_keep':
+		'<p><b>Keep</b>: which burned patches the perimeter keeps. Over a large region (a park, a municipality) other '
+		'patches pass <b>Burned from</b> too: other fires, harvests, pastures that dried between both periods. <b>The '
+		'largest patch</b> keeps only the biggest one; <b>the patch nearest to a point</b> keeps the one that contains '
+		'the point (or the nearest to it): write the point, in the fire, as <i>lon, lat</i> in degrees. The hectares of '
+		'the classes are still those of the whole region: choose the perimeter as the region and compute again for '
+		'those of the fire alone.</p>',
+	'fire_offset':
+		'<p><b>Offset region</b>: a layer of polygons of unburned land near the fire, of the same vegetation (e.g. a '
+		'ring around it without the fire). Its median dNBR, the change between both periods that is not the fire '
+		'(phenology, drought, the drying of pastures and heath), is subtracted from the dNBR before its classes, the RBR '
+		'and the RdNBR, as the offset of Miller &amp; Thode (2007) and Parks et al. (2014). The window of the result '
+		'gives it. <i>none</i>: without offset.</p>',
 	'fire_before':
 		'<p>A period <b>before the fire</b>, without it: the median of its images on each pixel is the NBR before. A '
 		'few weeks or months of the same season, e.g. the 2 months before the fire, so that clouds leave clear '

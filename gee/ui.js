@@ -204,7 +204,8 @@
 			rdnbrNote: 'RdNBR = dNBR / sqrt(max(|NBR antes|; 0,001)) (Miller y Thode 2007; el 0,001 de Howe et al. ' +
 				'2022), con el NBR de B8 y B12 de Sentinel-2 (NIR y SWIR2 de Landsat, bandas 2 y 7 de MODIS), en la ' +
 				'escala del dNBR de MonitorEO, sin el factor 1000 del artículo (0,641 aquí es 641 allí) y sin su ' +
-				'desplazamiento (el dNBR medio de terreno sin quemar fuera del incendio), como el dNBR y el RBR. Clases ' +
+				'desplazamiento (el dNBR de terreno sin quemar fuera del incendio) salvo que lo dé una región de ' +
+				'desplazamiento, como el dNBR y el RBR. Clases ' +
 				'de su tabla 4, calibradas con Landsat TM (30 m) y parcelas de campo (índice compuesto de quema) de 14 ' +
 				'incendios de Sierra Nevada (California), sobre todo en bosques de coníferas y de encinas (también ' +
 				'pino piñonero y artemisa), medidas un año después ' +
@@ -220,7 +221,25 @@
 			perimeterHelp: 'Los polígonos de los píxeles quemados, para descargarlos o usarlos como región de otros ' +
 				'análisis (p. ej. el NDVI de los años después del incendio). Quemado desde: vacío, el valor de las ' +
 				'clases del índice (dNBR 0,1, RdNBR 0,069); el RBR no tiene clases. Sin los parches de menos de la ' +
-				'superficie mínima, y con las islas sin quemar de menos de ella rellenas (0: todos los píxeles).',
+				'superficie mínima, y con las islas sin quemar de menos de ella rellenas (0: todos los píxeles). ' +
+				'Parches: todos, solo el mayor o solo el más cercano a un punto (el que lo contiene): el incendio solo ' +
+				'en una región grande; las clases siguen siendo las de toda la región.',
+			keep: 'Parches', keep_all: 'todos', keep_largest: 'el mayor', keep_nearest: 'el más cercano a (lon, lat)',
+			keepPoint: 'El punto, lon, lat en grados con punto decimal, p. ej. -3.42, 37.01 (longitud -180 a 180, ' +
+				'latitud -90 a 90).',
+			perimeterKept: 'Se conserva: %s', keptLargest: 'la mayor mancha quemada',
+			keptNearest: 'la mancha quemada más cercana al punto %s, %s (lon, lat)',
+			offsetUse: 'Usar esta región como región de desplazamiento', offsetClear: 'Quitar',
+			offsetNone: 'Región de desplazamiento: ninguna. Una zona sin quemar cerca del incendio, de la misma ' +
+				'vegetación: elígela como región y pulsa el botón; luego elige la región del incendio.',
+			offsetIs: 'Región de desplazamiento: %s. Su dNBR mediano (el cambio que no es el incendio: fenología, ' +
+				'sequía, el secado de pastos) se resta del dNBR antes de las clases, el RBR y el RdNBR (Miller y Thode ' +
+				'2007, Parks et al. 2014).',
+			offsetValue: 'Desplazamiento del dNBR (mediana de la región de desplazamiento, restada): %s',
+			offsetApply: 'la app toma la región de desplazamiento con su botón (Severidad: Usar esta región como ' +
+				'región de desplazamiento)',
+			paramsNoOffset: 'La región de desplazamiento (%s) no se escribe: la app no puede darla como región de ' +
+				'las herramientas.',
 			burnedFrom: 'Quemado desde', smallest: 'mínimo', perimeterButton: 'Calcular el perímetro',
 			perimeterNumbers: 'Quemado desde y mínimo tienen que ser números (mínimo, 0 o más).',
 			perimeterHa: '%s ha en %s parches', noBurned: 'Ningún píxel quemado (%s ≥ %s) en parches del mínimo.',
@@ -520,7 +539,8 @@
 			rdnbrNote: 'RdNBR = dNBR / sqrt(max(|NBR before|, 0.001)) (Miller & Thode 2007; the 0.001 of Howe et al. ' +
 				'2022), with the NBR of B8 and B12 of Sentinel-2 (NIR and SWIR2 of Landsat, bands 2 and 7 of MODIS), on ' +
 				'the scale of the dNBR of MonitorEO, without the factor 1000 of the article (0.641 here is 641 there) ' +
-				'and without its offset (the mean dNBR of unburned land outside the fire), as the dNBR and the RBR. ' +
+				'and without its offset (the dNBR of unburned land outside the fire) unless an offset region gives it, ' +
+				'as the dNBR and the RBR. ' +
 				'Classes of its Table 4, calibrated with Landsat TM (30 m) and field plots (composite burn index) of 14 ' +
 				'fires of the Sierra Nevada of California, mostly in conifer and live oak forests (also pinyon pine and ' +
 				'sagebrush), measured one year after the fire, ' +
@@ -535,7 +555,24 @@
 			perimeterHelp: 'The polygons of the burned pixels, to download them or to use them as the region of other ' +
 				'analyses (e.g. the NDVI of the years after the fire). Burned from: empty, the value of the classes of ' +
 				'the index (dNBR 0.1, RdNBR 0.069); the RBR has no classes. Without the patches of less than the ' +
-				'smallest area, and with the unburned islands of less than it filled (0: every pixel).',
+				'smallest area, and with the unburned islands of less than it filled (0: every pixel). Patches: all, ' +
+				'only the largest or only the one nearest to a point (the one that contains it): the fire alone in a ' +
+				'large region; the classes are still those of the whole region.',
+			keep: 'Patches', keep_all: 'all', keep_largest: 'the largest', keep_nearest: 'nearest to (lon, lat)',
+			keepPoint: 'The point, lon, lat in degrees with a decimal point, e.g. -3.42, 37.01 (longitude -180 to ' +
+				'180, latitude -90 to 90).',
+			perimeterKept: 'Kept: %s', keptLargest: 'the largest burned patch',
+			keptNearest: 'the burned patch nearest to the point %s, %s (lon, lat)',
+			offsetUse: 'Use this region as the offset region', offsetClear: 'Clear',
+			offsetNone: 'Offset region: none. An unburned area near the fire, of the same vegetation: choose it ' +
+				'as the region and press the button; then choose the region of the fire.',
+			offsetIs: 'Offset region: %s. Its median dNBR (the change that is not the fire: phenology, drought, the ' +
+				'drying of pastures) is subtracted from the dNBR before the classes, the RBR and the RdNBR (Miller & ' +
+				'Thode 2007, Parks et al. 2014).',
+			offsetValue: 'dNBR offset (median of the offset region, subtracted): %s',
+			offsetApply: 'the app takes the offset region with its button (Burn severity: Use this region as the ' +
+				'offset region)',
+			paramsNoOffset: 'The offset region (%s) is not written: the app cannot give it as a region of the tools.',
 			burnedFrom: 'Burned from', smallest: 'smallest', perimeterButton: 'Compute the perimeter',
 			perimeterNumbers: 'Burned from and smallest have to be numbers (smallest, 0 or more).',
 			perimeterHa: '%s ha in %s patches', noBurned: 'No burned pixel (%s ≥ %s) in patches of the smallest area.',
@@ -704,6 +741,9 @@
 		zoneRef: null, zoneBreaks: '1500, 2000, 2500, 3000', drawingLine: false,  // gradients: the bands and the line
 		fireSensor: 'Sentinel-2', fireBefore: ['2025-06-01', '2025-07-31'], fireAfter: ['2025-09-01', '2025-10-31'],
 		fireIndex: 'dNBR',
+		// the offset region of the burn severity (services.burn_severity offset_region): its features, name and region as
+		// areas.region takes it (null: the app cannot write it)
+		offsetRegion: null, offsetName: null, offsetSpec: null,
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
 		// its band, or how several are combined (combine: 'one', 'sum' or 'mean', the band_reducer of the package) and
 		// those checked (chosen), use (collection or image), scale, offset and unit as written, why the last ID could
@@ -3414,7 +3454,7 @@
 	// Burn severity -------------------------------------------------------------------------------------------------
 
 	// RBR: a continuous map of red (burned) to green (regrowth), its statistics over each region and its GeoTIFF
-	function burnRatio() {
+	function burnRatio(offset) {
 		var ref = state.fireSensor === 'Landsat' ? 104 : 103;
 		var e = mo.byRef(ref);
 		if (!ready(e)) return;
@@ -3425,9 +3465,10 @@
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		if (offset === undefined) return withOffset(before, after, scale, burnRatio);
 		mo.used(before);
 		mo.used(after);
-		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs);
+		var out = mo.burnRatio(before, after, state.region, scale, state.info.crs, offset);
 		var name = title(e, ['RBR', before.period.join('/') + ' → ' + after.period.join('/')]);
 		var vis = {min: -0.5, max: 0.5, palette: mo.DIVERGING.slice().reverse()};
 		map.addLayer(out.image.select('rbr'), vis, name);
@@ -3440,11 +3481,29 @@
 				return [r.region].concat(stats.map(function (k) { return r[k] === null ? '' : num(r[k], 3); }),
 					[num(r.ha, 4)]);
 			}));
-			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(t('rbrNote'), SMALL), ui.Chart(table, 'Table'),
+			show([ui.Label(name, {fontWeight: 'bold'})].concat(offsetLabel(offset), [ui.Label(t('rbrNote'), SMALL),
+				ui.Chart(table, 'Table'),
 				ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RBR_COLUMNS, name),
 				downloadWidget(out.image, e, ['rbr', 'dnbr', 'nbr_before', 'nbr_after'], name),
-				perimeterWidget(out.image.select('rbr'), 'RBR', scale, e, name, before, after)]);
+				perimeterWidget(out.image.select('rbr'), 'RBR', scale, e, name, before, after)]));
 		}));
+	}
+
+	// services._offset: with an offset region (state.offsetRegion), its offset (mo.burnOffset), then THEN(offset), or
+	// the error of the package if it has no pixel with a dNBR; without one, THEN(null)
+	function withOffset(before, after, scale, then) {
+		if (!state.offsetRegion) return then(null);
+		var id = start();
+		ee.Number(mo.burnOffset(before, after, state.offsetRegion, scale, state.info.crs))
+			.evaluate(guardedAsync(id, function (v) {
+				if (v === null || v === undefined) return message(mo.OFFSET_NONE, true);
+				then(v);
+			}));
+	}
+
+	// the offset of the dNBR subtracted (the answer key offset of the package), if any, to show with the results
+	function offsetLabel(offset) {
+		return offset === null || offset === undefined ? [] : [ui.Label(fmt(t('offsetValue'), num(offset, 4)))];
 	}
 
 	// The perimeter of the burned area (services.burn_severity with perimeter: mo.burnPerimeter) of the burn index
@@ -3460,13 +3519,19 @@
 		var hint = classes ? String(classes.burned).replace('.', state.lang === 'es' ? ',' : '.') : '';
 		var low = ui.Textbox({placeholder: classes ? index + ' ' + hint : 'RBR', style: {width: '80px'}});
 		var smallest = ui.Textbox({value: num(mo.PERIMETER_MIN_HA), style: {width: '50px'}});
+		// the patches kept (fire.check_keep): all, the largest (largest) or the one nearest to a point (seed)
+		var keepSelect = select(['all', 'largest', 'nearest'].map(function (k) {
+			return {value: k, label: t('keep_' + k)};
+		}), 'all', function () {}, '150px');
+		var point = ui.Textbox({placeholder: '-3.42, 37.01', style: {width: '100px'}});
 		panel.add(ui.Label(t('perimeter'), {fontWeight: 'bold', fontSize: '12px', margin: '10px 8px 0 8px'}));
 		panel.add(ui.Label(t('perimeterHelp'), SMALL));
 		panel.add(row(ui.Label(t('burnedFrom'), SMALL), low, ui.Label(t('smallest'), SMALL), smallest,
 			ui.Label('ha', SMALL)));
+		panel.add(row(ui.Label(t('keep'), SMALL), keepSelect, point));
 		panel.add(button(t('perimeterButton'), function () {
 			out.clear();
-			var threshold, minHa;
+			var threshold, minHa, keep;
 			try {
 				var given = String(low.getValue() || '').trim().replace(',', '.');
 				threshold = mo.burnedMin(index, given === '' ? null : given);
@@ -3475,9 +3540,17 @@
 			} catch (err) {
 				return out.add(ui.Label(err.message || String(err), {color: '#b00020'}));
 			}
+			try {
+				var mode = keepSelect.getValue();
+				var parts = String(point.getValue() || '').trim().split(/\s*[,;]\s*|\s+/);
+				keep = mo.checkKeep(mode === 'nearest' ? parts : null, mode === 'largest');
+			} catch (err) {
+				return out.add(ui.Label(t('keepPoint'), {color: '#b00020'}));
+			}
 			out.add(ui.Label(t('computing'), SMALL));
 			var regionName = state.regionName;  // that of the severity, whatever the region is when it is used
-			mo.burnPerimeter(value, threshold, state.region, scale, state.info.crs, minHa).evaluate(function (fc, error) {
+			mo.burnPerimeter(value, threshold, state.region, scale, state.info.crs, minHa, keep).evaluate(function (fc,
+				error) {
 				out.clear();
 				if (error) return out.add(ui.Label(t('error') + error, {color: '#b00020'}));
 				var found = fc.features.filter(function (f) { return f.properties.ha > 0; });
@@ -3495,6 +3568,10 @@
 					out.add(ui.Label((found.length > 1 ? f.properties.name + ': ' : '') +
 						fmt(t('perimeterHa'), num(f.properties.ha, 5), f.properties.patches), {fontSize: '12px'}));
 				});
+				if (keep) {  // perimeter_kept of the package
+					out.add(ui.Label(fmt(t('perimeterKept'), keep === 'largest' ? t('keptLargest') :
+						fmt(t('keptNearest'), String(keep[0]), String(keep[1]))), SMALL));
+				}
 				// with .geo: without it, Earth Engine writes the GeoJSON without the polygons (the KML has them anyway)
 				var fields = ['region', 'ha', 'patches', 'index', 'burned_min', 'min_ha', 'sensor', 'before', 'after',
 					'.geo'];
@@ -3547,7 +3624,7 @@
 	// RdNBR (Miller & Thode 2007): its classes on the map, with their legend, and the continuous RdNBR under them (from
 	// red, burned, to green, regrowth: shown from the list of layers); the hectares of each class and the changed area
 	// of each region, the statistics of the RdNBR, its references, the CSV of the classes and the GeoTIFF
-	function burnRelative() {
+	function burnRelative(offset) {
 		var e = fireEntry();
 		if (!ready(e)) return;
 		checkPeriod(state.fireBefore);
@@ -3557,10 +3634,11 @@
 		var after = mo.spec({ref: e.ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(e.ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		if (offset === undefined) return withOffset(before, after, scale, burnRelative);
 		mo.used(before);
 		mo.used(after);
 		var modis = e.sensor === 'Modis';
-		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'RdNBR');
+		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'RdNBR', offset);
 		var periods = before.period.join('/') + ' → ' + after.period.join('/');
 		var name = title(e, modis ? [e.col.split('/').pop(), periods] : [periods]);  // MOD09GA (Terra), MYD09GA (Aqua)
 		var vis = {min: mo.RDNBR_RANGE[0], max: mo.RDNBR_RANGE[1], palette: mo.DIVERGING.slice().reverse()};
@@ -3605,7 +3683,7 @@
 				RDNBR_REFERENCES.filter(function (r) { return modis || !r[2]; }).map(function (r) {
 					return ui.Label(r[0] + ' https://doi.org/' + r[1], SMALL, 'https://doi.org/' + r[1]);
 				}));
-			show([ui.Label(name, {fontWeight: 'bold'})].concat(areas, [ui.Chart(table, 'Table'),
+			show([ui.Label(name, {fontWeight: 'bold'})].concat(areas, offsetLabel(offset), [ui.Chart(table, 'Table'),
 				ui.Chart(statsTable, 'Table'), ui.Label(t('rdnbrNote'), SMALL)], modis ? [ui.Label(t('modisNote'), SMALL)] :
 				[], refs, [ui.Label(fmt(t('scaleNote'), num(scale)), SMALL), csvWidget(rows, mo.RDNBR_COLUMNS, name),
 				downloadWidget(out.image, e, ['rdnbr', 'severity', 'dnbr', 'nbr_before', 'nbr_after'], name),
@@ -3613,10 +3691,10 @@
 		})); }));
 	}
 
-	function burn() {
+	function burn(offset) {
 		computed('burn_severity');
-		if (state.fireIndex === 'RBR') return burnRatio();
-		if (state.fireIndex === 'RdNBR') return burnRelative();
+		if (state.fireIndex === 'RBR') return burnRatio(offset);
+		if (state.fireIndex === 'RdNBR') return burnRelative(offset);
 		var ref = state.fireSensor === 'Landsat' ? 101 : 102;
 		var e = mo.byRef(ref);
 		if (!ready(e)) return;
@@ -3627,9 +3705,10 @@
 		var after = mo.spec({ref: ref, period: state.fireAfter.slice(), metric: 'median', quality: mo.burnQuality(qualityFor(ref)),
 			where: whereArgs(state.fireBefore)});
 		var scale = Number(e.m);
+		if (offset === undefined) return withOffset(before, after, scale, burn);
 		mo.used(before);
 		mo.used(after);
-		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs);
+		var out = mo.burnSeverity(before, after, state.region, scale, state.info.crs, 'dNBR', offset);
 		var names = mo.SEVERITY.map(function (c) { return state.lang === 'en' ? c[3] : c[2]; });
 		var name = title(e, [t('dnbr'), before.period.join('/') + ' → ' + after.period.join('/')]);
 		map.addLayer(out.image.select('severity'), {min: -2, max: 4, palette: mo.SEVERITY_COLOURS}, name);
@@ -3647,11 +3726,11 @@
 					num(r.dnbr_min) + ' – ' + num(r.dnbr_max));
 				return [(regions.length > 1 ? r.region + ': ' : '') + r.label, range, num(r.ha, 4)];
 			}));
-			show([ui.Label(name, {fontWeight: 'bold'}), ui.Label(fmt(t('burned'), num(burned, 4))),
-				ui.Chart(table, 'Table'), ui.Label(fmt(t('scaleNote'), num(scale)), SMALL),
+			show([ui.Label(name, {fontWeight: 'bold'})].concat(offsetLabel(offset), [ui.Label(fmt(t('burned'),
+				num(burned, 4))), ui.Chart(table, 'Table'), ui.Label(fmt(t('scaleNote'), num(scale)), SMALL),
 				csvWidget(rows, ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha'], name),
 				downloadWidget(out.image, e, ['dnbr', 'severity', 'nbr_before', 'nbr_after'], name),
-				perimeterWidget(out.image.select('dnbr'), 'dNBR', scale, e, name, before, after)]);
+				perimeterWidget(out.image.select('dnbr'), 'dNBR', scale, e, name, before, after)]));
 		}));
 	}
 
@@ -3686,6 +3765,19 @@
 		w.push(ui.Label(t('after'), {margin: '4px 8px 0 8px'}));
 		w.push(row(box(state.fireAfter[0], function (v) { state.fireAfter[0] = v.trim(); }), ui.Label(t('to')),
 			box(state.fireAfter[1], function (v) { state.fireAfter[1] = v.trim(); })));
+		// the offset region (offset_region): the region chosen when its button is pressed
+		w.push(ui.Label(state.offsetRegion ? fmt(t('offsetIs'), state.offsetName) : t('offsetNone'), SMALL));
+		var use = button(t('offsetUse'), function () {
+			if (!state.region) return message(t('noRegion'), true);
+			state.offsetRegion = state.region;
+			state.offsetName = state.regionName;
+			state.offsetSpec = state.regionSpec ? copyOf(state.regionSpec) : null;
+			render();
+		});
+		w.push(state.offsetRegion ? row(use, button(t('offsetClear'), function () {
+			state.offsetRegion = state.offsetName = state.offsetSpec = null;
+			render();
+		})) : use);
 		w.push(button(t('burn'), guarded(burn)));
 		return w;
 	}
@@ -3735,7 +3827,7 @@
 			defaults: {step: 'annual', output: 'slope', metric: 'mean', test: 'mk'}},
 		burn_severity: {group: 'fire', button: 'burn',
 			takes: ['region', 'sensor', 'collection', 'start', 'end', 'other_start', 'other_end', 'index', 'metric',
-				'quality', 'where', 'perimeter', 'burned_min', 'min_ha'],
+				'quality', 'where', 'perimeter', 'burned_min', 'min_ha', 'offset_region', 'seed', 'largest'],
 			defaults: {sensor: 'Sentinel-2', index: 'dNBR', metric: 'median'}}
 	};
 	// the analyses of the services that the app computes as another one: the files of its maps and series
@@ -3906,6 +3998,8 @@
 			if (state.quality.harmonize && p.sensor === 'Landsat') p.quality.harmonize = true;  // (landsat7: qualityParameters)
 			var fireWhere = whereParameters(state.fireBefore, false);  // over the period before the fire, as the package
 			if (fireWhere) p.where = fireWhere;
+			if (state.offsetSpec) p.offset_region = copyOf(state.offsetSpec);
+			else if (state.offsetRegion) notes.push(fmt(t('paramsNoOffset'), state.offsetName));
 			return {parameters: ordered(p), notes: notes};
 		}
 		var kind = analysis === 'area_by_class' ? state.areaKind : null;
@@ -4288,7 +4382,11 @@
 		state.fireIndex = index;
 		state.fireSensor = fireSensor;
 		choose('metric', options.metric, ['median'], function () {}, skip);
-		['perimeter', 'burned_min', 'min_ha'].forEach(function (k) { if (o[k] !== undefined) skip(k, t('inResults')); });
+		['perimeter', 'burned_min', 'min_ha', 'seed', 'largest'].forEach(function (k) {
+			if (o[k] !== undefined) skip(k, t('inResults'));
+		});
+		state.offsetRegion = state.offsetName = state.offsetSpec = null;  // none, the default of the services
+		if (o.offset_region !== undefined) skip('offset_region', t('offsetApply'));
 		return fireEntry();
 	}
 

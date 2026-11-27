@@ -104,8 +104,8 @@ def test_the_command_line_writes_the_perimeter(burn, capsys, tmp_path):
 
 
 @pytest.mark.parametrize('extra, error', [
-	(['--min-ha', '2'], '--burned-min and --min-ha are for the perimeter'),
-	(['--burned-min', '0.2'], '--burned-min and --min-ha are for the perimeter'),
+	(['--min-ha', '2'], '--burned-min, --min-ha, --seed and --largest are for the perimeter'),
+	(['--burned-min', '0.2'], '--burned-min, --min-ha, --seed and --largest are for the perimeter'),
 	(['--index', 'RBR', '--perimeter', 'fire.gpkg'], '--index RBR has no classes: give --burned-min'),
 ])
 def test_the_command_line_refuses_a_perimeter_without_what_it_needs(burn, capsys, extra, error):

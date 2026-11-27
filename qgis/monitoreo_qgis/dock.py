@@ -107,6 +107,8 @@ FIRE_TIPS = {
 }
 FIRE_INDICES = [('dNBR (USGS classes)', 'dNBR'), ('RBR (continuous, no classes)', 'RBR'),
                 ('RdNBR (Miller & Thode 2007 classes)', 'RdNBR')]
+# which burned patches the perimeter keeps (services.burn_severity: seed or largest)
+FIRE_KEEP = [('every burned patch', 'all'), ('the largest patch', 'largest'), ('the patch nearest to a point', 'seed')]
 # the two periods of the burn severity, at first those of the example of the manual: the fire of August 2023 in Teide
 # National Park (Tenerife)
 FIRE_DATES = {'before_start': '2023-05-15', 'before_end': '2023-08-14', 'after_start': '2023-09-15',
@@ -1062,7 +1064,7 @@ def panel_fields(analysis, params):
 		if p.get('index') is not None:
 			p['index'] = {i.lower(): i for i in services.BURN_INDICES}.get(str(p['index']).lower(), p['index'])
 		take('fire_index', 'index', FIRE_INDICES)
-		used.update(('sensor', 'collection', 'perimeter', 'burned_min', 'min_ha'))
+		used.update(('sensor', 'collection', 'perimeter', 'burned_min', 'min_ha', 'seed', 'largest', 'offset_region'))
 		sensor = p.get('sensor', defaults.get('sensor'))
 		modis = sensor is not None and catalog.name_key(sensor) == 'modis'
 		# MODIS: Terra without a collection, as services.burn_severity (its collection only switches to Aqua)
@@ -1077,8 +1079,15 @@ def panel_fields(analysis, params):
 		else:
 			reports.append(missing('sensor', p.get('collection') if modis else p.get('sensor'),
 			                       'the panel has Sentinel-2, Landsat and MODIS Terra or Aqua (MOD09GA, MYD09GA)'))
+		keep = 'largest' if p.get('largest') else 'seed' if p.get('seed') else 'all'
+		if p.get('largest') and p.get('seed'):  # as the services: one or the other
+			reports.append(missing('seed', p['seed'], 'seed or largest, not both: the panel keeps the largest patch'))
 		field('fire_perimeter', {'on': bool(p.get('perimeter')), 'burned_min': p.get('burned_min'),
-		                         'min_ha': p.get('min_ha')}, 'perimeter' in p, 'perimeter')
+		                         'min_ha': p.get('min_ha'), 'keep': keep,
+		                         **({'seed': p['seed']} if p.get('seed') else {})}, 'perimeter' in p, 'perimeter')
+		if p.get('offset_region'):  # a region of the parameters: the panel takes a layer of polygons of the project
+			reports.append(missing('offset_region', p['offset_region'], 'choose its polygons, a layer of the project, in '
+			                       'Offset region'))
 
 	# what the panel has no option for: fine at its default
 	for name, value in p.items():
@@ -2067,6 +2076,21 @@ class MonitorEODock(QDockWidget):
 		                            'this inside them filled; 0: every pixel')
 		row.addWidget(self.fire_min_ha)
 		f.addRow('Burned from', info(row, HELP['fire_perimeter']))
+		row = QHBoxLayout()  # only the fire in a large region: the largest patch, or that nearest to a point
+		self.fire_keep = combo(FIRE_KEEP, 'all')
+		row.addWidget(self.fire_keep, 1)
+		self.fire_seed = QLineEdit()
+		self.fire_seed.setPlaceholderText('lon, lat')
+		self.fire_seed.setToolTip('A point in the fire, in degrees (WGS 84): longitude, latitude')
+		row.addWidget(self.fire_seed, 1)
+		f.addRow('Keep', info(row, HELP['fire_keep']))
+		self.fire_keep.currentIndexChanged.connect(lambda i: self.perimeter_changed())
+		# the offset of the dNBR: the median dNBR of unburned land near the fire (a layer of polygons), subtracted
+		self.fire_offset = QgsMapLayerComboBox()
+		self.fire_offset.setFilters(Qgis.LayerFilter.PolygonLayer)
+		self.fire_offset.setAllowEmptyLayer(True, 'none')
+		self.fire_offset.setLayer(None)
+		f.addRow('Offset region', info(self.fire_offset, HELP['fire_offset']))
 		self.fire_perimeter.toggled.connect(lambda on: self.perimeter_changed())
 		self.fire_index.currentIndexChanged.connect(lambda i: self.perimeter_changed())
 		self.perimeter_changed()
@@ -2406,6 +2430,8 @@ class MonitorEODock(QDockWidget):
 			return None
 		reports = list(checked['not_applied']) + reports
 		self.applied = []
+		if key == 'burn':  # the parameters give no layer: no Offset region (none is the default of the services)
+			self.fire_offset.setLayer(None)
 		if key == 'burn' and not self.theme_has('burn_severity'):  # its group, only in its theme
 			self.theme.setCurrentIndex(item_index(self.theme, test=lambda k: k is not None and self.theme_has_key(
 				k, 'burn_severity')))
@@ -2878,6 +2904,10 @@ class MonitorEODock(QDockWidget):
 		if value['on']:
 			self.fire_burned_min.setText(number(value.get('burned_min')))
 			self.fire_min_ha.setValue(fire.PERIMETER_MIN_HA if value.get('min_ha') is None else float(value['min_ha']))
+			keep = value.get('keep') or 'all'
+			self.fire_keep.setCurrentIndex(max(0, [v for _, v in FIRE_KEEP].index(keep)))
+			seed = value.get('seed')
+			self.fire_seed.setText(', '.join(repr(float(v)) for v in seed) if seed else '')
 		return []
 
 	# Arguments --------------------------------------------------------------------------------------------------
@@ -4539,6 +4569,8 @@ class MonitorEODock(QDockWidget):
 		on = self.fire_perimeter.isChecked()
 		self.fire_burned_min.setEnabled(on)
 		self.fire_min_ha.setEnabled(on)
+		self.fire_keep.setEnabled(on)
+		self.fire_seed.setEnabled(on and self.fire_keep.currentData() == 'seed')
 		index = self.fire_index.currentData()
 		self.fire_burned_min.setPlaceholderText(f"{index} {fire.CLASSES[index]['burned']:g}" if index in fire.CLASSES
 		                                        else 'write the RBR, e.g. 0.1')
@@ -4558,7 +4590,25 @@ class MonitorEODock(QDockWidget):
 		if low is None and index not in fire.CLASSES:
 			raise ValueError(f'The {index} has no classes: write in Burned from the {index} from which a pixel is '
 			                 'burned (e.g. 0.1), or uncheck Perimeter')
-		return {'perimeter': stem + '_perimeter.gpkg', 'burned_min': low, 'min_ha': self.fire_min_ha.value()}
+		keep = self.fire_keep.currentData()
+		chosen = {'largest': True} if keep == 'largest' else {}
+		if keep == 'seed':  # lon and lat, separated by a comma, a semicolon or spaces
+			point = [v for v in re.split(r'[,;\s]+', self.fire_seed.text().strip()) if v]
+			try:
+				seed = fire.check_keep(point)
+				if seed is None:
+					raise ValueError('no point')
+			except ValueError as e:
+				raise ValueError(f'Keep the patch nearest to a point: write it as lon, lat in degrees, e.g. -3.49, '
+				                 f'36.98 ({e})') from None
+			chosen = {'seed': seed}
+		return {'perimeter': stem + '_perimeter.gpkg', 'burned_min': low, 'min_ha': self.fire_min_ha.value(), **chosen}
+
+	def offset_args(self):
+		"""The offset region of services.burn_severity (offset_region: the polygons of the layer of Offset region),
+		{} without one."""
+		layer = self.fire_offset.currentLayer()
+		return {'offset_region': self.layer_region(layer, None)} if layer is not None else {}
 
 	def fire_source(self):
 		"""The sensor and the collection of the burn severity (services.burn_severity): MODIS is the sensor 'Modis'
@@ -4600,7 +4650,7 @@ class MonitorEODock(QDockWidget):
 		outline = self.perimeter_args(index, stem)  # the polygons of the burned area
 		return 'burn_severity', dict(region=region, sensor=sensor, start=before[0], end=before[1], other_start=after[0],
 		                             other_end=after[1], quality=quality, index=index,
-		                             where=where, **more, **outline)
+		                             where=where, **more, **outline, **self.offset_args())
 
 	def run_burn(self):
 		"""Burn severity of a fire over the region (services.burn_severity, see burn_call): the window of its table

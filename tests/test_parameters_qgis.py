@@ -161,6 +161,19 @@ class _Checkable(_Combo):
 		(self.checked.add if state == 'checked' else self.checked.discard)(self.items[i][1])
 
 
+class _Layer:
+	"""A QgsMapLayerComboBox: the layer chosen (None: none)."""
+
+	def __init__(self, layer=None):
+		self.layer = layer
+
+	def currentLayer(self):
+		return self.layer
+
+	def setLayer(self, layer):
+		self.layer = layer
+
+
 class _Text:
 	def __init__(self, text=''):
 		self.value, self.enabled = text, True
@@ -241,6 +254,7 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.fire_index, p.fire_sensor = _Combo(d.FIRE_INDICES, 'dNBR'), _Combo(d.FIRE_SENSORS + d.FIRE_MODIS, 'Sentinel-2')
 	p.fire_dates = {k: _Date(v) for k, v in d.FIRE_DATES.items()}
 	p.fire_perimeter, p.fire_burned_min, p.fire_min_ha = _Check(True), _Text('0,27'), _Spin(2.0)
+	p.fire_keep, p.fire_seed, p.fire_offset = _Combo(d.FIRE_KEEP, 'all'), _Text(''), _Layer(None)
 	p.messages, p.tasks = [], []
 	p.message = lambda text, lvl='Info', duration=6: p.messages.append((lvl, text))
 	p.run_task = lambda description, work, done: p.tasks.append(work())
@@ -411,7 +425,8 @@ def test_the_burn_severity(plugin, monkeypatch, tmp_path, fake):
 	assert parameters.make(analysis, args)['parameters']['perimeter'] == 'burn_severity_perimeter.gpkg'
 	assert panel.burn_call()[1]['perimeter'] == 'burn_severity_perimeter.gpkg'  # copied or saved: no folder
 	assert fields['fire_before']['value'] == ('2023-05-15', '2023-08-14')
-	assert fields['fire_perimeter']['value'] == {'on': True, 'burned_min': 0.27, 'min_ha': 2.0}
+	assert fields['fire_perimeter']['value'] == {'on': True, 'burned_min': 0.27, 'min_ha': 2.0, 'keep': 'all'}
+	assert 'offset_region' not in args and 'seed' not in args and 'largest' not in args
 	assert fields['quality']['value']['own'] is True and 'season' not in fields
 	panel.fire_index.setCurrentIndex(2)  # the RdNBR of MODIS Aqua
 	panel.fire_sensor.setCurrentIndex(3)
@@ -420,6 +435,36 @@ def test_the_burn_severity(plugin, monkeypatch, tmp_path, fake):
 	assert fields['fire_sensor']['value'] == 'MODIS/061/MYD09GA' and fields['fire_index']['value'] == 'RdNBR'
 	panel.fire_burned_min.value = 'abc'  # refused, as before
 	assert panel.call_of('burn') is None and panel.messages.pop()[1].startswith('Burned from: write a number')
+
+
+def test_the_patch_of_the_fire_and_the_offset_region(plugin, monkeypatch, tmp_path, fake):
+	"""Keep: the largest patch or that nearest to a point (seed), back to the panel; the Offset region: the polygons of
+	a layer, which the parameters cannot give back (a report)."""
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	panel.fire_keep.setCurrentIndex(1)
+	analysis, args, fields = _same_as_run(plugin, panel, fake, 'burn')
+	assert args['largest'] is True and 'seed' not in args and fields['fire_perimeter']['value']['keep'] == 'largest'
+	panel.fire_keep.setCurrentIndex(2)
+	panel.fire_seed.value = '-3.49; 36.98'
+	analysis, args, fields = _same_as_run(plugin, panel, fake, 'burn')
+	assert args['seed'] == [-3.49, 36.98] and 'largest' not in args
+	assert fields['fire_perimeter']['value']['keep'] == 'seed' and fields['fire_perimeter']['value']['seed'] == [-3.49, 36.98]
+	panel.fire_seed.value = '-3.49   36.98'  # spaces too
+	assert panel.call_of('burn', folder=str(tmp_path))[1]['seed'] == [-3.49, 36.98]
+	for wrong in ('-3.49', ''):  # an empty point is an error, not every patch
+		panel.fire_seed.value = wrong
+		assert panel.call_of('burn') is None and 'lon, lat' in panel.messages.pop()[1]
+	panel.put_fire_perimeter({'on': True, 'keep': 'seed', 'seed': [-123.456789, 36.123456]}, True, 'perimeter')
+	assert panel.fire_seed.value == '-123.456789, 36.123456'  # every digit back
+	panel.fire_keep.setCurrentIndex(0)
+	offset = {'bbox': [-3.6, 36.9, -3.5, 37.0]}
+	panel.fire_offset.layer = 'ring'
+	panel.layer_region = lambda layer, field: offset if layer == 'ring' else None
+	analysis, args = panel.call_of('burn', folder=str(tmp_path))
+	assert args['offset_region'] == offset
+	saved = parameters.check(parameters.make(analysis, args))['parameters']
+	group, fields, reports = plugin.dock.panel_fields(analysis, saved)
+	assert [r for r in reports if 'offset_region' in str(r)]
 
 
 def test_the_data_of_earth_engine_by_their_id(plugin, monkeypatch, tmp_path, fake):

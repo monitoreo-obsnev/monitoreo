@@ -39,7 +39,7 @@ EARTH_ENGINE = TRENDS + ('time_series', 'time_series_to_drive', 'export_time_ser
                          'region_stats', 'thumbnail', 'composite_image', 'export_image', 'export_image_to_drive',
                          'download_image', 'download_variables', 'compare_series', 'compare_map', 'download_comparison',
                          'burn_severity', 'find_protected_areas', 'timelapse', 'area_by_class', 'transect',
-                         'map_figure') + RGB
+                         'map_figure', 'image_count') + RGB
 
 
 # The references of the data of Earth Engine outside the datasets of catalog.json met so far (see of_asset): {id:
@@ -381,7 +381,7 @@ def cite(tool, args=None, date=None, datasets=()):
 	args = dict(args or {})
 	period = _period(args)
 	ids, credits = [], []
-	cols = _region(args.get('region')) + _region(args.get('area')) + list(datasets)
+	cols = _region(args.get('region')) + _region(args.get('area')) + _region(args.get('offset_region')) + list(datasets)
 	recipe = None
 	if tool == 'download_variables':
 		recipe = args.get('recipe') or {}
@@ -408,6 +408,8 @@ def cite(tool, args=None, date=None, datasets=()):
 			spec['collection'] = args['collection']
 		more, credits = of_spec(spec, period)
 		ids += more + _methods({'RBR': 'rbr', 'RdNBR': 'rdnbr'}.get(index, 'burn_severity'))
+		if args.get('offset_region'):  # the offset of the dNBR, as Miller & Thode 2007 and Parks et al. 2014
+			ids += ['miller2007', 'parks2014']
 	elif tool == 'area_by_class' and args.get('landcover'):  # a land cover map of a year, with its crosswalk
 		try:
 			m, year, _ = landcover.check({'landcover': args['landcover'], 'year': args.get('year'),

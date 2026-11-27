@@ -39,6 +39,8 @@ COLUMNS = {
 	'coverage': 'fraction of the pixels of the feature (those kept by where and exclude_landcover) with a valid value in '
 	            'the step (n_pixels over them, 0 to 1): with min_coverage, the steps below it have no value',
 	'min_coverage': 'the smallest coverage of a step with a value (the others have none)',
+	'observations': 'valid observations per pixel in the step: the mean, over the pixels of the feature with at least '
+	                'one, of the images with a value on each pixel after the pixel filters (UDUNITS 1)',
 	'key': 'part of the year: m01-m12 (months), p01-p23 (16-day periods from 1 January) or all (the year)',
 	'label': 'name of the part of the year (or of the severity class)',
 	'n': 'years with data',
@@ -372,7 +374,12 @@ def text(tool, args, result, computed=None):
 	between = report._interannual(given, result) if profile else None
 	units = dict(result.get('units') or {}) if profile else {}
 	from . import catalog
-	if len(units) > 1:  # two variables, each in its unit, on its axis
+	if tool == 'image_count':  # counts of images, not values of the variable
+		out += _section('Units')
+		out.append(_wrap('The columns n_images, observations and n_pixels are counts and coverage a fraction (0 to 1): '
+		                 'in UDUNITS (the units of the CF conventions), 1. They count the images and the valid pixels '
+		                 'of the variable, not its values.'))
+	elif len(units) > 1:  # two variables, each in its unit, on its axis
 		each = '; '.join(f"{name}, {publish.unit_text(un) or 'dimensionless'} (UDUNITS "
 		                 f"{catalog.udunits(un) or 'unknown'})" for name, un in units.items())
 		u = ' (in the unit of the variable of the row: ' + ', '.join(

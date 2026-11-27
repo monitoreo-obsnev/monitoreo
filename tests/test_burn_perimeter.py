@@ -47,8 +47,8 @@ def test_the_value_from_which_a_pixel_is_burned():
 	({'perimeter': 'fire.gpkg', 'index': 'RBR'}, 'the RBR has no classes: give burned_min'),
 	({'perimeter': 'fire.kml'}, 'write the polygons to a file .gpkg, .geojson, .shp, not fire.kml'),
 	({'perimeter': 'fire.gpkg', 'min_ha': -1}, 'min_ha, the smallest burned patch and unburned island'),
-	({'burned_min': 0.2}, 'burned_min and min_ha are for the perimeter of the burned area: give also perimeter'),
-	({'min_ha': 0}, 'burned_min and min_ha are for the perimeter of the burned area'),
+	({'burned_min': 0.2}, 'burned_min, min_ha, seed and largest are for the perimeter of the burned area: give also perimeter'),
+	({'min_ha': 0}, 'burned_min, min_ha, seed and largest are for the perimeter of the burned area'),
 ])
 def test_the_arguments_of_the_perimeter_are_checked_before_computing(monkeypatch, kw, error):
 	"""A wrong perimeter is the user's mistake: a clear message, before Earth Engine computes anything."""

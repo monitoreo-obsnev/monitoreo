@@ -81,8 +81,9 @@ that started after it gets a warning: it waits for this one).
    `.zenodo.json`.
 6. Check the release on GitHub. Uploads to plugins.qgis.org wait for a volunteer's approval.
 7. Publish the Earth Engine app, after asking (it leaves this computer): on `main` after the merge
-   (`git switch main && git pull`), `python gee/push_app.py`. It writes the app (`app` and the modules of the
-   catalog `catalog_1`, `catalog_2`..., each under the 512 KiB per file that Earth Engine takes) into its clone of the
+   (`git switch main && git pull`), `python gee/push_app.py`. It writes the app (`app`, ui.js; the module `core`,
+   core.js; and the modules of the catalog `catalog_1`, `catalog_2`..., each under the 512 KiB per file that Earth
+   Engine takes) into its clone of the
    repository of the app in Earth Engine, `users/monitoreo-obsnev/monitoreo` (account everest@go.ugr.es, cookie in
    `~/.gitcookies-everest`), commits them if something changed, pushes the commit there and then to its backup
    `users/javiermartinez/monitoreo` (always: a mirror; cookie in `~/.gitcookies`), and prints the path of the app and

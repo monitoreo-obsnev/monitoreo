@@ -365,11 +365,22 @@ def perimeter_text(res):
 		return ''
 	areas = ', '.join(f'{region}: {v:,.1f} ha' for region, v in ha.items()) if len(ha) > 1 else \
 		f'{next(iter(ha.values())):,.1f} ha' if ha else '0 ha'
+	kept = f", {res['perimeter_kept']}" if res.get('perimeter_kept') else ''  # seed or largest
 	return (f" · perimeter of the burned area ({res.get('index') or 'dNBR'} ≥ {res.get('burned_min', 0):g}, without "
-	        f"patches nor islands of less than {res.get('min_ha', 0):g} ha): {areas}")
+	        f"patches nor islands of less than {res.get('min_ha', 0):g} ha{kept}): {areas}")
 
 
 def _burn_text(res):
+	return _offset_text(res) + _index_text(res)
+
+
+def _offset_text(res):
+	"""The offset of the dNBR of the burn severity RES (its Offset region), if it has one."""
+	offset = res.get('offset')
+	return f' · dNBR offset (median of the offset region, subtracted): {offset:.4g}' if offset is not None else ''
+
+
+def _index_text(res):
 	from monitoreo import fire
 	if res.get('index') == 'RBR':
 		return (' · RBR = dNBR / (NBR before + 1.001), without phenological correction and without the factor 1000; '
@@ -378,8 +389,9 @@ def _burn_text(res):
 	areas = ', '.join(f'{region}: {ha:,.1f} ha' for region, ha in burned.items()) if len(burned) > 1 else \
 		f'{next(iter(burned.values())):,.1f} ha' if burned else ''
 	if res.get('index') == 'RdNBR':
-		return (' · RdNBR = dNBR / sqrt(|NBR before|), |NBR before| at least 0.001, without the offset and without the '
-		        'factor 1000 of Miller & Thode 2007; classes of their Table 4'
+		return (' · RdNBR = dNBR / sqrt(|NBR before|), |NBR before| at least 0.001, '
+		        + ('' if res.get('offset') is not None else 'without the offset and ') +
+		        'without the factor 1000 of Miller & Thode 2007; classes of their Table 4'
 		        + (f' · changed area (RdNBR ≥ {fire.RDNBR_BURNED:g}): {areas}' if areas else ''))
 	return f' · burned area (dNBR ≥ {fire.BURNED:g}): {areas}' if areas else ''
 
