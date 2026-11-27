@@ -33,6 +33,8 @@ FLAT = {'variable': 'SLOPE', 'sensor': 'Copernicus', 'ref': 107, 'max': 20}
 GREEN = {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'ref': 27, 'min': 0.3}
 WET = {'variable': 'TWI', 'sensor': 'MERIT Hydro', 'ref': 148, 'min': 10}  # the topographic wetness index: wet bottoms
 MEDITERRANEAN = {'variable': 'BIOME', 'sensor': 'RESOLVE', 'ref': 150, 'classes': [12]}  # a categorical layer
+NORTH_FACES = {'variable': 'ASPECT', 'sensor': 'Copernicus', 'ref': 184, 'min': 315, 'max': 45}  # across the north
+COIN = {'bbox': [-4.9, 36.5, -4.6, 36.75]}  # the fire of Coín and Mijas, 30 August 2012
 
 CASES = {
 	# only the pixels of the region that pass conditions on variables (where): fixed layers and one with dates
@@ -57,6 +59,35 @@ CASES = {
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
 	# the topographic wetness index of MERIT Hydro (from two bands of its image), and as a condition of a variable
 	'map_twi': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 148}},
+	# the aspect of the Copernicus DEM (without the flat pixels), and the NDVI only on the slopes that face north (a
+	# condition of where across 0: from 315 to 45)
+	'map_aspect': {'kind': 'percentiles', 'region': LAGUNAS, 'spec': {'ref': 184}},
+	'map_s2_where_aspect_north': {'kind': 'percentiles', 'region': LAGUNAS,
+	                              'spec': {'ref': 27, 'period': ['2021-07-01', '2021-08-31'], 'metric': 'median',
+	                                       'where': [NORTH_FACES]}},
+	# MSI and MSAVI2; the NDWI and the LSWI of the 8-day reflectance of MODIS (the filters of StateQA); the yearly GPP
+	# and NPP of MODIS (without their fill values); the PDSI of TerraClimate and the SPEI of SPEIbase; the burn date
+	'map_msi_s2': {'kind': 'percentiles', 'region': GUAJARES,
+	               'spec': {'ref': 166, 'period': ['2021-06-01', '2021-08-31'], 'metric': 'median'}},
+	'series_msavi2_landsat': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                          'spec': {'ref': 167, 'period': ['2021-05-01', '2021-07-31']}},
+	'series_ndwi_mod09a1': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                        'spec': {'ref': 169, 'period': ['2024-06-01', '2024-08-31']}},
+	'series_lswi_myd09a1': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                        'spec': {'ref': 172, 'period': ['2024-06-01', '2024-08-31']}},
+	'series_gpp_npp_modis': {'kind': 'series', 'region': GUAJARES, 'step': 'annual', 'metric': 'mean', 'stat': 'mean',
+	                         'spec': {'ref': 176, 'period': ['2019-01-01', '2021-12-31']}},
+	'map_gpp_modis': {'kind': 'percentiles', 'region': GUAJARES,
+	                  'spec': {'ref': 173, 'period': ['2020-01-01', '2020-12-31'], 'metric': 'mean'}},
+	'series_pdsi': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                'spec': {'ref': 177, 'period': ['2022-01-01', '2022-06-30']}},
+	'series_spei3': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                 'spec': {'ref': 179, 'period': ['2022-01-01', '2022-06-30']}},
+	'series_burndate_mcd64a1': {'kind': 'series', 'region': SIERRA_BERMEJA, 'step': 'monthly', 'metric': 'min',
+	                            'stat': 'mean', 'spec': {'ref': 182, 'period': ['2021-08-01', '2021-10-31'],
+	                                                     'metric': 'min'}},
+	'map_burndate_firecci': {'kind': 'percentiles', 'region': COIN,
+	                         'spec': {'ref': 183, 'period': ['2012-01-01', '2012-12-31'], 'metric': 'min'}},
 	'map_s2_where_twi': {'kind': 'percentiles', 'region': GUAJARES,
 	                     'spec': {'ref': 27, 'period': ['2021-01-01', '2021-12-31'], 'metric': 'median',
 	                              'where': [WET]}},

@@ -529,7 +529,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
 	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb;
 	topographic when it can have the topographic correction, see sensors.TOPOGRAPHIC;
-	categorical and n_classes for a layer of class codes, see list_classes), optionally of one SENSOR (compared as
+	categorical and n_classes for a layer of class codes, see list_classes; circular for an angle, ASPECT, whose
+	conditions of where with min greater than max go across the north), optionally of one SENSOR (compared as
 	catalog.find does: 'merit hydro' and 'MERITHydro' are 'MERIT Hydro'), of one THEME (its key or its name) or with
 	TEXT in their variable or their name (in English or in Spanish, whatever LANG is)."""
 	out = []
@@ -553,6 +554,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 			row['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 		if e.get('static'):
 			row['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
+		if e.get('circular'):
+			row['circular'] = True  # an angle (ASPECT): where with min greater than max, across the north
 		if categorical.is_categorical(e):  # its values are class codes (the ecoregions, the biomes): see list_classes
 			row['categorical'] = True
 			row['n_classes'] = len(categorical.codes(e))
@@ -665,6 +668,8 @@ def describe_variable(variable_name, sensor=None, collection=None, ref=None, lan
 		out['fixed_filters'] = sensors.fixed_filters(e)  # always on, whatever the quality (SCF: clouds, water)
 	if e.get('static'):
 		out['static'] = True  # elevation, slope, TWI, WorldClim: without dates, only maps and their statistics
+	if e.get('circular'):
+		out['circular'] = True  # an angle (ASPECT): where with min greater than max, across the north
 	if categorical.is_categorical(e):  # class codes: its classes (or how to list them, when they are many)
 		out.update(categorical.describe(e, lang))
 	out['rgb'] = sensors.rgb_of(e) is not None  # its images have a true colour (rgb_map, download_rgb)

@@ -705,15 +705,24 @@ var MonitorEO = (function () {
 		clouds: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).neq(250); },
 		water: function (i) { return i.select('NDSI_Snow_Cover_Class').unmask(0).remap([237, 239], [0, 0], 1); }
 	};
-	// the daily surface reflectance of MODIS (the RdNBR of MODIS, MOD09GA and MYD09GA), state_1km: bits 0-1 cloud
-	// state (0 clear, 3 assumed clear), 2 cloud shadow, 3-5 land/water (1 land), 6-7 aerosols (3 high), 10 internal
-	// cloud flag, 15 internal snow mask
-	var SURFACE = {
-		clouds: function (i) { return modis09Clouds(i.select('state_1km')); },
-		water: function (i) { return bits(i.select('state_1km'), 3, 5).eq(1); },
-		snow: function (i) { return bits(i.select('state_1km'), 15).eq(0); },
-		aerosols: function (i) { return bits(i.select('state_1km'), 6, 7).neq(3); }
-	};
+	// sensors._surface_reflectance: the pixel filters of the surface reflectance of MODIS from its state flags BAND
+	// (state_1km of the daily MOD09GA and MYD09GA, the RdNBR of MODIS; StateQA of the 8-day MOD09A1 and MYD09A1, the NDWI
+	// and the LSWI of MODIS): bits 0-1 cloud state (0 clear, 3 assumed clear), 2 cloud shadow, 3-5 land/water (1 land),
+	// 6-7 aerosols (3 high), 10 internal cloud flag, 15 internal snow mask
+	function surfaceReflectance(band) {
+		return {
+			clouds: function (i) { return modis09Clouds(i.select(band)); },
+			water: function (i) { return bits(i.select(band), 3, 5).eq(1); },
+			snow: function (i) { return bits(i.select(band), 15).eq(0); },
+			aerosols: function (i) { return bits(i.select(band), 6, 7).neq(3); }
+		};
+	}
+	var SURFACE = surfaceReflectance('state_1km');
+	var SURFACE_8DAY = surfaceReflectance('StateQA');
+	// the yearly GPP and NPP of MODIS: their fill values above the valid range of each band (no pixel filters)
+	var PRIMARY_PRODUCTION = {valid: [['Gpp', 65500], ['Npp', 32700]]};
+	// the monthly burned area (the burn date): BurnDate 1-366; 0 (unburned) and the negative flags have no data
+	var BURNED_AREA = {valid: ['BurnDate', 366, 1]};
 	// sensors.GAP_FILLED: collections with a gap-filled version, made once a year: its images up to its last one in the
 	// catalog (CATALOG.collections, as the references), and those of the collection after it (MOD16A2.061 begins in
 	// 2021, MOD16A2GF.061 covers 2000 to the end of last year)
@@ -745,8 +754,23 @@ var MonitorEO = (function () {
 			return i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0);
 		}},
 		'MODIS/061/MOD09GA': SURFACE,
-		'MODIS/061/MYD09GA': SURFACE
+		'MODIS/061/MYD09GA': SURFACE,
+		'MODIS/061/MOD09A1': SURFACE_8DAY,
+		'MODIS/061/MYD09A1': SURFACE_8DAY,
+		'MODIS/061/MOD17A3HGF': PRIMARY_PRODUCTION,
+		'MODIS/061/MYD17A3HGF': PRIMARY_PRODUCTION,
+		'MODIS/061/MCD64A1': BURNED_AREA,
+		'ESA/CCI/FireCCI/5_1': BURNED_AREA
 	};
+
+	// sensors.valid_ranges: [[band, max raw value, min raw value or null]] of the valid of PRODUCT
+	function validRanges(product) {
+		var valid = product.valid;
+		if (!valid) return [];
+		return (typeof valid[0] === 'string' ? [valid] : valid).map(function (v) {
+			return [v[0], v[1], v.length > 2 ? v[2] : null];
+		});
+	}
 
 	function withQuality(quality) {
 		var q = {};
@@ -811,7 +835,10 @@ var MonitorEO = (function () {
 			if (on.aerosols) masks.push(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3));  // level 3 = high
 		} else {
 			var product = PRODUCTS[entry.col] || {};
-			if (product.valid) masks.push(img.select(product.valid[0]).lte(product.valid[1]));
+			validRanges(product).forEach(function (v) {
+				masks.push(img.select(v[0]).lte(v[1]));
+				if (v[2] !== null) masks.push(img.select(v[0]).gte(v[2]));
+			});
 			FILTERS.forEach(function (f) {
 				if (on[f] && !(f === 'water' && permanent)) masks.push(product[f](img));
 			});
@@ -1735,10 +1762,33 @@ var MonitorEO = (function () {
 		if (e.fk === 'twi' ? (res || Number(e.m)) <= 2 * Number(e.m) : res && res < Number(e.m)) {
 			img = img.resample('bilinear');
 		}
-		if (e.terrain === 'slope') img = ee.Terrain.slope(img);
-		else if (e.terrain === 'aspect') img = ee.Terrain.aspect(img);
-		if ((res || Number(e.m)) > 2 * Number(e.m)) img = img.reduceResolution(ee.Reducer.mean(), true, 65535);
+		if (e.terrain === 'slope') {
+			img = ee.Terrain.slope(img);
+		} else if (e.terrain === 'aspect') {  // flat pixels have no aspect (ee.Terrain gives them 0, the north): no data
+			var dem = img;
+			img = ee.Terrain.aspect(dem).updateMask(ee.Terrain.slope(dem).gt(0));
+		}
+		if ((res || Number(e.m)) > 2 * Number(e.m)) {
+			img = e.terrain === 'aspect' ? circularMean(img) : img.reduceResolution(ee.Reducer.mean(), true, 65535);
+		}
 		return img.toFloat().rename('value');
+	}
+
+	// variable._circular_mean: the circular mean of the angles IMG (degrees from the north, 0 to 360: the aspect) on
+	// bigger pixels, the angle of the mean of the sines and cosines of its pixels, from 0 to 360 (the mean of 350 and 10
+	// is 0, the north, not 180); the same calls of Earth Engine, in the same order, as the package
+	function circularMean(img) {
+		var rad = img.multiply(Math.PI / 180);
+		var sc = ee.Image.cat([rad.sin(), rad.cos()]).reduceResolution(ee.Reducer.mean(), true, 65535);
+		// Image.atan2: x.atan2(y) is the angle of the vector [x, y], atan2(y, x): here [cos, sin]
+		return sc.select(1).atan2(sc.select(0)).multiply(180 / Math.PI).add(360).mod(360);
+	}
+
+	// variable.across_zero: whether a condition of where on the variable of the entry E between LO and HI is a range of
+	// angles across 0, the north (a circular variable, ASPECT, with min greater than max: e.g. 315 to 45)
+	function acrossZero(e, lo, hi) {
+		var given = function (x) { return x !== null && x !== undefined && x !== ''; };
+		return Boolean(e && e.circular) && given(lo) && given(hi) && Number(lo) > Number(hi);
 	}
 
 	// Land cover masks (landcover.py): the pixels of some broad land covers (water, built...) left out of a result,
@@ -2197,6 +2247,9 @@ var MonitorEO = (function () {
 		})).concat(whereSpecs(s).map(function (w) {
 			var value = image(w[0], region, res);
 			var m = ee.Image(1).updateMask(value.mask());
+			if (acrossZero(entryOf(w[0]), w[1], w[2])) {  // an angle from min to 360 and from 0 to max (the north)
+				return m.and(value.gte(Number(w[1])).or(value.lte(Number(w[2]))));
+			}
 			if (w[1] !== null && w[1] !== undefined) m = m.and(value.gte(Number(w[1])));
 			if (w[2] !== null && w[2] !== undefined) m = m.and(value.lte(Number(w[2])));
 			return m;
@@ -3447,6 +3500,7 @@ var MonitorEO = (function () {
 		'[mg m⁻³]': 'mg m-3', '[%]': '%', '[m]': 'm', '[°]': 'degree', '[mm]': 'mm', '[mm/month]': 'mm month-1',
 		'[mm/day]': 'mm day-1', '[kPa]': 'kPa', '[days]': 'day',  // [days]: the snow cover days
 		'[day of year]': 'day',  // the snow melt-out day: days since the 31 December before (1 = 1 January)
+		'[kg C/m²/year]': 'kg m-2 year-1',  // GPP and NPP: the carbon in the name (C is the coulomb in UDUNITS)
 		'[class]': ''};  // [class]: class codes, without a unit (catalog.UDUNITS)
 
 	function udunits(unit) {
@@ -4467,10 +4521,14 @@ var MonitorEO = (function () {
 		'CLre': ['CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'],
 		'CLreB7': ['CLre y CLreB7: índice de clorofila del borde rojo', 'CLre and CLreB7: Red-edge Chlorophyll Index'],
 		'WAVI': ['WAVI: índice de vegetación ajustado al agua', 'WAVI: Water Adjusted Vegetation Index'],
+		'MSAVI2': ['MSAVI2: índice de vegetación ajustado al suelo modificado',
+			'MSAVI2: Modified Soil Adjusted Vegetation Index'],
+		'GPP': ['GPP y NPP: producción primaria bruta y neta', 'GPP and NPP: gross and net primary production'],
 		'Chl-a': ['Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'],
 		'NDCI': ['NDCI: índice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'],
 		'NDWI': ['NDWI: índice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'],
 		'LSWI': ['LSWI: índice de agua superficial terrestre', 'LSWI: Land Surface Water Index'],
+		'MSI': ['MSI: índice de estrés hídrico', 'MSI: Moisture Stress Index'],
 		'NDSI': ['NDSI: índice de nieve de diferencia normalizada', 'NDSI: Normalized Difference Snow Index'],
 		'SCF': ['SCF: frecuencia de nieve', 'SCF: snow cover frequency'],
 		'SCD': ['SCD: días de nieve', 'SCD: snow cover days'],
@@ -4481,16 +4539,20 @@ var MonitorEO = (function () {
 		'ARSL': ['ARSL: profundidad óptica de aerosoles', 'ARSL: Aerosol Optical Depth'],
 		'NBR': ['NBR y RBR: incendios', 'NBR and RBR: fires'],
 		'RdNBR': ['RdNBR: dNBR relativo (incendios)', 'RdNBR: relative dNBR (fires)'],
+		'BURNDATE': ['BURNDATE: fecha de quema', 'BURNDATE: burn date'],
 		'ELEVATION': ['ELEVATION y SLOPE: elevación y pendiente', 'ELEVATION and SLOPE: elevation and slope'],
+		'ASPECT': ['ASPECT: orientación', 'ASPECT: aspect'],
 		'TWI': ['TWI: índice topográfico de humedad', 'TWI: topographic wetness index'],
 		'CF': ['CF: frecuencia de nubes', 'CF: cloud frequency'],
 		'CLIMATE': ['Clima: precipitación, temperatura y balance de agua', 'Climate: precipitation, temperature and water balance'],
+		'PDSI': ['PDSI y SPEI: índices de sequía', 'PDSI and SPEI: drought indices'],
 		'BIO': ['BIO01 a BIO19: variables bioclimáticas de WorldClim', 'BIO01 to BIO19: bioclimatic variables of WorldClim'],
 		'ECOREGION': ['ECOREGION y BIOME: ecorregiones y biomas', 'ECOREGION and BIOME: ecoregions and biomes'],
 		'DATA': ['Datos de Earth Engine por su ID', 'Earth Engine data by its ID'],
 		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
 	};
-	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'PRECIP': 'CLIMATE',
+	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP', 'SPEI1': 'PDSI',
+		'SPEI3': 'PDSI', 'SPEI6': 'PDSI', 'SPEI12': 'PDSI', 'PRECIP': 'CLIMATE',
 		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
 		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',
 		'BIO07': 'BIO', 'BIO08': 'BIO', 'BIO09': 'BIO', 'BIO10': 'BIO', 'BIO11': 'BIO', 'BIO12': 'BIO', 'BIO13': 'BIO',
@@ -4537,6 +4599,7 @@ var MonitorEO = (function () {
 		resetNotes: resetNotes, notes: notes, noteWarning: noteWarning, withNotes: withNotes, used: used,
 		sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
+		acrossZero: acrossZero,
 		LANDCOVER_SHARE: LANDCOVER_SHARE, landcoverClasses: landcoverClasses, landcoverMaps: landcoverMaps,
 		landcoverMap: landcoverMap, landcoverYears: landcoverYears, landcoverDefaultYear: landcoverDefaultYear,
 		isLandcover: isLandcover, landcoverCheck: landcoverCheck, landcoverCodes: landcoverCodes,

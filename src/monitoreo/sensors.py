@@ -413,8 +413,21 @@ def _vi_clouds(i):
 # 2021, MOD16A2GF.061 covers 2000 to the end of last year, with the same bands)
 GAP_FILLED = {'MODIS/061/MOD16A2': 'MODIS/061/MOD16A2GF'}
 
-# MODIS (and other) products: band of valid raw values (flags above max) and the mask of each pixel filter
-# {collection: {'valid': (band, max raw value), filter: f(img) -> 1 = keep}}
+def _surface_reflectance(band):
+	"""The pixel filters of the surface reflectance of MODIS from its state flags BAND (state_1km of the daily MOD09GA
+	and MYD09GA, StateQA of the 8-day MOD09A1 and MYD09A1, with the same bits): bits 0-1 cloud state (0 clear, 3 assumed
+	clear), 2 cloud shadow, 3-5 land/water (1 land), 6-7 aerosols (3 high), 10 internal cloud flag, 15 internal snow
+	mask."""
+	return {
+		'clouds': lambda i: _modis_09_clouds(i.select(band)),
+		'water': lambda i: bits(i.select(band), 3, 5).eq(1),
+		'snow': lambda i: bits(i.select(band), 15).eq(0),
+		'aerosols': lambda i: bits(i.select(band), 6, 7).neq(3),
+	}
+
+
+# MODIS (and other) products: the valid raw values of their bands (flags outside them) and the mask of each pixel
+# filter {collection: {'valid': (band, max raw value[, min raw value]) or a list of them, filter: f(img) -> 1 = keep}}
 PRODUCTS = {
 	'MODIS/061/MOD13Q1': {  # DetailedQA: bits 6-7 aerosols (3 high), 11-13 land/water (1 land), 14 snow/ice
 		'clouds': _vi_clouds,
@@ -445,19 +458,31 @@ PRODUCTS = {
 	},
 	# 0 = full BRDF inversion, 1 = magnitude inversion (too few clear observations)
 	'MODIS/061/MCD43A3': {'clouds': lambda i: i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0)},
-	# daily surface reflectance (the RdNBR of MODIS), state_1km: bits 0-1 cloud state (0 clear, 3 assumed clear), 2
-	# cloud shadow, 3-5 land/water (1 land), 6-7 aerosols (3 high), 10 internal cloud flag, 15 internal snow mask
-	'MODIS/061/MOD09GA': {
-		'clouds': lambda i: _modis_09_clouds(i.select('state_1km')),
-		'water': lambda i: bits(i.select('state_1km'), 3, 5).eq(1),
-		'snow': lambda i: bits(i.select('state_1km'), 15).eq(0),
-		'aerosols': lambda i: bits(i.select('state_1km'), 6, 7).neq(3),
-	},
+	# daily surface reflectance (the RdNBR of MODIS), its band state_1km (see _surface_reflectance)
+	'MODIS/061/MOD09GA': _surface_reflectance('state_1km'),
+	# surface reflectance of 8 days (the NDWI and the LSWI of MODIS), its band StateQA, with the same bits
+	'MODIS/061/MOD09A1': _surface_reflectance('StateQA'),
+	# yearly GPP and NPP: their fill values (water, built-up, barren, snow and ice, not classified) above the valid
+	# range of each band, Gpp 0-65500 (65529-65535) and Npp -30000-32700 (32761-32767); no pixel filters
+	'MODIS/061/MOD17A3HGF': {'valid': [('Gpp', 65500), ('Npp', 32700)]},
+	# monthly burned area (the burn date): BurnDate 1-366; 0 (unburned) and the negative flags have no data
+	'MODIS/061/MCD64A1': {'valid': ('BurnDate', 366, 1)},
+	'ESA/CCI/FireCCI/5_1': {'valid': ('BurnDate', 366, 1)},
 }
 PRODUCTS['MODIS/061/MYD13Q1'] = PRODUCTS['MODIS/061/MOD13Q1']
 PRODUCTS['MODIS/061/MYD11A1'] = PRODUCTS['MODIS/061/MOD11A1']
 PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 PRODUCTS['MODIS/061/MYD09GA'] = PRODUCTS['MODIS/061/MOD09GA']
+PRODUCTS['MODIS/061/MYD09A1'] = PRODUCTS['MODIS/061/MOD09A1']
+PRODUCTS['MODIS/061/MYD17A3HGF'] = PRODUCTS['MODIS/061/MOD17A3HGF']
+
+
+def valid_ranges(product):
+	"""[(band, max raw value, min raw value or None)] of the 'valid' of PRODUCT (see PRODUCTS): its bands without flags."""
+	valid = product.get('valid')
+	if not valid:
+		return []
+	return [(v[0], v[1], v[2] if len(v) > 2 else None) for v in ([valid] if isinstance(valid[0], str) else valid)]
 
 
 def water_permanent(quality):
@@ -594,9 +619,10 @@ def quality_mask(img, entry, quality):
 			masks.append(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3))  # aerosol level 3 = high
 	else:
 		product = PRODUCTS.get(col, {})
-		if 'valid' in product:
-			b, vmax = product['valid']
+		for b, vmax, vmin in valid_ranges(product):
 			masks.append(img.select(b).lte(vmax))
+			if vmin is not None:
+				masks.append(img.select(b).gte(vmin))
 		masks += [product[f](img) for f in FILTERS if on[f] and not (f == 'water' and permanent)]
 	if permanent:
 		masks.append(permanent_land())

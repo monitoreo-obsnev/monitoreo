@@ -84,6 +84,28 @@ def test_cite():
 	for index, refs in (('CLre', {'gitelson2003', 'gitelson2005'}), ('CLreB7', {'gitelson2005', 'clevers2013'}), ('WAVI', {'villa2014'})):
 		assert refs | {'esa_s2_l2a'} <= set(_ids(references.cite('map_layer', {'variable': index, 'sensor': 'Sentinel-2',
 		                                                                       'start': '2022-06-01', 'end': '2022-09-30'})))
+	# the new variables of 2026-11-27: their formula or algorithm, and their Earth Engine datasets as their pages say
+	new = [('MSI', 'Sentinel-2', None, {'hunt1989', 'esa_s2_l2a'}), ('MSAVI2', 'Landsat', None, {'qi1994', 'usgs_landsat89'}),
+	       ('NDWI', 'Modis', 'MODIS/061/MOD09A1', {'gao1996', 'mod09a1'}),
+	       ('LSWI', 'Modis', 'MODIS/061/MYD09A1', {'xiao2004', 'myd09a1'}),
+	       ('GPP', 'Modis', None, {'running2004', 'mod17a3hgf'}),
+	       ('NPP', 'Modis', 'MODIS/061/MYD17A3HGF', {'running2004', 'myd17a3hgf'}),
+	       ('PDSI', 'TerraClimate', None, {'abatzoglou2018'}),
+	       ('SPEI3', 'SPEIbase', None, {'vicenteserrano2010', 'begueria2014', 'speibase'}),
+	       ('BURNDATE', 'Modis', None, {'giglio2018', 'mcd64a1'}),
+	       ('BURNDATE', 'Modis', 'ESA/CCI/FireCCI/5_1', {'lizundialoiola2020', 'chuvieco2018'})]
+	for index, sensor, col, refs in new:
+		args = {'variable': index, 'sensor': sensor, 'start': '2020-01-01', 'end': '2020-12-31', 'collection': col}
+		cited = references.cite('map_layer', {k: v for k, v in args.items() if v})
+		assert refs <= set(_ids(cited)), (index, sensor, col)
+	cci = references.cite('map_layer', {'variable': 'BURNDATE', 'sensor': 'Modis', 'collection': 'ESA/CCI/FireCCI/5_1',
+	                                    'start': '2012-01-01', 'end': '2012-12-31'})
+	assert any('Fire_cci' in c for c in cci['credits'])
+	spei = references.cite('map_layer', {'variable': 'SPEI12', 'sensor': 'SPEIbase', 'start': '2020-01-01',
+	                                     'end': '2020-12-31'})
+	assert any('CC BY 4.0' in c for c in spei['credits'])
+	aspect = references.cite('map_layer', {'variable': 'ASPECT', 'sensor': 'Copernicus'})
+	assert {'rizzoli2017', 'zevenbergen1987', 'esa_copernicus_dem'} <= set(_ids(aspect))
 	scl = references.cite('time_series', {'variable': 'NDVI', 'sensor': 'Sentinel-2', 'quality': {'cloud_score': None},
 	                                      'start': '2018-01-01', 'end': '2018-12-31'})
 	assert 'pasquarella2023' not in _ids(scl) and 'mainknorn2017' in _ids(scl)  # SCL clouds, no Cloud Score+

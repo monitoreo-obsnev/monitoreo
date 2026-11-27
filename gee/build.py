@@ -55,12 +55,14 @@ from monitoreo import (__released__, __version__, about, areas, catalog, communi
 
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'sea', 'two_periods', 'metric', 'axis', 'static',
-          'band', 'terrain', 'image_asset', 'theme', 'classes']  # classes: the key of the table of a categorical layer
+          'band', 'terrain', 'image_asset', 'theme', 'classes',  # classes: the key of the table of a categorical layer
+          'circular']  # circular: an angle (ASPECT), whose conditions of where with min greater than max go across 0
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
 REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine
 MAX_FILE = 524288  # bytes: the biggest file Earth Engine takes in a push to a repository (measured; any push size)
-LIMIT = 500000  # bytes of each file of the repository of the app, with a margin under MAX_FILE
+LIMIT = 516096  # bytes of each file of the repository of the app (504 KiB), with a margin of 8 KiB under MAX_FILE: the
+# script app (core.js and ui.js) took 503,506 bytes on 2026-11-27, near it; the next big change of the app splits it
 MODULE = re.compile(r'app|catalog_[0-9]+')  # the names of the files that modules writes
 # the tables of the regions whose credits the app shows (core.js, CITED_REGIONS): the administrative units, FAO GAUL
 # 2025 (levels 1 and 2) and the municipalities of Spain of the IGN (level 3), and the seas of the IHO (Marine Regions)

@@ -267,10 +267,16 @@ as most seas, are computed on pixels of 1 to 10 km); a whole biome spans contine
 always within a country or another region, or MODIS or the climate at an annual step.
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
-- Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS" or \
-"WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
+- Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS", \
+"SPEIbase" or "WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
 PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll index, B8 / B5 - 1), "CLreB7" (the same with B7) and "WAVI" (water adjusted \
-vegetation index).
+vegetation index); of Sentinel-2 and Landsat, "MSI" (moisture stress index, SWIR1 / NIR: higher is drier) and \
+"MSAVI2" (modified soil adjusted vegetation index: sparse vegetation, drylands, burned areas).
+- MODIS: the NDWI and the LSWI of the 8-day surface reflectance (500 m, since 2000) with collection \
+"MODIS/061/MOD09A1" (Terra) or "MODIS/061/MYD09A1" (Aqua); without it, the NDWI of MODIS ends in 2023-02. Primary \
+production "GPP" and "NPP" (sensor "Modis", kg C/m²/year, an image per year, 2001-2025, Aqua since 2003: step "annual"). Burn date \
+"BURNDATE" (sensor "Modis": the day of the year when each pixel burned, only on burned pixels; MCD64A1, 500 m, \
+since 2000-11, or collection "ESA/CCI/FireCCI/5_1", 250 m, 2001-2020): always metric "min", a period within one year.
 - Filters: the pixels with water and snow are removed; with the NDWI, the NDCI, the Chl-a or the WAVI pass quality \
 {{"water": "auto"}}, and with the NDSI quality {{"snow": "auto"}}, so that the filter does not remove what they measure. \
 After a fire, the water flagged in each image takes burned land for water: the burn severity already uses the permanent \
@@ -304,8 +310,10 @@ slope in days per year: negative is an earlier melt-out), or a map (temporal "pe
 "annual"); no monthly, 16-day or daily steps. Its season is 1 January to 31 August unless the user gives another one \
 (it must end before the first snowfalls of autumn). A pixel without snow in the season takes the day of its first \
 clear image; one whose snow does not go has no data.
-- Elevation and slope (Copernicus DEM GLO-30, 30 m; the slope in degrees): variables "ELEVATION" and "SLOPE", sensor \
-"Copernicus". They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
+- Elevation, slope and aspect (Copernicus DEM GLO-30, 30 m; slope and aspect in degrees, the aspect clockwise from \
+the north): variables "ELEVATION", "SLOPE" and "ASPECT", sensor "Copernicus". In where, an ASPECT with min greater \
+than max goes across the north (the north faces: {{"variable": "ASPECT", "sensor": "Copernicus", "min": 315, "max": \
+45}}). They are fixed layers, without dates: map_layer, region_stats or download_image without start and end; they \
 have no time series, trends or comparisons.
 - Topographic wetness index (how wet the soil tends to be because of the relief alone: high in the valley bottoms and \
 flats where the water of the slopes converges, low on the ridges and steep slopes; ln(a / tan β) of MERIT Hydro, \
@@ -319,7 +327,8 @@ no quality (no pixel filter applies).
 - Climate: precipitation "PRECIP" (sensor "ERA5-Land" or "TerraClimate", monthly; "CHIRPS", daily, 5 km, \
 60°S-60°N), air temperature "TMEAN", "TMIN", "TMAX" ("ERA5-Land", 11 km, since 1950; "TerraClimate" TMIN \
 and TMAX, 4.6 km, 1958-2024) and water balance of "TerraClimate" ("PET", "AET", "CWD" climatic water deficit, \
-"SOILM" soil moisture, "VPD"). The total of a period (the annual precipitation) is metric "sum": step \
+"SOILM" soil moisture, "VPD"). Drought (monthly, without unit, negative is dry): "PDSI" of "TerraClimate" and \
+"SPEI1", "SPEI3", "SPEI6", "SPEI12" (the SPEI of 1 to 12 months), sensor "SPEIbase" (0.5°, 1901-2024). The total of a period (the annual precipitation) is metric "sum": step \
 "annual" for each year, or in maps temporal "annual" with interannual "mean" for the mean annual total. \
 Bioclimatic variables "BIO01" to "BIO19", sensor "WorldClim" (climate of 1960-1990, 1 km): fixed layers, \
 without dates, like the elevation.
@@ -421,8 +430,8 @@ Landsat, or Sentinel-2 only since 2017.
 2012 and March 2013 there are no Landsat images in the catalog.
 - MODIS: pixel of 250-1000 m, daily images or composites of 8-16 days, since 2000. For big regions, seasonality and \
 the variables that only MODIS gives (evapotranspiration, LAI, aerosols).
-- Climate (ERA5-Land, TerraClimate, CHIRPS, WorldClim): models and interpolations, not images: pixels of 1 to 11 km, \
-for the climate of a region, not of a plot; no clouds or filters.
+- Climate (ERA5-Land, TerraClimate, CHIRPS, SPEIbase, WorldClim): models and interpolations, not images: pixels of 1 \
+to 11 km (55 km the SPEI), for the climate of a region, not of a plot; no clouds or filters.
 - MonitorEO discards the pixels with clouds, water, snow or aerosols, depending on the variable. In high mountains \
 snow leaves few valid pixels in winter for the vegetation indices.
 - Burn severity of a fire: burn_severity with Sentinel-2 or Landsat; period before, the 3 months before the fire; \

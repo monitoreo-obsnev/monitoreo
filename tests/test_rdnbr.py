@@ -60,7 +60,7 @@ def test_the_rdnbr_in_the_catalog():
 
 def test_the_rdnbr_in_the_theme_fire_and_in_the_lists():
 	assert catalog.theme_of('RdNBR')['key'] == 'fire' and catalog.theme_of('RdNBR')['analyses'] == ['burn_severity']
-	assert [t for t in catalog.THEMES if t['key'] == 'fire'][0]['indices'] == ['NBR', 'RBR', 'RdNBR']
+	assert [t for t in catalog.THEMES if t['key'] == 'fire'][0]['indices'] == ['NBR', 'RBR', 'RdNBR', 'BURNDATE']
 	rows = services.list_variables(text='RdNBR')
 	assert [r['ref'] for r in rows] == [144, 145, 146, 147]
 	assert all(r['two_periods'] and r['theme'] == 'Fire' and r['unit'] == '[unitless]' for r in rows)

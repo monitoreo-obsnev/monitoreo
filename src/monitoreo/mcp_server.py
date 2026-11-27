@@ -69,9 +69,17 @@ always tell the user, as those days may have no data (describe_variable gives th
 warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, chlorophyll, aerosols, snow cover
-frequency, snow cover days, snow melt-out day) of Sentinel-2, Landsat and MODIS, with the pixel filters of MonitorEO (clouds, water, snow,
-aerosols). The snow cover frequency (SCF, Sentinel-2, Landsat and MODIS) is the % of the clear observations of each
+LSWI, MSI, MSAVI2, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
+chlorophyll, aerosols, snow cover frequency, snow cover days, snow melt-out day, burn date) of Sentinel-2, Landsat and MODIS,
+with the pixel filters of MonitorEO (clouds, water, snow, aerosols). MSI (moisture stress index, SWIR1 / NIR: higher is
+drier) and MSAVI2 (modified soil adjusted vegetation index) of Sentinel-2 and Landsat. The NDWI and LSWI of MODIS from
+the 8-day surface reflectance (collection "MODIS/061/MOD09A1", Terra, or "MODIS/061/MYD09A1", Aqua, 500 m, since 2000,
+with the filters of its StateQA): without collection the NDWI of MODIS is MODIS/MOD09GA_006_NDWI, which ends in
+2023-02. GPP and NPP (sensor "Modis", MOD17A3HGF Terra or MYD17A3HGF Aqua, 500 m, in kg C/m²/year): an image per
+year, 2001-2025 (Aqua since 2003), so step "annual". The burn date (BURNDATE, sensor "Modis": collection "MODIS/061/MCD64A1", 500 m,
+since 2000-11, the default, or "ESA/CCI/FireCCI/5_1", 250 m, 2001-2020) is the day of the year when each pixel burned,
+only on the burned pixels: always with metric "min" (the first day it burned in the period; give a period within one
+year), no pixel filters. The snow cover frequency (SCF, Sentinel-2, Landsat and MODIS) is the % of the clear observations of each
 pixel with snow: always with metric "mean" (also in maps) and fixed pixel filters (clouds and water, whatever the
 quality). The snow cover days (SCD, Sentinel-2, Landsat and MODIS) are the days with snow of each pixel, from the same
 images (the SCF of each month times its days, summed): always with metric "days", the same fixed filters; their
@@ -83,14 +91,16 @@ without snow after the last one with snow, in each season of each year (by defau
 must end before the snowfalls of autumn), from the same images: always with metric "melt", the same rules and fixed
 filters as the SCF of its sensor; one per year: time_series and trends with step "annual" (Sen's slope in days per year, negative
 is earlier), maps with temporal "period" (the mean day of the years) or "annual"; no monthly, 16-day or daily steps. A
-pixel without snow in the season takes the day of its first clear image; one whose snow does not go has no data. The elevation and the slope
-(variables ELEVATION and SLOPE, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees) are fixed layers,
+pixel without snow in the season takes the day of its first clear image; one whose snow does not go has no data. The elevation, the slope and the aspect
+(variables ELEVATION, SLOPE and ASPECT, sensor "Copernicus": the Copernicus DEM GLO-30, 30 m; slope in degrees; aspect in
+degrees from the north, clockwise, without the flat pixels) are fixed layers,
 without dates: map_layer, region_stats, download_image and export_image_to_drive without start and end; no time
 series, trends or comparisons. The topographic wetness index (variable TWI, sensor "MERIT Hydro": ln(a / tan β) of
 MERIT Hydro, 90 m, unitless; high in the valley bottoms and flats where the water converges, low on the ridges and
 steep slopes; most land between 5 and 15, rivers and lakes the highest) is a fixed layer too, like the elevation; it
 also works in where (e.g. only the wet bottoms: {"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}) and in the
-zones of region_stats.
+zones of region_stats. ASPECT in where: min greater than max goes across the north, e.g. the slopes that face north
+{"variable": "ASPECT", "sensor": "Copernicus", "min": 315, "max": 45}.
 The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
 with clouds: always with metric "mean" and no pixel filters (pass no quality).
 Topographic correction: quality {"topographic": true} corrects the surface reflectance of Landsat for the relief
@@ -112,7 +122,9 @@ near 0, e.g. a temperature in °C), and pN (percentile N, e.g. p90); the metrics
 year-to-year variability of the annual precipitation: temporal "annual", metric "sum", interannual "cv". Climate: precipitation (PRECIP of
 ERA5-Land and TerraClimate, monthly; of CHIRPS, daily), air temperature (TMEAN, TMIN, TMAX of ERA5-Land; TMIN, TMAX
 of TerraClimate) and water balance of TerraClimate (PET, AET, CWD, SOILM, VPD): the totals of a period (e.g. the
-annual precipitation) are the metric "sum" (step "annual" for each year); the 19 bioclimatic variables of WorldClim
+annual precipitation) are the metric "sum" (step "annual" for each year); drought, monthly and without unit (negative
+dry, positive wet): PDSI of TerraClimate (Palmer Drought Severity Index, 4.6 km) and SPEI1, SPEI3, SPEI6 and SPEI12
+(sensor "SPEIbase", CSIC, 0.5°, 1901-2024: the SPEI of 1, 3, 6 and 12 months, for regions, not plots; metric "mean"); the 19 bioclimatic variables of WorldClim
 (BIO01 to BIO19, climate of 1960-1990) are fixed layers, without dates, like the elevation.
 Ecosystems: the ecoregions and biomes of RESOLVE Ecoregions 2017 (variables ECOREGION and BIOME, sensor "RESOLVE":
 846 ecoregions and Rock and Ice in 14 biomes, Rock and Ice being the biome 99 of MonitorEO; nominal pixel of 1 km) are

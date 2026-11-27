@@ -5552,12 +5552,28 @@ var CATALOG = {
      "Harmonized Sentinel-2 MSI, Level-2A (SR)"
     ]
    ],
+   "CSIC/SPEI/2_11": [
+    [
+     "CSIC/SPEI/2_11",
+     "1901-01-01",
+     "2025-01-01",
+     "SPEIbase"
+    ]
+   ],
    "ECMWF/ERA5_LAND/MONTHLY_AGGR": [
     [
      "ECMWF/ERA5_LAND/MONTHLY_AGGR",
      "1950-02-01",
      null,
      "ERA5-Land Monthly Aggregated - ECMWF Climate Reanalysis"
+    ]
+   ],
+   "ESA/CCI/FireCCI/5_1": [
+    [
+     "ESA/CCI/FireCCI/5_1",
+     "2001-01-01",
+     "2020-12-01",
+     "FireCCI51: MODIS Fire_cci Burned Area Pixel Product, Version 5.1"
     ]
    ],
    "IDAHO_EPSCOR/TERRACLIMATE": [
@@ -5626,6 +5642,22 @@ var CATALOG = {
      "MCD43A3.061 MODIS Albedo Daily 500m"
     ]
    ],
+   "MODIS/061/MCD64A1": [
+    [
+     "MODIS/061/MCD64A1",
+     "2000-11-01",
+     null,
+     "MCD64A1.061 MODIS Burned Area Monthly Global 500m"
+    ]
+   ],
+   "MODIS/061/MOD09A1": [
+    [
+     "MODIS/061/MOD09A1",
+     "2000-02-18",
+     null,
+     "MOD09A1.061 Terra Surface Reflectance 8-Day Global 500m"
+    ]
+   ],
    "MODIS/061/MOD09GA": [
     [
      "MODIS/061/MOD09GA",
@@ -5672,6 +5704,22 @@ var CATALOG = {
      "MOD16A2.061: Terra Net Evapotranspiration 8-Day Global 500m"
     ]
    ],
+   "MODIS/061/MOD17A3HGF": [
+    [
+     "MODIS/061/MOD17A3HGF",
+     "2001-01-01",
+     "2025-01-01",
+     "MOD17A3HGF.061"
+    ]
+   ],
+   "MODIS/061/MYD09A1": [
+    [
+     "MODIS/061/MYD09A1",
+     "2002-07-04",
+     null,
+     "MYD09A1.061 Aqua Surface Reflectance 8-Day Global 500m"
+    ]
+   ],
    "MODIS/061/MYD09GA": [
     [
      "MODIS/061/MYD09GA",
@@ -5702,6 +5750,14 @@ var CATALOG = {
      "2002-07-04",
      null,
      "MYD13Q1.061 Aqua Vegetation Indices 16-Day Global 250m"
+    ]
+   ],
+   "MODIS/061/MYD17A3HGF": [
+    [
+     "MODIS/061/MYD17A3HGF",
+     "2001-01-01",
+     "2025-01-01",
+     "MYD17A3HGF.061"
     ]
    ],
    "MODIS/MOD09GA_006_NDWI": [
@@ -12501,7 +12557,10 @@ var CATALOG = {
     "LAI",
     "CLre",
     "CLreB7",
-    "WAVI"
+    "WAVI",
+    "MSAVI2",
+    "GPP",
+    "NPP"
    ],
    "key": "vegetation"
   },
@@ -12511,6 +12570,7 @@ var CATALOG = {
    "indices": [
     "NDWI",
     "LSWI",
+    "MSI",
     "Chl-a",
     "NDCI"
    ],
@@ -12536,7 +12596,8 @@ var CATALOG = {
    "indices": [
     "NBR",
     "RBR",
-    "RdNBR"
+    "RdNBR",
+    "BURNDATE"
    ],
    "key": "fire"
   },
@@ -12573,6 +12634,11 @@ var CATALOG = {
     "CWD",
     "SOILM",
     "VPD",
+    "PDSI",
+    "SPEI1",
+    "SPEI3",
+    "SPEI6",
+    "SPEI12",
     "BIO01",
     "BIO02",
     "BIO03",
@@ -12601,6 +12667,7 @@ var CATALOG = {
    "indices": [
     "ELEVATION",
     "SLOPE",
+    "ASPECT",
     "TWI"
    ],
    "key": "terrain"
@@ -12619,6 +12686,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2000/01/01-now",
@@ -12665,6 +12733,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD16A2",
    "dr": "2000/01/01-now",
@@ -12711,6 +12780,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -12765,6 +12835,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -12819,6 +12890,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -12868,6 +12940,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
@@ -12916,6 +12989,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
@@ -12964,6 +13038,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -13013,6 +13088,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -13066,6 +13142,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -13119,6 +13196,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -13185,6 +13263,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MCD43A3",
    "dr": "2000/02/24-now",
@@ -13248,6 +13327,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -13315,6 +13395,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -13362,6 +13443,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "2000/02/24-now",
@@ -13409,6 +13491,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD11A1",
    "dr": "2002/07/04-now",
@@ -13456,6 +13539,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "NASA/OCEANDATA/MODIS-Aqua/L3SMI",
    "dr": "2002/07/03-now",
@@ -13508,6 +13592,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "NASA/OCEANDATA/MODIS-Terra/L3SMI",
    "dr": "2000/02/24-now",
@@ -13560,6 +13645,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -13614,6 +13700,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -13668,6 +13755,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
@@ -13720,6 +13808,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
@@ -13772,6 +13861,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -13826,6 +13916,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -13879,6 +13970,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD13Q1",
    "dr": "2000/02/18-now",
@@ -13931,6 +14023,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD13Q1",
    "dr": "2002/07/04-now",
@@ -13983,6 +14076,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14036,6 +14130,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MCD19A2_GRANULES",
    "dr": "2000/02/24-now",
@@ -14092,6 +14187,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/MOD09GA_006_NDWI",
    "dr": "24/02/2000-17/02/2023",
@@ -14144,6 +14240,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD11A1",
    "dr": "24/02/2000-now",
@@ -14191,6 +14288,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14244,6 +14342,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MCD15A3H",
    "dr": "2002/07/04-now",
@@ -14296,6 +14395,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14349,6 +14449,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14402,6 +14503,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14455,6 +14557,627 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": {
+    "nir": "nir",
+    "swir1": "swir1"
+   },
+   "fk": "expr",
+   "ft": "swir1 / nir",
+   "image_asset": null,
+   "index": "MSI",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 2,
+   "metric": null,
+   "minp": 0.2,
+   "offset": -0.2,
+   "pm": [
+    "011301",
+    "011D01",
+    "012E01",
+    "023B01",
+    "004C00",
+    "056201",
+    "207401",
+    "3E8601",
+    "529400",
+    "66A000",
+    "74A901",
+    "99B718",
+    "FCD163",
+    "F1B555",
+    "DF923D",
+    "CE7E45",
+    "FFFFFF"
+   ],
+   "ref": 165,
+   "scale": 2.75e-05,
+   "sea": null,
+   "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de estrés hídrico",
+   "vname_en": "Moisture Stress Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": {
+    "B11": "B11",
+    "B8": "B8"
+   },
+   "fk": "expr",
+   "ft": "B11 / B8",
+   "image_asset": null,
+   "index": "MSI",
+   "large_areas": false,
+   "m": 20,
+   "maxp": 2,
+   "metric": null,
+   "minp": 0.2,
+   "offset": 0,
+   "pm": [
+    "011301",
+    "011D01",
+    "012E01",
+    "023B01",
+    "004C00",
+    "056201",
+    "207401",
+    "3E8601",
+    "529400",
+    "66A000",
+    "74A901",
+    "99B718",
+    "FCD163",
+    "F1B555",
+    "DF923D",
+    "CE7E45",
+    "FFFFFF"
+   ],
+   "ref": 166,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "5-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de estrés hídrico",
+   "vname_en": "Moisture Stress Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "LANDSAT",
+   "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
+   "fb": {
+    "nir": "nir",
+    "red": "red"
+   },
+   "fk": "expr",
+   "ft": "(2 * nir + 1 - ((2 * nir + 1) ** 2 - 8 * (nir - red)) ** 0.5) / 2",
+   "image_asset": null,
+   "index": "MSAVI2",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 1,
+   "metric": null,
+   "minp": 0,
+   "offset": -0.2,
+   "pm": [
+    "#0000ff",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 167,
+   "scale": 2.75e-05,
+   "sea": null,
+   "sensor": "Landsat",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "16-days",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[unitless]",
+   "vname": "Índice de vegetación ajustado al suelo modificado",
+   "vname_en": "Modified Soil Adjusted Vegetation Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "COPERNICUS/S2_SR_HARMONIZED",
+   "dr": "28/03/2017-now",
+   "fb": {
+    "B4": "B4",
+    "B8": "B8"
+   },
+   "fk": "expr",
+   "ft": "(2 * B8 + 1 - ((2 * B8 + 1) ** 2 - 8 * (B8 - B4)) ** 0.5) / 2",
+   "image_asset": null,
+   "index": "MSAVI2",
+   "large_areas": false,
+   "m": 10,
+   "maxp": 1,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "#0000ff",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 168,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Sentinel-2",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "5-days",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[unitless]",
+   "vname": "Índice de vegetación ajustado al suelo modificado",
+   "vname_en": "Modified Soil Adjusted Vegetation Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MOD09A1",
+   "dr": "2000/02/18-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b05"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b05)",
+   "image_asset": null,
+   "index": "NDWI",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 0.6,
+   "metric": null,
+   "minp": -0.2,
+   "offset": 0,
+   "pm": [
+    "#0000ff",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 169,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "8-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de Agua de Diferencia Normalizada",
+   "vname_en": "Normalized Difference Water Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MYD09A1",
+   "dr": "2002/07/04-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b05"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b05)",
+   "image_asset": null,
+   "index": "NDWI",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 0.6,
+   "metric": null,
+   "minp": -0.2,
+   "offset": 0,
+   "pm": [
+    "#0000ff",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 170,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "8-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de Agua de Diferencia Normalizada",
+   "vname_en": "Normalized Difference Water Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MOD09A1",
+   "dr": "2000/02/18-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b06"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b06)",
+   "image_asset": null,
+   "index": "LSWI",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 0.6,
+   "metric": null,
+   "minp": -0.4,
+   "offset": 0,
+   "pm": [
+    "FFFFFF",
+    "CE7E45",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 171,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "8-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de Agua Superficial Terrestre",
+   "vname_en": "Land Surface Water Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MYD09A1",
+   "dr": "2002/07/04-now",
+   "fb": [
+    "sur_refl_b02",
+    "sur_refl_b06"
+   ],
+   "fk": "nd",
+   "ft": "N(sur_refl_b02,sur_refl_b06)",
+   "image_asset": null,
+   "index": "LSWI",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 0.6,
+   "metric": null,
+   "minp": -0.4,
+   "offset": 0,
+   "pm": [
+    "FFFFFF",
+    "CE7E45",
+    "DF923D",
+    "F1B555",
+    "FCD163",
+    "99B718",
+    "74A901",
+    "66A000",
+    "529400",
+    "3E8601",
+    "207401",
+    "056201",
+    "004C00",
+    "023B01",
+    "012E01",
+    "011D01",
+    "011301"
+   ],
+   "ref": 172,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "water",
+   "tr": "8-days",
+   "two_periods": null,
+   "type": "Balance de Agua",
+   "type_en": "Water balance",
+   "unit": "[unitless]",
+   "vname": "Índice de Agua Superficial Terrestre",
+   "vname_en": "Land Surface Water Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MOD17A3HGF",
+   "dr": "2001/01/01-2025/12/31",
+   "fb": {
+    "Gpp": "Gpp"
+   },
+   "fk": "expr",
+   "ft": "Gpp",
+   "image_asset": null,
+   "index": "GPP",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 2,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 173,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "yearly",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[kg C/m²/year]",
+   "vname": "Producción primaria bruta",
+   "vname_en": "Gross Primary Production"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MYD17A3HGF",
+   "dr": "2003/01/01-2025/12/31",
+   "fb": {
+    "Gpp": "Gpp"
+   },
+   "fk": "expr",
+   "ft": "Gpp",
+   "image_asset": null,
+   "index": "GPP",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 2,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 174,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "yearly",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[kg C/m²/year]",
+   "vname": "Producción primaria bruta",
+   "vname_en": "Gross Primary Production"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MOD17A3HGF",
+   "dr": "2001/01/01-2025/12/31",
+   "fb": {
+    "Npp": "Npp"
+   },
+   "fk": "expr",
+   "ft": "Npp",
+   "image_asset": null,
+   "index": "NPP",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 1,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 175,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "yearly",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[kg C/m²/year]",
+   "vname": "Producción primaria neta",
+   "vname_en": "Net Primary Production"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MYD17A3HGF",
+   "dr": "2003/01/01-2025/12/31",
+   "fb": {
+    "Npp": "Npp"
+   },
+   "fk": "expr",
+   "ft": "Npp",
+   "image_asset": null,
+   "index": "NPP",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 1,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 176,
+   "scale": 0.0001,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "yearly",
+   "two_periods": null,
+   "type": "Carbono (Producción Primaria)",
+   "type_en": "Carbon (Primary Production)",
+   "unit": "[kg C/m²/year]",
+   "vname": "Producción primaria neta",
+   "vname_en": "Net Primary Production"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -14501,6 +15224,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14547,6 +15271,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -14593,6 +15318,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -14639,6 +15365,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Frequency (SCF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -14686,6 +15413,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "DEM",
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/DEM/GLO30_2024_1",
    "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
@@ -14731,6 +15459,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "DEM",
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/DEM/GLO30_2024_1",
    "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
@@ -14776,6 +15505,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Frequency (SCF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
@@ -14821,6 +15551,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Frequency (SCF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
@@ -14866,6 +15597,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Days (SCD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -14913,6 +15645,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Days (SCD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
@@ -14958,6 +15691,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Days (SCD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
@@ -15003,6 +15737,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Frequency (SCF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -15050,6 +15785,7 @@ var CATALOG = {
   {
    "axis": "Snow Cover Days (SCD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -15097,6 +15833,7 @@ var CATALOG = {
   {
    "axis": "Snow Melt-Out Day (SMOD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -15144,6 +15881,7 @@ var CATALOG = {
   {
    "axis": "Snow Melt-Out Day (SMOD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD10A1",
    "dr": "2000/02/24-now",
@@ -15189,6 +15927,7 @@ var CATALOG = {
   {
    "axis": "Snow Melt-Out Day (SMOD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD10A1",
    "dr": "2002/07/04-now",
@@ -15234,6 +15973,7 @@ var CATALOG = {
   {
    "axis": "Snow Melt-Out Day (SMOD)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -15279,8 +16019,55 @@ var CATALOG = {
    "vname_en": "Snow melt-out day"
   },
   {
+   "axis": null,
+   "band": "DEM",
+   "circular": true,
+   "classes": null,
+   "col": "COPERNICUS/DEM/GLO30_2024_1",
+   "dr": "fixed layer, without dates (TanDEM-X, 2011-2015)",
+   "fb": [
+    "DEM"
+   ],
+   "fk": "static",
+   "ft": "aspect(DEM)",
+   "image_asset": null,
+   "index": "ASPECT",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 360,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "2c7bb6",
+    "abd9e9",
+    "ffffbf",
+    "fdae61",
+    "d7191c",
+    "fdae61",
+    "a6d96a",
+    "1a9641",
+    "2c7bb6"
+   ],
+   "ref": 184,
+   "scale": 1,
+   "sea": null,
+   "sensor": "Copernicus",
+   "static": true,
+   "terrain": "aspect",
+   "theme": "terrain",
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Topografía",
+   "type_en": "Topography",
+   "unit": "[°]",
+   "vname": "Orientación",
+   "vname_en": "Aspect"
+  },
+  {
    "axis": "Cloud Frequency (CF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD09GA",
    "dr": "2000/02/24-now",
@@ -15326,6 +16113,7 @@ var CATALOG = {
   {
    "axis": "Cloud Frequency (CF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD09GA",
    "dr": "2002/07/04-now",
@@ -15371,6 +16159,7 @@ var CATALOG = {
   {
    "axis": "Cloud Frequency (CF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "2017/03/28-now",
@@ -15416,6 +16205,7 @@ var CATALOG = {
   {
    "axis": "Cloud Frequency (CF)",
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "1984/03/16-now",
@@ -15461,6 +16251,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "ECMWF/ERA5_LAND/MONTHLY_AGGR",
    "dr": "1950/02/01-now (a few months behind)",
@@ -15506,6 +16297,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "ECMWF/ERA5_LAND/MONTHLY_AGGR",
    "dr": "1950/02/01-now (a few months behind)",
@@ -15552,6 +16344,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "ECMWF/ERA5_LAND/MONTHLY_AGGR",
    "dr": "1950/02/01-now (a few months behind)",
@@ -15598,6 +16391,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "ECMWF/ERA5_LAND/MONTHLY_AGGR",
    "dr": "1950/02/01-now (a few months behind)",
@@ -15644,6 +16438,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15689,6 +16484,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15735,6 +16531,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15781,6 +16578,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15826,6 +16624,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15871,6 +16670,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15916,6 +16716,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -15961,6 +16762,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "IDAHO_EPSCOR/TERRACLIMATE",
    "dr": "1958/01/01-2024/12/31",
@@ -16006,6 +16808,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "UCSB-CHC/CHIRPS/V3/DAILY_SAT",
    "dr": "1981/01/01-now (60°S-60°N)",
@@ -16051,6 +16854,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio01",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16097,6 +16901,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio02",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16143,6 +16948,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio03",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16189,6 +16995,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio04",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16235,6 +17042,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio05",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16281,6 +17089,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio06",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16327,6 +17136,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio07",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16373,6 +17183,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio08",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16419,6 +17230,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio09",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16465,6 +17277,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio10",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16511,6 +17324,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio11",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16557,6 +17371,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio12",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16602,6 +17417,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio13",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16647,6 +17463,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio14",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16692,6 +17509,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio15",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16738,6 +17556,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio16",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16783,6 +17602,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio17",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16828,6 +17648,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio18",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16873,6 +17694,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "bio19",
+   "circular": null,
    "classes": null,
    "col": "WORLDCLIM/V1/BIO",
    "dr": "fixed layer, without dates (climate of 1960-1990)",
@@ -16918,6 +17740,329 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "IDAHO_EPSCOR/TERRACLIMATE",
+   "dr": "1958/01/01-2024/12/31",
+   "fb": {
+    "pdsi": "pdsi"
+   },
+   "fk": "expr",
+   "ft": "pdsi",
+   "image_asset": null,
+   "index": "PDSI",
+   "large_areas": true,
+   "m": 4638,
+   "maxp": 4,
+   "metric": null,
+   "minp": -4,
+   "offset": 0,
+   "pm": [
+    "8c510a",
+    "bf812d",
+    "dfc27d",
+    "f6e8c3",
+    "f5f5f5",
+    "c7eae5",
+    "80cdc1",
+    "35978f",
+    "01665e"
+   ],
+   "ref": 177,
+   "scale": 0.01,
+   "sea": null,
+   "sensor": "TerraClimate",
+   "static": null,
+   "terrain": null,
+   "theme": "climate",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Clima",
+   "type_en": "Climate",
+   "unit": "[unitless]",
+   "vname": "Índice de severidad de sequía de Palmer",
+   "vname_en": "Palmer Drought Severity Index"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "CSIC/SPEI/2_11",
+   "dr": "1901/01/01-2024/12/31",
+   "fb": {
+    "SPEI_01_month": "SPEI_01_month"
+   },
+   "fk": "expr",
+   "ft": "SPEI_01_month",
+   "image_asset": null,
+   "index": "SPEI1",
+   "large_areas": true,
+   "m": 55660,
+   "maxp": 2.5,
+   "metric": null,
+   "minp": -2.5,
+   "offset": 0,
+   "pm": [
+    "8c510a",
+    "bf812d",
+    "dfc27d",
+    "f6e8c3",
+    "f5f5f5",
+    "c7eae5",
+    "80cdc1",
+    "35978f",
+    "01665e"
+   ],
+   "ref": 178,
+   "scale": 1,
+   "sea": null,
+   "sensor": "SPEIbase",
+   "static": null,
+   "terrain": null,
+   "theme": "climate",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Clima",
+   "type_en": "Climate",
+   "unit": "[unitless]",
+   "vname": "SPEI de 1 mes",
+   "vname_en": "SPEI of 1 month"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "CSIC/SPEI/2_11",
+   "dr": "1901/01/01-2024/12/31",
+   "fb": {
+    "SPEI_03_month": "SPEI_03_month"
+   },
+   "fk": "expr",
+   "ft": "SPEI_03_month",
+   "image_asset": null,
+   "index": "SPEI3",
+   "large_areas": true,
+   "m": 55660,
+   "maxp": 2.5,
+   "metric": null,
+   "minp": -2.5,
+   "offset": 0,
+   "pm": [
+    "8c510a",
+    "bf812d",
+    "dfc27d",
+    "f6e8c3",
+    "f5f5f5",
+    "c7eae5",
+    "80cdc1",
+    "35978f",
+    "01665e"
+   ],
+   "ref": 179,
+   "scale": 1,
+   "sea": null,
+   "sensor": "SPEIbase",
+   "static": null,
+   "terrain": null,
+   "theme": "climate",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Clima",
+   "type_en": "Climate",
+   "unit": "[unitless]",
+   "vname": "SPEI de 3 meses",
+   "vname_en": "SPEI of 3 months"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "CSIC/SPEI/2_11",
+   "dr": "1901/01/01-2024/12/31",
+   "fb": {
+    "SPEI_06_month": "SPEI_06_month"
+   },
+   "fk": "expr",
+   "ft": "SPEI_06_month",
+   "image_asset": null,
+   "index": "SPEI6",
+   "large_areas": true,
+   "m": 55660,
+   "maxp": 2.5,
+   "metric": null,
+   "minp": -2.5,
+   "offset": 0,
+   "pm": [
+    "8c510a",
+    "bf812d",
+    "dfc27d",
+    "f6e8c3",
+    "f5f5f5",
+    "c7eae5",
+    "80cdc1",
+    "35978f",
+    "01665e"
+   ],
+   "ref": 180,
+   "scale": 1,
+   "sea": null,
+   "sensor": "SPEIbase",
+   "static": null,
+   "terrain": null,
+   "theme": "climate",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Clima",
+   "type_en": "Climate",
+   "unit": "[unitless]",
+   "vname": "SPEI de 6 meses",
+   "vname_en": "SPEI of 6 months"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "CSIC/SPEI/2_11",
+   "dr": "1901/01/01-2024/12/31",
+   "fb": {
+    "SPEI_12_month": "SPEI_12_month"
+   },
+   "fk": "expr",
+   "ft": "SPEI_12_month",
+   "image_asset": null,
+   "index": "SPEI12",
+   "large_areas": true,
+   "m": 55660,
+   "maxp": 2.5,
+   "metric": null,
+   "minp": -2.5,
+   "offset": 0,
+   "pm": [
+    "8c510a",
+    "bf812d",
+    "dfc27d",
+    "f6e8c3",
+    "f5f5f5",
+    "c7eae5",
+    "80cdc1",
+    "35978f",
+    "01665e"
+   ],
+   "ref": 181,
+   "scale": 1,
+   "sea": null,
+   "sensor": "SPEIbase",
+   "static": null,
+   "terrain": null,
+   "theme": "climate",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Clima",
+   "type_en": "Climate",
+   "unit": "[unitless]",
+   "vname": "SPEI de 12 meses",
+   "vname_en": "SPEI of 12 months"
+  },
+  {
+   "axis": "Burn date",
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "MODIS/061/MCD64A1",
+   "dr": "2000/11/01-now",
+   "fb": {
+    "BurnDate": "BurnDate"
+   },
+   "fk": "expr",
+   "ft": "BurnDate",
+   "image_asset": null,
+   "index": "BURNDATE",
+   "large_areas": true,
+   "m": 500,
+   "maxp": 366,
+   "metric": "min",
+   "minp": 1,
+   "offset": 0,
+   "pm": [
+    "ffffb2",
+    "fed976",
+    "feb24c",
+    "fd8d3c",
+    "fc4e2a",
+    "e31a1c",
+    "b10026",
+    "800026",
+    "4d0013"
+   ],
+   "ref": 182,
+   "scale": 1,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[day of year]",
+   "vname": "Fecha de quema",
+   "vname_en": "Burn date"
+  },
+  {
+   "axis": "Burn date",
+   "band": null,
+   "circular": null,
+   "classes": null,
+   "col": "ESA/CCI/FireCCI/5_1",
+   "dr": "2001/01/01-2020/12/31",
+   "fb": {
+    "BurnDate": "BurnDate"
+   },
+   "fk": "expr",
+   "ft": "BurnDate",
+   "image_asset": null,
+   "index": "BURNDATE",
+   "large_areas": true,
+   "m": 250,
+   "maxp": 366,
+   "metric": "min",
+   "minp": 1,
+   "offset": 0,
+   "pm": [
+    "ffffb2",
+    "fed976",
+    "feb24c",
+    "fd8d3c",
+    "fc4e2a",
+    "e31a1c",
+    "b10026",
+    "800026",
+    "4d0013"
+   ],
+   "ref": 183,
+   "scale": 1,
+   "sea": null,
+   "sensor": "Modis",
+   "static": null,
+   "terrain": null,
+   "theme": "fire",
+   "tr": "monthly",
+   "two_periods": null,
+   "type": "Perturbaciones",
+   "type_en": "Disturbances",
+   "unit": "[day of year]",
+   "vname": "Fecha de quema",
+   "vname_en": "Burn date"
+  },
+  {
+   "axis": null,
+   "band": null,
+   "circular": null,
    "classes": null,
    "col": "COPERNICUS/S2_SR_HARMONIZED",
    "dr": "28/03/2017-now",
@@ -16964,6 +18109,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "LANDSAT",
    "dr": "Landsat5 (1984/03/16-2012/05/05 ) - Landsat7 (1999/05/28-2003/05/31) - Landsat8 (2013/03/18 -now)-Landsat9 (2021/10/31-now)",
@@ -17010,6 +18156,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MOD09GA",
    "dr": "2000/02/24-now",
@@ -17056,6 +18203,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": null,
+   "circular": null,
    "classes": null,
    "col": "MODIS/061/MYD09GA",
    "dr": "2002/07/04-now",
@@ -17102,6 +18250,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "elv",
+   "circular": null,
    "classes": null,
    "col": "MERIT/Hydro/v1_0_1",
    "dr": "fixed layer, without dates (MERIT Hydro v1.0.1, from MERIT DEM)",
@@ -17148,6 +18297,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "ECO_ID",
+   "circular": null,
    "classes": "ecoregions",
    "col": "RESOLVE/ECOREGIONS/2017",
    "dr": "fixed layer, without dates (RESOLVE Ecoregions 2017)",
@@ -17183,6 +18333,7 @@ var CATALOG = {
   {
    "axis": null,
    "band": "BIOME_NUM",
+   "circular": null,
    "classes": "biomes",
    "col": "RESOLVE/ECOREGIONS/2017",
    "dr": "fixed layer, without dates (RESOLVE Ecoregions 2017)",

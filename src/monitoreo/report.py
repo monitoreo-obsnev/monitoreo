@@ -826,7 +826,10 @@ def where_text(where):
 		name = f"{c.get('variable')} ({', '.join(h for h in how if h)})"
 		limits = [f"≥ {_num(c['min'])}" if c.get('min') is not None else '',
 		          f"≤ {_num(c['max'])}" if c.get('max') is not None else '']
-		parts.append(f"{name} {' and '.join(x for x in limits if x)}" + (f' {unit}' if unit else ''))
+		# an angle across the north (ASPECT from 315 to 45): from min to 360 or from 0 to max
+		join = ' or ' if e.get('circular') and None not in (c.get('min'), c.get('max')) and \
+			float(c['min']) > float(c['max']) else ' and '
+		parts.append(f"{name} {join.join(x for x in limits if x)}" + (f' {unit}' if unit else ''))
 	return '; '.join(parts)
 
 

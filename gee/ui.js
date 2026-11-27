@@ -68,7 +68,8 @@
 				'demás estuvieran fuera de la región.\n' +
 				'Por ejemplo, ELEVATION · Copernicus entre 1500 y nada guarda los píxeles por encima de 1.500 m; SLOPE · ' +
 				'Copernicus entre nada y 20, las pendientes de menos de 20°; TWI · MERIT Hydro desde 10, los fondos de ' +
-				'valle húmedos.\n' +
+				'valle húmedos; ASPECT · Copernicus entre 315 y 45 (un mínimo mayor que el máximo cruza el norte), las ' +
+				'laderas que miran al norte.\n' +
 				'Una variable con fechas (NDVI, PRECIP...) es su media en el periodo de arriba, la misma para cada paso y ' +
 				'para los dos periodos de una comparación. Con una capa categórica (ECOREGION, BIOME), en lugar de dos ' +
 				'valores, se guardan o se quitan algunas de sus clases, por sus códigos.',
@@ -378,7 +379,8 @@
 				'outside the region.\n' +
 				'For example, ELEVATION · Copernicus between 1500 and nothing keeps the pixels above 1,500 m; SLOPE · ' +
 				'Copernicus between nothing and 20, the slopes under 20°; TWI · MERIT Hydro from 10, the wet valley ' +
-				'bottoms.\n' +
+				'bottoms; ASPECT · Copernicus between 315 and 45 (a min greater than the max goes across the north), the ' +
+				'slopes that face north.\n' +
 				'A variable with dates (NDVI, PRECIP...) is its mean over the period above, the same for every step and ' +
 				'for both periods of a comparison. With a categorical layer (ECOREGION, BIOME), instead of two values, ' +
 				'some of its classes are kept or left out, by their codes.',
@@ -1909,7 +1911,9 @@
 		var parts = [];
 		if (state.whereMin) parts.push('≥ ' + state.whereMin);
 		if (state.whereMax) parts.push('≤ ' + state.whereMax);
-		return e.index + ' ' + parts.join(' ') + (e.unit ? ' ' + e.unit : '') + (lc ? ', ' + lc : '');
+		// an angle across the north (ASPECT from 315 to 45): from min to 360 or from 0 to max
+		var join = mo.acrossZero(e, state.whereMin, state.whereMax) ? (state.lang === 'es' ? ' o ' : ' or ') : ' ';
+		return e.index + ' ' + parts.join(join) + (e.unit ? ' ' + e.unit : '') + (lc ? ', ' + lc : '');
 	}
 
 	// Checks and specs ----------------------------------------------------------------------------------------------

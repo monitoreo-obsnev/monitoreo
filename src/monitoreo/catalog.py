@@ -245,6 +245,28 @@ DEM = {
 # (not a collection) with the hydrologically adjusted elevation (band elv, m) and the upstream drainage area (band upa,
 # km²) of each pixel, among others. A fixed layer, without dates, like the DEM; its own references and notes, not
 # those of the Copernicus DEM (each variable of it gives them)
+# The aspect of the same DEM (ASPECT, ref 184): an angle, circular (field circular: where conditions across the north,
+# the circular mean on bigger pixels, see variable._fixed), with the flat pixels masked
+ASPECT = dict(DEM, notes={
+	'ft': 'The aspect of the Copernicus DEM GLO-30 (release 2024_1), 30 m: the direction that each slope faces, in '
+	      'degrees clockwise from the north (0 and 360 north, 90 east, 180 south, 270 west), from ee.Terrain.aspect '
+	      '(the gradient of the 4 neighbours of each pixel, Zevenbergen & Thorne 1987). Flat pixels (slope 0: lakes, '
+	      'the sea, some plains) have no aspect and no data. An angle: in where, min greater than max keeps the '
+	      'angles across the north (e.g. min 315 and max 45: the slopes that face north; min 135 and max 225: those '
+	      'that face south); on pixels more than twice as big as those of the data, the circular mean of its 30 m '
+	      'pixels (the angle of the mean of their sines and cosines). The statistics over a region (mean, '
+	      'percentiles) are those of the numbers, not circular: classify the slopes with where (or zones) instead. A '
+	      'fixed layer, without dates: maps, GeoTIFFs and statistics of the region, but no time series, trends or '
+	      'comparisons; the period, metrics and pixel filters do not apply.',
+})
+EXTRA[184] = (None, {
+	'index': 'ASPECT', 'ft': 'aspect(DEM)', 'f': 'ee.Terrain.aspect(DEM), without the flat pixels (slope 0)',
+	'terrain': 'aspect', 'circular': True, 'references': ['rizzoli2017', 'zevenbergen1987'],
+	'vname': 'Orientación', 'vname_en': 'Aspect', 'vname_fr': 'Aspect', 'vname_de': 'Aspect', 'unit': '[°]',
+	'minp': 0, 'maxp': 360,
+	# a circular ramp: north blue, east yellow, south red, west green, and north blue again
+	'pm': ['2c7bb6', 'abd9e9', 'ffffbf', 'fdae61', 'd7191c', 'fdae61', 'a6d96a', '1a9641', '2c7bb6'],
+})
 MERIT_HYDRO = dict(DEM, sensor='MERIT Hydro', col='MERIT/Hydro/v1_0_1', band='elv', m=90, image_asset=True,
                    dr='fixed layer, without dates (MERIT Hydro v1.0.1, from MERIT DEM)', pg='#35978f',
                    references=[], notes={})
@@ -388,6 +410,77 @@ for i, (es, en, unit, lo, hi, scale) in enumerate(BIOCLIM, 1):
 	                                 PRECIP_PALETTE if unit == '[mm]' else TEMP_PALETTE, template='WORLDCLIM',
 	                                 band=f'bio{i:02d}', scale=scale))
 
+# Drought: the Palmer Drought Severity Index of TerraClimate (band pdsi, x 0.01) and the SPEI of SPEIbase v2.11 (CSIC),
+# of 1, 3, 6 and 12 months (a variable each, as the bioclimatic variables: SPEI1, SPEI3, SPEI6, SPEI12, from its bands
+# SPEI_01_month...), monthly, without unit: negative dry, positive wet
+DROUGHT_PALETTE = ['8c510a', 'bf812d', 'dfc27d', 'f6e8c3', 'f5f5f5', 'c7eae5', '80cdc1', '35978f', '01665e']
+SPEIBASE = dict(CLIMATE_TYPE, sensor='SPEIbase', col='CSIC/SPEI/2_11', m=55660, tr='monthly',
+                dr='1901/01/01-2024/12/31', scale=1, offset=0, pg='#35978f',
+                references=['vicenteserrano2010', 'begueria2014'],
+                notes={'ft': 'SPEIbase v2.11 (CSIC): the Standardised Precipitation-Evapotranspiration Index (SPEI, '
+                             'Vicente-Serrano et al. 2010) of each month, 1901-2024, at 0.5° (some 55 km), from the '
+                             'precipitation and the FAO-56 Penman-Monteith reference evapotranspiration of the CRU TS '
+                             '(Beguería et al. 2014): the climatic water balance (precipitation - reference '
+                             'evapotranspiration) of the last 1, 3, 6 or 12 months (SPEI1, SPEI3, SPEI6, SPEI12), '
+                             'standardized with a log-logistic distribution: a number of standard deviations, without '
+                             'unit. 0 is normal; below -1 dry, below -1.5 severely dry, below -2 extremely dry; above 1 '
+                             'wet. The short scales (1, 3 months) follow the soil moisture and the vegetation, the long '
+                             'ones (6, 12) the streams, reservoirs and groundwater. Its pixel of 55 km is for the '
+                             'climate of a region: a small study area takes the value of the pixel it falls in. Licence '
+                             'CC BY 4.0. No pixel filters.'})
+PDSI_NOTES = {'ft': 'Palmer Drought Severity Index (Palmer, W. C., 1965, Meteorological drought, Research Paper No. 45, '
+                    'U.S. Weather Bureau) of TerraClimate (Abatzoglou et al. 2018, who describe its computation): a monthly '
+                    'index of the soil water balance of the month and the months before, from the precipitation, the '
+                    'reference evapotranspiration and the water that the soil holds; without unit (band pdsi x '
+                    '0.01). 0 is normal; -1 to -2 mild, -2 to -3 moderate, -3 to -4 severe and below -4 extreme '
+                    'drought; positive values, wet. TerraClimate, 1/24° (some 4.6 km), 1958-2024. No pixel filters.'}
+EXTRA.update({
+	177: (None, _climate('PDSI', 'pdsi', ('Índice de severidad de sequía de Palmer', 'Palmer Drought Severity Index'),
+	                     '[unitless]', -4, 4, DROUGHT_PALETTE, template='TERRACLIMATE', scale=0.01,
+	                     notes=PDSI_NOTES)),  # cited as TerraClimate (Palmer 1965, its method, has no DOI)
+	**{ref: (None, _climate(f'SPEI{n}', f'SPEI_{n:02d}_month', (f'SPEI de {n} mes{"es" if n > 1 else ""}',
+	                                                             f'SPEI of {n} month{"s" if n > 1 else ""}'),
+	                        '[unitless]', -2.5, 2.5, DROUGHT_PALETTE, template='SPEIBASE'))
+	   for ref, n in ((178, 1), (179, 3), (180, 6), (181, 12))},
+})
+
+# Burn date: the day of the year when each pixel burned, from the monthly burned area products MCD64A1 (MODIS Terra and
+# Aqua, 500 m, since 2000-11) and FireCCI51 (ESA Fire_cci, MODIS Terra 250 m, 2001-2020), band BurnDate (1 to 366; the
+# unburned pixels, 0, and the flags, negative, have no data: sensors.PRODUCTS). Its only metric is the minimum: the
+# first day it burned in the period. Earlier is yellow, later dark red.
+BURNDATE_PALETTE = ['ffffb2', 'fed976', 'feb24c', 'fd8d3c', 'fc4e2a', 'e31a1c', 'b10026', '800026', '4d0013']
+BURNDATE = {
+	'type': 'Perturbaciones', 'type_en': 'Disturbances', 'type_fr': 'Disturbances', 'type_de': 'Disturbances',
+	'vname': 'Fecha de quema', 'vname_en': 'Burn date', 'vname_fr': 'Burn date', 'vname_de': 'Burn date',
+	'sensor': 'Modis', 'tr': 'monthly', 'unit': '[day of year]', 'scale': 1, 'offset': 0, 'minp': 1, 'maxp': 366,
+	'pm': BURNDATE_PALETTE, 'pg': '#e31a1c', 'large_areas': True, 'ft': 'BurnDate',
+	'metric': 'min',  # the only metric: the first day of the period when the pixel burned
+	'axis': 'Burn date',  # title of the y axis of the charts, before the unit
+	'notes': {
+		'ft': 'Burn date: the day of the year (1 = 1 January) when each pixel burned, from a monthly burned area '
+		      'product (band BurnDate): MCD64A1 v6.1 (MODIS Terra and Aqua, 500 m, since November 2000; Giglio et al. '
+		      '2018) or FireCCI51 (ESA Fire_cci, MODIS Terra at 250 m, 2001-2020; Lizundia-Loiola et al. 2020). Only '
+		      'the burned pixels have a value: the unburned ones (0) and the flags (unobserved, not burnable, water: '
+		      'negative) have no data, so the maps show the burned area coloured by its date, and a series the mean day '
+		      'of the burned pixels of each step (none where nothing burned). Its only metric is min, the first day '
+		      'that the pixel burned in the period: give a period within one year (a year, a season), as a pixel can '
+		      'burn again another year, and its day of the year is of its own year (over several years, temporal '
+		      'annual with interannual min or max gives the first or last of the days of each year). The day is that '
+		      'of the first detection, with an uncertainty of some days. No pixel filters.',
+		'metric': 'it is the first day of the year of the period when the pixel burned (the minimum of the burn days '
+		          'of its monthly images)',
+		'filters': 'none: the product has its own; only the burned pixels have a value',
+	},
+}
+EXTRA.update({
+	182: (None, {'index': 'BURNDATE', 'template': 'BURNDATE', 'col': 'MODIS/061/MCD64A1', 'm': 500,
+	             'dr': '2000/11/01-now', 'f': 'BurnDate (1-366; 0, unburned, and the flags have no data)',
+	             'references': ['giglio2018']}),
+	183: (None, {'index': 'BURNDATE', 'template': 'BURNDATE', 'col': 'ESA/CCI/FireCCI/5_1', 'm': 250,
+	             'dr': '2001/01/01-2020/12/31', 'f': 'BurnDate (1-366; 0, unburned, and the flags have no data)',
+	             'references': ['lizundialoiola2020']}),
+})
+
 # RdNBR: compares a period before and one after a fire (only burn_severity with index 'RdNBR'), with the severity
 # classes of Miller & Thode 2007 (fire.RDNBR_SEVERITY); the formula is the NBR of each image: B8 and B12 in
 # Sentinel-2 (Howe et al. 2022), NIR and SWIR2 in Landsat, bands 2 and 7 of MODIS Terra and Aqua (Veraverbeke et al.
@@ -464,9 +557,9 @@ EXTRA.update({
 	             'vname': 'Bioma', 'vname_en': 'Biome', 'vname_fr': 'Biome', 'vname_de': 'Biome'}),
 })
 
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'SMOD': SMOD, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'SMOD': SMOD, 'ELEVATION': DEM, 'SLOPE': DEM, 'ASPECT': ASPECT, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
-             'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE}  # fields of EXTRA
+             'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE, 'SPEIBASE': SPEIBASE, 'BURNDATE': BURNDATE}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -485,6 +578,9 @@ UDUNITS = {
 	'[mm/month]': 'mm month-1',  # monthly precipitation and water balance
 	'[mm/day]': 'mm day-1',  # daily precipitation
 	'[kPa]': 'kPa',  # the vapour pressure deficit
+	# the yearly gross and net primary production of MODIS (MOD17A3HGF): kg of carbon per m² and year; UDUNITS has no unit
+	# of carbon (C is the coulomb), so it is said in the name of the variable, as the CF conventions do
+	'[kg C/m²/year]': 'kg m-2 year-1',
 	# the class codes of a categorical layer (ECOREGION, BIOME): no unit, not even 1 (dimensionless), as the flag values
 	# of the CF conventions, whose meaning is in their flag_values and flag_meanings, not in a units attribute; the
 	# files say what each code is (the classes in the README and the metadata of the GeoTIFF), and give no unit
@@ -573,17 +669,18 @@ def load():
 # series, trends, comparisons, exports) are in every theme with variables with dates. A new kind of variable or
 # analysis (e.g. species distribution models) gets its theme here, with its variables and analyses, in every menu.
 THEMES = [
-	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI']},
-	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
+	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI', 'MSAVI2', 'GPP', 'NPP']},
+	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'MSI', 'Chl-a', 'NDCI']},
 	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD', 'SMOD']},
-	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR'], 'analyses': ['burn_severity']},
+	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR', 'BURNDATE'], 'analyses': ['burn_severity']},
 	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
 	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},
 	{'key': 'atmosphere', 'en': 'Atmosphere', 'es': 'Atmósfera', 'indices': ['ARSL', 'CF']},
 	{'key': 'climate', 'en': 'Climate', 'es': 'Clima',
-	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD']
+	 'indices': ['PRECIP', 'TMEAN', 'TMIN', 'TMAX', 'PET', 'AET', 'CWD', 'SOILM', 'VPD', 'PDSI', 'SPEI1', 'SPEI3', 'SPEI6',
+	             'SPEI12']
 	            + [f'BIO{i:02d}' for i in range(1, 20)]},
-	{'key': 'terrain', 'en': 'Terrain', 'es': 'Relieve', 'indices': ['ELEVATION', 'SLOPE', 'TWI']},
+	{'key': 'terrain', 'en': 'Terrain', 'es': 'Relieve', 'indices': ['ELEVATION', 'SLOPE', 'ASPECT', 'TWI']},
 	{'key': 'ecosystems', 'en': 'Ecosystems', 'es': 'Ecosistemas', 'indices': ['ECOREGION', 'BIOME']},
 ]
 
