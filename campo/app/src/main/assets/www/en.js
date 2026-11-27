@@ -8,7 +8,7 @@ window.CAMPO_EN = {
  "Buscar versión nueva": "Check for a new version",
  "Descargar la versión nueva": "Download the new version",
  "Hay una versión nueva: {0} (tienes la {1}).": "There is a new version: {0} (you have {1}).",
- "Instálala con Sideloadly como la primera vez: los puntos y los resultados se conservan.": "Install it with Sideloadly as the first time: the points and the results are kept.",
+ "Instálala con Sideloadly o AltStore como la primera vez: los puntos y los resultados se conservan.": "Install it with Sideloadly or AltStore as the first time: the points and the results are kept.",
  "Al abrir el APK, Android la instala encima de esta: los puntos y los resultados se conservan.": "When you open the APK, Android installs it over this one: the points and the results are kept.",
  "Esta instalación está firmada con una clave de prueba: antes de instalar la nueva, exporta los puntos (Puntos → Exportar) y desinstala esta app; después importa los puntos. Los resultados guardados se pierden.": "This installation is signed with a test key: before installing the new one, export the points (Points → Export) and uninstall this app; then import the points. The saved results are lost.",
  "Tienes la última versión ({0}). Comprobado: {1}.": "You have the latest version ({0}). Checked: {1}.",

@@ -105,6 +105,10 @@ Earth Engine app, which gives it its version and date.
 - **All tools**: The burn date, the day of the year when each pixel burned (BURNDATE, only the burned pixels, the first day of the period), from MODIS MCD64A1 (500 m, since 2000) or ESA FireCCI51 (250 m, 2001-2020), in the theme Fire.
 - **All tools**: The aspect of the Copernicus DEM (ASPECT, degrees from the north, without the flat pixels), a fixed layer of the theme Terrain; as a condition of «only the pixels where», a minimum greater than the maximum goes across the north (e.g. 315 to 45: the slopes that face north), and on big pixels it is their circular mean.
 
+### [v0.3.78](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.78) · 2026-11-27 · package 0.3.88
+
+- **Field app**: The notice of a new version on the iPhone says to install it with Sideloadly or AltStore, and the help says that, for now, the iPhone version installs only from a computer with one of them, for testing: with a free Apple ID it lasts 7 days (then it is installed again and the points and results are kept), with at most 3 apps at a time.
+
 ### [v0.3.77](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.77) · 2026-11-27 · package 0.3.87
 
 - **Assistant**: The models of Ollama, its last resort after the model of MonitorEO and GLM, get a context of 32,768 tokens by default (16,384 before, also in the settings saved with it), so that the tools can explain more (up to 60,000 characters); the recommended models need 16 GB of memory, and qwen3:4b is no longer recommended.

@@ -56,15 +56,21 @@ iPhone.
 La compila GitHub en un Mac con el workflow `.github/workflows/ios.yml` cada vez que cambia `ios/` o la página. El
 resultado es un artefacto `MonitorEO-Campo-<versión>-ios` con un `.ipa` sin firmar.
 
-Para instalarlo desde Windows sin Mac:
+De momento se instala solo desde un ordenador, con [Sideloadly](https://sideloadly.io) o
+[AltStore](https://altstore.io), y es para pruebas: no está en la App Store ni en TestFlight. Con Sideloadly, desde
+Windows o Mac:
 
-1. Instala iTunes de apple.com (no de la Microsoft Store) y [Sideloadly](https://sideloadly.io).
+1. En Windows, instala iTunes de apple.com (no de la Microsoft Store). Después instala Sideloadly.
 2. Conecta el iPhone por cable, arrastra el `.ipa` a Sideloadly, pon tu Apple ID y pulsa Start.
 3. En el iPhone, ve a Ajustes › General › VPN y gestión de dispositivos y confía en tu Apple ID.
 4. En Ajustes › Privacidad y seguridad, activa el Modo de desarrollador y reinicia el teléfono.
 
-Con un Apple ID gratuito la app caduca a los 7 días: se reinstala igual y los datos se conservan. Con una cuenta de
-desarrollador de Apple dura un año.
+Con AltStore, instala AltServer en el ordenador y AltStore en el iPhone, y abre el `.ipa` desde AltStore; renueva la
+firma solo, por Wi-Fi, mientras el ordenador esté encendido con AltServer.
+
+Con un Apple ID gratuito la app caduca a los 7 días: se reinstala igual y los datos se conservan. Ese Apple ID tiene
+como mucho 3 apps instaladas así a la vez, y conviene que sea uno secundario (Sideloadly y AltStore no son de Apple).
+Con una cuenta de desarrollador de Apple dura un año.
 
 ## Recompilar
 

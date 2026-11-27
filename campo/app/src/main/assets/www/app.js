@@ -1387,7 +1387,7 @@
     var text;
     if (u) {
       text = t('Hay una versión nueva: {0} (tienes la {1}).', u.version, installed.version) + ' ' +
-        (installed.platform === 'ios' ? t('Instálala con Sideloadly como la primera vez: los puntos y los resultados se conservan.') :
+        (installed.platform === 'ios' ? t('Instálala con Sideloadly o AltStore como la primera vez: los puntos y los resultados se conservan.') :
          window.CAMPO_SIGNED ? t('Al abrir el APK, Android la instala encima de esta: los puntos y los resultados se conservan.') :
          t('Esta instalación está firmada con una clave de prueba: antes de instalar la nueva, exporta los puntos (Puntos → Exportar) y desinstala esta app; después importa los puntos. Los resultados guardados se pierden.'));
     } else if (installed) {
