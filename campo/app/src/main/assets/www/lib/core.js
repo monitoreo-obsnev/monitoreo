@@ -497,6 +497,20 @@ var MonitorEO = (function () {
 	var REFLECTANCE = {'Landsat': ['blue', 'green', 'red', 'nir', 'swir1', 'swir2']};
 	var TOPOGRAPHIC_S2 = 'its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief: use Landsat';
 
+	// sensors.HARMONIZE (quality.harmonize): Landsat 5 and 7 as Landsat 8 and 9, OLI = intercept + slope x ETM+ on the
+	// reflectance (OLS of Roy et al. 2016, Table 2): {band of rawCollection: [slope, intercept]}
+	var HARMONIZE = {
+		blue: [0.8474, 0.0003],
+		green: [0.8483, 0.0088],
+		red: [0.9047, 0.0061],
+		nir: [0.8462, 0.0412],
+		swir1: [0.8937, 0.0254],
+		swir2: [0.9071, 0.0172]
+	};
+	var LANDSAT_SR = [2.75e-05, -0.2];  // sensors.LANDSAT_SR: scale and offset of the surface reflectance
+	// sensors.LANDSAT7: Landsat 7 after the failure of its scan line corrector too (quality.landsat7)
+	var LANDSAT7 = {collection: 'LANDSAT/LE07/C02/T1_L2', slc_failure: '2003-05-31'};
+
 	// sensors.TWI: the topographic wetness index (TWI) of MERIT Hydro, ln(a / tan β): the upstream area of MERIT Hydro
 	// is in km² (area_scale: m² in a km²), and tan β is at least min_tan_slope on the flats (see twiImage)
 	var TWI = {area_scale: 1e6, min_tan_slope: 0.001};
@@ -610,6 +624,70 @@ var MonitorEO = (function () {
 			throw new Error('the topographic correction (quality topographic) is for the surface reflectance of ' +
 				'Landsat: ' + why + '. Leave it off');
 		}
+	}
+
+	// sensors._yes: whether QUALITY asks for the option KEY: true, or a text such as 'true', 'yes', 'on' or '1'
+	function yes(quality, key) {
+		var v = quality && typeof quality === 'object' ? quality[key] : null;
+		if (typeof v === 'string') return ['true', 'yes', 'on', '1'].indexOf(v.trim().toLowerCase()) >= 0;
+		return Boolean(v);
+	}
+
+	// sensors.harmonize: whether QUALITY asks for the harmonization of Landsat 5 and 7 with Landsat 8 and 9 (HARMONIZE)
+	function harmonize(quality) {
+		return yes(quality, 'harmonize');
+	}
+
+	// sensors.landsat7: whether QUALITY asks for the images of Landsat 7 after the failure of its scan line corrector
+	function landsat7(quality) {
+		return yes(quality, 'landsat7');
+	}
+
+	// sensors.no_harmonize: why ENTRY cannot have the harmonization of Landsat 5 and 7, or null
+	function noHarmonize(entry) {
+		if (entry.sensor !== 'Landsat') return entry.index + ' (' + entry.sensor + ') is not a variable of Landsat';
+		return noTopographic(entry);
+	}
+
+	// sensors.check_harmonize
+	function checkHarmonize(entry, quality) {
+		if (!harmonize(quality)) return;
+		var why = noHarmonize(entry);
+		if (why) {
+			throw new Error('the harmonization of Landsat 5 and 7 with Landsat 8 and 9 (quality harmonize) is for the ' +
+				'surface reflectance of Landsat: ' + why + '. Leave it off');
+		}
+	}
+
+	// sensors.check_landsat7
+	function checkLandsat7(entry, quality) {
+		if (landsat7(quality) && entry.sensor !== 'Landsat') {
+			throw new Error('quality landsat7 (Landsat 7 after the failure of its scan line corrector) is for the ' +
+				'variables of Landsat, not for ' + entry.index + ' of ' + entry.sensor);
+		}
+	}
+
+	// sensors.landsat_parts: LANDSAT as read with QUALITY (with landsat7, Landsat 7 without its last date)
+	function landsatParts(quality) {
+		var seven = landsat7(quality);
+		return LANDSAT.map(function (l) {
+			return [l[0], l[1], seven && l[0] === LANDSAT7.collection ? null : l[2]];
+		});
+	}
+
+	// sensors._harmonized: the Landsat 5 or 7 collection COL harmonized (HARMONIZE), still as raw values of LANDSAT_SR:
+	// raw' = raw x slope + (intercept + (slope - 1) offset) / scale
+	function harmonized(col) {
+		var scale = LANDSAT_SR[0], offset = LANDSAT_SR[1];
+		var bands = Object.keys(HARMONIZE);
+		var slope = ee.Image.constant(bands.map(function (b) { return HARMONIZE[b][0]; }));
+		var add = ee.Image.constant(bands.map(function (b) {
+			return (HARMONIZE[b][1] + (HARMONIZE[b][0] - 1) * offset) / scale;
+		}));
+		return col.map(function (i) {
+			i = ee.Image(i);
+			return i.addBands(i.select(bands).multiply(slope).add(add).toFloat().rename(bands), null, true);
+		});
 	}
 
 	// sensors._sun: [zenith, azimuth] of the sun of the Landsat scene IMG, in degrees
@@ -872,13 +950,15 @@ var MonitorEO = (function () {
 		}
 		if (entry.sensor === 'Landsat') {
 			var scf = isScf(entry);
+			var harm = harmonize(quality) && !noHarmonize(entry);
 			var cols = [];
-			LANDSAT.forEach(function (l) {
+			landsatParts(quality).forEach(function (l) {
 				var endL = l[2] && l[2] < end ? l[2] : end;
 				if (endL <= start) return;
 				var c = sceneFilter(ee.ImageCollection(l[0]).filterBounds(region).filterDate(start, endL));
 				if (scf) c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF.scene_clouds));
 				c = c.select(Object.keys(l[1]), Object.keys(l[1]).map(function (k) { return l[1][k]; }));
+				if (harm && l[1] === LANDSAT_57) c = harmonized(c);  // Landsat 5 and 7 as Landsat 8 and 9
 				if (!l[1].SR_QA_AEROSOL) {  // Landsat 5 and 7 have no aerosol QA: nothing is removed
 					c = c.map(function (i) {
 						return i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL'));
@@ -917,6 +997,8 @@ var MonitorEO = (function () {
 	function sensorCollection(entry, region, start, end, quality, rgb) {
 		if (rgb && !rgbOf(entry)) throw noRgb(entry);
 		quality = withQuality(quality);
+		checkHarmonize(entry, quality);  // before the SCF and the CF too: Landsat only, and its reflectances
+		checkLandsat7(entry, quality);
 		if (isScf(entry)) return scfCollection(entry, region, start, end, quality, rgb);
 		if (isCf(entry)) return cfCollection(entry, region, start, end, quality, rgb);
 		var scale = number(entry.scale, 1), offset = number(entry.offset, 0);
@@ -1507,9 +1589,12 @@ var MonitorEO = (function () {
 	}
 
 	// coverage.parts: [[ID, first day, last day or null, short title]] of the collections of the images of the entry E
-	// of the catalog (null if catalog.js has none)
-	function coverageParts(e) {
-		return ((CATALOG.coverage || {}).collections || {})[e.col] || null;
+	// of the catalog as read with QUALITY (null if catalog.js has none): the Landsat of the catalog with Landsat 7 until
+	// its last image with quality landsat7 (or an entry of used marked landsat7_slc_off), CATALOG.coverage.landsat7
+	function coverageParts(e, quality) {
+		var cov = CATALOG.coverage || {};
+		if (e.col === 'LANDSAT' && cov.landsat7 && (landsat7(quality) || e.landsat7_slc_off)) return cov.landsat7;
+		return (cov.collections || {})[e.col] || null;
 	}
 
 	// coverage._overlaps: whether PART has images between the days A and B (ISO)
@@ -1581,7 +1666,7 @@ var MonitorEO = (function () {
 	// their ID
 	function checkPeriod(s, today) {
 		var e = entryOf(s);
-		var found = e.static || e.custom ? null : coverageParts(e);
+		var found = e.static || e.custom ? null : coverageParts(e, s.quality);
 		if (!found || !found.some(function (p) { return p[1]; })) return [];
 		var wins = windows(s.period, s.season);
 		var first = wins[0][1], last = addDays(wins[wins.length - 1][2], -1);
@@ -1608,9 +1693,11 @@ var MonitorEO = (function () {
 			var before = found.map(function (p) { return p[2]; }).filter(function (x) { return x && x < a; }).sort();
 			var after = found.map(function (p) { return p[1]; }).filter(function (x) { return x && x > b; }).sort();
 			if (before.length && after.length) {
+				var seven = e.col !== 'LANDSAT' ? '' : ' Or add Landsat 7 after 2003, with the gaps of its scan line ' +
+					'corrector, which has images then (quality landsat7: true).';
 				throw new Error('The images of ' + data + ' have none from ' + iso(addDays(date(before[before.length - 1]), 1)) +
 					' to ' + iso(addDays(date(after[0]), -1)) + ': the period asked for' + season + ', ' + a + ' to ' + b +
-					', has no data. Choose a period before or after those days.');
+					', has no data. Choose a period before or after those days.' + seven);
 			}
 			return [];
 		}
@@ -1652,9 +1739,17 @@ var MonitorEO = (function () {
 		}
 	}
 
-	// coverage.used: the values of the computation come from the data of the spec S (in its period)
+	// coverage.used: the values of the computation come from the data of the spec S (in its period); the Landsat of the
+	// catalog with quality landsat7 apart, marked landsat7_slc_off (Landsat 7 after 2003 too, see coverageParts)
 	function used(s) {
 		var e = entryOf(s), key = (e.custom ? 'asset ' : 'entry ') + e.col;
+		if (!e.custom && e.col === 'LANDSAT' && landsat7(s.quality)) {
+			var marked = {};
+			for (var k in e) marked[k] = e[k];
+			marked.landsat7_slc_off = true;
+			e = marked;
+			key += ' landsat7';
+		}
 		var item = NOTES.data.filter(function (d) { return d[0] === key; })[0];
 		if (!item) {
 			item = [key, e, []];
@@ -3217,9 +3312,30 @@ var MonitorEO = (function () {
 		return defaultScale(entry.m, area, TARGET_PIXELS);
 	}
 
+	var MIN_COVERAGE_DEFAULT = 0.5;  // the minimum coverage of the check box of the app (min_coverage)
+
+	// timeseries.check_min_coverage: MIN_COVERAGE as a number in (0, 1], or null (not asked); an Error otherwise
+	function checkMinCoverage(minCoverage) {
+		var v = minCoverage;
+		if (v === null || v === undefined || v === false ||
+			(typeof v === 'string' && ['', 'none', 'null', 'false', 'off'].indexOf(v.trim().toLowerCase()) >= 0)) return null;
+		var shown = typeof v === 'string' ? "'" + v + "'" : v === true ? 'True' : JSON.stringify(v);  // as Python's repr
+		var x = typeof v === 'boolean' ? Number(v) : typeof v === 'object' ? NaN : Number(v);
+		if (isNaN(x)) {
+			throw new Error('min_coverage: give the smallest fraction of valid pixels of a step, e.g. 0.5, not ' + shown);
+		}
+		if (typeof v === 'boolean' || !(x >= 0 && x <= 1)) {
+			throw new Error('min_coverage: a fraction of the pixels of the region, from 0 to 1 (e.g. 0.5 for half), not ' +
+				shown);
+		}
+		return x || null;
+	}
+
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
-	// and region of REGIONS, computed on pixels of SCALE metres in CRS
-	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale) {
+	// and region of REGIONS, computed on pixels of SCALE metres in CRS; with MIN_COVERAGE, also coverage, and no value
+	// below it
+	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale, minCoverage) {
+		minCoverage = checkMinCoverage(minCoverage);
 		var col = collection(s, regions.geometry(), scale);
 		checkMetric(metric);
 		var red = metric;
@@ -3232,23 +3348,43 @@ var MonitorEO = (function () {
 			return reduceSpan(col, red, st[0], st[1]).rename(bands[i]);
 		}));
 		var nImages = ee.List(steps.map(function (st) { return col.filterDate(st[0], st[1]).size(); }));
+		if (minCoverage !== null) {  // the pixels of each region (those that where and the land cover mask keep), apart:
+			// a band more would change the names of the outputs of the steps (those of count are the names of the bands)
+			var total = (whereMask(s, regions.geometry(), scale) || ee.Image(1)).rename('total');
+			regions = regions.map(function (f) {
+				f = ee.Feature(f);
+				var n = total.reduceRegion({reducer: ee.Reducer.count(), geometry: f.geometry(), scale: scale, crs: crs,
+					maxPixels: 1e13, tileScale: tileScale || 4}).get('total');
+				return f.set('total_count', ee.Algorithms.If(n, n, 0));
+			});
+		}
 		var stats = img.reduceRegions({collection: regions, reducer: sred, scale: scale, crs: crs,
 			tileScale: tileScale || 4});
 		var prefix = bands.map(function (b) { return bands.length > 1 ? b + '_' : ''; });
 		return stats.map(function (f) {
 			f = ee.Feature(f);
 			return ee.FeatureCollection(steps.map(function (st, i) {
-				return ee.Feature(null, {region: f.get('name'), date: st[0], value: statValue(f, stat, out, prefix[i]),
-					n_pixels: f.get(prefix[i] + 'count'), n_images: nImages.get(i)});
+				var props = {region: f.get('name'), date: st[0], value: statValue(f, stat, out, prefix[i]),
+					n_pixels: f.get(prefix[i] + 'count'), n_images: nImages.get(i)};
+				if (minCoverage !== null) {  // the fraction of the pixels of the region with a value (none without its count)
+					var all = ee.Number(f.get('total_count')), valid = f.get(prefix[i] + 'count');
+					var cover = ee.Algorithms.If(valid, ee.Algorithms.If(all.gt(0), ee.Number(valid).divide(all), 0), null);
+					props.coverage = cover;
+					props.value = ee.Algorithms.If(ee.Algorithms.IsEqual(cover, null), props.value,
+						ee.Algorithms.If(ee.Number(cover).gte(minCoverage), props.value, null));
+				}
+				return ee.Feature(null, props);
 			}));
 		}).flatten();
 	}
 
 	// timeseries.series (with timeseries._fetch): the rows of STEPS, requested in blocks of at most MAX_ROWS rows,
 	// split in two when Earth Engine runs out of memory or time and repeated when it is busy.
-	// done(error, rows), progress(done steps, total) after each block.
-	function series(s, regions, nRegions, metric, stat, scale, crs, steps, done, progress) {
+	// done(error, rows), progress(done steps, total) after each block. With MIN_COVERAGE, also coverage in each row, and
+	// no value in the steps below it (see seriesTable)
+	function series(s, regions, nRegions, metric, stat, scale, crs, steps, done, progress, minCoverage) {
 		onlyMetric(entryOf(s), metric);
+		minCoverage = checkMinCoverage(minCoverage);
 		var block = Math.max(1, Math.min(Math.floor(MAX_ROWS / Math.max(nRegions, 1)), MAX_STEPS));
 		var blocks = [];
 		for (var i = 0; i < steps.length; i += block) blocks.push(steps.slice(i, i + block));
@@ -3258,11 +3394,13 @@ var MonitorEO = (function () {
 
 		function fetch(part, attempt, next) {
 			withNotes(noted, function () {
-				return seriesTable(s, regions, metric, stat, scale, part, crs);
+				return seriesTable(s, regions, metric, stat, scale, part, crs, null, minCoverage);
 			}).evaluate(function (fc, error) {
 				if (!error) {
 					fc.features.forEach(function (f) {
+						// Earth Engine leaves out the null properties: a step without images has no value
 						var r = {value: null, n_pixels: 0};
+						if (minCoverage !== null) r.coverage = 0;
 						for (var k in f.properties) r[k] = f.properties[k];
 						r.region = String(r.region);
 						rows.push(r);
@@ -4596,6 +4734,7 @@ var MonitorEO = (function () {
 		sensorCollection: sensorCollection, spec: spec, entryOf: entryOf, isStatic: isStatic, checkDates: checkDates,
 		shortTitle: shortTitle, joinWords: joinWords, joinTitles: joinTitles, dataText: dataText, assetTitle: assetTitle,
 		coverageParts: coverageParts, dataSource: dataSource, stepDays: stepDays, checkPeriod: checkPeriod,
+		checkMinCoverage: checkMinCoverage, MIN_COVERAGE_DEFAULT: MIN_COVERAGE_DEFAULT,
 		resetNotes: resetNotes, notes: notes, noteWarning: noteWarning, withNotes: withNotes, used: used,
 		sourceText: sourceText,
 		collection: collection, image: image, pinWhere: pinWhere, whereSpecs: whereSpecs, whereMask: whereMask,
@@ -4657,6 +4796,8 @@ var MonitorEO = (function () {
 		CV: CV, SPREAD: SPREAD, isCv: isCv, cv: cv, cvNumber: cvNumber, statValue: statValue,
 		RGB: RGB, RGB_BANDS: RGB_BANDS, RGB_METRICS: RGB_METRICS, RGB_STRETCH: RGB_STRETCH, RGB_RANGE: RGB_RANGE,
 		rgbOf: rgbOf, withRgb: withRgb, noTopographic: noTopographic, SNOW_NDSI: SNOW_NDSI,
+		HARMONIZE: HARMONIZE, LANDSAT7: LANDSAT7, harmonize: harmonize, landsat7: landsat7, noHarmonize: noHarmonize,
+		checkHarmonize: checkHarmonize, checkLandsat7: checkLandsat7, landsatParts: landsatParts,
 		SNOW_NDSI_DEFAULT: SNOW_NDSI_DEFAULT, snowNdsi: snowNdsi, snowNdsiOf: snowNdsiOf, PERMANENT_WATER: PERMANENT_WATER,
 		waterPermanent: waterPermanent, permanentLand: permanentLand, burnQuality: burnQuality, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
 		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis

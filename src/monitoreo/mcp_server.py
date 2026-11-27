@@ -114,6 +114,19 @@ Landsat the pixels whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more: t
 band (SCL, QA_PIXEL) misses, which raise the standard deviation or the minimum of a moisture index (NDMI, LSWI) in
 mountains. Off by default; not for the NDSI, SCF, SCD and SMOD (snow), MODIS or the data by their ID (an error says so), and
 not applied to the variables that measure water (NDWI, Chl-a, NDCI, WAVI: open water has a high NDSI too).
+Landsat 5 and 7 harmonized: quality {"harmonize": true} turns the surface reflectance of Landsat 5 (TM) and 7 (ETM+)
+into that of Landsat 8 and 9 (OLI) with the OLS functions of Roy et al. (2016): use it for long series and trends of
+Landsat that cross 2013 (e.g. a trend of the NDVI 1985-2025), whose step between sensors a trend takes as a change. Off
+by default; for the variables of Landsat computed from reflectances (not LST, SCF, SCD, SMOD, CF: an error says so).
+Landsat 7 after 2003: quality {"landsat7": true} also uses the images of Landsat 7 after the failure of its scan line
+corrector (2003-05-31), each with stripes without data (about 22 % of the scene): more images in cloudy places, and
+images from 2012-05-05 to 2013-03-18, between Landsat 5 and Landsat 8 (a period there is an error without it); a
+condition of where on Landsat in those days needs its own quality {"landsat7": true}.
+min_coverage of time_series, compare_series, trend_table and export_time_series_to_drive (a fraction, e.g. 0.5): the
+steps whose valid pixels are less than that fraction of the pixels of the region (clouds, shadow, snow, the stripes of
+Landsat 7) have no value; the rows say their coverage. The pixels of the region are those that where and
+exclude_landcover keep: pixels that never have a value (permanent water with the water filter) lower every coverage. Use it when a month of a few clear pixels would give a value far
+from that of the region (mountains with snow or clouds).
 Metrics (of the images of each pixel,
 metric; between the years, interannual) and statistics (over the region: stat of the series, trends and comparisons,
 stats of region_stats), for any variable: mean, median, min, max, std (standard deviation), cv (coefficient of
@@ -634,7 +647,7 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
                 doy: bool = False, interannual: Optional[str] = None, other_variable: Optional[str] = None,
                 other_sensor: Optional[str] = None, ylim: Optional[List[float]] = None,
-                other_ylim: Optional[List[float]] = None):
+                other_ylim: Optional[List[float]] = None, min_coverage: Optional[float] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, std, cv, pN) and over the region with
 	STAT (mean, median, min, max, std, cv, pN; cv: coefficient of variation, 100 * std / mean, in %), with the number
@@ -644,7 +657,8 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	clouds), or {"water": "permanent"} (the permanent water of the JRC Global Surface Water instead of the water flagged
 	in each image, which takes burned land for water: for the series of a burned area); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
 	step annual); with interannual (the metric between the years of each step, default median) or other_variable (and
-	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default: the data's)."""
+	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default: the data's).
+	min_coverage: e.g. 0.5, no value in the steps with valid pixels in less than that fraction of the region."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
@@ -655,7 +669,8 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
 	                           where=where, doy=doy, interannual=interannual, other_variable=other_variable,
-	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, **source)
+	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, min_coverage=min_coverage,
+	                           **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme', 'parameters',
 	                                    'references', 'credits', 'manual')}
@@ -925,7 +940,8 @@ def export_time_series_to_drive(region: dict, variable: Optional[str] = None, se
                                 collection: Optional[str] = None, image: Optional[str] = None,
                                 band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                                 band_scale: Optional[float] = None, band_offset: Optional[float] = None,
-                                unit: Optional[str] = None, where: Optional[list] = None) -> str:
+                                unit: Optional[str] = None, where: Optional[list] = None,
+                                min_coverage: Optional[float] = None) -> str:
 	"""Export a time series (as time_series) to a CSV file in a folder of Google Drive: for long series or many
 	regions (it needs the user's own Earth Engine account, not the shared one). Check it with task_status. Required:
 	region, start and end, and variable and sensor or collection and band."""
@@ -934,7 +950,8 @@ def export_time_series_to_drive(region: dict, variable: Optional[str] = None, se
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
 	_ready()
 	return _text(services.time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season,
-	                                           quality, scale, folder, name, where=where, **source))
+	                                           quality, scale, folder, name, where=where, min_coverage=min_coverage,
+	                                           **source))
 
 
 @tool
@@ -1019,7 +1036,7 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 test: str = 'mk', collection: Optional[str] = None, image: Optional[str] = None,
                 band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                 band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-                where: Optional[list] = None):
+                where: Optional[list] = None, min_coverage: Optional[float] = None):
 	"""Seasonal trends of a variable over each feature of a region:
 	for each part of the year (step 'monthly': each month; '16-day': 23 parts of 16 days from 1 January; 'annual':
 	the year), the spatial STAT of the METRIC of its images in each year, and the trend of those yearly values:
@@ -1033,7 +1050,7 @@ def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	stem = _stem('trend', _data(variable, sensor, source), step, start, end, _test_stem(test))
 	res = services.trend_table(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, alpha=alpha, test=test, csv=_out(stem, 'csv'),
-	                           chart=_out(stem, 'png'), where=where, **source)
+	                           chart=_out(stem, 'png'), where=where, min_coverage=min_coverage, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['slope_unit'] = f"{res['unit']} / year" if res.get('unit') else 'per year'  # data without a unit
 	summary['trends'] = res['rows']
@@ -1105,7 +1122,7 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
                    collection: Optional[str] = None, image: Optional[str] = None,
                    band: Optional[Union[str, List[str]]] = None, band_reducer: Optional[str] = None,
                    band_scale: Optional[float] = None, band_offset: Optional[float] = None, unit: Optional[str] = None,
-                   where: Optional[list] = None):
+                   where: Optional[list] = None, min_coverage: Optional[float] = None):
 	"""Compare a reference period (start to end) with another (other_start to other_end) over each feature of a
 	region: the mean of each part of the year (step 'monthly', '16-day' or 'annual') over the years of each period
 	and the difference (other - reference). Writes a CSV and a chart of both
@@ -1119,7 +1136,7 @@ def compare_series(region: dict, variable: Optional[str] = None, sensor: Optiona
 	stem = _stem('comparison', _data(variable, sensor, source), start, end, other_start, other_end)
 	res = services.compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
 	                              season=season, quality=quality, scale=scale, csv=_out(stem, 'csv'),
-	                              chart=_out(stem, 'png'), where=where, **source)
+	                              chart=_out(stem, 'png'), where=where, min_coverage=min_coverage, **source)
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'csv', 'chart')}
 	summary['comparison'] = res['profile']
 	summary.update({k: res.get(k) for k in ('readme', 'parameters', 'references', 'credits', 'manual')})

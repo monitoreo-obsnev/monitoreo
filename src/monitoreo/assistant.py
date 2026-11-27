@@ -291,6 +291,7 @@ flat land it changes nothing. It costs more in Earth Engine.
 (e.g. {{"snow_ndsi": 0.4}}) when the user computes a standard deviation, a minimum or a maximum of the NDMI, the LSWI or \
 another index in the snow season, or asks for it: it also removes the patches of snow that the QA band misses. Not for \
 the NDSI, SCF, SCD or SMOD, nor MODIS; it is not applied to the NDWI, Chl-a, NDCI or WAVI (open water has a high NDSI too).
+- Long series of Landsat: for a trend or a series of Landsat that crosses 2013 (e.g. NDVI 1985-2025), add "harmonize": true to quality (Landsat 5 and 7 as Landsat 8 and 9, Roy et al. 2016), so that the change of sensor is not taken for a trend; not for LST, SCF, SCD, SMOD or CF. A period between 2012-05-05 and 2013-03-18 needs "landsat7": true (Landsat 7 with the stripes of its failure). If a series has months of a few clear pixels (snow, clouds), give min_coverage, e.g. 0.5.
 - Snow cover frequency (how often there is snow: % of the clear observations with snow): variable "SCF", sensor \
 "Landsat" (30 m, since 1984), "Sentinel-2" (20 m, every 5 days, since 2017) or "Modis" (500 m, daily, since 2000), \
 always with metric "mean", also in maps (whose default is the median); its filters are fixed (clouds and water are \

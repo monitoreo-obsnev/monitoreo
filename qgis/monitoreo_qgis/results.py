@@ -889,10 +889,12 @@ class SeriesDialog(QDialog):
 			table = table_of([dict(r, unit=units.get(r['variable']) or 'unit not given') for r in profile],
 			                 PROFILE_COLUMNS)
 		else:
-			table = QTableWidget(len(res['rows']), len(COLUMNS))
-			table.setHorizontalHeaderLabels([c[1] for c in COLUMNS])
+			# with the minimum coverage (min_coverage), also the coverage of each step
+			columns = COLUMNS + ([('coverage', 'Coverage')] if any('coverage' in r for r in res['rows']) else [])
+			table = QTableWidget(len(res['rows']), len(columns))
+			table.setHorizontalHeaderLabels([c[1] for c in columns])
 			for i, r in enumerate(res['rows']):
-				for j, (key, _) in enumerate(COLUMNS):
+				for j, (key, _) in enumerate(columns):
 					v = r.get(key)
 					table.setItem(i, j, QTableWidgetItem('' if v is None else
 					                                     (f'{v:.6g}' if isinstance(v, float) else str(v))))

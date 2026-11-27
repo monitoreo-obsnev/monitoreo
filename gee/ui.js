@@ -80,6 +80,10 @@
 			cloudScore: 'nubes de Sentinel-2 con Cloud Score+ (si no, con la clasificación SCL)',
 			snowNdsi: 'nieve también por su NDSI ≥ %s (Sentinel-2, Landsat)',
 			topographic: 'corrección topográfica SCS+C de Landsat (montaña: laderas al sol y a la sombra, sol bajo)',
+			harmonize: 'armonizar Landsat 5 y 7 con Landsat 8 y 9 (Roy et al. 2016)',
+			landsat7: 'usar también Landsat 7 después de 2003 (con franjas sin datos)',
+			minCoverage: 'sin valor en los pasos con menos del %s % de píxeles válidos',
+			coverage: 'Cobertura',
 			conflict: 'Ojo: el filtro de %s quita lo que mide esta variable.',
 			fixedFilters: 'Filtros fijos de esta variable: no se pueden cambiar.',
 			staticNote: 'Capa fija, sin fechas: solo el mapa y su GeoTIFF. El periodo, las métricas, las series ' +
@@ -391,6 +395,10 @@
 			cloudScore: 'Sentinel-2 clouds with Cloud Score+ (otherwise, with the SCL classification)',
 			snowNdsi: 'snow also by its NDSI ≥ %s (Sentinel-2, Landsat)',
 			topographic: 'topographic correction SCS+C of Landsat (mountains: slopes in the sun and in the shade, low sun)',
+			harmonize: 'harmonize Landsat 5 and 7 with Landsat 8 and 9 (Roy et al. 2016)',
+			landsat7: 'also Landsat 7 after 2003 (with stripes without data)',
+			minCoverage: 'no value in the steps with less than %s % valid pixels',
+			coverage: 'Coverage',
 			conflict: 'Note: the %s filter removes what this variable measures.',
 			fixedFilters: 'Fixed filters of this variable: they cannot be changed.',
 			staticNote: 'Fixed layer, without dates: only the map and its GeoTIFF. The period, metrics, time series, ' +
@@ -678,6 +686,9 @@
 		landcoverOn: false, landcoverMap: 'WorldCover', landcoverYear: null, landcoverExclude: ['water', 'built'],
 		mapMetric: 'median', temporal: 'period', interannual: 'mean', mapLayer: 'index',  // index, rgb or both
 		step: 'monthly', stepMetric: 'mean', stat: 'mean',
+		// the series, comparisons and trend tables without value in the steps whose valid pixels are less than this
+		// fraction of those of the region (min_coverage; null: all of them)
+		minCoverage: null,
 		trendStep: 'monthly', trendMetric: 'mean', trendTest: 'mk', trendPart: 7, output: 'slope', significant: false,
 		animStep: 'annual', animMetric: 'median', doy: false,
 		// the colour range of every map (Colour range, with the options of Map): its percentiles (maps.STRETCH by
@@ -1757,6 +1768,16 @@
 		if (!mo.noTopographic(e)) {  // the surface reflectance of Landsat (sensors.TOPOGRAPHIC)
 			w.push(check(t('topographic'), Boolean(state.quality.topographic), function (v) {
 				state.quality.topographic = v;
+			}));
+		}
+		if (!mo.noHarmonize(e)) {  // Landsat 5 and 7 as Landsat 8 and 9 (sensors.HARMONIZE)
+			w.push(check(t('harmonize'), Boolean(state.quality.harmonize), function (v) {
+				state.quality.harmonize = v;
+			}));
+		}
+		if (e.sensor === 'Landsat' && !e.custom) {  // Landsat 7 after 2003 (sensors.LANDSAT7)
+			w.push(check(t('landsat7'), Boolean(state.quality.landsat7), function (v) {
+				state.quality.landsat7 = v;
 			}));
 		}
 		mo.conflicts(e, state.quality).forEach(function (f) {
@@ -2839,9 +2860,21 @@
 	// The table of the time series ROWS (that of the snow cover days, under their bars): region, date, value, images
 	// and valid pixels of each step, as the CSV
 	function seriesTable(rows) {
-		return ui.Chart([[t('region'), t('date'), t('value'), t('nImages'), t('validPixels')]].concat(rows.map(function (r) {
-			return [r.region, r.date, r.value === null ? '' : num(r.value, 4), r.n_images, r.n_pixels];
+		var cover = rows.some(function (r) { return r.coverage !== undefined; });  // with min_coverage
+		return ui.Chart([[t('region'), t('date'), t('value'), t('nImages'), t('validPixels')].concat(
+			cover ? [t('coverage')] : [])].concat(rows.map(function (r) {
+			return [r.region, r.date, r.value === null ? '' : num(r.value, 4), r.n_images, r.n_pixels].concat(
+				cover ? [r.coverage === undefined || r.coverage === null ? '' : num(r.coverage, 3)] : []);
 		})), 'Table');
+	}
+
+	// The check box of the minimum coverage of the steps (min_coverage, mo.MIN_COVERAGE_DEFAULT unless the parameters
+	// gave another one): of the series, the comparisons and the trend tables
+	function minCoverageBox() {
+		return check(fmt(t('minCoverage'), num((state.minCoverage || mo.MIN_COVERAGE_DEFAULT) * 100)),
+			Boolean(state.minCoverage), function (v) {
+				state.minCoverage = v ? (state.minCoverage || mo.MIN_COVERAGE_DEFAULT) : null;
+			});
 	}
 
 	// The colour at F (0 to 1) along the ramp COLOURS (hex), between its two nearest colours
@@ -2958,6 +2991,9 @@
 		// the topographic correction of the panel, if both variables can have it (services._other_spec)
 		if (state.quality.topographic && e && !mo.noTopographic(e) && !mo.noTopographic(oe)) q.topographic = true;
 		if (state.quality.snow_ndsi && q.snow && mo.SNOW_NDSI[oe.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
+		// Landsat 5 and 7 harmonized and Landsat 7 after 2003, for the right axis too if it can have them
+		if (state.quality.harmonize && e && !mo.noHarmonize(e) && !mo.noHarmonize(oe)) q.harmonize = true;
+		if (state.quality.landsat7 && e && e.sensor === 'Landsat' && oe.sensor === 'Landsat') q.landsat7 = true;
 		return q;
 	}
 
@@ -3059,7 +3095,7 @@
 			done(rows, scale);
 		}, function (k, n) {
 			if (id === run) message(fmt(t('progress'), k, n));
-		});
+		}, state.minCoverage);
 	}
 
 	function computeSeries() {
@@ -3077,7 +3113,8 @@
 				if (!rows.some(function (r) { return r.value !== null; })) return noData();
 				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
-				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(doy ? ['year', 'doy'] : []);
+				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(state.minCoverage ? ['coverage'] : [],
+					doy ? ['year', 'doy'] : []);
 				var bars = !doy && mo.isDays(state.stepMetric);  // the snow cover days: bars, and their table
 				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
 					[seriesChart(rows, e, name)]).concat(bars ? [seriesTable(rows)] : [],
@@ -3180,6 +3217,7 @@
 			render();
 		}));
 		if (state.doy) w = w.concat(doyWidgets());
+		w.push(minCoverageBox());
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
 	}
@@ -3356,6 +3394,7 @@
 		var tests = mo.TREND_TESTS.map(function (x) { return {value: x, label: t('tt_' + x)}; });
 		w.push(row(ui.Label(t('trendTest')), select(tests, state.trendTest, function (v) { state.trendTest = v; })));
 		w.push(ui.Label(t('trendTestNote'), SMALL));
+		w.push(minCoverageBox());
 		w.push(button(t('trendTable'), guarded(trendTable)));
 		if (state.trendStep !== 'annual') {
 			var parts = mo.parts(state.trendStep).map(function (p) {
@@ -3683,13 +3722,13 @@
 			takes: ['region', 'step', 'metric'].concat(SOURCE, PIXELS, RANGE, ['same_colours']),
 			defaults: {step: 'annual', metric: 'median'}},
 		time_series: {group: 'series', button: 'computeSeries',
-			takes: ['region', 'step', 'metric', 'stat', 'doy', 'interannual', 'other_variable', 'other_sensor'].concat(
-				SOURCE, PIXELS), defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
+			takes: ['region', 'step', 'metric', 'stat', 'doy', 'interannual', 'other_variable', 'other_sensor',
+				'min_coverage'].concat(SOURCE, PIXELS), defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
 		compare_series: {group: 'series', button: 'computeSeries',
-			takes: ['region', 'other_start', 'other_end', 'step', 'metric', 'stat'].concat(SOURCE, PIXELS),
+			takes: ['region', 'other_start', 'other_end', 'step', 'metric', 'stat', 'min_coverage'].concat(SOURCE, PIXELS),
 			defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
 		trend_table: {group: 'trends', button: 'trendTable',
-			takes: ['region', 'step', 'metric', 'stat', 'alpha', 'test'].concat(SOURCE, PIXELS),
+			takes: ['region', 'step', 'metric', 'stat', 'alpha', 'test', 'min_coverage'].concat(SOURCE, PIXELS),
 			defaults: {step: 'annual', metric: 'mean', stat: 'mean', alpha: 0.05, test: 'mk'}},
 		trend_map: {group: 'trends', button: 'trendMap',
 			takes: ['region', 'step', 'part', 'output', 'metric', 'alpha', 'test'].concat(SOURCE, PIXELS, RANGE),
@@ -3708,7 +3747,7 @@
 		'band_scale', 'band_offset', 'unit', 'start', 'end', 'other_start', 'other_end', 'landcover', 'year', 'other_year',
 		'breaks', 'trend', 'zones', 'index', 'step', 'part', 'output', 'metric', 'temporal', 'interannual', 'stat', 'alpha',
 		'test', 'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where', 'vmin', 'vmax', 'percentiles',
-		'same_colours'];
+		'same_colours', 'min_coverage'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
 		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point'];
@@ -3762,10 +3801,15 @@
 		var e = ref === undefined || ref === null ? null : mo.byRef(ref);  // none: without it
 		var topo = state.quality.topographic && !(e && !mo.noTopographic(e));  // to leave out
 		var ndsi = state.quality.snow_ndsi && !(e && mo.SNOW_NDSI[e.sensor]);  // the snow by its NDSI, too
-		if (!topo && !ndsi) return state.quality;
+		var harm = state.quality.harmonize && !(e && !mo.noHarmonize(e));  // Landsat 5 and 7 harmonized, too
+		var seven = state.quality.landsat7 && !(e && e.sensor === 'Landsat');  // Landsat 7 after 2003, too
+		if (!topo && !ndsi && !harm && !seven) return state.quality;
 		var q = {};
 		for (var k in state.quality) {
-			if (!(k === 'topographic' && topo) && !(k === 'snow_ndsi' && ndsi)) q[k] = state.quality[k];
+			if (!(k === 'topographic' && topo) && !(k === 'snow_ndsi' && ndsi) && !(k === 'harmonize' && harm) &&
+				!(k === 'landsat7' && seven)) {
+				q[k] = state.quality[k];
+			}
 		}
 		return q;
 	}
@@ -3778,6 +3822,8 @@
 		if (sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && e && !mo.noTopographic(e)) q.topographic = true;
 		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[sensor]) q.snow_ndsi = state.quality.snow_ndsi;
+		if (state.quality.harmonize && e && !mo.noHarmonize(e)) q.harmonize = true;
+		if (state.quality.landsat7 && sensor === 'Landsat') q.landsat7 = true;
 		return q;
 	}
 
@@ -3806,6 +3852,8 @@
 		if (e.sensor === 'Sentinel-2' || oe.sensor === 'Sentinel-2') q.cloud_score = state.quality.cloud_score;
 		if (state.quality.topographic && !mo.noTopographic(e)) q.topographic = true;  // the right axis too, if it can
 		if (state.quality.snow_ndsi && state.quality.snow && mo.SNOW_NDSI[e.sensor]) q.snow_ndsi = state.quality.snow_ndsi;
+		if (state.quality.harmonize && !mo.noHarmonize(e)) q.harmonize = true;  // the right axis too, if it can
+		if (state.quality.landsat7 && e.sensor === 'Landsat') q.landsat7 = true;
 		return q;
 	}
 
@@ -3855,6 +3903,7 @@
 			p.index = state.fireIndex;
 			p.quality = qualityParameters(p.sensor);
 			if (state.quality.topographic && p.sensor === 'Landsat') p.quality.topographic = true;  // its NBR
+			if (state.quality.harmonize && p.sensor === 'Landsat') p.quality.harmonize = true;  // (landsat7: qualityParameters)
 			var fireWhere = whereParameters(state.fireBefore, false);  // over the period before the fire, as the package
 			if (fireWhere) p.where = fireWhere;
 			return {parameters: ordered(p), notes: notes};
@@ -3880,6 +3929,7 @@
 		var oe = analysis === 'time_series' && isProfile() && state.doyOther !== 'none' ? mo.byRef(state.doyOther) : null;
 		if (oe) p.quality = profileQuality(e, oe, notes);
 		else if (!e.custom && !mo.fixedFilters(e)) p.quality = qualityParameters(e.sensor, e);
+		else if (!e.custom && e.sensor === 'Landsat' && state.quality.landsat7) p.quality = {landsat7: true};  // SCF, CF
 		var where = whereParameters(null, e.static);
 		if (where) p.where = where;
 		if (analysis === 'compare_map' || analysis === 'compare_series') {
@@ -3923,6 +3973,9 @@
 			if (state.trendTest !== 'mk') p.test = state.trendTest;
 		}
 		if (analysis === 'trend_table') p.stat = state.stat;
+		if (['time_series', 'compare_series', 'trend_table'].indexOf(analysis) >= 0 && state.minCoverage) {
+			p.min_coverage = state.minCoverage;
+		}
 		if (analysis === 'trend_map') {
 			p.output = state.output;
 			if (state.significant) p.alpha = 0.05;
@@ -4245,8 +4298,14 @@
 	// on: the right axis leaves out that of what it measures)
 	function applyQuality(e, quality, skip, profile, burn) {
 		var fixed = mo.fixedFilters(e);
-		if (fixed && !profile) {
-			if (quality !== undefined) skip('quality', e.custom ? t('customFilters') : t('fixedFilters'));
+		if (fixed && !profile) {  // their own filters; of Landsat (SCF, CF), Landsat 7 after 2003 yes
+			var own = e.sensor === 'Landsat' && !e.custom && quality && typeof quality === 'object' &&
+				!Array.isArray(quality);
+			state.quality.landsat7 = Boolean(own && mo.landsat7(quality));
+			state.quality.harmonize = false;  // not for the SCF and the CF (their own reflectance thresholds)
+			if (quality !== undefined && !(own && Object.keys(quality).every(function (k) { return k === 'landsat7'; }))) {
+				skip('quality', e.custom ? t('customFilters') : t('fixedFilters'));
+			}
 			return;
 		}
 		var q = {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6};
@@ -4268,6 +4327,16 @@
 					q.cloud_score = v;
 				} else if (k === 'topographic' && (v === true || v === false || v === null)) {
 					q.topographic = Boolean(v);
+				} else if ((k === 'harmonize' || k === 'landsat7') && (v === true || v === false || v === null ||
+						(typeof v === 'string' && ['true', 'yes', 'on', '1', 'false', 'no', 'off', '0', ''].indexOf(
+							v.trim().toLowerCase()) >= 0))) {
+					try {  // sensors.check_harmonize, check_landsat7: only for the variables that can have them
+						if (k === 'harmonize') mo.checkHarmonize(e, one);
+						else mo.checkLandsat7(e, one);
+						q[k] = k === 'harmonize' ? mo.harmonize(one) : mo.landsat7(one);
+					} catch (err) {
+						skip('quality', err.message, one);
+					}
 				} else if (k === 'snow_ndsi') {
 					try { q.snow_ndsi = mo.snowNdsi(one); } catch (err) { skip('quality', err.message, one); }
 				} else {
@@ -4280,6 +4349,8 @@
 		state.quality.cloud_score = q.cloud_score;
 		state.quality.topographic = Boolean(q.topographic);
 		state.quality.snow_ndsi = q.snow_ndsi || null;
+		state.quality.harmonize = Boolean(q.harmonize);
+		state.quality.landsat7 = Boolean(q.landsat7);
 	}
 
 	// The period, the other period (of a comparison; for a fire, the periods before and after it) and the season of
@@ -4437,6 +4508,14 @@
 			if (analysis === 'timelapse') state.sameColours = o.same_colours !== false;
 		}
 		if (ANALYSES[analysis].takes.indexOf('percentiles') >= 0) colours();
+		if (ANALYSES[analysis].takes.indexOf('min_coverage') >= 0) {  // the minimum coverage of the steps, or none
+			state.minCoverage = null;
+			try {
+				state.minCoverage = mo.checkMinCoverage(o.min_coverage);
+			} catch (err) {
+				skip('min_coverage', err.message || String(err));
+			}
+		}
 		if (analysis === 'map_layer' || analysis === 'compare_map') state.mapLayer = 'index';
 		if (analysis === 'rgb_map') state.mapLayer = 'rgb';
 		if (['map_layer', 'rgb_map', 'compare_map', 'region_stats', 'transect'].indexOf(analysis) >= 0) mapOptions();

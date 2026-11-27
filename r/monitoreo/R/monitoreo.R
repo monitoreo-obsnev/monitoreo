@@ -236,7 +236,12 @@ percentiles_arg <- function(percentiles) {
 #'   corrected); off by default. \code{list(snow_ndsi = 0.4)}: with the snow filter on, Sentinel-2 and Landsat also
 #'   lose the pixels of each image whose NDSI (green, SWIR1; Hall et al. 1995) is 0.4 or more, the patches of snow
 #'   that their quality band misses (e.g. for the standard deviation of the NDMI in mountains); off by default, and not
-#'   applied to the variables that measure water (open water has a high NDSI too).
+#'   applied to the variables that measure water (open water has a high NDSI too). \code{list(harmonize = TRUE)}:
+#'   the surface reflectance of Landsat 5 and 7 as that of Landsat 8 and 9 (Roy et al. 2016), for long series and
+#'   trends that cross 2013; \code{list(landsat7 = TRUE)}: Landsat 7 also after 2003-05-31, with the stripes of the
+#'   failure of its scan line corrector, which fills 2012-05-05 to 2013-03-18; both off by default, for Landsat.
+#' @param min_coverage the smallest fraction of the pixels of the region with a valid value for a step to have a value,
+#'   e.g. 0.5 (the others have none, and the rows get their coverage); default none.
 #' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 #'   each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 #'   result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
@@ -1018,7 +1023,8 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, csv = NULL, collection = NULL,
                            where = NULL, image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
                            band_offset = NULL, unit = NULL, doy = FALSE, chart = NULL, interannual = NULL,
-                           other_variable = NULL, other_sensor = NULL, ylim = NULL, other_ylim = NULL) {
+                           other_variable = NULL, other_sensor = NULL, ylim = NULL, other_ylim = NULL,
+                           min_coverage = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(other_variable) && grepl("/", other_variable, fixed = TRUE)) {
     stop("other_variable ", other_variable, ": the variable of the right axis is a variable of the catalog of ",
@@ -1030,7 +1036,8 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
                                 band_offset = band_offset, unit = unit, doy = isTRUE(doy),
                                 chart = if (is.null(chart)) NULL else path.expand(chart), interannual = interannual,
                                 other_variable = other_variable, other_sensor = other_sensor,
-                                ylim = axis_range(ylim, "ylim"), other_ylim = axis_range(other_ylim, "other_ylim"))
+                                ylim = axis_range(ylim, "ylim"), other_ylim = axis_range(other_ylim, "other_ylim"),
+                                min_coverage = min_coverage)
   profiled <- !is.null(res$variables)  # the seasonal profile (doy with interannual or other_variable)
   df <- rows_df(if (profiled) res$profile else res$rows)
   attr(df, "title") <- res$title
@@ -1910,12 +1917,13 @@ mo_export_image <- function(region, variable = NULL, sensor = NULL, start = NULL
 mo_export_time_series <- function(region, variable = NULL, sensor = NULL, start, end, step = "monthly", metric = "mean",
                                   stat = "mean", season = NULL, quality = NULL, scale = NULL, folder = "MonitorEO",
                                   name = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                                  band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+                                  band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                                  min_coverage = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$time_series_to_drive(region, variable, sensor, start, end, step, metric, stat, season, quality,
                                          scale, folder, name, collection = collection, where = where, image = image,
                                          band = band, band_reducer = band_reducer, band_scale = band_scale,
-                                         band_offset = band_offset, unit = unit)
+                                         band_offset = band_offset, unit = unit, min_coverage = min_coverage)
   answer(res)
 }
 
@@ -2117,13 +2125,14 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, step = "annual", metric = "mean",
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, test = "mk",
                            csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
-                           band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+                           band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                           min_coverage = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, test = test, csv = csv, chart = chart,
                                 collection = collection, where = where, image = image, band = band,
                                 band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit)
+                                unit = unit, min_coverage = min_coverage)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]
@@ -2288,13 +2297,14 @@ mo_download_trend <- function(region, variable = NULL, sensor = NULL, start, end
 mo_compare_series <- function(region, variable = NULL, sensor = NULL, start, end, other_start, other_end,
                               step = "monthly", metric = "mean", stat = "mean", season = NULL, quality = NULL,
                               scale = NULL, csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL,
-                              band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL) {
+                              band = NULL, band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
+                              min_coverage = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$compare_series(region, variable, sensor, start, end, other_start, other_end, step, metric, stat,
                                    season = season, quality = quality, scale = scale, csv = csv, chart = chart,
                                    collection = collection, where = where, image = image, band = band,
                                    band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
-                                   unit = unit)
+                                   unit = unit, min_coverage = min_coverage)
   df <- rows_df(res$profile)
   attr(df, "rows") <- rows_df(res$rows)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]

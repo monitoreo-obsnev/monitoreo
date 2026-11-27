@@ -36,6 +36,9 @@ COLUMNS = {
 	         'of the step on each pixel',
 	'n_pixels': 'valid pixels of the feature in the step (those left by the pixel filters)',
 	'n_images': 'images of the step',
+	'coverage': 'fraction of the pixels of the feature (those kept by where and exclude_landcover) with a valid value in '
+	            'the step (n_pixels over them, 0 to 1): with min_coverage, the steps below it have no value',
+	'min_coverage': 'the smallest coverage of a step with a value (the others have none)',
 	'key': 'part of the year: m01-m12 (months), p01-p23 (16-day periods from 1 January) or all (the year)',
 	'label': 'name of the part of the year (or of the severity class)',
 	'n': 'years with data',
@@ -562,6 +565,8 @@ def recipe_folder(folder, result=None, record='monitoreo.json'):
 		         f"topographic correction {src['topographic_correction']}" if src.get('topographic_correction') else '',
 		         f"snow also where the NDSI (green, SWIR1) is {src['snow_ndsi']:g} or more" if src.get('snow_ndsi') else '',
 		         f"water: the {src['water_filter']}" if src.get('water_filter') else '',
+		         f"Landsat 5 and 7 harmonized: {src['harmonization']}" if src.get('harmonization') else '',
+		         f"Landsat 7: {src['landsat7']}" if src.get('landsat7') else '',
 		         'only the pixels where ' + _where(src['where']) if src.get('where') else '',
 		         f"{f['images']} images" if f.get('images') is not None else '',
 		         f"downloaded {f['downloaded']}" if f.get('downloaded') else '', f"via {f['via']}" if f.get('via') else '']

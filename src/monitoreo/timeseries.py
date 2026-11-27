@@ -3,7 +3,10 @@
 Each step (a day with images, 16 days, a month or a year of the period, within the season if there is one) is
 reduced in time with METRIC (e.g. the mean of the NDVI of the images of each month), and then over each region with
 STAT (e.g. its spatial mean, or its coefficient of variation, 'cv', in %: see composite). Every row also gives the number of images of the step and of valid pixels of the
-region, so that steps with few clear observations can be told apart.
+region, so that steps with few clear observations can be told apart. With MIN_COVERAGE (a fraction, 0 to 1), the rows
+also give the fraction of the pixels of the region with a valid value in the step (coverage: n_pixels over the pixels of
+the region kept by where and exclude_landcover), and the steps below it have no value: a month with clouds, shadow or
+snow over most of the region gives the value of the few pixels left, which can be far from that of the region.
 
 By day of the year (time_series with doy): the rows get the year and the day of the year of each step (with_doy), to
 draw a line per year; or the seasonal profile (doy_profile), a metric between the years (over_years: e.g. the median)
@@ -70,12 +73,30 @@ def _stat_name(stat):
 	return composite.reducer(stat).getOutputs().getInfo()[0]
 
 
-def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, steps=None, crs=None, tile_scale=4):
+def check_min_coverage(min_coverage):
+	"""MIN_COVERAGE as a number greater than 0 and at most 1, or None (not asked: 0, None, '' or false); ValueError if
+	it is something else (e.g. 50: give 0.5)."""
+	v = min_coverage
+	if v is None or v is False or (isinstance(v, str) and v.strip().lower() in ('', 'none', 'null', 'false', 'off')):
+		return None
+	try:
+		x = float(v)
+	except (TypeError, ValueError):
+		raise ValueError(f'min_coverage: give the smallest fraction of valid pixels of a step, e.g. 0.5, not {v!r}') from None
+	if isinstance(v, bool) or not 0 <= x <= 1:
+		raise ValueError(f'min_coverage: a fraction of the pixels of the region, from 0 to 1 (e.g. 0.5 for half), not {v!r}')
+	return x or None
+
+
+def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, steps=None, crs=None, tile_scale=4,
+          min_coverage=None):
 	"""ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS (default: all
 	the steps of the period) and region of REGIONS (an ee.FeatureCollection with a 'name' property), computed on
 	pixels of SCALE metres in CRS (default: that of region_crs, the UTM zone of the regions). The steps are reduced
 	over the regions in a single pass, as the bands of one image: with a reduction per step, Earth Engine went over the
-	regions again for each one (96 months over the Sierra Nevada National Park took 5 minutes)."""
+	regions again for each one (96 months over the Sierra Nevada National Park took 5 minutes). With MIN_COVERAGE, the
+	rows also have coverage, and those of the steps below it no value (see the module)."""
+	min_coverage = check_min_coverage(min_coverage)
 	if variable.kind(spec) == 'image':
 		raise ValueError('a fixed image has no time series')
 	geom = regions.geometry()
@@ -93,23 +114,47 @@ def table(spec, regions, step='monthly', metric='mean', stat='mean', scale=None,
 	img = ee.Image.cat([composite.reduce_span(col, metric, a, b).rename(band)
 	                    for band, (a, b) in zip(bands, steps)])
 	n_images = ee.List([col.filterDate(a, b).size() for a, b in steps])
+	if min_coverage is not None:  # the pixels of each region (those that where and exclude_landcover keep), apart:
+		# a band more would change the names of the outputs of the steps (those of count are the names of the bands)
+		kept = variable.mask(spec, geom, scale) if variable.kind(spec) == 'catalog' or spec.get('where') or \
+			spec.get('exclude_landcover') else None
+		total = (kept if kept is not None else ee.Image(1)).rename('total')
+
+		def with_total(f):
+			f = ee.Feature(f)
+			n = total.reduceRegion(ee.Reducer.count(), f.geometry(), scale, crs, maxPixels=1e13,
+			                       tileScale=tile_scale).get('total')
+			return f.set('total_count', ee.Algorithms.If(n, n, 0))
+
+		regions = regions.map(with_total)
 	stats = img.reduceRegions(collection=regions, reducer=sred, scale=scale, crs=crs, tileScale=tile_scale)
 	prefix = [f'{band}_' if len(bands) > 1 else '' for band in bands]  # a single band keeps the names of the outputs
 
+	def row(f, i, p, a):
+		props = {'region': f.get('name'), 'date': a, 'value': composite.ee_value_of(f, stat, out, p),
+		         'n_pixels': f.get(p + 'count'), 'n_images': n_images.get(i)}
+		if min_coverage is not None:  # the fraction of the pixels of the region with a value (none without its count)
+			total, valid = ee.Number(f.get('total_count')), f.get(p + 'count')
+			cover = ee.Algorithms.If(valid, ee.Algorithms.If(total.gt(0), ee.Number(valid).divide(total), 0), None)
+			props['coverage'] = cover
+			props['value'] = ee.Algorithms.If(ee.Algorithms.IsEqual(cover, None), props['value'],
+			                                  ee.Algorithms.If(ee.Number(cover).gte(min_coverage), props['value'], None))
+		return ee.Feature(None, props)
+
 	def rows(f):
 		f = ee.Feature(f)
-		return ee.FeatureCollection([ee.Feature(None, {
-			'region': f.get('name'), 'date': a, 'value': composite.ee_value_of(f, stat, out, p),
-			'n_pixels': f.get(p + 'count'),
-			'n_images': n_images.get(i)}) for i, (p, (a, _)) in enumerate(zip(prefix, steps))])
+		return ee.FeatureCollection([row(f, i, p, a) for i, (p, (a, _)) in enumerate(zip(prefix, steps))])
 
 	return stats.map(rows).flatten()
 
 
-def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None, steps=None):
+def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None, progress=None, steps=None,
+           min_coverage=None):
 	"""Rows [{region, date, value, n_pixels, n_images}] of the time series, sorted by region and date, and the scale
 	used. STEPS: [(first day, day after the last)] instead of the steps of STEP. The steps are requested in blocks of
-	at most MAX_ROWS rows; PROGRESS(done, total) is called after each."""
+	at most MAX_ROWS rows; PROGRESS(done, total) is called after each. With MIN_COVERAGE, also coverage in each row, and
+	no value in the steps below it (see table)."""
+	min_coverage = check_min_coverage(min_coverage)
 	geom = regions.geometry()
 	scale = scale or auto_scale(spec, regions)
 	crs = region_crs(regions)
@@ -118,7 +163,7 @@ def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None
 	block = max(1, min(MAX_ROWS // n_regions, MAX_STEPS))
 	rows = []
 	for i in range(0, len(steps), block):
-		rows += _fetch(spec, regions, step, metric, stat, scale, steps[i:i + block], crs)
+		rows += _fetch(spec, regions, step, metric, stat, scale, steps[i:i + block], crs, min_coverage=min_coverage)
 		if progress:
 			progress(min(i + block, len(steps)), len(steps))
 	for r in rows:
@@ -127,20 +172,22 @@ def series(spec, regions, step='monthly', metric='mean', stat='mean', scale=None
 	return rows, scale
 
 
-def _fetch(spec, regions, step, metric, stat, scale, steps, crs, retries=4):
+def _fetch(spec, regions, step, metric, stat, scale, steps, crs, retries=4, min_coverage=None):
 	"""Rows of the STEPS: the request is split in two when Earth Engine has too many aggregations at the same time
 	or runs out of memory or time, and repeated (after 5, 10, 20 s) when it is busy."""
 	for attempt in range(retries):
 		try:
-			fc = table(spec, regions, step, metric, stat, scale, steps, crs)
+			fc = table(spec, regions, step, metric, stat, scale, steps, crs,
+			           **({'min_coverage': min_coverage} if min_coverage is not None else {}))
 			# Earth Engine leaves out the null properties: a step without images (e.g. Landsat in 2012) has no value
-			return [{'value': None, 'n_pixels': 0, **f['properties']} for f in fc.getInfo()['features']]
+			blank = {'value': None, 'n_pixels': 0, **({'coverage': 0} if min_coverage is not None else {})}
+			return [{**blank, **f['properties']} for f in fc.getInfo()['features']]
 		except ee.EEException as e:
 			msg = str(e).lower()
 			if any(s in msg for s in SPLIT_ERRORS) and len(steps) > 1:
 				half = len(steps) // 2
-				return (_fetch(spec, regions, step, metric, stat, scale, steps[:half], crs, retries)
-				        + _fetch(spec, regions, step, metric, stat, scale, steps[half:], crs, retries))
+				return (_fetch(spec, regions, step, metric, stat, scale, steps[:half], crs, retries, min_coverage)
+				        + _fetch(spec, regions, step, metric, stat, scale, steps[half:], crs, retries, min_coverage))
 			if attempt == retries - 1 or not any(s in msg for s in SPLIT_ERRORS + RETRY_ERRORS):
 				raise
 		time.sleep(2 ** attempt * 5)

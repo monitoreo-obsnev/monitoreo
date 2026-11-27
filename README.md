@@ -96,6 +96,12 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: Landsat 5 and 7 harmonized with Landsat 8 and 9, an option off by default (quality `harmonize`; `--harmonize` in the command line; a check box in the QGIS plugin and the Earth Engine app): their surface reflectance becomes that of Landsat 8 and 9 with the functions of Roy et al. (2016), so that a long series or trend of Landsat has no step in 2013.
+- **All tools**: Landsat 7 after 2003, an option off by default (quality `landsat7`; `--landsat7`; a check box): its images after the failure of its scan line corrector, with stripes without data, add images to 2003-2024 and give data from 2012-05-05 to 2013-03-18, between Landsat 5 and Landsat 8, a period that without it is refused.
+- **All tools**: The minimum coverage of the steps of the time series, their comparison, the trend table and the export of the series (`min_coverage`, e.g. 0.5; `--min-coverage`; a check box of 50 % in the QGIS plugin and the Earth Engine app): the steps whose valid pixels are less than that fraction of the region have no value, and the rows say the coverage of each step.
+
 ### [v0.3.79](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.79) · 2026-11-27 · package 0.3.89
 
 - **All tools**: Two new indices of Sentinel-2 and Landsat: the moisture stress index MSI (SWIR1 / NIR, higher is drier; Hunt & Rock 1989), in the theme Water, and the modified soil adjusted vegetation index MSAVI2 (Qi et al. 1994), for sparse vegetation, drylands and burned areas, in the theme Vegetation.

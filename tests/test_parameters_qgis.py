@@ -217,6 +217,8 @@ def _panel(plugin, monkeypatch, tmp_path):
 	p.cloud_score, p.set_filters, p.chosen_filters = _Check(True), set(), None
 	p.topographic = _Check(False)  # the topographic correction: off by default
 	p.snow_ndsi = _Check(False)  # the snow by its NDSI: off by default
+	p.harmonize, p.landsat7 = _Check(False), _Check(False)  # Landsat 5 and 7 as 8 and 9, Landsat 7 after 2003: off
+	p.min_coverage = _Check(False)  # the minimum coverage of the steps of the series: off
 	p.compare_on, p.other_start, p.other_end = _Check(False), _Date('2024-01-01'), _Date('2024-12-31')
 	p.step, p.ts_metric, p.stat = _Combo(d.STEPS, 'monthly'), _Combo(d.METRICS, 'mean'), _Combo(d.STATS, 'mean')
 	p.doy, p.doy_interannual = _Check(False), _Combo(d.DOY_INTERANNUAL)
@@ -295,7 +297,7 @@ def test_the_time_series_and_its_comparison(plugin, monkeypatch, tmp_path, fake)
 		 'metric': 'mean', 'stat': 'mean'}
 	assert fields['region']['value'] == ('extent', REGION['bbox']) and fields['compare']['value'] is None
 	assert fields['season']['value'] is None and fields['where']['value'] == {'conditions': [], 'landcover': None}
-	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False)
+	assert fields['quality']['value']['filters'] == dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False, harmonize=False, landsat7=False)
 	assert (fields['step']['value'], fields['ts_metric']['value'], fields['doy_other']['value']) == \
 		('monthly', 'mean', None)
 	assert fields['variable']['value']['collection'] == 'COPERNICUS/S2_SR_HARMONIZED'
@@ -530,7 +532,7 @@ def test_the_defaults_of_the_parameters_not_given(plugin):
 	                                                                  'sensor': 'Landsat'})
 	assert reports == [] and fields['map_metric'] == {'value': 'median', 'given': False, 'name': 'metric'}
 	assert fields['season']['value'] is None and fields['compare']['value'] is None
-	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False),
+	assert fields['quality'] == {'value': {'filters': dict({f: True for f in sensors.FILTERS}, cloud_score=True, topographic=False, snow_ndsi=False, harmonize=False, landsat7=False),
 	                                       'own': False}, 'given': False, 'name': 'quality'}
 	_, fields, reports = plugin.dock.panel_fields('download_image', {'variable': 'ELEVATION', 'sensor': 'Copernicus'})
 	assert 'quality' not in fields and 'period' not in fields  # a fixed layer
@@ -768,3 +770,33 @@ def test_the_help_explains_the_parameters(plugin):
 	assert f'{plugin.helptexts.about.MANUAL}/QGIS-plugin#parameters-of-an-analysis' in text
 	assert '<b>Copy parameters</b>' in help_['series_list']
 	assert "InfoButton(HELP['parameters'])" in _read('dock.py')
+
+
+def test_the_landsat_options_and_the_minimum_coverage(plugin, monkeypatch, tmp_path):
+	"""The check boxes of Landsat 5 and 7 harmonized, of Landsat 7 after 2003 and of the minimum coverage: in the
+	parameters only when checked (and, those of Landsat, when the variable can have them), taken back from them, and
+	reported when the variable of the panel cannot have them."""
+	panel = _panel(plugin, monkeypatch, tmp_path)
+	q = panel.quality_args()
+	assert 'harmonize' not in q and 'landsat7' not in q and panel.coverage_args() == {}
+	panel.harmonize.setChecked(True)
+	panel.landsat7.setChecked(True)
+	assert panel.quality_args()['harmonize'] is True and panel.quality_args()['landsat7'] is True
+	panel.harmonize.enabled = panel.landsat7.enabled = False  # as variable_changed leaves them with Sentinel-2
+	assert 'harmonize' not in panel.quality_args() and 'landsat7' not in panel.quality_args()
+	args = {'region': REGION, 'variable': 'NDVI', 'sensor': 'Landsat', 'start': '1990-01-01', 'end': '2020-12-31'}
+	_, fields, reports = plugin.dock.panel_fields('map_layer', dict(args, quality={'harmonize': True, 'landsat7': True}))
+	quality = fields['quality']['value']
+	assert quality['filters']['harmonize'] is True and quality['filters']['landsat7'] is True and not reports
+	assert sorted(r['name'] for r in panel.put_quality(quality, True, 'quality')) == ['quality.harmonize',
+	                                                                                  'quality.landsat7']
+	panel.harmonize.enabled = panel.landsat7.enabled = True
+	assert panel.put_quality(quality, True, 'quality') == [] and panel.harmonize.isChecked()
+	panel.min_coverage.setChecked(True)
+	assert panel.coverage_args() == {'min_coverage': plugin.dock.MIN_COVERAGE == 0.5 and 0.5}
+	for analysis in ('time_series', 'compare_series', 'trend_table', 'time_series_to_drive'):
+		extra = {'other_start': '2021-01-01', 'other_end': '2021-12-31'} if analysis == 'compare_series' else {}
+		_, fields, reports = plugin.dock.panel_fields(analysis, dict(args, min_coverage=0.5, **extra))
+		assert fields['min_coverage']['value'] is True and not [r for r in reports if 'coverage' in r['name']], analysis
+	_, _, reports = plugin.dock.panel_fields('time_series', dict(args, min_coverage=0.3))
+	assert [r['name'] for r in reports if 'coverage' in r['name']] == ['min_coverage']

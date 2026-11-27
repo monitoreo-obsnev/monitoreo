@@ -7,7 +7,10 @@
     of EVI or the - 0.0018 of the Landsat albedo need reflectances, not raw values);
   - band names of the formulas are matched without case (LST_day_1km is the band LST_Day_1km);
   - flag values of the MODIS products (e.g. 250 = cloud in NDSI_Snow_Cover) are masked;
-  - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector);
+  - Landsat 7 is only used until 2003-05-31, as the catalog says (failure of its scan line corrector), unless asked
+    (quality landsat7: its images with the gaps of the failure, see LANDSAT7);
+  - the surface reflectance of Landsat 5 and 7 can be harmonized with that of Landsat 8 and 9 (quality harmonize, see
+    HARMONIZE);
   - the snow cover frequency (SCF, formula SCF(green,nir,swir1)) classifies the snow of each image with its own
     rules and masks (SCF below).
 
@@ -26,6 +29,9 @@ References (monitoreo.references gives them, with those of the data, with each r
       E., Roth, L., Seal, D., Shaffer, S., Shimada, J., Umland, J., Werner, M., Oskin, M., Burbank, D., & Alsdorf,
       D. (2007). The Shuttle Radar Topography Mission. Reviews of Geophysics, 45(2), RG2004.
       https://doi.org/10.1029/2005RG000183 (the SRTM of the shadow of the relief of the SCF)
+    Roy, D. P., Kovalskyy, V., Zhang, H. K., Vermote, E. F., Yan, L., Kumar, S. S., & Egorov, A. (2016).
+      Characterization of Landsat-7 to Landsat-8 reflective wavelength and normalized difference vegetation index
+      continuity. Remote Sensing of Environment, 185, 57–70. https://doi.org/10.1016/j.rse.2015.12.024 (harmonize)
     Chander, G., Markham, B. L., & Helder, D. L. (2009). Summary of current radiometric calibration coefficients for
       Landsat MSS, TM, ETM+, and EO-1 ALI sensors. Remote Sensing of Environment, 113(5), 893–903.
       https://doi.org/10.1016/j.rse.2009.01.007 (the TOA reflectance of the snow in the shadow of the SCF)
@@ -86,7 +92,9 @@ FILTERS = ('clouds', 'water', 'snow', 'aerosols')
 # Landsat also lose the pixels whose NDSI (green, SWIR1) is that number or more (see snow_ndsi), e.g. 0.4: the snow that
 # their QA band misses (patches of snow, its edges), which raises a statistic such as the standard deviation of the
 # NDMI. Not for the variables that measure water (open water has a high NDSI too: see snow_ndsi_of).
-OPTIONS = {'topographic': False, 'snow_ndsi': None}
+# 'harmonize': the surface reflectance of Landsat 5 and 7 as that of Landsat 8 and 9 (see HARMONIZE). 'landsat7': the
+# images of Landsat 7 after 2003-05-31 too (see LANDSAT7).
+OPTIONS = {'topographic': False, 'snow_ndsi': None, 'harmonize': False, 'landsat7': False}
 # the bands of the NDSI of snow_ndsi: (green, SWIR1) with their scale and offset to surface reflectance
 SNOW_NDSI = {'Sentinel-2': ('B3', 'B11', 0.0001, 0.0), 'Landsat': ('green', 'swir1', 2.75e-05, -0.2)}
 SNOW_NDSI_DEFAULT = 0.4  # the threshold of the check boxes of the QGIS plugin and the Earth Engine app
@@ -236,6 +244,31 @@ TOPOGRAPHIC = {
 REFLECTANCE = {'Landsat': {'blue', 'green', 'red', 'nir', 'swir1', 'swir2'}}
 TOPOGRAPHIC_S2 = 'its Level-2A surface reflectance (Sen2Cor) is already corrected for the relief: use Landsat'
 
+# Harmonization of Landsat 5 and 7 with Landsat 8 and 9 (quality {'harmonize': True}): the OLI of Landsat 8 and 9 has
+# narrower bands than the TM of Landsat 5 and the ETM+ of Landsat 7, so the same surface gives other reflectances and
+# indices (the NDVI of OLI is higher), a step in 2013 in a long series that a trend takes as a change. With harmonize,
+# each surface reflectance band of Landsat 5 and 7 (after its scale and offset) becomes
+#     OLI = intercept + slope x ETM+
+# with the ordinary least squares (OLS) transformation of ETM+ to OLI surface reflectance of Roy et al. (2016, Table 2),
+# fitted on 59 million pixels of the conterminous United States imaged by both on the same day; it is used for the TM of
+# Landsat 5 too, as in the literature that follows Roy et al. (their spectral bands are almost the same as those of
+# ETM+). Landsat 8 and 9 are not changed, nor the surface temperature and the QA bands. {band: (slope, intercept)}, the
+# bands as named by raw_collection.
+HARMONIZE = {
+	'blue': (0.8474, 0.0003),
+	'green': (0.8483, 0.0088),
+	'red': (0.9047, 0.0061),
+	'nir': (0.8462, 0.0412),
+	'swir1': (0.8937, 0.0254),
+	'swir2': (0.9071, 0.0172),
+}
+LANDSAT_SR = (2.75e-05, -0.2)  # scale and offset of the surface reflectance of Landsat Collection 2 Level-2
+# Landsat 7 after the failure of its scan line corrector (2003-05-31; quality {'landsat7': True}): its images until
+# the end of its collection, each with about 22 % of its pixels without data, in stripes that widen towards the edges
+# of the scene; they add images to every year from 2003 to 2024 and fill the gap between Landsat 5 (until 2012-05-05)
+# and Landsat 8 (from 2013-03-18). Their reflectance is that of ETM+ (harmonize turns it into that of OLI).
+LANDSAT7 = {'collection': 'LANDSAT/LE07/C02/T1_L2', 'slc_failure': '2003-05-31'}
+
 
 def snow_ndsi(quality):
 	"""The NDSI threshold of QUALITY (snow_ndsi, see OPTIONS): a number greater than 0 and at most 1, or None (not
@@ -270,13 +303,80 @@ def check_snow_ndsi(entry, quality):
 		                 f"{entry.get('index')} of {entry.get('sensor')}")
 
 
-def topographic(quality):
-	"""Whether QUALITY asks for the topographic correction (see TOPOGRAPHIC): true, or a text such as 'true', 'yes',
-	'on' or '1' (as variable.specs reads it); not false, None, 0, 'false', 'no', 'off'."""
-	v = (quality or {}).get('topographic') if isinstance(quality, dict) else None
+def _yes(quality, key):
+	"""Whether QUALITY asks for the option KEY: true, or a text such as 'true', 'yes', 'on' or '1' (as variable.specs
+	reads it); not false, None, 0, 'false', 'no', 'off'."""
+	v = (quality or {}).get(key) if isinstance(quality, dict) else None
 	if isinstance(v, str):
 		return v.strip().lower() in ('true', 'yes', 'on', '1')
 	return bool(v)
+
+
+def harmonize(quality):
+	"""Whether QUALITY asks for the harmonization of Landsat 5 and 7 with Landsat 8 and 9 (see HARMONIZE)."""
+	return _yes(quality, 'harmonize')
+
+
+def landsat7(quality):
+	"""Whether QUALITY asks for the images of Landsat 7 after the failure of its scan line corrector (see LANDSAT7)."""
+	return _yes(quality, 'landsat7')
+
+
+def no_harmonize(entry):
+	"""Why the harmonization of Landsat 5 and 7 (see HARMONIZE) cannot be applied to the variable of ENTRY (a text), or
+	None if it can: only to the variables computed from the surface reflectance of Landsat, not to its surface
+	temperature, the snow cover frequency (its own thresholds of reflectance) nor the cloud frequency."""
+	if entry.get('sensor') != 'Landsat':
+		return f"{entry.get('index')} ({entry.get('sensor')}) is not a variable of Landsat"
+	return no_topographic(entry)
+
+
+def check_harmonize(entry, quality):
+	"""ValueError, before Earth Engine, if QUALITY asks for the harmonization of a variable that cannot have it (see
+	no_harmonize)."""
+	if harmonize(quality):
+		why = no_harmonize(entry)
+		if why:
+			raise ValueError(f'the harmonization of Landsat 5 and 7 with Landsat 8 and 9 (quality harmonize) is for the '
+			                 f'surface reflectance of Landsat: {why}. Leave it off')
+
+
+def check_landsat7(entry, quality):
+	"""ValueError if QUALITY asks for the images of Landsat 7 after 2003-05-31 (see LANDSAT7) for a variable that is
+	not of Landsat."""
+	if landsat7(quality) and entry.get('sensor') != 'Landsat':
+		raise ValueError(f"quality landsat7 (Landsat 7 after the failure of its scan line corrector) is for the variables "
+		                 f"of Landsat, not for {entry.get('index')} of {entry.get('sensor')}")
+
+
+def landsat_parts(quality=None):
+	"""The Landsat collections that MonitorEO reads with QUALITY: [(collection, bands, last date or None)], as LANDSAT,
+	Landsat 7 without its last date with quality landsat7."""
+	seven = landsat7(quality)
+	return [(c, b, None if seven and c == LANDSAT7['collection'] else last) for c, b, last in LANDSAT]
+
+
+def _harmonized(col):
+	"""The images of the Landsat 5 or 7 collection COL (bands named as in LANDSAT_57) with their surface reflectance
+	bands harmonized with Landsat 8 and 9 (HARMONIZE), still as raw values of the scale and offset of LANDSAT_SR (so that
+	the formulas, the true colour and the masks read them as those of the other collections)."""
+	scale, offset = LANDSAT_SR
+	bands = list(HARMONIZE)
+	slope = ee.Image.constant([HARMONIZE[b][0] for b in bands])
+	# raw' = (intercept + slope x (raw x scale + offset) - offset) / scale = raw x slope + (intercept + (slope - 1) offset) / scale
+	add = ee.Image.constant([(HARMONIZE[b][1] + (HARMONIZE[b][0] - 1) * offset) / scale for b in bands])
+
+	def one(i):
+		i = ee.Image(i)
+		return i.addBands(i.select(bands).multiply(slope).add(add).toFloat().rename(bands), None, True)
+
+	return col.map(one)
+
+
+def topographic(quality):
+	"""Whether QUALITY asks for the topographic correction (see TOPOGRAPHIC): true, or a text such as 'true', 'yes',
+	'on' or '1' (as variable.specs reads it); not false, None, 0, 'false', 'no', 'off'."""
+	return _yes(quality, 'topographic')
 
 
 def no_topographic(entry):
@@ -663,8 +763,9 @@ def raw_collection(entry, region, start, end, quality):
 
 	if sensor == 'Landsat':
 		scf = is_scf(entry)
+		harm = harmonize(quality) and not no_harmonize(entry)
 		cols = []
-		for col_id, aliases, last in LANDSAT:
+		for col_id, aliases, last in landsat_parts(quality):
 			end_l = min(end, last) if last else end
 			if end_l <= start:
 				continue
@@ -672,6 +773,8 @@ def raw_collection(entry, region, start, end, quality):
 			if scf:
 				c = c.filter(ee.Filter.lt('CLOUD_COVER', SCF['scene_clouds']))
 			c = c.select(list(aliases), list(aliases.values()))
+			if harm and aliases is LANDSAT_57:  # Landsat 5 and 7 as Landsat 8 and 9
+				c = _harmonized(c)
 			if 'SR_QA_AEROSOL' not in aliases:  # Landsat 5 and 7 have no aerosol QA: nothing is removed
 				c = c.map(lambda i: i.addBands(ee.Image.constant(0).toUint8().rename('SR_QA_AEROSOL')))
 			if scf:
@@ -711,6 +814,8 @@ def collection(entry, region, start, end, quality=None, resample=None, rgb=False
 	scale = number(entry.get('scale'), 1.0)
 	offset = number(entry.get('offset'), 0.0)
 	kind, bands = parse_formula(entry)
+	check_harmonize(entry, quality)  # before the SCF and the CF too: Landsat only, and its reflectances
+	check_landsat7(entry, quality)
 	if kind == 'scf':
 		return scf_collection(entry, region, start, end, quality, resample, rgb)
 	if kind == 'cf':

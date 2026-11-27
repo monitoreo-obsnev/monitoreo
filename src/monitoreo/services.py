@@ -528,7 +528,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 	"""Variables of the catalog of MonitorEO: [{ref, variable, sensor, collection, name, theme (its theme in the menus
 	of the tools, see themes), group (its class of ecosystem functioning), resolution_m, dates, unit}] (and
 	two_periods, RBR, or metric, the only metric of the SCF, and rgb when its images have a true colour, see has_rgb;
-	topographic when it can have the topographic correction, see sensors.TOPOGRAPHIC;
+	topographic when it can have the topographic correction, see sensors.TOPOGRAPHIC, and harmonize when it can have the
+	harmonization of Landsat 5 and 7, see sensors.HARMONIZE;
 	categorical and n_classes for a layer of class codes, see list_classes; circular for an angle, ASPECT, whose
 	conditions of where with min greater than max go across the north), optionally of one SENSOR (compared as
 	catalog.find does: 'merit hydro' and 'MERITHydro' are 'MERIT Hydro'), of one THEME (its key or its name) or with
@@ -563,6 +564,8 @@ def list_variables(sensor=None, text=None, lang='en', theme=None):
 			row['rgb'] = True  # its images have a true colour (rgb_map, download_rgb)
 		if not sensors.no_topographic(e):
 			row['topographic'] = True  # a surface reflectance of Landsat: quality {'topographic': True}
+		if not sensors.no_harmonize(e):
+			row['harmonize'] = True  # Landsat 5 and 7 as Landsat 8 and 9: quality {'harmonize': True}
 		if text and str(text).lower() not in f"{row['variable']} {e['vname']} {e.get('vname_en', '')}".lower():
 			continue
 		out.append(row)
@@ -915,8 +918,8 @@ def check_ylim(ylim, name='ylim'):
 def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 	"""The spec of the other variable of a profile by day of the year (the right axis): a variable of the catalog with
 	dates, with the period, season, metric, pixel filters and pixels of the region (where, exclude_landcover) of the
-	first one (its topographic correction only if it is a surface reflectance of Landsat, its snow by the NDSI only
-	for Sentinel-2 and Landsat), and its own
+	first one (its topographic correction and its harmonization of Landsat 5 and 7 only if it is a surface reflectance
+	of Landsat, Landsat 7 after 2003 only for Landsat, its snow by the NDSI only for Sentinel-2 and Landsat), and its own
 	rules (the SCF and the CF only take the metric mean); ValueError otherwise."""
 	if '/' in str(variable):
 		raise ValueError(f'other_variable {variable}: the variable of the right axis is a variable of the catalog of '
@@ -929,6 +932,10 @@ def _other_spec(variable, sensor, start, end, metric, season, quality, source):
 			quality = {k: v for k, v in quality.items() if k != 'topographic'}  # only for the reflectances
 		if sensors.snow_ndsi(quality) is not None and e['sensor'] not in sensors.SNOW_NDSI:  # only Sentinel-2, Landsat
 			quality = {k: v for k, v in quality.items() if k != 'snow_ndsi'}
+		if sensors.harmonize(quality) and sensors.no_harmonize(e):  # Landsat 5 and 7 as 8 and 9: only its reflectances
+			quality = {k: v for k, v in quality.items() if k != 'harmonize'}
+		if sensors.landsat7(quality) and e['sensor'] != 'Landsat':  # Landsat 7 after 2003: only Landsat
+			quality = {k: v for k, v in quality.items() if k != 'landsat7'}
 		spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality,
 		                 where=source.get('where'), exclude_landcover=source.get('exclude_landcover'))
 		variables.check_dates(spec, 'time series')
@@ -947,7 +954,8 @@ def _sensor_of(spec, sensor=None):
 @_cited
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, csv=None, chart=None, progress=None, doy=False,
-                interannual=None, other_variable=None, other_sensor=None, ylim=None, other_ylim=None, **source):
+                interannual=None, other_variable=None, other_sensor=None, ylim=None, other_ylim=None, min_coverage=None,
+                **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
@@ -963,7 +971,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	catalog with dates, computed as the first one (region, period, season, step, metric, statistic, pixel filters,
 	scale), drawn on a right axis (e.g. NDSI and NDVI). YLIM and OTHER_YLIM: (min, max) of the left and right y axes,
 	only when given; else each axis goes from the minimum to the maximum of the values of its own variable. The CSV of
-	the profile has its rows (timeseries.PROFILE_COLUMNS and PROFILE_META), not those of each year.
+	the profile has its rows (timeseries.PROFILE_COLUMNS and PROFILE_META), not those of each year. MIN_COVERAGE (0 to
+	1, e.g. 0.5): the steps whose valid pixels are less than that fraction of the pixels of the region have no value
+	(clouds, shadow or snow over most of it), and the rows (and the CSV) have their coverage (see timeseries).
 	Returns {'rows': [{region, date, value, n_pixels, n_images}], 'csv', 'chart', 'scale', 'unit', 'ylabel', 'title',
 	'n_steps', 'regions'}; with DOY also 'ylim' (YLIM, or None: from the data), and the rows have year and doy; with
 	the profile also 'profile' ([{region, variable, part, doy, label, value, n_years}]), 'variables' (the names of
@@ -1002,12 +1012,14 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 		first_total[0] = total
 		progress(done, 2 * total)
 
+	min_coverage = timeseries.check_min_coverage(min_coverage)
+	cover = {'min_coverage': min_coverage} if min_coverage is not None else {}
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale,
-	                                     first_progress if progress and other else progress)
+	                                     first_progress if progress and other else progress, **cover)
 	other_rows, other_scale = timeseries.series(
 		other, regions, step, metric, stat, scale,
-		(lambda done, total: progress(first_total[0] + done, first_total[0] + total)) if progress else None) \
-		if other else ([], None)
+		(lambda done, total: progress(first_total[0] + done, first_total[0] + total)) if progress else None,
+		**cover) if other else ([], None)
 	if doy:
 		timeseries.with_doy(rows)
 		timeseries.with_doy(other_rows)
@@ -1049,7 +1061,10 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	elif csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'unit': catalog.udunits(unit), 'scale_m': used_scale}
-		out['csv'] = timeseries.write_csv(rows, csv, meta, timeseries.COLUMNS + (['year', 'doy'] if doy else []))
+		if min_coverage is not None:
+			meta['min_coverage'] = min_coverage
+		out['csv'] = timeseries.write_csv(rows, csv, meta, timeseries.COLUMNS + (['coverage'] if min_coverage is not None
+		                                                                         else []) + (['year', 'doy'] if doy else []))
 	if chart and rows:
 		try:
 			if profiled:
@@ -1069,18 +1084,22 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 
 @_cited
 def time_series_to_drive(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean',
-                         stat='mean', season=None, quality=None, scale=None, folder='MonitorEO', name=None, **source):
-	"""Export the time series to a CSV file in FOLDER of Google Drive (for long series or many regions).
+                         stat='mean', season=None, quality=None, scale=None, folder='MonitorEO', name=None,
+                         min_coverage=None, **source):
+	"""Export the time series to a CSV file in FOLDER of Google Drive (for long series or many regions); with
+	MIN_COVERAGE, also the coverage of each step, and no value below it (see time_series).
 	Returns {'operation', 'file', 'folder'}."""
 	need_own_account()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
-	table = timeseries.table(spec, regions, step, metric, stat, scale)
+	min_coverage = timeseries.check_min_coverage(min_coverage)
+	table = timeseries.table(spec, regions, step, metric, stat, scale, min_coverage=min_coverage)
 	name = _slug(name or f"{_what(variable, sensor, source)}_{step}_{metric}_{start}_{end}")
 	task = ee.batch.Export.table.toDrive(collection=table, description=name[:100], folder=folder, fileNamePrefix=name,
-	                                     fileFormat='CSV', selectors=timeseries.COLUMNS)
+	                                     fileFormat='CSV',
+	                                     selectors=timeseries.COLUMNS + (['coverage'] if min_coverage is not None else []))
 	task.start()
 	return {'operation': task.operation_name or f'projects/{_project}/operations/{task.id}', 'file': name + '.csv',
 	        'folder': folder}
@@ -2101,13 +2120,14 @@ def download_variables(recipe, area, folder, layer=None, buffer=None, only=None,
 
 # Seasonal trends and comparison of periods ---------------------------------------------------------------------------
 
-def _seasonal_rows(spec, regions, step, metric, stat, scale, progress):
+def _seasonal_rows(spec, regions, step, metric, stat, scale, progress, min_coverage=None):
 	"""Regional values of each part of the year of STEP in each year: ([{region, part, year, date, value, n_pixels,
-	n_images}], scale)."""
+	n_images}], scale); with MIN_COVERAGE, no value where the valid pixels are less than that fraction of the region."""
 	bins = trends.seasonal_bins(spec, step)
 	part_year = {a: (p, y) for p, y, a, _ in bins}
 	rows, used = timeseries.series(spec, regions, step, metric, stat, scale, progress,
-	                               steps=[(a, b) for _, _, a, b in bins])
+	                               steps=[(a, b) for _, _, a, b in bins],
+	                               **({'min_coverage': min_coverage} if min_coverage is not None else {}))
 	for r in rows:
 		r['part'], r['year'] = part_year[r['date']]
 	return rows, used
@@ -2130,11 +2150,12 @@ COMPARISON_COLUMNS = ['region', 'key', 'label', 'reference', 'other', 'differenc
 @_cited
 def trend_table(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, alpha=0.05, test='mk', csv=None, chart=None, progress=None,
-                **source):
+                min_coverage=None, **source):
 	"""Seasonal trends of a variable over each feature of REGION (see monitoreo.trends): the spatial STAT of the
 	METRIC of each part of the year of STEP ('monthly': 12 months, '16-day': 23 parts of 16 days, 'annual': the
 	year) in each year, and the trend of each part over the years (Mann-Kendall tau, Z and p-value, Sen's slope per
-	year). TEST: 'mk' (the Mann-Kendall test), 'hamed-rao' (its variance corrected for the autocorrelation of the
+	year); with MIN_COVERAGE, without the values of the steps whose valid pixels are less than that fraction of the
+	region (see time_series). TEST: 'mk' (the Mann-Kendall test), 'hamed-rao' (its variance corrected for the autocorrelation of the
 	yearly values, Hamed & Rao 1998) or 'tfpw' (on the yearly values pre-whitened without their trend, Yue et al.
 	2002): see monitoreo.trends. Writes the trends to CSV and the chart of the yearly values with their Sen lines to
 	CHART if given.
@@ -2146,7 +2167,8 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
-	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
+	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress,
+	                              timeseries.check_min_coverage(min_coverage))
 	first = composite.windows(spec['period'], spec['season'])[0][0]
 	rows = trends.trend_rows(yearly, step, first, alpha=alpha, test=test)
 	unit = _unit(spec, stat)
@@ -2282,10 +2304,12 @@ def download_trend(region, variable=None, sensor=None, start=None, end=None, ste
 @_cited
 def compare_series(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                    step='monthly', metric='mean', stat='mean', season=None, quality=None, scale=None, csv=None,
-                   chart=None, progress=None, **source):
+                   chart=None, progress=None, min_coverage=None, **source):
 	"""Comparison of a reference period (START to END) with another (OTHER_START to OTHER_END) over each feature of
 	REGION: the spatial STAT of the METRIC of each part of the year of STEP ('monthly', '16-day' or 'annual') in each
-	year of both periods, and the mean of each part in each period and their difference (other - reference). Writes
+	year of both periods, and the mean of each part in each period and their difference (other - reference); with
+	MIN_COVERAGE, without the values of the steps whose valid pixels are less than that fraction of the region (see
+	time_series). Writes
 	the comparison to CSV and the chart of both periods by part of the year to CHART if given.
 	Returns {'profile': [{region, part, key, label, reference, other, difference, n_reference, n_other}], 'rows':
 	[{period ('reference' or 'other'), region, part, year, date, value, n_pixels, n_images}], 'csv', 'chart',
@@ -2299,8 +2323,9 @@ def compare_series(region, variable=None, sensor=None, start=None, end=None, oth
 	variables.check_dates(ref, 'comparisons of periods')
 	regions = areas.region(region)
 	scale = scale or timeseries.auto_scale(ref, regions)
-	ref_rows, _ = _seasonal_rows(ref, regions, step, metric, stat, scale, progress)
-	oth_rows, _ = _seasonal_rows(oth, regions, step, metric, stat, scale, progress)
+	min_coverage = timeseries.check_min_coverage(min_coverage)
+	ref_rows, _ = _seasonal_rows(ref, regions, step, metric, stat, scale, progress, min_coverage)
+	oth_rows, _ = _seasonal_rows(oth, regions, step, metric, stat, scale, progress, min_coverage)
 	for rows, name in ((ref_rows, 'reference'), (oth_rows, 'other')):
 		for r in rows:
 			r['period'] = name
