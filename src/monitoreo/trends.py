@@ -162,6 +162,7 @@ def _yearly_images(spec, region, res, step, part, metric):
 	"""[(year, image 'value': METRIC of the images of PART in that year, masked if it has none)], by year."""
 	col = variables.collection(spec, region, res)
 	composite.check_metric(metric)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year
 	out = [(year, composite.reduce_span(col, metric, a, b)) for u, year, a, b in seasonal_bins(spec, step) if u == part]
 	if not out:
 		raise ValueError(f'the period has no {part_label(step, part)}')

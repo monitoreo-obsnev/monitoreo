@@ -218,13 +218,13 @@ def _source_options(p, image=False):
 
 TOPOGRAPHIC_HELP = ('correct the surface reflectance of Landsat for the relief before the formula (SCS+C, Soenen et '
                     'al. 2005): for mountains, to compare slopes facing and away from the sun or dates with a low sun; '
-                    'not for Sentinel-2 (already corrected), flat land, water, snow, LST, SCF, SCD, CF, MODIS or the '
+                    'not for Sentinel-2 (already corrected), flat land, water, snow, LST, SCF, SCD, SMOD, CF, MODIS or the '
                     'climate. It costs more in Earth Engine (a regression per image)')
 
 
 SNOW_NDSI_HELP = ('with the snow filter, also remove the pixels of each image whose NDSI (green, SWIR1; Hall et al. '
                   '1995) is this number or more, e.g. 0.4: the patches of snow that the QA band misses (Sentinel-2 and '
-                  'Landsat; not for the NDSI, SCF and SCD, which measure snow, and not applied to the NDWI, Chl-a, NDCI and '
+                  'Landsat; not for the NDSI, SCF, SCD and SMOD, which measure snow, and not applied to the NDWI, Chl-a, NDCI and '
                   'WAVI, as open water has a high NDSI too)')
 
 

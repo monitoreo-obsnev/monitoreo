@@ -982,6 +982,7 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 		interannual = 'median' if other_variable else None
 	ylim, other_ylim = check_ylim(ylim, 'ylim'), check_ylim(other_ylim, 'other_ylim')
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'time series')
 	other = _other_spec(other_variable, other_sensor or sensor, start, end, metric, season, quality, source) \
 		if other_variable else None
@@ -1068,6 +1069,7 @@ def time_series_to_drive(region, variable=None, sensor=None, start=None, end=Non
 	Returns {'operation', 'file', 'folder'}."""
 	need_own_account()
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'time series')
 	regions = areas.region(region)
 	table = timeseries.table(spec, regions, step, metric, stat, scale)
@@ -1319,6 +1321,7 @@ def timelapse(region, variable=None, sensor=None, start=None, end=None, step='an
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	variables.check_dates(spec, 'animations')
 	composite.check_metric(metric)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year
 	steps = None if step == 'daily' else timeseries.bins(spec, step)  # the days with images need Earth Engine
 	if steps is not None:
 		animation.check(step, len(steps))
@@ -2135,6 +2138,7 @@ def trend_table(region, variable=None, sensor=None, start=None, end=None, step='
 	'unit', 'title'}."""
 	test = trends.check_test(test)  # before computing
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress)
@@ -2163,6 +2167,7 @@ def _trend(region, variable, sensor, start, end, step, part, metric, season, qua
            test='mk'):
 	test = trends.check_test(test)
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
 	part = _part(step, part)

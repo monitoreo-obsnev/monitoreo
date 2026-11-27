@@ -120,7 +120,10 @@ SCF_MODIS_NOTES = {
 	'ft': 'Snow cover frequency (SCF) of MODIS: % of the clear observations of each pixel with snow or ice, from the '
 	      'daily snow product of Terra (MOD10A1) or Aqua (MYD10A1), 500 m. Each image is 100 where NDSI_Snow_Cover >= 35 '
 	      '(an NDSI of 0.35, the threshold of the SCF of Landsat) and 0 where it is 0 to 34; clouds (250), inland water '
-	      'and ocean (237, 239), night and the other flags (200-255) have no data. Its only metric is the mean.',
+	      'and ocean (237, 239), night and the other flags (200-255) have no data. It needs no rule of the shadow of '
+	      'the relief: its NDSI is that of the TOA reflectance, without thresholds of brightness, and the screens of '
+	      'the product do not take the snow away in the shadow (checked against the SCF of Landsat 8 and 9 with its rule of the shadow, on the 112 days of both from November to May of 2014-15 to 2024-25 in the high Sierra Nevada, MODIS Terra saw 98.4 % of the snow '
+	      'of Landsat both in the shadow and in the sun, on its pixels of 500 m). Its only metric is the mean.',
 	'metric': SCF['notes']['metric'],
 	'filters': SCF['notes']['filters'],
 }
@@ -179,6 +182,48 @@ EXTRA.update({
 	          'references': ['hall1995', 'gascoin2019']}),
 	157: (8, {'index': 'SCD', 'ft': 'SCF(B3,B8,B11)', 'f': SCF_S2_F + '; days: the SCF of each month x its days, '
 	          'summed', 'm': 20, 'references': ['hall1995', 'gascoin2019']}),
+})
+# Snow melt-out day (SMOD): the day of the year when the snow of each pixel goes, from the images of its SCF (the same
+# rules and pixel filters, and in Landsat and Sentinel-2 its rule of the shadow of the relief): the first clear image without snow after the last one with snow, in
+# each season of each year (composite.melt): the only metric 'melt'. Earlier is blue-green, later dark blue.
+SMOD_PALETTE = ['ffffd9', 'edf8b1', 'c7e9b4', '7fcdbb', '41b6c4', '1d91c0', '225ea8', '253494', '081d58']
+SMOD_F = '; melt-out: the day of the year of the first clear image without snow after the last one with snow'
+SMOD = dict(SCF, **{
+	'vname': 'Día de deshielo', 'vname_en': 'Snow melt-out day', 'vname_fr': 'Snow melt-out day',
+	'vname_de': 'Snow melt-out day', 'unit': '[day of year]', 'minp': 1, 'maxp': 243, 'pm': SMOD_PALETTE,
+	'pg': '#225ea8',
+	'metric': 'melt',  # the only metric: the day of the first image without snow after the last with snow (composite.melt)
+	'axis': 'Snow Melt-Out Day (SMOD)',  # title of the y axis of the charts, before the unit
+	'notes': {
+		'ft': 'Snow melt-out day (SMOD): the day of the year (1 = 1 January) when the snow of each pixel goes, in each '
+		      'season of each year (by default 1 January to 31 August: from the melt of the low mountain to before the '
+		      'first snowfalls of autumn): the day of the first clear image without snow after the last image with '
+		      'snow, from the images of its snow cover frequency (SCF: each image snow or no snow, with the rules and '
+		      'the pixel filters of the SCF of its sensor: in Landsat and Sentinel-2, with its correction of the shadows '
+		      'of the relief; MODIS sees the snow in the shadow as in the sun and needs none). A pixel '
+		      'without snow in the whole season takes the day of its first clear image (the snow had gone before, or '
+		      'there was none); one whose snow does not go in the season has no data. It is the day of an image, so it '
+		      'can be up to the days between two clear images after the real melt-out (Sentinel-2: 5, since 2017; '
+		      'Landsat: 8 to 16; more with clouds; MODIS: daily, 500 m). Over several years (a map of a long period) it '
+		      'is the mean of the day of each year; a trend is in days per year (negative: earlier). A season across '
+		      'the new year counts the days from the 1 January of its spring (those before are 0 or negative). Its only '
+		      'metric is melt.',
+		'metric': 'it is the day of the first clear image without snow after the last one with snow, in each season '
+		          'of each year (see the formula): the snow melt-out day has no other metric',
+		'filters': SCF['notes']['filters'],
+	},
+})
+EXTRA.update({
+	# the snow melt-out day of Landsat, MODIS Terra and Aqua and Sentinel-2, from the images of their SCF (entries 105,
+	# 151, 152 and 156)
+	161: (5, {'index': 'SMOD', 'ft': 'SCF(green,nir,swir1)', 'f': EXTRA[105][1]['f'] + SMOD_F,
+	          'references': ['hall1995', 'barroudumont2025']}),
+	162: (6, {'index': 'SMOD', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F + SMOD_F,
+	          'references': ['hall1995', 'riggs2017', 'dietz2012']}),
+	163: (7, {'index': 'SMOD', 'ft': 'SCF(NDSI_Snow_Cover)', 'f': SCF_MODIS_F + SMOD_F,
+	          'references': ['hall1995', 'riggs2017', 'dietz2012']}),
+	164: (8, {'index': 'SMOD', 'ft': 'SCF(B3,B8,B11)', 'f': SCF_S2_F + SMOD_F, 'm': 20,
+	          'references': ['hall1995', 'gascoin2019', 'barroudumont2025']}),
 })
 DEM = {
 	'type': 'Topografía', 'type_en': 'Topography', 'type_fr': 'Topography', 'type_de': 'Topography',
@@ -419,7 +464,7 @@ EXTRA.update({
 	             'vname': 'Bioma', 'vname_en': 'Biome', 'vname_fr': 'Biome', 'vname_de': 'Biome'}),
 })
 
-TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
+TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'SMOD': SMOD, 'ELEVATION': DEM, 'SLOPE': DEM, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
              'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE}  # fields of EXTRA
 
@@ -433,6 +478,7 @@ UDUNITS = {
 	'[mg m⁻³]': 'mg m-3',
 	'[%]': '%',  # the snow cover frequency (UDUNITS percent)
 	'[days]': 'day',  # the snow cover days
+	'[day of year]': 'day',  # the snow melt-out day: days since the 31 December before (1 = 1 January)
 	'[m]': 'm',  # the elevation
 	'[°]': 'degree',  # the slope, an angle (UDUNITS arc_degree)
 	'[mm]': 'mm',  # the soil moisture, the precipitation of the bioclimatic variables
@@ -529,7 +575,7 @@ def load():
 THEMES = [
 	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI']},
 	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'Chl-a', 'NDCI']},
-	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD']},
+	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD', 'SMOD']},
 	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR'], 'analyses': ['burn_severity']},
 	{'key': 'energy', 'en': 'Energy and temperature', 'es': 'Energía y temperatura',
 	 'indices': ['LST', 'ALBEDO', 'ET', 'LE']},

@@ -52,9 +52,11 @@ PERCENTILES = [('Percentile 5', 'p5'), ('Percentile 10', 'p10'), ('Percentile 25
                ('Percentile 90', 'p90'), ('Percentile 95', 'p95')]
 SPREADS = [('Standard deviation', 'std'), ('Coefficient of variation (%)', 'cv')]
 METRICS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + PERCENTILES + SPREADS
-# the only metric of a variable that the others do not take (composite.DAYS: the snow cover days, SCD): in the lists of
-# the metrics only while that variable is chosen (variable_changed)
-ONLY_METRICS = [('Days (snow cover)', 'days')]
+# the only metric of a variable that the others do not take (composite.ONLY: the snow cover days, SCD, and the snow
+# melt-out day, SMOD): in the lists of the metrics only while that variable is chosen (variable_changed)
+ONLY_METRICS = [('Days (snow cover)', 'days'), ('Melt-out day (snow)', 'melt')]
+# the steps of the variables with one value per year (the snow melt-out day, composite.check_step): only Annual
+YEARLY_METRICS = ('melt',)
 STATS = [('Mean', 'mean'), ('Median', 'median'), ('Minimum', 'min'), ('Maximum', 'max')] + SPREADS + PERCENTILES
 TEMPORAL = [('Whole period', 'period'), ('Each year, then between years', 'annual'),
             ('Each month, then between years', 'monthly')]
@@ -3747,6 +3749,14 @@ class MonitorEODock(QDockWidget):
 				w.setCurrentIndex(max(0, w.findData(only)))
 			w.setEnabled(not only and not static)
 			w.setToolTip(f"{v['variable']} only takes the {only}" if only else '')
+		yearly = only in YEARLY_METRICS  # one value per year: the steps and the temporal aggregation, Annual (or period)
+		for w, value in ((self.step, 'annual'), (self.trend_step, 'annual'), (self.anim_step, 'annual')):
+			if yearly:
+				w.setCurrentIndex(max(0, w.findData(value)))
+			w.setEnabled(not yearly)
+			w.setToolTip(f"{v['variable']} has one value per year: the step is Annual" if yearly else '')
+		if yearly and self.temporal.currentData() not in ('period', 'annual'):
+			self.temporal.setCurrentIndex(max(0, self.temporal.findData('period')))
 		for w in (self.compare_on, self.season_on, self.season_start, self.season_end,
 		          self.temporal, self.interannual, self.series_box, self.trends_box, self.animation_box,
 		          self.export_series_button):
