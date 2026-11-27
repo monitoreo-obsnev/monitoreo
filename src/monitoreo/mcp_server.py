@@ -69,10 +69,11 @@ always tell the user, as those days may have no data (describe_variable gives th
 warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, MSI, MSAVI2, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
+LSWI, MSI, MSAVI2, Tasseled Cap TCB, TCG and TCW, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
 chlorophyll, aerosols, snow cover frequency, snow cover days, snow melt-out day, burn date) of Sentinel-2, Landsat and MODIS,
 with the pixel filters of MonitorEO (clouds, water, snow, aerosols). MSI (moisture stress index, SWIR1 / NIR: higher is
-drier) and MSAVI2 (modified soil adjusted vegetation index) of Sentinel-2 and Landsat. The NDWI and LSWI of MODIS from
+drier) and MSAVI2 (modified soil adjusted vegetation index) of Sentinel-2 and Landsat. The Tasseled Cap of Landsat (Crist
+1985): TCB (brightness), TCG (greenness) and TCW (wetness, for forest disturbance and recovery; with harmonize over 2013). The NDWI and LSWI of MODIS from
 the 8-day surface reflectance (collection "MODIS/061/MOD09A1", Terra, or "MODIS/061/MYD09A1", Aqua, 500 m, since 2000,
 with the filters of its StateQA): without collection the NDWI of MODIS is MODIS/MOD09GA_006_NDWI, which ends in
 2023-02. GPP and NPP (sensor "Modis", MOD17A3HGF Terra or MYD17A3HGF Aqua, 500 m, in kg C/m²/year): an image per

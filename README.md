@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: The Tasseled Cap of Landsat in the theme Vegetation: brightness, greenness and wetness (TCB, TCG and TCW), with the coefficients of Crist (1985) on the surface reflectance of Landsat 5, 7, 8 and 9, as the studies of forest disturbance and recovery with Landsat time series use them; with quality `harmonize` for the series that cross 2013.
+
 ### [v0.3.81](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.81) · 2026-11-27 · package 0.3.91
 
 - **Python package, R package, Command line, MCP server, Assistant**: The images and valid observations of a variable in each year, month or 16 days of a period over a region, after the pixel filters (`image_count`; `monitoreo count`; `mo_image_count()`): the images of each step, the valid images per pixel and the fraction of the region with data, to choose the period of a series or a trend before computing it (e.g. the summers of Landsat 5 in the 1990s). The QGIS plugin and the Earth Engine app give the same with the metric count of their time series.

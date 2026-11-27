@@ -273,7 +273,9 @@ e.g. ["06-01", "08-31"] for the summer.
 "SPEIbase" or "WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
 PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll index, B8 / B5 - 1), "CLreB7" (the same with B7) and "WAVI" (water adjusted \
 vegetation index); of Sentinel-2 and Landsat, "MSI" (moisture stress index, SWIR1 / NIR: higher is drier) and \
-"MSAVI2" (modified soil adjusted vegetation index: sparse vegetation, drylands, burned areas).
+"MSAVI2" (modified soil adjusted vegetation index: sparse vegetation, drylands, burned areas); of Landsat, the \
+Tasseled Cap "TCB" (brightness), "TCG" (greenness) and "TCW" (wetness: water and structure of the canopy, for forest \
+disturbance and recovery).
 - MODIS: the NDWI and the LSWI of the 8-day surface reflectance (500 m, since 2000) with collection \
 "MODIS/061/MOD09A1" (Terra) or "MODIS/061/MYD09A1" (Aqua); without it, the NDWI of MODIS ends in 2023-02. Primary \
 production "GPP" and "NPP" (sensor "Modis", kg C/m²/year, an image per year, 2001-2025, Aqua since 2003: step "annual"). Burn date \

@@ -93,7 +93,8 @@ def test_cite():
 	       ('PDSI', 'TerraClimate', None, {'abatzoglou2018'}),
 	       ('SPEI3', 'SPEIbase', None, {'vicenteserrano2010', 'begueria2014', 'speibase'}),
 	       ('BURNDATE', 'Modis', None, {'giglio2018', 'mcd64a1'}),
-	       ('BURNDATE', 'Modis', 'ESA/CCI/FireCCI/5_1', {'lizundialoiola2020', 'chuvieco2018'})]
+	       ('BURNDATE', 'Modis', 'ESA/CCI/FireCCI/5_1', {'lizundialoiola2020', 'chuvieco2018'}),
+	       ('TCW', 'Landsat', None, {'crist1985', 'usgs_landsat89'})]
 	for index, sensor, col, refs in new:
 		args = {'variable': index, 'sensor': sensor, 'start': '2020-01-01', 'end': '2020-12-31', 'collection': col}
 		cited = references.cite('map_layer', {k: v for k, v in args.items() if v})

@@ -15,9 +15,9 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 116  # the 47 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
+	assert len(entries) == 119  # the 50 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
 	# MSAVI2 of Landsat and Sentinel-2, the NDWI and LSWI of MODIS MOD09A1 and MYD09A1, the GPP and NPP of MOD17A3HGF and
-	# MYD17A3HGF: 165 to 176), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
+	# MYD17A3HGF: 165 to 176; the Tasseled Cap brightness, greenness and wetness of Landsat: 185 to 187), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
 	# 4 variables of ERA5-Land, 8 of TerraClimate, the precipitation of CHIRPS, the 19 of WorldClim, the RdNBR of
 	# Sentinel-2, Landsat and MODIS (Terra and Aqua), the topographic wetness index (TWI) of MERIT Hydro, the
@@ -119,6 +119,24 @@ def test_moisture_stress_and_modified_soil_adjusted_vegetation_index(monkeypatch
 	nir, red = 0.3, 0.1
 	assert abs(eval(catalog.find('MSAVI2', 'Landsat')['ft'], {'nir': nir, 'red': red}) -
 	           (2 * nir + 1 - ((2 * nir + 1) ** 2 - 8 * (nir - red)) ** 0.5) / 2) < 1e-12
+
+
+def test_the_tasseled_cap_of_landsat():
+	"""TCB, TCG and TCW of Landsat (Crist 1985): linear combinations of the six reflective bands (blue, green, red, NIR,
+	SWIR1, SWIR2, which sensors renames for Landsat 5 and 7 too), without unit, cited, in the theme Vegetation, with the
+	coefficients of the article."""
+	crist = {'TCB': (0.2043, 0.4158, 0.5524, 0.5741, 0.3124, 0.2303),
+	         'TCG': (-0.1603, -0.2819, -0.4934, 0.7940, -0.0002, -0.1446),
+	         'TCW': (0.0315, 0.2021, 0.3102, 0.1594, -0.6806, -0.6109)}
+	bands = ('blue', 'green', 'red', 'nir', 'swir1', 'swir2')
+	for ref, (index, coefficients) in zip((185, 186, 187), crist.items()):
+		e = catalog.find(index, 'Landsat')
+		assert (e['ref'], e['m'], e['unit'], e['references'], e['theme']) == (ref, 30, '[unitless]', ['crist1985'],
+		                                                                     'vegetation')
+		assert sensors.parse_formula(e) == ('expr', {b: b for b in bands}) and not sensors.no_harmonize(e)
+		for band, c in zip(bands, coefficients):  # each coefficient, with a reflectance of 1 in its band alone
+			assert abs(eval(e['ft'], {b: float(b == band) for b in bands}) - c) < 1e-12, (index, band)
+	assert catalog.load()['references']['crist1985']['doi'] == '10.1016/0034-4257(85)90102-6'
 
 
 def test_the_new_variables_of_modis_climate_and_fire():
