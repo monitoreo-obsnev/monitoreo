@@ -16,8 +16,10 @@
                                                      years of the values of each step of the year (each month, 16 days
                                                      or day), of one variable or of two on two y axes (e.g. NDSI and
                                                      NDVI)
-    monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D [--affected A --control C]
+    monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D [--affected A --control C | --ring]
                                                      severity and recovery after a disturbance (Marcos et al. 2023)
+    monitoreo ring --region JSON --out F.gpkg [--gap 150] [--width 1500] [--exclude JSON] [--within JSON]
+                                                     the control ring of an affected area, matched by elevation
     monitoreo count VARIABLE --sensor S --region JSON --start D --end D [--step annual] [--csv F] [--png F]
                                                      the images and valid observations of each step, after the
                                                      pixel filters: to choose a period before analysing it
@@ -242,6 +244,34 @@ LANDSAT7_HELP = ('use Landsat 7 also after 2003-05-31, with the stripes without 
                  '2013-03-18)')
 MIN_COVERAGE_HELP = ('leave without value the steps whose valid pixels (after the pixel filters) are less than this '
                      'fraction of the pixels of the region, e.g. 0.5; the CSV gets their coverage')
+
+
+def _ring_options(p, name='--ring'):
+	"""The options of the control ring (monitoreo.control) of the parser P."""
+	p.add_argument(name, action='store_true',
+	               help='the region is the affected area: also the series of a control ring around it (its pixels '
+	                    'matched by elevation, percentiles 5 to 95 of the affected area) and of their difference')
+	p.add_argument('--ring-gap', type=float, metavar='M', help='metres between the affected area and the ring (150)')
+	p.add_argument('--ring-width', type=float, metavar='M', help='width of the ring in metres (1500)')
+	p.add_argument('--ring-exclude', metavar='JSON', help='a region left out of the ring: other fires or disturbances')
+	p.add_argument('--ring-within', metavar='JSON', help='a region the ring stays inside, e.g. the protected area')
+	p.add_argument('--ring-match', nargs='*', metavar='VARIABLE',
+	               help='fixed layers that match the pixels, ELEVATION (the default) and SLOPE; none: no matching')
+
+
+def _ring(args):
+	"""The option ring of the services from the options of _ring_options: None without --ring."""
+	if not getattr(args, 'ring', False):
+		given = [o for o in ('ring_gap', 'ring_width', 'ring_exclude', 'ring_within', 'ring_match')
+		         if getattr(args, o, None) is not None]
+		if given:
+			sys.exit(f"ERROR: {', '.join('--' + g.replace('_', '-') for g in given)}: only with --ring")
+		return None
+	out = {'gap': args.ring_gap, 'width': args.ring_width,
+	       'exclude': json.loads(args.ring_exclude) if args.ring_exclude else None,
+	       'within': json.loads(args.ring_within) if args.ring_within else None,
+	       'match': args.ring_match}
+	return {k: v for k, v in out.items() if v is not None} or True
 
 
 def _topographic_option(p):
@@ -479,6 +509,16 @@ def main(argv=None):
 	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
+	_ring_options(p)
+	p = sub.add_parser('ring', help='the control ring of an affected area: a vector file of the '
+	                                                   'affected area and the ring, and the where that matches them')
+	p.add_argument('--region', required=True, help='JSON dictionary of the affected area, e.g. \'{"file": "fire.gpkg"}\'')
+	p.add_argument('--out', required=True, help='vector file to write (.gpkg, .geojson or .shp)')
+	p.add_argument('--gap', type=float, default=150, help='metres between the affected area and the ring (150)')
+	p.add_argument('--width', type=float, default=1500, help='width of the ring in metres (1500)')
+	p.add_argument('--exclude', metavar='JSON', help='a region left out of the ring: other fires or disturbances')
+	p.add_argument('--within', metavar='JSON', help='a region the ring stays inside, e.g. the protected area')
+	p.add_argument('--match', nargs='*', metavar='VARIABLE', help='fixed layers that match the pixels (ELEVATION, SLOPE)')
 	computes['recovery'] = p = sub.add_parser('recovery', help='severity and recovery after a disturbance (Marcos et al. '
 	                                                           '2023): S95, DIT, RRT, RET of the affected area, its control '
 	                                                           'and their difference')
@@ -493,6 +533,7 @@ def main(argv=None):
 	p.add_argument('--event', required=True, help='date of the disturbance, YYYY-MM-DD')
 	p.add_argument('--affected', help='name of the affected feature of the region (default: the only one)')
 	p.add_argument('--control', help='name of the control feature: also its metrics and those of the difference')
+	_ring_options(p)
 	p.add_argument('--step', default='monthly', choices=('monthly', '16-day', 'annual'))
 	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
 	p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
@@ -1114,12 +1155,26 @@ def _compute(args, services):
 	if args.cmd == 'recovery':
 		_recovery(args, services, progress)
 		return
+	if args.cmd == 'ring':
+		try:
+			res = services.control_ring(json.loads(args.region), args.gap, args.width,
+			                            json.loads(args.exclude) if args.exclude else None,
+			                            json.loads(args.within) if args.within else None, args.match, path=args.out)
+		except ValueError as e:
+			sys.exit(_error(e, args))
+		for name, ha in res['ha'].items():
+			print(f'{name}: {ha:,.1f} ha')
+		print('matched: ' + ('; '.join(f'{k} {v[0]:g} to {v[1]:g}' for k, v in res['match'].items()) or 'nothing'))
+		print(f"\n{res['title']} | {res['file']} | region: {{\"file\": \"{res['file']}\", \"name_field\": \"region\"}} "
+		      f"with --where '{json.dumps(res['where'])}'" + _documented(res))
+		return
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
 		                           progress=progress, where=_where(args), doy=args.doy, interannual=args.interannual,
 		                           other_variable=args.other_variable, other_sensor=args.other_sensor, ylim=args.ylim,
-		                           other_ylim=args.other_ylim, min_coverage=args.min_coverage, **args.source)
+		                           other_ylim=args.other_ylim, min_coverage=args.min_coverage, ring=_ring(args),
+		                           **args.source)
 	except ValueError as e:  # e.g. an image given as a collection, a unit that is not UDUNITS
 		sys.exit(_error(e, args))
 	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
@@ -1141,6 +1196,7 @@ def _recovery(args, services, progress):
 		                                affected=args.affected, control=args.control,
 		                                reference_years=args.reference_years, equilibrium=args.equilibrium,
 		                                min_coverage=args.min_coverage, csv=args.csv, chart=args.png, progress=progress,
+		                                ring=_ring(args),
 		                                where=_where(args), **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))

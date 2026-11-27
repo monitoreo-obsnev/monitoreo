@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Python package, R package, Command line, MCP server, Assistant, Earth Engine app**: A control ring around an affected area (`control_ring`; `monitoreo ring`; `mo_control_ring()`), as the EVEREST case studies built it: the land from 150 to 1,650 m of it (gap and width can change), without other disturbances (`exclude`) and only inside a region (`within`), with its pixels and those of the affected area matched by elevation (percentiles 5 and 95 in the affected area), written to a GeoPackage; and the option `ring` of the time series and the recovery metrics (`--ring`; a check box in the Earth Engine app): the series of the affected area, of its ring and of their difference. The QGIS plugin does not have it yet.
+
 ### [v0.3.82](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.82) · 2026-11-27 · package 0.3.92
 
 - **All tools**: The Tasseled Cap of Landsat in the theme Vegetation: brightness, greenness and wetness (TCB, TCG and TCW), with the coefficients of Crist (1985) on the surface reflectance of Landsat 5, 7, 8 and 9, as the studies of forest disturbance and recovery with Landsat time series use them; with quality `harmonize` for the series that cross 2013.

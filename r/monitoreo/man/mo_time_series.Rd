@@ -32,7 +32,8 @@ mo_time_series(
   other_sensor = NULL,
   ylim = NULL,
   other_ylim = NULL,
-  min_coverage = NULL
+  min_coverage = NULL,
+  ring = NULL
 )
 }
 \arguments{
@@ -162,6 +163,10 @@ default each axis goes from the minimum to the maximum of the values of its own 
 
 \item{min_coverage}{the smallest fraction of the pixels of the region with a valid value for a step to have a value,
 e.g. 0.5 (the others have none, and the rows get their coverage); default none.}
+
+\item{ring}{optional \code{TRUE} (or a list of the options of \code{mo_control_ring()}) with the affected area
+(e.g. a burned perimeter) as the region: also the series of a control ring around it, its pixels matched by
+elevation, and of their difference (region "affected - control").}
 }
 \value{
 A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the

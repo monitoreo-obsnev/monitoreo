@@ -59,7 +59,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, categorical, charts, classes, composite, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
+from . import animation, areas, catalog, categorical, charts, classes, composite, control, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -955,7 +955,7 @@ def _sensor_of(spec, sensor=None):
 def time_series(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, csv=None, chart=None, progress=None, doy=False,
                 interannual=None, other_variable=None, other_sensor=None, ylim=None, other_ylim=None, min_coverage=None,
-                **source):
+                ring=None, **source):
 	"""Time series of a variable over REGION (one or several features): a value per STEP ('daily', '16-day',
 	'monthly', 'annual') and region, reduced in time with METRIC and over the region with STAT (mean, median, min,
 	max, std or pN). Writes the table to CSV and the chart to CHART (PNG) if given. With DOY, the rows have also the
@@ -980,7 +980,9 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	the variables, as in the rows and the profile, e.g. ['NDSI Sentinel-2', 'NDVI Sentinel-2']), 'units' and 'scales'
 	({name: unit or pixel size}), 'interannual', 'other_ylabel' (None without OTHER_VARIABLE) and 'other_ylim'
 	(OTHER_YLIM, or None: from the data), and the rows of both variables, each with its 'variable' when there are
-	two."""
+	two. RING (True or the options of monitoreo.control, e.g. {'gap': 150, 'width': 1500}): REGION is the affected area,
+	and the series are those of the affected area, of its control ring (with its pixels matched by elevation) and of
+	their difference (region 'affected - control'); the answer has also 'ring' (see control_ring), not with doy."""
 	given = [k for k, v in zip(DOY_OPTIONS, (interannual, other_variable, other_sensor, ylim, other_ylim))
 	         if v is not None and v != '' and v != [] and v != ()]
 	if given and not doy:
@@ -996,6 +998,17 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	else:
 		interannual = 'median' if other_variable else None
 	ylim, other_ylim = check_ylim(ylim, 'ylim'), check_ylim(other_ylim, 'other_ylim')
+	if ring and doy:
+		raise ValueError('ring (the series of the affected area, its control and their difference) is not for the chart '
+		                 'by day of the year (doy)')
+	ring_info = None
+	if ring:
+		control.check(ring)  # before Earth Engine
+		checked = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+		composite.check_step(metric, step)
+		variables.check_dates(checked, 'time series')
+		region, ring_where, ring_info = _ring(region, ring)
+		source = dict(source, where=_where_list(source.get('where')) + ring_where)
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
 	variables.check_dates(spec, 'time series')
@@ -1020,6 +1033,8 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 		other, regions, step, metric, stat, scale,
 		(lambda done, total: progress(first_total[0] + done, first_total[0] + total)) if progress else None,
 		**cover) if other else ([], None)
+	if ring_info:  # the difference affected - control, a series more
+		rows = rows + control.difference_rows(rows)
 	if doy:
 		timeseries.with_doy(rows)
 		timeseries.with_doy(other_rows)
@@ -1037,6 +1052,8 @@ def time_series(region, variable=None, sensor=None, start=None, end=None, step='
 	       'bars': not doy and not profiled and composite.is_days(spec.get('metric'))}
 	if doy:
 		out['ylim'] = ylim
+	if ring_info:
+		out['ring'] = dict(ring_info, where=source['where'])
 	if profiled:
 		units, scales = {names[0]: unit}, {names[0]: used_scale}
 		out.update(profile=timeseries.doy_profile(rows, spec, step, interannual, names[0]), variables=names,
@@ -1156,6 +1173,87 @@ def image_count(region, variable=None, sensor=None, start=None, end=None, step='
 	return out
 
 
+CONTROL_TYPES = {'region': str, 'ha': float, 'gap_m': float, 'width_m': float, 'match': str}
+
+
+def _where_list(where):
+	"""The conditions of WHERE as a list: a single condition (a dictionary) is a list of one."""
+	return [where] if isinstance(where, dict) else list(where or [])
+
+
+def _polygons(geometry):
+	"""GEOMETRY (GeoJSON) without what is not a polygon: a GeometryCollection that an intersection or a difference left
+	with lines or points on shared edges becomes the MultiPolygon of its polygons."""
+	if not geometry or geometry.get('type') != 'GeometryCollection':
+		return geometry
+	coords = []
+	for g in geometry.get('geometries') or []:
+		if g.get('type') == 'Polygon':
+			coords.append(g['coordinates'])
+		elif g.get('type') == 'MultiPolygon':
+			coords += g['coordinates']
+	return {'type': 'MultiPolygon', 'coordinates': coords}
+
+
+def _ring(region, ring):
+	"""The affected area of REGION (the union of its features) and its control ring (monitoreo.control) with the options
+	RING: (the region of both, {'geojson': a FeatureCollection of 'affected' and 'control'}, the conditions of where that
+	match their pixels, {'gap', 'width', 'ha': {affected, control}, 'match': {variable: [p5, p95]}}). ValueError if the
+	ring is empty."""
+	opts = control.check(ring)
+	regions = areas.region(region)
+	fc = control.zones(regions, opts, areas.region(opts['exclude']) if opts['exclude'] else None,
+	                   areas.region(opts['within']) if opts['within'] else None)
+	feats = fc.map(lambda f: f.set('ha', f.geometry().area(control.MAX_ERROR).divide(1e4))).getInfo()['features']
+	ha = {f['properties']['name']: f['properties'].get('ha') or 0.0 for f in feats}
+	if not ha.get('control'):
+		raise ValueError('the control ring is empty: give a larger width, a smaller gap, or fewer areas in exclude or a '
+		                 'larger within')
+	affected = fc.filter(ee.Filter.eq('name', 'affected')).geometry()
+	where, matched = [], {}
+	for name in opts['match']:
+		spec = make_spec(name, control.MATCH[name])
+		img = variables.image(spec, affected, 30)
+		red = ee.Reducer.percentile(list(control.PERCENTILES))
+		got = img.reduceRegion(red, affected, 30, maxPixels=1e13, tileScale=4).getInfo() or {}
+		lo, hi = (got.get(f'value_p{p}') for p in control.PERCENTILES)
+		if lo is None or hi is None:
+			continue
+		matched[name] = [lo, hi]
+		where.append({'variable': name, 'sensor': control.MATCH[name], 'min': lo, 'max': hi})
+	gj = {'type': 'FeatureCollection', 'features': [
+		{'type': 'Feature', 'properties': {'name': f['properties']['name']}, 'geometry': _polygons(f['geometry'])}
+		for f in feats]}
+	return {'geojson': gj, 'name_field': 'name'}, where, {'gap': opts['gap'], 'width': opts['width'], 'ha': ha,
+	                                                     'match': matched}
+
+
+@_cited
+def control_ring(region, gap=control.DEFAULTS['gap'], width=control.DEFAULTS['width'], exclude=None, within=None,
+                 match=None, path=None):
+	"""The control area of a disturbance over REGION (its affected area: a perimeter, a burned area...): a ring from GAP
+	to GAP + WIDTH metres around it, without the land within GAP of EXCLUDE (a region: other fires or disturbances) and
+	only inside WITHIN (a region, e.g. the protected area), with the conditions of where that match the pixels of both
+	by MATCH (default ['ELEVATION']: between its percentiles 5 and 95 in the affected area); see monitoreo.control.
+	Writes both areas to PATH (a vector file, .gpkg, .geojson or .shp: the fields region, ha, gap_m, width_m and match),
+	to use as the region of the analyses with the where of the answer ({'file': PATH, 'name_field': 'region'}). Returns
+	{'region' (the two areas as a region of the tools, GeoJSON), 'where', 'ha': {affected, control}, 'match': {variable:
+	[p5, p95]}, 'gap', 'width', 'file'}."""
+	if path:
+		areas.vector_driver(path)
+	ring = {'gap': gap, 'width': width, 'exclude': exclude, 'within': within,
+	        **({'match': match} if match is not None else {})}
+	reg, where, info = _ring(region, ring)
+	out = dict(info, region=reg, where=where, file=None,
+	           title=f"Control ring of {info['width']:g} m at {info['gap']:g} m of the affected area")
+	if path:
+		text = '; '.join(f'{k} {v[0]:g} to {v[1]:g}' for k, v in info['match'].items())
+		rows = [{'region': f['properties']['name'], 'ha': info['ha'].get(f['properties']['name']), 'gap_m': info['gap'],
+		         'width_m': info['width'], 'match': text, 'geometry': f['geometry']} for f in reg['geojson']['features']]
+		out['file'] = areas.save_polygons(rows, path, 'zones', CONTROL_TYPES)
+	return out
+
+
 # the columns of the table of the recovery metrics (a row for the affected area, the control and their difference)
 RECOVERY_COLUMNS = ['series', 'region', 'direction', 'reference_median', 'reference_mad', 'S95', 'impact_pct',
                     'impact_mad', 'tINF', 'DIT_years', 'tREF', 'RRT_years', 'tEQ', 'RET_years', 'recovered_pct',
@@ -1185,7 +1283,7 @@ def _recovery_row(series, region, m):
 def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, event=None, step='monthly',
                      metric='mean', stat='mean', season=None, quality=None, scale=None, affected=None, control=None,
                      reference_years=recovery.REFERENCE_YEARS, equilibrium=recovery.EQUILIBRIUM, min_coverage=None,
-                     csv=None, chart=None, progress=None, **source):
+                     csv=None, chart=None, progress=None, ring=None, **source):
 	"""Severity and recovery after a disturbance on the date EVENT (a fire, a frost, an avalanche...): the time series
 	of the variable over REGION from START to END (as time_series: STEP monthly, the best, 16-day or annual; METRIC,
 	STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), and the metrics of the post-fire trajectories of Marcos et al. (2023)
@@ -1197,8 +1295,22 @@ def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, e
 	of the trajectories to CHART (PNG). Returns {'metrics': {'affected', 'control', 'difference'} (those of
 	monitoreo.recovery, without the last two without a control), 'rows': the table (RECOVERY_COLUMNS), 'series': the
 	rows of the time series, 'event', 'step', 'affected', 'control', 'reference_years', 'equilibrium', 'csv', 'chart',
-	'scale', 'unit', 'title'}."""
+	'scale', 'unit', 'title'}. RING (True or the options of monitoreo.control): REGION is the affected area, and the
+	control its ring (with its pixels matched by elevation; see control_ring), instead of AFFECTED and CONTROL; the
+	answer has also 'ring'."""
 	step, ev, reference_years, equilibrium = recovery.check(step, event, start, end, reference_years, equilibrium, season)
+	ring_info = None
+	if ring:
+		if affected is not None or control is not None:
+			raise ValueError('ring builds the control around the region: give the region alone (the affected area), '
+			                 'without affected and control')
+		globals()['control'].check(ring)
+		checked = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+		composite.check_step(metric, step)
+		variables.check_dates(checked, 'recovery metrics')
+		region, ring_where, ring_info = _ring(region, ring)
+		source = dict(source, where=_where_list(source.get('where')) + ring_where)
+		affected, control = 'affected', 'control'
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
 	composite.check_step(metric, step)
 	variables.check_dates(spec, 'recovery metrics')
@@ -1233,7 +1345,8 @@ def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, e
 	         f"{reference_years} years")
 	out = {'metrics': {k: recovery.clean(m) for k, m in out_metrics.items()}, 'rows': table, 'series': rows,
 	       'event': str(ev), 'step': step, 'affected': affected, 'control': control, 'reference_years': reference_years,
-	       'equilibrium': equilibrium, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title}
+	       'equilibrium': equilibrium, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title,
+	       **({'ring': dict(ring_info, where=source['where'])} if ring_info else {})}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'event': str(ev), 'step': step,
 		        'metric': metric, 'stat': stat, 'reference_years': reference_years, 'equilibrium': equilibrium,

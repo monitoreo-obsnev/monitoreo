@@ -980,6 +980,9 @@ mo_sf <- function(x, name = NULL) {
 #' @param ylim,other_ylim with \code{doy}: \code{c(min, max)} of the left and of the right y axis, only if given; by
 #'   default each axis goes from the minimum to the maximum of the values of its own variable.
 #' @param chart optional path of a PNG chart.
+#' @param ring optional \code{TRUE} (or a list of the options of \code{mo_control_ring()}) with the affected area
+#'   (e.g. a burned perimeter) as the region: also the series of a control ring around it, its pixels matched by
+#'   elevation, and of their difference (region "affected - control").
 #' @return A data.frame (region, date, value, n_pixels, n_images; with \code{doy}, also year and doy) with the
 #'   attributes title, unit, ylabel (title of the y axis of \code{mo_plot()}, e.g. "Snow Cover Frequency (SCF)
 #'   [\%]"), scale, csv, references and credits (see \code{mo_references()}), data_source (the Earth Engine
@@ -1024,7 +1027,7 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
                            where = NULL, image = NULL, band = NULL, band_reducer = NULL, band_scale = NULL,
                            band_offset = NULL, unit = NULL, doy = FALSE, chart = NULL, interannual = NULL,
                            other_variable = NULL, other_sensor = NULL, ylim = NULL, other_ylim = NULL,
-                           min_coverage = NULL) {
+                           min_coverage = NULL, ring = NULL) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   if (!is.null(other_variable) && grepl("/", other_variable, fixed = TRUE)) {
     stop("other_variable ", other_variable, ": the variable of the right axis is a variable of the catalog of ",
@@ -1037,7 +1040,7 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
                                 chart = if (is.null(chart)) NULL else path.expand(chart), interannual = interannual,
                                 other_variable = other_variable, other_sensor = other_sensor,
                                 ylim = axis_range(ylim, "ylim"), other_ylim = axis_range(other_ylim, "other_ylim"),
-                                min_coverage = min_coverage)
+                                min_coverage = min_coverage, ring = ring)
   profiled <- !is.null(res$variables)  # the seasonal profile (doy with interannual or other_variable)
   df <- rows_df(if (profiled) res$profile else res$rows)
   attr(df, "title") <- res$title
@@ -1047,6 +1050,7 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
   attr(df, "csv") <- res$csv
   attr(df, "ylim") <- axis_numbers(res$ylim)  # with doy: the range of the y axis, if given (NULL: from the data)
   attr(df, "bars") <- isTRUE(res$bars)  # the snow cover days (metric days): a bar per step in mo_plot()
+  attr(df, "ring") <- res$ring  # with ring: the hectares of both areas and the where that matches them
   if (profiled) {
     attr(df, "rows") <- rows_df(res$rows)
     attr(df, "variables") <- as.character(unlist(res$variables))
@@ -1057,6 +1061,38 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
     attr(df, "other_ylim") <- axis_numbers(res$other_ylim)
   }
   cited(df, res)
+}
+
+#' Control ring of an affected area
+#'
+#' The control area of a disturbance: a ring from \code{gap} to \code{gap + width} metres around the affected area
+#' (a burned perimeter, the area of an avalanche), without the land within \code{gap} of \code{exclude} (other fires)
+#' and only inside \code{within} (e.g. the protected area), and the \code{where} that matches the pixels of both by
+#' elevation (between its percentiles 5 and 95 in the affected area). Both areas are written to \code{path}, to use as
+#' the region of \code{mo_time_series()} or \code{mo_recovery_metrics()}; or give \code{ring = TRUE} to them.
+#' @param region the affected area (see \code{mo_params}).
+#' @param gap metres between the affected area and the ring (default 150).
+#' @param width width of the ring in metres (default 1500).
+#' @param exclude optional region left out of the ring (with \code{gap} around it).
+#' @param within optional region the ring stays inside.
+#' @param match fixed layers that match the pixels: \code{"ELEVATION"} (default) and/or \code{"SLOPE"};
+#'   \code{character(0)} for none.
+#' @param path optional vector file to write (.gpkg, .geojson or .shp).
+#' @return A list: region (both areas, as a region), where (the conditions that match them), ha (the hectares of the
+#'   affected area and the ring), match, gap, width, file, readme, references and credits.
+#' @examples
+#' \dontrun{
+#' mo_init()
+#' z <- mo_control_ring(mo_sf(sf::read_sf("fire.gpkg"), "region"), path = "zones.gpkg")
+#' z$ha
+#' }
+#' @export
+mo_control_ring <- function(region, gap = 150, width = 1500, exclude = NULL, within = NULL, match = NULL,
+                            path = NULL) {
+  res <- services()$control_ring(region, gap, width, exclude, within,
+                                 if (is.null(match)) NULL else as.list(match),
+                                 path = if (is.null(path)) NULL else path.expand(path))
+  res
 }
 
 #' Severity and recovery after a disturbance
@@ -1078,6 +1114,9 @@ mo_time_series <- function(region, variable = NULL, sensor = NULL, start, end, s
 #' @param min_coverage optional minimum coverage of the steps (see \code{mo_time_series()}).
 #' @param csv optional path of a CSV file with the table of the metrics.
 #' @param chart optional path of a PNG chart of the trajectories.
+#' @param ring optional \code{TRUE} (or a list of the options of \code{mo_control_ring()}: gap, width, exclude,
+#'   within, match) with the affected area alone as the region: the control is a ring around it, its pixels matched by
+#'   elevation, instead of \code{affected} and \code{control}.
 #' @return A data.frame with a row per series (affected, control, difference) and the columns series, region,
 #'   direction, reference_median, reference_mad, S95, impact_pct, impact_mad, tINF, DIT_years, tREF, RRT_years, tEQ,
 #'   RET_years, recovered_pct, z_min_first_year, z_max_first_year, steps_abs_z_over_2_after, sen_before, p_before,
@@ -1105,16 +1144,17 @@ mo_recovery_metrics <- function(region, variable = NULL, sensor = NULL, start, e
                                 control = NULL, step = "monthly", metric = "mean", stat = "mean", season = NULL,
                                 quality = NULL, scale = NULL, reference_years = 3, equilibrium = 0.05,
                                 min_coverage = NULL, csv = NULL, chart = NULL, collection = NULL, band = NULL,
-                                where = NULL) {
+                                where = NULL, ring = NULL) {
   check_data(variable, sensor, collection, NULL, band, NULL, NULL, NULL)
   res <- services()$recovery_metrics(region, variable, sensor, start, end, event, step, metric, stat,
                                      season = season, quality = quality, scale = scale, affected = affected,
                                      control = control, reference_years = as.integer(reference_years),
                                      equilibrium = equilibrium, min_coverage = min_coverage, csv = csv,
                                      chart = if (is.null(chart)) NULL else path.expand(chart),
-                                     collection = collection, band = band, where = where)
+                                     collection = collection, band = band, where = where, ring = ring)
   df <- rows_df(res$rows)
   attr(df, "metrics") <- res$metrics
+  attr(df, "ring") <- res$ring
   attr(df, "series") <- rows_df(res$series)
   attr(df, "title") <- res$title
   attr(df, "csv") <- res$csv

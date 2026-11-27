@@ -64,6 +64,9 @@ COLUMNS = {
 	'p_after': 'p-value of the Mann-Kendall test of the yearly means after the year of the event',
 	'amplitude_before': 'median yearly amplitude (maximum - minimum) of the seasonal component of STL before the event{u}',
 	'amplitude_after': 'the same after the event{u}',
+	'gap_m': 'distance between the affected area and the control ring (m)',
+	'width_m': 'width of the control ring (m)',
+	'match': 'conditions on the fixed layers that match the pixels of both areas (percentiles 5 and 95 in the affected area)',
 	'gaps': 'share of the steps without a value, filled by linear interpolation (0 in the difference: its two series '
 	        'are filled first)',
 	'event': 'date of the disturbance',
