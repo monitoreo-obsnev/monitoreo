@@ -180,6 +180,19 @@
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'Métrica de cada paso', stat: 'Estadístico de la región',
 			cvAxis: 'Coeficiente de variación',
 			computeSeries: 'Calcular la serie temporal',
+			ringOn: 'Anillo de control alrededor de la región (área afectada)',
+			recRing: 'Anillo de control alrededor de la región', ringGap: 'Separación (m)', ringWidth: 'Anchura (m)',
+			ringHelp: 'Series del área afectada (la región), de un anillo de control desde la separación hasta la ' +
+				'separación + la anchura alrededor de ella, con sus píxeles de la misma altitud (entre sus percentiles 5.º y 95.º ' +
+				'del área afectada, DEM de Copernicus), y de su diferencia afectada − control (BACI).',
+			recRingNote: 'El anillo sustituye al control elegido con el botón: uno u otro, no los dos.',
+			ringAreas: 'Área afectada: %s ha; anillo de control: %s ha, de %s a %s m de ella.',
+			ringMatch: 'Píxeles de ambas entre %s y %s m de altitud.',
+			ringDoy: 'El anillo de control no es para la serie por día del año: desmarca uno de los dos.',
+			ringCompare: 'El anillo de control no es para la comparación de periodos: desmarca uno de los dos.',
+			ringLayer: 'Anillo de control',
+			ringOnly: 'la app toma el anillo con su separación y anchura (gap, width), sin exclude ni within, emparejado ' +
+				'por la altitud',
 			recovery: 'Recuperación tras una perturbación', recEvent: 'Fecha del evento (AAAA-MM-DD)',
 			recReference: 'Años de referencia', recEquilibrium: 'Equilibrio (cambio relativo)',
 			recHelp: 'Severidad y recuperación tras un incendio, una helada, un alud... (Marcos et al. 2023): la serie ' +
@@ -536,6 +549,18 @@
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
 			cvAxis: 'Coefficient of variation',
 			computeSeries: 'Compute the time series',
+			ringOn: 'Control ring around the region (affected area)',
+			recRing: 'Control ring around the region', ringGap: 'Gap (m)', ringWidth: 'Width (m)',
+			ringHelp: 'Series of the affected area (the region), of a control ring from the gap to the gap + width ' +
+				'around it, with its pixels of the same elevation (between the 5th and 95th percentiles of the affected area, ' +
+				'Copernicus DEM), and of their difference affected − control (BACI).',
+			recRingNote: 'The ring replaces the control chosen with the button: one or the other, not both.',
+			ringAreas: 'Affected area: %s ha; control ring: %s ha, from %s to %s m from it.',
+			ringMatch: 'Pixels of both between %s and %s m of elevation.',
+			ringDoy: 'The control ring is not for the series by day of the year: uncheck one of them.',
+			ringCompare: 'The control ring is not for the comparison of periods: uncheck one of them.',
+			ringLayer: 'Control ring',
+			ringOnly: 'the app takes the ring with its gap and width, without exclude or within, matched by elevation',
 			recovery: 'Recovery after a disturbance', recEvent: 'Date of the event (YYYY-MM-DD)',
 			recReference: 'Reference years', recEquilibrium: 'Equilibrium (relative change)',
 			recHelp: 'Severity and recovery after a fire, a frost, an avalanche... (Marcos et al. 2023): the series of ' +
@@ -792,6 +817,9 @@
 		// written, and the control area (its features and name), chosen as the offset region
 		recoveryEvent: '', recoveryStep: 'monthly', recoveryRef: '3', recoveryEq: '0.05', recoveryControl: null,
 		recoveryName: null,
+		// the control ring (services.time_series and recovery_metrics with ring) of the series and of the recovery, and
+		// its gap and width as written (both sections)
+		ringOn: false, recoveryRing: false, ringGap: '150', ringWidth: '1500',
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
 		// its band, or how several are combined (combine: 'one', 'sum' or 'mean', the band_reducer of the package) and
 		// those checked (chosen), use (collection or image), scale, offset and unit as written, why the last ID could
@@ -2037,8 +2065,9 @@
 	}
 
 	// The spec of the variable over PERIOD (default: the period), or an Error with what is wrong; in the themes of
-	// the data of Earth Engine, the spec of their entry (dataEntry), without pixel filters (they keep their own mask)
-	function specOf(period, metric, ref) {
+	// the data of Earth Engine, the spec of their entry (dataEntry), without pixel filters (they keep their own mask);
+	// with WHERE, those conditions too (of the control ring)
+	function specOf(period, metric, ref, where) {
 		period = period || state.period;
 		checkPeriod(period);
 		var season = null;
@@ -2050,7 +2079,7 @@
 		if (e && e.problem) throw new Error(e.problem);
 		var what = e && e.custom ? {entry: e, quality: {}} : {ref: ref || state.ref, quality: qualityFor(ref || state.ref)};
 		var s = mo.spec({ref: what.ref, entry: what.entry, period: period.slice(), season: season, quality: what.quality,
-			metric: metric || 'mean', where: ref ? null : whereArgs()});
+			metric: metric || 'mean', where: ref ? null : where ? (whereArgs() || []).concat(where) : whereArgs()});
 		mo.windows(s.period, s.season);
 		if (!ref) mo.used(s);  // the data of the values of the result, under it
 		return s;
@@ -3172,12 +3201,12 @@
 		}));
 	}
 
-	// The time series of S (or, with PARTS, the values of each part of the year in each year: trends and comparisons):
-	// done(rows, scale)
-	function fetchSeries(s, metric, steps, id, done) {
+	// The time series of S (or, with PARTS, the values of each part of the year in each year: trends and comparisons)
+	// over the region, or the features REGIONS (the affected area and its control ring): done(rows, scale)
+	function fetchSeries(s, metric, steps, id, done, regions) {
 		if (steps.length > LIMITS.maxSteps) throw new Error(fmt(t('tooManySteps'), steps.length, LIMITS.maxSteps));
 		var scale = mo.autoScale(mo.entryOf(s), state.info.area);
-		mo.series(s, state.region, state.info.n, metric, state.stat, scale, state.info.crs, steps, function (error, rows) {
+		mo.series(s, regions || state.region, regions ? 2 : state.info.n, metric, state.stat, scale, state.info.crs, steps, function (error, rows) {
 			if (id !== run) return;
 			if (error) return fail(error);
 			done(rows, scale);
@@ -3190,31 +3219,81 @@
 		var e = entry();
 		computed(state.compareOn ? 'compare_series' : 'time_series');
 		if (!ready(e)) return;
+		if (state.compareOn && state.ringOn) throw new Error(t('ringCompare'));
 		if (state.compareOn) return compareSeries();
 		var s = specOf();
+		var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
+		if (state.ringOn) {  // its errors before Earth Engine (services.time_series)
+			if (doy) throw new Error(t('ringDoy'));
+			ringOptions();
+		}
 		if (isProfile()) return computeProfile(e, s);
 		var name = title(e, [metricName(state.stepMetric) + ' ' + t('s_' + state.step).toLowerCase(),
 			metricName(state.stat).toLowerCase()]);
 		var id = start();
-		function go(steps) {
+		function go(s, steps, regions, ring) {
 			fetchSeries(s, state.stepMetric, steps, id, function (rows, scale) {
 				if (!rows.some(function (r) { return r.value !== null; })) return noData();
-				var doy = state.doy && state.step !== 'annual';  // a line per year: not with a value per year
+				if (ring) rows = rows.concat(mo.ringDifference(rows));  // the difference affected - control
 				if (doy) mo.withDoy(rows);  // the year and the day of the year of each step
 				var columns = ['region', 'date', 'value', 'n_pixels', 'n_images'].concat(state.minCoverage ? ['coverage'] : [],
 					doy ? ['year', 'doy'] : []);
 				var bars = !doy && mo.isDays(state.stepMetric);  // the snow cover days: bars, and their table
 				show((doy ? regionsOf(rows).map(function (g) { return doyChart(rows, e, name, g); }) :  // each feature
 					[seriesChart(rows, e, name)]).concat(bars ? [seriesTable(rows)] : [],
-					bars && state.step === 'daily' ? [ui.Label(t('scdDailyNote'), SMALL)] : [], [
+					bars && state.step === 'daily' ? [ui.Label(t('scdDailyNote'), SMALL)] : [], ring ? [ring] : [], [
 					ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
 					csvWidget(rows, columns, name, e)]));
-			});
+			}, regions);
 		}
-		if (state.step !== 'daily') return go(mo.seriesBins(s, state.step));
-		mo.dailyDays(s, state.region.geometry()).evaluate(guardedAsync(id, function (days) {
-			go(mo.dailyBins(days));
+		function steps(s, regions, ring) {
+			if (state.step !== 'daily') return go(s, mo.seriesBins(s, state.step), regions, ring);
+			mo.dailyDays(s, (regions || state.region).geometry()).evaluate(guardedAsync(id, function (days) {
+				go(s, mo.dailyBins(days), regions, ring);
+			}));
+		}
+		if (!state.ringOn) return steps(s);
+		withRing(id, steps);
+	}
+
+	// The options of the control ring of the boxes (mo.checkRing: a decimal comma too)
+	function ringOptions() {
+		return mo.checkRing({gap: state.ringGap.replace(',', '.'), width: state.ringWidth.replace(',', '.')});
+	}
+
+	// services._ring for the panel: the region as the affected area and its control ring (ringOptions), drawn on the map,
+	// with their hectares and the range of elevation of the affected area (mo.ringInfo, mo.ringOf); then THEN(the spec
+	// with the conditions of where that match the pixels of both areas, the features of both, a label of the ring)
+	var ringLayer = null;  // the layer of the control ring on the map
+
+	function withRing(id, then) {
+		var opts = ringOptions();
+		var regions = mo.ringZones(state.region, opts);
+		mo.ringInfo(regions, opts.match).evaluate(guardedAsync(id, function (info) {
+			var r = mo.ringOf(info, opts), el = r.match.ELEVATION;
+			if (ringLayer) map.layers().remove(ringLayer);  // the ring of the last run only
+			ringLayer = map.addLayer(regions.style({color: '4f81bd', fillColor: '4f81bd33', width: 1}), {},
+				t('ringLayer'));
+			then(specOf(null, null, null, r.where), regions, ui.Label(fmt(t('ringAreas'), num(r.ha.affected),
+				num(r.ha.control), num(r.gap), num(r.gap + r.width)) + (el ? ' ' + fmt(t('ringMatch'), num(el[0]),
+				num(el[1])) : ''), SMALL));
 		}));
+	}
+
+	// The check box of the control ring KEY (of the state) labelled LABEL, with the boxes of its gap and width when it is
+	// on; THEN(on) after a change
+	function ringWidgets(label, key, then) {
+		var w = [check(t(label), state[key], function (v) {
+			state[key] = v;
+			if (then) then(v);
+			render();
+		})];
+		if (state[key]) {
+			w.push(row(ui.Label(t('ringGap')), box(state.ringGap, function (v) { state.ringGap = v.trim(); }, '60px'),
+				ui.Label(t('ringWidth')), box(state.ringWidth, function (v) { state.ringWidth = v.trim(); }, '60px')),
+				ui.Label(t('ringHelp'), SMALL));
+		}
+		return w;
 	}
 
 	function guardedAsync(id, f) {
@@ -3305,6 +3384,7 @@
 			render();
 		}));
 		if (state.doy) w = w.concat(doyWidgets());
+		w = w.concat(ringWidgets('ringOn', 'ringOn'));
 		w.push(minCoverageBox());
 		w.push(button(t('computeSeries'), guarded(computeSeries)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no time series
@@ -3509,18 +3589,27 @@
 		w.push(row(ui.Label(t('recReference')), box(state.recoveryRef, function (v) { state.recoveryRef = v.trim(); },
 			'40px'), ui.Label(t('recEquilibrium')), box(state.recoveryEq, function (v) { state.recoveryEq = v.trim(); },
 			'50px')));
-		// the control area: the region chosen when its button is pressed, as the offset region of the burn severity
-		w.push(ui.Label(state.recoveryControl ? fmt(t('recControlIs'), state.recoveryName) : t('recControlNone'), SMALL));
-		var use = button(t('recControlUse'), function () {
-			if (!state.region) return message(t('noRegion'), true);
-			state.recoveryControl = state.region;
-			state.recoveryName = state.regionName;
-			render();
-		});
-		w.push(state.recoveryControl ? row(use, button(t('recControlClear'), function () {
-			state.recoveryControl = state.recoveryName = null;
-			render();
-		})) : use);
+		// the control area: a ring around the region, or else the region chosen when its button is pressed, as the
+		// offset region of the burn severity (services.recovery_metrics: ring, or affected and control)
+		w = w.concat(ringWidgets('recRing', 'recoveryRing', function (v) {
+			if (v) state.recoveryControl = state.recoveryName = null;
+		}));
+		if (state.recoveryRing) {
+			w.push(ui.Label(t('recRingNote'), SMALL));
+		} else {
+			w.push(ui.Label(state.recoveryControl ? fmt(t('recControlIs'), state.recoveryName) : t('recControlNone'),
+				SMALL));
+			var use = button(t('recControlUse'), function () {
+				if (!state.region) return message(t('noRegion'), true);
+				state.recoveryControl = state.region;
+				state.recoveryName = state.regionName;
+				render();
+			});
+			w.push(state.recoveryControl ? row(use, button(t('recControlClear'), function () {
+				state.recoveryControl = state.recoveryName = null;
+				render();
+			})) : use);
+		}
 		w.push(button(t('computeRecovery'), guarded(computeRecovery)));
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no series
 	}
@@ -3534,32 +3623,37 @@
 		var c = mo.recoveryCheck(state.recoveryStep, state.recoveryEvent, s.period[0], s.period[1], state.recoveryRef,
 			state.recoveryEq, s.season);
 		mo.checkDates(s, 'recovery metrics');
-		var control = state.recoveryControl;
+		var ring = state.recoveryRing;  // the control: its ring (mo.RING_NAMES), or the region of its button
+		if (ring) ringOptions();  // its errors before Earth Engine
+		var control = ring ? null : state.recoveryControl;
 		if (control && control === state.region) throw new Error(t('recSame'));
 		var steps = mo.seriesBins(s, c[0]);
 		if (steps.length > LIMITS.maxSteps) throw new Error(fmt(t('tooManySteps'), steps.length, LIMITS.maxSteps));
-		var names = [state.regionName, control ? state.recoveryName : null];
-		var regions = ee.FeatureCollection([ee.Feature(state.region.geometry(), {name: 'affected'})].concat(control ?
-			[ee.Feature(control.geometry(), {name: 'control'})] : []));
+		var names = ring ? mo.RING_NAMES : [state.regionName, control ? state.recoveryName : null];
 		var name = title(e, [t('recovery').toLowerCase(), fmt(t('recEventIs'), c[1])]);
 		var scale = mo.autoScale(mo.entryOf(s), state.info.area);
 		var id = start();
-		mo.series(s, regions, control ? 2 : 1, state.stepMetric, state.stat, scale, state.info.crs, steps,
-			function (error, rows) {
-				if (id !== run) return;
-				if (error) return fail(error);
-				var of = {affected: [], control: []};
-				rows.forEach(function (r) { (of[r.region] || []).push(r); });
-				if (!of.affected.some(function (r) { return r.value !== null; })) return noData();
-				try {
-					showRecovery(mo.recoveryOf(of.affected, control ? of.control : null, names, c[0], c[1], c[2], c[3]),
-						e, name, scale, c[1]);
-				} catch (err) {
-					message(err.message || String(err), true);
-				}
-			}, function (k, n) {
-				if (id === run) message(fmt(t('progress'), k, n));
-			}, state.minCoverage);
+		function go(s, regions, label) {
+			mo.series(s, regions, ring || control ? 2 : 1, state.stepMetric, state.stat, scale, state.info.crs, steps,
+				function (error, rows) {
+					if (id !== run) return;
+					if (error) return fail(error);
+					var of = {affected: [], control: []};
+					rows.forEach(function (r) { (of[r.region] || []).push(r); });
+					if (!of.affected.some(function (r) { return r.value !== null; })) return noData();
+					try {
+						showRecovery(mo.recoveryOf(of.affected, ring || control ? of.control : null, names, c[0], c[1], c[2],
+							c[3]), e, name, scale, c[1], label);
+					} catch (err) {
+						message(err.message || String(err), true);
+					}
+				}, function (k, n) {
+					if (id === run) message(fmt(t('progress'), k, n));
+				}, state.minCoverage);
+		}
+		if (ring) return withRing(id, go);
+		go(s, ee.FeatureCollection([ee.Feature(state.region.geometry(), {name: 'affected'})].concat(control ?
+			[ee.Feature(control.geometry(), {name: 'control'})] : [])));
 	}
 
 	// The chart of the series S (_series of recovery.of_series) of the metrics M, with those of OTHER (the values of
@@ -3594,8 +3688,9 @@
 	}
 
 	// The table (the main columns of services.RECOVERY_COLUMNS, all of them in the CSV), the notes, the charts of the
-	// affected area and of the difference affected - control, and the references of the method
-	function showRecovery(r, e, name, scale, ev) {
+	// affected area and of the difference affected - control, and the references of the method; RING, the label of the
+	// control ring
+	function showRecovery(r, e, name, scale, ev, ring) {
 		var shown = ['direction', 'S95', 'impact_pct', 'DIT_years', 'RRT_years', 'RET_years', 'recovered_pct'];
 		var label = {affected: t('recAffected'), control: t('recControl'), difference: t('recDifference')};
 		var table = [[t('recSeries'), t('region')].concat(shown)].concat(r.rows.map(function (x) {
@@ -3612,7 +3707,7 @@
 			charts.push(recoveryChart(m.difference, null, label.difference, e, label.difference + ' · ' +
 				fmt(t('recEventIs'), ev)));
 		}
-		show([ui.Label(name, {fontWeight: 'bold'}), ui.Chart(table, 'Table')].concat(notes.map(function (n) { return ui.Label(n, WARNING); }), charts, [
+		show([ui.Label(name, {fontWeight: 'bold'}), ui.Chart(table, 'Table')].concat(ring ? [ring] : [], notes.map(function (n) { return ui.Label(n, WARNING); }), charts, [
 			ui.Label(t('recMethod'), SMALL), ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
 			csvWidget(r.rows, mo.RECOVERY_COLUMNS, name, e)]));
 	}
@@ -3981,7 +4076,7 @@
 			defaults: {step: 'annual', metric: 'median'}},
 		time_series: {group: 'series', button: 'computeSeries',
 			takes: ['region', 'step', 'metric', 'stat', 'doy', 'interannual', 'other_variable', 'other_sensor',
-				'min_coverage'].concat(SOURCE, PIXELS), defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
+				'min_coverage', 'ring'].concat(SOURCE, PIXELS), defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
 		compare_series: {group: 'series', button: 'computeSeries',
 			takes: ['region', 'other_start', 'other_end', 'step', 'metric', 'stat', 'min_coverage'].concat(SOURCE, PIXELS),
 			defaults: {step: 'monthly', metric: 'mean', stat: 'mean'}},
@@ -4005,7 +4100,7 @@
 		'band_scale', 'band_offset', 'unit', 'start', 'end', 'other_start', 'other_end', 'landcover', 'year', 'other_year',
 		'breaks', 'trend', 'zones', 'index', 'step', 'part', 'output', 'metric', 'temporal', 'interannual', 'stat', 'alpha',
 		'test', 'doy', 'other_variable', 'other_sensor', 'season', 'quality', 'where', 'vmin', 'vmax', 'percentiles',
-		'same_colours', 'min_coverage'];
+		'same_colours', 'min_coverage', 'ring'];
 	// areas.REGION_KEYS: the kinds of region of the services; the app takes some of them (applyRegion)
 	var REGION_KEYS = ['geojson', 'file', 'wdpa_id', 'wdpa_name', 'ecoregion_id', 'ecoregion_at', 'biome_id', 'biome_at',
 		'country', 'admin1', 'admin2', 'admin3', 'island_at', 'sea', 'sea_at', 'bbox', 'point'];
@@ -4235,6 +4330,10 @@
 		if (analysis === 'trend_table') p.stat = state.stat;
 		if (['time_series', 'compare_series', 'trend_table'].indexOf(analysis) >= 0 && state.minCoverage) {
 			p.min_coverage = state.minCoverage;
+		}
+		if (analysis === 'time_series' && state.ringOn) {
+			var ring = ringOptions();
+			p.ring = {gap: ring.gap, width: ring.width};
 		}
 		if (analysis === 'trend_map') {
 			p.output = state.output;
@@ -4813,6 +4912,18 @@
 				}
 			} else if (o.other_sensor !== undefined) {
 				skip('other_sensor', 'other_sensor is the sensor of other_variable');
+			}
+			state.ringOn = false;  // the control ring: its gap and width
+			if (o.ring !== undefined && o.ring !== false) {
+				try {
+					var ring = mo.checkRing(o.ring);
+					if (ring.exclude || ring.within || ring.match.join() !== 'ELEVATION') throw new Error(t('ringOnly'));
+					state.ringOn = true;
+					state.ringGap = String(ring.gap);
+					state.ringWidth = String(ring.width);
+				} catch (err) {
+					skip('ring', err.message || String(err));
+				}
 			}
 		}
 		if (analysis === 'trend_table' || analysis === 'trend_map') {

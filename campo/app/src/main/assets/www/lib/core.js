@@ -4641,6 +4641,152 @@ var MonitorEO = (function () {
 		return {metrics: m, rows: keys.map(function (k) { return recoveryRow(k, region[k], m[k]); })};
 	}
 
+	// The control area of a disturbance (control.py): a ring from gap to gap + width metres around the affected area,
+	// its pixels matched with those of the affected area by elevation (a condition of where with its percentiles 5 and
+	// 95 in the affected area, for both areas) ---------------------------------------------------------------------
+
+	// control.DEFAULTS, MATCH, PERCENTILES, MAX_ERROR (metres, of the buffers of the ring) and NAMES
+	var RING = {gap: 150, width: 1500, exclude: null, within: null, match: ['ELEVATION']};
+	var RING_MATCH = {ELEVATION: 'Copernicus', SLOPE: 'Copernicus'};
+	var RING_PERCENTILES = [5, 95], RING_MAX_ERROR = 10, RING_NAMES = ['affected', 'control'];
+
+	// repr() of Python of X (a value read from JSON), and str(), for the errors
+	function pyRepr(x) {
+		if (x === null || x === undefined) return 'None';
+		if (typeof x === 'boolean') return x ? 'True' : 'False';
+		if (typeof x === 'string') return repr(x);
+		if (Array.isArray(x)) return '[' + x.map(pyRepr).join(', ') + ']';
+		if (typeof x === 'object') {
+			return '{' + Object.keys(x).map(function (k) { return repr(k) + ': ' + pyRepr(x[k]); }).join(', ') + '}';
+		}
+		return String(x);
+	}
+
+	function pyStr(x) {
+		return typeof x === 'string' ? x : pyRepr(x);
+	}
+
+	// float() of Python: a number, a boolean or a text of a number (also inf and nan), or an Error
+	function pyFloat(x) {
+		if (typeof x === 'number' || typeof x === 'boolean') return Number(x);
+		var s = typeof x === 'string' ? x.trim().toLowerCase() : '';
+		if (/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/.test(s)) return Number(s);
+		if (/^[+-]?nan$/.test(s)) return NaN;
+		if (/^[+-]?inf(inity)?$/.test(s)) return s[0] === '-' ? -Infinity : Infinity;
+		throw new Error('not a number');
+	}
+
+	// control.check: the options of RING (true, or an object of the keys of RING) with their defaults, checked before
+	// Earth Engine: an Error for an unknown key, a gap below 0, a width of 0 or less, or a variable of match that cannot
+	// match
+	function checkRing(ring) {
+		var keys = Object.keys(RING).sort(), out = {}, k;
+		var object = ring !== null && typeof ring === 'object' && !Array.isArray(ring);
+		for (k in RING) out[k] = RING[k] && RING[k].slice ? RING[k].slice() : RING[k];
+		if (ring === true || (object && !Object.keys(ring).length)) return out;
+		if (!object) {
+			throw new Error('ring: true, or the options of the control ring ' + pyRepr(keys) + ', not ' + pyRepr(ring));
+		}
+		var unknown = Object.keys(ring).filter(function (x) { return keys.indexOf(x) < 0; }).sort();
+		if (unknown.length) {
+			throw new Error('ring: unknown options ' + unknown.join(', ') + '; the options are ' + keys.join(', '));
+		}
+		for (k in ring) if (ring[k] !== null && ring[k] !== undefined) out[k] = ring[k];
+		try {
+			out.gap = pyFloat(out.gap);
+			out.width = pyFloat(out.width);
+		} catch (err) {
+			throw new Error('ring: gap and width are distances in metres (e.g. 150 and 1500)');
+		}
+		if (out.gap < 0 || out.width <= 0) {
+			throw new Error('ring: gap (the distance from the affected area) is 0 or more metres, and width (that of the ' +
+				'ring) more than 0');
+		}
+		var match = typeof out.match === 'string' ? [out.match] : out.match ? [].concat(out.match) : [];
+		var up = match.map(function (m) { return pyStr(m).toUpperCase(); });
+		var wrong = match.filter(function (m, i) { return !RING_MATCH.hasOwnProperty(up[i]); });
+		if (wrong.length) {
+			throw new Error('ring: match takes ' + Object.keys(RING_MATCH).join(', ') + ' (fixed layers of the Copernicus ' +
+				'DEM), not ' + wrong.map(pyStr).join(', ') + '; give other conditions in where');
+		}
+		out.match = up;
+		return out;
+	}
+
+	// control.zones: ee.FeatureCollection of two features, the affected area (the union of the features of REGIONS) and
+	// its control ring with the options OPTS (checkRing), named affected and control; EXCLUDE and WITHIN are the
+	// ee.FeatureCollection of those options, or null (the app gives neither)
+	function ringZones(regions, opts, exclude, within) {
+		var affected = regions.geometry().dissolve(RING_MAX_ERROR), gap = opts.gap;
+		var outer = affected.buffer(gap + opts.width, RING_MAX_ERROR);
+		var inner = gap > 0 ? affected.buffer(gap, RING_MAX_ERROR) : affected;
+		var ring = outer.difference(inner, RING_MAX_ERROR);
+		if (exclude) {
+			ring = ring.difference(gap > 0 ? exclude.geometry().buffer(gap, RING_MAX_ERROR) : exclude.geometry(),
+				RING_MAX_ERROR);
+		}
+		if (within) ring = ring.intersection(within.geometry(), RING_MAX_ERROR);
+		return ee.FeatureCollection([ee.Feature(affected, {name: RING_NAMES[0]}), ee.Feature(ring, {name: RING_NAMES[1]})]);
+	}
+
+	// services._ring, in Earth Engine: ee.Dictionary of the hectares of both areas of FC (ringZones), {ha: {affected,
+	// control}}, and of the 5th and 95th percentiles of each fixed layer of MATCH over the affected area at 30 m, {match:
+	// {ELEVATION: {value_lo, value_hi}}}, to evaluate and give to ringOf
+	function ringInfo(fc, match) {
+		function part(n) {
+			return fc.filter(ee.Filter.eq('name', n)).geometry();
+		}
+		var affected = part(RING_NAMES[0]), got = {};
+		match.forEach(function (name) {
+			var img = image(spec({ref: findEntry(name, RING_MATCH[name]).ref}), affected, 30);
+			got[name] = img.reduceRegion({reducer: ee.Reducer.percentile(RING_PERCENTILES, ['lo', 'hi']),
+				geometry: affected, scale: 30, maxPixels: 1e13, tileScale: 4});
+		});
+		return ee.Dictionary({ha: ee.Dictionary({affected: affected.area(RING_MAX_ERROR).divide(1e4),
+			control: part(RING_NAMES[1]).area(RING_MAX_ERROR).divide(1e4)}), match: ee.Dictionary(got)});
+	}
+
+	// services._ring, after it: of the evaluated INFO (ringInfo) and the options OPTS, {gap, width, ha: {affected,
+	// control}, match: {variable: [p5, p95]}, where: the conditions of where that match the pixels of both areas}; an
+	// Error if the ring is empty
+	function ringOf(info, opts) {
+		var ha = {affected: info.ha.affected || 0, control: info.ha.control || 0}, where = [], matched = {};
+		if (!ha.control) {
+			throw new Error('the control ring is empty: give a larger width, a smaller gap, or fewer areas in exclude or a ' +
+				'larger within');
+		}
+		opts.match.forEach(function (name) {
+			var got = (info.match || {})[name] || {};
+			var lo = got.value_lo, hi = got.value_hi;
+			if (lo === null || lo === undefined || hi === null || hi === undefined) return;
+			matched[name] = [lo, hi];
+			where.push({ref: findEntry(name, RING_MATCH[name]).ref, min: lo, max: hi});
+		});
+		return {gap: opts.gap, width: opts.width, ha: ha, match: matched, where: where};
+	}
+
+	// control.difference_rows: the rows of the difference affected - control of the series ROWS (those of both, by
+	// region and date): a row per date with both values, region 'affected - control' and the value of their difference
+	function ringDifference(rows) {
+		var by = {}, dates = [], out = [];
+		rows.forEach(function (r) {
+			if (!by.hasOwnProperty(r.date)) {
+				by[r.date] = {};
+				dates.push(r.date);
+			}
+			by[r.date][r.region] = r;
+		});
+		function has(r) { return r && r.value !== null && r.value !== undefined; }
+		dates.sort().forEach(function (d) {
+			var a = by[d][RING_NAMES[0]], c = by[d][RING_NAMES[1]];
+			if (has(a) && has(c)) {
+				out.push({region: RING_NAMES[0] + ' - ' + RING_NAMES[1], date: d, value: a.value - c.value, n_pixels: null,
+					n_images: a.n_images === undefined ? null : a.n_images});
+			}
+		});
+		return out;
+	}
+
 	// Burn severity (fire.py) ---------------------------------------------------------------------------------------
 
 	var SEVERITY = [  // [class, lowest dNBR of the class, name es, name en]
@@ -5402,6 +5548,8 @@ var MonitorEO = (function () {
 		yearsBetween: yearsBetween, regular: regular, rollingMedian: rollingMedian, recoveryMetrics: recoveryMetrics,
 		anomalies: anomalies, yearlyTrends: yearlyTrends, seasonalAmplitude: seasonalAmplitude,
 		recoveryClean: recoveryClean, ofSeries: ofSeries, recoveryDifference: recoveryDifference, recoveryCommon: recoveryCommon,
-		recoveryRow: recoveryRow, recoveryOf: recoveryOf
+		recoveryRow: recoveryRow, recoveryOf: recoveryOf,
+		RING: RING, RING_MATCH: RING_MATCH, RING_NAMES: RING_NAMES, checkRing: checkRing, ringZones: ringZones,
+		ringInfo: ringInfo, ringOf: ringOf, ringDifference: ringDifference
 	};
 })();

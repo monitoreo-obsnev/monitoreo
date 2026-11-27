@@ -546,6 +546,20 @@ def item_facts(tool, args, result=None, names=None):
 		                                       f"{_stat(args.get('interannual') or 'mean')} (interannual value)"))
 	if tool in ('time_series', 'trend_table', 'compare_series', 'recovery_metrics'):
 		facts.append(('Spatial statistic', _stat(args.get('stat') or 'mean')))
+	ring = args.get('ring') if tool in ('time_series', 'recovery_metrics') else True if tool == 'control_ring' else None
+	if ring:
+		r = (result or {}).get('ring') if tool != 'control_ring' else result
+		r = r if isinstance(r, dict) else {}
+		def first(key, default):  # the first one given, 0 included
+			for v in ((ring.get(key) if isinstance(ring, dict) else None), args.get(key), r.get(key)):
+				if v is not None:
+					return v
+			return default
+		gap, width = first('gap', 150), first('width', 1500)
+		matched = '; '.join(f'{k} {v[0]:g} to {v[1]:g}' for k, v in (r.get('match') or {}).items())
+		facts.append(('Control ring', f'from {float(gap):g} to {float(gap) + float(width):g} m of the affected area'
+		                              + (f'; its pixels and those of the affected area with {matched} (percentiles 5 and '
+		                                 '95 in the affected area)' if matched else '')))
 	if tool == 'recovery_metrics':
 		facts.append(('Event', str(args.get('event'))))
 		facts.append(('Areas', f"affected {args.get('affected') or (result or {}).get('affected')}" + (

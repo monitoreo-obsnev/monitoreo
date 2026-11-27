@@ -26,7 +26,8 @@ mo_recovery_metrics(
   chart = NULL,
   collection = NULL,
   band = NULL,
-  where = NULL
+  where = NULL,
+  ring = NULL
 )
 }
 \arguments{
@@ -127,6 +128,10 @@ covers), e.g. without the water bodies and the built-up areas of CORINE Land Cov
 categorical layer (\code{"ECOREGION"} or \code{"BIOME"}, sensor \code{"RESOLVE"}) keeps the pixels of some
 classes (\code{classes}) or leaves them out (\code{exclude}), by their codes (\code{mo_classes()}), e.g. only the
 Mediterranean biome: \code{list(list(variable = "BIOME", sensor = "RESOLVE", classes = list(12)))}.}
+
+\item{ring}{optional \code{TRUE} (or a list of the options of \code{mo_control_ring()}: gap, width, exclude,
+within, match) with the affected area alone as the region: the control is a ring around it, its pixels matched by
+elevation, instead of \code{affected} and \code{control}.}
 }
 \value{
 A data.frame with a row per series (affected, control, difference) and the columns series, region,

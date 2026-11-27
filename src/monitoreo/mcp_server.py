@@ -649,7 +649,8 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
                 band_offset: Optional[float] = None, unit: Optional[str] = None, where: Optional[list] = None,
                 doy: bool = False, interannual: Optional[str] = None, other_variable: Optional[str] = None,
                 other_sensor: Optional[str] = None, ylim: Optional[List[float]] = None,
-                other_ylim: Optional[List[float]] = None, min_coverage: Optional[float] = None):
+                other_ylim: Optional[List[float]] = None, min_coverage: Optional[float] = None,
+                ring: Optional[Union[bool, dict]] = None):
 	"""Time series of a variable over a region: one value per step ('daily', '16-day', 'monthly', 'annual') and
 	feature of the region, reduced in time with METRIC (mean, median, min, max, std, cv, pN) and over the region with
 	STAT (mean, median, min, max, std, cv, pN; cv: coefficient of variation, 100 * std / mean, in %), with the number
@@ -660,7 +661,10 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	in each image, which takes burned land for water: for the series of a burned area); scale: pixel size of the statistics in metres. doy: a line per year over the days of the year (not with
 	step annual); with interannual (the metric between the years of each step, default median) or other_variable (and
 	other_sensor; right axis), a line per variable. ylim, other_ylim: [min, max] of the y axes (default: the data's).
-	min_coverage: e.g. 0.5, no value in the steps with valid pixels in less than that fraction of the region."""
+	min_coverage: e.g. 0.5, no value in the steps with valid pixels in less than that fraction of the region. ring: true
+	(or {"gap": 150, "width": 1500, "exclude": region, "within": region}) when the region is an affected area (a burned
+	perimeter): also the series of a control ring around it, its pixels matched by elevation, and of their difference
+	(BACI; see control_ring)."""
 	source = _source(variable, sensor, collection, image, band, band_scale, band_offset, unit,
 	                 band_reducer=band_reducer)
 	_dates(variable, sensor, source, 'time series', start=start, end=end)
@@ -671,11 +675,11 @@ def time_series(region: dict, variable: Optional[str] = None, sensor: Optional[s
 	res = services.time_series(region, variable, sensor, start, end, step, metric, stat, season=season,
 	                           quality=quality, scale=scale, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
 	                           where=where, doy=doy, interannual=interannual, other_variable=other_variable,
-	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, min_coverage=min_coverage,
+	                           other_sensor=other_sensor, ylim=ylim, other_ylim=other_ylim, min_coverage=min_coverage, ring=ring,
 	                           **source)
 	rows = res['rows']
 	summary = {k: res.get(k) for k in ('title', 'unit', 'ylabel', 'scale', 'n_steps', 'regions', 'csv', 'chart', 'readme', 'parameters',
-	                                    'references', 'credits', 'manual')}
+	                                    'references', 'credits', 'manual', 'ring')}
 	_notes(summary, res)
 	if doy:
 		summary['ylim'] = res.get('ylim')
@@ -1065,13 +1069,30 @@ def image_count(region: dict, variable: Optional[str] = None, sensor: Optional[s
 
 
 @tool
+def control_ring(region: dict, gap: float = 150, width: float = 1500, exclude: Optional[dict] = None,
+                 within: Optional[dict] = None, match: Optional[List[str]] = None) -> str:
+	"""The control area of a disturbance: a ring from gap to gap + width metres around the region (the affected area: a
+	burned perimeter, the area of an avalanche...), without the land within gap of exclude (a region: other fires or
+	disturbances) and only inside within (a region, e.g. the protected area), and the where that matches the pixels of
+	both by elevation (match: ["ELEVATION"], the default, and/or "SLOPE"; [] for none: its percentiles 5 and 95 in the
+	affected area). Writes both areas to a GeoPackage (file): use {"file": <file>, "name_field": "region"} with that where
+	as the region of time_series or recovery_metrics (affected "affected", control "control"), or simply ring true in
+	them. Returns the hectares of both areas, the where and the file."""
+	_ready()
+	path = _out(_stem('control_ring', f'{gap:g}', f'{width:g}'), 'gpkg')
+	res = services.control_ring(region, gap, width, exclude, within, match, path=path)
+	return _text({k: res.get(k) for k in ('title', 'ha', 'match', 'where', 'gap', 'width', 'file', 'readme', 'references',
+	                                       'credits')})
+
+
+@tool
 def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
                      end: str, event: str, affected: Optional[str] = None, control: Optional[str] = None,
                      step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
                      season: Optional[List[str]] = None, quality: Optional[dict] = None, scale: Optional[float] = None,
                      reference_years: int = 3, equilibrium: float = 0.05, min_coverage: Optional[float] = None,
                      collection: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
-                     where: Optional[list] = None):
+                     where: Optional[list] = None, ring: Optional[Union[bool, dict]] = None):
 	"""Severity and recovery after a disturbance (fire, frost, avalanche, harvest, pest) on the date event, with the
 	metrics of the post-fire trajectories of Marcos et al. (2023): the time series of the variable over the region from
 	start to end (step "monthly" is the best; start at least reference_years before the event), decomposed with a robust
@@ -1081,8 +1102,10 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
 	anomalies after the event and the trends (Mann-Kendall, Sen) of the yearly means before and after it. The region
 	has the affected area and, better, a control area (unburned land near it, of the same vegetation) as two features:
 	affected and control are their names (e.g. {"file": "zones.gpkg", "name_field": "region"}); then also the control
-	and the difference affected - control (BACI), which removes the climate of the region. Writes a CSV of the metrics
-	and a PNG chart of the trajectories. Required: region, start, end, event, and variable and sensor."""
+	and the difference affected - control (BACI), which removes the climate of the region. Or ring true (or its options,
+	see control_ring) with the affected area alone as the region: the control is then a ring around it, its pixels
+	matched by elevation. Writes a CSV of the metrics and a PNG chart of the trajectories. Required: region, start, end,
+	event, and variable and sensor."""
 	source = _source(variable, sensor, collection, None, band, None, None, None)
 	_dates(variable, sensor, source, 'recovery metrics', start=start, end=end)
 	_ready()
@@ -1091,10 +1114,10 @@ def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optio
 	                                quality=quality, scale=scale, affected=affected, control=control,
 	                                reference_years=reference_years, equilibrium=equilibrium,
 	                                min_coverage=min_coverage, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
-	                                where=where, **source)
+	                                where=where, ring=ring, **source)
 	summary = {k: res.get(k) for k in ('title', 'event', 'affected', 'control', 'reference_years', 'equilibrium', 'unit',
 	                                    'scale', 'rows', 'metrics', 'csv', 'chart', 'readme', 'parameters', 'references',
-	                                    'credits', 'manual')}
+	                                    'credits', 'manual', 'ring')}
 	_notes(summary, res)
 	out = [_text(summary)]
 	if res.get('chart'):
