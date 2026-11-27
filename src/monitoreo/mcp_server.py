@@ -1065,6 +1065,45 @@ def image_count(region: dict, variable: Optional[str] = None, sensor: Optional[s
 
 
 @tool
+def recovery_metrics(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str,
+                     end: str, event: str, affected: Optional[str] = None, control: Optional[str] = None,
+                     step: str = 'monthly', metric: str = 'mean', stat: str = 'mean',
+                     season: Optional[List[str]] = None, quality: Optional[dict] = None, scale: Optional[float] = None,
+                     reference_years: int = 3, equilibrium: float = 0.05, min_coverage: Optional[float] = None,
+                     collection: Optional[str] = None, band: Optional[Union[str, List[str]]] = None,
+                     where: Optional[list] = None):
+	"""Severity and recovery after a disturbance (fire, frost, avalanche, harvest, pest) on the date event, with the
+	metrics of the post-fire trajectories of Marcos et al. (2023): the time series of the variable over the region from
+	start to end (step "monthly" is the best; start at least reference_years before the event), decomposed with a robust
+	STL, and for the affected area: the reference (median ± MAD of the years before), the severity S95 and the impact
+	(% and MADs), DIT (years to the inflection of the trend), RRT (years until back in the reference: the recovery
+	time; empty if not recovered), RET (years to a new equilibrium), the share of the loss recovered, the standardized
+	anomalies after the event and the trends (Mann-Kendall, Sen) of the yearly means before and after it. The region
+	has the affected area and, better, a control area (unburned land near it, of the same vegetation) as two features:
+	affected and control are their names (e.g. {"file": "zones.gpkg", "name_field": "region"}); then also the control
+	and the difference affected - control (BACI), which removes the climate of the region. Writes a CSV of the metrics
+	and a PNG chart of the trajectories. Required: region, start, end, event, and variable and sensor."""
+	source = _source(variable, sensor, collection, None, band, None, None, None)
+	_dates(variable, sensor, source, 'recovery metrics', start=start, end=end)
+	_ready()
+	stem = _stem('recovery', _data(variable, sensor, source), event, step, start, end)
+	res = services.recovery_metrics(region, variable, sensor, start, end, event, step, metric, stat, season=season,
+	                                quality=quality, scale=scale, affected=affected, control=control,
+	                                reference_years=reference_years, equilibrium=equilibrium,
+	                                min_coverage=min_coverage, csv=_out(stem, 'csv'), chart=_out(stem, 'png'),
+	                                where=where, **source)
+	summary = {k: res.get(k) for k in ('title', 'event', 'affected', 'control', 'reference_years', 'equilibrium', 'unit',
+	                                    'scale', 'rows', 'metrics', 'csv', 'chart', 'readme', 'parameters', 'references',
+	                                    'credits', 'manual')}
+	_notes(summary, res)
+	out = [_text(summary)]
+	if res.get('chart'):
+		with open(res['chart'], 'rb') as f:
+			out.append(Image(data=f.read(), format='png'))
+	return out
+
+
+@tool
 def trend_table(region: dict, variable: Optional[str] = None, sensor: Optional[str] = None, *, start: str, end: str,
                 step: str = 'annual', metric: str = 'mean', stat: str = 'mean', season: Optional[List[str]] = None,
                 quality: Optional[dict] = None, scale: Optional[float] = None, alpha: float = 0.05,

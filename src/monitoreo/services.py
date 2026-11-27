@@ -59,7 +59,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, categorical, charts, classes, composite, coverage, drive, figures, fire, landcover, maps, references, sensors, timeseries, trends
+from . import animation, areas, catalog, categorical, charts, classes, composite, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import Grid, download
@@ -1150,6 +1150,100 @@ def image_count(region, variable=None, sensor=None, start=None, end=None, step='
 			drawn = [dict(r, value=r['observations']) for r in out_rows]
 			charts.time_series_png(drawn, chart, title=title, ylabel='Valid observations per pixel',
 			                       source=coverage.source(), bars=True)
+			out['chart'] = chart
+		except ImportError:  # no matplotlib: the table and the CSV are still there
+			pass
+	return out
+
+
+# the columns of the table of the recovery metrics (a row for the affected area, the control and their difference)
+RECOVERY_COLUMNS = ['series', 'region', 'direction', 'reference_median', 'reference_mad', 'S95', 'impact_pct',
+                    'impact_mad', 'tINF', 'DIT_years', 'tREF', 'RRT_years', 'tEQ', 'RET_years', 'recovered_pct',
+                    'z_min_first_year', 'z_max_first_year', 'steps_abs_z_over_2_after', 'sen_before', 'p_before',
+                    'sen_after', 'p_after', 'amplitude_before', 'amplitude_after', 'gaps']
+
+
+def _recovery_row(series, region, m):
+	"""The row of the table of the recovery metrics M of SERIES ('affected', 'control' or 'difference')."""
+	ref = m.get('reference') or {}
+	an = m.get('anomalies') or {}
+	tr = m.get('trends') or {}
+	amp = m.get('seasonal_amplitude') or {}
+	before, after = tr.get('before') or {}, tr.get('after') or {}
+	return {'series': series, 'region': region, 'direction': m.get('direction'), 'reference_median': ref.get('median'),
+	        'reference_mad': ref.get('mad'), 'S95': m.get('S95'), 'impact_pct': m.get('impact_pct'),
+	        'impact_mad': m.get('impact_mad'), 'tINF': m.get('tINF'), 'DIT_years': m.get('DIT_years'),
+	        'tREF': m.get('tREF'), 'RRT_years': m.get('RRT_years'), 'tEQ': m.get('tEQ'), 'RET_years': m.get('RET_years'),
+	        'recovered_pct': m.get('recovered_pct'), 'z_min_first_year': an.get('z_min_first_year'),
+	        'z_max_first_year': an.get('z_max_first_year'), 'steps_abs_z_over_2_after': an.get('steps_abs_z_over_2_after'),
+	        'sen_before': before.get('sen_per_year'), 'p_before': before.get('p_value'),
+	        'sen_after': after.get('sen_per_year'), 'p_after': after.get('p_value'),
+	        'amplitude_before': amp.get('before'), 'amplitude_after': amp.get('after'), 'gaps': m.get('gaps')}
+
+
+@_cited
+def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, event=None, step='monthly',
+                     metric='mean', stat='mean', season=None, quality=None, scale=None, affected=None, control=None,
+                     reference_years=recovery.REFERENCE_YEARS, equilibrium=recovery.EQUILIBRIUM, min_coverage=None,
+                     csv=None, chart=None, progress=None, **source):
+	"""Severity and recovery after a disturbance on the date EVENT (a fire, a frost, an avalanche...): the time series
+	of the variable over REGION from START to END (as time_series: STEP monthly, the best, 16-day or annual; METRIC,
+	STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), and the metrics of the post-fire trajectories of Marcos et al. (2023)
+	of the feature AFFECTED of the region (its name; the only one if the region has one) and, with CONTROL (the name of
+	another feature: unburned land near it, of the same vegetation), of the control and of the difference affected -
+	control (BACI), which separates the effect of the disturbance from the climate of the region: see monitoreo.recovery.
+	REFERENCE_YEARS: the years before the event of the reference (median ± MAD); EQUILIBRIUM: the relative change of the
+	yearly medians below which the series is in equilibrium (RET). Writes the table of the metrics to CSV and the chart
+	of the trajectories to CHART (PNG). Returns {'metrics': {'affected', 'control', 'difference'} (those of
+	monitoreo.recovery, without the last two without a control), 'rows': the table (RECOVERY_COLUMNS), 'series': the
+	rows of the time series, 'event', 'step', 'affected', 'control', 'reference_years', 'equilibrium', 'csv', 'chart',
+	'scale', 'unit', 'title'}."""
+	step, ev, reference_years, equilibrium = recovery.check(step, event, start, end, reference_years, equilibrium, season)
+	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)
+	variables.check_dates(spec, 'recovery metrics')
+	regions = areas.region(region)
+	min_coverage = timeseries.check_min_coverage(min_coverage)
+	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress,
+	                                     **({'min_coverage': min_coverage} if min_coverage is not None else {}))
+	names = sorted({r['region'] for r in rows})
+	if affected is None and len(names) == 1:
+		affected = names[0]
+	if affected is None or str(affected) not in names:
+		raise ValueError(f"affected: the name of the affected feature of the region, one of {', '.join(names)}"
+		                 + ('' if affected is None else f', not {affected!r}'))
+	affected = str(affected)
+	if control is not None and (str(control) not in names or str(control) == affected):
+		others = [n for n in names if n != affected]
+		raise ValueError(f"control: the name of another feature of the region, one of {', '.join(others)}, not {control!r}"
+		                 if others else 'control: the region has one feature only; give the affected area and the control '
+		                                'as two features of the region')
+	control = str(control) if control is not None else None
+	of = {name: [r for r in rows if r['region'] == name] for name in names}
+	out_metrics = {'affected': recovery.of_series(of[affected], step, ev, reference_years, equilibrium)}
+	if control:
+		out_metrics['control'] = recovery.of_series(recovery.common(of[affected], of[control], step), step, ev,
+		                                            reference_years, equilibrium)
+		out_metrics['difference'] = recovery.of_series(recovery.difference(of[affected], of[control], step), step, ev,
+		                                               reference_years, equilibrium, relative=False)
+	table = [_recovery_row(k, affected if k == 'affected' else control if k == 'control' else
+	                        f'{affected} - {control}', m) for k, m in out_metrics.items()]
+	unit = _unit(spec, stat)
+	title = (f"Recovery of {_series_name(spec)} after {ev} | {step} {metric}, spatial {stat}, reference of "
+	         f"{reference_years} years")
+	out = {'metrics': {k: recovery.clean(m) for k, m in out_metrics.items()}, 'rows': table, 'series': rows,
+	       'event': str(ev), 'step': step, 'affected': affected, 'control': control, 'reference_years': reference_years,
+	       'equilibrium': equilibrium, 'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title}
+	if csv:
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'event': str(ev), 'step': step,
+		        'metric': metric, 'stat': stat, 'reference_years': reference_years, 'equilibrium': equilibrium,
+		        'unit': catalog.udunits(unit), 'scale_m': used_scale}
+		out['csv'] = timeseries.write_csv(table, csv, meta, RECOVERY_COLUMNS)
+	if chart:
+		try:
+			charts.recovery_png(out_metrics['affected'], out_metrics.get('difference'), ev, chart, title,
+			                    _ylabel(spec, stat) or None, (affected, control or ''), out_metrics.get('control'),
+			                    source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass

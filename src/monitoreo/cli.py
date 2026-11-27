@@ -16,6 +16,8 @@
                                                      years of the values of each step of the year (each month, 16 days
                                                      or day), of one variable or of two on two y axes (e.g. NDSI and
                                                      NDVI)
+    monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D [--affected A --control C]
+                                                     severity and recovery after a disturbance (Marcos et al. 2023)
     monitoreo count VARIABLE --sensor S --region JSON --start D --end D [--step annual] [--csv F] [--png F]
                                                      the images and valid observations of each step, after the
                                                      pixel filters: to choose a period before analysing it
@@ -477,6 +479,30 @@ def main(argv=None):
 	p.add_argument('--other-ylim', nargs=2, type=float, metavar=('MIN', 'MAX'),
 	               help='the range of the right y axis, that of --other-variable (default as --ylim)')
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
+	computes['recovery'] = p = sub.add_parser('recovery', help='severity and recovery after a disturbance (Marcos et al. '
+	                                                           '2023): S95, DIT, RRT, RET of the affected area, its control '
+	                                                           'and their difference')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p)
+	p.add_argument('--region', required=True, help='JSON dictionary with the affected area and the control as two '
+	                                                'features, e.g. \'{"file": "zones.gpkg", "name_field": "region"}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', required=True, help='first day: at least --reference-years before the event')
+	p.add_argument('--end', required=True)
+	p.add_argument('--event', required=True, help='date of the disturbance, YYYY-MM-DD')
+	p.add_argument('--affected', help='name of the affected feature of the region (default: the only one)')
+	p.add_argument('--control', help='name of the control feature: also its metrics and those of the difference')
+	p.add_argument('--step', default='monthly', choices=('monthly', '16-day', 'annual'))
+	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
+	p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
+	p.add_argument('--reference-years', type=int, default=3, help='years before the event of the reference (default 3)')
+	p.add_argument('--equilibrium', type=float, default=0.05,
+	               help='relative change of the yearly medians below which the series is stable, RET (default 0.05)')
+	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
+	p.add_argument('--scale', type=float)
+	p.add_argument('--csv')
+	p.add_argument('--png')
 	computes['count'] = p = sub.add_parser('count', help='images and valid observations of a variable per step over a '
 	                                                     'region, after the pixel filters: to choose a period before '
 	                                                     'analysing it')
@@ -1085,6 +1111,9 @@ def _compute(args, services):
 	if args.cmd == 'count':
 		_count(args, services, progress)
 		return
+	if args.cmd == 'recovery':
+		_recovery(args, services, progress)
+		return
 	try:
 		res = services.time_series(json.loads(args.region), start=args.start, end=args.end, step=args.step,
 		                           metric=args.metric, stat=args.stat, scale=args.scale, csv=args.csv, chart=args.png,
@@ -1101,6 +1130,24 @@ def _compute(args, services):
 	       + (['coverage'] if args.min_coverage else []))
 	print(f"\n{res['title']} | scale {res['scale']:g} m" + (f" | unit {res['unit']}" if res['unit'] else '')  # none given
 	      + files
+	      + _manual(res))
+
+
+def _recovery(args, services, progress):
+	"""The recovery metrics after a disturbance (services.recovery_metrics): a row per series."""
+	try:
+		res = services.recovery_metrics(json.loads(args.region), start=args.start, end=args.end, event=args.event,
+		                                step=args.step, metric=args.metric, stat=args.stat, scale=args.scale,
+		                                affected=args.affected, control=args.control,
+		                                reference_years=args.reference_years, equilibrium=args.equilibrium,
+		                                min_coverage=args.min_coverage, csv=args.csv, chart=args.png, progress=progress,
+		                                where=_where(args), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	_table(_fmt(res['rows']), ['series', 'direction', 'S95', 'impact_pct', 'DIT_years', 'RRT_years', 'RET_years',
+	                           'recovered_pct'])
+	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
+	print(f"\n{res['title']} | scale {res['scale']:g} m | years from the event; RRT empty: not recovered yet" + files
 	      + _manual(res))
 
 

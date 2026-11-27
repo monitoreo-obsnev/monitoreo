@@ -180,6 +180,28 @@
 			s_monthly: 'Mensual', s_annual: 'Anual', stepMetric: 'Métrica de cada paso', stat: 'Estadístico de la región',
 			cvAxis: 'Coeficiente de variación',
 			computeSeries: 'Calcular la serie temporal',
+			recovery: 'Recuperación tras una perturbación', recEvent: 'Fecha del evento (AAAA-MM-DD)',
+			recReference: 'Años de referencia', recEquilibrium: 'Equilibrio (cambio relativo)',
+			recHelp: 'Severidad y recuperación tras un incendio, una helada, un alud... (Marcos et al. 2023): la serie ' +
+				'de la variable sobre la región afectada (con el paso, la métrica, el estadístico espacial, el periodo, la ' +
+				'temporada y los filtros de píxeles del panel), sin estacionalidad (STL, Cleveland et al. 1990), y su ' +
+				'referencia (mediana ± MAD de los años antes del evento). El periodo tiene que empezar esos años antes ' +
+				'del evento.',
+			recControlUse: 'Usar esta región como control', recControlClear: 'Quitar',
+			recControlNone: 'Control: ninguno (opcional). Una zona sin perturbar cerca, de la misma vegetación: ' +
+				'elígela como región y pulsa el botón; luego elige la región afectada.',
+			recControlIs: 'Control: %s. Se calculan también su serie y la diferencia afectada − control (BACI), que ' +
+				'separa el efecto de la perturbación del clima de la región.',
+			recSame: 'El control es la región afectada: elige otra región como afectada, o quita el control.',
+			computeRecovery: 'Calcular la recuperación', recAffected: 'afectada', recControl: 'control',
+			recDifference: 'diferencia', recSeries: 'Serie', recDeseasonalized: 'sin estacionalidad',
+			recTrend: 'tendencia (STL)', recReferenceLow: 'referencia (mediana − MAD)',
+			recReferenceHigh: 'referencia (mediana + MAD)', recEventIs: 'evento %s',
+			recMethod: 'Métricas de Marcos et al. (2023), Remote Sensing of Environment 286:113441 ' +
+				'(doi:10.1016/j.rse.2022.113441): S95, impacto, DIT (hasta la inflexión de la tendencia), RRT (hasta ' +
+				'volver a la referencia) y RET (hasta un nuevo equilibrio), en años desde el evento; recovered_pct, la ' +
+				'parte de la pérdida recuperada en el último año. STL de Cleveland et al. (1990); Mann-Kendall y Sen de ' +
+				'las medias anuales antes y después del evento en el CSV.',
 			trends: 'Tendencias (Mann-Kendall y Sen)', parts: 'Partes del año', p_monthly: 'Meses', 'p_16-day': '16 días',
 			p_annual: 'El año', yearMetric: 'Métrica de cada año', trendTable: 'Tabla de tendencias',
 			trendPart: 'Parte del año del mapa', output: 'Resultado', o_slope: 'Pendiente de Sen (por año)',
@@ -514,6 +536,28 @@
 			s_monthly: 'Monthly', s_annual: 'Annual', stepMetric: 'Metric of each step', stat: 'Statistic of the region',
 			cvAxis: 'Coefficient of variation',
 			computeSeries: 'Compute the time series',
+			recovery: 'Recovery after a disturbance', recEvent: 'Date of the event (YYYY-MM-DD)',
+			recReference: 'Reference years', recEquilibrium: 'Equilibrium (relative change)',
+			recHelp: 'Severity and recovery after a fire, a frost, an avalanche... (Marcos et al. 2023): the series of ' +
+				'the variable over the affected region (with the step, metric, spatial statistic, period, season and ' +
+				'pixel filters of the panel), without its seasonality (STL, Cleveland et al. 1990), and its reference ' +
+				'(median ± MAD of the years before the event). The period has to start those years before the event.',
+			recControlUse: 'Use this region as the control', recControlClear: 'Clear',
+			recControlNone: 'Control: none (optional). An undisturbed area near it, of the same vegetation: choose ' +
+				'it as the region and press the button; then choose the affected region.',
+			recControlIs: 'Control: %s. Its series and the difference affected − control (BACI) are computed too, ' +
+				'which separates the effect of the disturbance from the climate of the region.',
+			recSame: 'The control is the affected region: choose another region as the affected one, or clear the ' +
+				'control.',
+			computeRecovery: 'Compute the recovery', recAffected: 'affected', recControl: 'control',
+			recDifference: 'difference', recSeries: 'Series', recDeseasonalized: 'without seasonality',
+			recTrend: 'trend (STL)', recReferenceLow: 'reference (median − MAD)',
+			recReferenceHigh: 'reference (median + MAD)', recEventIs: 'event %s',
+			recMethod: 'Metrics of Marcos et al. (2023), Remote Sensing of Environment 286:113441 ' +
+				'(doi:10.1016/j.rse.2022.113441): S95, impact, DIT (to the inflection of the trend), RRT (back to the ' +
+				'reference) and RET (to a new equilibrium), in years from the event; recovered_pct, the share of the ' +
+				'loss recovered in the last year. STL of Cleveland et al. (1990); Mann-Kendall and Sen of the yearly ' +
+				'means before and after the event in the CSV.',
 			trends: 'Trends (Mann-Kendall and Sen)', parts: 'Parts of the year', p_monthly: 'Months', 'p_16-day': '16 days',
 			p_annual: 'The year', yearMetric: 'Metric of each year', trendTable: 'Trend table',
 			trendPart: 'Part of the year of the map', output: 'Output', o_slope: 'Sen\'s slope (per year)',
@@ -744,6 +788,10 @@
 		// the offset region of the burn severity (services.burn_severity offset_region): its features, name and region as
 		// areas.region takes it (null: the app cannot write it)
 		offsetRegion: null, offsetName: null, offsetSpec: null,
+		// the recovery after a disturbance (services.recovery_metrics): the event, step, reference years and equilibrium as
+		// written, and the control area (its features and name), chosen as the offset region
+		recoveryEvent: '', recoveryStep: 'monthly', recoveryRef: '3', recoveryEq: '0.05', recoveryControl: null,
+		recoveryName: null,
 		// the data of Earth Engine of the themes of catalog.OTHER_THEMES: the ID written and the one read (mo.assetInfo),
 		// its band, or how several are combined (combine: 'one', 'sum' or 'mean', the band_reducer of the package) and
 		// those checked (chosen), use (collection or image), scale, offset and unit as written, why the last ID could
@@ -3451,6 +3499,124 @@
 		return entry().static ? disable(w) : w;  // a fixed layer without dates: no trends
 	}
 
+	// Recovery after a disturbance (services.recovery_metrics) ---------------------------------------------------------
+
+	function recoveryWidgets() {
+		var w = [ui.Label(t('recHelp'), SMALL)];
+		w.push(row(ui.Label(t('recEvent')), box(state.recoveryEvent, function (v) { state.recoveryEvent = v.trim(); })));
+		var steps = Object.keys(mo.STEPS_PER_YEAR).map(function (x) { return {value: x, label: t('s_' + x)}; });
+		w.push(row(ui.Label(t('step')), select(steps, state.recoveryStep, function (v) { state.recoveryStep = v; })));
+		w.push(row(ui.Label(t('recReference')), box(state.recoveryRef, function (v) { state.recoveryRef = v.trim(); },
+			'40px'), ui.Label(t('recEquilibrium')), box(state.recoveryEq, function (v) { state.recoveryEq = v.trim(); },
+			'50px')));
+		// the control area: the region chosen when its button is pressed, as the offset region of the burn severity
+		w.push(ui.Label(state.recoveryControl ? fmt(t('recControlIs'), state.recoveryName) : t('recControlNone'), SMALL));
+		var use = button(t('recControlUse'), function () {
+			if (!state.region) return message(t('noRegion'), true);
+			state.recoveryControl = state.region;
+			state.recoveryName = state.regionName;
+			render();
+		});
+		w.push(state.recoveryControl ? row(use, button(t('recControlClear'), function () {
+			state.recoveryControl = state.recoveryName = null;
+			render();
+		})) : use);
+		w.push(button(t('computeRecovery'), guarded(computeRecovery)));
+		return entry().static ? disable(w) : w;  // a fixed layer without dates: no series
+	}
+
+	// The series of the affected region (and of the control, as the features affected and control of one collection)
+	// with the step, metric, statistic and pixels of the time series, then the metrics in the browser (mo.recoveryOf)
+	function computeRecovery() {
+		var e = entry();
+		if (!ready(e)) return;
+		var s = specOf();
+		var c = mo.recoveryCheck(state.recoveryStep, state.recoveryEvent, s.period[0], s.period[1], state.recoveryRef,
+			state.recoveryEq, s.season);
+		mo.checkDates(s, 'recovery metrics');
+		var control = state.recoveryControl;
+		if (control && control === state.region) throw new Error(t('recSame'));
+		var steps = mo.seriesBins(s, c[0]);
+		if (steps.length > LIMITS.maxSteps) throw new Error(fmt(t('tooManySteps'), steps.length, LIMITS.maxSteps));
+		var names = [state.regionName, control ? state.recoveryName : null];
+		var regions = ee.FeatureCollection([ee.Feature(state.region.geometry(), {name: 'affected'})].concat(control ?
+			[ee.Feature(control.geometry(), {name: 'control'})] : []));
+		var name = title(e, [t('recovery').toLowerCase(), fmt(t('recEventIs'), c[1])]);
+		var scale = mo.autoScale(mo.entryOf(s), state.info.area);
+		var id = start();
+		mo.series(s, regions, control ? 2 : 1, state.stepMetric, state.stat, scale, state.info.crs, steps,
+			function (error, rows) {
+				if (id !== run) return;
+				if (error) return fail(error);
+				var of = {affected: [], control: []};
+				rows.forEach(function (r) { (of[r.region] || []).push(r); });
+				if (!of.affected.some(function (r) { return r.value !== null; })) return noData();
+				try {
+					showRecovery(mo.recoveryOf(of.affected, control ? of.control : null, names, c[0], c[1], c[2], c[3]),
+						e, name, scale, c[1]);
+				} catch (err) {
+					message(err.message || String(err), true);
+				}
+			}, function (k, n) {
+				if (id === run) message(fmt(t('progress'), k, n));
+			}, state.minCoverage);
+	}
+
+	// The chart of the series S (_series of recovery.of_series) of the metrics M, with those of OTHER (the values of
+	// the control) as a thin line: as charts.recovery_png, without the lines of the times (they are in the table)
+	function recoveryChart(m, other, label, e, name) {
+		var s = m._series, ref = m.reference ? m.reference.interval : [null, null];
+		var cols = [{id: 'date', label: t('date'), type: 'date'}], series = {};
+		var lines = [[s.values, label, {color: '#c0504d', lineWidth: 1, lineDashStyle: [2, 2]}],
+			[s.deseasonalized, label + ', ' + t('recDeseasonalized'), {color: '#c0504d', lineWidth: 1.5}],
+			[s.trend, label + ', ' + t('recTrend'), {color: '#7f1d1d', lineWidth: 3}],
+			[null, t('recReferenceLow'), {color: '#999999', lineWidth: 1, lineDashStyle: [6, 3]}],
+			[null, t('recReferenceHigh'), {color: '#999999', lineWidth: 1, lineDashStyle: [6, 3]}]];
+		var at = {};
+		if (other && other._series) {  // a control without values has no series
+			other._series.dates.forEach(function (d, i) { at[d] = other._series.values[i]; });
+			lines.push([s.dates.map(function (d) { return at[d]; }), t('recControl'), {color: '#4f81bd', lineWidth: 1}]);
+		}
+		if (!m.direction) lines = [lines[0]];  // too short: the values alone
+		lines.forEach(function (l, i) {
+			cols.push({id: 'c' + i, label: l[1], type: 'number'});
+			series[i] = l[2];
+		});
+		var data = s.dates.map(function (d, j) {
+			return {c: [{v: dateCell(d)}].concat(lines.map(function (l, i) {
+				var v = i === 3 ? ref[0] : i === 4 ? ref[1] : l[0] ? l[0][j] : null;
+				return {v: typeof v === 'number' && isFinite(v) ? v : null};
+			}))};
+		});
+		return ui.Chart({cols: cols, rows: data}, 'LineChart', {title: name, series: series, pointSize: 0,
+			vAxis: {title: label === t('recDifference') ? t('recDifference') : axisTitle(e, state.stepMetric, state.stat)},
+			legend: {position: 'bottom'}});
+	}
+
+	// The table (the main columns of services.RECOVERY_COLUMNS, all of them in the CSV), the notes, the charts of the
+	// affected area and of the difference affected - control, and the references of the method
+	function showRecovery(r, e, name, scale, ev) {
+		var shown = ['direction', 'S95', 'impact_pct', 'DIT_years', 'RRT_years', 'RET_years', 'recovered_pct'];
+		var label = {affected: t('recAffected'), control: t('recControl'), difference: t('recDifference')};
+		var table = [[t('recSeries'), t('region')].concat(shown)].concat(r.rows.map(function (x) {
+			return [label[x.series], x.region].concat(shown.map(function (k) {
+				return x[k] === null ? '' : typeof x[k] === 'number' ? num(x[k], 4) : x[k];
+			}));
+		}));
+		var notes = [];
+		Object.keys(r.metrics).forEach(function (k) {
+			if (r.metrics[k].notes.length) notes.push(label[k] + ': ' + r.metrics[k].notes.join('; '));
+		});
+		var m = r.metrics, charts = [recoveryChart(m.affected, m.control, label.affected, e, name)];
+		if (m.difference && m.difference._series) {
+			charts.push(recoveryChart(m.difference, null, label.difference, e, label.difference + ' · ' +
+				fmt(t('recEventIs'), ev)));
+		}
+		show([ui.Label(name, {fontWeight: 'bold'}), ui.Chart(table, 'Table')].concat(notes.map(function (n) { return ui.Label(n, WARNING); }), charts, [
+			ui.Label(t('recMethod'), SMALL), ui.Label(fmt(t('scaleNote'), num(scale)) + ' ' + t('chartHelp'), SMALL),
+			csvWidget(r.rows, mo.RECOVERY_COLUMNS, name, e)]));
+	}
+
 	// Burn severity -------------------------------------------------------------------------------------------------
 
 	// RBR: a continuous map of red (burned) to green (regrowth), its statistics over each region and its GeoTIFF
@@ -4888,7 +5054,8 @@
 			section('gradients', t('gradients'), gradientWidgets()),
 			section('animation', t('animation'), animationWidgets()),
 			section('series', t('series'), seriesWidgets()),
-			section('trends', t('trends'), trendWidgets())];
+			section('trends', t('trends'), trendWidgets()),
+			section('recovery', t('recovery'), recoveryWidgets())];
 		if (themeHas('burn_severity')) groups.push(section('fire', t('fire'), fireWidgets()));
 		groups.push(section('params', t('params'), parametersWidgets()), section('about', t('about'), aboutWidgets()));
 		groups.forEach(function (ws) {

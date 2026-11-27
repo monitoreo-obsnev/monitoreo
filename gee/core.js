@@ -4112,6 +4112,535 @@ var MonitorEO = (function () {
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
 	}
 
+	// STL (stl.py): the seasonal-trend decomposition by loess of Cleveland et al. (1990), as the Fortran of the
+	// authors and statsmodels, on a series without missing values ----------------------------------------------------
+
+	// stl._est: [value, ok], the loess value at XS (1-based) of Y (N values) from its points NLEFT..NRIGHT (1-based)
+	function stlEst(y, n, length, ideg, xs, nleft, nright, userw, rw) {
+		var rng = n - 1, h = Math.max(xs - nleft, nright - xs), j, a = 0, w = [];
+		if (length > n) h += Math.floor((length - n) / 2);
+		for (j = nleft; j <= nright; j++) {
+			var r = Math.abs(j - xs), v = 0;
+			if (r <= 0.999 * h) v = h > 0 && r > 0.001 * h ? Math.pow(1 - Math.pow(r / h, 3), 3) : 1;
+			if (userw) v *= rw[j - 1];
+			w.push(v);
+			a += v;
+		}
+		if (a <= 0) return [0, false];
+		for (j = 0; j < w.length; j++) w[j] /= a;
+		if (h > 0 && ideg > 0) {
+			var m = 0, c = 0;
+			for (j = 0; j < w.length; j++) m += w[j] * (nleft + j);
+			for (j = 0; j < w.length; j++) c += w[j] * Math.pow(nleft + j - m, 2);
+			if (Math.sqrt(c) > 0.001 * rng) {
+				for (j = 0; j < w.length; j++) w[j] *= (xs - m) / c * (nleft + j - m) + 1;
+			}
+		}
+		var out = 0;
+		for (j = 0; j < w.length; j++) out += w[j] * y[nleft - 1 + j];
+		return [out, true];
+	}
+
+	// stl._ess: the loess smoothing of every point of Y (window of LENGTH points, degree IDEG, robustness weights RW
+	// if USERW): a value that cannot be computed keeps that of Y
+	function stlEss(y, length, ideg, userw, rw) {
+		var n = y.length, out = [];
+		if (n < 2) return y.slice();
+		for (var i = 1; i <= n; i++) {
+			var nleft = 1, width = n;
+			if (length < n) {
+				nleft = Math.min(Math.max(i - Math.floor((length + 1) / 2) + 1, 1), n - length + 1);
+				width = length;
+			}
+			var h = Math.max(i - nleft, nleft + width - 1 - i), a = 0, w = [], k;
+			if (length > n) h += Math.floor((length - n) / 2);
+			for (k = 0; k < width; k++) {
+				var r = Math.abs(nleft + k - i);
+				var v = r <= 0.001 * h ? 1 : r <= 0.999 * h ? Math.pow(1 - Math.pow(r / h, 3), 3) : 0;
+				if (userw) v *= rw[nleft + k - 1];
+				w.push(v);
+				a += v;
+			}
+			if (!(a > 0)) {
+				out.push(y[i - 1]);
+				continue;
+			}
+			for (k = 0; k < width; k++) w[k] /= a;
+			if (ideg > 0) {
+				var m = 0, c = 0;
+				for (k = 0; k < width; k++) m += w[k] * (nleft + k);
+				for (k = 0; k < width; k++) c += w[k] * Math.pow(nleft + k - m, 2);
+				if (h > 0 && Math.sqrt(c) > 0.001 * (n - 1)) {
+					var b = (i - m) / c;
+					for (k = 0; k < width; k++) w[k] *= b * (nleft + k - m) + 1;
+				}
+			}
+			var s = 0;
+			for (k = 0; k < width; k++) s += w[k] * y[nleft + k - 1];
+			out.push(s);
+		}
+		return out;
+	}
+
+	// stl._ma: the moving average of LENGTH points of X
+	function stlMa(x, length) {
+		var c = [0], out = [];
+		for (var i = 0; i < x.length; i++) c.push(c[i] + x[i]);
+		for (i = length; i < c.length; i++) out.push((c[i] - c[i - length]) / length);
+		return out;
+	}
+
+	// stl._ss: the smoothing of the cycle-subseries of Y, each extended by one value at each end
+	function stlSs(y, period, ns, isdeg, userw, rw) {
+		var n = y.length, season = [];
+		for (var j = 0; j < period; j++) {
+			var sub = [], w = [], i;
+			for (i = j; i < n; i += period) {
+				sub.push(y[i]);
+				w.push(userw ? rw[i] : 1);
+			}
+			var k = sub.length, smooth = stlEss(sub, ns, isdeg, userw, w);
+			var first = stlEst(sub, k, ns, isdeg, 0, 1, Math.min(ns, k), userw, w);
+			var end = stlEst(sub, k, ns, isdeg, k + 1, Math.max(1, k - ns + 1), k, userw, w);
+			smooth = [first[1] ? first[0] : smooth[0]].concat(smooth, [end[1] ? end[0] : smooth[k - 1]]);
+			for (i = 0; i < smooth.length; i++) season[j + i * period] = smooth[i];
+		}
+		return season;
+	}
+
+	// stl._robustness: the bisquare robustness weights of the residuals of FIT
+	function stlRobustness(y, fit) {
+		var r = y.map(function (v, i) { return Math.abs(v - fit[i]); });
+		var s = r.slice().sort(function (a, b) { return a - b; }), n = r.length;
+		var m1 = Math.floor(n / 2) + 1, m2 = n - m1 + 1, cmad = 3 * (s[m1 - 1] + s[m2 - 1]);
+		return r.map(function (v) {
+			return v <= 0.001 * cmad ? 1 : v <= 0.999 * cmad ? Math.pow(1 - Math.pow(v / cmad, 2), 2) : 0;
+		});
+	}
+
+	// stl.stl: {seasonal, trend, residual} of the series Y with PERIOD values per cycle; SEASONAL (7), TREND and
+	// LOW_PASS: the odd lengths of the loess windows; ROBUST: 2 inner and 15 outer iterations (else 5 and none)
+	function stl(y, period, seasonal, trend, lowPass, robust, inner, outer) {
+		var n = y.length;
+		if (period < 2 || n < 2 * period) {
+			throw new Error('STL needs a period of at least 2 and two cycles of values: ' + n + ' values, period ' + period);
+		}
+		if (y.some(function (v) { return v === null || !isFinite(v); })) {
+			throw new Error('STL needs a series without missing values: fill its gaps first');
+		}
+		function odd(v) {
+			v = Math.ceil(v);
+			return v % 2 === 0 ? v + 1 : v;
+		}
+		seasonal = odd(Math.max(3, seasonal || 7));
+		trend = odd(trend ? trend : 1.5 * period / (1 - 1.5 / seasonal));
+		lowPass = odd(lowPass ? lowPass : period + 1);
+		inner = inner !== null && inner !== undefined ? inner : robust ? 2 : 5;
+		outer = outer !== null && outer !== undefined ? outer : robust ? 15 : 0;
+		var rw = y.map(function () { return 1; }), season = rw.map(function () { return 0; }), tr = season.slice();
+		var userw = false;
+		function minus(a, b) { return a.map(function (v, i) { return v - b[i]; }); }
+		for (var k = 0; k <= outer; k++) {
+			for (var i = 0; i < inner; i++) {
+				var c = stlSs(minus(y, tr), period, seasonal, 1, userw, rw);
+				var low = stlEss(stlMa(stlMa(stlMa(c, period), period), 3), lowPass, 1, false, null);
+				season = minus(c.slice(period, period + n), low);
+				tr = stlEss(minus(y, season), trend, 1, userw, rw);
+			}
+			if (k === outer) break;
+			rw = stlRobustness(y, season.map(function (v, j) { return v + tr[j]; }));
+			userw = true;
+		}
+		return {seasonal: season, trend: tr, residual: y.map(function (v, j) { return v - season[j] - tr[j]; })};
+	}
+
+	// Recovery after a disturbance (recovery.py): the metrics of Marcos et al. (2023) of a time series, its anomalies,
+	// trends and seasonal amplitude; the app computes the series (series) and these metrics in the browser -------------
+
+	var STEPS_PER_YEAR = {monthly: 12, '16-day': 23, annual: 1};
+	var REFERENCE_YEARS = 3;
+	var EQUILIBRIUM = 0.05;
+	// services.RECOVERY_COLUMNS
+	var RECOVERY_COLUMNS = ['series', 'region', 'direction', 'reference_median', 'reference_mad', 'S95', 'impact_pct',
+		'impact_mad', 'tINF', 'DIT_years', 'tREF', 'RRT_years', 'tEQ', 'RET_years', 'recovered_pct',
+		'z_min_first_year', 'z_max_first_year', 'steps_abs_z_over_2_after', 'sen_before', 'p_before',
+		'sen_after', 'p_after', 'amplitude_before', 'amplitude_after', 'gaps'];
+
+	// round of Python: X to N decimals, of its exact binary value, the ties to the even digit
+	function pyRound(x, n) {
+		if (x === null || x === undefined || !isFinite(x)) return x;
+		var s = x.toFixed(n), exact = x.toFixed(Math.min(20, n + 16)), dot = exact.indexOf('.');
+		if (/^50*$/.test(exact.slice(dot + n + 1))) {  // a tie: the even of the two
+			var down = exact.slice(0, n ? dot + n + 1 : dot);
+			if (Number(down.charAt(down.length - 1)) % 2 === 0) s = down;
+		}
+		return Number(s);
+	}
+
+	// np.percentile (linear interpolation) of XS at Q (0-100)
+	function percentile(xs, q) {
+		xs = xs.slice().sort(function (a, b) { return a - b; });
+		var v = q / 100 * (xs.length - 1), lo = Math.floor(v), t = v - lo;
+		if (lo + 1 >= xs.length) return xs[xs.length - 1];
+		var a = xs[lo], d = xs[lo + 1] - a;
+		return t >= 0.5 ? xs[lo + 1] - d * (1 - t) : a + d * t;
+	}
+
+	function meanOf(xs) {
+		var s = 0;
+		xs.forEach(function (v) { s += v; });
+		return s / xs.length;
+	}
+
+	// recovery.check: [step, event, reference years, equilibrium] checked, before Earth Engine; an Error if the step is
+	// daily, the event is not a date inside the period START to END or there are not REFERENCE_YEARS before it
+	function recoveryCheck(step, event, start, end, referenceYears, equilibrium, season) {
+		if (!STEPS_PER_YEAR.hasOwnProperty(step)) {
+			throw new Error('the recovery metrics need a series of step monthly (the best), 16-day or annual, not ' + step);
+		}
+		if (season && season.length && step !== 'annual') {
+			throw new Error('a season with a monthly or 16-day step leaves the rest of each year without values, which the ' +
+				'recovery metrics would fill by interpolation: no season, or step annual with the season');
+		}
+		var ev = String(event).slice(0, 10), s = String(start).slice(0, 10), e = String(end).slice(0, 10);
+		if (!isDate(ev)) {
+			throw new Error('event: the date of the disturbance, YYYY-MM-DD, not ' + (event === null || event === undefined ?
+				'None' : typeof event === 'string' ? "'" + event + "'" : String(event)));
+		}
+		referenceYears = referenceYears === undefined ? REFERENCE_YEARS : referenceYears;
+		equilibrium = equilibrium === undefined ? EQUILIBRIUM : equilibrium;
+		var r = typeof referenceYears === 'string' && /^\s*[-+]?\d+\s*$/.test(referenceYears) ? parseInt(referenceYears, 10) :
+			typeof referenceYears === 'number' && isFinite(referenceYears) ? (referenceYears < 0 ? Math.ceil(referenceYears) :
+				Math.floor(referenceYears)) : null;
+		var q = typeof equilibrium === 'number' ? equilibrium : typeof equilibrium === 'string' &&
+			/^\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?\s*$/.test(equilibrium) ? Number(equilibrium) : null;
+		if (r === null || q === null) {
+			throw new Error('reference_years is a whole number of years and equilibrium a fraction (e.g. 0.05)');
+		}
+		if (r < 1 || !(q > 0 && q < 1)) {
+			throw new Error('reference_years is at least 1, and equilibrium a fraction between 0 and 1 (e.g. 0.05)');
+		}
+		if (!(s < ev && ev <= e)) {
+			throw new Error('event ' + ev + ' is not inside the period ' + s + ' to ' + e + ': the series has to cover the ' +
+				'years before and after it');
+		}
+		if (addYears(ev, -r) < s) {
+			throw new Error('the period starts ' + s + ': the reference needs the ' + r + ' years before the event (' +
+				addYears(ev, -r) + ' to ' + ev + ')');
+		}
+		return [step, ev, r, q];
+	}
+
+	// recovery.add_years: the day D (YYYY-MM-DD) plus N years (29 February: 28 February in a common year)
+	function addYears(d, n) {
+		var y = Number(d.slice(0, 4)) + n, m = Number(d.slice(5, 7));
+		return y + '-' + pad2(m) + '-' + pad2(Math.min(Number(d.slice(8, 10)), daysInMonth(y, m)));
+	}
+
+	// recovery.years_between
+	function yearsBetween(a, b) {
+		return pyRound(Math.round((date(b) - date(a)) / 864e5) / 365.25, 2);
+	}
+
+	// recovery.regular: [days, values, share of gaps] of ROWS ([{date, value}]) on the regular grid of STEP (the first
+	// day of each month, the start of each 16 days from 1 January, 1 July of each year), the steps without value filled
+	// by linear interpolation and, before the first or after the last value, with the nearest one
+	function regular(rows, step) {
+		var pts = {}, lo = Infinity, hi = -Infinity;
+		rows.forEach(function (r) {
+			if (r.value === null || r.value === undefined || (typeof r.value === 'number' && isNaN(r.value))) return;
+			var d = String(r.date).slice(0, 10), y = Number(d.slice(0, 4));
+			var k = step === 'monthly' ? y * 12 + Number(d.slice(5, 7)) - 1 : step === '16-day' ?
+				y * 23 + Math.floor((dayOfYear(date(d)) - 1) / 16) : y;
+			(pts[k] = pts[k] || []).push(Number(r.value));
+			lo = Math.min(lo, k);
+			hi = Math.max(hi, k);
+		});
+		if (lo === Infinity) return [[], [], 1];
+		var keys = [], vals = [], have = [], gaps = 0, k;
+		for (k = lo; k <= hi; k++) {
+			keys.push(k);
+			vals.push(pts[k] ? meanOf(pts[k]) : null);
+			if (pts[k]) have.push(k - lo);
+			else gaps += 1;
+		}
+		for (var j = 0; j + 1 < have.length; j++) {  // np.interp between the steps with a value
+			var a = have[j], b = have[j + 1], slope = (vals[b] - vals[a]) / (b - a);
+			for (k = a + 1; k < b; k++) vals[k] = slope * (k - a) + vals[a];
+		}
+		var dates = keys.map(function (x) {
+			if (step === 'monthly') return Math.floor(x / 12) + '-' + pad2(x % 12 + 1) + '-01';
+			if (step === '16-day') return iso(addDays(date(Math.floor(x / 23) + '-01-01'), (x % 23) * 16));
+			return x + '-07-01';
+		});
+		return [dates, vals, gaps / keys.length];
+	}
+
+	// recovery._rolling_median: the centred running median of WINDOW steps of X, with at least WINDOW // 2 values
+	function rollingMedian(x, window) {
+		var half = Math.floor(window / 2), least = Math.max(1, half);
+		return x.map(function (v, i) {
+			var part = x.slice(Math.max(0, i - half), i + half + 1);
+			return part.length >= least ? median(part) : NaN;
+		});
+	}
+
+	function pick(xs, keep) {
+		return xs.filter(function (v, i) { return keep(i); });
+	}
+
+	// recovery.metrics: the metrics of Marcos et al. (2023) of a regular series (DATES, Y) after the day EVENT, with PER
+	// steps per year: notes on what could not be computed, and _series (deseasonalized, trend, seasonal) for the chart
+	function recoveryMetrics(dates, y, event, per, referenceYears, equilibrium, relative) {
+		referenceYears = referenceYears || REFERENCE_YEARS;
+		equilibrium = equilibrium || EQUILIBRIUM;
+		relative = relative !== false;
+		var out = {notes: []}, window = per % 2 === 0 ? per + 1 : per + 2, season, sa, tr, i;
+		if (per > 1) {
+			if (y.length < 2 * per + 1) {
+				out.notes.push('the series is too short for STL (two years at least)');
+				return out;
+			}
+			var dec = stl(y, per, window, window, null, true);
+			season = dec.seasonal;
+			tr = dec.trend;
+			sa = y.map(function (v, j) { return v - season[j]; });
+		} else {  // annual: no seasonality
+			season = y.map(function () { return 0; });
+			sa = y.slice();
+			tr = rollingMedian(y, 3);
+			window = 1;
+		}
+		var d = dates, since0 = addYears(event, -referenceYears);
+		function inRef(j) { return d[j] < event && d[j] >= since0; }
+		var pre = pick(sa, inRef);
+		if (pre.length < Math.max(3, per)) {
+			out.notes.push('only ' + pre.length + ' values in the ' + referenceYears + ' years before the event');
+		}
+		if (!pre.length) return out;
+		var med = median(pre), mad = median(pre.map(function (v) { return Math.abs(v - med); }));
+		var first = pick(d, inRef);
+		out.reference = {median: med, mad: mad, interval: [med - mad, med + mad], from: first[0],
+			to: first[first.length - 1]};
+		function post(j) { return d[j] >= event; }
+		if (!d.some(function (x, j) { return post(j); })) {
+			out.notes.push('no values after the event');
+			return out;
+		}
+		var end1 = addYears(event, 1), year1 = pick(sa, function (j) { return post(j) && d[j] < end1; });
+		if (!year1.length) {
+			out.notes.push('no values in the first year after the event');
+			return out;
+		}
+		var p95 = percentile(year1, 95), p05 = percentile(year1, 5);
+		var sign = median(year1) < med ? -1 : 1;  // -1: the disturbance lowers the variable
+		var extreme = sign < 0 ? p05 : p95;
+		out.S95 = med - p95;
+		out.S05 = med - p05;
+		out.direction = sign < 0 ? 'decrease' : 'increase';
+		out.impact = med - extreme;
+		out.impact_pct = relative && Math.abs(med) > 1e-9 ? pyRound(100 * (extreme - med) / Math.abs(med), 1) : null;
+		out.impact_mad = mad > 0 ? pyRound((extreme - med) / mad, 2) : null;
+		// tINF: the first local maximum of the distance of the trend from the reference median, after the event
+		var idx = [];
+		d.forEach(function (x, j) { if (post(j)) idx.push(j); });
+		var away = idx.map(function (j) { return (tr[j] - med) * sign; });
+		var h = Math.max(1, Math.floor(per / 4)), tinf = null;
+		for (i = 0; i < away.length && tinf === null; i++) {
+			var lo = Math.max(0, i - h), hi = Math.min(away.length, i + h + 1);
+			if (hi - i > h && away[i] >= Math.max.apply(null, away.slice(lo, hi))) tinf = idx[i];
+		}
+		out.tINF = tinf !== null ? d[tinf] : null;
+		out.DIT_years = tinf !== null ? yearsBetween(event, d[tinf]) : null;
+		var series = {dates: dates, deseasonalized: sa, trend: tr, seasonal: season};
+		if (tinf === null) {
+			out.notes.push('no inflection of the trend: the series still moves away from the reference, or is short');
+			out._series = series;
+			return out;
+		}
+		// tREF: the trend and the running median of a year inside the reference interval
+		var loI = med - mad, hiI = med + mad, running = rollingMedian(sa, window), tref = null;
+		for (i = tinf; i < sa.length && tref === null; i++) {
+			if (loI <= tr[i] && tr[i] <= hiI && loI <= running[i] && running[i] <= hiI) tref = i;
+		}
+		out.tREF = tref !== null ? d[tref] : null;
+		out.RRT_years = tref !== null ? yearsBetween(event, d[tref]) : null;
+		if (tref === null) out.notes.push('not back in the reference interval yet');
+		// tEQ: the medians of consecutive windows of a year from tINF
+		var since = sa.slice(tinf), medians = [], rates = [], teq = null;
+		for (var k = 0; k <= since.length - per; k += per) medians.push([d[tinf + k], median(since.slice(k, k + per))]);
+		for (var j = 1; j < medians.length; j++) {
+			var prev = medians[j - 1][1], cur = medians[j][1];
+			rates.push(relative ? Math.abs(cur - prev) / Math.max(Math.abs(prev), 1e-9) :
+				mad > 0 ? Math.abs(cur - prev) / mad : Infinity);
+		}
+		var limit = relative ? equilibrium : 1;
+		for (j = 0; j < rates.length - 1 && teq === null; j++) {
+			if (rates[j] < limit && rates[j + 1] < limit) teq = medians[j + 1][0];
+		}
+		out.tEQ = teq;
+		out.RET_years = teq !== null ? yearsBetween(event, teq) : null;
+		out.yearly_medians_from_tINF = medians;
+		if (teq === null) out.notes.push('no equilibrium: fewer than two stable yearly windows in a row after tINF');
+		// the share of the initial loss recovered in the last year with data
+		var lastYear = addYears(d[d.length - 1], -1), last = pick(sa, function (j) { return d[j] > lastYear; });
+		if (Math.abs(extreme - med) > 0 && last.length) {
+			out.recovered_pct = pyRound(100 * (1 - (median(last) - med) / (extreme - med)), 1);
+			out.last_year = d[d.length - 1];
+		}
+		out._series = series;
+		return out;
+	}
+
+	// recovery.anomalies: the standardized anomalies (z) of the steps after the event against those of the same part
+	// of the year (month, 16 days; the year, in an annual series) of every year before it
+	function anomalies(dates, y, event, step) {
+		var key = dates.map(function (x) {
+			return step === 'monthly' ? Number(x.slice(5, 7)) : step === '16-day' ?
+				Math.floor((dayOfYear(date(x)) - 1) / 16) : 0;
+		});
+		var z = y.map(function () { return NaN; }), groups = {};
+		dates.forEach(function (x, i) { if (x < event) (groups[key[i]] = groups[key[i]] || []).push(y[i]); });
+		Object.keys(groups).forEach(function (k) {
+			var ref = groups[k], m = meanOf(ref), sd = 0;
+			if (ref.length < (step === 'annual' ? 3 : 2)) return;  // as the script: more than 2 years if annual
+			ref.forEach(function (v) { sd += (v - m) * (v - m); });
+			sd = Math.sqrt(sd / (ref.length - 1));
+			if (sd > 0) key.forEach(function (x, i) { if (String(x) === k) z[i] = (y[i] - m) / sd; });
+		});
+		var end1 = addYears(event, 1), first = [], over = [], years = [];
+		dates.forEach(function (x, i) {
+			if (x < event) {
+				if (years.indexOf(Number(x.slice(0, 4))) < 0) years.push(Number(x.slice(0, 4)));
+				return;
+			}
+			if (x < end1 && isFinite(z[i])) first.push(z[i]);
+			if (Math.abs(z[i]) > 2) over.push(x);
+		});
+		return {z_min_first_year: first.length ? pyRound(Math.min.apply(null, first), 2) : null,
+			z_max_first_year: first.length ? pyRound(Math.max.apply(null, first), 2) : null,
+			steps_abs_z_over_2_after: over.length, last_abs_z_over_2: over.length ? over[over.length - 1] : null,
+			reference_years: years.sort(function (a, b) { return a - b; })};
+	}
+
+	// recovery._trend: Mann-Kendall and Sen of yearly VALUES, or null with fewer than 4 years
+	function yearlyTrend(years, values) {
+		if (values.length < 4) return null;
+		var pts = years.map(function (x, i) { return [x, values[i]]; }).sort(function (a, b) { return a[0] - b[0]; });
+		var n = pts.length, s = 0, i, j;
+		for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) s += (pts[j][1] > pts[i][1]) - (pts[j][1] < pts[i][1]);
+		var z = s === 0 ? 0 : (s - (s > 0 ? 1 : -1)) / Math.sqrt(n * (n - 1) * (2 * n + 5) / 18);
+		var p = erfc(Math.abs(z) / Math.SQRT2);  // the Mann-Kendall test with its continuity correction
+		return {n: n, tau: pyRound(s / (n * (n - 1) / 2), 3), p_value: pyRound(p, 4), sen_per_year: sen(years, values)[0],
+			significant: p < 0.05};
+	}
+
+	function byYear(dates, values) {
+		var by = {};
+		dates.forEach(function (x, i) { (by[x.slice(0, 4)] = by[x.slice(0, 4)] || []).push(values[i]); });
+		return by;
+	}
+
+	// recovery.yearly_trends: the trends of the yearly means before the year of the event and after it
+	function yearlyTrends(dates, y, event) {
+		var by = byYear(dates, y), year = Number(event.slice(0, 4)), pre = [[], []], after = [[], []];
+		Object.keys(by).sort().forEach(function (k) {
+			var part = Number(k) < year ? pre : Number(k) > year ? after : null;
+			if (part) {
+				part[0].push(Number(k));
+				part[1].push(meanOf(by[k]));
+			}
+		});
+		return {before: yearlyTrend(pre[0], pre[1]), after: yearlyTrend(after[0], after[1]),
+			years_before: pre[0].length ? [pre[0][0], pre[0][pre[0].length - 1]] : null,
+			years_after: after[0].length ? [after[0][0], after[0][after[0].length - 1]] : null};
+	}
+
+	// recovery.seasonal_amplitude: the median of the yearly amplitude of the seasonal component in the whole years
+	// before and after the year of the event
+	function seasonalAmplitude(dates, season, event) {
+		var by = byYear(dates, season), year = Number(event.slice(0, 4)), pre = [], after = [];
+		Object.keys(by).forEach(function (k) {
+			if (by[k].length < 2) return;
+			var a = Math.max.apply(null, by[k]) - Math.min.apply(null, by[k]);
+			if (Number(k) < year) pre.push(a);
+			else if (Number(k) > year) after.push(a);
+		});
+		return {before: pre.length ? median(pre) : null, after: after.length ? median(after) : null};
+	}
+
+	// recovery.clean: the metrics M without their series, the numbers rounded to 4 decimals
+	function recoveryClean(m) {
+		var out = {};
+		Object.keys(m).forEach(function (k) {
+			if (k.charAt(0) !== '_') out[k] = typeof m[k] === 'number' ? pyRound(m[k], 4) : m[k];
+		});
+		return out;
+	}
+
+	// recovery.of_series: every metric of the series ROWS ([{date, value}]) of STEP after the day EVENT, with gaps (the
+	// share of steps filled) and _series for the chart
+	function ofSeries(rows, step, event, referenceYears, equilibrium, relative) {
+		var g = regular(rows, step), dates = g[0], y = g[1];
+		if (!dates.length) return {notes: ['no values'], gaps: 1};
+		var m = recoveryMetrics(dates, y, event, STEPS_PER_YEAR[step], referenceYears, equilibrium, relative);
+		m.gaps = pyRound(g[2], 3);
+		m.anomalies = anomalies(dates, y, event, step);
+		m.trends = yearlyTrends(dates, y, event);
+		if (m._series && STEPS_PER_YEAR[step] > 1) m.seasonal_amplitude = seasonalAmplitude(dates, m._series.seasonal, event);
+		m._series = m._series || {dates: dates, deseasonalized: y, trend: null, seasonal: null};
+		m._series.values = y;
+		return m;
+	}
+
+	// recovery.difference: the rows of the difference A - B on the steps that both have
+	// recovery.common: the rows of B (its regular grid, filled) on the steps that A has too
+	function recoveryCommon(rowsA, rowsB, step) {
+		var a = regular(rowsA, step), b = regular(rowsB, step), have = {};
+		a[0].forEach(function (x) { have[x] = true; });
+		var out = [];
+		b[0].forEach(function (x, i) { if (have[x]) out.push({date: x, value: b[1][i]}); });
+		return out;
+	}
+
+	function recoveryDifference(rowsA, rowsB, step) {
+		var a = regular(rowsA, step), b = regular(rowsB, step), of = {};
+		b[0].forEach(function (x, i) { of[x] = b[1][i]; });
+		var out = [];
+		a[0].forEach(function (x, i) { if (of.hasOwnProperty(x)) out.push({date: x, value: a[1][i] - of[x]}); });
+		return out;
+	}
+
+	// services._recovery_row: the row of the table (RECOVERY_COLUMNS) of the metrics M of SERIES (affected, control or
+	// difference) of REGION
+	function recoveryRow(series, region, m) {
+		var ref = m.reference || {}, an = m.anomalies || {}, tr = m.trends || {}, amp = m.seasonal_amplitude || {};
+		var before = tr.before || {}, after = tr.after || {};
+		function v(x) { return x === undefined ? null : x; }
+		return {series: series, region: region, direction: v(m.direction), reference_median: v(ref.median),
+			reference_mad: v(ref.mad), S95: v(m.S95), impact_pct: v(m.impact_pct), impact_mad: v(m.impact_mad),
+			tINF: v(m.tINF), DIT_years: v(m.DIT_years), tREF: v(m.tREF), RRT_years: v(m.RRT_years), tEQ: v(m.tEQ),
+			RET_years: v(m.RET_years), recovered_pct: v(m.recovered_pct), z_min_first_year: v(an.z_min_first_year),
+			z_max_first_year: v(an.z_max_first_year), steps_abs_z_over_2_after: v(an.steps_abs_z_over_2_after),
+			sen_before: v(before.sen_per_year), p_before: v(before.p_value), sen_after: v(after.sen_per_year),
+			p_after: v(after.p_value), amplitude_before: v(amp.before), amplitude_after: v(amp.after), gaps: v(m.gaps)};
+	}
+
+	// services.recovery_metrics after its time series: the metrics of the rows AFFECTED of the affected area and, with
+	// CONTROL (rows of a control area), of the control and of the difference affected - control (BACI), named NAMES
+	// ([affected, control]): {metrics: {affected, control, difference}, rows: the table (RECOVERY_COLUMNS)}
+	function recoveryOf(affected, control, names, step, event, referenceYears, equilibrium) {
+		var m = {affected: ofSeries(affected, step, event, referenceYears, equilibrium)}, keys = ['affected'];
+		if (control) {
+			m.control = ofSeries(recoveryCommon(affected, control, step), step, event, referenceYears, equilibrium);
+			m.difference = ofSeries(recoveryDifference(affected, control, step), step, event, referenceYears, equilibrium,
+				false);
+			keys.push('control', 'difference');
+		}
+		var region = {affected: names[0], control: names[1], difference: names[0] + ' - ' + names[1]};
+		return {metrics: m, rows: keys.map(function (k) { return recoveryRow(k, region[k], m[k]); })};
+	}
+
 	// Burn severity (fire.py) ---------------------------------------------------------------------------------------
 
 	var SEVERITY = [  // [class, lowest dNBR of the class, name es, name en]
@@ -4867,6 +5396,12 @@ var MonitorEO = (function () {
 		checkHarmonize: checkHarmonize, checkLandsat7: checkLandsat7, landsatParts: landsatParts,
 		SNOW_NDSI_DEFAULT: SNOW_NDSI_DEFAULT, snowNdsi: snowNdsi, snowNdsiOf: snowNdsiOf, PERMANENT_WATER: PERMANENT_WATER,
 		waterPermanent: waterPermanent, permanentLand: permanentLand, burnQuality: burnQuality, checkMetric: checkMetric, checkRgbMetric: checkRgbMetric, checkRgb: checkRgb,
-		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis
+		mosaic: mosaic, rgbPercentiles: rgbPercentiles, rgbVis: rgbVis,
+		stl: stl, STEPS_PER_YEAR: STEPS_PER_YEAR, REFERENCE_YEARS: REFERENCE_YEARS, EQUILIBRIUM: EQUILIBRIUM,
+		RECOVERY_COLUMNS: RECOVERY_COLUMNS, pyRound: pyRound, recoveryCheck: recoveryCheck, addYears: addYears,
+		yearsBetween: yearsBetween, regular: regular, rollingMedian: rollingMedian, recoveryMetrics: recoveryMetrics,
+		anomalies: anomalies, yearlyTrends: yearlyTrends, seasonalAmplitude: seasonalAmplitude,
+		recoveryClean: recoveryClean, ofSeries: ofSeries, recoveryDifference: recoveryDifference, recoveryCommon: recoveryCommon,
+		recoveryRow: recoveryRow, recoveryOf: recoveryOf
 	};
 })();
