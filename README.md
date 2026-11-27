@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.76](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.76) · 2026-11-27 · package 0.3.86
 
 - **All tools**: New variable: the snow melt-out day (SMOD) of Sentinel-2, Landsat and MODIS Terra and Aqua, the day of the year (1 = 1 January) when the snow of each pixel goes: that of the first clear image without snow after the last one with snow, in the season of each year (by default 1 January to 31 August), from the images of the snow cover frequency of its sensor, with its rules and fixed filters (in Landsat and Sentinel-2, its correction of the shadows of the relief; MODIS needs none: checked against Landsat on 112 days in Sierra Nevada, it sees 98.4 % of the snow of Landsat in the shadow, as in the sun) (Barrou Dumont et al. 2025, https://doi.org/10.5194/tc-19-2407-2025; Dietz et al. 2012, https://doi.org/10.3390/rs4082432). Its only metric is `melt` (Melt-out day in the QGIS plugin and the Earth Engine app) and it has one value per year: time series and trends with the step annual (Sen's slope in days per year, negative is an earlier melt-out), maps of a period (the mean day of its years) or of each year; the monthly, 16-day and daily steps are refused.
 
