@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.81](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.81) · 2026-11-27 · package 0.3.91
 
 - **Python package, R package, Command line, MCP server, Assistant**: The images and valid observations of a variable in each year, month or 16 days of a period over a region, after the pixel filters (`image_count`; `monitoreo count`; `mo_image_count()`): the images of each step, the valid images per pixel and the fraction of the region with data, to choose the period of a series or a trend before computing it (e.g. the summers of Landsat 5 in the 1990s). The QGIS plugin and the Earth Engine app give the same with the metric count of their time series.
 - **All tools**: The burn severity keeps in the perimeter only the burned patch of the fire, the one nearest to a point in it (`seed`; `--seed LON LAT`; Keep in the QGIS plugin, Patches in the Earth Engine app) or the largest one (`largest`; `--largest`), so that a large region gives the perimeter of the fire without the other patches that pass the threshold (other fires, harvests, pastures that dried).
