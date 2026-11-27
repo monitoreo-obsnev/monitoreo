@@ -98,6 +98,7 @@ Earth Engine app, which gives it its version and date.
 
 ### Unreleased
 
+- **All tools**: The Tasseled Cap of Landsat in the theme Vegetation: brightness, greenness and wetness (TCB, TCG and TCW), with the coefficients of Crist (1985) on the surface reflectance of Landsat 5, 7, 8 and 9, as the studies of forest disturbance and recovery with Landsat time series use them; with quality `harmonize` for the series that cross 2013.
 - **Python package, R package, Command line, MCP server, Assistant, Earth Engine app**: The severity and recovery after a disturbance (`recovery_metrics`; `monitoreo recovery`; `mo_recovery_metrics()`; the section Recovery after a disturbance of the Earth Engine app): the metrics of the post-fire trajectories of Marcos et al. (2023) of the time series of an affected area and, with a control area, of the control and of their difference (BACI), on a robust STL decomposition (Cleveland et al. 1990): the severity S95 and the impact, the times DIT, RRT (the recovery time) and RET, the share of the loss recovered, the anomalies after the event and the trends before and after it. The QGIS plugin does not have it yet.
 
 ### [v0.3.81](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.81) · 2026-11-27 · package 0.3.91

@@ -32,6 +32,8 @@ HEADINGS = {
 	'MSAVI2': ('MSAVI2: índice de vegetación ajustado al suelo modificado',
 	           'MSAVI2: Modified Soil Adjusted Vegetation Index'),
 	'GPP': ('GPP y NPP: producción primaria bruta y neta', 'GPP and NPP: gross and net primary production'),
+	**dict.fromkeys(('TCB', 'TCG', 'TCW'), ('TCB, TCG y TCW: Tasseled Cap de Landsat',
+	                                        'TCB, TCG and TCW: Tasseled Cap of Landsat')),
 	'Chl-a': ('Chl-a: clorofila a en el agua', 'Chl-a: chlorophyll a in water'),
 	'NDCI': ('NDCI: índice de clorofila de diferencia normalizada', 'NDCI: Normalized Difference Chlorophyll Index'),
 	'NDWI': ('NDWI: índice de agua de diferencia normalizada', 'NDWI: Normalized Difference Water Index'),

@@ -193,7 +193,8 @@ HELP = {
 	'theme':
 		'<p>First the theme, then its variables: <b>Vegetation</b> (NDVI, EVI, LAI, red-edge chlorophyll index CLre '
 		'with B8 or CLreB7 with B7, water adjusted vegetation index WAVI, modified soil adjusted vegetation index '
-		'MSAVI2, gross and net primary production GPP and NPP), <b>Water</b> (NDWI, LSWI, moisture stress index MSI, '
+		'MSAVI2, gross and net primary production GPP and NPP, the Tasseled Cap brightness, greenness and wetness TCB, '
+		'TCG and TCW of Landsat), <b>Water</b> (NDWI, LSWI, moisture stress index MSI, '
 		'chlorophyll), <b>Snow</b> (NDSI, snow cover frequency, snow cover days), <b>Fire</b> (NBR, the burn date '
 		'BURNDATE, and the burn severity of a fire: dNBR, RBR or RdNBR), '
 		'<b>Energy and temperature</b> '
