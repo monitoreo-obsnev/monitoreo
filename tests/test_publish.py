@@ -221,6 +221,199 @@ def test_catalog(outputs):
 		publish.remove('../site', site)
 
 
+
+def test_tags_and_the_orthophoto(outputs, monkeypatch):
+	"""The tags of a report reach its report.json and the catalogue (which filters by them); with basemap pnoa its
+	maps open over the PNOA orthophoto, which is also under its image in the catalogue, and the credits name it."""
+	import numpy as np
+	asked = []
+
+	def ortho(wkt, extent, width, height, timeout=30):
+		asked.append((width, height))
+		return np.full((height, width, 3), (10, 20, 30), dtype='uint8')
+
+	monkeypatch.setattr(publish, '_orthophoto', ortho)
+	site = outputs / 'site'
+	r = publish.publish(_spec(tags=['PRESINMED', ' PRESINMED', 'Sierra Nevada'], basemap='PNOA'), site, outputs, log='')
+	folder = site / 'reports' / r['id']
+	assert r['tags'] == ['PRESINMED', 'Sierra Nevada'] and publish.check_report(r, str(folder)) == []
+	m = r['results'][0]
+	assert m['kind'] == 'map' and m['basemap'] == 'pnoa' and publish.PNOA_CREDIT in r['credits']
+	assert asked == [(publish.THUMBNAIL_WIDTH, round(15 * publish.THUMBNAIL_WIDTH / 20))]
+	png = gdal.Open(str(folder / 'thumbnail.png'))
+	rgba = np.dstack([png.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3, 4)])
+	png = None  # closed: Windows does not delete an open file when the report is published again
+	assert (rgba[..., 3] == 255).all()  # opaque: the orthophoto where the map has no data
+	assert rgba[0, 0].tolist() == [10, 20, 30, 255] and rgba[-1, -1].tolist() != [10, 20, 30, 255]
+	cat = json.loads((site / 'catalog.json').read_text(encoding='utf-8'))
+	assert cat['reports'][0]['tags'] == ['PRESINMED', 'Sierra Nevada'] and publish.check_site(site) == []
+
+	# a map can have its own base map; without one, OpenStreetMap, and neither the orthophoto nor its credit
+	asked.clear()
+	r = publish.publish(_spec(tags='PRESINMED', basemap='pnoa', results=[
+		{'answer': 'data/map.json', 'basemap': 'osm'}, {'answer': 'data/series.json'}]), site, outputs, log='')
+	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and not asked
+	assert publish.PNOA_CREDIT not in r['credits']
+	r = publish.publish(_spec(), site, outputs, log='')  # without tags in its YAML: it keeps those it had
+	assert r['tags'] == ['PRESINMED'] and r['results'][0]['basemap'] == 'osm' and 'view' not in r['results'][0]
+	assert publish.publish(_spec(tags=[]), site, outputs, log='')['tags'] == []
+
+	# a view: the map opens there, and its image in the catalogue is that part of it
+	asked.clear()
+	view = [-3.55, 37.105, -3.52, 37.125]
+	r = publish.publish(_spec(basemap='pnoa', view=view), site, outputs, log='')
+	assert r['results'][0]['view'] == view and publish.check_report(r, str(folder)) == []
+	(w, h), = asked
+	assert w == publish.THUMBNAIL_WIDTH and h != round(15 * w / 20)  # not the shape of the whole map
+	png = gdal.Open(str(folder / 'thumbnail.png'))
+	assert (png.RasterXSize, png.RasterYSize) == (w, h)
+	png = None
+
+	# wrong values: nothing is published
+	with pytest.raises(ValueError, match='basemap'):
+		publish.publish(_spec(id='otro', basemap='satellite'), site, outputs, log='')
+	with pytest.raises(ValueError, match='basemap'):
+		publish.publish(_spec(id='otro', results=[{'answer': 'data/map.json', 'basemap': 'google'}]), site, outputs,
+		                log='')
+	with pytest.raises(ValueError, match='tag'):
+		publish.publish(_spec(id='otro', tags=['<b>PRESINMED</b>']), site, outputs, log='')
+	with pytest.raises(ValueError, match='view'):
+		publish.publish(_spec(id='otro', view=[-3.5, 37.2, -3.6, 37.1]), site, outputs, log='')
+	assert not (site / 'reports' / 'otro').exists()
+	bad = json.loads(json.dumps(r))
+	bad['tags'] = 'PRESINMED'
+	bad['results'][0]['basemap'] = 'google'
+	bad['results'][0]['view'] = [10, 50]
+	problems = ' | '.join(publish.check_report(bad, str(site / 'reports' / r['id'])))
+	assert 'tags is a list' in problems and 'its basemap is one of osm, pnoa, none' in problems
+	assert 'its view is [west, south, east, north]' in problems
+	# a report published before the tags and the base maps is still right
+	old = json.loads(json.dumps(r))
+	del old['tags'], old['results'][0]['basemap'], old['results'][0]['view']
+	assert publish.check_report(old, str(site / 'reports' / r['id'])) == []
+
+
+
+def test_the_names_of_the_classes(tmp_path):
+	"""class_labels gives names that say what each class of an area by class is (Dry, not below 0.05), in order."""
+	csv_path = _csv(tmp_path / 'state.csv', [
+		{'region': 'Borreguiles', 'class': c, 'label': label, 'ha': ha, 'percent': pct}
+		for c, label, ha, pct in ((0, 'below 0.05', 80.0, 9.2), (1, '0.05 to 0.1', 162.0, 18.6), (2, '0.1 or more', 630.0, 72.2))])
+	item = {'tool': 'area_by_class', 'args': {'region': {'wdpa_id': 389011}, 'variable': 'LSWI', 'sensor': 'Sentinel-2',
+	                                          'start': '2017-06-01', 'end': '2019-09-30', 'breaks': [0.05, 0.1]},
+	        'result': {'csv': csv_path, 'classes': [{'class': 0, 'label': 'below 0.05', 'colour': 'ecab4e'},
+	                                                {'class': 1, 'label': '0.05 to 0.1', 'colour': '529400'},
+	                                                {'class': 2, 'label': '0.1 or more', 'colour': '023701'}]}}
+	site = tmp_path / 'site'
+	spec = _spec(files=None, downloads=None, results=[dict(item, class_labels=['Dry', 'Intermediate', 'Wet'])])
+	r = publish.publish(spec, site, tmp_path, log='')
+	(chart,) = r['results']
+	assert chart['chart'] == 'areas' and [c['label'] for c in chart['classes']] == ['Dry', 'Intermediate', 'Wet']
+	assert [c['colour'] for c in chart['classes']] == ['ecab4e', '529400', '023701']  # the colours stay
+	assert publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	assert [c['label'] for c in r['results'][0]['classes']] == ['below 0.05', '0.05 to 0.1', '0.1 or more']
+	with pytest.raises(ValueError, match='one per class'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, class_labels=['Dry', 'Wet'])]),
+		                site, tmp_path, log='')
+
+
+def test_a_map_in_classes(tmp_path):
+	"""breaks draws a map in classes of its values (as area_by_class), named by class_labels and with the colours of
+	palette (one per class), also in its image of the catalogue; the difference of a comparison stays continuous."""
+	import numpy as np
+	tif = _tif(tmp_path / 'state.tif', ['difference', 'reference', 'other'], [0.01, 0.04, 0.12])
+	item = {'tool': 'download_comparison',
+	        'args': {'region': {'wdpa_id': 389011}, 'variable': 'LSWI', 'sensor': 'Sentinel-2', 'start': '2017-06-01',
+	                 'end': '2019-09-30', 'other_start': '2023-06-01', 'other_end': '2025-09-30'},
+	        'result': {'file': tif, 'bands': ['difference', 'reference', 'other'], 'min': -0.1, 'max': 0.1}}
+	site = tmp_path / 'site'
+	r = publish.publish(_spec(files=None, downloads=None, results=[dict(
+		item, band='other', breaks=[0.05, 0.10], class_labels=['Dry', 'Intermediate', 'Wet'],
+		palette=['ecab4e', '529400', '023701'])]), site, tmp_path, log='')
+	(m,) = r['results']
+	legends = {b['name']: b['legend'] for b in m['bands']}
+	assert legends['difference']['type'] == 'continuous' and m['band'] == 'other'
+	assert legends['other'] == legends['reference'] == {'type': 'breaks', 'breaks': [0.05, 0.1], 'classes': [
+		{'label': 'Dry', 'color': '#ecab4e'}, {'label': 'Intermediate', 'color': '#529400'},
+		{'label': 'Wet', 'color': '#023701'}]}
+	assert publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	png = gdal.Open(str(site / 'reports' / r['id'] / 'thumbnail.png'))
+	rgba = np.dstack([png.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3, 4)])
+	png = None
+	assert rgba[-1, -1].tolist() == [2, 55, 1, 255] and rgba[0, 0, 3] == 0  # wet (0.12 and more); NoData
+	# without names nor colours: those of area_by_class with breaks
+	r = publish.publish(_spec(files=None, downloads=None, results=[dict(item, breaks=[0.05, 0.10])]), site, tmp_path,
+	                    log='')
+	classes = r['results'][0]['bands'][1]['legend']['classes']
+	assert [c['label'] for c in classes] == ['below 0.05', '0.05 to 0.1', '0.1 or more']
+	assert all(re.fullmatch(r'#[0-9a-f]{6}', c['color']) for c in classes)
+	with pytest.raises(ValueError, match='one per class'):
+		publish.publish(_spec(id='otro', files=None, downloads=None,
+		                      results=[dict(item, breaks=[0.05, 0.10], class_labels=['Dry', 'Wet'])]), site, tmp_path,
+		                log='')
+
+def test_the_step_of_a_table_without_its_call(tmp_path):
+	"""A CSV published without its call (a table made from several results) gets its step from its dates."""
+	annual = _csv(tmp_path / 'a.csv', [{'region': 'r', 'date': f'{y}-01-01', 'value': 1} for y in (2017, 2018)])
+	monthly = _csv(tmp_path / 'm.csv', [{'region': 'r', 'date': f'2017-{m:02d}-01', 'value': 1} for m in (1, 2)])
+	daily = _csv(tmp_path / 'd.csv', [{'region': 'r', 'date': '2017-01-05', 'value': 1}])
+	assert [publish._step_of(p) for p in (annual, monthly, daily)] == ['annual', 'monthly', None]
+
+
+def test_the_trend_of_a_series_of_its_own_values(tmp_path):
+	"""trend: true draws on an annual series without a trend_table (a table made from several results) the Sen line
+	of its own values, with its Mann-Kendall p-value; a series that is not annual cannot have it."""
+	values = [46, 86, 70, 68, 74, 56, 70, 73, 70]
+	csv_path = _csv(tmp_path / 'wet.csv', [{'region': 'Borreguiles', 'date': f'{2017 + i}-01-01', 'value': v}
+	                                      for i, v in enumerate(values)])
+	site = tmp_path / 'site'
+	item = {'result': {'csv': csv_path, 'unit': '%'}, 'title': 'Wet share', 'trend': True}
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	(s,) = r['results']
+	assert s['chart'] == 'series' and s['step'] == 'annual' and publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	(line,) = s['sen']
+	from monitoreo import trends
+	years = list(range(2017, 2026))
+	slope, intercept = trends.sen(years, values)
+	assert (line['from'], line['to'], line['origin'], line['period']) == (2017, 2025, 2017, '2017-2025')
+	assert line['slope'] == slope and line['intercept'] == intercept and line['significant'] is False
+	assert abs(line['p_value'] - trends.mann_kendall(years, values)[3]) < 1e-12
+	monthly = _csv(tmp_path / 'm.csv', [{'region': 'r', 'date': f'2017-{m:02d}-01', 'value': m} for m in (1, 2, 3)])
+	with pytest.raises(ValueError, match='annual series'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, result={'csv': monthly})]),
+		                site, tmp_path, log='')
+
+
+def test_two_variables_over_the_years(tmp_path):
+	"""chart: series_two draws a table of two variables over the years (its column variable), each with its axis."""
+	rows = [{'region': 'Borreguiles', 'variable': v, 'date': f'{y}-01-01', 'value': x}
+	        for v, base in (('NDVI', 0.4), ('LSWI', 0.1)) for y, x in zip(range(2017, 2020), (base, base + 0.02, base + 0.01))]
+	csv_path = _csv(tmp_path / 'both.csv', rows)
+	site = tmp_path / 'site'
+	item = {'result': {'csv': csv_path}, 'title': 'NDVI and LSWI', 'chart': 'series_two'}
+	r = publish.publish(_spec(files=None, downloads=None, results=[item]), site, tmp_path, log='')
+	(c,) = r['results']
+	assert c['chart'] == 'series_two' and c['variables'] == ['NDVI', 'LSWI']
+	assert (c['ylabel'], c['other_ylabel']) == ('NDVI', 'LSWI') and publish.check_report(r, str(site / 'reports' / r['id'])) == []
+	one = _csv(tmp_path / 'one.csv', rows[:3])
+	with pytest.raises(ValueError, match='two variables'):
+		publish.publish(_spec(id='otro', files=None, downloads=None, results=[dict(item, result={'csv': one})]), site,
+		                tmp_path, log='')
+
+def test_the_orthophoto_without_network(tmp_path, monkeypatch):
+	"""Without the WMS of the IGN the image of the catalogue is made without the orthophoto."""
+	import urllib.request
+
+	def down(*a, **k):
+		raise OSError('no network')
+
+	monkeypatch.setattr(urllib.request, 'urlopen', down)
+	ds = gdal.Open(_tif(tmp_path / 'm.tif', ['value'], [0.5]))
+	assert publish._orthophoto(ds.GetProjection(), (450000, 4106250, 455000, 4110000), 40, 30) is None
+	assert publish._window(ds, None) == (0, 0, 20, 15)
+	assert publish._window(ds, [10, 50, 11, 51]) == (0, 0, 20, 15)  # a view outside the map: all of it
+
 def test_problems(outputs):
 	site = outputs / 'site'
 	with pytest.raises(ValueError, match='title'):
@@ -263,6 +456,30 @@ def test_specs_and_services(outputs):
 	assert [r['id'] for r in res['reports']] == ['uno', 'dos'] and res['reports'][1]['page'] == 'report.html?id=dos'
 	assert services.check_site(str(outputs / 'site')) == []
 	assert services.remove_report('uno', str(outputs / 'site'))['removed'] == 'uno'
+
+
+def test_tags_of_a_published_report(outputs):
+	"""The tags of a published report without publishing it again (those published before the tags): in its
+	report.json and the catalogue; published again without tags it keeps them, with tags it takes those."""
+	site = outputs / 'site'
+	r = publish.publish(_spec(), site, outputs, log='')
+	assert r['tags'] == []
+	res = services.tag_report(r['id'], ['Fire', 'National parks', 'Fire'], str(site))
+	assert res['tags'] == ['Fire', 'National parks']
+	report = json.loads((site / 'reports' / r['id'] / 'report.json').read_text(encoding='utf-8'))
+	cat = json.loads((site / 'catalog.json').read_text(encoding='utf-8'))
+	assert report['tags'] == ['Fire', 'National parks'] and cat['reports'][0]['tags'] == ['Fire', 'National parks']
+	assert publish.check_site(site) == []
+	assert publish.publish(_spec(), site, outputs, log='')['tags'] == ['Fire', 'National parks']  # its YAML has none
+	assert publish.publish(_spec(tags=['Snow']), site, outputs, log='')['tags'] == ['Snow']
+	assert services.tag_report(r['id'], [], str(site))['tags'] == []
+	with pytest.raises(ValueError, match='there is no report'):
+		publish.set_tags('no-such-report', ['Fire'], site)
+	with pytest.raises(ValueError, match='a tag is a short text'):
+		publish.set_tags(r['id'], ['<b>'], site)
+	from monitoreo import cli
+	assert cli.main(['publish', '--site', str(site), '--tags', r['id'], 'Wet meadows', 'Snow']) in (None, 0)
+	assert json.loads((site / 'catalog.json').read_text(encoding='utf-8'))['reports'][0]['tags'] == ['Wet meadows', 'Snow']
 
 
 def test_calls_log(outputs, monkeypatch):

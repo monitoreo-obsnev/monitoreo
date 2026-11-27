@@ -25,6 +25,9 @@ MO.map = (() => {
 	function colour(band, index) {
 		const L = band.legend, v = ['band', index];
 		if (L.type === 'categories') return ['match', v, ...L.classes.flatMap((c) => [c.value, rgba(c.color)]), [0, 0, 0, 0]];
+		// in classes of its values: the colour of the first class whose upper break it does not reach
+		if (L.type === 'breaks') return ['case', ...L.breaks.flatMap((b, i) => [['<', v, b], rgba(L.classes[i].color)]),
+			rgba(L.classes[L.classes.length - 1].color)];
 		const n = L.palette.length;
 		return ['interpolate', ['linear'], v, ...L.palette.flatMap((c, k) => [L.min + (L.max - L.min) * k / (n - 1), rgba(c)])];
 	}
@@ -42,7 +45,7 @@ MO.map = (() => {
 		const L = band.legend;
 		const title = band.unit ? `${band.label} (${band.unit})` : band.label;
 		const items = [el('div', {class: 'legend-title'}, title)];
-		if (L.type === 'categories') {
+		if (L.type === 'categories' || L.type === 'breaks') {
 			for (const c of L.classes) items.push(el('span', {class: 'legend-item'}, el('span', {class: 'swatch', style: `background:${c.color}`}), c.label));
 		} else {
 			const ticks = [L.min, L.max];
@@ -71,6 +74,10 @@ MO.map = (() => {
 		if (band.legend.type === 'categories') {
 			const c = band.legend.classes.find((x) => x.value === Math.round(v));
 			return c ? c.label : MO.num(v);
+		}
+		if (band.legend.type === 'breaks') {  // its value and its class
+			const i = band.legend.breaks.filter((b) => v >= b).length;
+			return `${MO.num(v, 3)} (${band.legend.classes[i].label})`;
 		}
 		if (band.name === 'p_value') return MO.pValue(v);
 		if (band.name === 'n') return MO.num(v);
@@ -109,7 +116,9 @@ MO.map = (() => {
 			sources: [{url, nodata: result.nodata}], normalize: false, interpolate: false, projection: result.crs,
 			sourceOptions: {allowFullFile: true}});
 		const layer = new ol.layer.WebGLTile({source, style: style(result, band, dim), opacity: 0.9});
-		const background = new ol.layer.Tile({source: BASEMAPS[0][2]()});
+		// the base map that the report chose for this map (basemap of publish: osm, pnoa or none), or OpenStreetMap
+		const initial = BASEMAPS.find((b) => b[0] === result.basemap) || BASEMAPS[0];
+		const background = new ol.layer.Tile({source: initial[2] ? initial[2]() : null, visible: Boolean(initial[2])});
 		const target = el('div', {class: 'map', role: 'region', 'aria-label': `Map: ${result.title}`});
 		const box = el('div', {class: 'legend'});
 		const popup = el('div', {class: 'popup'});
@@ -164,7 +173,7 @@ MO.map = (() => {
 					const make = BASEMAPS.find((b) => b[0] === e.target.value)[2];
 					background.setVisible(Boolean(make));
 					if (make) background.setSource(make());
-				}}, BASEMAPS.map(([v, label]) => el('option', {value: v}, label)))),
+				}}, BASEMAPS.map(([v, label]) => el('option', {value: v, selected: v === initial[0]}, label)))),
 			el('div', {class: 'field'}, el('label', {for: `${id}-opacity`}, 'Opacity'),
 				el('input', {id: `${id}-opacity`, type: 'range', min: 0, max: 1, step: 0.05, value: 0.9,
 					oninput: (e) => { layer.setOpacity(Number(e.target.value)); compared.setOpacity(Number(e.target.value)); }})));
@@ -175,6 +184,9 @@ MO.map = (() => {
 		legend(box, result, band, dim);
 
 		const extent = ol.proj.transformExtent(result.bounds, 'EPSG:4326', 'EPSG:3857');
+		// where it opens: its view if the report gave one (a part of the map, e.g. where small patches are seen), else all
+		const start = Array.isArray(result.view) && result.view.length === 4 ?
+			ol.proj.transformExtent(result.view, 'EPSG:4326', 'EPSG:3857') : extent;
 		let map;
 		try {
 			map = new ol.Map({
@@ -199,7 +211,7 @@ MO.map = (() => {
 			const size = map.getSize();
 			if (fitted || !size || !size[0] || !size[1]) return;
 			fitted = true;
-			map.getView().fit(extent, {padding: [16, 16, 16, 16]});
+			map.getView().fit(start, {padding: [16, 16, 16, 16]});
 		};
 		map.on('change:size', fit);
 		fit();

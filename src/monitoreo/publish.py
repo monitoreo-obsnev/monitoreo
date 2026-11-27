@@ -30,6 +30,10 @@ written, in their language:
     authors: [OBSNEV - University of Granada]
     published: 2026-10-29                # default: today
     collection: Network of National Parks, October 2026
+    tags: [PRESINMED]                    # short labels, e.g. the project: the catalogue filters the reports by them
+                                         # (those of a published report: set_tags, monitoreo publish --tags ID TAG...)
+    basemap: pnoa                        # base map of its maps: osm (OpenStreetMap, default), pnoa (orthophoto of
+                                         # Spain, also under its image in the catalogue) or none
     results:                             # the outputs of the analysis, in the order of the page
       - answer: data/sn_trend.json        # an answer of the MCP server saved with its call: {call: {tool, args}, text}
         title: Trend of each month        # default: made from the call
@@ -38,6 +42,12 @@ written, in their language:
         args: {region: {wdpa_id: 389011}, variable: EVI, sensor: Modis, start: 2001-01-01, end: 2024-12-31}
         result: {file: trend.tif, min: -0.002, max: 0.002, palette: [...]}
         palette: [8c510a, f2efe6, 01665e] # colours of the main band of a map (default: those of the result)
+        basemap: osm                      # the base map of this map (default: that of the report)
+        view: [-3.42, 37.03, -3.30, 37.10] # where the map opens, and its image in the catalogue (default: all of it)
+        class_labels: [Dry, Intermediate, Wet] # of an area by class: the names of its classes, in order
+        breaks: [0.05, 0.10]              # a map in the classes of its values (with class_labels; palette, their colours)
+        trend: true                       # an annual series: the Sen line of its own values (Mann-Kendall p in its legend)
+        chart: series_two                 # a table of two variables (column variable) over the years, an axis each
       - file: ~/MonitorEO/trend_EVI_Modis_annual_2001-01-01_2024-12-31_20261028-233108.tif
                                           # or a file written by the MCP server: its call is read from its log
     downloads: [{path: report.pdf, title: Full report (PDF)}]
@@ -76,6 +86,12 @@ CALLS_LOG = 'calls.jsonl'  # log of the MCP server in its folder of files: a lin
 SITE_TITLE = 'Results of MonitorEO-OBSNEV'
 NODATA = -9999
 THUMBNAIL_WIDTH = 480
+MAP_OPACITY = 0.9  # that of the maps of the viewer (map.js)
+# the PNOA orthophoto of the Instituto Geográfico Nacional of Spain: its WMS (for the images of the catalogue) and the
+# credit it asks for (CC BY 4.0 scne.es)
+PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma'
+PNOA_LAYER = 'OI.OrthoimageCoverage'
+PNOA_CREDIT = 'PNOA orthophoto CC BY 4.0 scne.es (Instituto Geográfico Nacional, Spain)'
 
 # licences of the data and maps of a report, by their SPDX id (text: after a colon); LICENSE is that of a report that
 # does not give one
@@ -105,7 +121,7 @@ ANIMATIONS = ('.gif', '.mp4')  # the files of the animations (services.timelapse
 CHARTS = {'time_series': 'series', 'trend_table': 'trends', 'compare_series': 'comparison', 'area_by_class': 'areas',
           'transect': 'transect'}
 CHART_TYPES = ('series', 'trends', 'comparison', 'burn_severity', 'areas', 'transitions', 'transect', 'zones', 'doy',
-               'doy_profile', 'table')
+               'doy_profile', 'series_two', 'table')
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
@@ -667,11 +683,36 @@ def _georef(ds):
 	        'resolution': abs(gt[1])}
 
 
+def breaks_legend(breaks, labels=None, colours=None, entry=None, unit=''):
+	"""The legend of a map drawn in the classes of its values, as area_by_class with BREAKS: {'type': 'breaks',
+	'breaks', 'classes': [{label, color}]}, the classes of classes.break_classes (below the first break, ..., the last
+	one or more), named by LABELS (class_labels) and with COLOURS (palette: one per class) if given, else with those of
+	area_by_class (the ramp of the variable of the catalog ENTRY)."""
+	from . import classes
+	from .services import _ramp_colour
+	b = classes.check_breaks(breaks)
+	cl = classes.break_classes(b, unit_text(unit))
+	names = [str(x).strip() for x in _list(labels)] if labels is not None else [c[1] for c in cl]
+	if len(names) != len(cl) or not all(names):
+		raise ValueError(f"class_labels of a map in classes: {len(cl)} names, one per class, in order: "
+		                 + ', '.join(c[1] for c in cl))
+	cols = [str(c).lstrip('#').lower() for c in _list(colours)] if colours is not None else []
+	if len(cols) != len(cl) or not all(re.fullmatch(r'[0-9a-f]{6}', c) for c in cols):
+		ramp = maps.ramp(entry)
+		cols = [_ramp_colour(ramp, (i + 0.5) / len(cl)) for i in range(len(cl))]
+	return {'type': 'breaks', 'breaks': b, 'classes': [{'label': n, 'color': f'#{c}'} for n, c in zip(names, cols)]}
+
+
 def _colours(values, legend):
 	"""RGBA (uint8, H x W x 4) of the array VALUES (NaN: transparent) with a LEGEND of the viewer."""
 	import numpy as np
 	rgba = np.zeros(values.shape + (4,), dtype='uint8')
 	ok = np.isfinite(values)
+	if legend['type'] == 'breaks':  # the class of each value: how many breaks it reaches
+		cls = np.searchsorted(np.asarray(legend['breaks'], dtype='float64'), np.where(ok, values, -np.inf), side='right')
+		for i, c in enumerate(legend['classes']):
+			rgba[ok & (cls == i)] = [int(c['color'][k:k + 2], 16) for k in (1, 3, 5)] + [255]
+		return rgba
 	if legend['type'] == 'categories':
 		for c in legend['classes']:
 			sel = ok & (np.round(values) == c['value'])
@@ -691,16 +732,92 @@ def _colours(values, legend):
 NOT_SIGNIFICANT = '#dcdbd6'  # pixels without a significant trend
 
 
+def _orthophoto(wkt, extent, width, height, timeout=30):
+	"""The PNOA orthophoto of the Instituto Geográfico Nacional of Spain (its WMS) on EXTENT (x0, y0, x1, y1) of the CRS
+	WKT drawn at WIDTH x HEIGHT pixels: an array of height x width x 3 (uint8), or None if it cannot be had (no network,
+	the service down; outside Spain it is white)."""
+	import urllib.parse
+	import urllib.request
+	import numpy as np
+	gdal, osr = _gdal()
+	x0, y0, x1, y1 = extent
+	src = osr.SpatialReference(wkt=wkt)
+	web = osr.SpatialReference()
+	web.ImportFromEPSG(3857)
+	for srs in (src, web):
+		srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+	tr = osr.CoordinateTransformation(src, web)
+	pts = [tr.TransformPoint(x0 + (x1 - x0) * i / 4, y0 + (y1 - y0) * j / 4)[:2] for i in range(5) for j in range(5)]
+	w, s = min(p[0] for p in pts), min(p[1] for p in pts)
+	e, n = max(p[0] for p in pts), max(p[1] for p in pts)
+	big_w = min(2 * width, 2048)
+	big_h = max(1, min(2048, round(big_w * (n - s) / (e - w))))
+	query = urllib.parse.urlencode({'SERVICE': 'WMS', 'VERSION': '1.3.0', 'REQUEST': 'GetMap', 'LAYERS': PNOA_LAYER,
+	                                'STYLES': '', 'CRS': 'EPSG:3857', 'BBOX': f'{w},{s},{e},{n}', 'WIDTH': big_w,
+	                                'HEIGHT': big_h, 'FORMAT': 'image/jpeg'})
+	try:
+		with urllib.request.urlopen(f'{PNOA_WMS}?{query}', timeout=timeout) as r:  # nosec B310: the WMS of the IGN  # noqa: S310
+			if not r.headers.get('Content-Type', '').startswith('image/'):
+				return None
+			data = r.read()
+	except (OSError, ValueError):
+		return None
+	name = f'/vsimem/pnoa_{id(data)}.jpg'
+	gdal.FileFromMemBuffer(name, data)
+	try:
+		img = gdal.Open(name)
+		if img is None or img.RasterCount < 3:
+			return None
+		mem = gdal.GetDriverByName('MEM').CreateCopy('', img)
+		mem.SetGeoTransform([w, (e - w) / big_w, 0, n, 0, -(n - s) / big_h])
+		mem.SetProjection(web.ExportToWkt())
+		out = gdal.Warp('', mem, format='MEM', dstSRS=wkt, outputBounds=(x0, y0, x1, y1), width=width,
+		                height=height, resampleAlg='bilinear')
+		return np.dstack([out.GetRasterBand(i).ReadAsArray() for i in (1, 2, 3)]).astype('uint8')
+	except RuntimeError:
+		return None
+	finally:
+		gdal.Unlink(name)
+
+
+def _window(ds, view):
+	"""(column, row, columns, rows) of the pixels of the dataset DS inside VIEW ([west, south, east, north] in degrees),
+	or of all of them without a VIEW or if none is inside."""
+	whole = (0, 0, ds.RasterXSize, ds.RasterYSize)
+	if not view:
+		return whole
+	_, osr = _gdal()
+	geo = osr.SpatialReference()
+	geo.ImportFromEPSG(4326)
+	dst = osr.SpatialReference(wkt=ds.GetProjection())
+	for srs in (geo, dst):
+		srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+	tr = osr.CoordinateTransformation(geo, dst)
+	w, s, e, n = view
+	pts = [tr.TransformPoint(w + (e - w) * i / 4, s + (n - s) * j / 4)[:2] for i in range(5) for j in range(5)]
+	gt = ds.GetGeoTransform()
+	cols = [(x - gt[0]) / gt[1] for x, _ in pts]
+	rows = [(y - gt[3]) / gt[5] for _, y in pts]
+	c0, c1 = max(0, int(min(cols))), min(ds.RasterXSize, int(math.ceil(max(cols))))
+	r0, r1 = max(0, int(min(rows))), min(ds.RasterYSize, int(math.ceil(max(rows))))
+	return (c0, r0, c1 - c0, r1 - r0) if c1 > c0 and r1 > r0 else whole
+
+
 def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
+	"""The image of the catalogue of a map: its main band with the colours of its legend (grey where its trend is not
+	significant), of its initial view if it has one (view), over the PNOA orthophoto if it is its base map (basemap
+	pnoa; without network, as without it). Returns whether it has the orthophoto."""
 	import numpy as np
 	gdal, _ = _gdal()
 	ds = gdal.Open(cog)
-	h = max(1, round(ds.RasterYSize * width / ds.RasterXSize))
+	c0, r0, nc, nr = _window(ds, entry.get('view'))
+	h = max(1, round(nr * width / nc))
 	names = [b['name'] for b in entry['bands']]
 
 	def read(name):
 		b = ds.GetRasterBand(names.index(name) + 1)
-		a = b.ReadAsArray(buf_xsize=width, buf_ysize=h, resample_alg=gdal.GRIORA_NearestNeighbour).astype('float64')
+		a = b.ReadAsArray(c0, r0, nc, nr, buf_xsize=width, buf_ysize=h,
+		                  resample_alg=gdal.GRIORA_NearestNeighbour).astype('float64')
 		if b.GetNoDataValue() is not None:
 			a[a == b.GetNoDataValue()] = np.nan
 		return a
@@ -713,7 +830,15 @@ def _thumbnail_of_map(cog, entry, dst, width=THUMBNAIL_WIDTH):
 		p = read(sig['band'])
 		grey = [int(NOT_SIGNIFICANT[i:i + 2], 16) for i in (1, 3, 5)] + [255]
 		rgba[np.isfinite(values) & ~(p < sig['alpha'])] = grey
+	gt = ds.GetGeoTransform()
+	extent = (gt[0] + c0 * gt[1], gt[3] + (r0 + nr) * gt[5], gt[0] + (c0 + nc) * gt[1], gt[3] + r0 * gt[5])
+	ortho = _orthophoto(ds.GetProjection(), extent, width, h) if entry.get('basemap') == 'pnoa' else None
+	if ortho is not None:  # the map over the orthophoto, with the opacity of the map of the viewer (MAP_OPACITY)
+		a = rgba[..., 3:4].astype('float64') / 255 * MAP_OPACITY
+		rgb = ortho * (1 - a) + rgba[..., :3] * a
+		rgba = np.dstack([np.clip(np.round(rgb), 0, 255), np.full(rgb.shape[:2], 255)]).astype('uint8')
 	_write_png(rgba, dst)
+	return ortho is not None
 
 
 def _write_png(rgba, dst):
@@ -783,6 +908,15 @@ def _area_classes(args, path):
 			_ramp_colour(ramp, (i + 0.5) / len(first)) if 'value_from' in r else trend.get(code)
 		out.append({'class': code, 'label': r['label'], 'colour': colour})
 	return out
+
+
+def _step_of(path):
+	"""The step of a table without its call (a CSV with dates): 'annual' if all its dates are the 1st of January,
+	'monthly' if all are the 1st of a month, else None."""
+	dates = [str(r.get('date') or '')[:10] for r in _read_csv(path)]
+	if not dates or not all(re.fullmatch(r'\d{4}-\d{2}-\d{2}', d) for d in dates):
+		return None
+	return 'annual' if all(d[5:] == '01-01' for d in dates) else 'monthly' if all(d[8:] == '01' for d in dates) else None
 
 
 def _axis_range(lim):
@@ -871,6 +1005,12 @@ def _results(item, files, n):
 		if {'red', 'green', 'blue'} <= set(arrays):  # a true colour made by Python, R or the command line
 			raise ValueError(TRUE_COLOUR)
 		bands = _bands(tool, args, res, arrays, item.get('palette'), unit)
+		if item.get('breaks') is not None:  # in classes of its values (not its difference), e.g. dry, intermediate, wet
+			legend = breaks_legend(item['breaks'], item.get('class_labels'), item.get('palette'),
+			                       _entry(args.get('variable'), args.get('sensor')), unit)
+			for b in bands:
+				if b['name'] != 'difference' and b['legend'].get('type') == 'continuous':
+					b['legend'] = dict(legend)
 		names = [b['name'] for b in bands]
 		main = item.get('band') or next((b for b in MAIN_BANDS if b in names), names[0])
 		sig = None
@@ -889,9 +1029,17 @@ def _results(item, files, n):
 		entry = {'id': f'r{n + len(out) + 1}', 'kind': 'chart', 'chart': chart,
 		         'title': item.get('chart_title') or title if out else title, 'caption': item.get('chart_caption') or
 		         (item.get('caption') if not out else None), 'tool': tool, 'csv': path, 'png': None,
-		         'unit': unit_text(unit), 'step': args.get('step'), 'call': call}
+		         'unit': unit_text(unit), 'step': args.get('step') or (None if tool else _step_of(res['csv'])), 'call': call}
 		if res.get('ylabel') and res.get('ylabel') != res.get('unit'):  # the title of the y axis (SCF)
 			entry['ylabel'] = res['ylabel']
+		if chart == 'series_two':  # two variables over the years, each with its own axis (a table of two series)
+			names = list(dict.fromkeys(r['variable'] for r in _read_csv(res['csv']) if r.get('variable')))
+			if len(names) != 2:
+				raise ValueError(f'the chart series_two of {title} is of a table with two variables (its column variable), '
+				                 f'not {len(names)}')
+			entry['variables'] = names
+			entry['ylabel'] = res.get('ylabel') or names[0]
+			entry['other_ylabel'] = res.get('other_ylabel') or names[1]
 		if chart == 'series' and composite.is_days(args.get('metric')):  # the snow cover days: a bar per step
 			entry['bars'] = True
 		if chart == 'doy':  # the range of its y axis, if one was given (ylim)
@@ -924,6 +1072,13 @@ def _results(item, files, n):
 		elif chart == 'areas':  # the colour of each class, as in its chart of Python (from its CSV if the result has none)
 			entry['classes'] = [{k: c.get(k) for k in ('class', 'label', 'colour')}
 			                    for c in res.get('classes') or _area_classes(args, res['csv'])]
+			if item.get('class_labels') is not None:  # names that say what each class is ('Dry', not 'below 0.05')
+				names = [str(x).strip() for x in _list(item['class_labels'])]
+				if len(names) != len(entry['classes']) or not all(names):
+					raise ValueError(f"class_labels of {title}: {len(entry['classes'])} names, one per class, in order: "
+					                 + ', '.join(str(c['label']) for c in entry['classes']))
+				for c, name in zip(entry['classes'], names):
+					c['label'] = name
 		elif chart == 'table' and tool == 'burn_severity' and out:  # the RBR: the statistics of the index in each region
 			entry['title'] = item.get('chart_title') or f'Statistics of the {burn_index(args)} in each region'
 		if res.get('chart'):
@@ -965,6 +1120,30 @@ def _link_trends(results, folder):
 				              'significant': r.get('significant') == 'True'})
 		if lines:
 			s['sen'] = lines
+
+
+def _own_trend(entry, folder, alpha=0.05):
+	"""The Sen lines of an annual series ENTRY from its own values (the option trend of a result, e.g. of a table made
+	from several results, which has no trend_table of the same call), as those of _link_trends: Mann-Kendall and Sen's
+	slope of each region with MIN_YEARS years or more."""
+	by = {}
+	for r in _read_csv(os.path.join(folder, entry['csv'])):
+		v = _num(r.get('value'))
+		if v is not None:
+			by.setdefault(r.get('region') or '', []).append((int(str(r['date'])[:4]), v))
+	lines = []
+	for region, pts in by.items():
+		pts.sort()
+		years, values = [p[0] for p in pts], [p[1] for p in pts]
+		if len(pts) < trends.MIN_YEARS:
+			continue
+		_, tau, _, p = trends.mann_kendall(years, values)
+		slope, intercept = trends.sen(years, values)
+		start, end = f'{years[0]}-01-01', f'{years[-1]}-12-31'
+		lines.append({'region': region, 'trend': None, 'start': start, 'end': end, 'period': period_text(start, end),
+		              'origin': years[0], 'from': years[0], 'to': years[-1], 'slope': slope, 'intercept': intercept,
+		              'p_value': p, 'significant': p < alpha})
+	return lines
 
 
 def _region(spec, items):
@@ -1043,6 +1222,46 @@ def license_of(value=None):
 	raise ValueError(f'unknown licence {value}: one of {", ".join(LICENSES)} or {{name, url, text}}')
 
 
+BASEMAPS = ('osm', 'pnoa', 'none')  # the base maps of the maps of the viewer (map.js): OpenStreetMap, PNOA, none
+TAG = re.compile(r'[^\x00-\x1f<>]{1,40}')  # a tag: a short label of one line
+
+
+def basemap_of(value=None):
+	"""The base map of a map of a report: one of BASEMAPS ('osm', the default; 'pnoa', the orthophoto of the Instituto
+	Geográfico Nacional of Spain; 'none'), or ValueError."""
+	key = str(value or 'osm').strip().lower()
+	if key not in BASEMAPS:
+		raise ValueError(f"unknown basemap {value}: one of {', '.join(BASEMAPS)}")
+	return key
+
+
+def view_of(value=None):
+	"""The initial view of a map of a report, [west, south, east, north] in degrees (e.g. a part of the area where
+	its small patches are seen), or None (the whole map); ValueError if it is not a box."""
+	if value is None:
+		return None
+	try:
+		w, s, e, n = [float(v) for v in value]
+	except (TypeError, ValueError):
+		raise ValueError(f'a view is [west, south, east, north] in degrees: {value}') from None
+	if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
+		raise ValueError(f'a view is [west, south, east, north] in degrees: {value}')
+	return [w, s, e, n]
+
+
+def tags_of(value=None):
+	"""The tags of a report (a text or a list of texts, e.g. the project, PRESINMED), without repetitions; ValueError
+	for a tag that is empty, longer than 40 characters or with < or >."""
+	out = []
+	for t in _list(value):
+		t = str(t).strip()
+		if not TAG.fullmatch(t):
+			raise ValueError(f'a tag is a short text, up to 40 characters, without < or >: {t!r}')
+		if t not in out:
+			out.append(t)
+	return out
+
+
 def build(spec, rid, base, folders, log, folder):
 	"""Write the files of the report SPEC to FOLDER and return its report.json."""
 	files = _Files(folder)
@@ -1050,15 +1269,28 @@ def build(spec, rid, base, folders, log, folder):
 	published = str(spec.get('published') or dt.date.today().isoformat())[:10]
 	refs, credits, numbers = references.of_items(items, dt.date.fromisoformat(published))
 	results = []
+	own = []  # the series with trend: true
 	from .report import manual_links
 	for it, nums in zip(items, numbers):
 		links = manual_links(it.get('args'), it.get('result'))  # what each variable is: its section of the wiki
+		basemap = basemap_of(it.get('basemap') or spec.get('basemap'))
+		view = view_of(it.get('view') or spec.get('view'))
 		for r in _results(it, files, len(results)):
+			if it.get('trend') and r.get('chart') == 'series':
+				own.append(r)
+			if r['kind'] == 'map':
+				r['basemap'] = basemap
+				if view:
+					r['view'] = view
 			r['references'] = nums  # numbers (from 1) of its references in those of the report
 			if links:
 				r['manual'] = [{k: link.get(k) for k in ('variable', 'title', 'url', 'url_es')} for link in links]
 			results.append(r)
 	_link_trends(results, folder)
+	for r in own:  # trend: true, the Sen line of its own values (if the report has no trend of the same series)
+		if r.get('step') != 'annual':
+			raise ValueError(f"trend of {r['title']}: the Sen line of its own values is for an annual series")
+		r['sen'] = r.get('sen') or _own_trend(r, folder)
 	for d in _list(spec.get('downloads')):
 		d = {'path': d} if isinstance(d, str) else dict(d)
 		src = _find(d['path'], base, folders)
@@ -1077,6 +1309,8 @@ def build(spec, rid, base, folders, log, folder):
 		_thumbnail_of_image(os.path.join(folder, (pngs or gifs)[0]), dst)
 	else:
 		thumbnail = None
+	if any(m.get('basemap') == 'pnoa' for m in maps_) and PNOA_CREDIT not in credits:
+		credits = list(credits) + [PNOA_CREDIT]  # the orthophoto under its maps, and under its image of the catalogue
 	region = _region(spec, items)
 	if maps_:
 		bs = [r['bounds'] for r in maps_]
@@ -1095,6 +1329,7 @@ def build(spec, rid, base, folders, log, folder):
 		'published': published,
 		'authors': [str(a) for a in _list(spec.get('authors'))] or ['OBSNEV - University of Granada'],
 		'collection': spec.get('collection'), 'keywords': [str(k) for k in _list(spec.get('keywords'))],
+		'tags': tags_of(spec.get('tags')),
 		'license': license_of(spec.get('license')), 'thumbnail': thumbnail, 'results': results, 'files': files.list,
 		'software': {'monitoreo': __version__},
 		'references': [{k: r.get(k) for k in ('citation', 'doi', 'url')} for r in refs], 'credits': credits,
@@ -1128,8 +1363,16 @@ def publish(spec, site=None, base=None, log=None):
 	if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,79}', rid):
 		raise ValueError(f'the id of a report has lowercase letters, digits and hyphens: {rid}')
 	license_of(spec.get('license'))
+	tags_of(spec.get('tags'))
+	for it in [spec] + [it for it in _list(spec.get('results')) if isinstance(it, dict)]:
+		basemap_of(it.get('basemap'))  # before writing anything
+		view_of(it.get('view'))
 	folders = [_path(p, base) for p in _list(spec.get('files'))]
 	reports = os.path.join(site, 'reports')
+	old = os.path.join(reports, rid, 'report.json')
+	if 'tags' not in spec and os.path.isfile(old):  # published again without tags: it keeps those it had (set_tags)
+		with open(old, encoding='utf-8') as f:
+			spec = dict(spec, tags=json.load(f).get('tags') or [])
 	os.makedirs(reports, exist_ok=True)
 	tmp = os.path.join(reports, f'.{rid}.tmp')
 	shutil.rmtree(tmp, ignore_errors=True)
@@ -1161,6 +1404,23 @@ def remove(rid, site=None):
 	return update_catalog(site)
 
 
+def set_tags(rid, tags, site=None):
+	"""Give the report RID of SITE the TAGS (a text or a list of texts; none removes them), in its report.json and in
+	the catalogue, without publishing it again: e.g. those published before the tags, whose YAML is elsewhere. A report
+	published again keeps them if its YAML has no tags. Returns its tags."""
+	site = site_folder(site)
+	path = os.path.join(site, 'reports', str(rid), 'report.json')
+	if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', str(rid)) or not os.path.isfile(path):
+		raise ValueError(f'there is no report {rid} in {site}')
+	tags = tags_of(tags)
+	with open(path, encoding='utf-8') as f:
+		report = json.load(f)
+	report['tags'] = tags
+	_write_json(report, path)
+	update_catalog(site)
+	return tags
+
+
 def install_viewer(site=None):
 	"""Copy the viewer (index.html, report.html, assets/ and the logos of monitoreo.about) to SITE."""
 	site = site_folder(site)
@@ -1178,7 +1438,7 @@ def install_viewer(site=None):
 
 
 CATALOG_KEYS = ('id', 'title', 'question', 'summary', 'region', 'variables', 'analyses', 'periods', 'years',
-                'published', 'authors', 'collection', 'keywords', 'license')
+                'published', 'authors', 'collection', 'keywords', 'tags', 'license')
 
 
 def update_catalog(site=None):
@@ -1239,6 +1499,13 @@ def _legend_problems(legend, where):
 				and re.fullmatch(r'#[0-9a-f]{6}', str(c.get('color'))) for c in cl):
 			return [f'{where}: classes with value, label and colour #rrggbb']
 		return []
+	if legend.get('type') == 'breaks':
+		b, cl = legend.get('breaks'), legend.get('classes')
+		ok = isinstance(b, list) and b and all(isinstance(x, (int, float)) for x in b) and b == sorted(set(b))
+		if not ok or not isinstance(cl, list) or len(cl) != len(b) + 1 or not all(
+				c.get('label') and re.fullmatch(r'#[0-9a-f]{6}', str(c.get('color'))) for c in cl):
+			return [f'{where}: increasing breaks, and a class with label and colour #rrggbb more than breaks']
+		return []
 	return [f"{where}: unknown legend type {legend.get('type')}"]
 
 
@@ -1254,6 +1521,11 @@ def _axes_problems(r, where):
 
 	p = [f'{where}: {k} is [min, max] of the y axis, or null' for k in ('ylim', 'other_ylim')
 	     if r.get(k) is not None and not is_range(r[k])]
+	if r.get('chart') == 'series_two':
+		names = r.get('variables')
+		if not (isinstance(names, list) and len(names) == 2 and all(isinstance(n, str) and n for n in names)):
+			p.append(f'{where}: variables is a list of two names')
+		return p
 	if r.get('chart') != 'doy_profile':
 		return p
 	names = r.get('variables')
@@ -1297,6 +1569,9 @@ def check_report(report, folder=None):
 		w, s, e, n = region['bounds']
 		if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
 			p.append('region.bounds are [west, south, east, north] in degrees')
+	tags = report.get('tags')  # none in the reports published before the tags
+	if tags is not None and (not isinstance(tags, list) or not all(isinstance(t, str) and TAG.fullmatch(t) for t in tags)):
+		p.append('tags is a list of short texts, without < or >')
 	lists = [f'{k} is a list' for k in ('variables', 'analyses', 'periods', 'results', 'files', 'sections', 'keywords')
 	         if not isinstance(report.get(k), list)]
 	if lists:  # the rest cannot be checked
@@ -1325,6 +1600,13 @@ def check_report(report, folder=None):
 		if call is not None and (not call.get('tool') or not isinstance(call.get('args'), dict)):
 			p.append(f'{where}: the call has a tool and its args')
 		if r.get('kind') == 'map':
+			if r.get('basemap') is not None and r['basemap'] not in BASEMAPS:  # none before the base maps
+				p.append(f"{where}: its basemap is one of {', '.join(BASEMAPS)}")
+			if r.get('view') is not None:
+				try:
+					view_of(r['view'])
+				except ValueError:
+					p.append(f'{where}: its view is [west, south, east, north] in degrees')
 			missing = [f'{where}: no {k}' for k in ('cog', 'crs', 'proj4', 'bounds', 'extent', 'size', 'bands', 'band')
 			           if not r.get(k)]
 			if missing:

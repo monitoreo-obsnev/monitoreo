@@ -9,16 +9,21 @@ const MO = (() => {
 	const ANALYSES = {series: 'Time series', trend: 'Trend', comparison: 'Comparison of periods',
 		burn_severity: 'Burn severity', map: 'Map', gradients: 'Gradients'};
 
-	async function json(url) {
-		const r = await fetch(url, {cache: 'no-cache'});
+	// A file of the site, checked with the server each time (no-cache); a 304 that reaches the page (a browser whose
+	// cache lost the file but kept its date) asks for it again without the cache.
+	async function get(url) {
+		let r = await fetch(url, {cache: 'no-cache'});
+		if (r.status === 304) r = await fetch(url, {cache: 'reload'});
 		if (!r.ok) throw new Error(`${url}: ${r.status} ${r.statusText}`);
-		return r.json();
+		return r;
+	}
+
+	async function json(url) {
+		return (await get(url)).json();
 	}
 
 	async function text(url) {
-		const r = await fetch(url, {cache: 'no-cache'});
-		if (!r.ok) throw new Error(`${url}: ${r.status} ${r.statusText}`);
-		return r.text();
+		return (await get(url)).text();
 	}
 
 	// An element with attributes (on* are listeners) and children (nodes or texts, never HTML).

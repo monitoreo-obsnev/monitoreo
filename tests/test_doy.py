@@ -195,7 +195,81 @@ def test_the_viewer_draws_the_newest_year_dark_and_thick(tmp_path):
 	                     text=True, timeout=60)
 	assert run.returncode == 0, run.stderr
 	encoding = json.loads(run.stdout.strip().splitlines()[-1])
-	assert encoding['color']['scale'] == {'scheme': 'viridis', 'reverse': True}  # from light to dark
+	# from light to dark, each year with its colour whichever years are shown
+	assert encoding['color']['scale'] == {'scheme': 'viridis', 'reverse': True, 'domain': ['2023', '2024']}
 	width = encoding['strokeWidth']
 	assert width['condition']['test'] == {'field': 'year', 'equal': '2024'}  # the newest year, thicker
 	assert width['condition']['value'] > width['value']
+
+
+VIEWER_YEARS = r"""
+var fs = require('fs'), vm = require('vm');
+var specs = [], made = [];
+function el(tag, attrs) {
+	var kids = Array.prototype.slice.call(arguments, 2).flat(Infinity);
+	var e = {tag: tag, attrs: attrs || {}, children: kids, clientWidth: 800, checked: (attrs || {}).checked,
+		append: function () { for (var i = 0; i < arguments.length; i++) this.children.push(arguments[i]); },
+		replaceChildren: function () { this.children = Array.prototype.slice.call(arguments); }};
+	made.push(e);
+	return e;
+}
+global.window = {matchMedia: function () { return {matches: false, addEventListener: function () {}}; }};
+global.document = {documentElement: {}};
+global.getComputedStyle = function () { return {colorScheme: 'light'}; };
+global.MO = {el: el, css: function () { return '#000000'; }, text: async function () { return fs.readFileSync(0, 'utf8'); }};
+global.vega = {read: function (text) {
+	var lines = text.trim().split('\n'), head = lines[0].split(',');
+	return lines.slice(1).map(function (l) {
+		var r = {};
+		l.split(',').forEach(function (v, i) { r[head[i]] = v; });
+		return r;
+	});
+}};
+global.vegaEmbed = async function (box, s) { specs.push(s); return {}; };
+vm.runInThisContext(fs.readFileSync(process.argv[process.argv.length - 1], 'utf8'));
+var tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+var last = function () { return specs[specs.length - 1]; };
+var years = function (s) { return Array.from(new Set(s.data.values.map(function (r) { return r.year; }))); };
+MO.chart.render(el('div'), {id: 'r', chart: 'doy', csv: 'series.csv', ylabel: '[unitless]', unit: '',
+	call: {args: {variable: 'NDVI'}}}, '').then(async function () {
+	var boxes = made.filter(function (e) { return e.tag === 'input' && e.attrs.type === 'checkbox'; });
+	var button = function (t) { return made.find(function (e) { return e.tag === 'button' && e.children[0] === t; }); };
+	var chart = made.find(function (e) { return e.attrs.class === 'chart'; });
+	var out = {boxes: boxes.map(function (b) { return b.attrs.value; }), first: years(last()),
+		domain: last().encoding.color.scale.domain, legend: last().encoding.color.legend.values,
+		y: last().encoding.y.title};
+	boxes[0].attrs.onchange({target: {checked: false}});
+	await tick();
+	out.without = years(last());
+	out.domain_without = last().encoding.color.scale.domain;
+	out.legend_without = last().encoding.color.legend.values;
+	button('None').attrs.onclick();
+	await tick();
+	out.none = chart.children.map(function (c) { return c.attrs && c.attrs.class; });
+	button('All').attrs.onclick();
+	await tick();
+	out.all = years(last());
+	out.checked = boxes.map(function (b) { return b.checked; });
+	console.log(JSON.stringify(out));
+});
+"""
+
+
+@pytest.mark.skipif(not shutil.which('node'), reason='no Node')
+def test_the_viewer_lets_the_reader_choose_the_years(tmp_path):
+	"""A chart with a line per year has a checkbox per year (and All, None): the years unchecked leave the chart and
+	the others keep their colours."""
+	from monitoreo import publish
+	csv = tmp_path / 'series.csv'
+	timeseries.write_csv(_rows(), str(csv), {}, timeseries.COLUMNS + ['year', 'doy'])
+	charts = os.path.join(os.path.dirname(publish.__file__), 'viewer', 'assets', 'charts.js')
+	run = subprocess.run(['node', '-e', VIEWER_YEARS, charts], input=csv.read_text(encoding='utf-8'),
+	                     capture_output=True, text=True, timeout=60)
+	assert run.returncode == 0, run.stderr
+	out = json.loads(run.stdout.strip().splitlines()[-1])
+	assert out['boxes'] == ['2023', '2024'] and out['first'] == ['2023', '2024']
+	assert out['without'] == ['2024'] and out['domain_without'] == out['domain'] == ['2023', '2024']
+	assert out['legend'] == ['2023', '2024'] and out['legend_without'] == ['2024']  # the legend, of those shown
+	assert out['y'] == 'NDVI'  # the variable, not '[unitless]' (the label of the reports published before)
+	assert out['none'] == ['empty']  # 'Choose one or more years.'
+	assert out['all'] == ['2023', '2024'] and out['checked'] == [True, True]

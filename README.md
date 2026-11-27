@@ -96,6 +96,22 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Results viewer, MCP server, Python package, Command line**: A report can have tags (`tags`, e.g. PRESINMED): they appear on its card and on its page, and the catalogue has a Tag filter (`?tag=PRESINMED`).
+- **Results viewer, MCP server, Python package, Command line**: A report can open its maps over the PNOA orthophoto (`basemap: pnoa`, or `none`; OpenStreetMap by default), and its image in the catalogue is then its map over the orthophoto.
+- **Results viewer**: A chart with a line per year has a checkbox for each year (and All, None) to show only some of them, each with its own colour.
+- **Results viewer, MCP server, Python package, Command line**: A map can open on a part of it (`view: [west, south, east, north]`), e.g. where small patches are seen, and its image in the catalogue is that part.
+- **Results viewer** (fix): The y axis of a chart of a variable without unit (NDVI) is titled with the variable instead of «[unitless]».
+- **Results viewer, Python package, Command line**: The charts of the area of each class and of the burn severity have a legend with the colour of each class, and a report can name the classes of an area by class (`class_labels: [Dry, Intermediate, Wet]`).
+- **Results viewer, Python package, Command line**: A map can be drawn in the classes of its values (`breaks: [0.05, 0.10]`, with `class_labels`), with a legend of its classes and, on clicking a pixel, its value and its class; with the swipe, the classes of two periods side by side.
+- **Results viewer** (fix): An annual time series has a tick per year (every 5 years in a long one) instead of two with the same year, also a table published without its call, whose step comes from its dates.
+- **Results viewer, Python package, Command line**: An annual series can show the Sen line of its own values (`trend: true`), and a table of two variables over the years is a chart with an axis for each one (`chart: series_two`, e.g. NDVI on the left and LSWI on the right).
+- **Results viewer** (fix): The lowest and the highest values of a time series are no longer drawn on the edge of the chart, and the tooltip of a table without images nor pixels no longer shows «NaN».
+- **Results viewer** (fix): A browser that kept the date of a file of the site but lost the file no longer shows «Cannot read the catalog (catalog.json): 304 Not Modified».
+- **Results viewer**: The short answer of a report is right below its question, above its facts, and its region is called «Area» (also in the filter of the catalog).
+- **Python package, Command line**: The tags of a published report can be changed without publishing it again (`monitoreo publish --tags ID TAG ...`, `services.tag_report`), e.g. those published before the tags; published again from a YAML without tags, a report keeps them.
+
 ### [v0.3.76](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.76) · 2026-11-27 · package 0.3.86
 
 - **All tools**: New variable: the snow melt-out day (SMOD) of Sentinel-2, Landsat and MODIS Terra and Aqua, the day of the year (1 = 1 January) when the snow of each pixel goes: that of the first clear image without snow after the last one with snow, in the season of each year (by default 1 January to 31 August), from the images of the snow cover frequency of its sensor, with its rules and fixed filters (in Landsat and Sentinel-2, its correction of the shadows of the relief; MODIS needs none: checked against Landsat on 112 days in Sierra Nevada, it sees 98.4 % of the snow of Landsat in the shadow, as in the sun) (Barrou Dumont et al. 2025, https://doi.org/10.5194/tc-19-2407-2025; Dietz et al. 2012, https://doi.org/10.3390/rs4082432). Its only metric is `melt` (Melt-out day in the QGIS plugin and the Earth Engine app) and it has one value per year: time series and trends with the step annual (Sen's slope in days per year, negative is an earlier melt-out), maps of a period (the mean day of its years) or of each year; the monthly, 16-day and daily steps are refused.

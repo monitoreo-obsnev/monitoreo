@@ -130,7 +130,7 @@ MO.chart = (() => {
 		return {data: {values: data}, height: 280, width: 'container', mark: {type: 'bar'},
 			encoding: Object.assign({
 				x: {field: 'step', type: 'ordinal', sort: steps, scale: {domain: steps}, title: null, axis: {labelOverlap: true}},
-				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || null},
+				y: {field: 'value', type: 'quantitative', title: axisTitle(result)},
 				color,
 				tooltip: [{field: 'date', title: 'Date'}].concat(regions.length > 1 ? [{field: 'region', title: 'Region'}] : [],
 					[{field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
@@ -156,17 +156,23 @@ MO.chart = (() => {
 		const domain = [...new Set(data.map((d) => d.serie).concat(sen.map((d) => d.serie)))];
 		const color = {field: 'serie', type: 'nominal', scale: {domain, range: palette()},
 			legend: domain.length > 1 ? {columns: narrow ? 1 : Math.min(domain.length, 2)} : null};
-		const yTitle = result.ylabel || result.unit || result.call?.args?.variable || null;
+		const yTitle = axisTitle(result);
+		// an annual series: a tick each year (each 5 years in a long one), not two per year with the same label
+		const nYears = new Set(data.map((d) => String(d.date).slice(0, 4))).size;
+		const yearTicks = annual ? {format: '%Y', tickCount: {interval: 'year', step: nYears > 20 ? 5 : 1}} : {};
 		const x = (brush) => ({field: 't', type: 'temporal', title: null, scale: Object.assign({type: 'utc'},
-			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, annual ? {format: '%Y'} : {})});
-		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false}};
+			brush ? {domain: {param: 'brush', encoding: 'x'}} : {}), axis: Object.assign({labelOverlap: true}, yearTicks)});
+		// a margin above and below, so that the highest and the lowest years are not drawn on the edge of the chart
+		const y = {field: 'value', type: 'quantitative', title: yTitle, scale: {zero: false, padding: 12}};
 		const long = !annual && rows.length > 60;
 		const tipTime = {field: 't', type: 'temporal', timeUnit: annual ? 'utcyear' : 'utcyearmonth', title: annual ? 'Year' : 'Month',
 			format: annual ? '%Y' : '%B %Y'};
 		const tooltip = regions.length > 1
 			? [tipTime, ...regions.map((r) => ({field: r, type: 'quantitative', title: r, format: '.4~g'}))]
-			: [tipTime, {field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'},
-				{field: 'n_images', type: 'quantitative', title: 'Images'}, {field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}];
+			: [tipTime, {field: 'value', type: 'quantitative', title: 'Value', format: '.4~g'}].concat(
+				// the images and the pixels of each step, if the table has them (not a table made from several results)
+				rows.some((r) => Number.isFinite(r.n_images)) ? [{field: 'n_images', type: 'quantitative', title: 'Images'}] : [],
+				rows.some((r) => Number.isFinite(r.n_pixels)) ? [{field: 'n_pixels', type: 'quantitative', title: 'Valid pixels', format: ',d'}] : []);
 		const layers = [
 			{mark: {type: 'line', interpolate: 'linear', invalid: 'break-paths-show-domains'}, encoding: {x: x(long), y, color}},
 			annual && {mark: {type: 'point', filled: true, size: 40, opacity: 1}, encoding: {x: x(long), y, color}},
@@ -255,7 +261,7 @@ MO.chart = (() => {
 		return {
 			vconcat: [
 				{data: {values: long}, height: 240, width: 'container', layer: [
-					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || result.call?.args?.variable || null}, color}},
+					{mark: {type: 'line', invalid: 'break-paths-show-domains'}, encoding: {x, y: {field: 'value', type: 'quantitative', title: axisTitle(result)}, color}},
 					{mark: {type: 'point', filled: true, size: 55, opacity: 1}, encoding: {x, y: {field: 'value', type: 'quantitative'}, color, tooltip}},
 				]},
 				{data: {values: rows}, height: 120, width: 'container',
@@ -285,6 +291,7 @@ MO.chart = (() => {
 		const key = index.toLowerCase();
 		const names = new Map(classes.map((c) => [c.value, c.label]));
 		const data = rows.filter((r) => r.class !== 0).map((r) => ({...r, label: names.get(r.class) ?? r.label}));
+		const shown = classes.filter((c) => c.value !== 0);  // the legend: the classes of the bars
 		return {
 			data: {values: data}, width: 'container', height: {step: 30},
 			layer: [
@@ -292,8 +299,9 @@ MO.chart = (() => {
 					encoding: {
 						y: {field: 'label', type: 'nominal', sort: classes.map((c) => c.label), title: null},
 						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
-						color: {field: 'label', type: 'nominal', legend: null,
-							scale: {domain: classes.map((c) => c.label), range: classes.map((c) => c.color)}},
+						color: {field: 'label', type: 'nominal', scale: {domain: classes.map((c) => c.label),
+							range: classes.map((c) => c.color)}, legend: {title: `Severity (${index})`, values: shown.map((c) => c.label),
+							labelLimit: 320, columns: narrow || shown.some((c) => String(c.label).length > 14) ? 1 : Math.min(shown.length, 3)}},
 						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
 							{field: `${key}_min`, title: `${index} from`, format: index === 'RdNBR' ? '.3f' : '.2f'},
 							{field: `${key}_max`, title: `${index} to`, format: index === 'RdNBR' ? '.3f' : '.2f'}]}},
@@ -310,7 +318,11 @@ MO.chart = (() => {
 	function areasSpec(rows, result) {
 		const classes = result.classes || [];
 		const labels = classes.map((c) => c.label);
-		const data = rows.filter((r) => r.ha > 0);
+		// the names of the classes are those of the result (class_labels of the report, e.g. 'Dry' for 'below 0.05')
+		const names = new Map(classes.map((c) => [String(c.class), c.label]));
+		const data = rows.filter((r) => r.ha > 0).map((r) => ({...r, label: names.get(String(r.class)) ?? r.label}));
+		const args = result.call?.args || {};
+		const title = args.trend ? `Trend of ${args.variable || 'the variable'}` : args.breaks ? (args.variable || 'Class') : 'Class';
 		return {
 			data: {values: data}, width: 'container', height: {step: 24},
 			layer: [
@@ -318,8 +330,10 @@ MO.chart = (() => {
 					encoding: {
 						y: {field: 'label', type: 'nominal', sort: labels, title: null},
 						x: {field: 'ha', type: 'quantitative', title: 'Hectares'},
-						color: {field: 'label', type: 'nominal', legend: null,
-							scale: {domain: labels, range: classes.map((c) => `#${c.colour || '6baed6'}`)}},
+						color: {field: 'label', type: 'nominal', scale: {domain: labels,
+							range: classes.map((c) => `#${c.colour || '6baed6'}`)}, legend: classes.length < 2 ? null :
+							{title, values: labels, labelLimit: 320, columns: narrow || labels.some((l) => String(l).length > 14) ? 1 :
+							Math.min(labels.length, 3)}},
 						tooltip: [{field: 'label', title: 'Class'}, {field: 'ha', title: 'Hectares', format: ',.1f'},
 							{field: 'percent', title: '% of the area with classes', format: '.1f'}]}},
 				{mark: {type: 'text', align: 'left', dx: 5, fontSize: 12},
@@ -335,23 +349,36 @@ MO.chart = (() => {
 		lim : null;
 	const yScale = (lim) => lim ? {domain: lim, nice: false, zero: false} : {zero: false};
 
+	// The title of the y axis of a chart: the label or the unit of its result, but not a unit that is none
+	// ('[unitless]', in the reports published before), which says nothing: then the variable (NDVI), or FALLBACK
+	const UNITLESS = /^\[?\s*(unitless|none|1)?\s*\]?$/i;
+	const axisTitle = (result, fallback = null) => [result.ylabel, result.unit].find((t) => t && !UNITLESS.test(String(t))) ||
+		result.call?.args?.variable || fallback;
+
+	// The year of a row of a series (of its date)
+	const yearOf = (r) => String(r.date).slice(0, 4);
+
 	// A time series with a line per year over the days of the year (time_series with doy), from the oldest year (light)
-	// to the newest (dark, thicker); its y axis, that of the result (ylim) if one was given
-	function doySpec(rows, result) {
+	// to the newest (dark, thicker); its y axis, that of the result (ylim) if one was given. YEARS: all the years of
+	// the series, so that each year keeps its colour when the reader shows only some of them.
+	function doySpec(rows, result, years) {
 		const data = rows.map((r) => {
 			const d = new Date(`${r.date}T00:00:00Z`);
 			const doy = Math.round((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 864e5) + 1;
 			return {...r, year: String(d.getUTCFullYear()), doy, day: new Date(Date.UTC(2000, 0, doy))};
 		});
-		const newest = data.reduce((y, r) => r.year > y ? r.year : y, '');
+		const all = years || [...new Set(data.map((r) => r.year))].sort();
+		const newest = all.reduce((y, x) => x > y ? x : y, '');
 		const lim = range(result.ylim);
 		return {
 			data: {values: data}, width: 'container', height: 260,
 			mark: {type: 'line', point: {size: 18}, clip: Boolean(lim)},
 			encoding: {
-				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: 12}},
-				y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value', scale: yScale(lim)},
-				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true}},
+				// a tick on the first day of each month (with a season, only its months: not Jun, Jun, Jun...)
+				x: {field: 'day', type: 'temporal', title: null, axis: {format: '%b', tickCount: {interval: 'month', step: 1}}},
+				y: {field: 'value', type: 'quantitative', title: axisTitle(result, 'Value'), scale: yScale(lim)},
+				color: {field: 'year', type: 'ordinal', title: 'Year', scale: {scheme: 'viridis', reverse: true, domain: all},
+					legend: {values: [...new Set(data.map((r) => r.year))].sort()}},  // only the years shown
 				strokeWidth: {condition: {test: {field: 'year', equal: newest}, value: 2.5}, value: 1.2},
 				tooltip: [{field: 'date', title: 'Date'}, {field: 'value', title: 'Value', format: '.4~g'}],
 			},
@@ -420,6 +447,36 @@ MO.chart = (() => {
 			Object.assign(spec, axis(0));
 	}
 
+	// Two variables over the years (chart series_two: a table of two annual series, e.g. the NDVI and the LSWI), each
+	// with its own axis, the first on the left and the second on the right, in the colours of the seasonal profile
+	function seriesTwoSpec(rows, result) {
+		const names = (result.variables || []).length ? result.variables.slice(0, 2) :
+			[...new Set(rows.map((r) => r.variable))].slice(0, 2);
+		const colours = PROFILE_COLOURS.map(([v, c]) => MO.css(v) || c);
+		const titles = [result.ylabel || names[0], result.other_ylabel || names[1]];
+		const series = [`${titles[0]} (left axis)`, `${titles[1]} (right axis)`];
+		const data = rows.filter((r) => names.includes(r.variable) && Number.isFinite(r.value))
+			.map((r) => ({...r, t: utc(r.date), serie: series[names.indexOf(r.variable)]}));
+		const nYears = new Set(data.map((d) => String(d.date).slice(0, 4))).size;
+		const x = {field: 't', type: 'temporal', title: null, scale: {type: 'utc'},
+			axis: {format: '%Y', tickCount: {interval: 'year', step: nYears > 20 ? 5 : 1}, grid: false, labelOverlap: true}};
+		const color = {field: 'serie', type: 'nominal', scale: {domain: series, range: colours.slice(0, 2)},
+			legend: {columns: narrow ? 1 : 2}};
+		const tooltip = [{field: 't', type: 'temporal', timeUnit: 'utcyear', title: 'Year', format: '%Y'},
+			{field: 'variable', title: 'Variable'}, {field: 'value', title: 'Value', format: '.4~g'}];
+		const axis = (k) => {
+			const only = {filter: {field: 'variable', equal: names[k]}};
+			const y = {field: 'value', type: 'quantitative', title: titles[k], scale: {zero: false, padding: 12},
+				axis: {orient: k ? 'right' : 'left', grid: !k, titleColor: colours[k], labelColor: colours[k]}};
+			return {layer: [
+				{transform: [only], mark: {type: 'line'}, encoding: {x, y, color}},
+				{transform: [only], mark: {type: 'point', filled: true, size: 40, opacity: 1}, encoding: {x, y, color, tooltip}},
+			]};
+		};
+		return {data: {values: data}, width: 'container', height: 280, layer: [axis(0), axis(1)],
+			resolve: {scale: {y: 'independent'}}};
+	}
+
 	// A profile along a line (transect): the variable against the distance, over the elevation in grey
 	function transectSpec(rows, result) {
 		const data = rows.map((r) => ({...r, km: r.distance_m / 1000}));
@@ -432,7 +489,7 @@ MO.chart = (() => {
 							scale: {zero: false}}}},
 				{mark: {type: 'line', point: true, color: '#1f77b4'},
 					encoding: {x: {field: 'km', type: 'quantitative'},
-						y: {field: 'value', type: 'quantitative', title: result.ylabel || result.unit || 'Value',
+						y: {field: 'value', type: 'quantitative', title: axisTitle(result, 'Value'),
 							scale: {zero: false}},
 						tooltip: [{field: 'km', title: 'km', format: '.2f'}, {field: 'value', title: 'Value', format: '.4~g'},
 							{field: 'elevation', title: 'Elevation (m)', format: '.0f'}]}},
@@ -454,7 +511,7 @@ MO.chart = (() => {
 		const spread = band && `Percentiles ${band[0].slice(1)} to ${band[1].slice(1)}`;
 		const scale = {domain: band ? [name, spread] : [name], range: [palette()[0], '#9e9e9e']};
 		const layer = [{mark: {type: 'line', point: true}, encoding: {x,
-			y: {field: mid, type: 'quantitative', title: result.ylabel || result.unit || mid, scale: {zero: false}},
+			y: {field: mid, type: 'quantitative', title: axisTitle(result, mid), scale: {zero: false}},
 			color: {datum: name, scale},
 			tooltip: [{field: 'zone_label', title: 'Zone'}, {field: mid, title: name, format: '.4~g'},
 				...(band || []).map((s) => ({field: s, title: COLUMNS[s] || s, format: '.4~g'})),
@@ -523,6 +580,9 @@ MO.chart = (() => {
 		const regionOf = kind === 'areas' ? features(rows) : (r) => r.region;
 		const regions = [...new Set(rows.map(regionOf))];
 		const box = el('div', {class: 'chart'});
+		// a line per year: the years of the series and those shown (a checkbox each, with All and None)
+		const allYears = kind === 'doy' ? [...new Set(rows.map(yearOf))].sort() : null;
+		let shownYears = allYears && allYears.length > 1 ? new Set(allYears) : null;
 		const draw = async (subset) => {
 			box.replaceChildren();
 			narrow = (box.clientWidth || container.clientWidth) < 520;
@@ -533,8 +593,13 @@ MO.chart = (() => {
 			if (kind === 'comparison') return embed(box, comparisonSpec(subset, result));
 			if (kind === 'areas') return embed(box, areasSpec(subset, result));
 			if (kind === 'transect') return embed(box, transectSpec(subset, result));
-			if (kind === 'doy') return embed(box, doySpec(subset, result));
+			if (kind === 'doy') {  // only the years the reader keeps checked
+				const shown = shownYears ? subset.filter((r) => shownYears.has(yearOf(r))) : subset;
+				if (!shown.length) return box.append(el('p', {class: 'empty'}, 'Choose one or more years.'));
+				return embed(box, doySpec(shown, result, allYears));
+			}
 			if (kind === 'doy_profile') return embed(box, doyProfileSpec(subset, result));
+			if (kind === 'series_two') return embed(box, seriesTwoSpec(subset, result));
 			if (kind === 'zones') return embed(box, zonesSpec(subset, result));
 			if (kind === 'transitions') {  // its Sankey diagram (of the first region, by Python), the pairs of classes
 				if (result.png && MO.safePath(result.png) && (regions.length < 2 || subset[0]?.region === regions[0])) {
@@ -554,7 +619,7 @@ MO.chart = (() => {
 		};
 		let current = rows;
 		if (regions.length > 1 &&
-			['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy', 'doy_profile'].includes(kind) ||
+			['comparison', 'burn_severity', 'areas', 'transitions', 'zones', 'doy', 'doy_profile', 'series_two'].includes(kind) ||
 			regions.length > 1 && kind === 'trends' && new Set(rows.map((r) => r.key)).size > 1) {
 			const id = `c-${result.id}-region`;
 			current = rows.filter((r) => regionOf(r) === regions[0]);
@@ -562,6 +627,22 @@ MO.chart = (() => {
 				el('label', {for: id}, 'Region'),
 				el('select', {id, onchange: (e) => { current = rows.filter((r) => regionOf(r) === e.target.value); draw(current); }},
 					regions.map((r) => el('option', {value: r}, r))))));
+		}
+		if (shownYears) {
+			const boxes = allYears.map((y) => el('input', {type: 'checkbox', value: y, checked: true, onchange: (e) => {
+				if (e.target.checked) shownYears.add(y); else shownYears.delete(y);
+				draw(current);
+			}}));
+			const every = (on) => {
+				boxes.forEach((b) => { b.checked = on; });
+				shownYears = new Set(on ? allYears : []);
+				draw(current);
+			};
+			container.append(el('div', {class: 'map-controls years', role: 'group', 'aria-label': 'Years shown in the chart'},
+				el('span', {class: 'years-label'}, 'Years'),
+				allYears.map((y, i) => el('label', {class: 'check'}, boxes[i], y)),
+				el('button', {type: 'button', class: 'button small', onclick: () => every(true)}, 'All'),
+				el('button', {type: 'button', class: 'button small', onclick: () => every(false)}, 'None')));
 		}
 		container.append(box);
 		await draw(current);
