@@ -756,7 +756,7 @@ def _orthophoto(wkt, extent, width, height, timeout=30):
 	                                'STYLES': '', 'CRS': 'EPSG:3857', 'BBOX': f'{w},{s},{e},{n}', 'WIDTH': big_w,
 	                                'HEIGHT': big_h, 'FORMAT': 'image/jpeg'})
 	try:
-		with urllib.request.urlopen(f'{PNOA_WMS}?{query}', timeout=timeout) as r:
+		with urllib.request.urlopen(f'{PNOA_WMS}?{query}', timeout=timeout) as r:  # nosec B310: the WMS of the IGN  # noqa: S310
 			if not r.headers.get('Content-Type', '').startswith('image/'):
 				return None
 			data = r.read()
