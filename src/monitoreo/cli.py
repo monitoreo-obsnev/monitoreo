@@ -16,7 +16,8 @@
                                                      years of the values of each step of the year (each month, 16 days
                                                      or day), of one variable or of two on two y axes (e.g. NDSI and
                                                      NDVI)
-    monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D [--affected A --control C | --ring]
+    monitoreo recovery VARIABLE --sensor S --region JSON --start D --end D --event D
+                       [--affected A --control C | --ring | --pairs JSON]
                                                      severity and recovery after a disturbance (Marcos et al. 2023)
     monitoreo recovery-map VARIABLE --sensor S --region JSON --start D --end D --event D [--season MM-DD MM-DD]
                                                      the recovery on each pixel: a GeoTIFF of the metrics
@@ -563,6 +564,8 @@ def main(argv=None):
 	p.add_argument('--event', required=True, help='date of the disturbance, YYYY-MM-DD')
 	p.add_argument('--affected', help='name of the affected feature of the region (default: the only one)')
 	p.add_argument('--control', help='name of the control feature: also its metrics and those of the difference')
+	p.add_argument('--pairs', metavar='JSON', help='several pairs at once, instead of --affected and --control: '
+	                                               '\'[["fence1", "around1"], ["fence2", "around2"]]\'')
 	_ring_options(p)
 	p.add_argument('--step', default='monthly', choices=('monthly', '16-day', 'annual'))
 	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
@@ -1284,11 +1287,11 @@ def _recovery(args, services, progress):
 		                                affected=args.affected, control=args.control,
 		                                reference_years=args.reference_years, equilibrium=args.equilibrium,
 		                                min_coverage=args.min_coverage, csv=args.csv, chart=args.png, progress=progress,
-		                                ring=_ring(args),
+		                                ring=_ring(args), pairs=json.loads(args.pairs) if args.pairs else None,
 		                                where=_where(args), **args.source)
 	except ValueError as e:
 		sys.exit(_error(e, args))
-	_table(_fmt(res['rows']), ['series', 'direction', 'S95', 'impact_pct', 'DIT_years', 'RRT_years', 'RET_years',
+	_table(_fmt(res['rows']), ['series'] + (['region'] if args.pairs else []) + ['direction', 'S95', 'impact_pct', 'DIT_years', 'RRT_years', 'RET_years',
 	                           'recovered_pct'])
 	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
 	print(f"\n{res['title']} | scale {res['scale']:g} m | years from the event; RRT empty: not recovered yet" + files

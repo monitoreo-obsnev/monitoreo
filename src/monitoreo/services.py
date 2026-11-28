@@ -1432,7 +1432,7 @@ def _recovery_row(series, region, m):
 def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, event=None, step='monthly',
                      metric='mean', stat='mean', season=None, quality=None, scale=None, affected=None, control=None,
                      reference_years=recovery.REFERENCE_YEARS, equilibrium=recovery.EQUILIBRIUM, min_coverage=None,
-                     csv=None, chart=None, progress=None, ring=None, **source):
+                     csv=None, chart=None, progress=None, ring=None, pairs=None, **source):
 	"""Severity and recovery after a disturbance on the date EVENT (a fire, a frost, an avalanche...): the time series
 	of the variable over REGION from START to END (as time_series: STEP monthly, the best, 16-day or annual; METRIC,
 	STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), and the metrics of the post-fire trajectories of Marcos et al. (2023)
@@ -1446,8 +1446,13 @@ def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, e
 	rows of the time series, 'event', 'step', 'affected', 'control', 'reference_years', 'equilibrium', 'csv', 'chart',
 	'scale', 'unit', 'title'}. RING (True or the options of monitoreo.control): REGION is the affected area, and the
 	control its ring (with its pixels matched by elevation; see control_ring), instead of AFFECTED and CONTROL; the
-	answer has also 'ring'."""
+	answer has also 'ring'. PAIRS: several affected areas and their controls at once (a BACI of each pair: the fenced
+	plots and the land around each, treated and untreated stands, lakes with and without fish), a list of [affected,
+	control] (names of features of the region), instead of AFFECTED and CONTROL; the rows have the three series of each
+	pair, 'metrics' is {'affected | control': {...}} and 'pairs' [{affected, control, metrics}], and the chart has the
+	difference of each pair."""
 	step, ev, reference_years, equilibrium = recovery.check(step, event, start, end, reference_years, equilibrium, season)
+	pairs = _check_pairs(pairs, affected, control, ring)
 	ring_info = None
 	if ring:
 		if affected is not None or control is not None:
@@ -1468,6 +1473,9 @@ def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, e
 	rows, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress,
 	                                     **({'min_coverage': min_coverage} if min_coverage is not None else {}))
 	names = sorted({r['region'] for r in rows})
+	if pairs:
+		return _recovery_pairs(rows, names, pairs, spec, step, ev, reference_years, equilibrium, used_scale, variable,
+		                       sensor, metric, stat, source, csv, chart)
 	if affected is None and len(names) == 1:
 		affected = names[0]
 	if affected is None or str(affected) not in names:
@@ -1572,6 +1580,81 @@ def anomalies(region, variable=None, sensor=None, start=None, end=None, step='mo
 			charts.anomalies_png(out['rows'], threshold, chart, title, source=coverage.source())
 			out['chart'] = chart
 		except ImportError:  # no matplotlib: the tables and the CSV are still there
+			pass
+	return out
+
+
+def _check_pairs(pairs, affected, control, ring):
+	"""PAIRS of recovery_metrics as [(affected, control)], or None, after checking them without Earth Engine."""
+	if pairs is None:
+		return None
+	if affected is not None or control is not None or ring:
+		raise ValueError('pairs gives the affected areas and their controls: give no affected, control nor ring')
+	if not isinstance(pairs, (list, tuple)) or not pairs:
+		raise ValueError('pairs is a list of [affected, control], the names of two features of the region each')
+	out = []
+	for p in pairs:
+		given = p
+		if isinstance(p, dict):
+			p = (p.get('affected'), p.get('control'))
+		if not isinstance(p, (list, tuple)) or len(p) != 2 or any(x in (None, '') for x in p):
+			raise ValueError('each pair is [affected, control] (or {"affected": ..., "control": ...}), the names of '
+			                 f'two features of the region, not {given!r}')
+		a, c = str(p[0]), str(p[1])
+		if a == c:
+			raise ValueError(f'the affected area and the control of a pair are two features, not {a!r} twice')
+		out.append((a, c))
+	if len(set(out)) != len(out):
+		raise ValueError('a pair is repeated in pairs')
+	return out
+
+
+def _recovery_pairs(rows, names, pairs, spec, step, ev, reference_years, equilibrium, used_scale, variable, sensor,
+                    metric, stat, source, csv, chart):
+	"""recovery_metrics of each pair of PAIRS (see its docstring) from the time series ROWS of the features NAMES."""
+	missing = sorted({x for p in pairs for x in p} - set(names))
+	if missing:
+		raise ValueError(f"pairs: {', '.join(missing)} {'is' if len(missing) == 1 else 'are'} not a feature of the "
+		                 f"region, whose features are {', '.join(names)}")
+	used = {x for p in pairs for x in p}
+	seen = {}
+	for r in rows:  # two features of the same name would be averaged into one series: refuse it
+		key = (str(r['region']), str(r['date'])[:10])
+		seen[key] = seen.get(key, 0) + 1
+	shared = sorted({n for (n, _), k in seen.items() if k > 1 and n in used})
+	if shared:
+		raise ValueError(f"pairs: the region has several features named {', '.join(shared)}: give each feature its "
+		                 'own name (name_field)')
+	of = {name: [r for r in rows if r['region'] == name] for name in names}
+	table, metrics, raw = [], {}, []
+	for a, c in pairs:
+		m = {'affected': recovery.of_series(of[a], step, ev, reference_years, equilibrium),
+		     'control': recovery.of_series(recovery.common(of[a], of[c], step), step, ev, reference_years,
+		                                   equilibrium),
+		     'difference': recovery.of_series(recovery.difference(of[a], of[c], step), step, ev, reference_years,
+		                                      equilibrium, relative=False)}
+		table += [_recovery_row(k, a if k == 'affected' else c if k == 'control' else f'{a} - {c}', v)
+		          for k, v in m.items()]
+		metrics[f'{a} | {c}'] = {k: recovery.clean(v) for k, v in m.items()}
+		raw.append((f'{a} - {c}', m['difference']))
+	unit = _unit(spec, stat)
+	title = (f"Recovery of {_series_name(spec)} after {ev}, {len(pairs)} pairs | {step} {metric}, spatial {stat}, "
+	         f"reference of {reference_years} years")
+	out = {'metrics': metrics, 'pairs': [{'affected': a, 'control': c, 'metrics': metrics[f'{a} | {c}']}
+	                                     for a, c in pairs],
+	       'rows': table, 'series': rows, 'event': str(ev), 'step': step, 'affected': [a for a, _ in pairs],
+	       'control': [c for _, c in pairs], 'reference_years': reference_years, 'equilibrium': equilibrium,
+	       'csv': None, 'chart': None, 'scale': used_scale, 'unit': unit, 'title': title}
+	if csv:
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'event': str(ev), 'step': step,
+		        'metric': metric, 'stat': stat, 'reference_years': reference_years, 'equilibrium': equilibrium,
+		        'unit': catalog.udunits(unit), 'scale_m': used_scale}
+		out['csv'] = timeseries.write_csv(table, csv, meta, RECOVERY_COLUMNS)
+	if chart:
+		try:
+			charts.recovery_pairs_png(raw, ev, chart, title, _ylabel(spec, stat) or None, source=coverage.source())
+			out['chart'] = chart
+		except ImportError:  # no matplotlib: the table and the CSV are still there
 			pass
 	return out
 

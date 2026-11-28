@@ -1248,6 +1248,9 @@ mo_control_ring <- function(region, gap = 150, width = 1500, exclude = NULL, wit
 #' @param ring optional \code{TRUE} (or a list of the options of \code{mo_control_ring()}: gap, width, exclude,
 #'   within, match) with the affected area alone as the region: the control is a ring around it, its pixels matched by
 #'   elevation, instead of \code{affected} and \code{control}.
+#' @param pairs optional list of pairs \code{c(affected, control)} (names of features of the region), e.g.
+#'   \code{list(c("fence1", "around1"), c("fence2", "around2"))}: the BACI of each pair at once, instead of
+#'   \code{affected} and \code{control}.
 #' @return A data.frame with a row per series (affected, control, difference) and the columns series, region,
 #'   direction, reference_median, reference_mad, S95, impact_pct, impact_mad, tINF, DIT_years, tREF, RRT_years, tEQ,
 #'   RET_years, recovered_pct, z_min_first_year, z_max_first_year, steps_abs_z_over_2_after, sen_before, p_before,
@@ -1275,17 +1278,19 @@ mo_recovery_metrics <- function(region, variable = NULL, sensor = NULL, start, e
                                 control = NULL, step = "monthly", metric = "mean", stat = "mean", season = NULL,
                                 quality = NULL, scale = NULL, reference_years = 3, equilibrium = 0.05,
                                 min_coverage = NULL, csv = NULL, chart = NULL, collection = NULL, band = NULL,
-                                where = NULL, ring = NULL) {
+                                where = NULL, ring = NULL, pairs = NULL) {
   check_data(variable, sensor, collection, NULL, band, NULL, NULL, NULL)
   res <- services()$recovery_metrics(region, variable, sensor, start, end, event, step, metric, stat,
                                      season = season, quality = quality, scale = scale, affected = affected,
                                      control = control, reference_years = as.integer(reference_years),
                                      equilibrium = equilibrium, min_coverage = min_coverage, csv = csv,
                                      chart = if (is.null(chart)) NULL else path.expand(chart),
-                                     collection = collection, band = band, where = where, ring = ring)
+                                     collection = collection, band = band, where = where, ring = ring,
+                                     pairs = if (is.null(pairs)) NULL else lapply(pairs, as.list))
   df <- rows_df(res$rows)
   attr(df, "metrics") <- res$metrics
   attr(df, "ring") <- res$ring
+  attr(df, "pairs") <- res$pairs
   attr(df, "series") <- rows_df(res$series)
   attr(df, "title") <- res$title
   attr(df, "csv") <- res$csv
