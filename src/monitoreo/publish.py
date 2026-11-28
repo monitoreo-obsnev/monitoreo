@@ -141,6 +141,8 @@ BANDS = {
 	'difference': ('Difference', '{u}'),
 	'reference': ('Reference period', '{u}'),
 	'other': ('Other period', '{u}'),
+	'z': ('Standardized anomaly (z): other minus reference, in standard deviations of the reference years', '1'),
+	'reference_std': ('Standard deviation between the years of the reference period', '{u}'),
 	'dnbr': ('dNBR (NBR before − NBR after)', ''),
 	'severity': ('Severity (USGS scale)', ''),
 	'nbr_before': ('NBR before the fire', ''),

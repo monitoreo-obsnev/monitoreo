@@ -27,7 +27,8 @@ mo_compare_map(
   unit = NULL,
   vmin = NULL,
   vmax = NULL,
-  percentiles = NULL
+  percentiles = NULL,
+  z = FALSE
 )
 }
 \arguments{
@@ -141,6 +142,10 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 
 \item{percentiles}{two numbers (default \code{NULL}: \code{c(1, 99)}): the colour ramp of the difference, symmetric
 around 0 up to the largest of these percentiles of its values over the region in absolute value.}
+
+\item{z}{\code{TRUE}: the standardized anomaly instead of the difference: the metric of each year of the other
+period (in its season), their mean, minus the mean of those of the years of the reference period (at least 3), in
+standard deviations of the reference years; no \code{temporal} with it.}
 }
 \value{
 A list (url, min, max, palette, stretch: how the colour ramp was stretched, with its text, name, unit,

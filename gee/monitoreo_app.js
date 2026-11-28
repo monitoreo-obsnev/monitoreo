@@ -22804,6 +22804,43 @@ var MonitorEO = (function () {
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
 	}
 
+	// services._z_comparison: the standardized anomaly (z) of each pixel: the metric of each year of the other period
+	// (in its season), their mean, minus the mean of those of the years of the reference period, divided by their
+	// sample standard deviation (that of Earth Engine, of the population, x sqrt(n / (n - 1)), n the years with a value
+	// on the pixel), masked where it is 0 or the pixel has fewer than ZMIN_YEARS years; bands Z_BANDS. services._z_check: at least ZMIN_YEARS years in
+	// the reference, and no temporal (the years make it)
+	var Z_BANDS = ['z', 'difference', 'reference', 'reference_std', 'other'];
+	var ZMIN_YEARS = 3;  // anomalies.MIN_YEARS
+	function checkZ(ref) {
+		if ((ref.temporal || 'period') !== 'period') {
+			throw new Error('z compares the other period with the variation between the years of the reference: each ' +
+				'period is aggregated by years (temporal annual) already; give no temporal');
+		}
+		var years = Number(String(ref.period[1]).slice(0, 4)) - Number(String(ref.period[0]).slice(0, 4)) + 1;
+		if (!(years >= ZMIN_YEARS)) {
+			throw new Error('z needs a reference period of at least ' + ZMIN_YEARS + ' years (its standard deviation ' +
+				'between years), not ' + ref.period[0] + ' / ' + ref.period[1]);
+		}
+	}
+	function zComparisonImage(ref, other, region) {
+		checkZ(ref);
+		checkDates(ref, 'comparisons of periods');
+		function annual(s, interannual) {
+			var c = JSON.parse(JSON.stringify(s));
+			c.temporal = 'annual';
+			c.interannual = interannual;
+			return c;
+		}
+		var a = image(annual(ref, 'mean'), region);
+		var sd = image(annual(ref, 'std'), region);
+		var n = image(annual(ref, 'count'), region);
+		var b = image(annual(other, 'mean'), region);
+		sd = sd.multiply(n.divide(n.subtract(1)).sqrt());  // population -> sample
+		sd = sd.updateMask(sd.gt(0).and(n.gte(ZMIN_YEARS)));
+		var diff = b.subtract(a);
+		return ee.Image.cat([diff.divide(sd), diff, a, sd, b]).rename(Z_BANDS);
+	}
+
 	// STL (stl.py): the seasonal-trend decomposition by loess of Cleveland et al. (1990), as the Fortran of the
 	// authors and statsmodels, on a series without missing values ----------------------------------------------------
 
@@ -24216,6 +24253,7 @@ var MonitorEO = (function () {
 		TREND_STEPS: TREND_STEPS, TREND_TESTS: TREND_TESTS, checkTest: checkTest, trendTest: trendTest, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
+		zComparisonImage: zComparisonImage, checkZ: checkZ, Z_BANDS: Z_BANDS,
 		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,
@@ -24307,6 +24345,8 @@ var MonitorEO = (function () {
 			sectionVariable: 'Variable y periodo', sectionPixels: 'Filtros de p\u00edxeles',
 			theme: 'Tema', allThemes: 'Todas las variables', variable: 'Variable', period: 'Periodo (AAAA-MM-DD)', to: 'a', season: 'Solo esta temporada de cada a\u00f1o (MM-DD)',
 			compare: 'Comparar con otro periodo', other: 'Otro periodo',
+			zMap: 'En anomal\u00edas estandarizadas (z): los a\u00f1os del otro periodo frente a la variaci\u00f3n entre los a\u00f1os del ' +
+				'de referencia (al menos 3)', zUnit: '(z, desviaciones t\u00edpicas)',
 			filters: 'Quitar p\u00edxeles con', clouds: 'nubes y sombras', water: 'agua', snow: 'nieve', aerosols: 'aerosoles',
 			landcoverHeader: 'M\u00e1scara de usos del suelo', landcoverOn: 'Quitar algunos usos del suelo de los resultados',
 			landcoverYear: 'A\u00f1o del mapa', landcoverLeaveOut: 'Quitar los p\u00edxeles de:',
@@ -24573,7 +24613,7 @@ var MonitorEO = (function () {
 			st_catalog: 'Colores: rango del cat\u00e1logo (Earth Engine no pudo calcular los percentiles).',
 			st_rgbCatalog: 'Colores: reflectancia de 0 a 0,3 (Earth Engine no pudo calcular los percentiles).',
 			st_fixed: 'Colores: rango fijo.',
-			st_of_map: 'el mapa en la regi\u00f3n', st_of_difference: 'la diferencia en la regi\u00f3n',
+			st_of_map: 'el mapa en la regi\u00f3n', st_of_difference: 'la diferencia en la regi\u00f3n', st_of_z: 'la z en la regi\u00f3n',
 			st_of_periods: 'los dos periodos en la regi\u00f3n',
 			st_of_frames: 'cada fotograma en la regi\u00f3n (cada uno con su propio rango)',
 			st_of_whole: 'el mapa de todo el periodo (los mismos colores en todos los fotogramas)',
@@ -24676,6 +24716,8 @@ var MonitorEO = (function () {
 			sectionVariable: 'Variable and period', sectionPixels: 'Pixel filters',
 			theme: 'Theme', allThemes: 'All the variables', variable: 'Variable', period: 'Period (YYYY-MM-DD)', to: 'to', season: 'Only this season of each year (MM-DD)',
 			compare: 'Compare with another period', other: 'Other period',
+			zMap: 'In standardized anomalies (z): the years of the other period against the variation between the ' +
+				'years of the reference (at least 3)', zUnit: '(z, standard deviations)',
 			filters: 'Remove pixels with', clouds: 'clouds and shadows', water: 'water', snow: 'snow', aerosols: 'aerosols',
 			landcoverHeader: 'Land cover mask', landcoverOn: 'Leave some land covers out of the results',
 			landcoverYear: 'Year of the map', landcoverLeaveOut: 'Leave out the pixels of:',
@@ -24940,7 +24982,7 @@ var MonitorEO = (function () {
 			st_catalog: 'Colours: range of the catalog (Earth Engine could not compute the percentiles).',
 			st_rgbCatalog: 'Colours: reflectance from 0 to 0.3 (Earth Engine could not compute the percentiles).',
 			st_fixed: 'Colours: fixed range.',
-			st_of_map: 'the map over the region', st_of_difference: 'the difference over the region',
+			st_of_map: 'the map over the region', st_of_difference: 'the difference over the region', st_of_z: 'the z over the region',
 			st_of_periods: 'the two periods over the region',
 			st_of_frames: 'each frame over the region (each one its own range)',
 			st_of_whole: 'the map of the whole period (the same colours in every frame)',
@@ -25030,7 +25072,7 @@ var MonitorEO = (function () {
 		// the groups of the panel unfolded (section): the region and the variable at first, the others folded
 		open: {region: true, variable: true},
 		feedbackOpen: false, help: {}, theme: 'vegetation', ref: 27, period: ['2025-01-01', '2025-12-31'], seasonOn: false, season: ['06-01', '08-31'],
-		compareOn: false, other: ['2020-01-01', '2020-12-31'],
+		compareOn: false, other: ['2020-01-01', '2020-12-31'], zOn: false,
 		quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6},
 		// the filters chosen by the user while a variable with fixed filters (SCF, CF, data by ID) is selected: those of
 		// the variable of the right axis of a profile (otherQuality), as chosen_filters of the QGIS plugin
@@ -26098,6 +26140,8 @@ var MonitorEO = (function () {
 		if (state.compareOn) {
 			dates.push(row(ui.Label(t('other') + ':'), box(state.other[0], function (v) { state.other[0] = v.trim(); }),
 				ui.Label(t('to')), box(state.other[1], function (v) { state.other[1] = v.trim(); })));
+			// the map in standardized anomalies (services.compare_map with z)
+			dates.push(check(t('zMap'), state.zOn, function (v) { state.zOn = v; }));
 		}
 		var datedWhere = state.whereOn && !mo.byRef(whereRef()).static;  // its period is that of the panel
 		return w.concat(e.static && !datedWhere ? disable(dates) : dates);
@@ -26563,8 +26607,13 @@ var MonitorEO = (function () {
 			var o = specOf(state.other, state.mapMetric);
 			o.temporal = s.temporal;
 			o.interannual = s.interannual;
-			img = mo.comparisonImage(s, o, geom).clipToCollection(state.region);
-			name = title(e, [metricName(state.mapMetric), o.period.join('/') + ' \u2212 ' + s.period.join('/')]);
+			if (state.zOn) {  // the standardized anomaly: the years of each period (services._z_comparison)
+				img = mo.zComparisonImage(s, o, geom).clipToCollection(state.region);
+				name = title(e, [metricName(state.mapMetric), 'z ' + o.period.join('/') + ' / ' + s.period.join('/')]);
+			} else {
+				img = mo.comparisonImage(s, o, geom).clipToCollection(state.region);
+				name = title(e, [metricName(state.mapMetric), o.period.join('/') + ' \u2212 ' + s.period.join('/')]);
+			}
 		} else {
 			img = mo.image(s, geom).clipToCollection(state.region);
 			name = title(e, [metricName(state.mapMetric), s.period.join('/')]);
@@ -26576,7 +26625,8 @@ var MonitorEO = (function () {
 		var given = [cr.vmin !== null, cr.vmax !== null];
 		var id = start();
 		var compare = state.compareOn && !e.static;
-		var band = e.static ? img() : compare ? img.select('difference') : img;
+		var zMap = compare && state.zOn;
+		var band = e.static ? img() : compare ? img.select(zMap ? 'z' : 'difference') : img;
 		var scale = rangeScale(e);
 		// the entry for the colour ramp: the range of a spread (standard deviation, coefficient of variation) is not
 		// that of the variable (services.ramp_entry)
@@ -26632,7 +26682,7 @@ var MonitorEO = (function () {
 					vis = mo.trendVis('difference', auto.min, auto.max);
 					if (given[0]) vis.min = cr.vmin;
 					if (given[1]) vis.max = cr.vmax;
-					var ends = mo.ordered(vis.min, vis.max, given[0], given[1], 'the difference');
+					var ends = mo.ordered(vis.min, vis.max, given[0], given[1], zMap ? 'the z' : 'the difference');
 					vis.min = ends[0];
 					vis.max = ends[1];
 					stretch.symmetric = stretch.method === 'percentiles' || stretch.method === 'mixed';
@@ -26640,12 +26690,17 @@ var MonitorEO = (function () {
 					vis = mo.visParams(stats, ramped, null, cr.vmin, cr.vmax);
 				}
 				map.addLayer(band, vis, name);
-				var unit = unitText(e, state.mapMetric, state.temporal === 'period' ? null : state.interannual);
-				colourBar(vis, name + (unit ? ' ' + unit : ''), stretchText(stretch, compare ? 'difference' : 'map'));
+				var unit = zMap ? t('zUnit') : unitText(e, state.mapMetric, state.temporal === 'period' ? null :
+					state.interannual);
+				colourBar(vis, name + (unit ? ' ' + unit : ''), stretchText(stretch, zMap ? 'z' : compare ? 'difference' :
+					'map'));
 				widgets.push(ui.Label(name, {fontWeight: 'bold'}));
 				if (catalog) widgets.push(ui.Label(t(e.custom ? 'rangeNoteData' : 'rangeNote'), SMALL));
-				widgets.push(downloadWidget(img, e, compare ? ['difference', 'reference', 'other'] : ['value'], name));
-				if (compare) widgets.push(button(t('swipe'), function () { swipePeriods(img, e, ramped, s, o, cr); }));
+				widgets.push(downloadWidget(img, e, zMap ? mo.Z_BANDS : compare ? ['difference', 'reference', 'other'] :
+					['value'], name));
+				if (compare && !zMap) {
+					widgets.push(button(t('swipe'), function () { swipePeriods(img, e, ramped, s, o, cr); }));
+				}
 			}
 			if (rgb) {
 				rgbLegend(rvis, rgbName, layer === 'both',

@@ -4114,6 +4114,43 @@ var MonitorEO = (function () {
 		return ee.Image.cat([b.subtract(a), a, b]).rename(['difference', 'reference', 'other']);
 	}
 
+	// services._z_comparison: the standardized anomaly (z) of each pixel: the metric of each year of the other period
+	// (in its season), their mean, minus the mean of those of the years of the reference period, divided by their
+	// sample standard deviation (that of Earth Engine, of the population, x sqrt(n / (n - 1)), n the years with a value
+	// on the pixel), masked where it is 0 or the pixel has fewer than ZMIN_YEARS years; bands Z_BANDS. services._z_check: at least ZMIN_YEARS years in
+	// the reference, and no temporal (the years make it)
+	var Z_BANDS = ['z', 'difference', 'reference', 'reference_std', 'other'];
+	var ZMIN_YEARS = 3;  // anomalies.MIN_YEARS
+	function checkZ(ref) {
+		if ((ref.temporal || 'period') !== 'period') {
+			throw new Error('z compares the other period with the variation between the years of the reference: each ' +
+				'period is aggregated by years (temporal annual) already; give no temporal');
+		}
+		var years = Number(String(ref.period[1]).slice(0, 4)) - Number(String(ref.period[0]).slice(0, 4)) + 1;
+		if (!(years >= ZMIN_YEARS)) {
+			throw new Error('z needs a reference period of at least ' + ZMIN_YEARS + ' years (its standard deviation ' +
+				'between years), not ' + ref.period[0] + ' / ' + ref.period[1]);
+		}
+	}
+	function zComparisonImage(ref, other, region) {
+		checkZ(ref);
+		checkDates(ref, 'comparisons of periods');
+		function annual(s, interannual) {
+			var c = JSON.parse(JSON.stringify(s));
+			c.temporal = 'annual';
+			c.interannual = interannual;
+			return c;
+		}
+		var a = image(annual(ref, 'mean'), region);
+		var sd = image(annual(ref, 'std'), region);
+		var n = image(annual(ref, 'count'), region);
+		var b = image(annual(other, 'mean'), region);
+		sd = sd.multiply(n.divide(n.subtract(1)).sqrt());  // population -> sample
+		sd = sd.updateMask(sd.gt(0).and(n.gte(ZMIN_YEARS)));
+		var diff = b.subtract(a);
+		return ee.Image.cat([diff.divide(sd), diff, a, sd, b]).rename(Z_BANDS);
+	}
+
 	// STL (stl.py): the seasonal-trend decomposition by loess of Cleveland et al. (1990), as the Fortran of the
 	// authors and statsmodels, on a series without missing values ----------------------------------------------------
 
@@ -5526,6 +5563,7 @@ var MonitorEO = (function () {
 		TREND_STEPS: TREND_STEPS, TREND_TESTS: TREND_TESTS, checkTest: checkTest, trendTest: trendTest, OUTPUTS: OUTPUTS, parts: parts, partKey: partKey, partLabel: partLabel,
 		seasonalBins: seasonalBins, trendImage: trendImage, trendVis: trendVis, erfc: erfc, mannKendall: mannKendall,
 		sen: sen, trendRows: trendRows, withParts: withParts, profile: profile, comparisonImage: comparisonImage,
+		zComparisonImage: zComparisonImage, checkZ: checkZ, Z_BANDS: Z_BANDS,
 		DIVERGING: DIVERGING, YEARS: YEARS, SEVERITY: SEVERITY, SEVERITY_COLOURS: SEVERITY_COLOURS, BURNED: BURNED,
 		classify: classify, burnSeverity: burnSeverity, severityTable: severityTable, RBR_OFFSET: RBR_OFFSET,
 		RBR_COLUMNS: RBR_COLUMNS, burnRatio: burnRatio, rbrTable: rbrTable,

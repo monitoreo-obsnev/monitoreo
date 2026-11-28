@@ -59,7 +59,7 @@ import warnings
 
 import ee
 
-from . import animation, areas, catalog, categorical, charts, classes, composite, control, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
+from . import animation, anomalies as anomaly, areas, catalog, categorical, charts, classes, composite, control, coverage, drive, figures, fire, landcover, maps, recovery, references, sensors, timeseries, trends
 from . import recipe as recipes
 from . import variable as variables
 from .grid import NODATA, Grid, download
@@ -1512,6 +1512,70 @@ def recovery_metrics(region, variable=None, sensor=None, start=None, end=None, e
 	return out
 
 
+ANOMALY_COLUMNS = ['region', 'date', 'value', 'reference_mean', 'reference_std', 'reference_n', 'z']
+EPISODE_COLUMNS = ['region', 'sign', 'start', 'end', 'steps', 'peak', 'intensity', 'mean_z']
+
+
+@_cited
+def anomalies(region, variable=None, sensor=None, start=None, end=None, step='monthly', metric='mean', stat='mean',
+              reference=None, threshold=anomaly.THRESHOLD, min_years=anomaly.MIN_YEARS, season=None, quality=None,
+              scale=None, min_coverage=None, csv=None, chart=None, progress=None, **source):
+	"""Standardized anomalies (z) of the time series of the variable over each feature of REGION, from START to END (as
+	time_series: STEP 'monthly', '16-day' or 'annual'; METRIC, STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), against the
+	REFERENCE period ([first day, last day] inside START to END; default the whole period): the z of each step is its
+	value minus the mean of the same part of the year (month, 16 days; the year) in the reference years, divided by
+	their standard deviation, with at least MIN_YEARS of them; and the episodes, runs of consecutive steps with z at
+	or beyond THRESHOLD of the same sign, with their duration (steps), peak, intensity (sum of z) and mean z. See
+	monitoreo.anomalies. Writes the table of the steps to CSV (and that of the episodes next to it, CSV with
+	_episodes) and the chart of the z to CHART (PNG). Returns {'rows': [{region, date, value, reference_mean,
+	reference_std, reference_n, z}], 'episodes': [{region, sign, start, end, steps, peak, intensity, mean_z}],
+	'summary': {region: {...}}, 'reference', 'threshold', 'min_years', 'step', 'csv', 'episodes_csv', 'chart', 'scale',
+	'unit', 'title'}."""
+	step, ref, threshold, min_years = anomaly.check(step, start, end, reference, threshold, min_years)
+	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
+	composite.check_step(metric, step)
+	variables.check_dates(spec, 'anomalies')
+	regions = areas.region(region)
+	min_coverage = timeseries.check_min_coverage(min_coverage)
+	series, used_scale = timeseries.series(spec, regions, step, metric, stat, scale, progress,
+	                                       **({'min_coverage': min_coverage} if min_coverage is not None else {}))
+	rows, episodes, summary = [], [], {}
+	seen, named = {}, {}  # the features of the same name, numbered from the second one (as timeseries.doy_profile)
+	for r in series:
+		date, region = str(r['date'])[:10], str(r['region'])
+		k = seen[(region, date)] = seen.get((region, date), 0) + 1
+		named.setdefault(region if k == 1 else f'{region} ({k})', []).append(r)
+	wins = composite.windows(spec['period'], spec.get('season')) if step == '16-day' else []
+	for name in sorted(named, key=str):
+		a = anomaly.of_series(named[name], step, ref, threshold, min_years, wins, spec.get('season'))
+		rows += [dict(r, region=name) for r in a['rows']]
+		episodes += [dict(e, region=name) for e in a['episodes']]
+		summary[name] = a['summary']
+	unit = _unit(spec, stat)
+	title = (f"Standardized anomalies of {_series_name(spec)} | {step} {metric}, spatial {stat}, reference "
+	         f"{ref[0]} / {ref[1]}, |z| ≥ {threshold:g}")
+	out = {'rows': [{k: r[k] for k in ANOMALY_COLUMNS} for r in rows],
+	       'episodes': [{k: e[k] for k in EPISODE_COLUMNS} for e in episodes], 'summary': summary,
+	       'reference': [ref[0].isoformat(), ref[1].isoformat()], 'threshold': threshold, 'min_years': min_years,
+	       'step': step, 'csv': None, 'episodes_csv': None, 'chart': None, 'scale': used_scale, 'unit': unit,
+	       'title': title}
+	if csv:
+		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '', 'step': step, 'metric': metric,
+		        'stat': stat, 'reference': f'{ref[0]}/{ref[1]}', 'threshold': threshold, 'min_years': min_years,
+		        'unit': catalog.udunits(unit), 'scale_m': used_scale}
+		out['csv'] = timeseries.write_csv(out['rows'], csv, meta, ANOMALY_COLUMNS)
+		base, ext = os.path.splitext(csv)
+		out['episodes_csv'] = timeseries.write_csv(out['episodes'], f'{base}_episodes{ext or ".csv"}', meta,
+		                                           EPISODE_COLUMNS)
+	if chart and any(r['z'] is not None for r in out['rows']):
+		try:
+			charts.anomalies_png(out['rows'], threshold, chart, title, source=coverage.source())
+			out['chart'] = chart
+		except ImportError:  # no matplotlib: the tables and the CSV are still there
+			pass
+	return out
+
+
 # Maps --------------------------------------------------------------------------------------------------------------
 
 def composite_image(region, variable=None, sensor=None, start=None, end=None, metric='median', temporal='period',
@@ -2770,10 +2834,33 @@ def same_area(source, start, end):
 	return dict(source, where=variables.pin_where(where, start, end)) if where else source
 
 
+def _z_check(z, start, end, temporal, min_years=anomaly.MIN_YEARS, interannual=None):
+	"""Whether a comparison is in standardized anomalies (Z), after checking that its reference period (START to END)
+	has at least MIN_YEARS years and that TEMPORAL is not asked (the years make it: see _comparison)."""
+	if not z:
+		return False
+	if interannual not in (None, 'mean'):
+		raise ValueError('z takes the mean of the years of each period: give no interannual')
+	if temporal not in (None, 'period'):
+		raise ValueError('z compares the other period with the variation between the years of the reference: each '
+		                 'period is aggregated by years (temporal annual) already; give no temporal')
+	try:
+		years = int(str(end)[:4]) - int(str(start)[:4]) + 1
+	except (TypeError, ValueError):
+		raise ValueError('give the reference period: start and end, YYYY-MM-DD') from None
+	if years < min_years:
+		raise ValueError(f'z needs a reference period of at least {min_years} years (its standard deviation between '
+		                 f'years), not {start} / {end}')
+	return True
+
+
 def _comparison(region, variable, sensor, start, end, other_start, other_end, metric, temporal, interannual, season,
-                quality, res, source, two_periods=False, clip=True):
+                quality, res, source, two_periods=False, clip=True, z=False):
 	if not other_start or not other_end:
 		raise ValueError('give the other period: other_start and other_end')
+	if _z_check(z, start, end, temporal, interannual=interannual):
+		return _z_comparison(region, variable, sensor, start, end, other_start, other_end, metric, season, quality, res,
+		                     source, clip)
 	ref = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                season=season, quality=quality, two_periods=two_periods, **source)
 	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal=temporal,
@@ -2792,21 +2879,62 @@ def _comparison(region, variable, sensor, start, end, other_start, other_end, me
 	return ref, regions, img, native, name
 
 
+Z_BANDS = ['z', 'difference', 'reference', 'reference_std', 'other']
+
+
+def _z_comparison(region, variable, sensor, start, end, other_start, other_end, metric, season, quality, res, source,
+                  clip=True):
+	"""The standardized anomaly (z) of each pixel: the METRIC of each year (in its SEASON) of the other period, their
+	mean, minus the mean of the METRIC of each year of the reference period (START to END), divided by the sample
+	standard deviation of those of the reference years (that of Earth Engine, of the population, × sqrt(n / (n - 1)),
+	n the years with a value on the pixel, as anomalies does in the series); masked where that deviation is 0 or the
+	pixel has fewer than anomalies.MIN_YEARS years. Bands Z_BANDS: z, the
+	difference other - reference, the reference (mean of its years), its standard deviation between years and the
+	other period (mean of its years)."""
+	ref = make_spec(variable, sensor, start, end, metric=metric, temporal='annual', interannual='mean', season=season,
+	                quality=quality, **source)
+	sd_spec = make_spec(variable, sensor, start, end, metric=metric, temporal='annual', interannual='std',
+	                    season=season, quality=quality, **source)
+	n_spec = make_spec(variable, sensor, start, end, metric=metric, temporal='annual', interannual='count',
+	                   season=season, quality=quality, **source)
+	oth = make_spec(variable, sensor, other_start, other_end, metric=metric, temporal='annual', interannual='mean',
+	                season=season, quality=quality, **same_area(source, start, end))
+	variables.check_dates(ref, 'comparisons of periods')
+	regions = areas.region(region)
+	native = float(variables.native_scale(ref))
+	geom = regions.geometry()
+	a = variables.image(ref, geom, res or native)
+	sd = variables.image(sd_spec, geom, res or native)
+	n = variables.image(n_spec, geom, res or native)
+	b = variables.image(oth, geom, res or native)
+	sd = sd.multiply(n.divide(n.subtract(1)).sqrt())  # population -> sample
+	sd = sd.updateMask(sd.gt(0).And(n.gte(anomaly.MIN_YEARS)))
+	diff = b.subtract(a)
+	img = ee.Image.cat([diff.divide(sd), diff, a, sd, b]).rename(Z_BANDS)
+	img = img.clipToCollection(regions) if clip else img
+	name = (f"{_title(dict(ref, period=None))} ({metric} of each year) | standardized anomaly of "
+	        f"{oth['period'][0]} / {oth['period'][1]} against {ref['period'][0]} / {ref['period'][1]}")
+	return ref, regions, img, native, name
+
+
 @_cited
 def compare_map(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                 metric='median', temporal='period', interannual='mean', season=None, quality=None, vmin=None,
-                vmax=None, palette=None, thumbnail=None, percentiles=None, **source):
+                vmax=None, palette=None, thumbnail=None, percentiles=None, z=False, **source):
 	"""Map of the difference between the variable aggregated in time over another period (OTHER_START to OTHER_END)
 	and over the reference period (START to END), over REGION (e.g. the median NDVI of 2023 minus that of
 	2018-2021). Earth Engine tiles (the values cannot be queried: download_comparison for that). The colour ramp is
 	symmetric around 0, up to the largest in absolute value of the PERCENTILES (default [1, 99]) of the difference
-	over the region, or from VMIN to VMAX.
+	over the region, or from VMIN to VMAX. With Z, the standardized anomaly instead (see _z_comparison): the METRIC of
+	each year of the other period minus the mean of those of the years of the reference period (at least 3), divided
+	by their standard deviation; its unit is the standard deviation (z, unitless), with the same symmetric ramp.
 	Returns {'url', 'min', 'max', 'palette', 'stretch', 'name', 'unit', 'bounds', 'thumbnail'} (thumbnail None, and the
 	reason in thumbnail_error, if Earth Engine cannot make the PNG preview)."""
 	pct = maps.check_percentiles(percentiles)
+	_z_check(z, start, end, temporal, interannual=interannual)
 	spec, regions, img, native, name = _comparison(region, variable, sensor, start, end, other_start, other_end, metric,
-	                                               temporal, interannual, season, quality, None, source, clip=False)
-	whole = img.select('difference')  # the preview is clipped on its own pixels (see _preview)
+	                                               temporal, interannual, season, quality, None, source, clip=False, z=z)
+	whole = img.select('z' if z else 'difference')  # the preview is clipped on its own pixels (see _preview)
 	diff = whole.clipToCollection(regions)
 	if vmin is None or vmax is None:
 		auto, computed = maps.vis_params(diff.rename('value'), regions.geometry(), None, native, percentiles=pct,
@@ -2820,7 +2948,7 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 				'method': 'mixed', 'given': 'min' if given[0] else 'max', 'catalog': True,
 				'text': f"{'minimum' if given[0] else 'maximum'} given by the user, the other end that of {fixed}"}
 		else:
-			stretch = maps.stretch_of('the difference over the region', pct, *given, symmetric=True)
+			stretch = maps.stretch_of(f"the {'z' if z else 'difference'} over the region", pct, *given, symmetric=True)
 		if any(given):  # the end given, the other that of the symmetric range
 			vis = dict(vis, **({'min': float(vmin)} if given[0] else {}), **({'max': float(vmax)} if given[1] else {}))
 			vis['min'], vis['max'] = maps.ordered(vis['min'], vis['max'], given, 'the difference')
@@ -2829,8 +2957,8 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 		stretch = maps.stretch_of(None, pct, True, True)
 	if palette:
 		vis['palette'] = maps.ramp(None, palette)
-	out = dict(vis, url=maps.tile_url(diff, vis), stretch=stretch, name=f'{name}: difference', unit=_unit(spec),
-	           bounds=_bounds(regions), thumbnail=None)
+	out = dict(vis, url=maps.tile_url(diff, vis), stretch=stretch, name=name if z else f'{name}: difference',
+	           unit='[unitless]' if z else _unit(spec), bounds=_bounds(regions), thumbnail=None)
 	return _preview(out, whole, vis, regions, native, thumbnail)
 
 
@@ -2838,31 +2966,36 @@ def compare_map(region, variable=None, sensor=None, start=None, end=None, other_
 def download_comparison(region, variable=None, sensor=None, start=None, end=None, other_start=None, other_end=None,
                         metric='median', temporal='period', interannual='mean', season=None, quality=None,
                         resolution=None, crs='auto', path=None, max_pixels=None, tile=512, workers=8, progress=None,
-                        percentiles=None, vmin=None, vmax=None, **source):
+                        percentiles=None, vmin=None, vmax=None, z=False, **source):
 	"""Download the comparison of two periods (see compare_map) to the GeoTIFF PATH, with the bands 'difference'
 	(other - reference), 'reference' and 'other' (NoData -9999), on a grid of RESOLUTION metres (default: that of the
 	data; 2, 3, ... times bigger if the grid has more than MAX_PIXELS).
 	Returns {'file', 'bands', 'grid', 'resolution', 'native_resolution', 'name', 'unit', 'min', 'max' (symmetric
 	range of the difference: up to the largest in absolute value of its PERCENTILES, default [1, 99]; or VMIN and
-	VMAX), 'palette', 'stretch'}."""
+	VMAX), 'palette', 'stretch'}. With Z, the standardized anomaly (see compare_map): the bands z, difference,
+	reference (mean of its years), reference_std (their standard deviation) and other (mean of its years), and the
+	colours of the z."""
 	pct = maps.check_percentiles(percentiles)
+	z = _z_check(z, start, end, temporal, interannual=interannual)
 	regions_ = areas.region(region)
 	spec0 = make_spec(variable, sensor, start, end, metric=metric, temporal=temporal, interannual=interannual,
 	                  season=season, quality=quality, **source)
 	variables.check_dates(spec0, 'comparisons of periods')
 	grid, res = _fit_grid(regions_, resolution, crs, max_pixels, variables.native_scale(spec0))
 	spec, regions, img, native, name = _comparison(regions_, variable, sensor, start, end, other_start, other_end,
-	                                               metric, temporal, interannual, season, quality, res, source)
-	path = path or _slug(f"comparison_{_what(variable, sensor, source)}_{metric}_{start}_{end}_"
+	                                               metric, temporal, interannual, season, quality, res, source, z=z)
+	path = path or _slug(f"{'anomaly' if z else 'comparison'}_{_what(variable, sensor, source)}_{metric}_{start}_{end}_"
 	                     f"{other_start}_{other_end}") + '.tif'
-	bands = ['difference', 'reference', 'other']
+	bands = Z_BANDS if z else ['difference', 'reference', 'other']
 	download(img, grid, path, tile=tile, workers=workers, progress=progress, bands=bands,
 	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(dict(
-	             variables.describe(spec), reference=[start, end], other=[other_start, other_end]), default=str)})
-	colours, stretch = _file_colours(path, pct, vmin, vmax, symmetric=True, over='the difference in the file')
+	             variables.describe(spec), reference=[start, end], other=[other_start, other_end],
+	             **({'z': True} if z else {})), default=str)})
+	colours, stretch = _file_colours(path, pct, vmin, vmax, symmetric=True,
+	                                 over='the z in the file' if z else 'the difference in the file')
 	vis = dict(trends.vis('difference'), **colours)
 	return dict(vis, stretch=stretch, file=path, bands=bands, grid=grid.describe(), resolution=res, native_resolution=native, name=name,
-	            unit=_unit(spec))
+	            unit='[unitless]' if z else _unit(spec))
 
 
 BURN_COLUMNS = ['region', 'class', 'label', 'dnbr_min', 'dnbr_max', 'ha']

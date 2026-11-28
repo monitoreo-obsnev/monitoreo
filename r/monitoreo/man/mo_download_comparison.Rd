@@ -29,7 +29,8 @@ mo_download_comparison(
   unit = NULL,
   percentiles = NULL,
   vmin = NULL,
-  vmax = NULL
+  vmax = NULL,
+  z = FALSE
 )
 }
 \arguments{
@@ -146,6 +147,9 @@ catalog have their own, and the slope or the aspect of \code{terrain} (in the fu
 symmetric around 0 up to the largest of these percentiles of its values in the file in absolute value.}
 
 \item{vmin, vmax}{range of the colours of the difference (default: from \code{percentiles}).}
+
+\item{z}{\code{TRUE}: the standardized anomaly (see \code{mo_compare_map()}), with the bands z, difference,
+reference, reference_std and other.}
 }
 \value{
 A list (file, bands, grid, resolution, native_resolution, name, unit, min, max, palette, stretch: how the

@@ -37,6 +37,8 @@
     monitoreo trend VARIABLE --sensor S --region JSON --start D --end D [--step annual|monthly|16-day]
                     [--test mk|hamed-rao|tfpw] [--csv F]
                                                      seasonal trends (Mann-Kendall and Sen) of each part of the year
+    monitoreo anomalies VARIABLE --sensor S --region JSON --start D --end D [--reference D D] [--threshold Z]
+                                                     standardized anomalies (z) and their episodes
     monitoreo compare VARIABLE --sensor S --region JSON --start D --end D --other-start D --other-end D [--step]
                                                      a reference period against another, by part of the year
     monitoreo areas --region JSON --landcover MAP [--year Y] [--other-year Y2] [--csv F] [--png F]
@@ -571,6 +573,28 @@ def main(argv=None):
 	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
 	p.add_argument('--scale', type=float)
 	p.add_argument('--csv')
+	p.add_argument('--png')
+	computes['anomalies'] = p = sub.add_parser('anomalies', help='standardized anomalies (z) of each step against the '
+	                                                             'same part of the year in a reference period, and the '
+	                                                             'episodes of consecutive anomalous steps')
+	p.add_argument('variable', nargs='?', help='a variable of the catalog (monitoreo list), with --sensor')
+	p.add_argument('--sensor', help=SENSOR_HELP)
+	_source_options(p)
+	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"wdpa_id": 555700945}\'')
+	p.add_argument('--where', help=WHERE_HELP)
+	p.add_argument('--start', required=True)
+	p.add_argument('--end', required=True)
+	p.add_argument('--reference', nargs=2, metavar=('FIRST', 'LAST'),
+	               help='reference period inside --start/--end (default: the whole period)')
+	p.add_argument('--threshold', type=float, default=1.5, help='|z| of an anomalous step (default 1.5)')
+	p.add_argument('--season', nargs=2, metavar=('MM-DD', 'MM-DD'), help='only these days of each year, e.g. 06-01 09-30')
+	p.add_argument('--min-years', type=int, default=3, help='reference years that a part of the year needs (default 3)')
+	p.add_argument('--step', default='monthly', choices=('monthly', '16-day', 'annual'))
+	p.add_argument('--metric', default='mean', help=METRIC_HELP + ' (default: mean)')
+	p.add_argument('--stat', default='mean', help=STAT_HELP + ' (default: mean)')
+	p.add_argument('--min-coverage', type=float, metavar='FRACTION', help=MIN_COVERAGE_HELP)
+	p.add_argument('--scale', type=float)
+	p.add_argument('--csv', help='CSV of the steps (the episodes go to <csv>_episodes.csv)')
 	p.add_argument('--png')
 	computes['count'] = p = sub.add_parser('count', help='images and valid observations of a variable per step over a '
 	                                                     'region, after the pixel filters: to choose a period before '
@@ -1197,6 +1221,9 @@ def _compute(args, services):
 	if args.cmd == 'recovery':
 		_recovery(args, services, progress)
 		return
+	if args.cmd == 'anomalies':
+		_anomalies(args, services, progress)
+		return
 	if args.cmd == 'recovery-map':
 		try:
 			res = services.recovery_map(json.loads(args.region), args.variable, args.sensor, args.start, args.end,
@@ -1266,6 +1293,28 @@ def _recovery(args, services, progress):
 	files = (f" | CSV {res['csv']}" if res['csv'] else '') + (f" | chart {res['chart']}" if res['chart'] else '')
 	print(f"\n{res['title']} | scale {res['scale']:g} m | years from the event; RRT empty: not recovered yet" + files
 	      + _manual(res))
+
+
+def _anomalies(args, services, progress):
+	"""The standardized anomalies of a variable (services.anomalies): its episodes, and a summary per region."""
+	try:
+		res = services.anomalies(json.loads(args.region), start=args.start, end=args.end, step=args.step,
+		                         metric=args.metric, stat=args.stat, reference=args.reference, threshold=args.threshold,
+		                         season=args.season,
+		                         min_years=args.min_years, scale=args.scale, min_coverage=args.min_coverage,
+		                         csv=args.csv, chart=args.png, progress=progress, where=_where(args), **args.source)
+	except ValueError as e:
+		sys.exit(_error(e, args))
+	if res['episodes']:
+		_table(_fmt(res['episodes']), services.EPISODE_COLUMNS)
+	else:
+		print(f"No episode with |z| ≥ {res['threshold']:g}")
+	for name, s in res['summary'].items():
+		print(f"{name}: {s['steps_with_z']} of {s['steps']} steps with z; {s['negative_steps']} at most "
+		      f"-{res['threshold']:g} and {s['positive_steps']} at least {res['threshold']:g}")
+	files = (f" | CSV {res['csv']} and {res['episodes_csv']}" if res['csv'] else '') + (
+		f" | chart {res['chart']}" if res['chart'] else '')
+	print(f"\n{res['title']} | scale {res['scale']:g} m" + files + _manual(res))
 
 
 def _count(args, services, progress):

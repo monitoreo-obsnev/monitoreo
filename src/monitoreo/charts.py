@@ -479,3 +479,30 @@ def recovery_png(affected, difference, event, path=None, title=None, ylabel=None
 		ax.grid(alpha=0.3)
 	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
 	return _png(fig, path)
+
+
+def anomalies_png(rows, threshold, path=None, title=None, dpi=150, source=None, max_regions=4):
+	"""PNG (bytes) of the standardized anomalies ROWS ([{region, date, z}], monitoreo.anomalies): the z of each step as
+	bars (below 0 brown, above 0 green), a panel per region (at most MAX_REGIONS), with the lines of ± THRESHOLD.
+	Written to PATH if given."""
+	from matplotlib.figure import Figure
+
+	names = list(dict.fromkeys(r['region'] for r in rows))[:max_regions]
+	fig = Figure(figsize=(10, 2.6 * len(names) + 0.8), dpi=dpi)
+	axes = fig.subplots(len(names), 1, sharex=True, squeeze=False)[:, 0]
+	for ax, name in zip(axes, names):
+		mine = [r for r in rows if r['region'] == name and r['z'] is not None]
+		dates = [dt.date.fromisoformat(r['date']) for r in mine]
+		zs = [r['z'] for r in mine]
+		width = bar_width(dates) if dates else 1
+		ax.bar(dates, zs, width=width, color=['#8c510a' if z < 0 else '#01665e' for z in zs])
+		for y in (threshold, -threshold):
+			ax.axhline(y, color='#999999', ls='--', lw=0.8)
+		ax.axhline(0, color='#333333', lw=0.8)
+		ax.set_ylabel('z')
+		ax.set_title(str(name), fontsize=9, loc='left')
+		ax.grid(alpha=0.3)
+	if title:
+		fig.suptitle(title, fontsize=11)
+	fig.tight_layout(rect=(0, _with_source(fig, source), 1, 1))
+	return _png(fig, path)
