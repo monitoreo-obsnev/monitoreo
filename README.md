@@ -96,6 +96,11 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: The structure of the forest canopy in the theme Vegetation, as fixed layers without dates (maps, statistics, zones and conditions of where): the canopy height of 2020 of ETH Zurich (`CANOPY_HEIGHT`, sensor `ETH`, 10 m, Lang et al. 2023) and the tree cover of 2000 of Hansen et al. 2013 (`TREE_COVER`, sensor `Hansen`, 30 m).
+- **Earth Engine app** (fix): The snow melt-out day (SMOD) failed with «Required argument (image2) missing to function: Image.gte».
+
 ### [v0.3.84](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.84) · 2026-11-28 · package 0.3.94
 
 - **Python package, R package, Command line, MCP server, Assistant**: Official perimeters as study areas, downloaded once and cited as their sources ask: `{"ems": "EMSR375"}` (the burnt or flooded area of an activation of Copernicus EMS, from its grading or its last delineation; `mo_ems()`), `{"effis_id": 17545}` (a burnt area of EFFIS; `mo_effis()`), `{"wfs": URL, "layer": ...}` (a layer of a WFS, e.g. the burnt areas of ICNF; `mo_wfs()`) and `{"url": URL}` (a vector file on the web; `mo_url()`).

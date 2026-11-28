@@ -53,6 +53,8 @@ HEADINGS = {
 	'ELEVATION': ('ELEVATION y SLOPE: elevación y pendiente', 'ELEVATION and SLOPE: elevation and slope'),
 	'ASPECT': ('ASPECT: orientación', 'ASPECT: aspect'),
 	'TWI': ('TWI: índice topográfico de humedad', 'TWI: topographic wetness index'),
+	'CANOPY_HEIGHT': ('CANOPY_HEIGHT y TREE_COVER: altura del dosel y cobertura arbórea',
+	                  'CANOPY_HEIGHT and TREE_COVER: canopy height and tree cover'),
 	'CF': ('CF: frecuencia de nubes', 'CF: cloud frequency'),
 	'CLIMATE': ('Clima: precipitación, temperatura y balance de agua',
 	            'Climate: precipitation, temperature and water balance'),
@@ -64,6 +66,7 @@ HEADINGS = {
 }
 # the variables explained in the section of another one
 SAME_SECTION = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
+                'TREE_COVER': 'CANOPY_HEIGHT',
                 **{v: 'PDSI' for v in ('SPEI1', 'SPEI3', 'SPEI6', 'SPEI12')},
                 **{v: 'CLIMATE' for v in ('PRECIP', 'TMAX', 'TMIN', 'TMEAN', 'PET', 'AET', 'CWD', 'SOILM', 'VPD')},
                 **{f'BIO{i:02d}': 'BIO' for i in range(1, 20)}}

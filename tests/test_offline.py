@@ -15,7 +15,7 @@ from monitoreo.grid import Grid
 
 def test_catalog():
 	entries = catalog.variables()
-	assert len(entries) == 119  # the 50 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
+	assert len(entries) == 121  # the 50 of catalog.json (CLre, WAVI and CLreB7 of Sentinel-2: refs 158 to 160; MSI and
 	# MSAVI2 of Landsat and Sentinel-2, the NDWI and LSWI of MODIS MOD09A1 and MYD09A1, the GPP and NPP of MOD17A3HGF and
 	# MYD17A3HGF: 165 to 176; the Tasseled Cap brightness, greenness and wetness of Landsat: 185 to 187), NBR and RBR of Landsat and Sentinel-2, SCF of Landsat, the
 	# elevation and slope of the Copernicus DEM, the cloud frequency of MODIS (Terra and Aqua), Sentinel-2 and Landsat,
@@ -25,8 +25,16 @@ def test_catalog():
 	# SCF of MODIS (Terra and Aqua: refs 151 and 152), the snow cover days (SCD) of Landsat and MODIS (153 to 155) and
 	# the SCF and the SCD of Sentinel-2 (156 and 157), and the snow melt-out day (SMOD) of Landsat, MODIS (Terra and
 	# Aqua) and Sentinel-2 (161 to 164), the PDSI of TerraClimate (177), the SPEI of 1, 3, 6 and 12 months of SPEIbase
-	# (178 to 181), the burn date of MCD64A1 and FireCCI51 (182, 183) and the aspect of the Copernicus DEM (184)
+	# (178 to 181), the burn date of MCD64A1 and FireCCI51 (182, 183), the aspect of the Copernicus DEM (184) and the
+	# canopy height of ETH and the tree cover of Hansen (188, 189: fixed layers of the structure of the canopy)
 	assert len({e['ref'] for e in entries}) == len(entries)  # the refs are unique
+	# the structure of the canopy: fixed images (not collections), of the theme Vegetation
+	for index, sensor, col, band, unit, ref in (
+			('CANOPY_HEIGHT', 'ETH', 'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1', 'b1', '[m]', 'lang2023'),
+			('TREE_COVER', 'Hansen', 'UMD/hansen/global_forest_change_2025_v1_13', 'treecover2000', '[%]', 'hansen2013')):
+		e = catalog.find(index, sensor)
+		assert (e['col'], e['band'], e['unit'], e['theme'], e['references']) == (col, band, unit, 'vegetation', [ref])
+		assert e['static'] and e['image_asset'] and e['tr'] == 'fixed'
 	nbr = catalog.find('NBR', 'Sentinel-2')
 	assert nbr['ref'] == 102 and nbr['ft'] == 'N(B8,B12)' and nbr['col'] == 'COPERNICUS/S2_SR_HARMONIZED'
 	assert catalog.find('nbr', 'landsat')['ft'] == 'N(nir,swir2)'
@@ -569,7 +577,7 @@ def test_elevation_and_slope_in_the_catalog():
 		assert sensors.parse_formula(e) == ('static', ['DEM']) and e['type_en'] == 'Topography'
 	# the topographic wetness index (148) and the categorical layers of RESOLVE (ECOREGION, BIOME), fixed layers too
 	assert [e['ref'] for e in catalog.variables() if e.get('static')] == [106, 107, 184] + list(range(125, 144)) + [148, 149,
-	                                                                                                          150]
+	                                                                                                          150, 188, 189]
 	# no metric, period nor season: one spec, named without them
 	spec = services.make_spec('SLOPE', 'Copernicus')
 	assert spec['metric'] is None and spec['name'] == 'SLOPE_Copernicus' and variable.is_static(spec)

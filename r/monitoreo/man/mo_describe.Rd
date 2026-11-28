@@ -13,7 +13,8 @@ take \code{image}, \code{NULL} for any data of Earth Engine given by its ID inst
 
 \item{sensor}{\code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation, the
 slope and the aspect, \code{"ELEVATION"}, \code{"SLOPE"} and \code{"ASPECT"}, of the Copernicus DEM GLO-30) or
-\code{"MERIT Hydro"} (the topographic wetness index, \code{"TWI"}), or those of the climate (e.g.
+\code{"MERIT Hydro"} (the topographic wetness index, \code{"TWI"}), \code{"ETH"} (the canopy height,
+\code{"CANOPY_HEIGHT"}), \code{"Hansen"} (the tree cover, \code{"TREE_COVER"}), or those of the climate (e.g.
 \code{"TerraClimate"}, \code{"SPEIbase"} for the SPEI; see \code{mo_variables()}); \code{NULL} with
 \code{collection} or \code{image} instead of \code{variable}.}
 

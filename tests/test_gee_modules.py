@@ -607,3 +607,14 @@ def test_push_app_relative_cache(tmp_path, cookies, monkeypatch, capsys):
 	(work / 'a-file').write_text('', encoding='ascii')
 	with pytest.raises(SystemExit, match='push_app: .*a-file'):
 		push_app.main(['--cookies', cookies[0], '--cache', 'a-file/sub/gee-app', '--dry-run'])
+
+
+def test_core_has_each_name_once():
+	"""Each var and function of the scope of the core of the app (MonitorEO) has its own name: a second var of the same
+	name replaces the first in all the scope (the threshold SNOW of the snow melt-out day, 50, was replaced by the table
+	SNOW of the snow products, and the SMOD of the app failed: «Required argument (image2) missing»)."""
+	import collections
+	with open(os.path.join(os.path.dirname(__file__), '..', 'gee', 'core.js'), encoding='utf-8') as f:
+		text = f.read()
+	names = re.findall(r'^\tvar (\w+)\s*=', text, re.M) + re.findall(r'^\tfunction (\w+)\s*\(', text, re.M)
+	assert [n for n, c in collections.Counter(names).items() if c > 1] == []

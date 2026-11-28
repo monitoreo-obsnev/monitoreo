@@ -69,7 +69,7 @@ always tell the user, as those days may have no data (describe_variable gives th
 warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, MSI, MSAVI2, Tasseled Cap TCB, TCG and TCW, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
+LSWI, MSI, MSAVI2, Tasseled Cap TCB, TCG and TCW, canopy height, tree cover, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
 chlorophyll, aerosols, snow cover frequency, snow cover days, snow melt-out day, burn date) of Sentinel-2, Landsat and MODIS,
 with the pixel filters of MonitorEO (clouds, water, snow, aerosols). MSI (moisture stress index, SWIR1 / NIR: higher is
 drier) and MSAVI2 (modified soil adjusted vegetation index) of Sentinel-2 and Landsat. The Tasseled Cap of Landsat (Crist
@@ -100,7 +100,12 @@ series, trends or comparisons. The topographic wetness index (variable TWI, sens
 MERIT Hydro, 90 m, unitless; high in the valley bottoms and flats where the water converges, low on the ridges and
 steep slopes; most land between 5 and 15, rivers and lakes the highest) is a fixed layer too, like the elevation; it
 also works in where (e.g. only the wet bottoms: {"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}) and in the
-zones of region_stats. ASPECT in where: min greater than max goes across the north, e.g. the slopes that face north
+zones of region_stats. The structure of the forest canopy, fixed layers too: the canopy height of 2020 (variable
+CANOPY_HEIGHT, sensor "ETH": the height of the top of the canopy in m, 10 m, Lang et al. 2023, from Sentinel-2 and the
+GEDI lidar) and the tree cover of 2000 (variable TREE_COVER, sensor "Hansen": % of the pixel covered by trees taller
+than 5 m, 30 m, Hansen et al. 2013; its losses since then, the band lossyear of image
+UMD/hansen/global_forest_change_2025_v1_13); they work in where and as zones (e.g. only the forest:
+{"variable": "TREE_COVER", "sensor": "Hansen", "min": 50}). ASPECT in where: min greater than max goes across the north, e.g. the slopes that face north
 {"variable": "ASPECT", "sensor": "Copernicus", "min": 315, "max": 45}.
 The cloud frequency (CF, of MODIS Terra and Aqua, Sentinel-2 and Landsat) is the % of the observations of each pixel
 with clouds: always with metric "mean" and no pixel filters (pass no quality).
@@ -536,7 +541,7 @@ def own_projects(project: str = '') -> str:
 def list_variables(sensor: Optional[str] = None, text: Optional[str] = None, lang: str = 'en',
                    theme: Optional[str] = None) -> str:
 	"""Variables of the catalog of MonitorEO: variable, sensor (Sentinel-2, Landsat, Modis, Copernicus, MERIT Hydro,
-	ERA5-Land, TerraClimate, CHIRPS, WorldClim, RESOLVE), collection, theme, resolution, dates and unit; rgb (true) when
+	ETH, Hansen, ERA5-Land, TerraClimate, SPEIbase, CHIRPS, WorldClim, RESOLVE), collection, theme, resolution, dates and unit; rgb (true) when
 	its images have a true colour (rgb_map, download_rgb). Filter by sensor, by theme (vegetation, water, snow, fire,
 	energy, atmosphere, climate, terrain, ecosystems) or by text in the name (English or Spanish). lang: en or es."""
 	return _text(services.list_variables(sensor, text, lang, theme=theme))
