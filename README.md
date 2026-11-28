@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.88](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.88) · 2026-11-28 · package 0.3.98
 
 - **Assistant**: The model of MonitorEO and GLM read a recipe of a case study whole (all its steps, about 14,000 characters, up to two recipes per question) to explain it; a model of Ollama reads its main parts and gives its link.
 
