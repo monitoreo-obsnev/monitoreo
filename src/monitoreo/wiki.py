@@ -66,7 +66,7 @@ HEADINGS = {
 }
 # the variables explained in the section of another one
 SAME_SECTION = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
-                'TREE_COVER': 'CANOPY_HEIGHT',
+                'TREE_COVER': 'CANOPY_HEIGHT', 'LST_NIGHT': 'LST',
                 **{v: 'PDSI' for v in ('SPEI1', 'SPEI3', 'SPEI6', 'SPEI12')},
                 **{v: 'CLIMATE' for v in ('PRECIP', 'TMAX', 'TMIN', 'TMEAN', 'PET', 'AET', 'CWD', 'SOILM', 'VPD')},
                 **{f'BIO{i:02d}': 'BIO' for i in range(1, 20)}}

@@ -273,9 +273,8 @@ whole country, e.g. "ESP"), {{"island_at": [lon, lat]}} (the island at a point),
 never made up; or a list), {{"sea_at": [lon, lat]}} (the sea at a point), {{"ecoregion_at": [lon, lat]}}, \
 {{"biome_at": [lon, lat]}} (the biome at a point), {{"biome_id": N}} (a biome of RESOLVE: {biomes}), \
 {{"bbox": [west, south, east, north]}}, {{"point": [lon, lat], "buffer": metres}} or an official perimeter: \
-{{"ems": "EMSR375"}} (the burnt or flooded area of an activation of Copernicus EMS, with the code the user or a source \
-gives), {{"effis_id": ID}} (a burnt area of EFFIS, with the ID that find_burnt_areas returns, never made up), \
-{{"wfs": URL, "layer": NAME}} (a layer of a WFS) or {{"url": URL}} (a vector file on the web). Any region takes "within", \
+{{"ems": "EMSR375"}} (an activation of Copernicus EMS), {{"effis_id": ID}} (a burnt area of EFFIS: find_burnt_areas, \
+never made up), {{"wfs": URL, "layer": NAME}} or {{"url": URL}}. Any region takes "within", \
 another region: only its part inside it, e.g. {{"biome_id": 12, "within": {{"country": "ESP"}}}} (the Mediterranean \
 biome in Spain). Countries and big regions: MODIS, or a monthly or annual step (regions of more than 100,000 km², \
 as most seas, are computed on pixels of 1 to 10 km); a whole biome spans continents: \

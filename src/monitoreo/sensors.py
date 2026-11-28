@@ -536,6 +536,12 @@ PRODUCTS = {
 		'aerosols': lambda i: bits(i.select('DetailedQA'), 6, 7).neq(3),
 	},
 	'MODIS/061/MOD11A1': {'clouds': lambda i: bits(i.select('QC_Day'), 0, 1).eq(0)},  # LST of good quality
+	# the night LST of the same images (LST_NIGHT: the entry names this product, its field product), its own QC_Night
+	'MODIS/061/MOD11A1#night': {'clouds': lambda i: bits(i.select('QC_Night'), 0, 1).eq(0)},
+	# ECOSTRESS LST of 70 m (Hook & Hulley 2022): its bands cloud (1 cloud) and water (1 water); LST out of 150-400 K
+	# (no surface of the Earth has it) has no value
+	'NASA/ECOSTRESS/L2T_LSTE/V2': {'valid': ('LST', 400, 150), 'clouds': lambda i: i.select('cloud').eq(0),
+	                               'water': lambda i: i.select('water').eq(0)},
 	'MODIS/061/MOD16A2': {'valid': ('ET', 32700), 'clouds': lambda i: _modis_cloud_state(i.select('ET_QC'))},
 	'MODIS/061/MCD15A3H': {  # FparExtra_QC: bits 0-1 land/sea (0 land), 2 snow, 3 aerosol, 4 cirrus, 5 cloud, 6 shadow
 		'valid': ('Lai', 100),
@@ -571,10 +577,33 @@ PRODUCTS = {
 }
 PRODUCTS['MODIS/061/MYD13Q1'] = PRODUCTS['MODIS/061/MOD13Q1']
 PRODUCTS['MODIS/061/MYD11A1'] = PRODUCTS['MODIS/061/MOD11A1']
+PRODUCTS['MODIS/061/MYD11A1#night'] = PRODUCTS['MODIS/061/MOD11A1#night']
 PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 PRODUCTS['MODIS/061/MYD09GA'] = PRODUCTS['MODIS/061/MOD09GA']
 PRODUCTS['MODIS/061/MYD09A1'] = PRODUCTS['MODIS/061/MOD09A1']
 PRODUCTS['MODIS/061/MYD17A3HGF'] = PRODUCTS['MODIS/061/MOD17A3HGF']
+
+
+def product_of(entry):
+	"""The key of PRODUCTS of ENTRY: its field product (the night LST of MODIS, whose images are those of the day LST
+	with another QA band), or its collection."""
+	return entry.get('product') or entry['col']
+
+
+def solar_hours(col, hours):
+	"""The images of COL taken between the local solar hours HOURS (first, last; across midnight when first > last,
+	e.g. [22, 4]): the hour of each image, that of its time (UTC) plus the longitude of the centre of its footprint / 15
+	(the ISS, of ECOSTRESS, passes at every hour of the day)."""
+	first, last = float(hours[0]), float(hours[1])
+
+	def hour(img):
+		lon = ee.Number(img.geometry().centroid(1000).coordinates().get(0))
+		h = ee.Number(ee.Date(img.get('system:time_start')).getFraction('day')).multiply(24).add(lon.divide(15))
+		return img.set('solar_hour', h.add(48).mod(24))
+	col = col.map(hour)
+	if first > last:
+		return col.filter(ee.Filter.Or(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)))
+	return col.filter(ee.Filter.And(ee.Filter.gte('solar_hour', first), ee.Filter.lt('solar_hour', last)))
 
 
 def valid_ranges(product):
@@ -615,7 +644,7 @@ def filters(entry, quality=None):
 	sensor, col = entry['sensor'], entry['col']
 	available = {'Sentinel-2': {'clouds', 'water', 'snow'}, 'Landsat': set(FILTERS)}.get(sensor)
 	if available is None:
-		available = {f for f in FILTERS if f in PRODUCTS.get(col, {})}
+		available = {f for f in FILTERS if f in PRODUCTS.get(product_of(entry), {})}
 	out = {}
 	for f in FILTERS:
 		on = quality[f]
@@ -718,7 +747,7 @@ def quality_mask(img, entry, quality):
 		if on['aerosols']:
 			masks.append(bits(img.select('SR_QA_AEROSOL'), 6, 7).neq(3))  # aerosol level 3 = high
 	else:
-		product = PRODUCTS.get(col, {})
+		product = PRODUCTS.get(product_of(entry), {})
 		for b, vmax, vmin in valid_ranges(product):
 			masks.append(img.select(b).lte(vmax))
 			if vmin is not None:
@@ -785,6 +814,8 @@ def raw_collection(entry, region, start, end, quality):
 			col = col.merge(c)
 		return col
 	col = scene_filter(ee.ImageCollection(entry['col']).filterBounds(region).filterDate(start, end))
+	if entry.get('hours'):  # only the images of some hours of the day (the night of ECOSTRESS)
+		col = solar_hours(col, entry['hours'])
 	if entry['col'] in GAP_FILLED:  # the gap-filled images, and those of the collection after the last of them
 		from . import catalog
 		filled = GAP_FILLED[entry['col']]

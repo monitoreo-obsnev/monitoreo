@@ -56,7 +56,8 @@ from monitoreo import (__released__, __version__, about, areas, catalog, communi
 FIELDS = ['ref', 'type', 'type_en', 'index', 'vname', 'vname_en', 'sensor', 'col', 'm', 'tr', 'dr', 'unit', 'ft',
           'scale', 'offset', 'minp', 'maxp', 'pm', 'large_areas', 'sea', 'two_periods', 'metric', 'axis', 'static',
           'band', 'terrain', 'image_asset', 'theme', 'classes',  # classes: the key of the table of a categorical layer
-          'circular']  # circular: an angle (ASPECT), whose conditions of where with min greater than max go across 0
+          'circular',  # circular: an angle (ASPECT), whose conditions of where with min greater than max go across 0
+          'product', 'hours']  # the QA of another product (the night LST of MODIS), the solar hours kept (ECOSTRESS)
 LOGO_WIDTHS = [340, 340, 200]  # pixels of the logos of about.LOGOS in the app (the Code Editor shows them at their size)
 COMMUNITY_DOCS = community.SITE + '/projects/'  # where the pages of the datasets of the GEE Community Catalog are
 REPO = 'users/monitoreo-obsnev/monitoreo'  # the git repository of the scripts of the app in Earth Engine

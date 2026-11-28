@@ -69,7 +69,7 @@ always tell the user, as those days may have no data (describe_variable gives th
 warning that begins with «where, the condition on ...» is about the variable of that condition, not the result.
 
 MonitorEO (OBSNEV, Universidad de Granada): satellite variables of Google Earth Engine (NDVI, EVI, NDWI,
-LSWI, MSI, MSAVI2, Tasseled Cap TCB, TCG and TCW, canopy height, tree cover, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature, evapotranspiration, LAI, GPP, NPP,
+LSWI, MSI, MSAVI2, Tasseled Cap TCB, TCG and TCW, canopy height, tree cover, NDSI, NDCI, CLre, CLreB7, WAVI, NBR, albedo, land surface temperature (of the night: LST_NIGHT of MODIS and of ECOSTRESS, 70 m, only its images of 22 h to 4 h solar time), evapotranspiration, LAI, GPP, NPP,
 chlorophyll, aerosols, snow cover frequency, snow cover days, snow melt-out day, burn date) of Sentinel-2, Landsat and MODIS,
 with the pixel filters of MonitorEO (clouds, water, snow, aerosols). MSI (moisture stress index, SWIR1 / NIR: higher is
 drier) and MSAVI2 (modified soil adjusted vegetation index) of Sentinel-2 and Landsat. The Tasseled Cap of Landsat (Crist

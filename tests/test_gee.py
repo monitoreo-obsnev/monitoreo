@@ -59,6 +59,11 @@ CASES = {
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
 	# the topographic wetness index of MERIT Hydro (from two bands of its image), and as a condition of a variable
 	'map_twi': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 148}},
+	# the night land surface temperature: of ECOSTRESS (only its images of 22 h to 4 h of solar time) and of MODIS
+	'series_lst_night_ecostress': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean',
+	                               'stat': 'mean', 'spec': {'ref': 192, 'period': ['2021-01-01', '2021-12-31']}},
+	'series_lst_night_modis': {'kind': 'series', 'region': LAGUNAS, 'step': 'monthly', 'metric': 'mean', 'stat': 'mean',
+	                           'spec': {'ref': 190, 'period': ['2021-01-01', '2021-06-30']}},
 	# the structure of the canopy (images of the GEE Community Catalog and of Hansen), and the NDVI only in the forest
 	'map_canopy_height': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 188}},
 	'map_tree_cover': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 189}},

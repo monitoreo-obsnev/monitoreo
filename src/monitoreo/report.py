@@ -618,6 +618,10 @@ def item_facts(tool, args, result=None, names=None):
 	if custom and not static:
 		facts.append(('Discarded pixels', 'none (the data keep only their own mask: the pixel filters of MonitorEO are '
 		                                  'for the variables of its catalog)'))
+	if entry and not static and entry.get('hours'):  # the night of ECOSTRESS (sensors.solar_hours)
+		h = entry['hours']
+		facts.append(('Images', f'only those taken between {h[0]:g} h and {h[1]:g} h of local solar time (the hour of the '
+		                        'image plus the longitude of the centre of its tile / 15)'))
 	if entry and not static:
 		quality = args.get('quality') if isinstance(args.get('quality'), dict) else None
 		facts.append(('Discarded pixels', _discarded(entry, fire.burn_quality(quality) if tool == 'burn_severity'
