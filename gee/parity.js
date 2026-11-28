@@ -77,6 +77,16 @@ function seasonalRows(s, regions, step, metric, stat, scale, crs, n, done) {
 		});
 }
 
+// The spec of the burn indices: with the burn quality (fire.burn_quality, core.burnQuality: water as the permanent
+// water of the JRC, not the water flag of each image, which takes burned land for water), as services.burn_severity
+// and the app (ui.js) build it
+function burnSpec(spec) {
+	var s = {};
+	for (var k in spec) s[k] = spec[k];
+	s.quality = mo.burnQuality(spec.quality);
+	return s;
+}
+
 var CASES = {
 	series: function (c, regions, done) {
 		var s = mo.spec(c.spec), entry = mo.entryOf(s);
@@ -160,7 +170,7 @@ var CASES = {
 			scale: Number(mo.entryOf(s).m), bestEffort: true}).evaluate(function (st, error) { done(error, st); });
 	},
 	burn: function (c, regions, done) {
-		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		var before = mo.spec(burnSpec(c.spec)), after = mo.spec(burnSpec(c.spec));
 		after.period = c.after;
 		var entry = mo.entryOf(before);
 		setup(entry, regions, function (error, g) {
@@ -176,7 +186,7 @@ var CASES = {
 		});
 	},
 	burn_rbr: function (c, regions, done) {
-		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		var before = mo.spec(burnSpec(c.spec)), after = mo.spec(burnSpec(c.spec));
 		after.period = c.after;
 		var entry = mo.entryOf(before);
 		setup(entry, regions, function (error, g) {
@@ -190,7 +200,7 @@ var CASES = {
 	// the perimeter of the burned area (services.burn_severity with perimeter, mo.burnPerimeter) of the index of the
 	// case (dNBR, or the RBR with its burned_min): its hectares and patches in each region
 	burn_perimeter: function (c, regions, done) {
-		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		var before = mo.spec(burnSpec(c.spec)), after = mo.spec(burnSpec(c.spec));
 		after.period = c.after;
 		var entry = mo.entryOf(before);
 		setup(entry, regions, function (error, g) {
@@ -214,7 +224,7 @@ var CASES = {
 	// the RdNBR of Miller & Thode 2007 (services._rdnbr), of the entry of the spec (Sentinel-2, Landsat, MODIS Terra
 	// or Aqua): the hectares of its classes, the changed area and the statistics of the RdNBR of each region
 	burn_rdnbr: function (c, regions, done) {
-		var before = mo.spec(c.spec), after = mo.spec(c.spec);
+		var before = mo.spec(burnSpec(c.spec)), after = mo.spec(burnSpec(c.spec));
 		after.period = c.after;
 		var entry = mo.entryOf(before);
 		setup(entry, regions, function (error, g) {
