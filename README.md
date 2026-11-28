@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.83](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.83) · 2026-11-28 · package 0.3.93
 
 - **Python package, R package, Command line, MCP server, Assistant**: The recovery after a disturbance on each pixel (`recovery_map`; `monitoreo recovery-map`; `mo_recovery_map()`): the metric of each year of a period, within a season, and on each pixel the metrics of Marcos et al. (2023) of its annual series (reference, impact, DIT, RRT, the recovery time, RET and the share recovered), a GeoTIFF of a band each and another of a band per year. Not in the QGIS plugin nor the Earth Engine app.
 - **Python package, R package, Command line, MCP server, Assistant, Earth Engine app**: A control ring around an affected area (`control_ring`; `monitoreo ring`; `mo_control_ring()`), as the EVEREST case studies built it: the land from 150 to 1,650 m of it (gap and width can change), without other disturbances (`exclude`) and only inside a region (`within`), with its pixels and those of the affected area matched by elevation (percentiles 5 and 95 in the affected area), written to a GeoPackage; and the option `ring` of the time series and the recovery metrics (`--ring`; a check box in the Earth Engine app): the series of the affected area, of its ring and of their difference. The QGIS plugin does not have it yet.
