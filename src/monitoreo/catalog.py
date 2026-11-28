@@ -557,9 +557,51 @@ EXTRA.update({
 	             'vname': 'Bioma', 'vname_en': 'Biome', 'vname_fr': 'Biome', 'vname_de': 'Biome'}),
 })
 
+# The structure of the forest canopy: the canopy top height of 2020 of ETH (Lang et al. 2023, 10 m, from Sentinel-2 and
+# GEDI; an image of the GEE Community Catalog) and the tree canopy cover of 2000 of Hansen et al. (2013, 30 m, from
+# Landsat): fixed layers, without dates, like the DEM; of the theme Vegetation
+CANOPY = dict(DEM, type='Estructura de la vegetación', type_en='Vegetation structure', type_fr='Vegetation structure',
+              type_de='Vegetation structure', image_asset=True, large_areas=True, references=[], notes={})
+EXTRA.update({
+	188: (None, {
+		'index': 'CANOPY_HEIGHT', 'template': 'CANOPY', 'sensor': 'ETH', 'col': 'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1',
+		'band': 'b1', 'm': 10, 'dr': 'fixed layer, without dates (2020)', 'pg': '#1b7837', 'ft': 'b1', 'f': 'b1 (m)',
+		'references': ['lang2023'], 'vname': 'Altura del dosel', 'vname_en': 'Canopy height',
+		'vname_fr': 'Canopy height', 'vname_de': 'Canopy height', 'unit': '[m]', 'minp': 0, 'maxp': 30,
+		'pm': ['ffffe5', 'f7fcb9', 'd9f0a3', 'addd8e', '78c679', '41ab5d', '238443', '006837', '004529'],
+		'notes': {'ft': 'Global canopy height of 2020 of ETH Zurich (Lang et al. 2023), 10 m: the height of the top of '
+		                'the canopy, in metres, estimated by a deep learning model from the Sentinel-2 images of 2020, '
+		                'trained with the canopy heights of the GEDI lidar (an image of the GEE Community Catalog, '
+		                'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1; its standard deviation is '
+		                'users/nlang/ETH_GlobalCanopyHeightSD_2020_10m_v1). An estimate, not a measurement: its errors '
+		                'grow with the height of the trees and on steep slopes, and gaps smaller than its pixel are not '
+		                'seen. On pixels more than twice as big as those of the data, the mean of its pixels of 10 m. A '
+		                'fixed layer, without dates: maps, GeoTIFFs and statistics of the region (e.g. by bands of '
+		                'altitude with zones, or as a condition of where), but no time series, trends or comparisons; the '
+		                'period, metrics and pixel filters do not apply. Licence CC BY 4.0.'}}),
+	189: (None, {
+		'index': 'TREE_COVER', 'template': 'CANOPY', 'sensor': 'Hansen', 'col': 'UMD/hansen/global_forest_change_2025_v1_13',
+		'band': 'treecover2000', 'm': 30, 'dr': 'fixed layer, without dates (2000)', 'pg': '#238b45',
+		'ft': 'treecover2000', 'f': 'treecover2000 (%)', 'references': ['hansen2013'],
+		'vname': 'Cobertura arbórea', 'vname_en': 'Tree cover', 'vname_fr': 'Tree cover', 'vname_de': 'Tree cover',
+		'unit': '[%]', 'minp': 0, 'maxp': 100,
+		'pm': ['ffffe5', 'f7fcb9', 'd9f0a3', 'addd8e', '78c679', '41ab5d', '238443', '006837', '004529'],
+		'notes': {'ft': 'Tree canopy cover of the year 2000 of the Global Forest Change of Hansen et al. (2013), '
+		                'version 1.13 (2000-2025), 30 m, from Landsat: the % of the pixel covered by the canopy of the '
+		                'vegetation taller than 5 m (band treecover2000 of UMD/hansen/global_forest_change_2025_v1_13). '
+		                'Water (the sea, lakes) is 0 %, not masked: leave it out with where (e.g. a mask of land cover) '
+		                'when the mean of a region matters. '
+		                'It is the cover of 2000: the losses since then are in its band lossyear (the year of the loss, '
+		                '1 to 25 for 2001 to 2025), which can be computed with image and band. On pixels more than twice '
+		                'as big as those of the data, the mean of its pixels of 30 m. A fixed layer, without dates: maps, '
+		                'GeoTIFFs and statistics of the region, but no time series, trends or comparisons; the period, '
+		                'metrics and pixel filters do not apply. Licence CC BY 4.0.'}}),
+})
+
 TEMPLATES = {'NBR': NBR, 'RBR': dict(NBR, **RBR), 'RdNBR': dict(NBR, **RDNBR), 'SCF': SCF, 'SCD': SCD, 'SMOD': SMOD, 'ELEVATION': DEM, 'SLOPE': DEM, 'ASPECT': ASPECT, 'CF': CF,
              'ERA5L': ERA5L, 'TERRACLIMATE': TERRACLIMATE, 'CHIRPS': CHIRPS, 'WORLDCLIM': WORLDCLIM,
-             'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE, 'SPEIBASE': SPEIBASE, 'BURNDATE': BURNDATE}  # fields of EXTRA
+             'MERIT_HYDRO': MERIT_HYDRO, 'RESOLVE': RESOLVE, 'SPEIBASE': SPEIBASE, 'BURNDATE': BURNDATE,
+             'CANOPY': CANOPY}  # fields of EXTRA
 
 # The units of the catalog (as shown) in UDUNITS (the units of the CF conventions, read by cf-units, xarray, R units),
 # for the files: '1' is dimensionless. ET is a total of 8 days (8 kg m-2 per 8 days = 1 kg m-2 per day).
@@ -669,7 +711,8 @@ def load():
 # series, trends, comparisons, exports) are in every theme with variables with dates. A new kind of variable or
 # analysis (e.g. species distribution models) gets its theme here, with its variables and analyses, in every menu.
 THEMES = [
-	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI', 'MSAVI2', 'GPP', 'NPP', 'TCB', 'TCG', 'TCW']},
+	{'key': 'vegetation', 'en': 'Vegetation', 'es': 'Vegetación', 'indices': ['NDVI', 'EVI', 'LAI', 'CLre', 'CLreB7', 'WAVI', 'MSAVI2', 'GPP', 'NPP', 'TCB', 'TCG', 'TCW',
+	                                                          'CANOPY_HEIGHT', 'TREE_COVER']},
 	{'key': 'water', 'en': 'Water', 'es': 'Agua', 'indices': ['NDWI', 'LSWI', 'MSI', 'Chl-a', 'NDCI']},
 	{'key': 'snow', 'en': 'Snow', 'es': 'Nieve', 'indices': ['NDSI', 'SCF', 'SCD', 'SMOD']},
 	{'key': 'fire', 'en': 'Fire', 'es': 'Incendios', 'indices': ['NBR', 'RBR', 'RdNBR', 'BURNDATE'], 'analyses': ['burn_severity']},

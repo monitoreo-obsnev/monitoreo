@@ -59,6 +59,13 @@ CASES = {
 	'map_elevation_where_slope': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 106, 'where': [FLAT]}},
 	# the topographic wetness index of MERIT Hydro (from two bands of its image), and as a condition of a variable
 	'map_twi': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 148}},
+	# the structure of the canopy (images of the GEE Community Catalog and of Hansen), and the NDVI only in the forest
+	'map_canopy_height': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 188}},
+	'map_tree_cover': {'kind': 'percentiles', 'region': GUAJARES, 'spec': {'ref': 189}},
+	'series_s2_where_tree_cover': {'kind': 'series', 'region': GUAJARES, 'step': 'monthly', 'metric': 'mean',
+	                               'stat': 'mean', 'spec': {'ref': 27, 'period': ['2021-05-01', '2021-07-31'],
+	                                                        'where': [{'variable': 'TREE_COVER', 'sensor': 'Hansen',
+	                                                                   'ref': 189, 'min': 30}]}},
 	# the aspect of the Copernicus DEM (without the flat pixels), and the NDVI only on the slopes that face north (a
 	# condition of where across 0: from 315 to 45)
 	'map_aspect': {'kind': 'percentiles', 'region': LAGUNAS, 'spec': {'ref': 184}},

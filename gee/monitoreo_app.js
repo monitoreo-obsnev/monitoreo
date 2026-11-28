@@ -5803,12 +5803,28 @@ var CATALOG = {
      "CHIRPS Precipitation Daily Near-Real-Time"
     ]
    ],
+   "UMD/hansen/global_forest_change_2025_v1_13": [
+    [
+     "UMD/hansen/global_forest_change_2025_v1_13",
+     "2000-01-01",
+     "2025-12-31",
+     "Hansen Global Forest Change v1.13 (2000-2025)"
+    ]
+   ],
    "WORLDCLIM/V1/BIO": [
     [
      "WORLDCLIM/V1/BIO",
      "1960-01-01",
      "1991-01-01",
      "WorldClim BIO Variables V1"
+    ]
+   ],
+   "users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1": [
+    [
+     "users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1",
+     null,
+     null,
+     "ETH_GlobalCanopyHeight_2020_10m_v1"
     ]
    ]
   },
@@ -12592,7 +12608,9 @@ var CATALOG = {
     "NPP",
     "TCB",
     "TCG",
-    "TCW"
+    "TCW",
+    "CANOPY_HEIGHT",
+    "TREE_COVER"
    ],
    "key": "vegetation"
   },
@@ -18574,6 +18592,98 @@ var CATALOG = {
    "unit": "[class]",
    "vname": "Bioma",
    "vname_en": "Biome"
+  },
+  {
+   "axis": null,
+   "band": "b1",
+   "circular": null,
+   "classes": null,
+   "col": "users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1",
+   "dr": "fixed layer, without dates (2020)",
+   "fb": [
+    "b1"
+   ],
+   "fk": "static",
+   "ft": "b1",
+   "image_asset": true,
+   "index": "CANOPY_HEIGHT",
+   "large_areas": true,
+   "m": 10,
+   "maxp": 30,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 188,
+   "scale": 1,
+   "sea": null,
+   "sensor": "ETH",
+   "static": true,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Estructura de la vegetaci\u00f3n",
+   "type_en": "Vegetation structure",
+   "unit": "[m]",
+   "vname": "Altura del dosel",
+   "vname_en": "Canopy height"
+  },
+  {
+   "axis": null,
+   "band": "treecover2000",
+   "circular": null,
+   "classes": null,
+   "col": "UMD/hansen/global_forest_change_2025_v1_13",
+   "dr": "fixed layer, without dates (2000)",
+   "fb": [
+    "treecover2000"
+   ],
+   "fk": "static",
+   "ft": "treecover2000",
+   "image_asset": true,
+   "index": "TREE_COVER",
+   "large_areas": true,
+   "m": 30,
+   "maxp": 100,
+   "metric": null,
+   "minp": 0,
+   "offset": 0,
+   "pm": [
+    "ffffe5",
+    "f7fcb9",
+    "d9f0a3",
+    "addd8e",
+    "78c679",
+    "41ab5d",
+    "238443",
+    "006837",
+    "004529"
+   ],
+   "ref": 189,
+   "scale": 1,
+   "sea": null,
+   "sensor": "Hansen",
+   "static": true,
+   "terrain": null,
+   "theme": "vegetation",
+   "tr": "fixed",
+   "two_periods": null,
+   "type": "Estructura de la vegetaci\u00f3n",
+   "type_en": "Vegetation structure",
+   "unit": "[%]",
+   "vname": "Cobertura arb\u00f3rea",
+   "vname_en": "Tree cover"
   }
  ]
 };
@@ -18887,7 +18997,9 @@ var MonitorEO = (function () {
 			.toFloat().rename('value');
 	}
 
-	var SNOW = 50;  // composite.SNOW: an image of the snow (100 = snow, 0 = no snow) has snow from 50 up
+	// composite.SNOW: an image of the snow (100 = snow, 0 = no snow) has snow from 50 up (not SNOW: that name is the
+	// table of the snow products below, and a second var of the same name in this scope would replace this one)
+	var SNOW_FROM = 50;
 
 	// composite.melt: image ('value') of the snow melt-out day of the images of COL (100 = snow, 0 = no snow) between
 	// START and END (dates or 'YYYY-MM-DD', END excluded): the day of the year (1 = 1 January of the year of the last day
@@ -18903,7 +19015,7 @@ var MonitorEO = (function () {
 			var value = img.select('value');
 			var doy = ee.Image.constant(ee.Date(img.get('system:time_start')).difference(jan1, 'day').floor().add(1))
 				.toFloat();
-			return doy.updateMask(value.gte(SNOW)).rename('snow').addBands(doy.updateMask(value.lt(SNOW)).rename('free'));
+			return doy.updateMask(value.gte(SNOW_FROM)).rename('snow').addBands(doy.updateMask(value.lt(SNOW_FROM)).rename('free'));
 		});
 		var last = daysOf.select('snow').max().unmask(-1e6);  // no image with snow: before every image
 		var after = daysOf.select('free').map(function (i) { return ee.Image(i).updateMask(ee.Image(i).gt(last)); });
@@ -24002,6 +24114,8 @@ var MonitorEO = (function () {
 		'ELEVATION': ['ELEVATION y SLOPE: elevaci\u00f3n y pendiente', 'ELEVATION and SLOPE: elevation and slope'],
 		'ASPECT': ['ASPECT: orientaci\u00f3n', 'ASPECT: aspect'],
 		'TWI': ['TWI: \u00edndice topogr\u00e1fico de humedad', 'TWI: topographic wetness index'],
+		'CANOPY_HEIGHT': ['CANOPY_HEIGHT y TREE_COVER: altura del dosel y cobertura arb\u00f3rea',
+			'CANOPY_HEIGHT and TREE_COVER: canopy height and tree cover'],
 		'CF': ['CF: frecuencia de nubes', 'CF: cloud frequency'],
 		'CLIMATE': ['Clima: precipitaci\u00f3n, temperatura y balance de agua', 'Climate: precipitation, temperature and water balance'],
 		'PDSI': ['PDSI y SPEI: \u00edndices de sequ\u00eda', 'PDSI and SPEI: drought indices'],
@@ -24010,7 +24124,8 @@ var MonitorEO = (function () {
 		'DATA': ['Datos de Earth Engine por su ID', 'Earth Engine data by its ID'],
 		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
 	};
-	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP', 'SPEI1': 'PDSI',
+	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
+		'TREE_COVER': 'CANOPY_HEIGHT', 'SPEI1': 'PDSI',
 		'SPEI3': 'PDSI', 'SPEI6': 'PDSI', 'SPEI12': 'PDSI', 'PRECIP': 'CLIMATE',
 		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
 		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',

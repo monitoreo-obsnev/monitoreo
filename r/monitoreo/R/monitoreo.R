@@ -174,7 +174,8 @@ percentiles_arg <- function(percentiles) {
 #'   \code{image}, with \code{band} (see \code{mo_asset()}).
 #' @param sensor \code{"Sentinel-2"}, \code{"Landsat"}, \code{"Modis"}, \code{"Copernicus"} (the elevation, the
 #'   slope and the aspect, \code{"ELEVATION"}, \code{"SLOPE"} and \code{"ASPECT"}, of the Copernicus DEM GLO-30) or
-#'   \code{"MERIT Hydro"} (the topographic wetness index, \code{"TWI"}), or those of the climate (e.g.
+#'   \code{"MERIT Hydro"} (the topographic wetness index, \code{"TWI"}), \code{"ETH"} (the canopy height,
+#'   \code{"CANOPY_HEIGHT"}), \code{"Hansen"} (the tree cover, \code{"TREE_COVER"}), or those of the climate (e.g.
 #'   \code{"TerraClimate"}, \code{"SPEIbase"} for the SPEI; see \code{mo_variables()}); \code{NULL} with
 #'   \code{collection} or \code{image} instead of \code{variable}.
 #' @param collection with \code{variable}, the Earth Engine collection when the variable of the sensor is in several,
@@ -207,7 +208,8 @@ percentiles_arg <- function(percentiles) {
 #'   not that of the band, e.g. the \code{"m"} of a DEM that \code{mo_asset()} gives in its arguments).
 #' @param start,end first and last day of the (reference) period, \code{"YYYY-MM-DD"}; \code{NULL} for the fixed layers
 #'   without dates (\code{"ELEVATION"} and \code{"SLOPE"} of \code{"Copernicus"}, \code{"TWI"} of
-#'   \code{"MERIT Hydro"}, the \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
+#'   \code{"MERIT Hydro"}, \code{"CANOPY_HEIGHT"} of \code{"ETH"}, \code{"TREE_COVER"} of \code{"Hansen"}, the
+#'   \code{"BIO"} variables of \code{"WorldClim"}, and the data given as \code{image}),
 #'   which only have maps and their statistics. A period that ends before the first image of the data, falls between
 #'   Landsat 5 and Landsat 8 or begins after today is an error that says their dates (\code{mo_describe()} gives them,
 #'   data_dates); one that begins before the first image (e.g. Sentinel-2, surface reflectance, from 2017-03-28), or
@@ -245,7 +247,8 @@ percentiles_arg <- function(percentiles) {
 #' @param where only the pixels of the region whose variables pass these conditions (all of them): a list of lists,
 #'   each a variable of the catalog (and sensor) between \code{min} and \code{max}, aggregated over the period of the
 #'   result (or its own \code{period = c(start, end)}) with \code{metric} (default \code{"mean"}), \code{temporal} and
-#'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"}, the \code{"BIO"}
+#'   \code{interannual}; the fixed layers (\code{"ELEVATION"}, \code{"SLOPE"}, \code{"TWI"},
+#'   \code{"CANOPY_HEIGHT"}, \code{"TREE_COVER"}, the \code{"BIO"}
 #'   variables of WorldClim) have no period. E.g. above 1,500 m and with less than 600 mm of rain a year:
 #'   \code{list(list(variable = "ELEVATION", sensor = "Copernicus", min = 1500), list(variable = "PRECIP",
 #'   sensor = "TerraClimate", metric = "sum", temporal = "annual", max = 600))}. The aspect (\code{"ASPECT"}) is
@@ -1589,7 +1592,8 @@ plot_profile <- function(ts, title, ylabel, starts, gg, src = NULL) {
 #'
 #' The variable aggregated in time on each pixel: the URL of its Earth Engine map tiles (XYZ, valid for some hours) and
 #' its colour ramp. The fixed layers without dates (variables \code{"ELEVATION"} and \code{"SLOPE"} of sensor
-#' \code{"Copernicus"}, \code{"TWI"} of sensor \code{"MERIT Hydro"}, and the data given as \code{image}) need no
+#' \code{"Copernicus"}, \code{"TWI"} of sensor \code{"MERIT Hydro"}, \code{"CANOPY_HEIGHT"} of \code{"ETH"},
+#' \code{"TREE_COVER"} of \code{"Hansen"}, and the data given as \code{image}) need no
 #' \code{start} and \code{end}. Instead of a variable
 #' of the catalog, any data of Earth Engine by its ID: \code{collection} or \code{image}, with \code{band} (see
 #' \code{mo_asset()}).

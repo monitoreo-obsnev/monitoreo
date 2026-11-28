@@ -189,6 +189,12 @@ def test_cite():
 	assert not {'esa_copernicus_dem', 'rizzoli2017'} & set(_ids(twi))
 	assert twi['credits'] == ['MERIT Hydro v1.0.1 © its developers (Yamazaki et al. 2019), licence CC BY-NC 4.0 or '
 	                          'ODbL 1.0']
+	# the structure of the canopy: Lang et al. 2023 and Hansen et al. 2013 with their licences, not the Copernicus DEM
+	for variable, sensor, ref, credit in (('CANOPY_HEIGHT', 'ETH', 'lang2023', 'Lang et al. 2023'),
+	                                      ('TREE_COVER', 'Hansen', 'hansen2013', 'Global Forest Change v1.13')):
+		c = references.cite('region_stats', {'variable': variable, 'sensor': sensor, 'region': {'wdpa_id': 555700945}})
+		assert ref in _ids(c) and not {'esa_copernicus_dem', 'rizzoli2017'} & set(_ids(c))
+		assert any(credit in x for x in c['credits'])
 	assert 'esa_copernicus_dem' in _ids(got)  # the slope of the recipe, from the DEM image
 	# the SCF also reads the TOA scenes (snow in the shadow) and the SRTM (its hillShadow), of the period only
 	scf = references.cite('time_series', {'variable': 'SCF', 'sensor': 'Landsat', 'start': '2022-01-01',

@@ -596,7 +596,8 @@ def main(argv=None):
 	p.add_argument('--region', required=True, help='JSON dictionary, e.g. \'{"bbox": [-3.5, 37, -3, 37.2]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
-	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
+	                               'TWI of sensor "MERIT Hydro", CANOPY_HEIGHT of sensor ETH, TREE_COVER of sensor '
+	                               'Hansen, the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))
@@ -625,7 +626,8 @@ def main(argv=None):
 	                                                'a point, \'{"biome_at": [-3.3, 37.1]}\'')
 	p.add_argument('--where', help=WHERE_HELP)
 	p.add_argument('--start', help='first day (not for the fixed layers: ELEVATION and SLOPE of sensor Copernicus, '
-	                               'TWI of sensor "MERIT Hydro", the BIO variables of WorldClim; nor for --image)')
+	                               'TWI of sensor "MERIT Hydro", CANOPY_HEIGHT of sensor ETH, TREE_COVER of sensor '
+	                               'Hansen, the BIO variables of WorldClim; nor for --image)')
 	p.add_argument('--end', help='last day (not for the fixed layers)')
 	p.add_argument('--metric', default='median', help=METRIC_HELP + ' (default: median)')
 	p.add_argument('--temporal', default='period', choices=('period', 'annual', 'monthly', '16-day'))

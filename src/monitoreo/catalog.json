@@ -186,6 +186,18 @@
    ],
    "credit": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved"
   },
+  "users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1": {
+   "references": [
+    "lang2023"
+   ],
+   "credit": "Global canopy height 2020 of ETH Zurich (Lang et al. 2023), licence CC BY 4.0"
+  },
+  "UMD/hansen/global_forest_change_2025_v1_13": {
+   "references": [
+    "hansen2013"
+   ],
+   "credit": "Hansen/UMD/Google/USGS/NASA Global Forest Change v1.13 (2000-2025), licence CC BY 4.0"
+  },
   "MERIT/Hydro/v1_0_1": {
    "references": [
     "yamazaki2019"
@@ -967,6 +979,14 @@
   "sanmiguelayanz2012": {
    "citation": "San-Miguel-Ayanz, J., Schulte, E., Schmuck, G., Camia, A., Strobl, P., Liberta, G., Giovando, C., Boca, R., Sedano, F., Kempeneers, P., McInerney, D., Withmore, C., de Oliveira, S. S., Rodrigues, M., Durrant, T., Corti, P., Oehler, F., Vilar, L., & Amatulli, G. (2012). Comprehensive monitoring of wildfires in Europe: The European Forest Fire Information System (EFFIS). In Approaches to managing disaster: Assessing hazards, emergencies and disaster impacts. InTech.",
    "doi": "10.5772/28441"
+  },
+  "lang2023": {
+   "citation": "Lang, N., Jetz, W., Schindler, K., & Wegner, J. D. (2023). A high-resolution canopy height model of the Earth. Nature Ecology & Evolution, 7(11), 1778–1789.",
+   "doi": "10.1038/s41559-023-02206-6"
+  },
+  "hansen2013": {
+   "citation": "Hansen, M. C., Potapov, P. V., Moore, R., Hancher, M., Turubanova, S. A., Tyukavina, A., Thau, D., Stehman, S. V., Goetz, S. J., Loveland, T. R., Kommareddy, A., Egorov, A., Chini, L., Justice, C. O., & Townshend, J. R. G. (2013). High-resolution global maps of 21st-century forest cover change. Science, 342(6160), 850–853.",
+   "doi": "10.1126/science.1244693"
   },
   "marcos2023": {
    "citation": "Marcos, B., Gonçalves, J., Alcaraz-Segura, D., Cunha, M., & Honrado, J. P. (2023). Assessing the resilience of ecosystem functioning to wildfires using satellite-derived metrics of post-fire trajectories. Remote Sensing of Environment, 286, 113441.",

@@ -307,7 +307,9 @@ var MonitorEO = (function () {
 			.toFloat().rename('value');
 	}
 
-	var SNOW = 50;  // composite.SNOW: an image of the snow (100 = snow, 0 = no snow) has snow from 50 up
+	// composite.SNOW: an image of the snow (100 = snow, 0 = no snow) has snow from 50 up (not SNOW: that name is the
+	// table of the snow products below, and a second var of the same name in this scope would replace this one)
+	var SNOW_FROM = 50;
 
 	// composite.melt: image ('value') of the snow melt-out day of the images of COL (100 = snow, 0 = no snow) between
 	// START and END (dates or 'YYYY-MM-DD', END excluded): the day of the year (1 = 1 January of the year of the last day
@@ -323,7 +325,7 @@ var MonitorEO = (function () {
 			var value = img.select('value');
 			var doy = ee.Image.constant(ee.Date(img.get('system:time_start')).difference(jan1, 'day').floor().add(1))
 				.toFloat();
-			return doy.updateMask(value.gte(SNOW)).rename('snow').addBands(doy.updateMask(value.lt(SNOW)).rename('free'));
+			return doy.updateMask(value.gte(SNOW_FROM)).rename('snow').addBands(doy.updateMask(value.lt(SNOW_FROM)).rename('free'));
 		});
 		var last = daysOf.select('snow').max().unmask(-1e6);  // no image with snow: before every image
 		var after = daysOf.select('free').map(function (i) { return ee.Image(i).updateMask(ee.Image(i).gt(last)); });
@@ -5422,6 +5424,8 @@ var MonitorEO = (function () {
 		'ELEVATION': ['ELEVATION y SLOPE: elevación y pendiente', 'ELEVATION and SLOPE: elevation and slope'],
 		'ASPECT': ['ASPECT: orientación', 'ASPECT: aspect'],
 		'TWI': ['TWI: índice topográfico de humedad', 'TWI: topographic wetness index'],
+		'CANOPY_HEIGHT': ['CANOPY_HEIGHT y TREE_COVER: altura del dosel y cobertura arbórea',
+			'CANOPY_HEIGHT and TREE_COVER: canopy height and tree cover'],
 		'CF': ['CF: frecuencia de nubes', 'CF: cloud frequency'],
 		'CLIMATE': ['Clima: precipitación, temperatura y balance de agua', 'Climate: precipitation, temperature and water balance'],
 		'PDSI': ['PDSI y SPEI: índices de sequía', 'PDSI and SPEI: drought indices'],
@@ -5430,7 +5434,8 @@ var MonitorEO = (function () {
 		'DATA': ['Datos de Earth Engine por su ID', 'Earth Engine data by its ID'],
 		'dNBR': ['Severidad de incendios (dNBR)', 'Burn severity (dNBR)']
 	};
-	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP', 'SPEI1': 'PDSI',
+	var WIKI_SAME = {'LE': 'ET', 'RBR': 'NBR', 'SLOPE': 'ELEVATION', 'BIOME': 'ECOREGION', 'NPP': 'GPP',
+		'TREE_COVER': 'CANOPY_HEIGHT', 'SPEI1': 'PDSI',
 		'SPEI3': 'PDSI', 'SPEI6': 'PDSI', 'SPEI12': 'PDSI', 'PRECIP': 'CLIMATE',
 		'TMAX': 'CLIMATE', 'TMIN': 'CLIMATE', 'TMEAN': 'CLIMATE', 'PET': 'CLIMATE', 'AET': 'CLIMATE', 'CWD': 'CLIMATE', 'SOILM': 'CLIMATE',
 		'VPD': 'CLIMATE', 'BIO01': 'BIO', 'BIO02': 'BIO', 'BIO03': 'BIO', 'BIO04': 'BIO', 'BIO05': 'BIO', 'BIO06': 'BIO',

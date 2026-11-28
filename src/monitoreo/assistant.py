@@ -277,7 +277,7 @@ always within a country or another region, or MODIS or the climate at an annual 
 - Dates: "YYYY-MM-DD"; «since 2018», with no end, is up to today. Season of each year: season ["MM-DD", "MM-DD"], \
 e.g. ["06-01", "08-31"] for the summer.
 - Sensor: "Sentinel-2", "Landsat" or "Modis"; for the climate, "ERA5-Land", "TerraClimate", "CHIRPS", \
-"SPEIbase" or "WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
+"SPEIbase" or "WorldClim"; for the terrain, "Copernicus" or "MERIT Hydro"; for the structure of the canopy, "ETH" or "Hansen". The variable, as in the catalog (NDVI, EVI, NDWI, LST, \
 PRECIP...); of the vegetation of Sentinel-2 also "CLre" (red-edge chlorophyll index, B8 / B5 - 1), "CLreB7" (the same with B7) and "WAVI" (water adjusted \
 vegetation index); of Sentinel-2 and Landsat, "MSI" (moisture stress index, SWIR1 / NIR: higher is drier) and \
 "MSAVI2" (modified soil adjusted vegetation index: sparse vegetation, drylands, burned areas); of Landsat, the \
@@ -334,6 +334,11 @@ flats where the water of the slopes converges, low on the ridges and steep slope
 90 m, unitless, most land between 5 and 15, rivers and lakes the highest): variable "TWI", sensor "MERIT Hydro". A \
 fixed layer, without dates, like the elevation: map_layer, region_stats or download_image without start and end. It \
 also works in where («the NDVI only in the wet bottoms»: {{"variable": "TWI", "sensor": "MERIT Hydro", "min": 10}}) \
+and as the zones of region_stats.
+- Structure of the forest canopy, fixed layers without dates like the elevation: canopy height of 2020 (height of the \
+top of the canopy in m, 10 m, estimated from Sentinel-2 and the GEDI lidar): variable "CANOPY_HEIGHT", sensor "ETH"; \
+tree cover of 2000 (% of the pixel covered by trees taller than 5 m, 30 m, from Landsat): variable "TREE_COVER", \
+sensor "Hansen". Both work in where («only the forest»: {{"variable": "TREE_COVER", "sensor": "Hansen", "min": 50}}) \
 and as the zones of region_stats.
 - Cloud frequency (how often there are clouds: % of the observations with clouds): variable "CF", sensor "Modis" \
 (daily: the climate of clouds), "Sentinel-2" or "Landsat" (only when they pass); always with metric "mean" and \
