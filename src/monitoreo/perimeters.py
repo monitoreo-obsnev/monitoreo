@@ -143,7 +143,8 @@ def _agent():
 
 
 def _path(url, params, ext):
-	h = hashlib.sha1(json.dumps([url, params or {}], sort_keys=True).encode()).hexdigest()[:16]
+	# the name of the copy on disk, not security
+	h = hashlib.sha1(json.dumps([url, params or {}], sort_keys=True).encode(), usedforsecurity=False).hexdigest()[:16]
 	name = re.sub(r'[^A-Za-z0-9._-]+', '_', os.path.basename(url.split('?')[0]) or 'data')[:60]
 	if ext and not name.lower().endswith(ext):
 		name += ext
