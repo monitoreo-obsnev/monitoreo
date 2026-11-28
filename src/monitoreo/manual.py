@@ -192,6 +192,25 @@ def _recipe_sections():
 	return tuple(out)
 
 
+def recipe(name):
+	"""The whole recipe of the section named NAME («recipe-<name of the skill>»): {page, title, url, text} with its
+	description and its SKILL.md without the front matter; None for another section or a recipe that cannot be read."""
+	if not str(name).startswith('recipe-'):
+		return None
+	try:
+		from . import skills
+		found = [r for r in skills.catalog() if r['name'] == name[len('recipe-'):]]
+		text = skills.read(found[0]['uri'])[0] if found else None
+	except Exception:
+		return None
+	if text is None:
+		return None
+	text = re.sub(r'^---\r?\n.*?\r?\n---\r?\n', '', text, count=1, flags=re.S)
+	page = f"Recipe {found[0]['name']}"
+	return {'page': page, 'title': page, 'url': RECIPES + found[0]['name'] + '/SKILL.md',
+	        'text': found[0]['description'] + '\n\n' + text.strip()}
+
+
 def search(question, k=3, folder=None, max_chars=1800, lang=None):
 	"""The K sections of the manual that answer QUESTION best, each with at most MAX_CHARS of text: those of the
 	pages in LANG ('es' or 'en'; default, that of QUESTION) and, of the pages without a page in LANG, those of the

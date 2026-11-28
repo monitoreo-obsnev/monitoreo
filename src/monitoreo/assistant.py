@@ -554,6 +554,8 @@ report (their sheet, chart or map), to print or save as PDF. New request starts 
 in the folder MonitorEO."""}
 BIG_MANUAL = {'k': 5, 'max_chars': 3000}  # sections of the manual for the big models (3 of 1800 for the small ones)
 BIG_ADVICE = 16000  # characters of the answer of an advice tool for the big models (MAX_ADVICE for the small ones)
+BIG_RECIPES = 2  # whole recipes in an answer of the tool manual for the big models (sections for the small ones)
+BIG_MANUAL_CHARS = 60000  # characters of that answer for the big models: two whole recipes (about 14000 each) and more
 
 
 # The model -----------------------------------------------------------------------------------------------------------
@@ -1309,9 +1311,24 @@ def openai_messages(system, messages):
 	return out
 
 
+RECIPE_LINK = 'These are parts of a recipe: for all its steps, give the user its link.'
+
+
+def _small_manual(messages):
+	"""MESSAGES for a small model of Ollama: the answers of the tool manual given to a big model of the cloud before
+	(whole recipes, when the cloud failed and Ollama answers the next step) cut to MAX_ADVICE, with the note to give
+	the link of the recipe."""
+	out = []
+	for m in messages:
+		if m.get('role') == 'tool' and m.get('tool_name') == 'manual' and len(m.get('content') or '') > MAX_ADVICE:
+			m = {**m, 'content': RECIPE_LINK + '\n\n' + m['content'][:MAX_ADVICE - len(RECIPE_LINK) - 2]}
+		out.append(m)
+	return out
+
+
 def chat_ollama(settings, system, messages, tools):
 	"""The next message of the model of Ollama (/api/chat): {'role', 'content', 'tool_calls'}."""
-	payload = {'model': settings['model'], 'messages': [{'role': 'system', 'content': system}] + messages,
+	payload = {'model': settings['model'], 'messages': [{'role': 'system', 'content': system}] + _small_manual(messages),
 	           'tools': tools, 'stream': False,
 	           'options': {'num_ctx': int(settings.get('context') or DEFAULTS['context']), 'temperature': 0.2}}
 	if settings.get('think') is not None:
@@ -2232,14 +2249,21 @@ class Assistant:
 		query = question if manual.language(question) == lang else f'{question} {said}'
 		yield {'type': 'status', 'text': LABELS['manual'] + '…'}
 		found = await asyncio.to_thread(_search_manual, query, lang, **(BIG_MANUAL if self.cloud() else {}))
+		if found and self.cloud():  # the big models read the recipes found whole, to explain each step of them
+			found = await asyncio.to_thread(_whole_recipes, found)
 		if found:
 			yield {'type': 'sources', 'sources': [{'title': f"{s['page']} › {s['title']}" if s['title'] != s['page']
 			                                       else s['page'], 'url': s['url']} for s in found]}
 			text = 'Sections of the manual of MonitorEO (answer with them and give the link):\n\n' + '\n\n'.join(
 				f"## {s['page']} › {s['title']} ({s['url']})\n{s['text']}" for s in found)
+			if not self.cloud() and any(s.get('name', '').startswith('recipe-') for s in found):
+				text = RECIPE_LINK + '\n\n' + text  # first: what is cut is the end
+			elif len(text) > BIG_MANUAL_CHARS:  # the big models: a recipe cut, said
+				end = '\n\n[cut: the rest is at the link of the recipe]'
+				text = text[:BIG_MANUAL_CHARS - len(end)] + end
 		else:
 			text = 'The manual has nothing about that (or it could not be downloaded): tell the user.'
-		self._tool_message('manual', text[:self.advice_limit()])
+		self._tool_message('manual', text[:BIG_MANUAL_CHARS if self.cloud() else self.advice_limit()])
 
 	def card(self, item):
 		"""What the page shows of a result."""
@@ -2991,6 +3015,25 @@ class Assistant:
 			return [{k: p.get(k) for k in AREA_KEYS if p.get(k) not in (None, '')} for p in areas]
 		except (ValueError, KeyError, TypeError, AttributeError):
 			return None
+
+
+def _whole_recipes(found, n=BIG_RECIPES):
+	"""FOUND (sections of the manual) with the sections of each of the first N recipes replaced by the whole recipe,
+	where its first section was; the sections of the other recipes stay."""
+	out, seen, tried = [], set(), {}
+	for s in found:
+		name = s.get('name', '')
+		if name in seen:
+			continue
+		if name.startswith('recipe-') and len(seen) < n and name not in tried:
+			tried[name] = manual.recipe(name)
+		whole = tried.get(name) if name not in seen and len(seen) < n else None
+		if whole:
+			seen.add(name)
+			out.append({**s, **whole})
+		else:
+			out.append(s)
+	return out
 
 
 def _search_manual(question, lang=None, k=3, max_chars=1800):
