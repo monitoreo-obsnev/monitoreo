@@ -10,7 +10,7 @@ metadata:
   event_date: "1985-2025"
   disturbance: other
   status: validated
-  monitoreo_version: "0.3.96"
+  monitoreo_version: "0.3.96-0.3.100"
 ---
 
 # Snow and thermal microrefugia in the summit zones of four mountain national parks, 1985-2025
@@ -22,6 +22,12 @@ metadata:
 > Terra drifts earlier since 2022 (in 2025 about 9.8 h by day and 20.8-20.9 h by night, local solar time, instead of
 > about 11 h and 22 h): trends of its LST that include 2022 or later lean cooler by day and warmer at night; compare
 > them with those up to 2021, and check the bands Day_view_time and Night_view_time.
+>
+> **Recomputation with MonitorEO 0.3.100 (2026-11-28).** Everything was computed with 0.3.96 except the MODIS night
+> LST trends, which were recomputed with 0.3.100 (native sinusoidal grid, snow filter on by default) with the same
+> arguments, plus the same trend over 2000-2021 and an Aqua (MYD11A1) check over 2003-2025
+> (`<everest>/resultados/casos/C13/recalculo_0_3_100/`). The Landsat, Sentinel-2 and ECOSTRESS parts (refugia) do not
+> use MODIS and were not recomputed.
 
 > **Files of this recipe.** `<everest>` is the folder of the EVEREST project where this case was computed. Its local
 > scripts (`<everest>/resultados/casos/C13/scripts/`: `gen_llamadas.py` writes the calls, `gbif.py` fetches the
@@ -61,7 +67,10 @@ All calls with `region` R = `{"wdpa_id": W}` and `where` WH = `[{"variable": "EL
    `{"tool": "trend_table", "args": {"region": R, "where": WH, "variable": "SMOD", "sensor": "Landsat", "metric": "melt", "start": "1985-01-01", "end": "2025-12-31", "step": "annual", "test": "hamed-rao"}}`
    the same with `"variable": "SCD", "metric": "days"`;
    `{"tool": "trend_table", "args": {"region": R, "where": WH, "variable": "LST", "sensor": "Landsat", "start": "1985-01-01", "end": "2025-12-31", "step": "annual", "season": ["07-01", "08-31"], "metric": "median", "test": "hamed-rao"}}`;
-   `{"tool": "trend_table", "args": {"region": R, "where": WH, "variable": "LST_NIGHT", "sensor": "Modis", "start": "2000-01-01", "end": "2025-12-31", "step": "annual", "season": ["07-01", "08-31"], "metric": "median", "test": "hamed-rao"}}`.
+   `{"tool": "trend_table", "args": {"region": R, "where": WH, "variable": "LST_NIGHT", "sensor": "Modis", "start": "2000-01-01", "end": "2025-12-31", "step": "annual", "season": ["07-01", "08-31"], "metric": "median", "test": "hamed-rao"}}`;
+   with 0.3.100, also the same with `"end": "2021-12-31"` (before the Terra drift) and with
+   `"collection": "MODIS/061/MYD11A1", "start": "2003-01-01"` (Aqua, ~01:30 h). Zones with the same elevation
+   threshold can share one call: `{"wdpa_id": [893, 196014]}` gives one trend per park.
 3. Per-pixel trends (Mann-Kendall, 30 m):
    `{"tool": "download_trend", "args": {"region": R, "where": WH, "variable": "SMOD", "sensor": "Landsat", "metric": "melt", "start": "1985-01-01", "end": "2025-12-31", "step": "annual", "resolution": 30}}`
    `{"tool": "download_trend", "args": {"region": R, "where": WH, "variable": "LST", "sensor": "Landsat", "start": "1985-01-01", "end": "2025-12-31", "step": "annual", "season": ["07-01", "08-31"], "metric": "median", "resolution": 30}}`
@@ -91,6 +100,13 @@ From `<everest>/resultados/casos/C13/llamadas/<park>_tt_*.json` (Sen slope per y
   the Terra overpass (MOD11A1 `Night_view_time` from ~22.0 h local solar time in 2000-2021 to ~20.9 h in 2025): over
   2000-2021, +0.065 Sierra Nevada, +0.083 Ordesa, +0.074 Aigüestortes (> 2500 m, simple Kendall; review of 2026-11-28,
   `resultados/casos/C13/revision/`).
+- Recomputation with MonitorEO 0.3.100 (2026-11-28), same zones, Hamed-Rao
+  (`recalculo_0_3_100/comparacion_lstnight.csv`): Terra 2000-2025 +0.109, +0.130, +0.117, +0.108 °C (was +0.109,
+  +0.131, +0.120, +0.110 with 0.3.96); Terra 2000-2021 +0.073, +0.104, +0.082, +0.070 (p ≤ 0.005); Aqua 2003-2025
+  +0.068, +0.096, +0.090, +0.089 (p ≤ 0.011). Native grid and snow filter change the trend by ≤ 0.003 °C/year; the
+  years 2022-2025, when Terra drifts (and which were also warm summers), make up 20-35 % of the 2000-2025 trend.
+  Report the Terra 2000-2021 figure; Aqua also drifts (later) from 2023 (see the recipe of C14), so its 2003-2025
+  trend is not free of drift either.
 - Landsat LST July-August: +0.197 (n 38), +0.095, +0.094, +0.128 °C (inflated by the sensor change).
 - SCD Landsat: −0.84 (0.005), −1.48 (0.004), −0.12 (0.79), −0.71 (0.12) days.
 From `analisis/resumen.json`: strict refuge 430.5 ha (9.3 %) Sierra Nevada, 275.1 ha (4.8 %) Guadarrama, 152.5 ha
@@ -105,6 +121,10 @@ slopes; E slopes have the lowest LST slope in all four parks.
   MODIS night LST is one sensor but not one hour: the Terra overpass drifts earlier from 2022 (about 1.1 h by 2025),
   which warms the recent nights; end the trend in 2021 or check `Night_view_time`. Before MonitorEO 0.3.99, MODIS LST
   was sampled at 1 km on a UTM grid (small summit zones mix neighbouring pixels) and had no snow filter.
+  Recomputation with MonitorEO 0.3.100 (2026-11-28): those two changes barely move these zone trends (≤ 0.003
+  °C/year); the drift is what matters. Aqua (MYD11A1) gives the same sign, but from 2003; its own
+  overpass drifts later from 2023 (shown in the recipe of C14), so end Aqua trends in 2022. Hamed-Rao can return absurdly
+  small p-values (e.g. 3e-28) on short series: report them as p < 0.001.
 - Most late-snow pixels are rock, scree or near-permanent snow with NDVI < 0.1 (the melt-out-biomass trade-off): add a
   vegetation criterion before calling them refugia for plants.
 - Snow that does not melt by 31 August (snow patches, Monte Perdido glacier) has no SMOD and drops out.
@@ -126,4 +146,5 @@ references and credits that each result returns (listed in the report).
 ## Files
 `<everest>/resultados/casos/C13/`: `informe.md`, `estado.json`, `llamadas.json`,
 `llamadas/`, `monitoreo/`, `analisis/` (`<park>_refugio.tif`, `resumen.json`, CSVs, `fig_indice_refugio.png`),
-`scripts/`, `fuentes/`. Not published in the viewer.
+`scripts/`, `fuentes/`, `recalculo_0_3_100/` (MODIS night LST with 0.3.100: calls, answers, `comparar.py`,
+`comparacion_lstnight.csv`). Not published in the viewer.

@@ -10,7 +10,7 @@ metadata:
   event_date: "2003-2025 (fire 2005-09-22)"
   disturbance: other
   status: validated
-  monitoreo_version: "0.3.98"
+  monitoreo_version: "0.3.98 (all calls); 0.3.100 (15 MODIS calls recomputed 2026-11-28: rs_lstd_ver/pri/inv, rs_lstn_ver, rs_et_ver, rs_alb_ver/inv, ts_et, ts_lst_dia, ts_albedo, ts_lai, rec_et, rec_albedo, rec_lst_dia, rec_lst_noche)"
 ---
 
 # Effect of vegetation on the local surface climate, Sierra Nevada, 2003-2025
@@ -20,6 +20,11 @@ metadata:
 > UTM zone; data given by collection and band are not); the LST of MODIS has a snow filter on by default (`quality:
 > {"snow": false}` for the LST as it was); the ALBEDO of MODIS (MCD43A3) keeps the magnitude inversions, so it has
 > values over snow: a repetition gives slightly different MODIS values.
+>
+> **Recomputation with MonitorEO 0.3.100 (2026-11-28):** 15 MODIS calls were repeated with the same arguments (default `quality`) in
+> `<everest>/resultados/casos/C20/recalculo_0_3_100/` (listed in the metadata); the other MODIS calls (`rs_et_inv`,
+> `rs_et_pri`, `rs_alb_pri`, `rs_lstn_inv`, `rs_lai_*`, `ts_le`, `ts_lst_noche`, `tr_*`) were not, for quota. Results to
+> expect give both versions (0.3.98 → 0.3.100); `recalculo_0_3_100/tablas/comparacion_0_3_98_vs_0_3_100.csv` has them all.
 
 > **Files of this recipe.** `<everest>` is the folder of the EVEREST project
 > where this case was computed: its zones (`resultados/casos/C20/zonas/*.gpkg`, copied from case C19), its local
@@ -108,28 +113,47 @@ From `resultados/casos/C20/tablas/resumen.json` unless stated:
 - Dense pine − pasture-shrubland (median of 15 strata): daytime LST −2.65 °C in summer, −2.98 spring, −0.61 winter;
   night LST +1.14 °C summer; ET +1.84 kg m-2 8d-1; albedo −0.021; LAI +0.62; LSWI Sentinel-2 +0.188 (Landsat
   +0.195); MSI −0.296. Open pine −1.27 °C; oak −1.45 °C (winter +2.40); holm oak +1.20 °C with MODIS (not reliable: Landsat in the same cells gives −1.30 °C; see Pitfalls); shrubland +0.15 °C.
+  Recomputation with MonitorEO 0.3.100 (2026-11-28) (`recalculo_0_3_100/tablas/resumen.json`): dense pine daytime LST −2.79 (summer), −3.29 (spring), −1.45
+  (snow-free winter); night +1.24; ET +2.11; albedo −0.022 (summer), −0.028 (winter); open pine −1.58; oak −2.58 (winter
+  +1.80); holm oak +0.56 (still not cooler as with Landsat); shrubland +0.13.
 - Summer means: LSWI Sentinel-2 0.214 dense pine vs 0.044 pasture-shrubland; LST 34.0 vs 35.8 °C.
 - Regression over 69 paired strata: ΔLST_summer = −0.35 − 0.17·ΔET + 50.8·Δalbedo, R² 0.20 (with WRF covariates
-  R² 0.29); Δalbedo acts as a proxy of canopy density (r −0.40 with ΔLAI). ΔLSWI ~ ΔET r 0.71.
+  R² 0.29); Δalbedo acts as a proxy of canopy density (r −0.40 with ΔLAI). ΔLSWI ~ ΔET r 0.71. Recomputation with MonitorEO 0.3.100 (2026-11-28):
+  ΔLST_summer = −0.52 − 0.22·ΔET + 47.8·Δalbedo, R² 0.25 (ET p 0.003); with WRF R² 0.34; ΔLSWI ~ ΔET r 0.73.
 - Pair 1,600-2,000 m (`tablas/par_climatologia_mensual.csv`): ΔLST day −0.9 (Dec) to −3.5 °C (Sep), night +1.1 to
   +1.7 °C, ΔLE +4.5 to +12.4 W m-2 Mar-Oct, Δalbedo −0.017 to −0.026, ΔLSWI 0.16 (Jun) to 0.36 (Jan, Landsat).
-- Dry (CWD ≥ 603 mm) vs wet (≤ 532 mm) years: ΔLST summer −3.21 vs −3.00 °C; ΔET +2.14 vs +2.49.
-- Trends of the difference 2003-2025: ΔLAI −0.0041/yr (p 0.044); ΔLST summer +0.021 °C/yr (p 0.072).
+  Recomputation with MonitorEO 0.3.100 (2026-11-28): ΔLST day −1.4 (Dec) to −3.8 °C (Mar); Δalbedo with snow −0.041 (Jan) and −0.048 (Feb), pasture-shrubland
+  albedo in January-February 0.147-0.160 (was 0.123-0.132); ΔLE and night LST of the pair not recomputed.
+- Dry (CWD ≥ 603 mm) vs wet (≤ 532 mm) years: ΔLST summer −3.21 vs −3.00 °C; ΔET +2.14 vs +2.49. Recomputation with MonitorEO 0.3.100 (2026-11-28):
+  −3.34 vs −3.18 °C; ΔET +2.46 vs +2.83.
+- Trends of the difference 2003-2025: ΔLAI −0.0041/yr (p 0.044); ΔLST summer +0.021 °C/yr (p 0.072). Recomputation with MonitorEO 0.3.100 (2026-11-28):
+  ΔLAI −0.0045/yr (p 0.057; summer p 0.034); ΔLST summer +0.028 °C/yr (p 0.057); Δalbedo annual +0.00044/yr (p 0.006,
+  with snow).
 - WRF (`tablas/wrf_pares.csv`): summer net radiation 195.6 (pine cells) vs 170.9 W m-2; wind 2.8 vs 3.2 m s-1.
 - Fire, affected − control (`llamadas/rec_*.json`): daytime LST +0.21 → +2.01 °C (2006) → +0.83 (2024), 12.7 MAD,
   83.2 % recovered; ET +0.85 → −0.59 → −0.47 (−19.9 MAD); albedo −0.001 → +0.019 (2007) → +0.011 (+16.4 MAD);
   night LST +0.50 → +0.15 °C; LSWI Landsat +0.050 → −0.069 → −0.015 (−18.3 MAD, 63 % recovered, RET 10.5 years);
-  Sentinel-2 2017-2025 LSWI −0.013 (summer), −0.028 (autumn).
+  Sentinel-2 2017-2025 LSWI −0.013 (summer), −0.028 (autumn). Recomputation with MonitorEO 0.3.100 (2026-11-28): daytime LST +0.16 → +2.04 (2006) → +0.80 °C
+  (2024), 15.0 MAD, 84.6 %; ET +0.88 → −0.73 → −0.64 (−16.7 MAD); albedo −0.003 → +0.018 → +0.011 but only +5.2 MAD
+  (noisier with snow); night LST +0.57 → +0.13 → +0.27 °C.
 
 ## Pitfalls
 
 - MODIS series over the C19 cells were sampled at 1000 m, not on the native 926.6 m grid (500 m for ET, albedo and
   LAI), so each cell mixes neighbouring pixels. The holm oak came out warmer than pasture-shrubland with MODIS and
   cooler with Landsat in the same cells (−1.30 °C): trust Landsat for open, patchy covers. Check `n_pixels` per cell
-  per day before trusting «homogeneous» MODIS cells.
+  per day before trusting «homogeneous» MODIS cells. Recomputation with MonitorEO 0.3.100 (2026-11-28): with the native grid (`n_pixels` = number of cells)
+  the holm oak drops from +1.20 to +0.56 °C (median of strata), still not cooler as with Landsat: the mixing explained
+  part of the discrepancy, not all.
+- Since 0.3.99 the snow filter of MODIS LST makes winter ΔLST a snow-free-days contrast (winter LST of open covers
+  rises 1.7-4.1 °C against 0.3.98); mixing recomputed and old calls (as the spring and winter regressions here) mixes
+  versions.
 - With MonitorEO 0.3.98, MCD43A3 with its quality filter kept almost only snow-free pixels (winter albedo 0.10-0.16; in some winters
   only 21 % of the pasture had data), so the snow-albedo warming of clearings could not be measured; since 0.3.99
-  `ALBEDO` keeps the magnitude inversions and has values over snow.
+  `ALBEDO` keeps the magnitude inversions and has values over snow. Recomputation with MonitorEO 0.3.100 (2026-11-28): the pine − pasture albedo difference
+  doubles in January-February (−0.025 → −0.041/−0.048), but its effect on LST is still not measured, because MODIS LST
+  now drops snow days by default (`quality: {"snow": false}` keeps them) and no incoming radiation was used. With snow,
+  the fire albedo BACI is noisier (impact 5.2 MAD instead of 16.4): use a summer season for a cleaner albedo contrast.
 - The albedo coefficient of the cross-sectional regression has the non-radiative sign (darker → cooler): albedo is
   confounded with canopy density; the fire (brighter after burning, yet warmer) is the cleaner test.
 - `trend_table` annual LST uses the mean of the clear-sky images of the year, biased to summer (27-29 °C in the
@@ -157,6 +181,7 @@ From `resultados/casos/C20/tablas/resumen.json` unless stated:
   `tablas/referencias_monitoreo.json`).
 
 ## Files
-Under <everest>/resultados/casos/C20/: `informe.md`, `estado.json`, `llamadas.json`
+Under <everest>/resultados/casos/C20/: `recalculo_0_3_100/` (15 MODIS calls with 0.3.100, adapted `analisis.py`,
+`comparar.py`, tables and old-vs-new comparison), `informe.md`, `estado.json`, `llamadas.json`
 (46 calls; 49 run), `llamadas/<id>.json`, `monitoreo/`, `zonas/` (from C19), `scripts/`, `tablas/` (resumen.json,
 estratos_*.csv, delta_por_cubierta.csv, par_*.csv, wrf_*.csv, fig_*.png). Not published in the viewer.
