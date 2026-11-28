@@ -96,7 +96,7 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
-### Unreleased
+### [v0.3.90](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.90) · 2026-11-28 · package 0.3.100
 
 - **MCP server**: The recipes of eleven more case studies of EVEREST (borreguiles and peat bogs, the Spanish fir forest, the retamar of the Teide, thinned pine plantations, the pine processionary moth, snow and thermal microrefugia, ungulates and their pastures, snow and dust for the careo channels, the thermal buffering of vegetation and its effect on the local climate), reviewed, with their limits and the notes of the MonitorEO version they were computed with; the assistant finds them too.
 
