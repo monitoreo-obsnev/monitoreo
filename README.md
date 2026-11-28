@@ -96,6 +96,15 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **All tools**: MODIS on its own grid. The time series, image counts, trends, anomalies, recovery metrics and statistics by region and by bands reduce a variable of MODIS at its resolution on the sinusoidal grid of its products (pixels of 231.7, 463.3 or 926.6 m), each pixel once, instead of on pixels of 250, 500 or 1000 m of the UTM zone (2-3 for each MODIS pixel, some from outside the region). The values of MODIS change a little, and `n_pixels` is now the number of MODIS pixels. With a coarser scale (large regions), as before.
+- **All tools**: The LST and LST_NIGHT of MODIS (Terra and Aqua) have the snow filter, on by default as for Landsat: a pixel is left out on the days when the daily snow product of the same satellite (MOD10A1, MYD10A1) has snow (NDSI_Snow_Cover of 35 or more) in any part of it. Their winter values over snow change; `quality: {"snow": false}` keeps them. The snow product is cited with the results.
+- **All tools**: The ALBEDO of MODIS (MCD43A3) keeps the magnitude inversions (quality 1) besides the full inversions (0), so it has values over snow and in cloudy winters, which it almost lacked.
+- **Python package**: `image_count` of the snow variables (SCF, SCD, SMOD) failed (they took only their own metric); now it counts their images and valid observations. `snow_ndsi` with MODIS says in its error which snow filter the variable has.
+- **Python package**: `anomalies` with step `daily` (also in the MCP server, the command line and R): each day against the days of the reference years within 7 days of the same date; up to 2 cloudy days do not end an episode.
+- **Python package**: `trend_table` with `deseasonalize` (step `annual`; MCP server, command line `--deseasonalize`, R): the value of each year is the mean of its monthly anomalies, each month weighing the same, instead of the mean of its images, which weighs more the months with more clear images (the summer LST of a mountain) and can turn them into a trend.
+
 ### [v0.3.88](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.88) · 2026-11-28 · package 0.3.98
 
 - **Assistant**: The model of MonitorEO and GLM read a recipe of a case study whole (all its steps, about 14,000 characters, up to two recipes per question) to explain it; a model of Ollama reads its main parts and gives its link.

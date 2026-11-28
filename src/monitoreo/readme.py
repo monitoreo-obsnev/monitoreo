@@ -119,6 +119,8 @@ COLUMNS = {
 	'sensor': 'sensor',
 	'step': 'time step', 'metric': 'temporal metric of the images', 'stat': 'spatial statistic over the feature',
 	'unit': 'unit of the variable in UDUNITS (1: dimensionless)', 'slope_unit': 'unit of the slope in UDUNITS',
+	'deseasonalize': 'the value of each year is the mean of its monthly anomalies (each month against its mean over the '
+	                 'years) plus the mean of the monthly means: every month weighs the same',
 	'scale_m': 'pixel size of the computation (m)',
 	'reference_period': 'reference period (first/last day)', 'other_period': 'other period (first/last day)',
 	'before': 'period before the fire (first/last day)', 'after': 'period after the fire (first/last day)',

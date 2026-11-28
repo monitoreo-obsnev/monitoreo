@@ -220,6 +220,9 @@ def of_variable(entry, quality=None, period=None, formula=True):
 		ids += _methods('snow_ndsi')
 	if sensors.permanent_water_of(entry, q):  # the permanent water of the JRC Global Surface Water
 		cols.append(sensors.PERMANENT_WATER['image'])
+	snow_of_day = sensors.SNOW_OF_DAY.get(sensors.product_of(entry))
+	if snow_of_day and on['snow']:  # the snow of the LST of MODIS: the daily snow product of the same satellite
+		cols.append(snow_of_day)
 	if sensors.harmonize(q) and not sensors.no_harmonize(entry):  # Landsat 5 and 7 as Landsat 8 and 9 (Roy et al. 2016)
 		ids += _methods('harmonize')
 	if sensors.topographic(q) and not sensors.no_topographic(entry):  # SCS+C, with the slope and aspect of the SRTM

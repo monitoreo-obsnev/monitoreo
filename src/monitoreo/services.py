@@ -1531,7 +1531,8 @@ def anomalies(region, variable=None, sensor=None, start=None, end=None, step='mo
               reference=None, threshold=anomaly.THRESHOLD, min_years=anomaly.MIN_YEARS, season=None, quality=None,
               scale=None, min_coverage=None, csv=None, chart=None, progress=None, **source):
 	"""Standardized anomalies (z) of the time series of the variable over each feature of REGION, from START to END (as
-	time_series: STEP 'monthly', '16-day' or 'annual'; METRIC, STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), against the
+	time_series: STEP 'daily', 'monthly', '16-day' or 'annual' (daily: against the days within 7 days of the same date,
+	see anomalies.DAY_WINDOW); METRIC, STAT, SEASON, QUALITY, SCALE, MIN_COVERAGE), against the
 	REFERENCE period ([first day, last day] inside START to END; default the whole period): the z of each step is its
 	value minus the mean of the same part of the year (month, 16 days; the year) in the reference years, divided by
 	their standard deviation, with at least MIN_YEARS of them; and the episodes, runs of consecutive steps with z at
@@ -2004,12 +2005,14 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 	scale = scale or timeseries.auto_scale(spec, regions)
 	red, names = composite.region_reducer(stats)
 	crs = timeseries.region_crs(regions)
+	native = timeseries.native_grid(spec, scale)  # MODIS at its resolution: on its own grid
+	grid = {'crs': native[0], 'crsTransform': native[1]} if native else {'scale': scale, 'crs': crs}
 	rows = []
 	if isinstance(zone_cuts, dict):  # the classes of a categorical layer: the rows of those with pixels
 		zspec = _zone_spec(zones, spec)
 		zentry = variables.entry_of(zspec)
 		zone = _class_zone(zspec, regions.geometry(), scale, zone_cuts['classes'])
-		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), scale=scale, crs=crs,
+		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), **grid,
 		                                      tileScale=4)
 		for f in fc.getInfo()['features']:
 			p = f['properties']
@@ -2024,7 +2027,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 		zspec = _zone_spec(zones, spec)
 		legend = classes.break_classes(zone_cuts, unit_text_of(_unit(zspec)))
 		zone = classes.classify_breaks(variables.image(zspec, regions.geometry(), scale), zone_cuts)
-		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), scale=scale, crs=crs,
+		fc = img.addBands(zone).reduceRegions(collection=regions, reducer=red.group(1, 'zone'), **grid,
 		                                      tileScale=4)
 		for f in fc.getInfo()['features']:
 			p = f['properties']
@@ -2035,7 +2038,7 @@ def region_stats(region, variable=None, sensor=None, start=None, end=None, metri
 				row['n_pixels'] = by.get(z, {}).get('count', 0)
 				rows.append(row)
 	else:
-		fc = img.reduceRegions(collection=regions, reducer=red, scale=scale, crs=crs, tileScale=4)
+		fc = img.reduceRegions(collection=regions, reducer=red, **grid, tileScale=4)
 		for f in fc.getInfo()['features']:
 			p = f['properties']
 			row = {'region': str(p.get('name'))}
@@ -2706,36 +2709,44 @@ COMPARISON_COLUMNS = ['region', 'key', 'label', 'reference', 'other', 'differenc
 @_cited
 def trend_table(region, variable=None, sensor=None, start=None, end=None, step='annual', metric='mean', stat='mean',
                 season=None, quality=None, scale=None, alpha=0.05, test='mk', csv=None, chart=None, progress=None,
-                min_coverage=None, **source):
+                min_coverage=None, deseasonalize=False, **source):
 	"""Seasonal trends of a variable over each feature of REGION (see monitoreo.trends): the spatial STAT of the
 	METRIC of each part of the year of STEP ('monthly': 12 months, '16-day': 23 parts of 16 days, 'annual': the
 	year) in each year, and the trend of each part over the years (Mann-Kendall tau, Z and p-value, Sen's slope per
 	year); with MIN_COVERAGE, without the values of the steps whose valid pixels are less than that fraction of the
 	region (see time_series). TEST: 'mk' (the Mann-Kendall test), 'hamed-rao' (its variance corrected for the autocorrelation of the
 	yearly values, Hamed & Rao 1998) or 'tfpw' (on the yearly values pre-whitened without their trend, Yue et al.
-	2002): see monitoreo.trends. Writes the trends to CSV and the chart of the yearly values with their Sen lines to
-	CHART if given.
+	2002): see monitoreo.trends. DESEASONALIZE (step 'annual' only): the value of each year is the mean of its monthly
+	values as anomalies of each month (see trends.deseasonalized_years), not that of all its images, which weighs more
+	the months with more clear images (summer, for the LST of a mountain) and turns a change of the clear days into a
+	trend. Writes the trends to CSV and the chart of the yearly values with their Sen lines to CHART if given.
 	Returns {'rows': [{region, part, key, label, n, tau, z, p_value, significant (p < ALPHA), slope, intercept,
 	first_year, last_year, n_ratio (hamed-rao), r1 (tfpw)}], 'yearly': [{region, part, year, value, n_pixels, n_images}], 'csv', 'chart', 'scale',
 	'unit', 'title'}."""
 	test = trends.check_test(test)  # before computing
+	if deseasonalize and step != 'annual':
+		raise ValueError("deseasonalize is for step 'annual' (the year from its months); the monthly and 16-day steps "
+		                 'already compare each part of the year with itself')
 	spec = make_spec(variable, sensor, start, end, metric=metric, season=season, quality=quality, **source)
-	composite.check_step(metric, step)  # the snow melt-out day: one per year, before Earth Engine
+	composite.check_step(metric, 'monthly' if deseasonalize else step)  # the melt-out day: one per year
 	variables.check_dates(spec, 'trends')
 	regions = areas.region(region)
-	yearly, used = _seasonal_rows(spec, regions, step, metric, stat, scale, progress,
+	yearly, used = _seasonal_rows(spec, regions, 'monthly' if deseasonalize else step, metric, stat, scale, progress,
 	                              timeseries.check_min_coverage(min_coverage))
+	if deseasonalize:
+		yearly = trends.deseasonalized_years(yearly)
 	first = composite.windows(spec['period'], spec['season'])[0][0]
 	rows = trends.trend_rows(yearly, step, first, alpha=alpha, test=test)
 	unit = _unit(spec, stat)
-	title = _title(spec) + f' | trends of the {step} {metric}, spatial {stat}{trends.test_note(test)}'
+	title = (_title(spec) + f" | trends of the {step}{' (from the months)' if deseasonalize else ''} {metric}, "
+	         f'spatial {stat}{trends.test_note(test)}')
 	out = {'rows': rows, 'yearly': yearly, 'csv': None, 'chart': None, 'scale': used, 'unit': unit,
 	       'ylabel': _ylabel(spec, stat), 'title': title}
 	if csv:
 		meta = {'variable': _source_name(variable, source), 'sensor': sensor or '',
 		        'step': step, 'metric': metric, 'stat': stat, 'test': test, 'unit': catalog.udunits(unit),
 		        'slope_unit': catalog.udunits(unit, per_year=True),
-		        'scale_m': used}
+		        'scale_m': used, **({'deseasonalize': 'yes (the year from its monthly anomalies)'} if deseasonalize else {})}
 		out['csv'] = timeseries.write_csv(rows, csv, meta, TREND_COLUMNS)
 	if chart and any(r['slope'] is not None for r in rows):
 		try:

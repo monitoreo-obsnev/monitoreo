@@ -59,7 +59,7 @@ def test_episodes_and_missing_values():
 
 
 @pytest.mark.parametrize('args, message', [
-	(('daily', '2001-01-01', '2010-12-31'), 'step of the anomalies'),
+	(('weekly', '2001-01-01', '2010-12-31'), 'step of the anomalies'),
 	(('monthly', '2001-01-01', '2010-12-31', ['2020-01-01', '2021-12-31']), 'must be inside the period'),
 	(('monthly', '2005-01-01', '2010-12-31', ['2001-01-01', '2007-12-31']), 'must be inside the period'),
 	(('monthly', '2001-01-01', '2010-12-31', ['2001-01-01', '2002-12-31']), 'fewer than 3 years'),
@@ -158,3 +158,24 @@ def test_features_of_the_same_name_stay_apart(monkeypatch):
 	with pytest.raises(ValueError, match='give no interannual'):
 		services.compare_map({'wdpa_id': 1}, 'NDVI', 'Modis', '2001-01-01', '2015-12-31', '2023-01-01', '2023-12-31',
 		                     interannual='max', z=True)
+
+
+def test_daily_anomalies_use_the_days_around_the_same_date():
+	# a daily step: its reference, the days of the reference years within DAY_WINDOW days of the same date (one day a
+	# year is too few), across the new year too; z of a hot day against them
+	import datetime as dt
+	rows = []
+	for y in (2018, 2019, 2020, 2021):
+		for k in range(-10, 11):
+			d = dt.date(y, 7, 15) + dt.timedelta(days=k)
+			rows.append({'date': d.isoformat(), 'value': 30.0 + (k % 3)})
+	rows.append({'date': '2022-07-15', 'value': 40.0})
+	out = anomalies.of_series(rows, 'daily', (dt.date(2018, 1, 1), dt.date(2021, 12, 31)), threshold=1.5)
+	hot = next(r for r in out['rows'] if r['date'] == '2022-07-15')
+	assert hot['reference_n'] == 4 * (2 * anomalies.DAY_WINDOW + 1) and hot['z'] > 10
+	near = next(r for r in out['rows'] if r['date'] == '2019-07-08')  # 7 days before: its window reaches 1 July
+	assert near['reference_n'] == 4 * (anomalies.DAY_WINDOW + 1 + 3)
+	ny = anomalies._daily_reference([(dt.date(2019, 12, 30), 1.0), (dt.date(2020, 1, 3), 2.0)],
+	                                dt.date(2019, 1, 1), dt.date(2020, 12, 31), {'01-01'})
+	assert sorted(v for _, v in ny['01-01']) == [1.0, 2.0]  # across the new year
+	assert anomalies.check('daily', '2018-01-01', '2022-12-31')[0] == 'daily'

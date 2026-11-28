@@ -299,8 +299,11 @@ def check_snow_ndsi(entry, quality):
 	"""ValueError if QUALITY asks for snow_ndsi for ENTRY, whose sensor has no green and SWIR1 bands (only Sentinel-2
 	and Landsat have them)."""
 	if snow_ndsi(quality) is not None and entry.get('sensor') not in SNOW_NDSI:
+		own = 'snow' in PRODUCTS.get(product_of(entry), {})
 		raise ValueError(f"quality snow_ndsi (snow by its NDSI) is for Sentinel-2 and Landsat, not for "
-		                 f"{entry.get('index')} of {entry.get('sensor')}")
+		                 f"{entry.get('index')} of {entry.get('sensor')}: "
+		                 + ("its own snow filter is quality {\"snow\": true} (on by default)"
+		                    if own else "it has no snow filter"))
 
 
 def _yes(quality, key):
@@ -526,6 +529,24 @@ def _surface_reflectance(band):
 	}
 
 
+def _modis_snow_of_day(snow_col, qa):
+	"""Snow filter of a MODIS product without a snow flag (the LST of MOD11A1 and MYD11A1) from the daily snow product
+	of the same satellite SNOW_COL (MOD10A1 or MYD10A1, 500 m): keeps the pixels of the product (those of its band QA,
+	1 km) without snow that day, where none of its pixels of 500 m has an NDSI_Snow_Cover of 35 or more (that of the SCF
+	of MODIS, see catalog.SCF_MODIS_F); a day without a snow image, or its flags (200-255: clouds, night...), no snow."""
+	def keep(i):
+		day = ee.Date(i.get('system:time_start'))
+		none = ee.Image.constant(0).rename('NDSI_Snow_Cover').toUint8()  # a day without a snow image: no snow
+		v = (ee.ImageCollection(snow_col).filterDate(day, day.advance(1, 'day')).select('NDSI_Snow_Cover')
+		     .merge(ee.ImageCollection([none])).max()
+		     .setDefaultProjection(ee.Projection('SR-ORG:6974').atScale(463.312716527917)))  # the grid of MOD10A1
+		snow = v.gte(35).And(v.lte(100)).unmask(0)
+		# any snow in the pixel of the LST (not only in the snow pixel of its centre)
+		snow = snow.reduceResolution(ee.Reducer.max(), maxPixels=64).reproject(i.select(qa).projection())
+		return snow.Not()
+	return keep
+
+
 # MODIS (and other) products: the valid raw values of their bands (flags outside them) and the mask of each pixel
 # filter {collection: {'valid': (band, max raw value[, min raw value]) or a list of them, filter: f(img) -> 1 = keep}}
 PRODUCTS = {
@@ -535,9 +556,12 @@ PRODUCTS = {
 		'snow': lambda i: i.select('SummaryQA').neq(2).And(bits(i.select('DetailedQA'), 14).eq(0)),
 		'aerosols': lambda i: bits(i.select('DetailedQA'), 6, 7).neq(3),
 	},
-	'MODIS/061/MOD11A1': {'clouds': lambda i: bits(i.select('QC_Day'), 0, 1).eq(0)},  # LST of good quality
+	# LST of good quality; snow: that of the daily snow product of the same satellite and day (MOD11A1 has no flag)
+	'MODIS/061/MOD11A1': {'clouds': lambda i: bits(i.select('QC_Day'), 0, 1).eq(0),
+	                      'snow': _modis_snow_of_day('MODIS/061/MOD10A1', 'QC_Day')},
 	# the night LST of the same images (LST_NIGHT: the entry names this product, its field product), its own QC_Night
-	'MODIS/061/MOD11A1#night': {'clouds': lambda i: bits(i.select('QC_Night'), 0, 1).eq(0)},
+	'MODIS/061/MOD11A1#night': {'clouds': lambda i: bits(i.select('QC_Night'), 0, 1).eq(0),
+	                            'snow': _modis_snow_of_day('MODIS/061/MOD10A1', 'QC_Night')},
 	# ECOSTRESS LST of 70 m (Hook & Hulley 2022): its bands cloud (1 cloud) and water (1 water); LST out of 150-400 K
 	# (no surface of the Earth has it) has no value
 	'NASA/ECOSTRESS/L2T_LSTE/V2': {'valid': ('LST', 400, 150), 'clouds': lambda i: i.select('cloud').eq(0),
@@ -562,8 +586,9 @@ PRODUCTS = {
 		'water': lambda i: bits(i.select('AOD_QA'), 3, 4).neq(1),
 		'snow': lambda i: bits(i.select('AOD_QA'), 3, 4).lt(2),
 	},
-	# 0 = full BRDF inversion, 1 = magnitude inversion (too few clear observations)
-	'MODIS/061/MCD43A3': {'clouds': lambda i: i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0)},
+	# 0 = full BRDF inversion, 1 = magnitude inversion (too few clear observations, as over snow and in cloudy
+	# winters: only 0 left almost no albedo of snow); both are retrievals, 255 (fill) is not
+	'MODIS/061/MCD43A3': {'clouds': lambda i: i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').lte(1)},
 	# daily surface reflectance (the RdNBR of MODIS), its band state_1km (see _surface_reflectance)
 	'MODIS/061/MOD09GA': _surface_reflectance('state_1km'),
 	# surface reflectance of 8 days (the NDWI and the LSWI of MODIS), its band StateQA, with the same bits
@@ -576,8 +601,13 @@ PRODUCTS = {
 	'ESA/CCI/FireCCI/5_1': {'valid': ('BurnDate', 366, 1)},
 }
 PRODUCTS['MODIS/061/MYD13Q1'] = PRODUCTS['MODIS/061/MOD13Q1']
-PRODUCTS['MODIS/061/MYD11A1'] = PRODUCTS['MODIS/061/MOD11A1']
-PRODUCTS['MODIS/061/MYD11A1#night'] = PRODUCTS['MODIS/061/MOD11A1#night']
+PRODUCTS['MODIS/061/MYD11A1'] = dict(PRODUCTS['MODIS/061/MOD11A1'],
+                                     snow=_modis_snow_of_day('MODIS/061/MYD10A1', 'QC_Day'))
+PRODUCTS['MODIS/061/MYD11A1#night'] = dict(PRODUCTS['MODIS/061/MOD11A1#night'],
+                                           snow=_modis_snow_of_day('MODIS/061/MYD10A1', 'QC_Night'))
+# the daily snow product of the snow filter of the LST of MODIS (see _modis_snow_of_day), to cite it
+SNOW_OF_DAY = {'MODIS/061/MOD11A1': 'MODIS/061/MOD10A1', 'MODIS/061/MOD11A1#night': 'MODIS/061/MOD10A1',
+               'MODIS/061/MYD11A1': 'MODIS/061/MYD10A1', 'MODIS/061/MYD11A1#night': 'MODIS/061/MYD10A1'}
 PRODUCTS['MODIS/061/MYD10A1'] = PRODUCTS['MODIS/061/MOD10A1']
 PRODUCTS['MODIS/061/MYD09GA'] = PRODUCTS['MODIS/061/MOD09GA']
 PRODUCTS['MODIS/061/MYD09A1'] = PRODUCTS['MODIS/061/MOD09A1']

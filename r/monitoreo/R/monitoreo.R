@@ -2442,6 +2442,8 @@ mo_download_variables <- function(recipe, area, folder, layer = NULL, only = NUL
 #' @inheritParams mo_params
 #' @param step \code{"monthly"}, \code{"16-day"} or \code{"annual"}.
 #' @param alpha significance level of the trend test.
+#' @param deseasonalize with \code{step = "annual"}: each year from its monthly anomalies, every month weighing the
+#'   same (not the mean of its images, which weighs more the months with more clear images, as the summer LST).
 #' @param test the trend test: \code{"mk"} (Mann-Kendall), \code{"hamed-rao"} (its variance corrected for the
 #'   autocorrelation of the yearly values, Hamed & Rao 1998) or \code{"tfpw"} (trend-free pre-whitening, Yue et al.
 #'   2002). Yearly values that depend on those of the years before make the Mann-Kendall test find significant trends
@@ -2485,13 +2487,13 @@ mo_trend_table <- function(region, variable = NULL, sensor = NULL, start, end, s
                            stat = "mean", season = NULL, quality = NULL, scale = NULL, alpha = 0.05, test = "mk",
                            csv = NULL, chart = NULL, collection = NULL, where = NULL, image = NULL, band = NULL,
                            band_reducer = NULL, band_scale = NULL, band_offset = NULL, unit = NULL,
-                           min_coverage = NULL) {
+                           min_coverage = NULL, deseasonalize = FALSE) {
   check_data(variable, sensor, collection, image, band, band_scale, band_offset, unit, band_reducer = band_reducer)
   res <- services()$trend_table(region, variable, sensor, start, end, step, metric, stat, season = season,
                                 quality = quality, scale = scale, alpha = alpha, test = test, csv = csv, chart = chart,
                                 collection = collection, where = where, image = image, band = band,
                                 band_reducer = band_reducer, band_scale = band_scale, band_offset = band_offset,
-                                unit = unit, min_coverage = min_coverage)
+                                unit = unit, min_coverage = min_coverage, deseasonalize = deseasonalize)
   df <- rows_df(res$rows)
   attr(df, "yearly") <- rows_df(res$yearly)
   for (k in c("title", "unit", "ylabel", "scale", "csv", "chart")) attr(df, k) <- res[[k]]

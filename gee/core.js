@@ -779,9 +779,30 @@ var MonitorEO = (function () {
 		snow: function (i) { return i.select('SummaryQA').neq(2).and(bits(i.select('DetailedQA'), 14).eq(0)); },
 		aerosols: function (i) { return bits(i.select('DetailedQA'), 6, 7).neq(3); }
 	};
-	var LST = {clouds: function (i) { return bits(i.select('QC_Day'), 0, 1).eq(0); }};
+	// sensors._modis_snow_of_day: snow filter of the LST of MODIS (no snow flag of its own) from the daily snow
+	// product of the same satellite SNOW_COL: keeps the pixels with NDSI_Snow_Cover under 35 that day (that of the SCF
+	// of MODIS), with no snow image that day, or with one of its flags (200-255)
+	// (any snow in the pixel of 1 km of the band QA of the LST, not only in the snow pixel of 500 m of its centre)
+	function modisSnowOfDay(snowCol, qa) {
+		return function (i) {
+			var day = ee.Date(i.get('system:time_start'));
+			var none = ee.Image.constant(0).rename('NDSI_Snow_Cover').toUint8();
+			var v = ee.ImageCollection(snowCol).filterDate(day, day.advance(1, 'day')).select('NDSI_Snow_Cover')
+				.merge(ee.ImageCollection([none])).max()
+				.setDefaultProjection(ee.Projection('SR-ORG:6974').atScale(463.312716527917));  // the grid of MOD10A1
+			var snow = v.gte(35).and(v.lte(100)).unmask(0)
+				.reduceResolution({reducer: ee.Reducer.max(), maxPixels: 64}).reproject(i.select(qa).projection());
+			return snow.not();
+		};
+	}
+	function lstOf(qc, snowCol) {
+		return {clouds: function (i) { return bits(i.select(qc), 0, 1).eq(0); }, snow: modisSnowOfDay(snowCol, qc)};
+	}
+	var LST = lstOf('QC_Day', 'MODIS/061/MOD10A1');
+	var LST_AQUA = lstOf('QC_Day', 'MODIS/061/MYD10A1');
 	// the night LST of the same images (the entry names this product, its field product), its own QC_Night
-	var LST_NIGHT = {clouds: function (i) { return bits(i.select('QC_Night'), 0, 1).eq(0); }};
+	var LST_NIGHT = lstOf('QC_Night', 'MODIS/061/MOD10A1');
+	var LST_NIGHT_AQUA = lstOf('QC_Night', 'MODIS/061/MYD10A1');
 	// ECOSTRESS LST of 70 m: its bands cloud (1 cloud) and water (1 water); LST out of 150-400 K has no value
 	var ECOSTRESS = {valid: ['LST', 400, 150],
 		clouds: function (i) { return i.select('cloud').eq(0); },
@@ -817,9 +838,9 @@ var MonitorEO = (function () {
 		'MODIS/061/MOD13Q1': VI,
 		'MODIS/061/MYD13Q1': VI,
 		'MODIS/061/MOD11A1': LST,
-		'MODIS/061/MYD11A1': LST,
+		'MODIS/061/MYD11A1': LST_AQUA,
 		'MODIS/061/MOD11A1#night': LST_NIGHT,
-		'MODIS/061/MYD11A1#night': LST_NIGHT,
+		'MODIS/061/MYD11A1#night': LST_NIGHT_AQUA,
 		'NASA/ECOSTRESS/L2T_LSTE/V2': ECOSTRESS,
 		'MODIS/061/MOD16A2': {valid: ['ET', 32700],
 			clouds: function (i) { return modisCloudState(i.select('ET_QC')); }},
@@ -839,8 +860,9 @@ var MonitorEO = (function () {
 			water: function (i) { return bits(i.select('AOD_QA'), 3, 4).neq(1); },
 			snow: function (i) { return bits(i.select('AOD_QA'), 3, 4).lt(2); }
 		},
+		// 0 = full BRDF inversion, 1 = magnitude inversion (over snow, cloudy winters): both are retrievals
 		'MODIS/061/MCD43A3': {clouds: function (i) {
-			return i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').eq(0);
+			return i.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave').lte(1);
 		}},
 		'MODIS/061/MOD09GA': SURFACE,
 		'MODIS/061/MYD09GA': SURFACE,
@@ -3065,11 +3087,12 @@ var MonitorEO = (function () {
 
 	// The grouped statistics (ZONE_STATS and the count) of the image VALUE in each zone of ZONE over each feature, to
 	// evaluate
-	function zoneStats(value, zone, regions, scale, crs) {
+	// (ENTRY: that of VALUE, for the grid of MODIS, see gridArgs)
+	function zoneStats(value, zone, regions, scale, crs, entry) {
 		var red = ee.Reducer.percentile([25, 50, 75]).combine(ee.Reducer.mean(), '', true)
 			.combine(ee.Reducer.count(), '', true);
-		return ee.Image(value).rename('value').addBands(zone).reduceRegions({collection: regions,
-			reducer: red.group(1, 'zone'), scale: scale, crs: crs, tileScale: 4});
+		return ee.Image(value).rename('value').addBands(zone).reduceRegions(withGrid({collection: regions,
+			reducer: red.group(1, 'zone'), tileScale: 4}, gridArgs(entry, scale, crs)));
 	}
 
 	// The rows of the evaluated FEATURES of zoneStats for the zones of LEGEND (breakClasses)
@@ -3362,11 +3385,37 @@ var MonitorEO = (function () {
 		return x || null;
 	}
 
+	// timeseries.MODIS_CRS, MODIS_PIXEL, MODIS_ORIGIN and native_grid: at the resolution of the data, the statistics of a
+	// variable of MODIS of the catalog on the sinusoidal grid of its products, each pixel once (not on pixels of 1000 m
+	// of the UTM zone, 2-3 per MODIS pixel); null for other data or a coarser SCALE. ENTRY: the entry of the catalog
+	var MODIS_CRS = 'SR-ORG:6974';
+	var MODIS_PIXEL = {250: 231.656358263958, 500: 463.312716527917, 1000: 926.625433055833};
+	var MODIS_ORIGIN = [-20015109.354, 10007554.677];
+	function nativeGrid(entry, scale) {
+		if (!entry || entry.custom || entry.sensor !== 'Modis' || String(entry.col || '').indexOf('MODIS/') !== 0) return null;
+		var m = Number(entry.m), pixel = null;  // the nominal size (250, 500, 1000) or the real one (463) of the catalog
+		Object.keys(MODIS_PIXEL).forEach(function (k) {
+			if (Math.abs(m - Number(k)) < 1e-6 || Math.abs(m - MODIS_PIXEL[k]) < 1) pixel = MODIS_PIXEL[k];
+		});
+		if (!pixel || scale === null || scale === undefined || Math.abs(Number(scale) - m) > 1e-6) return null;
+		return {crs: MODIS_CRS, crsTransform: [pixel, 0, MODIS_ORIGIN[0], 0, -pixel, MODIS_ORIGIN[1]]};
+	}
+	// the arguments of the grid of a reduction: the native grid of ENTRY at SCALE, or SCALE metres in CRS
+	function gridArgs(entry, scale, crs) {
+		return nativeGrid(entry, scale) || {scale: scale, crs: crs};
+	}
+	// ARGS with the keys of GRID (gridArgs) added
+	function withGrid(args, grid) {
+		Object.keys(grid).forEach(function (k) { args[k] = grid[k]; });
+		return args;
+	}
+
 	// timeseries.table: ee.FeatureCollection with a row (region, date, value, n_pixels, n_images) per step of STEPS
 	// and region of REGIONS, computed on pixels of SCALE metres in CRS; with MIN_COVERAGE, also coverage, and no value
 	// below it
 	function seriesTable(s, regions, metric, stat, scale, steps, crs, tileScale, minCoverage) {
 		minCoverage = checkMinCoverage(minCoverage);
+		var grid = gridArgs(entryOf(s), scale, crs);  // MODIS at its resolution: on its own grid
 		var col = collection(s, regions.geometry(), scale);
 		checkMetric(metric);
 		var red = metric;
@@ -3386,13 +3435,13 @@ var MonitorEO = (function () {
 				f = ee.Feature(f);
 				// with the reducer of the steps, which counts the pixels as they do (with mean or median, also those that
 				// the region only touches): with count alone, the region would have fewer pixels than its steps
-				var n = total.reduceRegion({reducer: sred, geometry: f.geometry(), scale: scale, crs: crs,
-					maxPixels: 1e13, tileScale: tileScale || 4}).get(onlyCount ? 'total' : 'total_count');
+				var n = total.reduceRegion(withGrid({reducer: sred, geometry: f.geometry(), maxPixels: 1e13,
+					tileScale: tileScale || 4}, grid)).get(onlyCount ? 'total' : 'total_count');
 				return f.set('total_count', ee.Algorithms.If(n, n, 0));
 			});
 		}
-		var stats = img.reduceRegions({collection: regions, reducer: sred, scale: scale, crs: crs,
-			tileScale: tileScale || 4});
+		var stats = img.reduceRegions(withGrid({collection: regions, reducer: sred, tileScale: tileScale || 4},
+			grid));
 		var prefix = bands.map(function (b) { return bands.length > 1 ? b + '_' : ''; });
 		// the output count of each step: with the reducer count alone over several bands, the name of its band (s0, s1...)
 		var counted = bands.map(function (b, i) { return onlyCount && bands.length > 1 ? b : prefix[i] + 'count'; });
@@ -5578,7 +5627,7 @@ var MonitorEO = (function () {
 		TREND_CLASSES: TREND_CLASSES, LANDCOVER_COLOURS: LANDCOVER_COLOURS, checkBreaks: checkBreaks,
 		breakClasses: breakClasses, classifyBreaks: classifyBreaks, classifyTrend: classifyTrend, areaScale: areaScale,
 		classHectares: classHectares, areaRows: areaRows, pairs: pairs, transitionRows: transitionRows,
-		broadTransitions: broadTransitions, ZONE_STATS: ZONE_STATS, zoneStats: zoneStats, zoneRows: zoneRows,
+		broadTransitions: broadTransitions, ZONE_STATS: ZONE_STATS, zoneStats: zoneStats, zoneRows: zoneRows, nativeGrid: nativeGrid,
 		transectCuts: transectCuts, transectStats: transectStats, transectRows: transectRows,
 		searchCatalog: searchCatalog,
 		ANIMATION_STEPS: ANIMATION_STEPS, MAX_FRAMES: MAX_FRAMES, FRAME_COLOURS: FRAME_COLOURS, frameLabel: frameLabel,
