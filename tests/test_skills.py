@@ -100,3 +100,48 @@ def test_skills_over_mcp():
 				t = (await c.read_resource(r['uri'])).contents[0].text
 				assert 'sha256:' + hashlib.sha256(t.encode('utf-8')).hexdigest() == r['digest']
 	asyncio.run(run())
+
+
+def test_the_assistant_finds_the_recipes_in_the_manual(tmp_path):
+	"""The search of the manual of the assistant (monitoreo.manual) has the sections of the recipes, also for questions
+	in Spanish (its glossary), without a tool of its own; a folder of pages of its own has only them."""
+	from monitoreo import manual
+	secs = manual.recipe_sections()
+	assert {s['name'] for s in secs} == {'recipe-' + n for n in skills.names()}
+	assert all(s['url'].startswith(manual.RECIPES) for s in secs)
+	(tmp_path / 'Conceptos.md').write_text('# Conceptos\n\n## NDVI\n\nÍndice de vegetación.\n', encoding='utf-8')
+	assert not any(s['name'].startswith('recipe-') for s in manual.sections(str(tmp_path)))
+	with_recipes = manual.sections(str(tmp_path), recipes=True)
+	assert any(s['name'] == 'recipe-everest-teide-fire-2023' for s in with_recipes)
+	for question, name in (('¿Cómo se estudió el incendio del Teide de 2023?', 'recipe-everest-teide-fire-2023'),
+	                       ('¿Hay una receta del alud de Ordesa?', 'recipe-everest-ordesa-avalanche-1996'),
+	                       ('¿Cómo se estudió la helada de Picos de Europa?',
+	                        'recipe-everest-picos-de-europa-late-frost-2017'),
+	                       ('How was the Teide fire of 2023 studied?', 'recipe-everest-teide-fire-2023')):
+		found = manual.search(question, k=3)
+		assert found and found[0]['name'] == name, (question, [s['name'] for s in found])
+		assert sum(s['name'] == name for s in found) <= manual.RECIPE_SECTIONS
+
+
+def test_the_recipes_do_not_hide_an_empty_manual(monkeypatch, tmp_path):
+	"""With no pages of the wiki on this computer, the assistant still downloads them (the recipes alone are not the
+	manual), and its links are checked against the pages of the wiki only."""
+	from monitoreo import assistant, manual
+	monkeypatch.setattr(manual, 'FOLDER', str(tmp_path / 'none'), raising=False)
+	monkeypatch.setattr(manual, 'sections', lambda folder=None, recipes=None: [] if recipes is False else
+	                    manual.recipe_sections())
+	called = []
+	monkeypatch.setattr(manual, 'update', lambda *a, **k: called.append(1))
+	monkeypatch.setattr(manual, 'search', lambda *a, **k: [])
+	assistant._search_manual('NDVI')
+	assert called
+
+
+def test_the_glossary_of_the_recipes_has_plurals():
+	"""A recipe that speaks of «fires» or «frosts» gets the Spanish words of «fire» and «frost»."""
+	from monitoreo import manual
+	secs = manual.recipe_sections()
+	assert any('incendio' in s['keywords'] for s in secs if 'fire' in s['name'])
+	assert any('helada' in s['keywords'] for s in secs if 'frost' in s['name'])
+	assert manual.recipe_sections() == manual.recipe_sections() and manual.recipe_sections() is not \
+		manual.recipe_sections()

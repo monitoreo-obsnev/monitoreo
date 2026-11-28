@@ -11,6 +11,7 @@ that have no English one yet.
     manual.search('What is NDVI?')       # in English
 """
 
+import functools
 import math
 import os
 import re
@@ -41,6 +42,7 @@ TITLE_WEIGHT = 3
 PAGE_WEIGHT = {'Conceptos': 1.3, 'Asistente': 1.2, 'Home': 1.2, 'Python': 0.8, 'Línea-de-comandos': 0.8, 'R': 0.8,
                'Desarrollo': 0.6, 'Publicaciones': 0.9}  # the articles of the team: examples, after the concepts
 PAGE_WEIGHT.update({ENGLISH[k]: w for k, w in PAGE_WEIGHT.items()})
+RECIPE_SECTIONS = 2  # at most these sections of one recipe in the answer of a search
 SYNONYMS = {  # words of the questions and the wiki
 	'es': {'resolucion': 'pixel', 'pixel': 'resolucion', 'frecuencia': 'fechas dias', 'cuanto': 'fechas dias',
 	       'nubes': 'filtros', 'citar': 'cita doi', 'instalar': 'instalacion', 'documento': 'documentos subir tabla',
@@ -105,10 +107,26 @@ def _download(name, folder, timeout):
 	os.replace(path + '.part', path)
 
 
-def sections(folder=None):
+RECIPES = 'https://github.com/monitoreo-obsnev/monitoreo/blob/main/src/monitoreo/recipes/'  # where they are read
+# the words of the recipes (in English) in Spanish, so that a question in Spanish finds them too: they count in the
+# search of a recipe (its field keywords), not in its text
+GLOSSARY = {'fire': 'incendio fuego', 'wildfire': 'incendio forestal', 'burn': 'quema quemado', 'burnt': 'quemado',
+            'burned': 'quemado', 'severity': 'severidad', 'frost': 'helada', 'avalanche': 'alud avalancha',
+            'dieback': 'decaimiento mortalidad', 'drought': 'sequía', 'recovery': 'recuperación', 'snow': 'nieve',
+            'pine': 'pino pinar', 'beech': 'haya hayedo', 'oak': 'roble robledal', 'forest': 'bosque',
+            'shrubland': 'matorral', 'grassland': 'pastizal pasto', 'perimeter': 'perímetro', 'control': 'control',
+            'disturbance': 'perturbación', 'case': 'caso estudio', 'study': 'estudio', 'recipe': 'receta',
+            'method': 'método', 'park': 'parque', 'national': 'nacional', 'trend': 'tendencia', 'anomaly': 'anomalía',
+            'resilience': 'resiliencia', 'mountain': 'montaña', 'lake': 'lago laguna', 'water': 'agua',
+            'temperature': 'temperatura', 'greenness': 'verdor'}
+
+
+def sections(folder=None, recipes=None):
 	"""The sections of the pages of FOLDER: [{page, name, title, url, text, lang}], one per heading (#, ## or ###);
-	lang is that of the page, 'es' or 'en'."""
-	out = []
+	lang is that of the page, 'es' or 'en'. With RECIPES (default: when FOLDER is the wiki of the assistant, FOLDER
+	None), also those of the recipes of the case studies (monitoreo.skills), so that the assistant finds how a case
+	was computed without a tool of its own (see recipe_sections)."""
+	out = recipe_sections() if (recipes if recipes is not None else folder is None) else []
 	for name in _files(folder or FOLDER):
 		with open(os.path.join(folder or FOLDER, name + '.md'), encoding='utf-8') as f:
 			content = f.read()
@@ -132,12 +150,54 @@ def sections(folder=None):
 	return out
 
 
+def recipe_sections():
+	"""A copy of the sections of the recipes (see _recipe_sections), read once."""
+	return [dict(s) for s in _recipe_sections()]
+
+
+@functools.lru_cache(maxsize=1)
+def _recipe_sections():
+	"""The sections of the recipes of the case studies (the SKILL.md of monitoreo.skills, in English): the page of each
+	is «Recipe <name>», its first section has its description, and its url is that of the file in GitHub; a recipe
+	that cannot be read is left out."""
+	try:
+		from . import skills
+		recipes = skills.catalog()
+	except Exception:  # no yaml, no recipes: the manual alone
+		return []
+	out = []
+	for r in recipes:
+		try:
+			text = skills.read(r['uri'])[0]
+		except (ValueError, OSError):
+			continue
+		text = re.sub(r'^---\r?\n.*?\r?\n---\r?\n', '', text, count=1, flags=re.S)
+		page, url = f"Recipe {r['name']}", RECIPES + r['name'] + '/SKILL.md'
+		title, body, fence, first = page, [r['description'], ''], False, True
+		for line in text.splitlines() + ['# ']:
+			fence = fence != line.lstrip().startswith('```')
+			m = None if fence else re.match(r'(#{1,3}) (.*)', line)
+			if not m:
+				body.append(line)
+				continue
+			plain = _plain('\n'.join(body))
+			if plain:
+				found = set(words(title + ' ' + plain, 'en'))
+				glossary = ' '.join(es for en, es in GLOSSARY.items() if set(words(en, 'en')) & found)
+				keywords = f'{title} {page} {glossary}'  # scored in the language of the question
+				out.append({'page': page, 'name': 'recipe-' + r['name'], 'title': title, 'text': plain, 'lang': 'en',
+				            'url': url if first else url + '#' + _anchor(title), 'keywords': keywords})
+				first = False
+			title, body = (m.group(2).strip() or page), []
+	return tuple(out)
+
+
 def search(question, k=3, folder=None, max_chars=1800, lang=None):
 	"""The K sections of the manual that answer QUESTION best, each with at most MAX_CHARS of text: those of the
 	pages in LANG ('es' or 'en'; default, that of QUESTION) and, of the pages without a page in LANG, those of the
 	other language."""
 	lang = lang if lang in STOP else language(question)
-	secs = in_language(sections(folder), lang)
+	secs = in_language(sections(folder, recipes=folder is None), lang)
 	query = set(words(question, lang))
 	for w, more in SYNONYMS[lang].items():
 		if words(w, lang)[0] in query:
@@ -149,7 +209,8 @@ def search(question, k=3, folder=None, max_chars=1800, lang=None):
 		return []
 	examples = bool(query & set(words(EXAMPLES[lang], lang)))
 	docs = [words(s['title'] + ' ' + s['page'], s['lang']) * TITLE_WEIGHT +
-	        words(re.sub(r'```.*?```', ' ', s['text'], flags=re.S), s['lang']) for s in secs]
+	        words(re.sub(r'```.*?```', ' ', s['text'], flags=re.S), s['lang']) +
+	        (words(s['keywords'], lang) if s.get('keywords') and lang != s['lang'] else []) for s in secs]
 	avg = sum(map(len, docs)) / len(docs)
 	df = {w: sum(1 for d in docs if w in d) for w in query}
 	scored = []
@@ -164,7 +225,16 @@ def search(question, k=3, folder=None, max_chars=1800, lang=None):
 			weight = PAGE_WEIGHT.get(s['name'], 1) * (EXAMPLES_WEIGHT if examples and s['name'] in LISTS else 1)
 			scored.append((score * weight, s))
 	scored.sort(key=lambda x: -x[0])
-	return [{**s, 'text': s['text'][:max_chars], 'score': round(score, 2)} for score, s in scored[:k]]
+	taken, out = {}, []
+	for score, s in scored:  # a recipe does not fill the answer: at most RECIPE_SECTIONS of each
+		if s['name'].startswith('recipe-'):
+			taken[s['name']] = taken.get(s['name'], 0) + 1
+			if taken[s['name']] > RECIPE_SECTIONS:
+				continue
+		out.append({**s, 'text': s['text'][:max_chars], 'score': round(score, 2)})
+		if len(out) == k:
+			break
+	return out
 
 
 def in_language(secs, lang):

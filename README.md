@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **Assistant**: Finds the recipes of the case studies (how the fires, the frost, the dieback and the avalanche of the EVEREST national parks were computed, and the method) when it searches the manual, also for questions in Spanish.
+
 ### [v0.3.86](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.86) · 2026-11-28 · package 0.3.96
 
 - **All tools**: The land surface temperature of the night (`LST_NIGHT`, theme Energy and temperature): of MODIS Terra and Aqua (1 km, since 2000, with their own quality flags of the night) and of ECOSTRESS (70 m, since 2018, only its images between 22 h and 4 h of local solar time), to see cold air pools, inversions and the cold refuges of the mountains.

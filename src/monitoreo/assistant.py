@@ -157,7 +157,8 @@ MANUAL_TOOL = {'type': 'function', 'function': {  # answered by the assistant (m
 	'description': 'Searches the manual of MonitorEO (its wiki) for the sections that answer a question about the '
 	               'tool: what a variable measures, sensors, dates and resolution, concepts (metrics, filters, trends, '
 	               'comparisons, fires), how it is installed or used, frequent problems and the other tools of '
-	               'MonitorEO. Returns the sections with their link.',
+	               'MonitorEO, and the recipes of the case studies (how a fire, frost or other case was computed). '
+	               'Returns the sections with their link.',
 	'parameters': {'type': 'object', 'properties': {'question': {
 		'type': 'string', 'description': 'The question, in the words and the language of the user'}},
 		'required': ['question']}}}
@@ -868,7 +869,7 @@ def fix_links(text, question=''):
 	links = set(re.findall(re.escape(WIKI) + r'[^\s)\]>"\'«»]*[^\s)\]>"\'«».,;:]', text))
 	if not links:
 		return text
-	secs = manual.sections()
+	secs = manual.sections(recipes=False)
 	pages = {s['name'] for s in secs} | set(manual.PAGES) | set(manual.ENGLISH.values())  # also those to download
 	urls = {s['url'] for s in secs}
 	best = None
@@ -2995,7 +2996,7 @@ class Assistant:
 def _search_manual(question, lang=None, k=3, max_chars=1800):
 	"""The K sections of the wiki for QUESTION (at most MAX_CHARS of each), in its language or LANG ('es' or 'en'); the
 	wiki is downloaded first if it is not on this computer yet."""
-	if not manual.sections():
+	if not manual.sections(recipes=False):
 		manual.update()
 	return manual.search(question, k=k, lang=lang, max_chars=max_chars)
 
