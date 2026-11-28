@@ -564,7 +564,7 @@ CANOPY = dict(DEM, type='Estructura de la vegetación', type_en='Vegetation stru
               type_de='Vegetation structure', image_asset=True, large_areas=True, references=[], notes={})
 EXTRA.update({
 	188: (None, {
-		'index': 'CANOPY_HEIGHT', 'template': 'CANOPY', 'sensor': 'ETH', 'col': 'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1',
+		'index': 'CANOPY_HEIGHT', 'template': 'CANOPY', 'sensor': 'ETH', 'col': 'users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1',  # pragma: allowlist secret
 		'band': 'b1', 'm': 10, 'dr': 'fixed layer, without dates (2020)', 'pg': '#1b7837', 'ft': 'b1', 'f': 'b1 (m)',
 		'references': ['lang2023'], 'vname': 'Altura del dosel', 'vname_en': 'Canopy height',
 		'vname_fr': 'Canopy height', 'vname_de': 'Canopy height', 'unit': '[m]', 'minp': 0, 'maxp': 30,

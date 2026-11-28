@@ -96,6 +96,10 @@ get it only with a release: the assistant and the MCP server update themselves f
 Python and R packages installed from `main` have it too. It goes away with the next release of the QGIS plugin and the
 Earth Engine app, which gives it its version and date.
 
+### Unreleased
+
+- **QGIS plugin**: Reaches plugins.qgis.org again: since version 0.3.84 the security scan of its zip (the same as that of plugins.qgis.org) stopped the release at a SHA1 of the cache of the official perimeters (not for security, now marked so) and at the ID of the canopy height of ETH in Earth Engine, taken for a secret; the GitHub releases 0.3.84 to 0.3.90 have no zip of the plugin, and plugins.qgis.org did not get them.
+
 ### [v0.3.90](https://github.com/monitoreo-obsnev/monitoreo/releases/tag/v0.3.90) · 2026-11-28 · package 0.3.100
 
 - **MCP server**: The recipes of eleven more case studies of EVEREST (borreguiles and peat bogs, the Spanish fir forest, the retamar of the Teide, thinned pine plantations, the pine processionary moth, snow and thermal microrefugia, ungulates and their pastures, snow and dust for the careo channels, the thermal buffering of vegetation and its effect on the local climate), reviewed, with their limits and the notes of the MonitorEO version they were computed with; the assistant finds them too.

@@ -53,6 +53,21 @@ def pip_download(args, dest):
 	subprocess.run([sys.executable, '-m', 'pip', 'download', '-q', '-d', dest] + args, check=True)
 
 
+def asset_id_line(root, path, line):
+	"""Whether the line LINE of the file PATH (in the folder ROOT) is only the ID of a collection or image of Earth Engine
+	(e.g. "users/nlang/ETH_GlobalCanopyHeight_2020_10m_v1": {, a key of the collections of catalog.json): a false
+	finding of detect-secrets (a high entropy Base64 string), which goes to the .secrets.baseline with those of the
+	bundled libraries instead of stopping the build (a JSON file cannot have the comment # pragma: allowlist secret).
+	The gate that matters is this build: plugins.qgis.org scans with the baseline of the zip and passes what it
+	lists. An ID has at least two parts after users/ or projects/."""
+	try:
+		with open(os.path.join(root, path), encoding='utf-8') as f:
+			text = f.read().splitlines()[line - 1]
+	except (OSError, IndexError, UnicodeDecodeError):
+		return False
+	return bool(re.fullmatch(r'\s*"(users|projects)/[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-/]+"\s*:\s*[{\[]\s*', text))
+
+
 def bandit_ini():
 	"""The .bandit of the zip: Bandit skips the libraries bundled in ext (all but monitoreo). None without them (an
 	empty exclude would skip everything)."""
@@ -83,12 +98,16 @@ def scan(out):
 			                   text=True, check=True)
 			baseline = json.loads(r.stdout)
 			critical += [f"{f}:{s['line_number']} {s['type']}" for f, found in baseline['results'].items()
-			             if OURS.match(f) for s in found]
-			baseline['results'] = {f: found for f, found in baseline['results'].items() if not OURS.match(f)}
+			             if OURS.match(f) for s in found if not asset_id_line(tmp, f, s['line_number'])]
+			# the baseline keeps those of the bundled libraries and the IDs of Earth Engine of ours (asset_id_line)
+			baseline['results'] = {f: [s for s in found if not OURS.match(f) or asset_id_line(tmp, f, s['line_number'])]
+			                       for f, found in baseline['results'].items()}
+			baseline['results'] = {f: found for f, found in baseline['results'].items() if found}
 			with zipfile.ZipFile(out, 'a', zipfile.ZIP_DEFLATED) as z:
 				z.writestr('monitoreo_qgis/.secrets.baseline', json.dumps(baseline, indent=2) + '\n')
-			print(f"   .secrets.baseline: {sum(map(len, baseline['results'].values()))} findings of the bundled "
-			      'libraries')
+			ours = sum(len(found) for f, found in baseline['results'].items() if OURS.match(f))
+			print(f"   .secrets.baseline: {sum(map(len, baseline['results'].values())) - ours} findings of the bundled "
+			      f'libraries and {ours} IDs of Earth Engine of ours')
 		else:
 			print('   without detect-secrets: no .secrets.baseline (pip install detect-secrets)')
 	if critical:
